@@ -21,7 +21,12 @@
     "db:start": "turbo -F server db:start",
     "db:watch": "turbo -F server db:watch",
     "db:stop": "turbo -F server db:stop",
-    "db:down": "turbo -F server db:down"
+    "db:down": "turbo -F server db:down",
+    "dev:ai-service": "turbo -F ai-service dev",
+    "ai-service:lint": "turbo -F ai-service lint",
+    "ai-service:format": "turbo -F ai-service format",
+    "ai-service:type-check": "turbo -F ai-service type-check",
+    "ai-service:test": "turbo -F ai-service test"
   },
   "dependencies": {},
   "devDependencies": {
