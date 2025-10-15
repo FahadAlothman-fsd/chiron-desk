@@ -9,6 +9,10 @@ dependencies = [
     "fastapi>=0.104.0",
     "uvicorn[standard]>=0.24.0",
     "python-dotenv>=1.0.0",
+    "httpx>=0.25.0",
+    "tenacity>=8.2.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -51,3 +55,11 @@ dev = [
     "pytest-asyncio>=1.2.0",
     "ruff>=0.13.2",
 ]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"

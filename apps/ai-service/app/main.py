@@ -4,11 +4,17 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.routers import health, models
+from app.utils.logging import setup_logging
+
+# Setup logging
+setup_logging()
+
 load_dotenv()
 
 app = FastAPI(
     title="Chiron AI Service",
-    description="FastAPI service for BMAD workflow execution",
+    description="FastAPI service for AI provider abstraction and model management",
     version="0.1.0",
 )
 
@@ -24,23 +30,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include routers
+app.include_router(health.router)
+app.include_router(models.router)
+
 
 @app.get("/")
 async def root() -> dict[str, str]:
     """Root endpoint"""
     return {"message": "Chiron AI Service", "version": "0.1.0"}
-
-
-@app.get("/health")
-async def health_check() -> dict[str, str]:
-    """Health check endpoint"""
-    return {"status": "healthy", "service": "ai-service"}
-
-
-@app.get("/ready")
-async def readiness_check() -> dict[str, str]:
-    """Readiness check endpoint"""
-    return {"status": "ready", "service": "ai-service"}
 
 
 if __name__ == "__main__":
