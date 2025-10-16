@@ -1,0 +1,67 @@
+# <!-- Powered by BMAD™ Core -->
+schema: 1
+story: "1.2"
+story_title: "API Key Management System"
+gate: CONCERNS
+status_reason: 'Test issues resolved but critical security vulnerability remains with hardcoded authentication'
+reviewer: "Quinn (Test Architect)"
+updated: "2025-10-15T21:50:00Z"
+
+# Always present but only active when WAIVED
+waiver: { active: false }
+
+# Issues (if any) - Use fixed severity: low | medium | high
+top_issues:
+  - id: "SEC-001"
+    severity: high
+    finding: "Hardcoded mock user ID creates production security vulnerability"
+    suggested_action: "Replace MOCK_USER_ID with proper authentication middleware"
+  - id: "TEST-001"
+    severity: low
+    finding: "Integration tests are skipped, reducing end-to-end coverage confidence"
+    suggested_action: "Enable and fix integration tests for complete lifecycle validation"
+  - id: "TEST-002"
+    severity: low
+    finding: "Integration tests are skipped, reducing end-to-end coverage confidence"
+    suggested_action: "Enable and fix integration tests for complete lifecycle validation"
+  - id: "ARCH-001"
+    severity: low
+    finding: "Missing request correlation IDs for security auditing and debugging"
+    suggested_action: "Implement correlation ID middleware for request tracking"
+
+# Risk summary (from risk-profile task if run)
+risk_summary:
+  totals: { critical: 0, high: 1, medium: 0, low: 3 }
+  recommendations:
+    must_fix: ["Replace hardcoded authentication with proper middleware"]
+    monitor: ["Enable integration tests for full coverage", "Add correlation IDs for auditing"]
+
+# Evidence
+evidence:
+  tests_reviewed: 221 # 40 server + 181 AI service tests
+  risks_identified: 4
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 7, 8, 9, 10]
+    ac_gaps: [6] # API key rotation endpoint not implemented
+
+# NFR validation
+nfr_validation:
+  security: { status: CONCERNS, notes: "Hardcoded authentication vulnerability remains" }
+  performance: { status: PASS, notes: "Good indexing, rate limiting applied, efficient queries" }
+  reliability: { status: PASS, notes: "All tests passing, proper error handling implemented" }
+  maintainability: { status: PASS, notes: "Well-structured code with good separation of concerns" }
+
+# Recommendations
+recommendations:
+  immediate: # Must fix before production
+    - action: "Replace hardcoded MOCK_USER_ID with proper authentication middleware"
+      refs: ["apps/server/src/routers/api-keys.ts:28"]
+  future: # Can be addressed later
+    - action: "Enable and fix integration tests for complete coverage"
+      refs: ["apps/server/src/__tests__/integration/api-key-lifecycle.test.ts"]
+    - action: "Add correlation ID middleware for request tracking"
+      refs: ["apps/server/src/middleware/"]
+    - action: "Implement API key rotation endpoint"
+      refs: ["apps/server/src/routers/api-keys.ts"]
+    - action: "Add caching layer for frequently accessed API keys"
+      refs: ["apps/server/src/services/api-key-service.ts"]
