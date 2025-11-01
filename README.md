@@ -13,6 +13,8 @@ This project was created with [Better-T-Stack](https://github.com/AmanVarshney01
 - **Bun** - Runtime environment
 - **Drizzle** - TypeScript-first ORM
 - **PostgreSQL** - Database engine
+- **Authentication** - Better-Auth
+- **Biome** - Linting and formatting
 - **Husky** - Git hooks for code quality
 - **Tauri** - Build native desktop applications
 - **Turborepo** - Optimized monorepo build system
@@ -59,6 +61,10 @@ chiron/
 ├── apps/
 │   ├── web/         # Frontend application (React + TanStack Router)
 │   └── server/      # Backend API (Hono, TRPC)
+├── packages/
+│   ├── api/         # API layer / business logic
+│   ├── auth/        # Authentication configuration & logic
+│   └── db/          # Database schema & queries
 ```
 
 ## Available Scripts
@@ -70,5 +76,6 @@ chiron/
 - `bun check-types`: Check TypeScript types across all apps
 - `bun db:push`: Push schema changes to database
 - `bun db:studio`: Open database studio UI
+- `bun check`: Run Biome formatting and linting
 - `cd apps/web && bun desktop:dev`: Start Tauri desktop app in development
 - `cd apps/web && bun desktop:build`: Build Tauri desktop app

@@ -1,4 +1,4 @@
-import type { AppRouter } from "../../../server/src/routers";
+import type { AppRouter } from "@chiron/api/routers/index";
 import { QueryCache, QueryClient } from "@tanstack/react-query";
 import { createTRPCClient, httpBatchLink } from "@trpc/client";
 import { createTRPCOptionsProxy } from "@trpc/tanstack-react-query";
@@ -23,6 +23,12 @@ export const trpcClient = createTRPCClient<AppRouter>({
 	links: [
 		httpBatchLink({
 			url: `${import.meta.env.VITE_SERVER_URL}/trpc`,
+			fetch(url, options) {
+				return fetch(url, {
+					...options,
+					credentials: "include",
+				});
+			},
 		}),
 	],
 });

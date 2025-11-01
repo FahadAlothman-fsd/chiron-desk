@@ -7,33 +7,22 @@
     "check-types": "tsc -b",
     "compile": "bun build --compile --minify --sourcemap --bytecode ./src/index.ts --outfile server",
     "dev": "bun run --hot src/index.ts",
-    "start": "bun run dist/index.js",
-    "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:start": "docker compose up -d",
-    "db:watch": "docker compose up",
-    "db:stop": "docker compose stop",
-    "db:down": "docker compose down"
+    "start": "bun run dist/index.js"
   },
   "dependencies": {
-    "dotenv": "^17.2.1",
-    "zod": "^4.0.2",
-    "@trpc/server": "^11.5.0",
-    "@trpc/client": "^11.5.0",
+    "hono": "catalog:",
+    "@trpc/server": "catalog:",
     "@hono/trpc-server": "^0.4.0",
-    "hono": "^4.8.2",
-    "drizzle-orm": "^0.44.2",
-    "pg": "^8.14.1",
-    "ai": "^5.0.49",
-    "@ai-sdk/google": "^2.0.13"
+    "better-auth": "catalog:",
+    "dotenv": "catalog:",
+    "zod": "catalog:",
+    "@chiron/api": "workspace:*",
+    "@chiron/auth": "workspace:*",
+    "@chiron/db": "workspace:*"
   },
   "devDependencies": {
-    "tsdown": "^0.15.1",
-    "typescript": "^5.8.2",
+    "typescript": "catalog:",
     "@types/bun": "^1.2.6",
-    "drizzle-kit": "^0.31.2",
-    "@types/pg": "^8.11.11"
+    "tsdown": "catalog:"
   }
 }

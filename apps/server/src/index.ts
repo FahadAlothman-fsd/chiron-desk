@@ -1,12 +1,11 @@
 import "dotenv/config";
 import { trpcServer } from "@hono/trpc-server";
-import { createContext } from "./lib/context";
-import { appRouter } from "./routers/index";
+import { createContext } from "@chiron/api/context";
+import { appRouter } from "@chiron/api/routers/index";
+import { auth } from "@chiron/auth";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
-import { streamText, convertToModelMessages } from "ai";
-import { google } from "@ai-sdk/google";
 
 const app = new Hono();
 
@@ -16,8 +15,12 @@ app.use(
 	cors({
 		origin: process.env.CORS_ORIGIN || "",
 		allowMethods: ["GET", "POST", "OPTIONS"],
+		allowHeaders: ["Content-Type", "Authorization"],
+		credentials: true,
 	}),
 );
+
+app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 
 app.use(
 	"/trpc/*",
@@ -28,17 +31,6 @@ app.use(
 		},
 	}),
 );
-
-app.post("/ai", async (c) => {
-	const body = await c.req.json();
-	const uiMessages = body.messages || [];
-	const result = streamText({
-		model: google("gemini-1.5-flash"),
-		messages: convertToModelMessages(uiMessages),
-	});
-
-	return result.toUIMessageStreamResponse();
-});
 
 app.get("/", (c) => {
 	return c.text("OK");
