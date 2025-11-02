@@ -295,7 +295,7 @@ User Action (UI) → Chiron Orchestrator
 - Workflow execution state management (nested workflows, call stacks, variable context with 4-level precedence)
 - Document versioning for template workflows (checkpoint tracking, approval workflow, rollback capability)
 - Project state management (replicate workflow-status.md functionality in DB)
-- State management approach: XState for workflow orchestration, Zustand for UI state, possibly Effect for side effects
+- State management approach: XState for workflow orchestration, Zustand for UI state, Drizzle for database queries, Effect for agent orchestration and complex workflows (structured concurrency for parallel agent execution, resource lifecycle management for git worktrees and agent contexts, typed error handling across multi-agent coordination, dependency injection for agent-specific MCP services, and composable retry/timeout patterns - addresses core challenges of running multiple isolated agents with guaranteed cleanup and type-safe error propagation)
 - Workflow-to-DB API design (how workflows query/update Chiron state vs reading .md files)
 
 **Points to Investigate Further (Q4 Agent System - Multi-Agent Orchestration):**
