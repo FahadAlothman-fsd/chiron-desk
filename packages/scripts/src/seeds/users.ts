@@ -31,7 +31,7 @@ export async function seedUsers() {
 		) {
 			console.log(`  ✓ Test user already exists (${TEST_USER.email})`);
 		} else {
-			console.error(`  ❌ Error creating test user:`, error);
+			console.error("  ❌ Error creating test user:", error);
 			throw error;
 		}
 	}

@@ -1,6 +1,6 @@
-import { db, workflows, agents } from "@chiron/db";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { agents, db, workflows } from "@chiron/db";
 import yaml from "js-yaml";
 
 // Agent-Workflow Mapping Strategy (from story dev notes)
@@ -158,7 +158,9 @@ export async function seedWorkflows() {
 
 			const agentId = await getAgentId(agentName);
 			if (!agentId) {
-				console.warn(`  ⚠️  Skipping ${workflowName} - agent '${agentName}' not found`);
+				console.warn(
+					`  ⚠️  Skipping ${workflowName} - agent '${agentName}' not found`,
+				);
 				skippedCount++;
 				continue;
 			}

@@ -1,5 +1,5 @@
-import { config } from "dotenv";
 import { resolve } from "node:path";
+import { config } from "dotenv";
 
 // Load environment variables FIRST
 config({ path: resolve(process.cwd(), "../../apps/server/.env") });
