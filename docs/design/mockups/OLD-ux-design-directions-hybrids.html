@@ -1,0 +1,1478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chiron Design Hybrids - 7 Total Variations</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* ===== GLOBAL RESET & BASE ===== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background: #0A0A0A;
+            color: #CDC9B9;
+            overflow-x: hidden;
+        }
+
+        /* ===== NAV CONTROLS ===== */
+        .showcase-nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: #101010;
+            border-bottom: 1px solid #797872;
+            padding: 16px 24px;
+            z-index: 1000;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .showcase-nav h1 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #CDC9B9;
+        }
+
+        .nav-controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .nav-btn {
+            background: #797872;
+            border: none;
+            color: #CDC9B9;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-family: 'JetBrains Mono', monospace;
+            transition: all 0.2s;
+        }
+
+        .nav-btn:hover {
+            background: #A0A099;
+        }
+
+        .direction-selector {
+            display: flex;
+            gap: 8px;
+        }
+
+        .direction-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 2px solid #797872;
+            background: #101010;
+            color: #CDC9B9;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            transition: all 0.2s;
+        }
+
+        .direction-btn:hover {
+            border-color: #CDC9B9;
+        }
+
+        .direction-btn.active {
+            background: #FE5344;
+            border-color: #FE5344;
+            color: #fff;
+        }
+
+        /* ===== MAIN CONTAINER ===== */
+        .showcase-container {
+            margin-top: 80px;
+            padding: 24px;
+        }
+
+        .direction-wrapper {
+            display: none;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        .direction-wrapper.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .direction-header {
+            background: #101010;
+            border: 1px solid #797872;
+            padding: 24px;
+            margin-bottom: 24px;
+            border-radius: 8px;
+        }
+
+        .direction-header h2 {
+            font-size: 24px;
+            color: #FE5344;
+            margin-bottom: 12px;
+        }
+
+        .direction-header p {
+            color: #CDC9B9;
+            line-height: 1.6;
+            margin-bottom: 8px;
+        }
+
+        .characteristics {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .char-item {
+            background: #0A0A0A;
+            padding: 12px;
+            border-radius: 4px;
+            border: 1px solid #797872;
+        }
+
+        .char-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #797872;
+            margin-bottom: 4px;
+        }
+
+        .char-value {
+            font-size: 14px;
+            color: #CDC9B9;
+            font-weight: 500;
+        }
+
+        /* ===== MOCKUP FRAME ===== */
+        .mockup-frame {
+            width: 100%;
+            height: calc(100vh - 200px);
+            border: 2px solid #797872;
+            border-radius: 8px;
+            background: #101010;
+            overflow: hidden;
+        }
+
+        /* ===== CORNER UTILITIES ===== */
+        .corner-box {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: transparent;
+        }
+
+        .corner-tl {
+            top: -1px;
+            left: -1px;
+            border-top: 3px solid;
+            border-left: 3px solid;
+            border-right: none;
+            border-bottom: none;
+        }
+
+        .corner-tr {
+            top: -1px;
+            right: -1px;
+            border-top: 3px solid;
+            border-right: 3px solid;
+            border-left: none;
+            border-bottom: none;
+        }
+
+        .corner-bl {
+            bottom: -1px;
+            left: -1px;
+            border-bottom: 3px solid;
+            border-left: 3px solid;
+            border-right: none;
+            border-top: none;
+        }
+
+        .corner-br {
+            bottom: -1px;
+            right: -1px;
+            border-bottom: 3px solid;
+            border-right: 3px solid;
+            border-left: none;
+            border-top: none;
+        }
+
+        /* Agent avatar corners */
+        .avatar-corner {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: transparent;
+        }
+
+        .avatar-corner.tl {
+            top: 0;
+            left: 0;
+            border-top: 3px solid;
+            border-left: 3px solid;
+            border-right: none;
+            border-bottom: none;
+        }
+
+        .avatar-corner.tr {
+            top: 0;
+            right: 0;
+            border-top: 3px solid;
+            border-right: 3px solid;
+            border-left: none;
+            border-bottom: none;
+        }
+
+        .avatar-corner.bl {
+            bottom: 0;
+            left: 0;
+            border-bottom: 3px solid;
+            border-left: 3px solid;
+            border-right: none;
+            border-top: none;
+        }
+
+        .avatar-corner.br {
+            bottom: 0;
+            right: 0;
+            border-bottom: 3px solid;
+            border-right: 3px solid;
+            border-left: none;
+            border-top: none;
+        }
+
+        /* ===== DIRECTION 1: Dense Command Center (Original) ===== */
+        .direction-1 {
+            font-family: 'JetBrains Mono', monospace;
+            background: #101010;
+            color: #CDC9B9;
+            height: 100%;
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            grid-template-rows: 48px 1fr;
+        }
+
+        .d1-header {
+            grid-column: 1 / 4;
+            background: #0A0A0A;
+            border-bottom: 2px solid #797872;
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            gap: 16px;
+        }
+
+        .d1-logo {
+            font-size: 16px;
+            font-weight: bold;
+            color: #FE5344;
+            letter-spacing: 2px;
+        }
+
+        .d1-sidebar {
+            background: #0A0A0A;
+            border-right: 2px solid #797872;
+            padding: 16px;
+            width: 200px;
+        }
+
+        .d1-nav-item {
+            padding: 10px 12px;
+            margin-bottom: 4px;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+            font-size: 13px;
+            color: #797872;
+        }
+
+        .d1-nav-item.active {
+            border-left-color: #FE5344;
+            background: #101010;
+            color: #CDC9B9;
+        }
+
+        .d1-main {
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .d1-agent-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        .d1-agent-card {
+            background: #0A0A0A;
+            border: 1px solid #797872;
+            padding: 16px;
+            position: relative;
+        }
+
+        .d1-agent-card .corner-box {
+            border-color: #797872;
+        }
+
+        .d1-agent-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .d1-agent-avatar {
+            width: 32px;
+            height: 32px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .d1-agent-name {
+            font-size: 14px;
+            color: #CDC9B9;
+        }
+
+        .d1-agent-state {
+            font-size: 11px;
+            color: #797872;
+        }
+
+        .d1-progress {
+            height: 4px;
+            background: #797872;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .d1-progress-bar {
+            height: 100%;
+            background: #22C55E;
+        }
+
+        .d1-right-panel {
+            background: #0A0A0A;
+            border-left: 2px solid #797872;
+            padding: 16px;
+            width: 280px;
+        }
+
+        .d1-metric {
+            background: #101010;
+            padding: 12px;
+            margin-bottom: 8px;
+            border-left: 3px solid #22C55E;
+        }
+
+        .d1-metric-label {
+            font-size: 11px;
+            color: #797872;
+        }
+
+        .d1-metric-value {
+            font-size: 20px;
+            color: #CDC9B9;
+            font-weight: bold;
+        }
+
+        /* ===== DIRECTION 3: Minimal Grid (Original) ===== */
+        .direction-3 {
+            font-family: 'Space Mono', monospace;
+            background: #F8F8F8;
+            color: #1A1A1A;
+            height: 100%;
+            padding: 48px 24px;
+        }
+
+        .d3-header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+
+        .d3-title {
+            font-size: 40px;
+            font-weight: 700;
+            color: #1A1A1A;
+        }
+
+        .d3-subtitle {
+            font-size: 18px;
+            color: #999;
+            margin-top: 8px;
+        }
+
+        .d3-agent-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1px;
+            background: #E0E0E0;
+            border: 1px solid #E0E0E0;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .d3-agent-cell {
+            background: #fff;
+            padding: 32px;
+            min-height: 240px;
+            position: relative;
+        }
+
+        .d3-agent-cell:hover {
+            background: #F8F8F8;
+        }
+
+        .d3-agent-id {
+            font-size: 12px;
+            color: #999;
+            font-weight: 700;
+            letter-spacing: 2px;
+        }
+
+        .d3-agent-name {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1A1A1A;
+            margin: 8px 0 16px;
+        }
+
+        .d3-agent-description {
+            font-size: 14px;
+            color: #666;
+            line-height: 1.8;
+        }
+
+        .d3-agent-status {
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 2px solid #E0E0E0;
+            font-size: 13px;
+            color: #999;
+        }
+
+        .d3-status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        /* ===== DIRECTION 5: Technical Blueprint (Original) ===== */
+        .direction-5 {
+            font-family: 'IBM Plex Mono', monospace;
+            background: #101010;
+            color: #CDC9B9;
+            height: 100%;
+            position: relative;
+            padding: 32px;
+        }
+
+        .d5-grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image:
+                linear-gradient(rgba(125, 120, 114, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(125, 120, 114, 0.1) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        .d5-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .d5-header {
+            border: 2px solid #797872;
+            padding: 20px;
+            margin-bottom: 32px;
+            position: relative;
+        }
+
+        .d5-corner-marker {
+            position: absolute;
+            color: #797872;
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .d5-corner-marker.tl { top: -2px; left: -2px; }
+        .d5-corner-marker.tr { top: -2px; right: -2px; }
+        .d5-corner-marker.bl { bottom: -2px; left: -2px; }
+        .d5-corner-marker.br { bottom: -2px; right: -2px; }
+
+        .d5-title {
+            font-size: 28px;
+            color: #FE5344;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            font-weight: 700;
+        }
+
+        .d5-agent-layout {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+        }
+
+        .d5-agent-module {
+            border: 1px solid #797872;
+            background: rgba(16, 16, 16, 0.6);
+            padding: 24px;
+            position: relative;
+        }
+
+        .d5-module-corner {
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            background: transparent;
+        }
+
+        .d5-module-corner.tl {
+            top: -1px;
+            left: -1px;
+            border-top: 3px solid #797872;
+            border-left: 3px solid #797872;
+            border-right: none;
+            border-bottom: none;
+        }
+
+        .d5-module-corner.tr {
+            top: -1px;
+            right: -1px;
+            border-top: 3px solid #797872;
+            border-right: 3px solid #797872;
+            border-left: none;
+            border-bottom: none;
+        }
+
+        .d5-module-corner.bl {
+            bottom: -1px;
+            left: -1px;
+            border-bottom: 3px solid #797872;
+            border-left: 3px solid #797872;
+            border-right: none;
+            border-top: none;
+        }
+
+        .d5-module-corner.br {
+            bottom: -1px;
+            right: -1px;
+            border-bottom: 3px solid #797872;
+            border-right: 3px solid #797872;
+            border-left: none;
+            border-top: none;
+        }
+
+        .d5-module-name {
+            font-size: 20px;
+            color: #FE5344;
+            font-weight: bold;
+            margin-bottom: 16px;
+        }
+
+        .d5-status-line {
+            font-size: 13px;
+            color: #797872;
+            margin-bottom: 8px;
+        }
+
+        .d5-status-value {
+            color: #CDC9B9;
+        }
+
+        /* ===== HYBRID 4: Dense Grid (1+3) ===== */
+        .direction-4 {
+            font-family: 'Space Mono', monospace;
+            background: #101010;
+            color: #CDC9B9;
+            height: 100%;
+            display: grid;
+            grid-template-columns: 200px 1fr;
+            grid-template-rows: 48px 1fr;
+        }
+
+        .d4-header {
+            grid-column: 1 / 3;
+            background: #0A0A0A;
+            border-bottom: 2px solid #797872;
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            gap: 16px;
+        }
+
+        .d4-sidebar {
+            background: #0A0A0A;
+            border-right: 2px solid #797872;
+            padding: 16px;
+        }
+
+        .d4-nav-item {
+            padding: 10px 12px;
+            margin-bottom: 4px;
+            font-size: 13px;
+            color: #797872;
+            cursor: pointer;
+        }
+
+        .d4-nav-item.active {
+            background: #101010;
+            color: #CDC9B9;
+        }
+
+        .d4-main {
+            padding: 32px;
+            overflow-y: auto;
+        }
+
+        .d4-agent-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1px;
+            background: #797872;
+            border: 1px solid #797872;
+        }
+
+        .d4-agent-cell {
+            background: #0A0A0A;
+            padding: 32px;
+            min-height: 240px;
+            position: relative;
+        }
+
+        .d4-agent-cell:hover {
+            background: #101010;
+        }
+
+        .d4-agent-id {
+            font-size: 12px;
+            color: #797872;
+            font-weight: 700;
+            letter-spacing: 2px;
+        }
+
+        .d4-agent-name {
+            font-size: 24px;
+            font-weight: 700;
+            color: #CDC9B9;
+            margin: 8px 0 16px;
+        }
+
+        .d4-agent-description {
+            font-size: 13px;
+            color: #797872;
+            line-height: 1.8;
+        }
+
+        .d4-agent-status {
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid #797872;
+            font-size: 13px;
+            color: #797872;
+        }
+
+        /* ===== HYBRID 5: Blueprint Command Center (1+5) ===== */
+        .direction-5h {
+            font-family: 'IBM Plex Mono', monospace;
+            background: #101010;
+            color: #CDC9B9;
+            height: 100%;
+            display: grid;
+            grid-template-columns: 200px 1fr 280px;
+            grid-template-rows: 48px 1fr;
+            position: relative;
+        }
+
+        .d5h-grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image:
+                linear-gradient(rgba(125, 120, 114, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(125, 120, 114, 0.05) 1px, transparent 1px);
+            background-size: 20px 20px;
+            z-index: 0;
+        }
+
+        .d5h-header {
+            grid-column: 1 / 4;
+            background: #0A0A0A;
+            border-bottom: 2px solid #797872;
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            gap: 16px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .d5h-sidebar {
+            background: #0A0A0A;
+            border-right: 2px solid #797872;
+            padding: 16px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .d5h-main {
+            padding: 20px;
+            overflow-y: auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        .d5h-agent-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+
+        .d5h-agent-card {
+            background: rgba(10, 10, 10, 0.9);
+            border: 1px solid #797872;
+            padding: 20px;
+            position: relative;
+        }
+
+        .d5h-right-panel {
+            background: #0A0A0A;
+            border-left: 2px solid #797872;
+            padding: 16px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* ===== HYBRID 6: Minimal Blueprint (3+5) ===== */
+        .direction-6 {
+            font-family: 'Space Mono', monospace;
+            background: #F8F8F8;
+            color: #1A1A1A;
+            height: 100%;
+            padding: 48px 24px;
+            position: relative;
+        }
+
+        .d6-grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image:
+                linear-gradient(rgba(0, 0, 0, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        .d6-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .d6-header {
+            text-align: center;
+            margin-bottom: 48px;
+            padding: 20px;
+            border: 2px solid #1A1A1A;
+            position: relative;
+            background: rgba(255, 255, 255, 0.9);
+        }
+
+        .d6-corner {
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            background: transparent;
+        }
+
+        .d6-corner.tl {
+            top: -1px;
+            left: -1px;
+            border-top: 3px solid #1A1A1A;
+            border-left: 3px solid #1A1A1A;
+            border-right: none;
+            border-bottom: none;
+        }
+
+        .d6-corner.tr {
+            top: -1px;
+            right: -1px;
+            border-top: 3px solid #1A1A1A;
+            border-right: 3px solid #1A1A1A;
+            border-left: none;
+            border-bottom: none;
+        }
+
+        .d6-corner.bl {
+            bottom: -1px;
+            left: -1px;
+            border-bottom: 3px solid #1A1A1A;
+            border-left: 3px solid #1A1A1A;
+            border-right: none;
+            border-top: none;
+        }
+
+        .d6-corner.br {
+            bottom: -1px;
+            right: -1px;
+            border-bottom: 3px solid #1A1A1A;
+            border-right: 3px solid #1A1A1A;
+            border-left: none;
+            border-top: none;
+        }
+
+        .d6-agent-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1px;
+            background: #E0E0E0;
+            border: 2px solid #1A1A1A;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .d6-agent-cell {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 32px;
+            min-height: 240px;
+            position: relative;
+        }
+
+        /* ===== HYBRID 7: Ultimate Fusion (1+3+5) ===== */
+        .direction-7 {
+            font-family: 'IBM Plex Mono', monospace;
+            background: #101010;
+            color: #CDC9B9;
+            height: 100%;
+            display: grid;
+            grid-template-columns: 180px 1fr;
+            grid-template-rows: 56px 1fr;
+            position: relative;
+        }
+
+        .d7-grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image:
+                linear-gradient(rgba(125, 120, 114, 0.08) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(125, 120, 114, 0.08) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        .d7-header {
+            grid-column: 1 / 3;
+            background: #0A0A0A;
+            border-bottom: 3px solid #797872;
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            gap: 24px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .d7-logo {
+            font-size: 18px;
+            font-weight: bold;
+            color: #FE5344;
+            letter-spacing: 3px;
+        }
+
+        .d7-breadcrumb {
+            font-size: 12px;
+            color: #797872;
+            letter-spacing: 1px;
+        }
+
+        .d7-sidebar {
+            background: rgba(10, 10, 10, 0.95);
+            border-right: 3px solid #797872;
+            padding: 20px 12px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .d7-nav-item {
+            padding: 12px;
+            margin-bottom: 6px;
+            font-size: 12px;
+            color: #797872;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .d7-nav-item:hover {
+            background: rgba(16, 16, 16, 0.8);
+            color: #CDC9B9;
+        }
+
+        .d7-nav-item.active {
+            border-left-color: #FE5344;
+            background: rgba(16, 16, 16, 0.8);
+            color: #CDC9B9;
+        }
+
+        .d7-main {
+            padding: 32px;
+            overflow-y: auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        .d7-agent-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2px;
+            background: #797872;
+            border: 2px solid #797872;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .d7-agent-cell {
+            background: rgba(10, 10, 10, 0.95);
+            padding: 28px;
+            min-height: 220px;
+            position: relative;
+            transition: all 0.2s;
+        }
+
+        .d7-agent-cell:hover {
+            background: rgba(16, 16, 16, 0.98);
+        }
+
+        .d7-agent-id {
+            font-size: 11px;
+            color: #797872;
+            font-weight: 700;
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+        }
+
+        .d7-agent-name {
+            font-size: 22px;
+            font-weight: 700;
+            color: #FE5344;
+            margin-bottom: 16px;
+        }
+
+        .d7-agent-description {
+            font-size: 12px;
+            color: #797872;
+            line-height: 1.8;
+            margin-bottom: 16px;
+        }
+
+        .d7-agent-status {
+            padding-top: 12px;
+            border-top: 1px solid #797872;
+            font-size: 12px;
+            color: #CDC9B9;
+        }
+    </style>
+</head>
+<body>
+    <!-- NAVIGATION -->
+    <div class="showcase-nav">
+        <h1>Chiron Design Hybrids - 7 Variations</h1>
+        <div class="nav-controls">
+            <div class="direction-selector">
+                <button class="direction-btn active" onclick="showDirection(1)">1</button>
+                <button class="direction-btn" onclick="showDirection(2)">3</button>
+                <button class="direction-btn" onclick="showDirection(3)">5</button>
+                <button class="direction-btn" onclick="showDirection(4)">4</button>
+                <button class="direction-btn" onclick="showDirection(5)">5</button>
+                <button class="direction-btn" onclick="showDirection(6)">6</button>
+                <button class="direction-btn" onclick="showDirection(7)">7</button>
+            </div>
+            <button class="nav-btn" onclick="prevDirection()">← Prev</button>
+            <button class="nav-btn" onclick="nextDirection()">Next →</button>
+        </div>
+    </div>
+
+    <!-- MAIN CONTAINER -->
+    <div class="showcase-container">
+
+        <!-- DIRECTION 1: Dense Command Center (Original) -->
+        <div class="direction-wrapper active" id="direction-1">
+            <div class="direction-header">
+                <h2>Direction 1: Dense Command Center</h2>
+                <p><strong>Original</strong> - JetBrains Mono, sidebar layout, CARBON dark, information-dense</p>
+                <div class="characteristics">
+                    <div class="char-item"><div class="char-label">Font</div><div class="char-value">JetBrains Mono</div></div>
+                    <div class="char-item"><div class="char-label">Layout</div><div class="char-value">3-Column Sidebar</div></div>
+                    <div class="char-item"><div class="char-label">Theme</div><div class="char-value">CARBON Dark</div></div>
+                    <div class="char-item"><div class="char-label">Density</div><div class="char-value">Dense</div></div>
+                </div>
+            </div>
+            <div class="mockup-frame">
+                <div class="direction-1">
+                    <div class="d1-header">
+                        <div class="d1-logo">CHIRON</div>
+                        <div style="flex: 1;"></div>
+                        <div style="color: #797872; font-size: 13px;">TaskFlow Project</div>
+                    </div>
+                    <div class="d1-sidebar">
+                        <div class="d1-nav-item active">▸ DASHBOARD</div>
+                        <div class="d1-nav-item">▸ STORIES</div>
+                        <div class="d1-nav-item">▸ ARTIFACTS</div>
+                        <div class="d1-nav-item">▸ AGENTS</div>
+                    </div>
+                    <div class="d1-main">
+                        <div class="d1-agent-grid">
+                            <div class="d1-agent-card">
+                                <div class="corner-box corner-tl"></div>
+                                <div class="corner-box corner-tr"></div>
+                                <div class="corner-box corner-bl"></div>
+                                <div class="corner-box corner-br"></div>
+                                <div class="d1-agent-header">
+                                    <div class="d1-agent-avatar" style="color: #8D9784;">
+                                        <div class="avatar-corner tl" style="border-color: #8D9784;"></div>
+                                        <div class="avatar-corner tr" style="border-color: #8D9784;"></div>
+                                        <div class="avatar-corner bl" style="border-color: #8D9784;"></div>
+                                        <div class="avatar-corner br" style="border-color: #8D9784;"></div>
+                                        AN
+                                    </div>
+                                    <div>
+                                        <div class="d1-agent-name">ANALYST</div>
+                                        <div class="d1-agent-state">IDLE</div>
+                                    </div>
+                                </div>
+                                <div class="d1-progress"><div class="d1-progress-bar" style="width: 0%;"></div></div>
+                            </div>
+                            <div class="d1-agent-card">
+                                <div class="corner-box corner-tl"></div>
+                                <div class="corner-box corner-tr"></div>
+                                <div class="corner-box corner-bl"></div>
+                                <div class="corner-box corner-br"></div>
+                                <div class="d1-agent-header">
+                                    <div class="d1-agent-avatar" style="color: #FE5344;">
+                                        <div class="avatar-corner tl" style="border-color: #FE5344;"></div>
+                                        <div class="avatar-corner tr" style="border-color: #FE5344;"></div>
+                                        <div class="avatar-corner bl" style="border-color: #FE5344;"></div>
+                                        <div class="avatar-corner br" style="border-color: #FE5344;"></div>
+                                        PM
+                                    </div>
+                                    <div>
+                                        <div class="d1-agent-name">PM</div>
+                                        <div class="d1-agent-state">RUNNING - 5/9</div>
+                                    </div>
+                                </div>
+                                <div class="d1-progress"><div class="d1-progress-bar" style="width: 55%;"></div></div>
+                            </div>
+                            <div class="d1-agent-card">
+                                <div class="corner-box corner-tl"></div>
+                                <div class="corner-box corner-tr"></div>
+                                <div class="corner-box corner-bl"></div>
+                                <div class="corner-box corner-br"></div>
+                                <div class="d1-agent-header">
+                                    <div class="d1-agent-avatar" style="color: #5D6C6A;">
+                                        <div class="avatar-corner tl" style="border-color: #5D6C6A;"></div>
+                                        <div class="avatar-corner tr" style="border-color: #5D6C6A;"></div>
+                                        <div class="avatar-corner bl" style="border-color: #5D6C6A;"></div>
+                                        <div class="avatar-corner br" style="border-color: #5D6C6A;"></div>
+                                        AR
+                                    </div>
+                                    <div>
+                                        <div class="d1-agent-name">ARCHITECT</div>
+                                        <div class="d1-agent-state">RUNNING - 2/8</div>
+                                    </div>
+                                </div>
+                                <div class="d1-progress"><div class="d1-progress-bar" style="width: 25%;"></div></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="d1-right-panel">
+                        <div class="d1-metric" style="border-color: #22C55E;">
+                            <div class="d1-metric-label">PHASE</div>
+                            <div class="d1-metric-value">2/4</div>
+                        </div>
+                        <div class="d1-metric" style="border-color: #F59E0B;">
+                            <div class="d1-metric-label">ACTIVE</div>
+                            <div class="d1-metric-value">2</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- DIRECTION 3: Minimal Grid (Original) -->
+        <div class="direction-wrapper" id="direction-2">
+            <div class="direction-header">
+                <h2>Direction 3: Minimal Grid</h2>
+                <p><strong>Original</strong> - Space Mono, pure grid, light mode, Swiss minimalism</p>
+                <div class="characteristics">
+                    <div class="char-item"><div class="char-label">Font</div><div class="char-value">Space Mono</div></div>
+                    <div class="char-item"><div class="char-label">Layout</div><div class="char-value">3×2 Grid</div></div>
+                    <div class="char-item"><div class="char-label">Theme</div><div class="char-value">Light Mode</div></div>
+                    <div class="char-item"><div class="char-label">Style</div><div class="char-value">Minimal</div></div>
+                </div>
+            </div>
+            <div class="mockup-frame">
+                <div class="direction-3">
+                    <div class="d3-header">
+                        <div class="d3-title">Agent Orchestration</div>
+                        <div class="d3-subtitle">TaskFlow — Phase 2 of 4</div>
+                    </div>
+                    <div class="d3-agent-grid">
+                        <div class="d3-agent-cell">
+                            <div class="d3-agent-id">AN-01</div>
+                            <div class="d3-agent-name">Analyst</div>
+                            <div class="d3-agent-description">Research and discovery workflows. Conducts market analysis and competitive research.</div>
+                            <div class="d3-agent-status">
+                                <span class="d3-status-indicator" style="background: #6B7280;"></span>
+                                Idle
+                            </div>
+                        </div>
+                        <div class="d3-agent-cell">
+                            <div class="d3-agent-id">PM-01</div>
+                            <div class="d3-agent-name">Product Manager</div>
+                            <div class="d3-agent-description">Strategic planning and requirements. Creates PRDs and manages epic breakdown.</div>
+                            <div class="d3-agent-status">
+                                <span class="d3-status-indicator" style="background: #22C55E;"></span>
+                                Running — Step 5/9
+                            </div>
+                        </div>
+                        <div class="d3-agent-cell">
+                            <div class="d3-agent-id">AR-01</div>
+                            <div class="d3-agent-name">Architect</div>
+                            <div class="d3-agent-description">Technical architecture and design. Creates system architecture and defines patterns.</div>
+                            <div class="d3-agent-status">
+                                <span class="d3-status-indicator" style="background: #22C55E;"></span>
+                                Running — Step 2/8
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- DIRECTION 5: Technical Blueprint (Original) -->
+        <div class="direction-wrapper" id="direction-3">
+            <div class="direction-header">
+                <h2>Direction 5: Technical Blueprint</h2>
+                <p><strong>Original</strong> - IBM Plex Mono, blueprint grid, CARBON dark, technical precision</p>
+                <div class="characteristics">
+                    <div class="char-item"><div class="char-label">Font</div><div class="char-value">IBM Plex Mono</div></div>
+                    <div class="char-item"><div class="char-label">Layout</div><div class="char-value">2-Column Grid</div></div>
+                    <div class="char-item"><div class="char-label">Theme</div><div class="char-value">CARBON Dark</div></div>
+                    <div class="char-item"><div class="char-label">Style</div><div class="char-value">Blueprint</div></div>
+                </div>
+            </div>
+            <div class="mockup-frame">
+                <div class="direction-5">
+                    <div class="d5-grid"></div>
+                    <div class="d5-content">
+                        <div class="d5-header">
+                            <div class="d5-corner-marker tl">+</div>
+                            <div class="d5-corner-marker tr">+</div>
+                            <div class="d5-corner-marker bl">+</div>
+                            <div class="d5-corner-marker br">+</div>
+                            <div class="d5-title">CHIRON SYSTEM</div>
+                        </div>
+                        <div class="d5-agent-layout">
+                            <div class="d5-agent-module">
+                                <div class="d5-module-corner tl"></div>
+                                <div class="d5-module-corner tr"></div>
+                                <div class="d5-module-corner bl"></div>
+                                <div class="d5-module-corner br"></div>
+                                <div class="d5-module-name">ANALYST</div>
+                                <div class="d5-status-line">STATUS: <span class="d5-status-value">IDLE</span></div>
+                                <div class="d5-status-line">CONTEXT: <span class="d5-status-value">0 KB</span></div>
+                            </div>
+                            <div class="d5-agent-module">
+                                <div class="d5-module-corner tl"></div>
+                                <div class="d5-module-corner tr"></div>
+                                <div class="d5-module-corner bl"></div>
+                                <div class="d5-module-corner br"></div>
+                                <div class="d5-module-name">PM</div>
+                                <div class="d5-status-line">STATUS: <span class="d5-status-value" style="color: #22C55E;">RUNNING</span></div>
+                                <div class="d5-status-line">PROGRESS: <span class="d5-status-value">5/9 (55%)</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- HYBRID 4: Dense Grid (1+3) -->
+        <div class="direction-wrapper" id="direction-4">
+            <div class="direction-header">
+                <h2>Hybrid 4: Dense Grid (1+3)</h2>
+                <p><strong>Combination:</strong> Sidebar navigation (1) + Minimal grid layout (3) + Space Mono + Dark mode</p>
+                <div class="characteristics">
+                    <div class="char-item"><div class="char-label">Font</div><div class="char-value">Space Mono</div></div>
+                    <div class="char-item"><div class="char-label">Layout</div><div class="char-value">Sidebar + Grid</div></div>
+                    <div class="char-item"><div class="char-label">Theme</div><div class="char-value">CARBON Dark</div></div>
+                    <div class="char-item"><div class="char-label">Style</div><div class="char-value">Hybrid Dense</div></div>
+                </div>
+            </div>
+            <div class="mockup-frame">
+                <div class="direction-4">
+                    <div class="d4-header">
+                        <div class="d1-logo">CHIRON</div>
+                        <div style="flex: 1;"></div>
+                        <div style="color: #797872; font-size: 13px;">TaskFlow</div>
+                    </div>
+                    <div class="d4-sidebar">
+                        <div class="d4-nav-item active">DASHBOARD</div>
+                        <div class="d4-nav-item">STORIES</div>
+                        <div class="d4-nav-item">ARTIFACTS</div>
+                        <div class="d4-nav-item">AGENTS</div>
+                    </div>
+                    <div class="d4-main">
+                        <div class="d4-agent-grid">
+                            <div class="d4-agent-cell">
+                                <div class="d4-agent-id">AN-01</div>
+                                <div class="d4-agent-name">Analyst</div>
+                                <div class="d4-agent-description">Research and discovery workflows.</div>
+                                <div class="d4-agent-status">Idle</div>
+                            </div>
+                            <div class="d4-agent-cell">
+                                <div class="d4-agent-id">PM-01</div>
+                                <div class="d4-agent-name">PM</div>
+                                <div class="d4-agent-description">Strategic planning and requirements.</div>
+                                <div class="d4-agent-status">Running — Step 5/9</div>
+                            </div>
+                            <div class="d4-agent-cell">
+                                <div class="d4-agent-id">AR-01</div>
+                                <div class="d4-agent-name">Architect</div>
+                                <div class="d4-agent-description">Technical architecture and design.</div>
+                                <div class="d4-agent-status">Running — Step 2/8</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- HYBRID 5: Blueprint Command Center (1+5) -->
+        <div class="direction-wrapper" id="direction-5">
+            <div class="direction-header">
+                <h2>Hybrid 5: Blueprint Command Center (1+5)</h2>
+                <p><strong>Combination:</strong> 3-column sidebar (1) + Blueprint grid overlay (5) + IBM Plex Mono</p>
+                <div class="characteristics">
+                    <div class="char-item"><div class="char-label">Font</div><div class="char-value">IBM Plex Mono</div></div>
+                    <div class="char-item"><div class="char-label">Layout</div><div class="char-value">3-Col + Blueprint</div></div>
+                    <div class="char-item"><div class="char-label">Theme</div><div class="char-value">CARBON Dark</div></div>
+                    <div class="char-item"><div class="char-label">Style</div><div class="char-value">Technical Grid</div></div>
+                </div>
+            </div>
+            <div class="mockup-frame">
+                <div class="direction-5h">
+                    <div class="d5h-grid"></div>
+                    <div class="d5h-header">
+                        <div class="d1-logo">CHIRON</div>
+                        <div style="flex: 1;"></div>
+                        <div style="color: #797872; font-size: 12px;">TASKFLOW | PHASE 2/4</div>
+                    </div>
+                    <div class="d5h-sidebar">
+                        <div class="d1-nav-item active">DASHBOARD</div>
+                        <div class="d1-nav-item">STORIES</div>
+                        <div class="d1-nav-item">ARTIFACTS</div>
+                        <div class="d1-nav-item">AGENTS</div>
+                    </div>
+                    <div class="d5h-main">
+                        <div class="d5h-agent-grid">
+                            <div class="d5h-agent-card">
+                                <div class="corner-box corner-tl" style="border-color: #797872;"></div>
+                                <div class="corner-box corner-tr" style="border-color: #797872;"></div>
+                                <div class="corner-box corner-bl" style="border-color: #797872;"></div>
+                                <div class="corner-box corner-br" style="border-color: #797872;"></div>
+                                <div style="font-size: 11px; color: #797872; margin-bottom: 12px;">MODULE: AN-01</div>
+                                <div style="font-size: 18px; color: #FE5344; font-weight: bold; margin-bottom: 12px;">ANALYST</div>
+                                <div style="font-size: 13px; color: #797872;">STATUS: IDLE</div>
+                            </div>
+                            <div class="d5h-agent-card">
+                                <div class="corner-box corner-tl" style="border-color: #797872;"></div>
+                                <div class="corner-box corner-tr" style="border-color: #797872;"></div>
+                                <div class="corner-box corner-bl" style="border-color: #797872;"></div>
+                                <div class="corner-box corner-br" style="border-color: #797872;"></div>
+                                <div style="font-size: 11px; color: #797872; margin-bottom: 12px;">MODULE: PM-01</div>
+                                <div style="font-size: 18px; color: #FE5344; font-weight: bold; margin-bottom: 12px;">PM</div>
+                                <div style="font-size: 13px; color: #22C55E;">STATUS: RUNNING 5/9</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="d5h-right-panel">
+                        <div class="d1-metric" style="border-color: #22C55E;">
+                            <div class="d1-metric-label">PHASE</div>
+                            <div class="d1-metric-value">2/4</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- HYBRID 6: Minimal Blueprint (3+5) -->
+        <div class="direction-wrapper" id="direction-6">
+            <div class="direction-header">
+                <h2>Hybrid 6: Minimal Blueprint (3+5)</h2>
+                <p><strong>Combination:</strong> Clean grid layout (3) + Subtle blueprint overlay (5) + Space Mono + Light mode</p>
+                <div class="characteristics">
+                    <div class="char-item"><div class="char-label">Font</div><div class="char-value">Space Mono</div></div>
+                    <div class="char-item"><div class="char-label">Layout</div><div class="char-value">Grid + Blueprint</div></div>
+                    <div class="char-item"><div class="char-label">Theme</div><div class="char-value">Light Mode</div></div>
+                    <div class="char-item"><div class="char-label">Style</div><div class="char-value">Technical Minimal</div></div>
+                </div>
+            </div>
+            <div class="mockup-frame">
+                <div class="direction-6">
+                    <div class="d6-grid"></div>
+                    <div class="d6-content">
+                        <div class="d6-header">
+                            <div class="d6-corner tl"></div>
+                            <div class="d6-corner tr"></div>
+                            <div class="d6-corner bl"></div>
+                            <div class="d6-corner br"></div>
+                            <div class="d3-title">Agent Orchestration</div>
+                            <div class="d3-subtitle">TaskFlow — Phase 2 of 4</div>
+                        </div>
+                        <div class="d6-agent-grid">
+                            <div class="d6-agent-cell">
+                                <div class="d3-agent-id">AN-01</div>
+                                <div class="d3-agent-name">Analyst</div>
+                                <div class="d3-agent-description">Research and discovery workflows.</div>
+                                <div class="d3-agent-status">Idle</div>
+                            </div>
+                            <div class="d6-agent-cell">
+                                <div class="d3-agent-id">PM-01</div>
+                                <div class="d3-agent-name">PM</div>
+                                <div class="d3-agent-description">Strategic planning and requirements.</div>
+                                <div class="d3-agent-status">Running — Step 5/9</div>
+                            </div>
+                            <div class="d6-agent-cell">
+                                <div class="d3-agent-id">AR-01</div>
+                                <div class="d3-agent-name">Architect</div>
+                                <div class="d3-agent-description">Technical architecture and design.</div>
+                                <div class="d3-agent-status">Running — Step 2/8</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- HYBRID 7: Ultimate Fusion (1+3+5) -->
+        <div class="direction-wrapper" id="direction-7">
+            <div class="direction-header">
+                <h2>Hybrid 7: Ultimate Fusion (1+3+5)</h2>
+                <p><strong>Combination:</strong> Sidebar (1) + Grid cards (3) + Blueprint overlay (5) + IBM Plex Mono + All features</p>
+                <div class="characteristics">
+                    <div class="char-item"><div class="char-label">Font</div><div class="char-value">IBM Plex Mono</div></div>
+                    <div class="char-item"><div class="char-label">Layout</div><div class="char-value">Sidebar + Grid</div></div>
+                    <div class="char-item"><div class="char-label">Theme</div><div class="char-value">CARBON Blueprint</div></div>
+                    <div class="char-item"><div class="char-label">Style</div><div class="char-value">Ultimate Fusion</div></div>
+                </div>
+            </div>
+            <div class="mockup-frame">
+                <div class="direction-7">
+                    <div class="d7-grid"></div>
+                    <div class="d7-header">
+                        <div class="d7-logo">CHIRON</div>
+                        <div class="d7-breadcrumb">TASKFLOW / DASHBOARD / PHASE 2</div>
+                    </div>
+                    <div class="d7-sidebar">
+                        <div class="d7-nav-item active">DASHBOARD</div>
+                        <div class="d7-nav-item">STORIES</div>
+                        <div class="d7-nav-item">ARTIFACTS</div>
+                        <div class="d7-nav-item">AGENTS</div>
+                        <div class="d7-nav-item">SETTINGS</div>
+                    </div>
+                    <div class="d7-main">
+                        <div class="d7-agent-grid">
+                            <div class="d7-agent-cell">
+                                <div class="d7-agent-id">MODULE: AN-01</div>
+                                <div class="d7-agent-name">Analyst</div>
+                                <div class="d7-agent-description">Research and discovery workflows. Conducts market analysis.</div>
+                                <div class="d7-agent-status">STATUS: IDLE | CONTEXT: 0KB</div>
+                            </div>
+                            <div class="d7-agent-cell">
+                                <div class="d7-agent-id">MODULE: PM-01</div>
+                                <div class="d7-agent-name">PM</div>
+                                <div class="d7-agent-description">Strategic planning and requirements. Creates PRDs.</div>
+                                <div class="d7-agent-status">STATUS: RUNNING | STEP 5/9 (55%)</div>
+                            </div>
+                            <div class="d7-agent-cell">
+                                <div class="d7-agent-id">MODULE: AR-01</div>
+                                <div class="d7-agent-name">Architect</div>
+                                <div class="d7-agent-description">Technical architecture and system design patterns.</div>
+                                <div class="d7-agent-status">STATUS: RUNNING | STEP 2/8 (25%)</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        let currentDirection = 1;
+
+        function showDirection(n) {
+            document.querySelectorAll('.direction-wrapper').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.direction-btn').forEach(el => el.classList.remove('active'));
+
+            document.getElementById(`direction-${n}`).classList.add('active');
+            document.querySelectorAll('.direction-btn')[n-1].classList.add('active');
+
+            currentDirection = n;
+        }
+
+        function nextDirection() {
+            let next = currentDirection + 1;
+            if (next > 7) next = 1;
+            showDirection(next);
+        }
+
+        function prevDirection() {
+            let prev = currentDirection - 1;
+            if (prev < 1) prev = 7;
+            showDirection(prev);
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight') nextDirection();
+            if (e.key === 'ArrowLeft') prevDirection();
+            if (e.key >= '1' && e.key <= '7') showDirection(parseInt(e.key));
+        });
+    </script>
+</body>
+</html>

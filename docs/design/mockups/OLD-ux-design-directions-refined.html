@@ -1,0 +1,1566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chiron Design Directions - Refined Variations</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* ===== GLOBAL RESET & BASE ===== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'JetBrains Mono', 'Courier New', monospace;
+            background: #0A0A0A;
+            color: #CDC9B9;
+            overflow-x: hidden;
+        }
+
+        /* ===== NAV CONTROLS ===== */
+        .showcase-nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: #101010;
+            border-bottom: 1px solid #797872;
+            padding: 16px 24px;
+            z-index: 1000;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .showcase-nav h1 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #CDC9B9;
+        }
+
+        .nav-controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .nav-btn {
+            background: #797872;
+            border: none;
+            color: #CDC9B9;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-family: 'JetBrains Mono', monospace;
+            transition: all 0.2s;
+        }
+
+        .nav-btn:hover {
+            background: #A0A099;
+        }
+
+        .nav-btn.active {
+            background: #FE5344;
+            color: #fff;
+        }
+
+        .direction-selector {
+            display: flex;
+            gap: 8px;
+        }
+
+        .direction-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 2px solid #797872;
+            background: #101010;
+            color: #CDC9B9;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            transition: all 0.2s;
+        }
+
+        .direction-btn:hover {
+            border-color: #CDC9B9;
+        }
+
+        .direction-btn.active {
+            background: #FE5344;
+            border-color: #FE5344;
+            color: #fff;
+        }
+
+        /* ===== MAIN CONTAINER ===== */
+        .showcase-container {
+            margin-top: 80px;
+            padding: 24px;
+        }
+
+        .direction-wrapper {
+            display: none;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        .direction-wrapper.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .direction-header {
+            background: #101010;
+            border: 1px solid #797872;
+            padding: 24px;
+            margin-bottom: 24px;
+            border-radius: 8px;
+        }
+
+        .direction-header h2 {
+            font-size: 24px;
+            color: #FE5344;
+            margin-bottom: 12px;
+        }
+
+        .direction-header p {
+            color: #CDC9B9;
+            line-height: 1.6;
+            margin-bottom: 8px;
+        }
+
+        .characteristics {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .char-item {
+            background: #0A0A0A;
+            padding: 12px;
+            border-radius: 4px;
+            border: 1px solid #797872;
+        }
+
+        .char-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #797872;
+            margin-bottom: 4px;
+        }
+
+        .char-value {
+            font-size: 14px;
+            color: #CDC9B9;
+            font-weight: 500;
+        }
+
+        /* ===== MOCKUP IFRAME ===== */
+        .mockup-frame {
+            width: 100%;
+            height: calc(100vh - 200px);
+            border: 2px solid #797872;
+            border-radius: 8px;
+            background: #101010;
+            overflow: hidden;
+        }
+
+        /* ===== THICK CORNER UTILITY (FIXED) ===== */
+        .thick-corners {
+            position: relative;
+        }
+
+        .thick-corners::before,
+        .thick-corners::after,
+        .thick-corners .corner-tl,
+        .thick-corners .corner-tr,
+        .thick-corners .corner-bl,
+        .thick-corners .corner-br {
+            content: '';
+            position: absolute;
+            width: 12px;
+            height: 12px;
+        }
+
+        /* Top-left corner */
+        .thick-corners::before,
+        .thick-corners .corner-tl {
+            top: -1px;
+            left: -1px;
+            border-top: 3px solid currentColor;
+            border-left: 3px solid currentColor;
+            border-right: 1px solid currentColor;
+            border-bottom: 1px solid currentColor;
+        }
+
+        /* Top-right corner */
+        .thick-corners::after,
+        .thick-corners .corner-tr {
+            top: -1px;
+            right: -1px;
+            border-top: 3px solid currentColor;
+            border-right: 3px solid currentColor;
+            border-left: 1px solid currentColor;
+            border-bottom: 1px solid currentColor;
+        }
+
+        /* Bottom-left corner */
+        .thick-corners .corner-bl {
+            bottom: -1px;
+            left: -1px;
+            border-bottom: 3px solid currentColor;
+            border-left: 3px solid currentColor;
+            border-right: 1px solid currentColor;
+            border-top: 1px solid currentColor;
+        }
+
+        /* Bottom-right corner */
+        .thick-corners .corner-br {
+            bottom: -1px;
+            right: -1px;
+            border-bottom: 3px solid currentColor;
+            border-right: 3px solid currentColor;
+            border-left: 1px solid currentColor;
+            border-top: 1px solid currentColor;
+        }
+
+        /* ===== DIRECTION 1A: Dense Command Center (Collapsible Sidebar) ===== */
+        .direction-1a {
+            font-family: 'JetBrains Mono', monospace;
+            background: #101010;
+            color: #CDC9B9;
+            height: 100%;
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            grid-template-rows: 48px 1fr;
+            transition: grid-template-columns 0.3s ease;
+        }
+
+        .direction-1a.sidebar-collapsed {
+            grid-template-columns: 0 1fr auto;
+        }
+
+        .direction-1a.right-collapsed {
+            grid-template-columns: auto 1fr 0;
+        }
+
+        .d1a-header {
+            grid-column: 1 / 4;
+            background: #0A0A0A;
+            border-bottom: 2px solid #797872;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+        }
+
+        .d1a-logo {
+            font-size: 16px;
+            font-weight: bold;
+            color: #FE5344;
+            letter-spacing: 2px;
+        }
+
+        .d1a-search {
+            flex: 1;
+            max-width: 400px;
+            margin: 0 24px;
+            background: #101010;
+            border: 1px solid #797872;
+            padding: 8px 12px;
+            color: #CDC9B9;
+            font-family: inherit;
+            font-size: 13px;
+        }
+
+        .d1a-sidebar {
+            background: #0A0A0A;
+            border-right: 2px solid #797872;
+            padding: 16px;
+            width: 240px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .direction-1a.sidebar-collapsed .d1a-sidebar {
+            width: 0;
+            padding: 0;
+            border-right: none;
+        }
+
+        .sidebar-toggle {
+            background: #797872;
+            border: none;
+            color: #CDC9B9;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: inherit;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .sidebar-toggle:hover {
+            background: #A0A099;
+        }
+
+        .d1a-nav-item {
+            padding: 10px 12px;
+            margin-bottom: 4px;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+            font-size: 13px;
+            color: #797872;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .d1a-nav-item:hover {
+            background: #101010;
+            color: #CDC9B9;
+        }
+
+        .d1a-nav-item.active {
+            border-left-color: #FE5344;
+            background: #101010;
+            color: #CDC9B9;
+        }
+
+        .d1a-main {
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .d1a-agent-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .d1a-agent-card {
+            background: #0A0A0A;
+            border: 1px solid #797872;
+            padding: 16px;
+            position: relative;
+        }
+
+        /* FIXED: All 4 corners thick - ONLY L-SHAPED BRACKETS */
+        .d1a-agent-card .corner-box {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            border-color: #797872;
+            background: transparent;
+        }
+
+        .corner-tl {
+            top: -1px;
+            left: -1px;
+            border-top: 3px solid;
+            border-left: 3px solid;
+            border-right: none;
+            border-bottom: none;
+        }
+
+        .corner-tr {
+            top: -1px;
+            right: -1px;
+            border-top: 3px solid;
+            border-right: 3px solid;
+            border-left: none;
+            border-bottom: none;
+        }
+
+        .corner-bl {
+            bottom: -1px;
+            left: -1px;
+            border-bottom: 3px solid;
+            border-left: 3px solid;
+            border-right: none;
+            border-top: none;
+        }
+
+        .corner-br {
+            bottom: -1px;
+            right: -1px;
+            border-bottom: 3px solid;
+            border-right: 3px solid;
+            border-left: none;
+            border-top: none;
+        }
+
+        .d1a-agent-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .d1a-agent-avatar {
+            width: 32px;
+            height: 32px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        /* FIXED: Agent avatar thick corners */
+        .d1a-agent-avatar .avatar-corner {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+        }
+
+        .d1a-agent-avatar .avatar-corner.tl {
+            top: 0;
+            left: 0;
+            border-top: 3px solid;
+            border-left: 3px solid;
+        }
+
+        .d1a-agent-avatar .avatar-corner.tr {
+            top: 0;
+            right: 0;
+            border-top: 3px solid;
+            border-right: 3px solid;
+        }
+
+        .d1a-agent-avatar .avatar-corner.bl {
+            bottom: 0;
+            left: 0;
+            border-bottom: 3px solid;
+            border-left: 3px solid;
+        }
+
+        .d1a-agent-avatar .avatar-corner.br {
+            bottom: 0;
+            right: 0;
+            border-bottom: 3px solid;
+            border-right: 3px solid;
+        }
+
+        .d1a-agent-status {
+            flex: 1;
+        }
+
+        .d1a-agent-name {
+            font-size: 14px;
+            color: #CDC9B9;
+            margin-bottom: 2px;
+        }
+
+        .d1a-agent-state {
+            font-size: 11px;
+            color: #797872;
+        }
+
+        .d1a-progress {
+            height: 4px;
+            background: #797872;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .d1a-progress-bar {
+            height: 100%;
+            background: #22C55E;
+            transition: width 0.3s;
+        }
+
+        .d1a-activity-panel {
+            background: #0A0A0A;
+            border: 1px solid #797872;
+            padding: 16px;
+            margin-top: 24px;
+            position: relative;
+        }
+
+        .d1a-activity-header {
+            font-size: 12px;
+            color: #797872;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .d1a-activity-log {
+            font-size: 12px;
+            line-height: 1.8;
+        }
+
+        .d1a-log-entry {
+            margin-bottom: 8px;
+            color: #797872;
+        }
+
+        .d1a-log-time {
+            color: #797872;
+        }
+
+        .d1a-log-agent {
+            color: #FE5344;
+        }
+
+        .d1a-log-action {
+            color: #CDC9B9;
+        }
+
+        .d1a-right-panel {
+            background: #0A0A0A;
+            border-left: 2px solid #797872;
+            padding: 16px;
+            overflow-y: auto;
+            width: 320px;
+            transition: all 0.3s ease;
+        }
+
+        .direction-1a.right-collapsed .d1a-right-panel {
+            width: 0;
+            padding: 0;
+            border-left: none;
+        }
+
+        .d1a-panel-section {
+            margin-bottom: 24px;
+        }
+
+        .d1a-section-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #797872;
+            margin-bottom: 12px;
+            letter-spacing: 1px;
+        }
+
+        .d1a-metric {
+            background: #101010;
+            padding: 12px;
+            margin-bottom: 8px;
+            border-left: 3px solid #22C55E;
+        }
+
+        .d1a-metric-label {
+            font-size: 11px;
+            color: #797872;
+            margin-bottom: 4px;
+        }
+
+        .d1a-metric-value {
+            font-size: 20px;
+            color: #CDC9B9;
+            font-weight: bold;
+        }
+
+        /* ===== DIRECTION 3A: Minimal Grid (Refined Typography) ===== */
+        .direction-3a {
+            font-family: 'Space Mono', monospace;
+            background: #F8F8F8;
+            color: #1A1A1A;
+            height: 100%;
+        }
+
+        .d3a-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 48px 24px;
+        }
+
+        .d3a-header {
+            margin-bottom: 48px;
+            text-align: center;
+        }
+
+        .d3a-title {
+            font-size: 40px;
+            font-weight: 700;
+            color: #1A1A1A;
+            margin-bottom: 12px;
+            letter-spacing: -1px;
+        }
+
+        .d3a-subtitle {
+            font-size: 18px;
+            color: #999;
+            font-weight: 400;
+        }
+
+        .d3a-agent-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1px;
+            background: #E0E0E0;
+            border: 1px solid #E0E0E0;
+        }
+
+        .d3a-agent-cell {
+            background: #fff;
+            padding: 32px;
+            min-height: 280px;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .d3a-agent-cell:hover {
+            background: #F8F8F8;
+        }
+
+        /* FIXED: All 4 corners thick on hover - ONLY BORDERS, NO BACKGROUND */
+        .d3a-agent-cell::before,
+        .d3a-agent-cell::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            border-color: #1A1A1A;
+            background: transparent;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .d3a-agent-cell::before {
+            top: 0;
+            left: 0;
+            border-top: 3px solid;
+            border-left: 3px solid;
+            border-right: none;
+            border-bottom: none;
+        }
+
+        .d3a-agent-cell::after {
+            top: 0;
+            right: 0;
+            border-top: 3px solid;
+            border-right: 3px solid;
+            border-left: none;
+            border-bottom: none;
+        }
+
+        .d3a-agent-cell .corner-bottom {
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            border-color: #1A1A1A;
+            background: transparent;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .d3a-agent-cell .corner-bl {
+            bottom: 0;
+            left: 0;
+            border-bottom: 3px solid;
+            border-left: 3px solid;
+            border-top: none;
+            border-right: none;
+        }
+
+        .d3a-agent-cell .corner-br {
+            bottom: 0;
+            right: 0;
+            border-bottom: 3px solid;
+            border-right: 3px solid;
+            border-top: none;
+            border-left: none;
+        }
+
+        .d3a-agent-cell:hover::before,
+        .d3a-agent-cell:hover::after,
+        .d3a-agent-cell:hover .corner-bottom {
+            opacity: 1;
+        }
+
+        .d3a-agent-id {
+            font-size: 12px;
+            color: #999;
+            font-weight: 700;
+            margin-bottom: 8px;
+            letter-spacing: 2px;
+        }
+
+        .d3a-agent-name {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1A1A1A;
+            margin-bottom: 16px;
+        }
+
+        .d3a-agent-description {
+            font-size: 14px;
+            color: #666;
+            line-height: 1.8;
+            flex: 1;
+        }
+
+        .d3a-agent-status {
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 2px solid #E0E0E0;
+            font-size: 13px;
+            color: #999;
+            font-weight: 700;
+        }
+
+        .d3a-status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        /* ===== DIRECTION 5A: Technical Blueprint (CARBON Colors) ===== */
+        .direction-5a {
+            font-family: 'IBM Plex Mono', monospace;
+            background: #101010;
+            color: #CDC9B9;
+            height: 100%;
+            position: relative;
+        }
+
+        .d5a-grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image:
+                linear-gradient(rgba(125, 120, 114, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(125, 120, 114, 0.1) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        .d5a-content {
+            position: relative;
+            z-index: 1;
+            padding: 32px;
+        }
+
+        .d5a-header {
+            border: 2px solid #797872;
+            padding: 20px 24px;
+            margin-bottom: 32px;
+            position: relative;
+        }
+
+        /* FIXED: All 4 corners with + marker */
+        .d5a-header .corner-marker {
+            position: absolute;
+            color: #797872;
+            font-size: 20px;
+            font-weight: bold;
+            line-height: 1;
+        }
+
+        .d5a-header .corner-marker.tl {
+            top: -2px;
+            left: -2px;
+        }
+
+        .d5a-header .corner-marker.tr {
+            top: -2px;
+            right: -2px;
+        }
+
+        .d5a-header .corner-marker.bl {
+            bottom: -2px;
+            left: -2px;
+        }
+
+        .d5a-header .corner-marker.br {
+            bottom: -2px;
+            right: -2px;
+        }
+
+        .d5a-title {
+            font-size: 28px;
+            color: #FE5344;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            font-weight: 700;
+        }
+
+        .d5a-timestamp {
+            font-size: 12px;
+            color: #797872;
+        }
+
+        .d5a-agent-layout {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+        }
+
+        .d5a-agent-module {
+            border: 1px solid #797872;
+            background: rgba(16, 16, 16, 0.6);
+            padding: 24px;
+            position: relative;
+        }
+
+        /* FIXED: All 4 corners thick */
+        .d5a-module-corner {
+            position: absolute;
+            width: 16px;
+            height: 16px;
+        }
+
+        .d5a-module-corner.tl {
+            top: -1px;
+            left: -1px;
+            border-top: 3px solid #797872;
+            border-left: 3px solid #797872;
+        }
+
+        .d5a-module-corner.tr {
+            top: -1px;
+            right: -1px;
+            border-top: 3px solid #797872;
+            border-right: 3px solid #797872;
+        }
+
+        .d5a-module-corner.bl {
+            bottom: -1px;
+            left: -1px;
+            border-bottom: 3px solid #797872;
+            border-left: 3px solid #797872;
+        }
+
+        .d5a-module-corner.br {
+            bottom: -1px;
+            right: -1px;
+            border-bottom: 3px solid #797872;
+            border-right: 3px solid #797872;
+        }
+
+        .d5a-module-id {
+            font-size: 11px;
+            color: #797872;
+            margin-bottom: 12px;
+            letter-spacing: 2px;
+        }
+
+        .d5a-module-name {
+            font-size: 20px;
+            color: #FE5344;
+            margin-bottom: 16px;
+            font-weight: bold;
+        }
+
+        .d5a-status-line {
+            font-size: 13px;
+            margin-bottom: 8px;
+            color: #797872;
+        }
+
+        .d5a-status-value {
+            color: #CDC9B9;
+        }
+
+        .d5a-execution-bar {
+            height: 2px;
+            background: #797872;
+            margin-top: 16px;
+            position: relative;
+        }
+
+        .d5a-execution-fill {
+            height: 100%;
+            background: #FE5344;
+            position: relative;
+        }
+
+        .d5a-execution-fill::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: -3px;
+            width: 8px;
+            height: 8px;
+            background: #FE5344;
+            box-shadow: 0 0 8px #FE5344;
+        }
+
+        /* Agent avatar with thick corners */
+        .d5a-agent-avatar {
+            width: 40px;
+            height: 40px;
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 12px;
+        }
+
+        .d5a-agent-avatar .avatar-corner {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+        }
+
+        .d5a-agent-avatar .avatar-corner.tl {
+            top: 0;
+            left: 0;
+            border-top: 3px solid;
+            border-left: 3px solid;
+        }
+
+        .d5a-agent-avatar .avatar-corner.tr {
+            top: 0;
+            right: 0;
+            border-top: 3px solid;
+            border-right: 3px solid;
+        }
+
+        .d5a-agent-avatar .avatar-corner.bl {
+            bottom: 0;
+            left: 0;
+            border-bottom: 3px solid;
+            border-left: 3px solid;
+        }
+
+        .d5a-agent-avatar .avatar-corner.br {
+            bottom: 0;
+            right: 0;
+            border-bottom: 3px solid;
+            border-right: 3px solid;
+        }
+    </style>
+</head>
+<body>
+    <!-- NAVIGATION -->
+    <div class="showcase-nav">
+        <h1>Chiron Design Directions - Refined</h1>
+        <div class="nav-controls">
+            <div class="direction-selector">
+                <button class="direction-btn active" onclick="showDirection(1)">1</button>
+                <button class="direction-btn" onclick="showDirection(2)">3</button>
+                <button class="direction-btn" onclick="showDirection(3)">5</button>
+            </div>
+            <button class="nav-btn" onclick="prevDirection()">← Previous</button>
+            <button class="nav-btn" onclick="nextDirection()">Next →</button>
+        </div>
+    </div>
+
+    <!-- MAIN CONTAINER -->
+    <div class="showcase-container">
+
+        <!-- DIRECTION 1A: Dense Command Center (Refined) -->
+        <div class="direction-wrapper active" id="direction-1">
+            <div class="direction-header">
+                <h2>Direction 1 Refined: Dense Command Center</h2>
+                <p><strong>Improvements:</strong> Collapsible sidebars, ALL 4 corners thick, thick-corner agent avatars, JetBrains Mono font</p>
+                <p><strong>Layout:</strong> 3-column grid with toggle-able left sidebar (nav) and right panel (metrics/quick actions)</p>
+                <p><strong>Font:</strong> JetBrains Mono - clean, readable monospace with excellent character distinction</p>
+
+                <div class="characteristics">
+                    <div class="char-item">
+                        <div class="char-label">Font Family</div>
+                        <div class="char-value">JetBrains Mono</div>
+                    </div>
+                    <div class="char-item">
+                        <div class="char-label">Corners Fixed</div>
+                        <div class="char-value">All 4 Thick ✓</div>
+                    </div>
+                    <div class="char-item">
+                        <div class="char-label">Sidebars</div>
+                        <div class="char-value">Collapsible ✓</div>
+                    </div>
+                    <div class="char-item">
+                        <div class="char-label">Avatars</div>
+                        <div class="char-value">Thick Corners ✓</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mockup-frame">
+                <div class="direction-1a" id="dir1-container">
+                    <div class="d1a-header">
+                        <button class="sidebar-toggle" onclick="toggleLeftSidebar()">☰</button>
+                        <div class="d1a-logo">CHIRON</div>
+                        <input type="text" class="d1a-search" placeholder="⌘K Quick Actions...">
+                        <div style="color: #797872; font-size: 13px;">fahad | TaskFlow</div>
+                        <button class="sidebar-toggle" onclick="toggleRightPanel()">⋮</button>
+                    </div>
+
+                    <div class="d1a-sidebar">
+                        <div class="d1a-nav-item active">▸ DASHBOARD</div>
+                        <div class="d1a-nav-item">▸ STORIES</div>
+                        <div class="d1a-nav-item">▸ ARTIFACTS</div>
+                        <div class="d1a-nav-item">▸ AGENTS</div>
+                        <div class="d1a-nav-item">▸ SETTINGS</div>
+                        <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #797872;">
+                            <div class="d1a-nav-item">⚙ CONFIG</div>
+                        </div>
+                    </div>
+
+                    <div class="d1a-main">
+                        <div class="d1a-agent-grid">
+                            <!-- Agent 1: Analyst -->
+                            <div class="d1a-agent-card">
+                                <div class="corner-box corner-tl"></div>
+                                <div class="corner-box corner-tr"></div>
+                                <div class="corner-box corner-bl"></div>
+                                <div class="corner-box corner-br"></div>
+
+                                <div class="d1a-agent-header">
+                                    <div class="d1a-agent-avatar" style="color: #8D9784;">
+                                        <div class="avatar-corner tl" style="border-color: #8D9784;"></div>
+                                        <div class="avatar-corner tr" style="border-color: #8D9784;"></div>
+                                        <div class="avatar-corner bl" style="border-color: #8D9784;"></div>
+                                        <div class="avatar-corner br" style="border-color: #8D9784;"></div>
+                                        AN
+                                    </div>
+                                    <div class="d1a-agent-status">
+                                        <div class="d1a-agent-name">ANALYST</div>
+                                        <div class="d1a-agent-state">IDLE</div>
+                                    </div>
+                                </div>
+                                <div class="d1a-progress">
+                                    <div class="d1a-progress-bar" style="width: 0%;"></div>
+                                </div>
+                            </div>
+
+                            <!-- Agent 2: PM -->
+                            <div class="d1a-agent-card">
+                                <div class="corner-box corner-tl"></div>
+                                <div class="corner-box corner-tr"></div>
+                                <div class="corner-box corner-bl"></div>
+                                <div class="corner-box corner-br"></div>
+
+                                <div class="d1a-agent-header">
+                                    <div class="d1a-agent-avatar" style="color: #FE5344;">
+                                        <div class="avatar-corner tl" style="border-color: #FE5344;"></div>
+                                        <div class="avatar-corner tr" style="border-color: #FE5344;"></div>
+                                        <div class="avatar-corner bl" style="border-color: #FE5344;"></div>
+                                        <div class="avatar-corner br" style="border-color: #FE5344;"></div>
+                                        PM
+                                    </div>
+                                    <div class="d1a-agent-status">
+                                        <div class="d1a-agent-name">PM</div>
+                                        <div class="d1a-agent-state">RUNNING - Step 5/9</div>
+                                    </div>
+                                </div>
+                                <div class="d1a-progress">
+                                    <div class="d1a-progress-bar" style="width: 55%;"></div>
+                                </div>
+                            </div>
+
+                            <!-- Agent 3: Architect -->
+                            <div class="d1a-agent-card">
+                                <div class="corner-box corner-tl"></div>
+                                <div class="corner-box corner-tr"></div>
+                                <div class="corner-box corner-bl"></div>
+                                <div class="corner-box corner-br"></div>
+
+                                <div class="d1a-agent-header">
+                                    <div class="d1a-agent-avatar" style="color: #5D6C6A;">
+                                        <div class="avatar-corner tl" style="border-color: #5D6C6A;"></div>
+                                        <div class="avatar-corner tr" style="border-color: #5D6C6A;"></div>
+                                        <div class="avatar-corner bl" style="border-color: #5D6C6A;"></div>
+                                        <div class="avatar-corner br" style="border-color: #5D6C6A;"></div>
+                                        AR
+                                    </div>
+                                    <div class="d1a-agent-status">
+                                        <div class="d1a-agent-name">ARCHITECT</div>
+                                        <div class="d1a-agent-state">RUNNING - Step 2/8</div>
+                                    </div>
+                                </div>
+                                <div class="d1a-progress">
+                                    <div class="d1a-progress-bar" style="width: 25%;"></div>
+                                </div>
+                            </div>
+
+                            <!-- Agent 4: DEV -->
+                            <div class="d1a-agent-card">
+                                <div class="corner-box corner-tl"></div>
+                                <div class="corner-box corner-tr"></div>
+                                <div class="corner-box corner-bl"></div>
+                                <div class="corner-box corner-br"></div>
+
+                                <div class="d1a-agent-header">
+                                    <div class="d1a-agent-avatar" style="color: #C4FF58;">
+                                        <div class="avatar-corner tl" style="border-color: #C4FF58;"></div>
+                                        <div class="avatar-corner tr" style="border-color: #C4FF58;"></div>
+                                        <div class="avatar-corner bl" style="border-color: #C4FF58;"></div>
+                                        <div class="avatar-corner br" style="border-color: #C4FF58;"></div>
+                                        DV
+                                    </div>
+                                    <div class="d1a-agent-status">
+                                        <div class="d1a-agent-name">DEV</div>
+                                        <div class="d1a-agent-state">QUEUED</div>
+                                    </div>
+                                </div>
+                                <div class="d1a-progress">
+                                    <div class="d1a-progress-bar" style="width: 0%;"></div>
+                                </div>
+                            </div>
+
+                            <!-- Agent 5: SM -->
+                            <div class="d1a-agent-card">
+                                <div class="corner-box corner-tl"></div>
+                                <div class="corner-box corner-tr"></div>
+                                <div class="corner-box corner-bl"></div>
+                                <div class="corner-box corner-br"></div>
+
+                                <div class="d1a-agent-header">
+                                    <div class="d1a-agent-avatar" style="color: #A6A77E;">
+                                        <div class="avatar-corner tl" style="border-color: #A6A77E;"></div>
+                                        <div class="avatar-corner tr" style="border-color: #A6A77E;"></div>
+                                        <div class="avatar-corner bl" style="border-color: #A6A77E;"></div>
+                                        <div class="avatar-corner br" style="border-color: #A6A77E;"></div>
+                                        SM
+                                    </div>
+                                    <div class="d1a-agent-status">
+                                        <div class="d1a-agent-name">SCRUM MASTER</div>
+                                        <div class="d1a-agent-state">IDLE</div>
+                                    </div>
+                                </div>
+                                <div class="d1a-progress">
+                                    <div class="d1a-progress-bar" style="width: 0%;"></div>
+                                </div>
+                            </div>
+
+                            <!-- Agent 6: UX -->
+                            <div class="d1a-agent-card">
+                                <div class="corner-box corner-tl"></div>
+                                <div class="corner-box corner-tr"></div>
+                                <div class="corner-box corner-bl"></div>
+                                <div class="corner-box corner-br"></div>
+
+                                <div class="d1a-agent-header">
+                                    <div class="d1a-agent-avatar" style="color: #F16D50;">
+                                        <div class="avatar-corner tl" style="border-color: #F16D50;"></div>
+                                        <div class="avatar-corner tr" style="border-color: #F16D50;"></div>
+                                        <div class="avatar-corner bl" style="border-color: #F16D50;"></div>
+                                        <div class="avatar-corner br" style="border-color: #F16D50;"></div>
+                                        UX
+                                    </div>
+                                    <div class="d1a-agent-status">
+                                        <div class="d1a-agent-name">UX DESIGNER</div>
+                                        <div class="d1a-agent-state">IDLE</div>
+                                    </div>
+                                </div>
+                                <div class="d1a-progress">
+                                    <div class="d1a-progress-bar" style="width: 0%;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d1a-activity-panel">
+                            <div class="corner-box corner-tl"></div>
+                            <div class="corner-box corner-tr"></div>
+                            <div class="corner-box corner-bl"></div>
+                            <div class="corner-box corner-br"></div>
+
+                            <div class="d1a-activity-header"># ACTIVITY LOG</div>
+                            <div class="d1a-activity-log">
+                                <div class="d1a-log-entry">
+                                    <span class="d1a-log-time">[14:23:45]</span>
+                                    <span class="d1a-log-agent"> [PM:01] </span>
+                                    <span class="d1a-log-action">>> Reading PRD.md</span>
+                                </div>
+                                <div class="d1a-log-entry">
+                                    <span class="d1a-log-time">[14:23:42]</span>
+                                    <span class="d1a-log-agent"> [ARCH:01] </span>
+                                    <span class="d1a-log-action">>> Analyzing database schema</span>
+                                </div>
+                                <div class="d1a-log-entry">
+                                    <span class="d1a-log-time">[14:23:38]</span>
+                                    <span class="d1a-log-agent"> [PM:01] </span>
+                                    <span class="d1a-log-action">>> Workflow started: tech-spec</span>
+                                </div>
+                                <div class="d1a-log-entry">
+                                    <span class="d1a-log-time">[14:23:35]</span>
+                                    <span class="d1a-log-agent"> [ARCH:01] </span>
+                                    <span class="d1a-log-action">>> Worktree created: feature/epic-1</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d1a-right-panel">
+                        <div class="d1a-panel-section">
+                            <div class="d1a-section-title">PROJECT METRICS</div>
+                            <div class="d1a-metric" style="border-color: #22C55E;">
+                                <div class="d1a-metric-label">PHASE</div>
+                                <div class="d1a-metric-value">2/4</div>
+                            </div>
+                            <div class="d1a-metric" style="border-color: #F59E0B;">
+                                <div class="d1a-metric-label">ACTIVE AGENTS</div>
+                                <div class="d1a-metric-value">2</div>
+                            </div>
+                            <div class="d1a-metric" style="border-color: #3B82F6;">
+                                <div class="d1a-metric-label">STORIES</div>
+                                <div class="d1a-metric-value">12/45</div>
+                            </div>
+                        </div>
+
+                        <div class="d1a-panel-section">
+                            <div class="d1a-section-title">QUICK ACTIONS</div>
+                            <div style="background: #101010; padding: 10px 12px; margin-bottom: 8px; cursor: pointer; font-size: 12px;">
+                                → Create Story
+                            </div>
+                            <div style="background: #101010; padding: 10px 12px; margin-bottom: 8px; cursor: pointer; font-size: 12px;">
+                                → Run Architecture
+                            </div>
+                            <div style="background: #101010; padding: 10px 12px; cursor: pointer; font-size: 12px;">
+                                → Sprint Planning
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- DIRECTION 3A: Minimal Grid (Refined) -->
+        <div class="direction-wrapper" id="direction-2">
+            <div class="direction-header">
+                <h2>Direction 3 Refined: Minimal Grid</h2>
+                <p><strong>Improvements:</strong> Space Mono font, thick corner hover effects on all 4 corners, refined typography scale</p>
+                <p><strong>Layout:</strong> Pure grid - each agent in equal cell, Swiss design principles</p>
+                <p><strong>Font:</strong> Space Mono - geometric monospace with excellent readability and character</p>
+
+                <div class="characteristics">
+                    <div class="char-item">
+                        <div class="char-label">Font Family</div>
+                        <div class="char-value">Space Mono</div>
+                    </div>
+                    <div class="char-item">
+                        <div class="char-label">Grid System</div>
+                        <div class="char-value">3×2 Equal Cells</div>
+                    </div>
+                    <div class="char-item">
+                        <div class="char-label">Hover Effect</div>
+                        <div class="char-value">All 4 Corners ✓</div>
+                    </div>
+                    <div class="char-item">
+                        <div class="char-label">Typography</div>
+                        <div class="char-value">Swiss Precision</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mockup-frame">
+                <div class="direction-3a">
+                    <div class="d3a-container">
+                        <div class="d3a-header">
+                            <div class="d3a-title">Agent Orchestration</div>
+                            <div class="d3a-subtitle">TaskFlow Project — Phase 2 of 4</div>
+                        </div>
+
+                        <div class="d3a-agent-grid">
+                            <div class="d3a-agent-cell">
+                                <div class="corner-bottom corner-bl"></div>
+                                <div class="corner-bottom corner-br"></div>
+
+                                <div class="d3a-agent-id">AN-01</div>
+                                <div class="d3a-agent-name">Analyst</div>
+                                <div class="d3a-agent-description">
+                                    Research and discovery workflows. Conducts market analysis, competitive research, and user interviews to inform product decisions.
+                                </div>
+                                <div class="d3a-agent-status">
+                                    <span class="d3a-status-indicator" style="background: #6B7280;"></span>
+                                    Idle
+                                </div>
+                            </div>
+
+                            <div class="d3a-agent-cell">
+                                <div class="corner-bottom corner-bl"></div>
+                                <div class="corner-bottom corner-br"></div>
+
+                                <div class="d3a-agent-id">PM-01</div>
+                                <div class="d3a-agent-name">Product Manager</div>
+                                <div class="d3a-agent-description">
+                                    Strategic planning and requirements definition. Creates PRDs, manages epic breakdown, and defines product vision.
+                                </div>
+                                <div class="d3a-agent-status">
+                                    <span class="d3a-status-indicator" style="background: #22C55E;"></span>
+                                    Running — Step 5 of 9
+                                </div>
+                            </div>
+
+                            <div class="d3a-agent-cell">
+                                <div class="corner-bottom corner-bl"></div>
+                                <div class="corner-bottom corner-br"></div>
+
+                                <div class="d3a-agent-id">AR-01</div>
+                                <div class="d3a-agent-name">Architect</div>
+                                <div class="d3a-agent-description">
+                                    Technical architecture and system design. Creates architecture documents, defines patterns, and makes technology stack decisions.
+                                </div>
+                                <div class="d3a-agent-status">
+                                    <span class="d3a-status-indicator" style="background: #22C55E;"></span>
+                                    Running — Step 2 of 8
+                                </div>
+                            </div>
+
+                            <div class="d3a-agent-cell">
+                                <div class="corner-bottom corner-bl"></div>
+                                <div class="corner-bottom corner-br"></div>
+
+                                <div class="d3a-agent-id">DV-01</div>
+                                <div class="d3a-agent-name">Developer</div>
+                                <div class="d3a-agent-description">
+                                    Implementation and coding execution. Builds features, writes tests, and implements development stories following specifications.
+                                </div>
+                                <div class="d3a-agent-status">
+                                    <span class="d3a-status-indicator" style="background: #3B82F6;"></span>
+                                    Queued — 3 Tasks
+                                </div>
+                            </div>
+
+                            <div class="d3a-agent-cell">
+                                <div class="corner-bottom corner-bl"></div>
+                                <div class="corner-bottom corner-br"></div>
+
+                                <div class="d3a-agent-id">SM-01</div>
+                                <div class="d3a-agent-name">Scrum Master</div>
+                                <div class="d3a-agent-description">
+                                    Sprint coordination and workflow facilitation. Manages sprint planning, tracks execution progress, and runs retrospectives.
+                                </div>
+                                <div class="d3a-agent-status">
+                                    <span class="d3a-status-indicator" style="background: #6B7280;"></span>
+                                    Idle
+                                </div>
+                            </div>
+
+                            <div class="d3a-agent-cell">
+                                <div class="corner-bottom corner-bl"></div>
+                                <div class="corner-bottom corner-br"></div>
+
+                                <div class="d3a-agent-id">UX-01</div>
+                                <div class="d3a-agent-name">UX Designer</div>
+                                <div class="d3a-agent-description">
+                                    User experience and interface design. Creates wireframes, designs visual interfaces, and defines interaction patterns and flows.
+                                </div>
+                                <div class="d3a-agent-status">
+                                    <span class="d3a-status-indicator" style="background: #6B7280;"></span>
+                                    Idle
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- DIRECTION 5A: Technical Blueprint (CARBON Colors) -->
+        <div class="direction-wrapper" id="direction-3">
+            <div class="direction-header">
+                <h2>Direction 5 Refined: Technical Blueprint</h2>
+                <p><strong>Improvements:</strong> CARBON color palette (#101010, #797872, #CDC9B9), IBM Plex Mono font, thick-corner agent avatars, refined grid opacity</p>
+                <p><strong>Layout:</strong> Blueprint grid overlay with 2-column module system</p>
+                <p><strong>Font:</strong> IBM Plex Mono - technical precision with excellent code display characteristics</p>
+
+                <div class="characteristics">
+                    <div class="char-item">
+                        <div class="char-label">Font Family</div>
+                        <div class="char-value">IBM Plex Mono</div>
+                    </div>
+                    <div class="char-item">
+                        <div class="char-label">Color Palette</div>
+                        <div class="char-value">CARBON (Dark)</div>
+                    </div>
+                    <div class="char-item">
+                        <div class="char-label">Grid Overlay</div>
+                        <div class="char-value">Blueprint Style ✓</div>
+                    </div>
+                    <div class="char-item">
+                        <div class="char-label">Avatars</div>
+                        <div class="char-value">Thick Corners ✓</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mockup-frame">
+                <div class="direction-5a">
+                    <div class="d5a-grid"></div>
+                    <div class="d5a-content">
+                        <div class="d5a-header">
+                            <div class="corner-marker tl">+</div>
+                            <div class="corner-marker tr">+</div>
+                            <div class="corner-marker bl">+</div>
+                            <div class="corner-marker br">+</div>
+
+                            <div class="d5a-title">CHIRON ORCHESTRATION SYSTEM</div>
+                            <div class="d5a-timestamp">TIMESTAMP: 2025-11-02 14:23:45 UTC | PROJECT: TASKFLOW | PHASE: 02/04</div>
+                        </div>
+
+                        <div class="d5a-agent-layout">
+                            <!-- Module 1: Analyst -->
+                            <div class="d5a-agent-module">
+                                <div class="d5a-module-corner tl"></div>
+                                <div class="d5a-module-corner tr"></div>
+                                <div class="d5a-module-corner bl"></div>
+                                <div class="d5a-module-corner br"></div>
+
+                                <div class="d5a-agent-avatar" style="color: #8D9784;">
+                                    <div class="avatar-corner tl" style="border-color: #8D9784;"></div>
+                                    <div class="avatar-corner tr" style="border-color: #8D9784;"></div>
+                                    <div class="avatar-corner bl" style="border-color: #8D9784;"></div>
+                                    <div class="avatar-corner br" style="border-color: #8D9784;"></div>
+                                    AN
+                                </div>
+
+                                <div class="d5a-module-id">MODULE: AN-01</div>
+                                <div class="d5a-module-name">ANALYST AGENT</div>
+                                <div class="d5a-status-line">STATUS: <span class="d5a-status-value">IDLE</span></div>
+                                <div class="d5a-status-line">WORKFLOWS: <span class="d5a-status-value">0 ACTIVE</span></div>
+                                <div class="d5a-status-line">CONTEXT: <span class="d5a-status-value">0 KB</span></div>
+                                <div class="d5a-execution-bar">
+                                    <div class="d5a-execution-fill" style="width: 0%;"></div>
+                                </div>
+                            </div>
+
+                            <!-- Module 2: PM -->
+                            <div class="d5a-agent-module">
+                                <div class="d5a-module-corner tl"></div>
+                                <div class="d5a-module-corner tr"></div>
+                                <div class="d5a-module-corner bl"></div>
+                                <div class="d5a-module-corner br"></div>
+
+                                <div class="d5a-agent-avatar" style="color: #FE5344;">
+                                    <div class="avatar-corner tl" style="border-color: #FE5344;"></div>
+                                    <div class="avatar-corner tr" style="border-color: #FE5344;"></div>
+                                    <div class="avatar-corner bl" style="border-color: #FE5344;"></div>
+                                    <div class="avatar-corner br" style="border-color: #FE5344;"></div>
+                                    PM
+                                </div>
+
+                                <div class="d5a-module-id">MODULE: PM-01</div>
+                                <div class="d5a-module-name">PM AGENT</div>
+                                <div class="d5a-status-line">STATUS: <span class="d5a-status-value" style="color: #22C55E;">RUNNING</span></div>
+                                <div class="d5a-status-line">WORKFLOW: <span class="d5a-status-value">PRD GENERATION</span></div>
+                                <div class="d5a-status-line">PROGRESS: <span class="d5a-status-value">STEP 5/9 (55%)</span></div>
+                                <div class="d5a-execution-bar">
+                                    <div class="d5a-execution-fill" style="width: 55%;"></div>
+                                </div>
+                            </div>
+
+                            <!-- Module 3: Architect -->
+                            <div class="d5a-agent-module">
+                                <div class="d5a-module-corner tl"></div>
+                                <div class="d5a-module-corner tr"></div>
+                                <div class="d5a-module-corner bl"></div>
+                                <div class="d5a-module-corner br"></div>
+
+                                <div class="d5a-agent-avatar" style="color: #5D6C6A;">
+                                    <div class="avatar-corner tl" style="border-color: #5D6C6A;"></div>
+                                    <div class="avatar-corner tr" style="border-color: #5D6C6A;"></div>
+                                    <div class="avatar-corner bl" style="border-color: #5D6C6A;"></div>
+                                    <div class="avatar-corner br" style="border-color: #5D6C6A;"></div>
+                                    AR
+                                </div>
+
+                                <div class="d5a-module-id">MODULE: AR-01</div>
+                                <div class="d5a-module-name">ARCHITECT AGENT</div>
+                                <div class="d5a-status-line">STATUS: <span class="d5a-status-value" style="color: #22C55E;">RUNNING</span></div>
+                                <div class="d5a-status-line">WORKFLOW: <span class="d5a-status-value">TECH SPEC</span></div>
+                                <div class="d5a-status-line">PROGRESS: <span class="d5a-status-value">STEP 2/8 (25%)</span></div>
+                                <div class="d5a-execution-bar">
+                                    <div class="d5a-execution-fill" style="width: 25%;"></div>
+                                </div>
+                            </div>
+
+                            <!-- Module 4: DEV -->
+                            <div class="d5a-agent-module">
+                                <div class="d5a-module-corner tl"></div>
+                                <div class="d5a-module-corner tr"></div>
+                                <div class="d5a-module-corner bl"></div>
+                                <div class="d5a-module-corner br"></div>
+
+                                <div class="d5a-agent-avatar" style="color: #C4FF58;">
+                                    <div class="avatar-corner tl" style="border-color: #C4FF58;"></div>
+                                    <div class="avatar-corner tr" style="border-color: #C4FF58;"></div>
+                                    <div class="avatar-corner bl" style="border-color: #C4FF58;"></div>
+                                    <div class="avatar-corner br" style="border-color: #C4FF58;"></div>
+                                    DV
+                                </div>
+
+                                <div class="d5a-module-id">MODULE: DV-01</div>
+                                <div class="d5a-module-name">DEV AGENT</div>
+                                <div class="d5a-status-line">STATUS: <span class="d5a-status-value" style="color: #F59E0B;">QUEUED</span></div>
+                                <div class="d5a-status-line">PENDING: <span class="d5a-status-value">3 TASKS</span></div>
+                                <div class="d5a-status-line">WAIT TIME: <span class="d5a-status-value">~8 MIN</span></div>
+                                <div class="d5a-execution-bar">
+                                    <div class="d5a-execution-fill" style="width: 0%;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        let currentDirection = 1;
+
+        function showDirection(n) {
+            // Hide all
+            document.querySelectorAll('.direction-wrapper').forEach(el => {
+                el.classList.remove('active');
+            });
+            document.querySelectorAll('.direction-btn').forEach(el => {
+                el.classList.remove('active');
+            });
+
+            // Show selected
+            document.getElementById(`direction-${n}`).classList.add('active');
+            document.querySelectorAll('.direction-btn')[n-1].classList.add('active');
+
+            currentDirection = n;
+        }
+
+        function nextDirection() {
+            let next = currentDirection + 1;
+            if (next > 3) next = 1;
+            showDirection(next);
+        }
+
+        function prevDirection() {
+            let prev = currentDirection - 1;
+            if (prev < 1) prev = 3;
+            showDirection(prev);
+        }
+
+        function toggleLeftSidebar() {
+            document.getElementById('dir1-container').classList.toggle('sidebar-collapsed');
+        }
+
+        function toggleRightPanel() {
+            document.getElementById('dir1-container').classList.toggle('right-collapsed');
+        }
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight') nextDirection();
+            if (e.key === 'ArrowLeft') prevDirection();
+            if (e.key >= '1' && e.key <= '3') showDirection(parseInt(e.key));
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,2034 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chiron Design Direction Showcase</title>
+    <!-- Professional Monospace Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            /* CARBON Dark Mode Base */
+            --carbon-primary: #101010;
+            --carbon-secondary: #797872;
+            --carbon-tertiary: #CDC9B9;
+
+            /* Agent Signature Colors */
+            --agent-analyst: #8D9784;
+            --agent-pm: #FE5344;
+            --agent-architect: #5D6C6A;
+            --agent-dev: #C4FF58;
+            --agent-sm: #A6A77E;
+            --agent-ux: #F16D50;
+
+            /* Semantic Status Colors */
+            --status-success: #22C55E;
+            --status-error: #EF4444;
+            --status-warning: #F59E0B;
+            --status-info: #3B82F6;
+            --status-neutral: #6B7280;
+
+            /* Typography - Professional monospace fonts */
+            --font-mono: 'JetBrains Mono', 'Commit Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', 'Consolas', 'Monaco', 'Courier New', monospace;
+            --font-sans: 'JetBrains Mono', 'Commit Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', 'Consolas', 'Monaco', monospace;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background: #0a0a0a;
+            color: var(--carbon-tertiary);
+            overflow-x: hidden;
+        }
+
+        /* Navigation Container */
+        .nav-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(16, 16, 16, 0.95);
+            border-bottom: 1px solid var(--carbon-secondary);
+            z-index: 1000;
+            padding: 1rem 2rem;
+        }
+
+        .nav-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .nav-title {
+            font-family: var(--font-mono);
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: var(--agent-dev);
+        }
+
+        .nav-counter {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            color: var(--carbon-secondary);
+        }
+
+        .thumbnail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 0.5rem;
+            max-width: 100%;
+        }
+
+        .thumbnail {
+            background: var(--carbon-primary);
+            border: 2px solid var(--carbon-secondary);
+            padding: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            text-align: center;
+        }
+
+        .thumbnail:hover {
+            border-color: var(--agent-dev);
+            background: #1a1a1a;
+        }
+
+        .thumbnail.active {
+            border-color: var(--agent-dev);
+            background: #1a1a1a;
+            color: var(--agent-dev);
+        }
+
+        .thumbnail-label {
+            font-weight: bold;
+            margin-bottom: 0.25rem;
+        }
+
+        .thumbnail-desc {
+            font-size: 0.625rem;
+            color: var(--carbon-secondary);
+        }
+
+        /* Main Container */
+        .container {
+            margin-top: 200px;
+            padding: 2rem;
+        }
+
+        /* Direction Panel */
+        .direction-panel {
+            display: none;
+            margin-bottom: 2rem;
+        }
+
+        .direction-panel.active {
+            display: block;
+        }
+
+        .direction-info {
+            background: var(--carbon-primary);
+            border: 2px solid var(--carbon-secondary);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .direction-name {
+            font-family: var(--font-mono);
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--agent-dev);
+            margin-bottom: 0.5rem;
+        }
+
+        .direction-personality {
+            font-size: 1rem;
+            color: var(--agent-pm);
+            margin-bottom: 1rem;
+        }
+
+        .direction-meta {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+        }
+
+        .meta-item {
+            color: var(--carbon-secondary);
+        }
+
+        .meta-item strong {
+            color: var(--carbon-tertiary);
+        }
+
+        /* Mockup Container */
+        .mockup-container {
+            background: var(--carbon-primary);
+            border: 3px solid var(--carbon-secondary);
+            min-height: 800px;
+            position: relative;
+        }
+
+        /* Control Buttons */
+        .controls {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin: 2rem 0;
+        }
+
+        .btn {
+            font-family: var(--font-mono);
+            padding: 0.75rem 1.5rem;
+            background: var(--carbon-primary);
+            border: 2px solid var(--carbon-secondary);
+            color: var(--carbon-tertiary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            border-color: var(--agent-dev);
+            background: #1a1a1a;
+            color: var(--agent-dev);
+        }
+
+        .btn-primary {
+            border-color: var(--agent-dev);
+            color: var(--agent-dev);
+        }
+
+        /* Notes Section */
+        .notes-section {
+            margin-top: 2rem;
+            background: var(--carbon-primary);
+            border: 2px solid var(--carbon-secondary);
+            padding: 1.5rem;
+        }
+
+        .notes-title {
+            font-family: var(--font-mono);
+            font-size: 1rem;
+            color: var(--carbon-tertiary);
+            margin-bottom: 1rem;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 100px;
+            background: #0a0a0a;
+            border: 1px solid var(--carbon-secondary);
+            color: var(--carbon-tertiary);
+            padding: 0.75rem;
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            resize: vertical;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: var(--agent-dev);
+        }
+
+        /* Responsive Toggle */
+        .responsive-toggle {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            display: flex;
+            gap: 0.5rem;
+            background: rgba(16, 16, 16, 0.95);
+            border: 2px solid var(--carbon-secondary);
+            padding: 0.5rem;
+            z-index: 1000;
+        }
+
+        .responsive-btn {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            padding: 0.5rem 1rem;
+            background: var(--carbon-primary);
+            border: 1px solid var(--carbon-secondary);
+            color: var(--carbon-tertiary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .responsive-btn.active {
+            border-color: var(--agent-dev);
+            color: var(--agent-dev);
+            background: #1a1a1a;
+        }
+
+        /* Common Mockup Styles */
+        .mockup-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--carbon-secondary);
+        }
+
+        .mockup-logo {
+            font-family: var(--font-mono);
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: var(--agent-dev);
+        }
+
+        .mockup-nav {
+            display: flex;
+            gap: 2rem;
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+        }
+
+        .mockup-nav a {
+            color: var(--carbon-secondary);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .mockup-nav a:hover,
+        .mockup-nav a.active {
+            color: var(--carbon-tertiary);
+        }
+
+        .agent-badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            border: 2px solid;
+            margin-right: 0.5rem;
+        }
+
+        .agent-analyst .agent-badge { border-color: var(--agent-analyst); color: var(--agent-analyst); }
+        .agent-pm .agent-badge { border-color: var(--agent-pm); color: var(--agent-pm); }
+        .agent-architect .agent-badge { border-color: var(--agent-architect); color: var(--agent-architect); }
+        .agent-dev .agent-badge { border-color: var(--agent-dev); color: var(--agent-dev); }
+        .agent-sm .agent-badge { border-color: var(--agent-sm); color: var(--agent-sm); }
+        .agent-ux .agent-badge { border-color: var(--agent-ux); color: var(--agent-ux); }
+
+        /* Direction 1: Dense Technical Dashboard */
+        .direction-1 .dashboard-grid {
+            display: grid;
+            grid-template-columns: 250px 1fr 300px;
+            grid-template-rows: auto 1fr;
+            height: calc(100% - 60px);
+        }
+
+        .direction-1 .sidebar {
+            grid-row: 1 / 3;
+            border-right: 1px solid var(--carbon-secondary);
+            padding: 1rem;
+        }
+
+        .direction-1 .main-content {
+            padding: 1.5rem;
+            overflow-y: auto;
+        }
+
+        .direction-1 .activity-panel {
+            grid-row: 1 / 3;
+            border-left: 1px solid var(--carbon-secondary);
+            padding: 1rem;
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+        }
+
+        .direction-1 .radar-container {
+            width: 200px;
+            height: 200px;
+            margin: 1rem auto;
+            border: 2px solid var(--carbon-secondary);
+            border-radius: 50%;
+            position: relative;
+        }
+
+        .direction-1 .radar-cursor {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .direction-1 .agent-table {
+            width: 100%;
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            border-collapse: collapse;
+            margin-top: 1.5rem;
+        }
+
+        .direction-1 .agent-table th {
+            text-align: left;
+            padding: 0.5rem;
+            border-bottom: 2px solid var(--carbon-secondary);
+            color: var(--carbon-secondary);
+        }
+
+        .direction-1 .agent-table td {
+            padding: 0.75rem 0.5rem;
+            border-bottom: 1px solid var(--carbon-secondary);
+        }
+
+        .direction-1 .agent-table tr.active {
+            background: rgba(34, 197, 94, 0.1);
+            border-left: 3px solid var(--status-success);
+        }
+
+        /* Direction 2: Spacious Card Layout */
+        .direction-2 .dashboard-layout {
+            padding: 2rem;
+        }
+
+        .direction-2 .hero-section {
+            text-align: center;
+            padding: 3rem 0;
+            border-bottom: 1px solid var(--carbon-secondary);
+        }
+
+        .direction-2 .hero-title {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+        }
+
+        .direction-2 .hero-subtitle {
+            font-size: 1.25rem;
+            color: var(--carbon-secondary);
+        }
+
+        .direction-2 .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+
+        .direction-2 .card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--carbon-secondary);
+            padding: 2rem;
+            transition: all 0.3s;
+        }
+
+        .direction-2 .card:hover {
+            border-color: var(--agent-dev);
+            transform: translateY(-4px);
+        }
+
+        .direction-2 .card-title {
+            font-size: 1.25rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+        }
+
+        .direction-2 .card-content {
+            color: var(--carbon-secondary);
+            line-height: 1.6;
+        }
+
+        /* Direction 3: Split View Workbench */
+        .direction-3 .workbench-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            height: calc(100% - 60px);
+        }
+
+        .direction-3 .artifact-pane {
+            border-right: 1px solid var(--carbon-secondary);
+            padding: 1.5rem;
+            overflow-y: auto;
+        }
+
+        .direction-3 .chat-pane {
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .direction-3 .artifact-header {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            color: var(--carbon-secondary);
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--carbon-secondary);
+        }
+
+        .direction-3 .artifact-content {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            line-height: 1.8;
+            white-space: pre-wrap;
+        }
+
+        .direction-3 .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            margin-bottom: 1rem;
+        }
+
+        .direction-3 .chat-message {
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            border-left: 3px solid var(--carbon-secondary);
+            padding-left: 1rem;
+        }
+
+        .direction-3 .chat-message.agent {
+            border-left-color: var(--agent-pm);
+        }
+
+        .direction-3 .chat-input {
+            border-top: 1px solid var(--carbon-secondary);
+            padding-top: 1rem;
+        }
+
+        .direction-3 .chat-input input {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--carbon-secondary);
+            padding: 0.75rem;
+            color: var(--carbon-tertiary);
+            font-family: var(--font-mono);
+        }
+
+        /* Direction 4: Kanban Flow */
+        .direction-4 .kanban-layout {
+            padding: 1.5rem;
+        }
+
+        .direction-4 .kanban-header {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 1.5rem;
+            font-family: var(--font-mono);
+        }
+
+        .direction-4 .kanban-board {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .direction-4 .kanban-column {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--carbon-secondary);
+            padding: 1rem;
+            min-height: 500px;
+        }
+
+        .direction-4 .kanban-column-header {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            color: var(--carbon-secondary);
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--carbon-secondary);
+        }
+
+        .direction-4 .story-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--carbon-secondary);
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            cursor: move;
+            transition: all 0.2s;
+        }
+
+        .direction-4 .story-card:hover {
+            border-color: var(--agent-dev);
+            transform: translateX(4px);
+        }
+
+        .direction-4 .story-title {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .direction-4 .story-meta {
+            font-size: 0.75rem;
+            color: var(--carbon-secondary);
+        }
+
+        /* Direction 5: Minimal Clean Interface */
+        .direction-5 .minimal-layout {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 3rem 2rem;
+        }
+
+        .direction-5 .section {
+            margin-bottom: 4rem;
+        }
+
+        .direction-5 .section-title {
+            font-size: 0.875rem;
+            font-family: var(--font-mono);
+            color: var(--carbon-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 1.5rem;
+        }
+
+        .direction-5 .agent-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .direction-5 .agent-item {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            padding: 1.5rem 0;
+            border-bottom: 1px solid rgba(121, 120, 114, 0.2);
+            transition: all 0.2s;
+        }
+
+        .direction-5 .agent-item:hover {
+            padding-left: 1rem;
+            border-bottom-color: var(--agent-dev);
+        }
+
+        .direction-5 .agent-info {
+            flex: 1;
+        }
+
+        .direction-5 .agent-name {
+            font-size: 1.25rem;
+            font-weight: bold;
+            margin-bottom: 0.25rem;
+        }
+
+        .direction-5 .agent-status {
+            font-size: 0.875rem;
+            color: var(--carbon-secondary);
+        }
+
+        .direction-5 .agent-action {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--carbon-secondary);
+            color: var(--carbon-tertiary);
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            background: transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .direction-5 .agent-action:hover {
+            border-color: var(--agent-dev);
+            color: var(--agent-dev);
+        }
+
+        /* Direction 6: Terminal-Style Interface */
+        .direction-6 .terminal-layout {
+            font-family: var(--font-mono);
+            padding: 1rem;
+            height: calc(100% - 60px);
+            overflow-y: auto;
+        }
+
+        .direction-6 .terminal-prompt {
+            color: var(--agent-dev);
+            margin-bottom: 1rem;
+        }
+
+        .direction-6 .terminal-output {
+            margin-bottom: 2rem;
+        }
+
+        .direction-6 .terminal-line {
+            margin-bottom: 0.5rem;
+            line-height: 1.6;
+        }
+
+        .direction-6 .terminal-command {
+            color: var(--carbon-secondary);
+        }
+
+        .direction-6 .terminal-result {
+            color: var(--carbon-tertiary);
+            padding-left: 1rem;
+        }
+
+        .direction-6 .terminal-table {
+            margin: 1rem 0;
+            border: 1px solid var(--carbon-secondary);
+        }
+
+        .direction-6 .terminal-table-row {
+            display: grid;
+            grid-template-columns: 120px 200px 120px 1fr;
+            padding: 0.5rem;
+            border-bottom: 1px solid var(--carbon-secondary);
+        }
+
+        .direction-6 .terminal-table-row:last-child {
+            border-bottom: none;
+        }
+
+        .direction-6 .terminal-header {
+            color: var(--carbon-secondary);
+        }
+
+        .direction-6 .status-running {
+            color: var(--status-success);
+        }
+
+        .direction-6 .status-queued {
+            color: var(--status-warning);
+        }
+
+        /* Direction 7: Data-Dense Bloomberg Style */
+        .direction-7 .bloomberg-layout {
+            display: grid;
+            grid-template-columns: 300px 1fr 300px;
+            grid-template-rows: 60px 1fr;
+            height: 100%;
+            gap: 0;
+        }
+
+        .direction-7 .bloomberg-sidebar-left {
+            grid-row: 1 / 3;
+            border-right: 2px solid var(--carbon-secondary);
+            background: rgba(255, 255, 255, 0.01);
+        }
+
+        .direction-7 .bloomberg-top-bar {
+            grid-column: 2 / 4;
+            border-bottom: 2px solid var(--carbon-secondary);
+            padding: 0 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+        }
+
+        .direction-7 .bloomberg-main {
+            padding: 1.5rem;
+            overflow-y: auto;
+        }
+
+        .direction-7 .bloomberg-sidebar-right {
+            border-left: 2px solid var(--carbon-secondary);
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.01);
+        }
+
+        .direction-7 .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .direction-7 .metric-card {
+            border: 2px solid var(--carbon-secondary);
+            padding: 1rem;
+            font-family: var(--font-mono);
+        }
+
+        .direction-7 .metric-label {
+            font-size: 0.75rem;
+            color: var(--carbon-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .direction-7 .metric-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .direction-7 .data-table {
+            width: 100%;
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        .direction-7 .data-table th {
+            text-align: left;
+            padding: 0.75rem;
+            border-top: 2px solid var(--carbon-secondary);
+            border-bottom: 2px solid var(--carbon-secondary);
+            background: rgba(255, 255, 255, 0.02);
+            color: var(--carbon-secondary);
+        }
+
+        .direction-7 .data-table td {
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--carbon-secondary);
+        }
+
+        .direction-7 .corner-bracket {
+            position: relative;
+        }
+
+        .direction-7 .corner-bracket::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            width: 8px;
+            height: 8px;
+            border-top: 3px solid var(--agent-dev);
+            border-left: 3px solid var(--agent-dev);
+        }
+
+        .direction-7 .corner-bracket::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            right: -2px;
+            width: 8px;
+            height: 8px;
+            border-bottom: 3px solid var(--agent-dev);
+            border-right: 3px solid var(--agent-dev);
+        }
+
+        /* Direction 8: Card-Heavy Bento Grid */
+        .direction-8 .bento-layout {
+            padding: 2rem;
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            grid-auto-rows: 200px;
+            gap: 1.5rem;
+        }
+
+        .direction-8 .bento-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 2px solid var(--carbon-secondary);
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s;
+        }
+
+        .direction-8 .bento-card:hover {
+            border-color: var(--agent-dev);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .direction-8 .bento-hero {
+            grid-column: 1 / 9;
+            grid-row: 1 / 3;
+        }
+
+        .direction-8 .bento-metric {
+            grid-column: span 4;
+        }
+
+        .direction-8 .bento-agent {
+            grid-column: span 3;
+        }
+
+        .direction-8 .bento-activity {
+            grid-column: 9 / 13;
+            grid-row: 1 / 4;
+        }
+
+        .direction-8 .bento-title {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            color: var(--carbon-secondary);
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .direction-8 .bento-content {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .direction-1 .dashboard-grid,
+            .direction-3 .workbench-layout,
+            .direction-7 .bloomberg-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .direction-2 .card-grid,
+            .direction-4 .kanban-board,
+            .direction-8 .bento-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <div class="nav-container">
+        <div class="nav-header">
+            <div class="nav-title">CHIRON // DESIGN DIRECTIONS</div>
+            <div class="nav-counter">
+                <span id="current-direction">1</span> / 8
+            </div>
+        </div>
+        <div class="thumbnail-grid">
+            <div class="thumbnail active" data-direction="1">
+                <div class="thumbnail-label">D1: DENSE TECHNICAL</div>
+                <div class="thumbnail-desc">Data-rich dashboard</div>
+            </div>
+            <div class="thumbnail" data-direction="2">
+                <div class="thumbnail-label">D2: SPACIOUS CARDS</div>
+                <div class="thumbnail-desc">Breathing room layout</div>
+            </div>
+            <div class="thumbnail" data-direction="3">
+                <div class="thumbnail-label">D3: SPLIT WORKBENCH</div>
+                <div class="thumbnail-desc">Artifact + Chat</div>
+            </div>
+            <div class="thumbnail" data-direction="4">
+                <div class="thumbnail-label">D4: KANBAN FLOW</div>
+                <div class="thumbnail-desc">Story management</div>
+            </div>
+            <div class="thumbnail" data-direction="5">
+                <div class="thumbnail-label">D5: MINIMAL CLEAN</div>
+                <div class="thumbnail-desc">Subtle elegance</div>
+            </div>
+            <div class="thumbnail" data-direction="6">
+                <div class="thumbnail-label">D6: TERMINAL STYLE</div>
+                <div class="thumbnail-desc">CLI aesthetic</div>
+            </div>
+            <div class="thumbnail" data-direction="7">
+                <div class="thumbnail-label">D7: BLOOMBERG PRO</div>
+                <div class="thumbnail-desc">Information density</div>
+            </div>
+            <div class="thumbnail" data-direction="8">
+                <div class="thumbnail-label">D8: BENTO GRID</div>
+                <div class="thumbnail-desc">Card-heavy layout</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Direction 1: Dense Technical Dashboard -->
+        <div class="direction-panel direction-1 active" id="direction-1">
+            <div class="direction-info">
+                <div class="direction-name">D1: DENSE TECHNICAL DASHBOARD</div>
+                <div class="direction-personality">Professional & Efficient - For Power Users</div>
+                <div class="direction-meta">
+                    <div class="meta-item"><strong>Layout:</strong> 3-column with sidebar + main + activity</div>
+                    <div class="meta-item"><strong>Density:</strong> High - maximum information visible</div>
+                    <div class="meta-item"><strong>Navigation:</strong> Persistent sidebar navigation</div>
+                    <div class="meta-item"><strong>Visual Weight:</strong> Balanced with clear borders</div>
+                </div>
+            </div>
+
+            <div class="mockup-container">
+                <div class="mockup-header">
+                    <div class="mockup-logo">&lt;/CHIRON&gt;</div>
+                    <div class="mockup-nav">
+                        <a href="#" class="active">DASHBOARD</a>
+                        <a href="#">STORIES</a>
+                        <a href="#">ARTIFACTS</a>
+                        <a href="#">SETTINGS</a>
+                    </div>
+                    <div style="font-family: var(--font-mono); font-size: 0.875rem; color: var(--carbon-secondary);">
+                        PROJECT: taskflow
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="sidebar">
+                        <div style="font-family: var(--font-mono); font-size: 0.875rem; color: var(--carbon-secondary); margin-bottom: 1rem;">
+                            AGENT RADAR
+                        </div>
+                        <div class="radar-container">
+                            <div class="radar-cursor" style="background: var(--status-success); top: 20%; left: 30%;"></div>
+                            <div class="radar-cursor" style="background: var(--status-success); top: 40%; left: 70%;"></div>
+                            <div class="radar-cursor" style="background: var(--status-warning); top: 80%; left: 50%;"></div>
+                        </div>
+                        <div style="margin-top: 1rem;">
+                            <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--carbon-secondary); margin-bottom: 0.5rem;">
+                                QUEUE (3)
+                            </div>
+                            <div style="font-size: 0.75rem; margin-bottom: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.03);">
+                                <div class="agent-architect"><span class="agent-badge">ARCH-1</span> Epic 3 Tech Spec</div>
+                            </div>
+                            <div style="font-size: 0.75rem; margin-bottom: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.03);">
+                                <div class="agent-dev"><span class="agent-badge">DEV-2</span> Story Implementation</div>
+                            </div>
+                            <div style="font-size: 0.75rem; padding: 0.5rem; background: rgba(255,255,255,0.03);">
+                                <div class="agent-sm"><span class="agent-badge">SM-1</span> Sprint Planning</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="main-content">
+                        <div style="font-family: var(--font-mono); font-size: 1.25rem; margin-bottom: 1.5rem;">
+                            ACTIVE AGENTS
+                        </div>
+
+                        <table class="agent-table">
+                            <thead>
+                                <tr>
+                                    <th>AGENT</th>
+                                    <th>WORKFLOW</th>
+                                    <th>PROGRESS</th>
+                                    <th>STATUS</th>
+                                    <th>DURATION</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="active">
+                                    <td><div class="agent-pm"><span class="agent-badge">PM-1</span> Product Manager</div></td>
+                                    <td>PRD Generation</td>
+                                    <td>78%</td>
+                                    <td style="color: var(--status-success);">RUNNING</td>
+                                    <td>00:12:34</td>
+                                </tr>
+                                <tr class="active">
+                                    <td><div class="agent-ux"><span class="agent-badge">UX-1</span> UX Designer</div></td>
+                                    <td>Design Direction</td>
+                                    <td>45%</td>
+                                    <td style="color: var(--status-success);">RUNNING</td>
+                                    <td>00:08:21</td>
+                                </tr>
+                                <tr>
+                                    <td><div class="agent-analyst"><span class="agent-badge">ANLST-1</span> Analyst</div></td>
+                                    <td>Product Brief</td>
+                                    <td>100%</td>
+                                    <td style="color: var(--status-neutral);">COMPLETE</td>
+                                    <td>00:42:15</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <div style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--carbon-secondary);">
+                            <div style="font-family: var(--font-mono); font-size: 1rem; margin-bottom: 1rem;">
+                                PROJECT METRICS
+                            </div>
+                            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;">
+                                <div style="border: 1px solid var(--carbon-secondary); padding: 1rem;">
+                                    <div style="font-size: 0.75rem; color: var(--carbon-secondary);">PHASE</div>
+                                    <div style="font-size: 1.5rem; font-weight: bold;">2 / 4</div>
+                                </div>
+                                <div style="border: 1px solid var(--carbon-secondary); padding: 1rem;">
+                                    <div style="font-size: 0.75rem; color: var(--carbon-secondary);">STORIES</div>
+                                    <div style="font-size: 1.5rem; font-weight: bold;">8 / 24</div>
+                                </div>
+                                <div style="border: 1px solid var(--carbon-secondary); padding: 1rem;">
+                                    <div style="font-size: 0.75rem; color: var(--carbon-secondary);">AGENTS</div>
+                                    <div style="font-size: 1.5rem; font-weight: bold;">2 / 6</div>
+                                </div>
+                                <div style="border: 1px solid var(--carbon-secondary); padding: 1rem;">
+                                    <div style="font-size: 0.75rem; color: var(--carbon-secondary);">TIME</div>
+                                    <div style="font-size: 1.5rem; font-weight: bold;">2d 4h</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="activity-panel">
+                        <div style="color: var(--carbon-secondary); margin-bottom: 1rem;">
+                            ACTIVITY LOG
+                        </div>
+                        <div style="line-height: 1.8; font-size: 0.7rem;">
+                            <div># 2025-11-02 14:23 UTC</div>
+                            <div style="color: var(--agent-pm);">&gt; [PM-1] :: FR001 DEFINED</div>
+                            <div style="color: var(--agent-pm);">&gt; [PM-1] :: FR002 DEFINED</div>
+                            <div style="color: var(--carbon-secondary);">...</div>
+                            <div># 2025-11-02 14:25 UTC</div>
+                            <div style="color: var(--agent-ux);">&gt; [UX-1] :: COLOR THEME SELECTED</div>
+                            <div style="color: var(--agent-ux);">&gt; [UX-1] :: MOCKUP GENERATION...</div>
+                            <div style="color: var(--status-success);">█████████░░░░░░░ 60%</div>
+                            <div># 2025-11-02 14:26 UTC</div>
+                            <div style="color: var(--agent-pm);">&gt; [PM-1] :: EPIC 1 BREAKDOWN</div>
+                            <div style="color: var(--agent-pm);">&gt; [PM-1] :: 6 STORIES CREATED</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="notes-section">
+                <div class="notes-title">YOUR NOTES - What do you like? What would you change?</div>
+                <textarea placeholder="Add your thoughts about this design direction..."></textarea>
+            </div>
+        </div>
+
+        <!-- Direction 2: Spacious Card Layout -->
+        <div class="direction-panel direction-2" id="direction-2">
+            <div class="direction-info">
+                <div class="direction-name">D2: SPACIOUS CARD LAYOUT</div>
+                <div class="direction-personality">Friendly & Approachable - For First-Time Visitors</div>
+                <div class="direction-meta">
+                    <div class="meta-item"><strong>Layout:</strong> Single column with generous spacing</div>
+                    <div class="meta-item"><strong>Density:</strong> Low - breathing room prioritized</div>
+                    <div class="meta-item"><strong>Navigation:</strong> Top navigation bar</div>
+                    <div class="meta-item"><strong>Visual Weight:</strong> Light with subtle borders</div>
+                </div>
+            </div>
+
+            <div class="mockup-container">
+                <div class="mockup-header">
+                    <div class="mockup-logo">&lt;/CHIRON&gt;</div>
+                    <div class="mockup-nav">
+                        <a href="#" class="active">Dashboard</a>
+                        <a href="#">Stories</a>
+                        <a href="#">Artifacts</a>
+                        <a href="#">Settings</a>
+                    </div>
+                </div>
+
+                <div class="dashboard-layout">
+                    <div class="hero-section">
+                        <div class="hero-title">Welcome back, fahad</div>
+                        <div class="hero-subtitle">2 agents are actively working on your project</div>
+                    </div>
+
+                    <div class="card-grid">
+                        <div class="card">
+                            <div class="agent-pm">
+                                <span class="agent-badge">PM-1</span>
+                            </div>
+                            <div class="card-title">Product Manager</div>
+                            <div class="card-content">
+                                Currently generating PRD with epic breakdown. Progress: 78% complete.
+                                <div style="margin-top: 1rem; color: var(--status-success);">● Running for 12m 34s</div>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="agent-ux">
+                                <span class="agent-badge">UX-1</span>
+                            </div>
+                            <div class="card-title">UX Designer</div>
+                            <div class="card-content">
+                                Creating design direction mockups for key screens. Progress: 45% complete.
+                                <div style="margin-top: 1rem; color: var(--status-success);">● Running for 8m 21s</div>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="agent-analyst">
+                                <span class="agent-badge">ANLST-1</span>
+                            </div>
+                            <div class="card-title">Analyst</div>
+                            <div class="card-content">
+                                Product brief completed successfully.
+                                <div style="margin-top: 1rem; color: var(--status-neutral);">✓ Completed in 42m 15s</div>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="agent-architect">
+                                <span class="agent-badge">ARCH-1</span>
+                            </div>
+                            <div class="card-title">Architect</div>
+                            <div class="card-content">
+                                Queued: Epic 3 technical specification
+                                <div style="margin-top: 1rem; color: var(--status-info);">⧗ Waiting to start</div>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="agent-dev">
+                                <span class="agent-badge">DEV-2</span>
+                            </div>
+                            <div class="card-title">Developer</div>
+                            <div class="card-content">
+                                Queued: Story implementation workflow
+                                <div style="margin-top: 1rem; color: var(--status-info);">⧗ Waiting to start</div>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="agent-sm">
+                                <span class="agent-badge">SM-1</span>
+                            </div>
+                            <div class="card-title">Scrum Master</div>
+                            <div class="card-content">
+                                Queued: Sprint planning and story prioritization
+                                <div style="margin-top: 1rem; color: var(--status-info);">⧗ Waiting to start</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="notes-section">
+                <div class="notes-title">YOUR NOTES - What do you like? What would you change?</div>
+                <textarea placeholder="Add your thoughts about this design direction..."></textarea>
+            </div>
+        </div>
+
+        <!-- Direction 3: Split View Workbench -->
+        <div class="direction-panel direction-3" id="direction-3">
+            <div class="direction-info">
+                <div class="direction-name">D3: SPLIT VIEW WORKBENCH</div>
+                <div class="direction-personality">Focused & Immersive - For Deep Work</div>
+                <div class="direction-meta">
+                    <div class="meta-item"><strong>Layout:</strong> 50/50 split with artifact and chat</div>
+                    <div class="meta-item"><strong>Density:</strong> Medium - balanced information</div>
+                    <div class="meta-item"><strong>Navigation:</strong> Minimal header, focus on content</div>
+                    <div class="meta-item"><strong>Visual Weight:</strong> Balanced with single divider</div>
+                </div>
+            </div>
+
+            <div class="mockup-container">
+                <div class="mockup-header">
+                    <div class="mockup-logo">&lt;/CHIRON&gt;</div>
+                    <div style="font-family: var(--font-mono); font-size: 0.875rem;">
+                        <span style="color: var(--carbon-secondary);">ARTIFACT:</span> PRD.md
+                        <span style="margin: 0 1rem; color: var(--carbon-secondary);">|</span>
+                        <span style="color: var(--carbon-secondary);">AGENT:</span>
+                        <span class="agent-pm" style="margin-left: 0.5rem;"><span class="agent-badge">PM-1</span></span>
+                    </div>
+                </div>
+
+                <div class="workbench-layout">
+                    <div class="artifact-pane">
+                        <div class="artifact-header">
+                            /docs/PRD.md → Goals and Background Context
+                        </div>
+                        <div class="artifact-content"># Goals and Background Context
+
+## Goals
+
+1. **Enable Multi-Agent Orchestration**
+   Coordinate 2+ AI coding agents in parallel with
+   isolated contexts, transforming BMAD's sequential
+   CLI methodology into a visual orchestration platform
+
+2. **Achieve 2x Productivity Through Parallel Execution**
+   Reduce 5-story project completion time from 4-5 days
+   (CLI) to 2-3 days (Chiron) through coordinated
+   multi-agent workflows
+
+3. **Provide PM-Grade Visibility**
+   Deliver real-time visual dashboards showing project
+   state (phases, epics, stories), agent activity, and
+   execution context across all workflows</div>
+                    </div>
+
+                    <div class="chat-pane">
+                        <div class="chat-messages">
+                            <div class="chat-message agent">
+                                <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--carbon-secondary); margin-bottom: 0.5rem;">
+                                    PM-1 • 2m ago
+                                </div>
+                                <div>
+                                    I've drafted the Goals section. The first two goals focus on multi-agent orchestration and productivity gains, while the third emphasizes PM-grade visibility. Does this capture your vision?
+                                </div>
+                            </div>
+
+                            <div class="chat-message">
+                                <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--carbon-secondary); margin-bottom: 0.5rem;">
+                                    You • 1m ago
+                                </div>
+                                <div>
+                                    Yes, looks good. Can you add a fourth goal about preserving the guided methodology philosophy?
+                                </div>
+                            </div>
+
+                            <div class="chat-message agent">
+                                <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--carbon-secondary); margin-bottom: 0.5rem;">
+                                    PM-1 • Just now
+                                </div>
+                                <div>
+                                    Perfect. I'll add:
+
+                                    <div style="margin-top: 0.5rem; padding: 0.75rem; background: rgba(255,255,255,0.05); border-left: 2px solid var(--agent-pm);">
+                                    4. **Preserve Guided Methodology**
+                                       Maintain BMAD's "guided not automated" philosophy where human expertise drives strategic decisions while AI agents execute tasks
+                                    </div>
+
+                                    Should I update the document?
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="chat-input">
+                            <input type="text" placeholder="Type your message..." />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="notes-section">
+                <div class="notes-title">YOUR NOTES - What do you like? What would you change?</div>
+                <textarea placeholder="Add your thoughts about this design direction..."></textarea>
+            </div>
+        </div>
+
+        <!-- Direction 4: Kanban Flow -->
+        <div class="direction-panel direction-4" id="direction-4">
+            <div class="direction-info">
+                <div class="direction-name">D4: KANBAN FLOW</div>
+                <div class="direction-personality">Agile & Organized - For Story Management</div>
+                <div class="direction-meta">
+                    <div class="meta-item"><strong>Layout:</strong> Horizontal columns with drag-drop</div>
+                    <div class="meta-item"><strong>Density:</strong> Medium - card-based organization</div>
+                    <div class="meta-item"><strong>Navigation:</strong> Simple header with board focus</div>
+                    <div class="meta-item"><strong>Visual Weight:</strong> Balanced with clear columns</div>
+                </div>
+            </div>
+
+            <div class="mockup-container">
+                <div class="mockup-header">
+                    <div class="mockup-logo">&lt;/CHIRON&gt;</div>
+                    <div class="mockup-nav">
+                        <a href="#">Dashboard</a>
+                        <a href="#" class="active">Stories</a>
+                        <a href="#">Artifacts</a>
+                        <a href="#">Settings</a>
+                    </div>
+                </div>
+
+                <div class="kanban-layout">
+                    <div class="kanban-header">
+                        STORY KANBAN / EPIC 1: CORE INFRASTRUCTURE
+                    </div>
+
+                    <div class="kanban-board">
+                        <div class="kanban-column">
+                            <div class="kanban-column-header">
+                                BACKLOG (5)
+                            </div>
+                            <div class="story-card">
+                                <div class="story-title">STORY-001: Project Initialization</div>
+                                <div class="story-meta">
+                                    <span class="agent-analyst"><span class="agent-badge">ANLST</span></span>
+                                    <span style="margin-left: 0.5rem;">3 pts</span>
+                                </div>
+                            </div>
+                            <div class="story-card">
+                                <div class="story-title">STORY-002: Database Schema Setup</div>
+                                <div class="story-meta">
+                                    <span class="agent-architect"><span class="agent-badge">ARCH</span></span>
+                                    <span style="margin-left: 0.5rem;">5 pts</span>
+                                </div>
+                            </div>
+                            <div class="story-card">
+                                <div class="story-title">STORY-003: Git Worktree Manager</div>
+                                <div class="story-meta">
+                                    <span class="agent-dev"><span class="agent-badge">DEV</span></span>
+                                    <span style="margin-left: 0.5rem;">8 pts</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="kanban-column">
+                            <div class="kanban-column-header">
+                                DRAFTED (3)
+                            </div>
+                            <div class="story-card">
+                                <div class="story-title">STORY-004: Workflow Status Tracking</div>
+                                <div class="story-meta">
+                                    <span class="agent-pm"><span class="agent-badge">PM</span></span>
+                                    <span style="margin-left: 0.5rem;">5 pts</span>
+                                </div>
+                            </div>
+                            <div class="story-card">
+                                <div class="story-title">STORY-005: Agent Configuration</div>
+                                <div class="story-meta">
+                                    <span class="agent-sm"><span class="agent-badge">SM</span></span>
+                                    <span style="margin-left: 0.5rem;">3 pts</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="kanban-column">
+                            <div class="kanban-column-header">
+                                READY (2)
+                            </div>
+                            <div class="story-card">
+                                <div class="story-title">STORY-006: UI Component Library</div>
+                                <div class="story-meta">
+                                    <span class="agent-ux"><span class="agent-badge">UX</span></span>
+                                    <span style="margin-left: 0.5rem;">5 pts</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="kanban-column">
+                            <div class="kanban-column-header">
+                                IN PROGRESS (2)
+                            </div>
+                            <div class="story-card">
+                                <div class="story-title">STORY-007: Multi-Agent Dashboard</div>
+                                <div class="story-meta">
+                                    <span class="agent-dev"><span class="agent-badge">DEV</span></span>
+                                    <span style="margin-left: 0.5rem; color: var(--status-success);">65%</span>
+                                </div>
+                            </div>
+                            <div class="story-card">
+                                <div class="story-title">STORY-008: Agent Radar Viz</div>
+                                <div class="story-meta">
+                                    <span class="agent-ux"><span class="agent-badge">UX</span></span>
+                                    <span style="margin-left: 0.5rem; color: var(--status-success);">40%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="kanban-column">
+                            <div class="kanban-column-header">
+                                REVIEW (1)
+                            </div>
+                            <div class="story-card">
+                                <div class="story-title">STORY-009: Color Theme System</div>
+                                <div class="story-meta">
+                                    <span class="agent-ux"><span class="agent-badge">UX</span></span>
+                                    <span style="margin-left: 0.5rem; color: var(--status-warning);">Review</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="kanban-column">
+                            <div class="kanban-column-header">
+                                DONE (4)
+                            </div>
+                            <div class="story-card">
+                                <div class="story-title">STORY-010: Product Brief</div>
+                                <div class="story-meta">
+                                    <span class="agent-analyst"><span class="agent-badge">ANLST</span></span>
+                                    <span style="margin-left: 0.5rem; color: var(--status-neutral);">✓</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="notes-section">
+                <div class="notes-title">YOUR NOTES - What do you like? What would you change?</div>
+                <textarea placeholder="Add your thoughts about this design direction..."></textarea>
+            </div>
+        </div>
+
+        <!-- Direction 5: Minimal Clean Interface -->
+        <div class="direction-panel direction-5" id="direction-5">
+            <div class="direction-info">
+                <div class="direction-name">D5: MINIMAL CLEAN INTERFACE</div>
+                <div class="direction-personality">Elegant & Understated - For Focused Attention</div>
+                <div class="direction-meta">
+                    <div class="meta-item"><strong>Layout:</strong> Single column with generous margins</div>
+                    <div class="meta-item"><strong>Density:</strong> Low - maximum clarity</div>
+                    <div class="meta-item"><strong>Navigation:</strong> Subtle integrated navigation</div>
+                    <div class="meta-item"><strong>Visual Weight:</strong> Minimal with thin borders</div>
+                </div>
+            </div>
+
+            <div class="mockup-container">
+                <div class="mockup-header">
+                    <div class="mockup-logo">&lt;/CHIRON&gt;</div>
+                    <div class="mockup-nav">
+                        <a href="#" class="active">Dashboard</a>
+                        <a href="#">Stories</a>
+                        <a href="#">Artifacts</a>
+                    </div>
+                </div>
+
+                <div class="minimal-layout">
+                    <div class="section">
+                        <div class="section-title">Active Agents</div>
+                        <div class="agent-list">
+                            <div class="agent-item">
+                                <div class="agent-info">
+                                    <div class="agent-pm">
+                                        <div class="agent-name"><span class="agent-badge">PM-1</span> Product Manager</div>
+                                        <div class="agent-status">PRD Generation • 78% complete • 12m 34s</div>
+                                    </div>
+                                </div>
+                                <button class="agent-action">VIEW</button>
+                            </div>
+
+                            <div class="agent-item">
+                                <div class="agent-info">
+                                    <div class="agent-ux">
+                                        <div class="agent-name"><span class="agent-badge">UX-1</span> UX Designer</div>
+                                        <div class="agent-status">Design Direction • 45% complete • 8m 21s</div>
+                                    </div>
+                                </div>
+                                <button class="agent-action">VIEW</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <div class="section-title">Completed</div>
+                        <div class="agent-list">
+                            <div class="agent-item">
+                                <div class="agent-info">
+                                    <div class="agent-analyst">
+                                        <div class="agent-name"><span class="agent-badge">ANLST-1</span> Analyst</div>
+                                        <div class="agent-status">Product Brief • Completed in 42m 15s</div>
+                                    </div>
+                                </div>
+                                <button class="agent-action">OPEN</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <div class="section-title">Queued</div>
+                        <div class="agent-list">
+                            <div class="agent-item">
+                                <div class="agent-info">
+                                    <div class="agent-architect">
+                                        <div class="agent-name"><span class="agent-badge">ARCH-1</span> Architect</div>
+                                        <div class="agent-status">Epic 3 Tech Spec • Waiting to start</div>
+                                    </div>
+                                </div>
+                                <button class="agent-action">START</button>
+                            </div>
+
+                            <div class="agent-item">
+                                <div class="agent-info">
+                                    <div class="agent-dev">
+                                        <div class="agent-name"><span class="agent-badge">DEV-2</span> Developer</div>
+                                        <div class="agent-status">Story Implementation • Waiting to start</div>
+                                    </div>
+                                </div>
+                                <button class="agent-action">START</button>
+                            </div>
+
+                            <div class="agent-item">
+                                <div class="agent-info">
+                                    <div class="agent-sm">
+                                        <div class="agent-name"><span class="agent-badge">SM-1</span> Scrum Master</div>
+                                        <div class="agent-status">Sprint Planning • Waiting to start</div>
+                                    </div>
+                                </div>
+                                <button class="agent-action">START</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="notes-section">
+                <div class="notes-title">YOUR NOTES - What do you like? What would you change?</div>
+                <textarea placeholder="Add your thoughts about this design direction..."></textarea>
+            </div>
+        </div>
+
+        <!-- Direction 6: Terminal-Style Interface -->
+        <div class="direction-panel direction-6" id="direction-6">
+            <div class="direction-info">
+                <div class="direction-name">D6: TERMINAL-STYLE INTERFACE</div>
+                <div class="direction-personality">Technical & Raw - For Command-Line Enthusiasts</div>
+                <div class="direction-meta">
+                    <div class="meta-item"><strong>Layout:</strong> Full-screen terminal output</div>
+                    <div class="meta-item"><strong>Density:</strong> Medium - command line aesthetic</div>
+                    <div class="meta-item"><strong>Navigation:</strong> Command-driven interaction</div>
+                    <div class="meta-item"><strong>Visual Weight:</strong> Minimal with monospace text</div>
+                </div>
+            </div>
+
+            <div class="mockup-container">
+                <div class="mockup-header">
+                    <div class="mockup-logo">&lt;/CHIRON&gt;</div>
+                    <div style="font-family: var(--font-mono); font-size: 0.875rem; color: var(--carbon-secondary);">
+                        terminal v1.0.0
+                    </div>
+                </div>
+
+                <div class="terminal-layout">
+                    <div class="terminal-prompt">
+                        chiron@taskflow:~$ status --verbose
+                    </div>
+
+                    <div class="terminal-output">
+                        <div class="terminal-line">PROJECT: taskflow</div>
+                        <div class="terminal-line">LEVEL: 3 (Complex system)</div>
+                        <div class="terminal-line">PHASE: 2-Planning</div>
+                        <div class="terminal-line">---</div>
+                    </div>
+
+                    <div class="terminal-output">
+                        <div class="terminal-line" style="color: var(--carbon-secondary);">ACTIVE AGENTS:</div>
+                        <div class="terminal-table">
+                            <div class="terminal-table-row terminal-header">
+                                <div>AGENT</div>
+                                <div>WORKFLOW</div>
+                                <div>STATUS</div>
+                                <div>PROGRESS</div>
+                            </div>
+                            <div class="terminal-table-row">
+                                <div style="color: var(--agent-pm);">PM-1</div>
+                                <div>PRD Generation</div>
+                                <div class="status-running">RUNNING</div>
+                                <div>78% [████████░░] 12m34s</div>
+                            </div>
+                            <div class="terminal-table-row">
+                                <div style="color: var(--agent-ux);">UX-1</div>
+                                <div>Design Direction</div>
+                                <div class="status-running">RUNNING</div>
+                                <div>45% [█████░░░░░] 08m21s</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="terminal-output">
+                        <div class="terminal-line" style="color: var(--carbon-secondary);">COMPLETED:</div>
+                        <div class="terminal-line">
+                            <span style="color: var(--agent-analyst);">ANLST-1</span>
+                            <span style="margin: 0 1rem;">Product Brief</span>
+                            <span style="color: var(--status-neutral);">COMPLETE</span>
+                            <span style="margin-left: 1rem;">42m15s</span>
+                        </div>
+                    </div>
+
+                    <div class="terminal-output">
+                        <div class="terminal-line" style="color: var(--carbon-secondary);">QUEUED (3):</div>
+                        <div class="terminal-line">
+                            <span style="color: var(--agent-architect);">ARCH-1</span>
+                            <span style="margin: 0 1rem;">Epic 3 Tech Spec</span>
+                            <span class="status-queued">QUEUED</span>
+                        </div>
+                        <div class="terminal-line">
+                            <span style="color: var(--agent-dev);">DEV-2</span>
+                            <span style="margin: 0 1rem;">Story Implementation</span>
+                            <span class="status-queued">QUEUED</span>
+                        </div>
+                        <div class="terminal-line">
+                            <span style="color: var(--agent-sm);">SM-1</span>
+                            <span style="margin: 0 1rem;">Sprint Planning</span>
+                            <span class="status-queued">QUEUED</span>
+                        </div>
+                    </div>
+
+                    <div class="terminal-output">
+                        <div class="terminal-line">---</div>
+                        <div class="terminal-line">METRICS: PHASE 2/4 | STORIES 8/24 | TIME 2d4h</div>
+                    </div>
+
+                    <div class="terminal-prompt">
+                        chiron@taskflow:~$ <span style="animation: blink 1s infinite;">_</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="notes-section">
+                <div class="notes-title">YOUR NOTES - What do you like? What would you change?</div>
+                <textarea placeholder="Add your thoughts about this design direction..."></textarea>
+            </div>
+        </div>
+
+        <!-- Direction 7: Data-Dense Bloomberg Style -->
+        <div class="direction-panel direction-7" id="direction-7">
+            <div class="direction-info">
+                <div class="direction-name">D7: BLOOMBERG PROFESSIONAL</div>
+                <div class="direction-personality">Data-Dense & Professional - For Information Density</div>
+                <div class="direction-meta">
+                    <div class="meta-item"><strong>Layout:</strong> Fixed 3-column grid with aligned borders</div>
+                    <div class="meta-item"><strong>Density:</strong> Very High - maximum data visibility</div>
+                    <div class="meta-item"><strong>Navigation:</strong> Fixed sidebars with top metrics bar</div>
+                    <div class="meta-item"><strong>Visual Weight:</strong> Rich with strong borders and corners</div>
+                </div>
+            </div>
+
+            <div class="mockup-container">
+                <div class="bloomberg-layout">
+                    <div class="bloomberg-sidebar-left">
+                        <div style="padding: 1rem; border-bottom: 2px solid var(--carbon-secondary); font-family: var(--font-mono); font-size: 0.875rem;">
+                            <div class="mockup-logo">&lt;/CHIRON&gt;</div>
+                        </div>
+                        <div style="padding: 1rem;">
+                            <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--carbon-secondary); margin-bottom: 1rem;">
+                                NAVIGATION
+                            </div>
+                            <div style="margin-bottom: 0.75rem;">
+                                <div style="color: var(--agent-dev); font-family: var(--font-mono); font-size: 0.875rem;">► DASHBOARD</div>
+                            </div>
+                            <div style="margin-bottom: 0.75rem;">
+                                <div style="color: var(--carbon-secondary); font-family: var(--font-mono); font-size: 0.875rem;">  STORIES</div>
+                            </div>
+                            <div style="margin-bottom: 0.75rem;">
+                                <div style="color: var(--carbon-secondary); font-family: var(--font-mono); font-size: 0.875rem;">  ARTIFACTS</div>
+                            </div>
+                            <div style="margin-bottom: 1.5rem;">
+                                <div style="color: var(--carbon-secondary); font-family: var(--font-mono); font-size: 0.875rem;">  SETTINGS</div>
+                            </div>
+
+                            <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--carbon-secondary); margin-bottom: 1rem; margin-top: 2rem;">
+                                QUICK STATS
+                            </div>
+                            <div style="border: 2px solid var(--carbon-secondary); padding: 0.75rem; margin-bottom: 0.5rem;" class="corner-bracket">
+                                <div style="font-size: 0.7rem; color: var(--carbon-secondary);">ACTIVE</div>
+                                <div style="font-size: 1.5rem; font-weight: bold; color: var(--status-success);">2</div>
+                            </div>
+                            <div style="border: 2px solid var(--carbon-secondary); padding: 0.75rem; margin-bottom: 0.5rem;">
+                                <div style="font-size: 0.7rem; color: var(--carbon-secondary);">QUEUED</div>
+                                <div style="font-size: 1.5rem; font-weight: bold; color: var(--status-warning);">3</div>
+                            </div>
+                            <div style="border: 2px solid var(--carbon-secondary); padding: 0.75rem;">
+                                <div style="font-size: 0.7rem; color: var(--carbon-secondary);">COMPLETE</div>
+                                <div style="font-size: 1.5rem; font-weight: bold; color: var(--status-neutral);">1</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bloomberg-top-bar">
+                        <div>PROJECT: <span style="color: var(--agent-dev);">TASKFLOW</span></div>
+                        <div>PHASE: <span style="color: var(--carbon-tertiary);">2/4</span></div>
+                        <div>STORIES: <span style="color: var(--carbon-tertiary);">8/24</span></div>
+                        <div>TIME: <span style="color: var(--carbon-tertiary);">2d 4h</span></div>
+                    </div>
+
+                    <div class="bloomberg-main">
+                        <div style="font-family: var(--font-mono); font-size: 1rem; margin-bottom: 1.5rem; color: var(--agent-dev);">
+                            AGENT ALLOCATION TABLE
+                        </div>
+
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>AGENT</th>
+                                    <th>WORKFLOW</th>
+                                    <th>STATUS</th>
+                                    <th>PROGRESS</th>
+                                    <th>TIME</th>
+                                    <th>ACTIONS</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr style="background: rgba(34, 197, 94, 0.05);">
+                                    <td style="color: var(--agent-pm);">PM-1</td>
+                                    <td>Product Manager</td>
+                                    <td>PRD Generation</td>
+                                    <td style="color: var(--status-success);">RUNNING</td>
+                                    <td>78%</td>
+                                    <td>00:12:34</td>
+                                    <td><button style="font-size: 0.7rem; padding: 0.25rem 0.5rem; background: transparent; border: 1px solid var(--carbon-secondary); color: var(--carbon-tertiary); cursor: pointer;">VIEW</button></td>
+                                </tr>
+                                <tr style="background: rgba(34, 197, 94, 0.05);">
+                                    <td style="color: var(--agent-ux);">UX-1</td>
+                                    <td>UX Designer</td>
+                                    <td>Design Direction</td>
+                                    <td style="color: var(--status-success);">RUNNING</td>
+                                    <td>45%</td>
+                                    <td>00:08:21</td>
+                                    <td><button style="font-size: 0.7rem; padding: 0.25rem 0.5rem; background: transparent; border: 1px solid var(--carbon-secondary); color: var(--carbon-tertiary); cursor: pointer;">VIEW</button></td>
+                                </tr>
+                                <tr>
+                                    <td style="color: var(--agent-analyst);">ANLST-1</td>
+                                    <td>Analyst</td>
+                                    <td>Product Brief</td>
+                                    <td style="color: var(--status-neutral);">COMPLETE</td>
+                                    <td>100%</td>
+                                    <td>00:42:15</td>
+                                    <td><button style="font-size: 0.7rem; padding: 0.25rem 0.5rem; background: transparent; border: 1px solid var(--carbon-secondary); color: var(--carbon-tertiary); cursor: pointer;">OPEN</button></td>
+                                </tr>
+                                <tr>
+                                    <td style="color: var(--agent-architect);">ARCH-1</td>
+                                    <td>Architect</td>
+                                    <td>Epic 3 Tech Spec</td>
+                                    <td style="color: var(--status-warning);">QUEUED</td>
+                                    <td>0%</td>
+                                    <td>--:--:--</td>
+                                    <td><button style="font-size: 0.7rem; padding: 0.25rem 0.5rem; background: transparent; border: 1px solid var(--agent-dev); color: var(--agent-dev); cursor: pointer;">START</button></td>
+                                </tr>
+                                <tr>
+                                    <td style="color: var(--agent-dev);">DEV-2</td>
+                                    <td>Developer</td>
+                                    <td>Story Implementation</td>
+                                    <td style="color: var(--status-warning);">QUEUED</td>
+                                    <td>0%</td>
+                                    <td>--:--:--</td>
+                                    <td><button style="font-size: 0.7rem; padding: 0.25rem 0.5rem; background: transparent; border: 1px solid var(--agent-dev); color: var(--agent-dev); cursor: pointer;">START</button></td>
+                                </tr>
+                                <tr>
+                                    <td style="color: var(--agent-sm);">SM-1</td>
+                                    <td>Scrum Master</td>
+                                    <td>Sprint Planning</td>
+                                    <td style="color: var(--status-warning);">QUEUED</td>
+                                    <td>0%</td>
+                                    <td>--:--:--</td>
+                                    <td><button style="font-size: 0.7rem; padding: 0.25rem 0.5rem; background: transparent; border: 1px solid var(--agent-dev); color: var(--agent-dev); cursor: pointer;">START</button></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="bloomberg-sidebar-right">
+                        <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--carbon-secondary); margin-bottom: 1rem;">
+                            ACTIVITY STREAM
+                        </div>
+                        <div style="font-family: var(--font-mono); font-size: 0.65rem; line-height: 1.8;">
+                            <div style="margin-bottom: 0.75rem;">
+                                <div style="color: var(--carbon-secondary);"># 14:26 UTC</div>
+                                <div style="color: var(--agent-pm);">&gt; [PM-1] EPIC 1</div>
+                                <div style="padding-left: 0.5rem;">6 STORIES CREATED</div>
+                            </div>
+                            <div style="margin-bottom: 0.75rem;">
+                                <div style="color: var(--carbon-secondary);"># 14:25 UTC</div>
+                                <div style="color: var(--agent-ux);">&gt; [UX-1] COLOR</div>
+                                <div style="padding-left: 0.5rem;">THEME SELECTED</div>
+                            </div>
+                            <div style="margin-bottom: 0.75rem;">
+                                <div style="color: var(--carbon-secondary);"># 14:23 UTC</div>
+                                <div style="color: var(--agent-pm);">&gt; [PM-1] FR002</div>
+                                <div style="padding-left: 0.5rem;">DEFINED</div>
+                            </div>
+                            <div style="margin-bottom: 0.75rem;">
+                                <div style="color: var(--carbon-secondary);"># 14:22 UTC</div>
+                                <div style="color: var(--agent-pm);">&gt; [PM-1] FR001</div>
+                                <div style="padding-left: 0.5rem;">DEFINED</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="notes-section">
+                <div class="notes-title">YOUR NOTES - What do you like? What would you change?</div>
+                <textarea placeholder="Add your thoughts about this design direction..."></textarea>
+            </div>
+        </div>
+
+        <!-- Direction 8: Card-Heavy Bento Grid -->
+        <div class="direction-panel direction-8" id="direction-8">
+            <div class="direction-info">
+                <div class="direction-name">D8: BENTO GRID LAYOUT</div>
+                <div class="direction-personality">Modern & Modular - For Dashboard Flexibility</div>
+                <div class="direction-meta">
+                    <div class="meta-item"><strong>Layout:</strong> Asymmetric grid with varying card sizes</div>
+                    <div class="meta-item"><strong>Density:</strong> Medium - card-based modules</div>
+                    <div class="meta-item"><strong>Navigation:</strong> Integrated within cards</div>
+                    <div class="meta-item"><strong>Visual Weight:</strong> Balanced with elevation cues</div>
+                </div>
+            </div>
+
+            <div class="mockup-container">
+                <div class="mockup-header">
+                    <div class="mockup-logo">&lt;/CHIRON&gt;</div>
+                    <div class="mockup-nav">
+                        <a href="#" class="active">Dashboard</a>
+                        <a href="#">Stories</a>
+                        <a href="#">Artifacts</a>
+                        <a href="#">Settings</a>
+                    </div>
+                </div>
+
+                <div class="bento-layout">
+                    <div class="bento-card bento-hero">
+                        <div class="bento-title">Project Overview</div>
+                        <div style="flex: 1; display: flex; flex-direction: column; justify-content: center;">
+                            <div style="font-size: 2rem; font-weight: bold; margin-bottom: 0.5rem;">TaskFlow</div>
+                            <div style="font-size: 1rem; color: var(--carbon-secondary); margin-bottom: 1.5rem;">Level 3 Greenfield Software • Phase 2 of 4</div>
+                            <div style="display: flex; gap: 1rem; font-family: var(--font-mono); font-size: 0.875rem;">
+                                <div>
+                                    <div style="color: var(--carbon-secondary); font-size: 0.75rem;">ACTIVE</div>
+                                    <div style="color: var(--status-success); font-size: 1.25rem; font-weight: bold;">2</div>
+                                </div>
+                                <div>
+                                    <div style="color: var(--carbon-secondary); font-size: 0.75rem;">QUEUED</div>
+                                    <div style="color: var(--status-warning); font-size: 1.25rem; font-weight: bold;">3</div>
+                                </div>
+                                <div>
+                                    <div style="color: var(--carbon-secondary); font-size: 0.75rem;">COMPLETE</div>
+                                    <div style="color: var(--status-neutral); font-size: 1.25rem; font-weight: bold;">1</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bento-card bento-agent">
+                        <div class="bento-title">PM-1</div>
+                        <div class="bento-content">
+                            <div class="agent-pm">
+                                <div style="font-size: 3rem;">78%</div>
+                                <div style="font-size: 0.875rem; margin-top: 0.5rem; color: var(--carbon-secondary);">PRD Generation</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bento-card bento-agent">
+                        <div class="bento-title">UX-1</div>
+                        <div class="bento-content">
+                            <div class="agent-ux">
+                                <div style="font-size: 3rem;">45%</div>
+                                <div style="font-size: 0.875rem; margin-top: 0.5rem; color: var(--carbon-secondary);">Design Direction</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bento-card bento-agent">
+                        <div class="bento-title">ANLST-1</div>
+                        <div class="bento-content">
+                            <div class="agent-analyst">
+                                <div style="font-size: 2rem;">✓</div>
+                                <div style="font-size: 0.875rem; margin-top: 0.5rem; color: var(--carbon-secondary);">Product Brief</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bento-card bento-agent">
+                        <div class="bento-title">ARCH-1</div>
+                        <div class="bento-content">
+                            <div class="agent-architect">
+                                <div style="font-size: 2rem;">⧗</div>
+                                <div style="font-size: 0.875rem; margin-top: 0.5rem; color: var(--carbon-secondary);">Queued</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bento-card bento-metric">
+                        <div class="bento-title">Stories</div>
+                        <div class="bento-content">
+                            <div style="font-family: var(--font-mono);">
+                                <span style="font-size: 3rem; font-weight: bold;">8</span>
+                                <span style="font-size: 1.5rem; color: var(--carbon-secondary);">/24</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bento-card bento-metric">
+                        <div class="bento-title">Time Elapsed</div>
+                        <div class="bento-content">
+                            <div style="font-family: var(--font-mono); font-size: 2rem; font-weight: bold;">
+                                2d 4h
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bento-card bento-activity">
+                        <div class="bento-title">Recent Activity</div>
+                        <div style="flex: 1; overflow-y: auto; font-family: var(--font-mono); font-size: 0.75rem; line-height: 1.8;">
+                            <div style="margin-bottom: 1rem;">
+                                <div style="color: var(--carbon-secondary);"># 14:26 UTC</div>
+                                <div style="color: var(--agent-pm);">&gt; [PM-1] :: EPIC 1 BREAKDOWN</div>
+                                <div style="padding-left: 1rem;">6 stories created</div>
+                            </div>
+                            <div style="margin-bottom: 1rem;">
+                                <div style="color: var(--carbon-secondary);"># 14:25 UTC</div>
+                                <div style="color: var(--agent-ux);">&gt; [UX-1] :: COLOR THEME</div>
+                                <div style="padding-left: 1rem;">Theme selected</div>
+                            </div>
+                            <div style="margin-bottom: 1rem;">
+                                <div style="color: var(--carbon-secondary);"># 14:23 UTC</div>
+                                <div style="color: var(--agent-pm);">&gt; [PM-1] :: FR002 DEFINED</div>
+                            </div>
+                            <div style="margin-bottom: 1rem;">
+                                <div style="color: var(--carbon-secondary);"># 14:22 UTC</div>
+                                <div style="color: var(--agent-pm);">&gt; [PM-1] :: FR001 DEFINED</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="notes-section">
+                <div class="notes-title">YOUR NOTES - What do you like? What would you change?</div>
+                <textarea placeholder="Add your thoughts about this design direction..."></textarea>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <button class="btn" id="prev-btn">← PREVIOUS</button>
+            <button class="btn btn-primary" id="next-btn">NEXT →</button>
+        </div>
+    </div>
+
+    <!-- Responsive Toggle -->
+    <div class="responsive-toggle">
+        <button class="responsive-btn active" data-view="desktop">DESKTOP</button>
+        <button class="responsive-btn" data-view="tablet">TABLET</button>
+        <button class="responsive-btn" data-view="mobile">MOBILE</button>
+    </div>
+
+    <script>
+        let currentDirection = 1;
+        const totalDirections = 8;
+
+        function showDirection(n) {
+            document.querySelectorAll('.direction-panel').forEach(panel => {
+                panel.classList.remove('active');
+            });
+            document.getElementById(`direction-${n}`).classList.add('active');
+
+            document.querySelectorAll('.thumbnail').forEach(thumb => {
+                thumb.classList.remove('active');
+            });
+            document.querySelector(`.thumbnail[data-direction="${n}"]`).classList.add('active');
+
+            document.getElementById('current-direction').textContent = n;
+            currentDirection = n;
+        }
+
+        document.getElementById('prev-btn').addEventListener('click', () => {
+            if (currentDirection > 1) {
+                showDirection(currentDirection - 1);
+            }
+        });
+
+        document.getElementById('next-btn').addEventListener('click', () => {
+            if (currentDirection < totalDirections) {
+                showDirection(currentDirection + 1);
+            }
+        });
+
+        document.querySelectorAll('.thumbnail').forEach(thumb => {
+            thumb.addEventListener('click', () => {
+                const direction = parseInt(thumb.dataset.direction);
+                showDirection(direction);
+            });
+        });
+
+        // Responsive toggle (visual only)
+        document.querySelectorAll('.responsive-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.responsive-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+
+                const view = btn.dataset.view;
+                const container = document.querySelector('.container');
+
+                if (view === 'mobile') {
+                    container.style.maxWidth = '375px';
+                    container.style.margin = '200px auto 0';
+                } else if (view === 'tablet') {
+                    container.style.maxWidth = '768px';
+                    container.style.margin = '200px auto 0';
+                } else {
+                    container.style.maxWidth = 'none';
+                    container.style.margin = '200px 2rem 0';
+                }
+            });
+        });
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' && currentDirection > 1) {
+                showDirection(currentDirection - 1);
+            } else if (e.key === 'ArrowRight' && currentDirection < totalDirections) {
+                showDirection(currentDirection + 1);
+            }
+        });
+    </script>
+</body>
+</html>

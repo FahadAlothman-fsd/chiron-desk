@@ -48,6 +48,10 @@
 		"db:down": {
 			"cache": false,
 			"persistent": true
+		},
+		"seed": {
+			"cache": false,
+			"dependsOn": ["^build"]
 		}
 	}
 }
