@@ -1,0 +1,79 @@
+# generated: 2025-11-05
+# project: chiron
+# project_key: chiron
+# tracking_system: file-system
+# story_location: {project-root}/docs/stories
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic exists in epic file but not contexted
+#   - contexted: Epic tech context created (required before drafting stories)
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - drafted: Story file created in stories folder
+#   - ready-for-dev: Draft approved and story context created
+#   - in-progress: Developer actively working on implementation
+#   - review: Under SM review (via code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - completed: Retrospective has been done
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epics should be 'contexted' before stories can be 'drafted'
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically drafts next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', SM reviews, then Dev moves to 'done'
+
+generated: 2025-11-05
+project: chiron
+project_key: chiron
+tracking_system: file-system
+story_location: "{project-root}/docs/stories"
+
+development_status:
+  # Epic 1: Core Infrastructure & Database Foundation (2 weeks)
+  epic-1: backlog
+  1-1-database-schema-design-and-migration-system: done
+  1-2-bmad-workflow-seeding-system: ready-for-dev
+  1-3-project-crud-operations: backlog
+  1-4-workflow-init-conversational-setup: backlog
+  1-5-workflow-execution-engine-simplified: backlog
+  1-6-git-repository-validation: backlog
+  epic-1-retrospective: optional
+
+  # Epic 2: Phase 1 - Analysis Workflows Complete (3.5-4 weeks)
+  epic-2: backlog
+  2-1-tauri-application-shell-and-basic-ui: backlog
+  2-2-artifact-workbench-ui-component: backlog
+  2-3-chat-pattern-a-sequential-dependencies: backlog
+  2-4-artifact-generation-engine: backlog
+  2-5-tangential-workflow-system: backlog
+  2-6-pattern-c-structured-exploration-brainstorming-techniques: backlog
+  2-7-research-workflow-implementation: backlog
+  2-8-product-brief-workflow-end-to-end-integration: backlog
+  epic-2-retrospective: optional
+
+  # Epic 3: Phase 2 - Planning Workflows Complete (3-3.5 weeks)
+  epic-3: backlog
+  epic-3-retrospective: optional
+
+  # Epic 4: Git Worktree & Multi-Agent Foundation (2-2.5 weeks)
+  epic-4: backlog
+  epic-4-retrospective: optional
+
+  # Epic 5: Phase 3 - Solutioning Workflows Complete (2.5-3 weeks)
+  epic-5: backlog
+  epic-5-retrospective: optional
+
+  # Epic 6: Phase 4 - Implementation Workflows Complete (3-3.5 weeks)
+  epic-6: backlog
+  epic-6-retrospective: optional
+
+  # Epic 7: Polish & Extensibility (2-2.5 weeks)
+  epic-7: backlog
+  epic-7-retrospective: optional
