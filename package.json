@@ -35,7 +35,8 @@
     "db:watch": "turbo -F @chiron/db db:watch",
     "db:stop": "turbo -F @chiron/db db:stop",
     "db:down": "turbo -F @chiron/db db:down",
-    "db:seed": "turbo -F @chiron/scripts seed"
+    "db:seed": "turbo -F @chiron/scripts seed",
+    "db:seed:reset": "turbo -F @chiron/scripts seed -- --reset"
   },
   "dependencies": {
     "dotenv": "^17.2.2",

@@ -193,6 +193,99 @@
 
 ---
 
+### Decision #6: Workflow Validation Pattern 📝 PROPOSED
+
+**Choice:** Declarative Validation Workflow Configuration
+**Status:** Proposed (identified during Story 1.2 code review)
+**Date Proposed:** 2025-11-05
+
+**Pattern Identified:**
+Many BMAD workflows have a validation counterpart that runs after them to verify completeness/correctness:
+
+```
+Primary Workflow → Validation Workflow → Approval/Changes Requested
+```
+
+**Current Examples:**
+1. **Phase 4 Implementation:**
+   - `dev-story` → `code-review` (validates implementation, checks ACs/tasks)
+   - Story marked `review` → SM runs code-review → Approve/Changes/Blocked
+
+2. **Phase 3 Solutioning:**
+   - `architecture` → `solutioning-gate-check` (validates all Phase 3 artifacts)
+   - Checks PRD, architecture, stories aligned with no contradictions
+
+3. **Phase 2 Planning:**
+   - `prd` → `validate-prd` (validates requirements completeness)
+
+**Proposed Configuration (workflow.yaml):**
+```yaml
+name: dev-story
+validation:
+  workflow: code-review
+  trigger: manual | auto | conditional
+  required: true
+  status_on_pass: done
+  status_on_fail: in-progress
+  auto_suggest: true  # System suggests validation after workflow completes
+```
+
+**Alternative: Database Schema (Story 1.5 - Workflow Execution Engine):**
+```typescript
+// workflow_validations table
+{
+  workflowId: uuid,
+  validationWorkflowId: uuid,
+  trigger: 'manual' | 'auto' | 'conditional',
+  required: boolean,
+  autoSuggest: boolean
+}
+```
+
+**Benefits:**
+- **Consistency:** Every workflow knows its validation counterpart
+- **Automation:** System can suggest/auto-run validations
+- **Quality Gates:** Prevents moving forward without validation
+- **Traceability:** Clear audit trail of validation outcomes
+- **Workflow Chaining:** Natural workflow → validation → next-step pattern
+
+**Implementation Considerations:**
+1. **Trigger Types:**
+   - `manual`: User must explicitly run validation workflow
+   - `auto`: System automatically runs validation after primary workflow
+   - `conditional`: Run validation based on workflow outcome (e.g., only if status=review)
+
+2. **Status Management:**
+   - Primary workflow sets intermediate status (e.g., `review`)
+   - Validation workflow sets final status (e.g., `done` or back to `in-progress`)
+
+3. **Workflow Engine Integration:**
+   - Story 1.5 (Workflow Execution Engine) should consider this pattern
+   - Database schema may need `workflow_validations` table
+   - UI should surface validation suggestions
+
+**Applies to:**
+- All BMAD workflow phases (Analysis, Planning, Solutioning, Implementation)
+- Quality gates between phases
+- Story lifecycle management
+
+**Decision Timeline:**
+- **Phase 1:** Document pattern (✅ Done - this decision)
+- **Phase 2:** Design database schema (Story 1.5)
+- **Phase 3:** Implement validation workflow registry (Epic 6-7)
+- **Phase 4:** Add UI support for validation suggestions (Epic 6-7)
+
+**Alternatives Considered:**
+- Hardcoded validation logic: Not flexible, harder to extend
+- Manual workflow chaining: User must remember validation steps
+- No validation pattern: Quality issues, inconsistent outcomes
+
+**References:**
+- Story 1.2 code-review identified this pattern
+- Backlog item: "Validation Workflow Configuration System"
+
+---
+
 ## Technology Stack Summary
 
 **Confirmed Decisions:**

@@ -5,6 +5,7 @@
 		"seed": "bun run src/seed.ts"
 	},
 	"dependencies": {
+		"@chiron/auth": "workspace:*",
 		"@chiron/db": "workspace:*",
 		"drizzle-seed": "^0.1.2",
 		"js-yaml": "^4.1.0"

@@ -5,14 +5,32 @@ import { resolve } from "node:path";
 config({ path: resolve(process.cwd(), "../../apps/server/.env") });
 
 async function main() {
-	console.log("🌱 Starting database seeding...");
+	const shouldReset = process.argv.includes("--reset");
+
+	if (shouldReset) {
+		console.log("🔄 Resetting database...");
+	} else {
+		console.log("🌱 Starting database seeding...");
+	}
 
 	// Lazy import after env is loaded
 	const { db } = await import("@chiron/db");
 	const { seedWorkflowPaths } = await import("./seeds/workflow-paths");
 	const { seedAgents } = await import("./seeds/agents");
+	const { seedWorkflows } = await import("./seeds/workflows");
+	const { seedUsers } = await import("./seeds/users");
 
 	try {
+		if (shouldReset) {
+			// Import schema and reset function
+			const { reset } = await import("drizzle-seed");
+			const schema = await import("@chiron/db");
+
+			console.log("\n🗑️  Clearing all tables...");
+			await reset(db, schema);
+			console.log("✅ Database reset complete");
+		}
+
 		// Seed workflow paths
 		console.log("\n📍 Seeding workflow paths...");
 		await seedWorkflowPaths();
@@ -23,7 +41,17 @@ async function main() {
 		await seedAgents();
 		console.log("✅ Agents seeded");
 
-		// TODO: Seed workflows and workflow steps (Story 1.2 continuation)
+		// Seed workflows (Story 1.2)
+		console.log("\n🔄 Seeding workflows...");
+		await seedWorkflows();
+		console.log("✅ Workflows seeded");
+
+		// Seed users (Story 1.2)
+		console.log("\n👤 Seeding test user...");
+		await seedUsers();
+		console.log("✅ Test user seeded");
+
+		// TODO: Seed workflow steps (Story 1.5 - workflow execution engine)
 
 		console.log("\n✅ Database seeding complete!");
 		process.exit(0);
