@@ -1,9 +1,23 @@
-# Workflow Engine Schema Snapshot
+# Chiron Workflow Engine Schema (CANONICAL)
 
 **Date:** 2025-11-05  
 **Last Updated:** 2025-11-06  
 **Status:** Architectural Agreement - Ready for Implementation  
 **Context:** Architect + Fahad session on workflow-init and schema design
+
+---
+
+## ⚠️ CANONICAL SOURCE OF TRUTH
+
+**This document is the SINGLE SOURCE OF TRUTH for Chiron's workflow engine schema.**
+
+- All schema implementation (Story 1.1) MUST match this document exactly
+- All seed scripts (Story 1.2) MUST use structures defined here
+- All API implementations (Story 1.3+) MUST reference this schema
+- Any schema changes MUST update this document FIRST, then code
+
+**Last Verified:** 2025-11-06  
+**Session:** Document Reconciliation (pre-Epic 1 restart)
 
 ---
 
@@ -1657,10 +1671,11 @@ const workflowPaths = [
 
 ## References
 
-- **Workflow Engine Design Brief:** `/docs/workflow-engine-design-brief.md`
-- **Workflow Engine Structure:** `/docs/workflow-engine-structure.md`
-- **PRD:** `/docs/PRD.md` (FR001-FR045)
-- **Architecture Foundations:** `/docs/architecture-foundations.md`
+- **Workflow Engine Design Brief:** `docs/workflow-engine-design-brief.md`
+- **Workflow Engine Structure:** `docs/workflow-engine-structure.md`
+- **PRD:** `docs/PRD.md` (FR001-FR045)
+- **Architecture Decisions:** `docs/architecture-decisions.md` (ADR log)
+- **Archived:** `docs/archive/pre-epic-1-restart/` (old schema and architecture docs)
 
 ---
 
