@@ -3,32 +3,20 @@ import {
 	index,
 	integer,
 	jsonb,
-	pgEnum,
 	pgTable,
 	text,
 	timestamp,
 	uuid,
 } from "drizzle-orm/pg-core";
-import { workflows } from "./workflows";
+import { workflowExecutions } from "./workflows";
 
 // ============================================
-// ENUMS
+// NO ENUMS! All project metadata is data, not schema constraints
+// This enables runtime extensibility without migrations
 // ============================================
 
-export const projectLevelEnum = pgEnum("project_level", [
-	"0",
-	"1",
-	"2",
-	"3",
-	"4",
-]);
-
-export const projectTypeEnum = pgEnum("project_type", ["software", "game"]);
-
-export const fieldTypeEnum = pgEnum("field_type", ["greenfield", "brownfield"]);
-
 // ============================================
-// PROJECTS TABLE
+// PROJECTS TABLE (UPDATED - No enums, workflow path reference)
 // ============================================
 
 export const projects = pgTable(
@@ -37,29 +25,70 @@ export const projects = pgTable(
 		id: uuid("id").primaryKey().defaultRandom(),
 		name: text("name").notNull().unique(),
 		path: text("path").notNull(), // File system path to project
-		level: projectLevelEnum("level").notNull(),
-		type: projectTypeEnum("type").notNull(),
-		fieldType: fieldTypeEnum("field_type").notNull(),
+
+		// Workflow path reference (replaces level/type/fieldType enums)
+		workflowPathId: uuid("workflow_path_id")
+			.notNull()
+			.references(() => workflowPaths.id),
+
+		// Audit trail - which workflow-init execution created this project
+		initializedByExecutionId: uuid("initialized_by_execution_id").references(
+			() => workflowExecutions.id,
+		),
+
+		// Progress tracking - compares executed workflows vs path definition
+		executedVsPath: jsonb("executed_vs_path")
+			.$type<{
+				[phase: number]: {
+					[workflowName: string]: {
+						status: "not-started" | "in-progress" | "completed" | "skipped";
+						executionId?: string;
+						startedAt?: string;
+						completedAt?: string;
+						artifactPath?: string;
+					};
+				};
+			}>()
+			.default({}),
+
 		createdAt: timestamp("created_at").notNull().defaultNow(),
 		updatedAt: timestamp("updated_at").notNull().defaultNow(),
 	},
 	(table) => ({
 		nameIdx: index("projects_name_idx").on(table.name),
+		workflowPathIdx: index("projects_workflow_path_idx").on(
+			table.workflowPathId,
+		),
 	}),
 );
 
 // ============================================
-// WORKFLOW PATHS TABLE
-// Defines workflow sequences for project types (e.g., greenfield-level-3)
+// WORKFLOW PATHS TABLE (UPDATED - No enums, JSONB tags for filtering)
+// Defines workflow sequences with free-form metadata
 // ============================================
 
 export const workflowPaths = pgTable("workflow_paths", {
 	id: uuid("id").primaryKey().defaultRandom(),
-	name: text("name").notNull().unique(), // e.g., "greenfield-level-3"
-	projectType: projectTypeEnum("project_type").notNull(),
-	projectLevel: projectLevelEnum("project_level").notNull(),
-	fieldType: fieldTypeEnum("field_type").notNull(),
+	name: text("name").notNull().unique(), // e.g., "method-greenfield"
+	displayName: text("display_name").notNull(), // "BMad Method (Greenfield)"
 	description: text("description").notNull(),
+	educationText: text("education_text"), // Long-form explanation for UI cards
+
+	// FREE-FORM TAGS (not enums!) - workflow-init filters dynamically on these
+	tags: jsonb("tags").$type<{
+		track?: string; // "quick-flow" | "method" | "enterprise"
+		fieldType?: string; // "greenfield" | "brownfield"
+		complexity?: string; // "simple" | "moderate" | "complex"
+		[key: string]: string | undefined; // Custom tags allowed!
+	}>(),
+
+	// Metadata for workflow-init's recommendation engine
+	recommendedFor: jsonb("recommended_for").$type<string[]>(), // Keywords like ["dashboard", "platform"]
+	estimatedTime: text("estimated_time"), // "1-3 days"
+	agentSupport: text("agent_support"), // "Exceptional - complete context"
+
+	// UI presentation order
+	sequenceOrder: integer("sequence_order").default(0),
 
 	createdAt: timestamp("created_at").notNull().defaultNow(),
 	updatedAt: timestamp("updated_at").notNull().defaultNow(),

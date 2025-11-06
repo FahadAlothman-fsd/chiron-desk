@@ -10,6 +10,12 @@ export * from "./agents";
 // Workflow definitions and execution
 export * from "./workflows";
 
+// Workflow templates (Handlebars templates for artifacts)
+export * from "./workflow-templates";
+
+// Dialog sessions (optional - for clarification dialogs)
+export * from "./dialog-sessions";
+
 // Generated artifacts tracking
 export * from "./artifacts";
 
@@ -19,5 +25,5 @@ export * from "./optimization";
 // Project management (epics/stories)
 export * from "./project-management";
 
-// Auth tables (from better-t-stack setup with better-auth)
+// Auth tables (from better-t3-stack setup with better-auth)
 export * from "./auth";

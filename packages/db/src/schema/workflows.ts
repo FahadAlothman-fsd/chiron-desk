@@ -25,12 +25,12 @@ export const workflowPatternEnum = pgEnum("workflow_pattern", [
 export const stepTypeEnum = pgEnum("step_type", [
 	"ask-user",
 	"llm-generate",
-	"check-condition",
+	"branch", // Renamed from "check-condition" for clarity (N-way branching)
 	"approval-checkpoint",
 	"execute-action",
 	"invoke-workflow",
 	"display-output",
-	"load-context",
+	"question-set", // NEW - batch questions with optional dialogs
 ]);
 
 export const actionExecutionEnum = pgEnum("action_execution", [
@@ -48,30 +48,34 @@ export const workflowStatusEnum = pgEnum("workflow_status", [
 ]);
 
 // ============================================
-// WORKFLOWS TABLE
+// WORKFLOWS TABLE (UPDATED - Added special flags and template reference)
 // Complete workflow definitions
 // ============================================
 
 export const workflows = pgTable("workflows", {
 	id: uuid("id").primaryKey().defaultRandom(),
-	name: text("name").notNull().unique(), // e.g., "brainstorm-project", "research"
+	name: text("name").notNull().unique(), // e.g., "brainstorm-project", "research", "workflow-init"
 	displayName: text("display_name").notNull(),
-	agentId: uuid("agent_id")
-		.notNull()
-		.references(() => agents.id),
+	description: text("description"),
+	module: text("module"), // "bmm", "cis", "custom"
 
-	pattern: workflowPatternEnum("pattern").notNull(),
+	agentId: uuid("agent_id").references(() => agents.id),
+
+	// Special flags (NEW from workflow-schema-snapshot.md)
+	isProjectInitializer: boolean("is_project_initializer").default(false), // Only one per module
+	isStandalone: boolean("is_standalone").default(true), // Can run without project context
+	requiresProjectContext: boolean("requires_project_context").default(false),
 
 	// Output artifact configuration (optional)
-	outputArtifactType: text("output_artifact_type"), // "markdown", "json"
-	outputArtifactTemplateId: uuid("output_artifact_template_id"), // Future: reference to templates table
+	outputArtifactType: text("output_artifact_type"), // "prd", "architecture", "story", etc.
+	outputTemplateId: uuid("output_template_id"), // Reference to workflow_templates table
 
 	createdAt: timestamp("created_at").notNull().defaultNow(),
 	updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 // ============================================
-// WORKFLOW STEPS TABLE
+// WORKFLOW STEPS TABLE (UPDATED - Aligned with workflow-schema-snapshot.md)
 // Individual steps within workflows
 // ============================================
 
@@ -84,17 +88,14 @@ export const workflowSteps = pgTable(
 			.references(() => workflows.id, { onDelete: "cascade" }),
 
 		stepNumber: integer("step_number").notNull(),
+		goal: text("goal").notNull(), // Human-readable step purpose (replaces "title")
 		stepType: stepTypeEnum("step_type").notNull(),
-		stepId: text("step_id").notNull(), // "validate-readiness", "check-status"
-
-		title: text("title").notNull(),
-		description: text("description"),
 
 		// Type-specific configuration (typed per stepType)
 		config: jsonb("config").$type<StepConfig>().notNull(),
 
-		// Next step (null if routing via branches)
-		nextStepId: uuid("next_step_id").references(() => workflowSteps.id),
+		// Sequential flow (null = end of workflow, or branching via workflow_step_branches)
+		nextStepNumber: integer("next_step_number"), // Changed from nextStepId to match snapshot
 
 		createdAt: timestamp("created_at").notNull().defaultNow(),
 	},
@@ -160,7 +161,7 @@ export const workflowStepActions = pgTable("workflow_step_actions", {
 });
 
 // ============================================
-// WORKFLOW EXECUTIONS TABLE
+// WORKFLOW EXECUTIONS TABLE (UPDATED - Added executedSteps tracking)
 // Runtime workflow execution state (pause/resume)
 // ============================================
 
@@ -168,15 +169,15 @@ export const workflowExecutions = pgTable(
 	"workflow_executions",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
-		projectId: uuid("project_id")
-			.notNull()
-			.references(() => projects.id, { onDelete: "cascade" }),
+		projectId: uuid("project_id").references(() => projects.id, {
+			onDelete: "cascade",
+		}), // Nullable for workflow-init (no project yet)
 		workflowId: uuid("workflow_id")
 			.notNull()
 			.references(() => workflows.id, { onDelete: "cascade" }),
-		agentId: uuid("agent_id")
-			.notNull()
-			.references(() => agents.id, { onDelete: "cascade" }),
+		agentId: uuid("agent_id").references(() => agents.id, {
+			onDelete: "cascade",
+		}),
 
 		status: workflowStatusEnum("status").notNull().default("idle"),
 
@@ -189,11 +190,29 @@ export const workflowExecutions = pgTable(
 			.$type<Record<string, unknown>>()
 			.notNull()
 			.default({}),
-		contextData: jsonb("context_data").$type<Record<string, unknown>>(),
+
+		// NEW: Step-by-step execution tracking (mirrors executedVsPath pattern)
+		executedSteps: jsonb("executed_steps")
+			.$type<{
+				[stepNumber: number]: {
+					status: "completed" | "failed" | "skipped";
+					startedAt: string;
+					completedAt?: string;
+					output?: unknown;
+					error?: string;
+					branchTaken?: string; // For branch steps: which path was chosen
+				};
+			}>()
+			.default({}),
 
 		startedAt: timestamp("started_at"),
 		completedAt: timestamp("completed_at"),
 		pausedAt: timestamp("paused_at"),
+
+		// Error tracking
+		error: text("error"),
+		errorStep: integer("error_step"),
+
 		createdAt: timestamp("created_at").notNull().defaultNow(),
 		updatedAt: timestamp("updated_at").notNull().defaultNow(),
 	},
