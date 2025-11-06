@@ -28,7 +28,8 @@ export async function seedWorkflowPaths() {
 			.values({
 				name,
 				projectType: data.project_type,
-				projectLevel: data.level.toString(),
+				projectLevel:
+					data.project_level?.toString() || data.level?.toString() || "0",
 				fieldType: data.field_type,
 				description: data.description,
 				pathDefinition: data.phases, // Store phases array as JSON

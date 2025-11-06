@@ -12,7 +12,8 @@
 	},
 	"type": "module",
 	"scripts": {
-		"build": "tsdown"
+		"build": "tsdown",
+		"test": "bun test"
 	},
 	"devDependencies": {
 		"tsdown": "catalog:"
@@ -21,12 +22,12 @@
 		"typescript": "^5"
 	},
 	"dependencies": {
-		"@trpc/server": "catalog:",
-		"@trpc/client": "catalog:",
-		"hono": "catalog:",
-		"dotenv": "catalog:",
-		"zod": "catalog:",
 		"@chiron/auth": "workspace:*",
-		"@chiron/db": "workspace:*"
+		"@chiron/db": "workspace:*",
+		"@trpc/client": "catalog:",
+		"@trpc/server": "catalog:",
+		"dotenv": "catalog:",
+		"hono": "catalog:",
+		"zod": "catalog:"
 	}
 }
