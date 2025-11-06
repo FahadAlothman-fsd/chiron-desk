@@ -45,7 +45,8 @@ This directory contains all project documentation organized by purpose.
 - **`research/workflow-engine-structure.md`** - Workflow design patterns and step types
 
 ### Session Context
-- **`SESSION-SUMMARY-2025-11-06.md`** - Latest session summary (updated each session)
+- Check `archive/pre-epic-1-restart/` for historical session summaries
+- Current session context is maintained in `workflow-status.yaml` and git commit messages
 
 ---
 
