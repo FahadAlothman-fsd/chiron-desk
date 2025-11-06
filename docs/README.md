@@ -21,9 +21,8 @@ This directory contains all project documentation organized by purpose.
 
 ### Architecture
 - **`architecture/CANONICAL-WORKFLOW-SCHEMA.md`** - Database schema (SINGLE SOURCE OF TRUTH)
-- **`architecture-decisions.md`** - Architectural Decision Records (ADR log)
-- **`workflow-engine-design-brief.md`** - Workflow engine design
-- **`workflow-engine-structure.md`** - Workflow step types and patterns
+- **`architecture/architecture-decisions.md`** - Architectural Decision Records (ADR log)
+- **`architecture/workflow-init-complete-example.md`** - Complete workflow-init example
 
 ### Implementation Status
 - **`workflow-status.yaml`** - Current workflow state (v6-main format)
@@ -32,9 +31,18 @@ This directory contains all project documentation organized by purpose.
 - **`stories/*.context.xml`** - Story context for agents
 
 ### Design
-- **`ux-design-specification.md`** - UX design patterns
-- **`chiron-ui-wireframes-v1.md`** - UI wireframes
-- **`design/ux-design-directions.html`** - Interactive design directions
+- **`design/ux-design-specification.md`** - UX design patterns and principles
+- **`design/chiron-ui-wireframes-v1.md`** - UI wireframes
+- **`design/ux-pattern-structured-exploration-lists.md`** - Pattern exploration
+- **`design/mockups/ux-design-directions.html`** - Interactive design mockup
+- **`design/mockups/ux-color-themes.html`** - Color palette visualizer
+
+### Research & Exploration
+- **`research/framework-evaluation-effect-vs-mastra.md`** - Tool evaluation
+- **`research/tool-research-requirements.md`** - Research requirements
+- **`research/tool-stack-decision.md`** - Final tool stack decision
+- **`research/workflow-engine-design-brief.md`** - Initial workflow engine exploration
+- **`research/workflow-engine-structure.md`** - Workflow design patterns and step types
 
 ### Session Context
 - **`SESSION-SUMMARY-2025-11-06.md`** - Latest session summary (updated each session)
@@ -49,8 +57,11 @@ This directory contains all project documentation organized by purpose.
   - Contains: outdated schema, architecture summaries, old session guides
   - **DO NOT USE** for Story 1.1+ implementation
 
-- **`archive/phase-3-solutioning/`** - Historical implementation reports
+- **`archive/phase-1-discovery/`** - Product brief and brainstorming sessions
+- **`archive/phase-3-solutioning/`** - Implementation readiness reports
+- **`archive/design-exploration/`** - Old design mockup iterations
 - **`archive/bmm-workflow-status-v6-alpha.md`** - Old workflow status format
+- **`archive/DOCS-ORGANIZATION.md`** - Previous organization strategy (superseded)
 
 ---
 
@@ -75,9 +86,9 @@ This directory contains all project documentation organized by purpose.
 ### For Story Context
 
 **Story context files (`.context.xml`) reference:**
-- `CANONICAL-WORKFLOW-SCHEMA.md` for schema
+- `architecture/CANONICAL-WORKFLOW-SCHEMA.md` for schema
 - `PRD.md` for requirements
-- `architecture-decisions.md` for ADRs
+- `architecture/architecture-decisions.md` for ADRs
 
 ---
 
