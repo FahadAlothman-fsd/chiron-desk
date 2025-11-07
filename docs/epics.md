@@ -36,244 +36,611 @@ Each epic includes:
 
 ---
 
-## Epic 1: Core Infrastructure & Database Foundation
+## Epic 1: Foundation + Workflow-Init Engine
 
-**Goal:** Establish database schema, workflow engine, project management primitives, and workflow-init conversational setup
+**Goal:** Build database foundation, web UI shell, generic workflow execution engine, and complete workflow-init-new implementation
 
-**Duration:** 2 weeks
+**Duration:** ~21 days (4.2 weeks)
 **Dependencies:** None (foundation epic)
 **Owner:** DEV Agent
 
+**Key Deliverables:**
+- Complete database foundation (16 tables, no migrations - Docker reset approach)
+- Web application with authentication (better-auth)
+- Generic workflow execution engine (reusable for all future workflows)
+- LLM integration (OpenRouter) with models selection page
+- 5 step type handlers (ask-user, execute-action, llm-generate, ask-user-chat, display-output)
+- Complete workflow-init-new (10 steps, end-to-end)
+- Users can create projects through conversational workflow
+
+**Testing Framework:**
+- Use Bun test framework for all unit and integration tests
+- Test files: `*.test.ts` or `*.spec.ts`
+- Run tests: `bun test`
+- Coverage: `bun test --coverage`
+
+---
+
 ### Stories
 
-#### Story 1.1: Database Schema Design and Migration System
+#### Story 1.1: Database Schema Refactoring
+**Priority:** P0 (Critical)
+**Estimate:** 2 days
+
+**Description:**
+Refactor database schema to match final design from `docs/epics/epic-1-database-implementation.md`. Remove migration system - use direct schema application with Docker container reset during development.
+
+**Acceptance Criteria:**
+- [ ] Update schema files in `packages/db/src/schema/`:
+  - Remove `workflow_step_branches`, `workflow_step_actions` tables (deprecated)
+  - Update `workflows` table (add `initializerType`, remove `isProjectInitializer`)
+  - Update `projects` table (add `userId` foreign key)
+  - Update `appConfig` table (add `userId` unique constraint)
+  - Add new step config types (AskUserChatStepConfig, expanded AskUserStepConfig)
+- [ ] Create `scripts/reset-db.sh` script:
+  - `docker-compose down -v` (remove volumes)
+  - `docker-compose up -d` (recreate containers)
+  - Apply schema directly (no migrations)
+- [ ] Delete all existing migration files from `packages/db/src/migrations/`
+- [ ] All 16 tables created with correct relationships
+- [ ] Indexes on frequently queried columns (projects.userId, workflows.module, etc.)
+- [ ] Test: `bun run db:reset` works cleanly
+- [ ] Test: `bun test` runs successfully (setup test framework)
+
+**Technical Notes:**
+- Use Drizzle ORM schema definition, skip Drizzle migrations
+- PostgreSQL enums for status fields (IDLE, ACTIVE, PAUSED, etc.)
+- Reference: `docs/architecture/database-schema-architecture.md`
+- Reference: `docs/epics/epic-1-database-implementation.md` for detailed schema changes
+
+---
+
+#### Story 1.2: Core Data Seeding
+**Priority:** P0 (Critical)
+**Estimate:** 1 day
+**Dependencies:** Story 1.1
+
+**Description:**
+Seed essential data: users (using existing better-auth), agents, workflow-init-new workflow metadata, and workflow paths. Do NOT seed workflow steps yet (comes in Stories 1.5-1.8).
+
+**Acceptance Criteria:**
+- [ ] Users seeded (use existing better-auth seeding in `packages/scripts/src/seeds/`)
+- [ ] 6 core agents seeded into `agents` table:
+  - PM (Product Manager)
+  - Analyst (Business Analyst)
+  - Architect (Solutions Architect)
+  - DEV (Developer)
+  - SM (Scrum Master)
+  - UX Designer
+- [ ] workflow-init-new workflow seeded (metadata only, NO steps):
+  - name: "workflow-init-new"
+  - displayName: "Initialize New Project"
+  - module: "bmm"
+  - agentId: PM agent
+  - initializerType: "new-project"
+- [ ] 6 workflow paths seeded:
+  - quick-flow-greenfield, quick-flow-brownfield
+  - method-greenfield, method-brownfield
+  - enterprise-greenfield, enterprise-brownfield
+- [ ] Seed script is idempotent (can run multiple times safely using `.onConflictDoNothing()` or existence checks)
+- [ ] Test: `bun run db:seed` populates database successfully
+- [ ] Unit tests for seed functions (using `bun test`)
+
+**Technical Notes:**
+- Better-auth user seeding already exists - reuse it
+- Create new seed files:
+  - `packages/scripts/src/seeds/agents.ts`
+  - `packages/scripts/src/seeds/workflow-init-new.ts`
+  - `packages/scripts/src/seeds/workflow-paths.ts`
+- Reference: `docs/epics/epic-1-database-implementation.md` for seed data structure
+- Idempotent pattern: Use Drizzle's `.onConflictDoNothing()` or check existence before insert
+
+---
+
+#### Story 1.3: Web UI Foundation + LLM Models Page
 **Priority:** P0 (Critical)
 **Estimate:** 3 days
-
-**Description:**
-Design and implement the complete PostgreSQL schema for Chiron, including all tables for projects, workflows, agents, artifacts, and state tracking. Set up Drizzle ORM with migration system.
-
-**Acceptance Criteria:**
-- [ ] Drizzle ORM configured with TypeScript
-- [ ] All 16 tables created with proper relationships (schema evolved in Phase 3 based on architectural decisions #33-#37):
-
-  **Core Tables (4):**
-  - `projects` - Project metadata (name, path, level, type, field_type)
-  - `project_state` - Current workflow position (current_phase, phase_*_complete flags)
-  - `workflow_paths` - Workflow sequences for project types (greenfield-level-0 through 4, brownfield variants)
-  - `workflow_path_workflows` - Junction table linking paths to workflows with phase/order
-
-  **Workflow Definition Tables (5):**
-  - `agents` - AI agents with LLM config (name, role, llm_provider, llm_model, tools JSONB, mcp_servers JSONB, color, avatar)
-  - `workflows` - Workflow definitions (name, agent_id, pattern enum, output_artifact_type)
-  - `workflow_steps` - Individual steps (step_number, step_type enum, config JSONB, next_step_id)
-  - `workflow_step_branches` - Conditional routing for N-way branching (step_id, branch_key, next_step_id)
-  - `workflow_step_actions` - Actions within steps (action_type, action_config JSONB, execution_mode enum)
-
-  **Execution Tables (2):**
-  - `workflow_executions` - Runtime state (status, current_step_id, variables JSONB, context_data JSONB) *[renamed from workflow_state]*
-  - `project_artifacts` - Generated files tracking (artifact_type, file_path, **git_commit_hash**, metadata JSONB)
-
-  **System Configuration (1):**
-  - `app_config` - Application settings (openrouter_api_key, anthropic_api_key, openai_api_key, default_llm_provider) *[NEW - critical for first-time setup]*
-
-  **Optimization Tables (2):**
-  - `training_examples` - User corrections for ax optimization
-  - `optimization_runs` - GEPA optimizer results
-
-  **Future Tables (2) - Epic 3/6:**
-  - `epic_state` - Epic progress tracking (deferred but schema-ready)
-  - `story_state` - Story progress tracking (deferred but schema-ready)
-
-- [ ] Indexes created on frequently queried columns
-- [ ] Migration files in `packages/db/src/migrations/` directory
-- [ ] `npm run db:migrate` command works
-- [ ] `npm run db:seed` command works (empty for now, used in Story 1.2)
-
-**Schema Evolution Notes:**
-- Original Story 1.1 listed 11 tables (Phase 2 estimate)
-- Final schema has 16 tables based on Phase 3 architectural decisions:
-  - **Added:** workflow_steps, workflow_step_branches, workflow_step_actions, workflow_paths, workflow_path_workflows, training_examples, optimization_runs, app_config (Decision #33, #37, gate check finding)
-  - **Merged:** agent_capabilities → agents table (JSONB fields)
-  - **Renamed:** workflow_state → workflow_executions
-  - **Deferred:** git_worktrees (Epic 4), workflow_versions (Epic 7)
-
-**Technical Notes:**
-- Use Drizzle ORM schema definition in `src/db/schema.ts`
-- Migrations use Drizzle Kit CLI
-- Consider using PostgreSQL enums for status fields (IDLE, ACTIVE, PAUSED, etc.)
-
----
-
-#### Story 1.2: BMAD Workflow Seeding System
-**Priority:** P0 (Critical)
-**Estimate:** 2 days
-**Dependencies:** Story 1.1
-
-**Description:**
-Implement seed system that loads BMAD workflows, agents, and configurations from YAML/Markdown files into the database on initial setup.
-
-**Acceptance Criteria:**
-- [ ] Seed script reads BMAD files from `bmad/` directory
-- [ ] All BMM workflows seeded into `workflows` table
-- [ ] All CIS workflows seeded into `workflows` table
-- [ ] 6 core agents seeded into `agents` table (Analyst, PM, Architect, DEV, SM, UX Designer)
-- [ ] Agent capabilities seeded into `agent_capabilities` table
-- [ ] Elicitation methods seeded (techniques from brainstorming.yaml, design-thinking.yaml, etc.)
-- [ ] Seed script is idempotent (can run multiple times safely)
-- [ ] `npm run db:seed` populates database successfully
-- [ ] Seed data includes workflow paths (greenfield-level-0 through greenfield-level-4, brownfield variants)
-
-**Technical Notes:**
-- Parse YAML using `js-yaml` library
-- Parse Markdown frontmatter for workflow instructions
-- Store workflow instructions as text in `workflows.instructions` column
-- Store YAML config as JSON in `workflows.yaml_config` column
-
----
-
-#### Story 1.3: Project CRUD Operations
-**Priority:** P0 (Critical)
-**Estimate:** 2 days
-**Dependencies:** Story 1.1
-
-**Description:**
-Implement API endpoints and services for creating, reading, updating, and deleting projects in Chiron.
-
-**Acceptance Criteria:**
-- [ ] `POST /api/projects` creates new project entry
-- [ ] `GET /api/projects` lists all projects
-- [ ] `GET /api/projects/:id` gets single project with details
-- [ ] `DELETE /api/projects/:id` removes project (with confirmation)
-- [ ] Project creation validates:
-  - Directory path exists or can be created
-  - Directory is empty or has valid git repository
-  - Project name is unique
-- [ ] Project deletion:
-  - Removes database entries (cascade delete for related records)
-  - Does NOT delete files on disk (safety measure)
-  - Warns user about active agents
-- [ ] All operations return proper HTTP status codes and error messages
-
-**Technical Notes:**
-- Use Hono for API routing
-- Use Tauri commands to expose API to frontend
-- Validation logic in service layer, not controller
-
----
-
-#### Story 1.4: Workflow-Init Conversational Setup
-**Priority:** P0 (Critical)
-**Estimate:** 4 days
-**Dependencies:** Story 1.3
-
-**Description:**
-Build conversational workflow-init that determines project type, level, and field (greenfield/brownfield) through natural conversation, replicating the BMAD CLI workflow-init experience.
-
-**Acceptance Criteria:**
-- [ ] Conversational flow (see User Journey 1 in PRD):
-  1. "What's your project called?" → captures project name
-  2. "Tell me about what you're building. What's the goal? Adding to something or starting fresh?" → analyzes response
-  3. Agent uses LLM to determine:
-     - **Project Type:** software (game excluded from MVP)
-     - **Project Level:** 0 (bug fix), 1 (single feature), 2 (multi-feature), 3 (complex system), 4 (multi-system)
-     - **Field Type:** greenfield (new project) or brownfield (existing codebase)
-  4. "Based on your description: Level X [type] [field] project. Is that correct?" → user confirms or corrects
-  5. If confirmed: loads appropriate workflow path YAML (e.g., `greenfield-level-3.yaml`)
-- [ ] Project directory validation/creation:
-  - If directory doesn't exist → create it + `git init`
-  - If directory exists but no git → `git init`
-  - If directory exists with git → validate and proceed
-- [ ] Generates `docs/bmm-workflow-status.md` with:
-  - Project configuration (name, type, level, field)
-  - Workflow path reference (YAML file)
-  - Current phase and next recommended workflow
-- [ ] AI reasoning visible (why Level 3? why greenfield?)
-- [ ] User can override AI's suggestion
-- [ ] Chat interface uses Pattern A (Sequential Dependencies) from Epic 7
-
-**Technical Notes:**
-- LLM prompt engineering for project analysis (keywords: "new", "existing", "refactor", "bug", "feature", "system")
-- Project level heuristics:
-  - Level 0: "bug", "fix", "patch", single file/function
-  - Level 1: "add feature", "new endpoint", isolated change
-  - Level 2: "multiple features", "new module", several components
-  - Level 3: "complex", "system", "integrations", "architecture decisions"
-  - Level 4: "multiple systems", "microservices", "distributed"
-- Field type heuristics:
-  - Greenfield: "new", "starting", "from scratch"
-  - Brownfield: "existing", "legacy", "refactor", "improve", "add to"
-- Workflow path mapping stored in database (seeded from `bmad/bmm/workflows/workflow-status/paths/`)
-- Status file template in `bmad/bmm/workflows/workflow-status/workflow-status-template.md`
-
----
-
-#### Story 1.5: Workflow Execution Engine (Simplified)
-**Priority:** P0 (Critical)
-**Estimate:** 4 days
 **Dependencies:** Story 1.2
 
 **Description:**
-Build simplified workflow execution engine that follows workflow.xml rules for steps, actions, variables, and templates (no agent coordination yet - that's Epic 3).
+Set up React web application with authentication (using existing better-auth), home page with project list, basic layout shell, and LLM models selection page.
 
 **Acceptance Criteria:**
-- [ ] Engine loads workflow from database by ID
-- [ ] Engine resolves variables using 4-level precedence:
-  1. `config_source` references (read from config.yaml)
-  2. System-generated (`{{date}}` → current date)
-  3. User input (prompt if variable unknown)
-  4. Default values (from workflow YAML)
-- [ ] Engine executes workflow steps in order
-- [ ] Engine supports conditional steps (`if="condition"`)
-- [ ] Engine supports optional steps (`optional="true"`)
-- [ ] Engine generates output from template if `template: true`
-- [ ] Engine saves workflow state to `workflow_state` table (can resume)
-- [ ] Engine emits events for UI updates (step started, step completed, workflow completed)
-- [ ] Test workflow execution with `workflow-init` and `product-brief` workflows
+
+**Authentication & Layout:**
+- [ ] Login page uses existing better-auth setup
+- [ ] Home page displays:
+  - "Create Project" button (primary action, does nothing yet)
+  - Projects list (empty state: "No projects yet" message with icon)
+  - Basic table/card layout for projects (when they exist)
+- [ ] App layout structure:
+  - Left sidebar: Navigation (Home, Projects, LLM Models, Settings)
+  - Top bar: Project name (if selected), user avatar, logout
+  - Main content area: Page content
+- [ ] Connect to backend API:
+  - GET `/api/projects` endpoint (returns empty array for now)
+- [ ] Routing setup (TanStack Router)
+- [ ] Hot reload works for development
+- [ ] Visual design follows UX foundation (CARBON theme, corner borders, monospace typography)
+
+**LLM Models Page:**
+- [ ] Models page route: `/models`
+- [ ] Fetch available models from OpenRouter API on page load
+- [ ] TanStack Table displaying models with columns:
+  - Model Name
+  - Provider (OpenAI, Anthropic, Google, Meta, etc.)
+  - Context Length
+  - Input Price (per 1M tokens)
+  - Output Price (per 1M tokens)
+- [ ] Table features:
+  - Filter by Provider (dropdown multi-select)
+  - Filter by Min Context Length (slider or input)
+  - Search by model name (fuzzy search)
+  - Sort all columns (ascending/descending)
+- [ ] Model selection saved to user preferences (placeholder for future - just UI for now)
+- [ ] Link in sidebar navigation: "LLM Models"
+- [ ] Loading state while fetching models
+- [ ] Error state if API fails
+
+**Testing:**
+- [ ] Unit tests for components (using `bun test`)
+- [ ] Test API integration (mock tRPC calls)
 
 **Technical Notes:**
-- Workflow engine as separate service: `src/services/workflow-engine.ts`
-- Use state machine pattern for workflow status
-- Emit events via EventEmitter for UI consumption (real-time updates in Epic 4)
-- Template rendering with Handlebars
+- Frontend: `apps/web/src/`
+- API: `packages/api/` (tRPC for type-safe API calls)
+- Auth: `packages/auth/` (better-auth already configured)
+- UI components: shadcn/ui (already installed)
+- Routing: TanStack Router (already installed)
+- OpenRouter models API: `GET https://openrouter.ai/api/v1/models`
+- Cache models list (refresh every hour or on demand)
+- Use TanStack Table v8
+
+**Wireframes:**
+- Home page layout (header, sidebar, main content)
+- Empty state (shown when no projects exist)
+- Projects list (shown when projects exist)
+- LLM Models page (table with filters)
 
 ---
 
-#### Story 1.6: Git Repository Validation
-**Priority:** P1 (Important)
-**Estimate:** 1 day
+#### Story 1.4: Workflow Execution Engine Core
+**Priority:** P0 (Critical)
+**Estimate:** 3 days
 **Dependencies:** Story 1.3
 
 **Description:**
-Implement git repository validation before allowing workflows to execute on a project.
+Build the generic workflow execution engine foundation that will power all workflows in Chiron. This is the core service that loads workflows from the database, executes steps sequentially, manages state, and resolves variables.
 
 **Acceptance Criteria:**
-- [ ] Validation checks:
-  - Directory exists
-  - Git repository initialized (`.git` directory present)
-  - Not in detached HEAD state
-  - No uncommitted changes (working tree clean) - WARNING only, not blocker
-  - Remote configured (optional warning, not blocker)
-- [ ] Validation runs before workflow execution
-- [ ] Clear error messages for each failure type
-- [ ] Option to initialize git repo if missing (`git init`)
-- [ ] Validation function returns structured result (pass/fail + reasons)
+
+**Workflow Engine Backend:**
+- [ ] Workflow loader service:
+  - Read workflow + steps from database by workflow ID
+  - Load steps in correct order (by `stepNumber`)
+  - Validate workflow structure (no missing steps, valid nextStepNumber references)
+- [ ] Step executor framework:
+  - Generic step handler interface: `executeStep(step, context) → result`
+  - Step type registry: Register handlers for each step type
+  - Step execution loop: Execute steps sequentially, respect `nextStepNumber`
+  - Support step transitions: auto-advance or wait for user input
+- [ ] Variable resolver:
+  - Resolve `{{variable}}` references using Handlebars templating
+  - 4-level precedence:
+    1. System variables (`current_user_id`, `execution_id`, `{{date}}`)
+    2. Execution variables (from `workflow_executions.variables`)
+    3. Step outputs (from `executedSteps[N].output`)
+    4. Default values (from step config)
+  - Handle nested variables: `{{user.name}}`, `{{array[0]}}`, etc.
+- [ ] State management:
+  - Create `workflow_executions` record on workflow start
+  - Save current step to `current_step_id`
+  - Track executed steps in `executedSteps` JSONB field:
+    ```json
+    {
+      "1": { "status": "completed", "output": {...}, "completedAt": "..." },
+      "2": { "status": "in-progress", "startedAt": "..." }
+    }
+    ```
+  - Support pause/resume workflow (load state from database)
+- [ ] Event system:
+  - Emit events: `workflow_started`, `step_started`, `step_completed`, `workflow_completed`, `workflow_error`
+  - UI subscribes to events for real-time updates (Server-Sent Events or WebSocket)
+
+**Workflow UI Components:**
+- [ ] `WorkflowStepper` component:
+  - Shows progress: "Step X of N"
+  - Progress bar (visual indicator)
+  - Current step title and goal
+- [ ] `WorkflowStepContainer` component:
+  - Wrapper for step UI components
+  - Handles step transitions (Next/Back buttons)
+  - Shows loading state while step executes
+  - Error handling and display
+- [ ] Basic step navigation:
+  - "Next" button (submits current step, advances)
+  - "Back" button (go to previous step with warning)
+  - Auto-advance for backend-only steps (execute-action, llm-generate auto-complete)
+
+**Testing:**
+- [ ] Unit tests for workflow engine services (using `bun test`)
+- [ ] Test: Load workflow-init-new from database (no steps yet, just metadata)
+- [ ] Test: Execute empty workflow (0 steps) successfully
+- [ ] Test: Variable resolution with all precedence levels
+- [ ] Test: Workflow state saves/loads from database
+- [ ] Integration test: Start workflow → pause → resume
 
 **Technical Notes:**
-- Use `simple-git` library
-- Validation service: `src/services/git-validation.ts`
-- Validation errors shown in UI (Epic 4)
+- Engine service: `packages/api/src/services/workflow-engine.ts`
+- Step handlers directory: `packages/api/src/services/workflow-engine/step-handlers/`
+- Variable resolver: Use `handlebars` library
+- Event system: Node EventEmitter or custom event bus
+- State machine pattern for workflow status (IDLE → RUNNING → PAUSED → COMPLETED → ERROR)
+- Reference: `bmad/core/tasks/workflow.xml` for workflow execution logic
+
+---
+
+#### Story 1.5: Workflow-Init Steps 1-3 (Foundation)
+**Priority:** P0 (Critical)
+**Estimate:** 3 days
+**Dependencies:** Story 1.4
+
+**Description:**
+Implement workflow-init steps 1-3: Get project directory (path selector), get project description (text input), set field type to greenfield (execute-action). Build ask-user and execute-action step handlers.
+
+**Workflow Steps:**
+- **Step 1:** Get project directory (ask-user - path)
+- **Step 2:** Get project description (ask-user - string)
+- **Step 3:** Set field type to greenfield (execute-action)
+
+**Process:**
+1. Study BMAD workflow-init steps 1-3 implementation
+2. Create wireframes (ASCII art, markdown, or v0 prompt as needed)
+3. Define step config JSON for each step
+4. Seed steps 1-3 to `workflow_steps` table
+5. Build step handlers + UI components
+6. Test steps 1-3 in workflow execution
+
+**Acceptance Criteria:**
+
+**Step Handlers (Backend):**
+- [ ] `AskUserStepHandler` implementation:
+  - Supports `responseType: "path"` (path selector)
+  - Supports `responseType: "string"` (text input)
+  - Validates input (required, minLength, maxLength, pattern)
+  - Saves response to `responseVariable` in workflow execution state
+- [ ] `ExecuteActionStepHandler` implementation:
+  - Supports `set-variable` action type
+  - Executes actions sequentially
+  - Auto-advances to next step (no user input needed)
+
+**UI Components (Frontend):**
+- [ ] `AskUserStep` component:
+  - Renders path selector (directory picker using file system API or text input with validation)
+  - Renders text input with real-time validation
+  - Shows validation errors clearly
+  - Submits response to backend on "Next" button
+- [ ] `ExecuteActionStep` component:
+  - Invisible to user (backend-only step)
+  - Shows brief loading indicator
+  - Auto-advances when complete
+
+**Seeding:**
+- [ ] Step 1 seeded with path selector config
+- [ ] Step 2 seeded with text input config (minLength: 20, maxLength: 1000)
+- [ ] Step 3 seeded with set-variable action (detected_field_type = "greenfield")
+
+**Testing:**
+- [ ] Unit tests for step handlers (using `bun test`)
+- [ ] Integration test: Start workflow-init-new
+- [ ] Test: Step 1 displays path selector
+- [ ] Test: Step 2 displays text input with validation (min 20 chars)
+- [ ] Test: Step 3 executes silently and advances
+- [ ] Test: Variables saved correctly: `project_path`, `user_description`, `detected_field_type`
+
+**Wireframes:**
+- Path selector UI (simple text input with browse button or native picker)
+- Text input UI with validation feedback
+
+**Technical Notes:**
+- Path selector: Use native file picker API or text input with manual entry
+- Step handler pattern: `async executeStep(step, execution, userInput?) → StepResult`
+- Reference: `docs/epics/epic-1-database-implementation.md` → workflow-init-new Steps 1-3
+
+---
+
+#### Story 1.6: Workflow-Init Steps 4-6 (Analysis)
+**Priority:** P0 (Critical)
+**Estimate:** 4 days
+**Dependencies:** Story 1.5
+
+**Description:**
+Implement workflow-init steps 4-6: Analyze project complexity (LLM classification), fetch workflow paths (DB query), help user choose path (conversational chat). Build llm-generate and ask-user-chat step handlers.
+
+**Workflow Steps:**
+- **Step 4:** Analyze complexity (llm-generate - classification)
+- **Step 5:** Fetch workflow paths (execute-action - DB query)
+- **Step 6:** Help choose path (ask-user-chat - conversational)
+
+**Process:**
+1. Study BMAD workflow-init steps 4-6 implementation
+2. Create wireframes (especially for chat UI - critical UX)
+3. Define step config JSON with LLM prompts and system instructions
+4. Seed steps 4-6
+5. Build step handlers + UI components
+6. Test steps 4-6 in workflow execution
+
+**Acceptance Criteria:**
+
+**Step Handlers (Backend):**
+- [ ] `LLMGenerateStepHandler` implementation:
+  - Calls OpenRouter API with user-selected model (or default)
+  - Supports `llmTask.type: "classification"` (returns category + reasoning)
+  - Supports `llmTask.type: "structured"` (returns JSON matching schema)
+  - Parses structured output with JSON schema validation
+  - Saves result to `outputVariable`
+  - Handles LLM errors gracefully (retry, fallback)
+- [ ] `ExecuteActionStepHandler` extensions:
+  - Supports `database` action type (query workflow_paths table)
+  - Supports JSONB filtering (`tags->>'fieldType' = "greenfield"`)
+  - Saves query results to output variable
+- [ ] `AskUserChatStepHandler` implementation:
+  - Initializes chat session with `systemPrompt`
+  - Streams LLM responses to user (Server-Sent Events or WebSocket)
+  - Maintains conversation history
+  - Detects completion condition:
+    - `user-satisfied`: User explicitly confirms choice
+    - `confidence-threshold`: LLM confidence > threshold
+    - `max-turns`: Maximum conversation turns reached
+  - Extracts final output (selected path ID) to `outputVariable`
+
+**UI Components (Frontend):**
+- [ ] `LLMGenerateStep` component:
+  - Shows loading state ("Analyzing your project..." with spinner)
+  - Displays LLM reasoning in readable format
+  - Shows classification result (quick-flow / method / enterprise)
+  - Highlight box showing why this track was recommended
+  - Auto-advances when complete
+- [ ] `AskUserChatStep` component:
+  - Chat interface with message bubbles
+  - User messages aligned right (blue), AI messages left (gray)
+  - Shows typing indicator while LLM generates response
+  - Displays workflow path options in chat context (cards or list)
+  - Input field for user questions
+  - "I'm ready to choose" button appears when user satisfied
+  - Completion triggers path selection
+
+**Seeding:**
+- [ ] Step 4 seeded with classification task:
+  - Categories: quick-flow, method, enterprise
+  - Input: `{{user_description}}`
+  - Reasoning: true
+- [ ] Step 5 seeded with DB query:
+  - Filter: `tags->>'fieldType' = "{{detected_field_type}}"`
+  - Output: `available_paths`
+- [ ] Step 6 seeded with chat config:
+  - System prompt: Explain workflow paths, help user choose
+  - Available paths: `{{available_paths}}`
+  - Recommended track: `{{recommended_track}}`
+  - Completion condition: user-satisfied, max 10 turns
+
+**Testing:**
+- [ ] Unit tests for LLM service, chat handler (using `bun test`)
+- [ ] Test: Step 4 classifies project based on description
+- [ ] Test: Step 5 fetches workflow paths from database
+- [ ] Test: Step 6 displays chat interface
+- [ ] Test: Can ask questions about workflow paths
+- [ ] Test: LLM responds with path recommendations
+- [ ] Test: Can select a path and complete step
+- [ ] Test: Variables saved: `recommended_track`, `available_paths`, `selected_workflow_path_id`
+- [ ] Integration test: Steps 4-6 flow sequentially
+
+**Wireframes:**
+- LLM loading state (animated, informative)
+- Classification result display (card with reasoning)
+- Chat interface layout (messages, input, path options)
+- Path selection cards (in chat context)
+
+**Technical Notes:**
+- LLM service: `packages/api/src/services/llm.ts` (OpenRouter integration)
+- Chat streaming: Server-Sent Events (SSE) recommended for simplicity
+- Model selection: Use model from user preferences (from LLM models page)
+- Default model: `anthropic/claude-3.5-sonnet` or `openai/gpt-4-turbo`
+- Conversation history: Store in `workflow_executions.context_data`
+- Reference: `docs/epics/epic-1-database-implementation.md` → Steps 4-6
+
+---
+
+#### Story 1.7: Workflow-Init Steps 7-8 (Naming)
+**Priority:** P0 (Critical)
+**Estimate:** 2 days
+**Dependencies:** Story 1.6
+
+**Description:**
+Implement workflow-init steps 7-8: Generate project name suggestions (LLM structured output), user selects name or provides custom (ask-user with choices + allowCustom).
+
+**Workflow Steps:**
+- **Step 7:** Generate name suggestions (llm-generate - structured)
+- **Step 8:** Select project name (ask-user - choices with custom option)
+
+**Process:**
+1. Study BMAD workflow-init steps 7-8 implementation
+2. Create wireframes for name selection UI
+3. Define step config JSON
+4. Seed steps 7-8
+5. Extend existing handlers (already built in 1.5-1.6)
+6. Test steps 7-8
+
+**Acceptance Criteria:**
+
+**Step Handler Extensions:**
+- [ ] `AskUserStepHandler` extensions:
+  - Supports `responseType: "choice"` with dynamic options from previous step
+  - Supports `choices.allowCustom: true` (show custom text input option)
+  - Validates choice against available options OR custom pattern
+  - Custom input validation: pattern `^[a-z0-9-]+$` (kebab-case)
+
+**UI Components:**
+- [ ] `AskUserStep` extensions for choice selection:
+  - Renders choice list (radio buttons or selectable cards)
+  - Shows "Custom" option if `allowCustom: true`
+  - Reveals text input when "Custom" selected
+  - Validates custom input (kebab-case, 3-50 chars, no special chars except hyphens)
+  - Real-time validation feedback
+
+**Seeding:**
+- [ ] Step 7 seeded with LLM structured generation task:
+  - Generate 3 project name suggestions
+  - Requirements: lowercase, kebab-case, descriptive, 2-3 words, professional
+  - Input: `{{user_description}}`
+  - Schema: `{ suggestions: string[] }` (array of 3 strings)
+- [ ] Step 8 seeded with choices config:
+  - Options: `{{name_suggestions.suggestions}}` (dynamic from step 7)
+  - Allow custom: true
+  - Validation: pattern `^[a-z0-9-]+$`, minLength 3, maxLength 50
+
+**Testing:**
+- [ ] Unit tests for choice handler extensions (using `bun test`)
+- [ ] Test: Step 7 generates 3 valid project name suggestions
+- [ ] Test: Step 8 displays suggestions as selectable options
+- [ ] Test: Can select a suggested name
+- [ ] Test: Can choose "Custom" and enter own name
+- [ ] Test: Custom name validates correctly (kebab-case enforcement)
+- [ ] Test: Invalid names show appropriate error messages
+- [ ] Test: Variables saved: `name_suggestions`, `project_name`
+
+**Wireframes:**
+- Name suggestions display (cards with radio selection)
+- Custom name input with validation feedback
+
+**Technical Notes:**
+- Name generation prompt: "Generate 3 project names: lowercase, kebab-case (e.g., task-manager), descriptive, 2-3 words, professional, memorable"
+- Validation regex: `/^[a-z0-9-]+$/`
+- Reference: `docs/epics/epic-1-database-implementation.md` → Steps 7-8
+
+---
+
+#### Story 1.8: Workflow-Init Steps 9-10 (Creation & Confirmation)
+**Priority:** P0 (Critical)
+**Estimate:** 3 days
+**Dependencies:** Story 1.7
+
+**Description:**
+Implement workflow-init steps 9-10: Create project (directory + git + DB record), display success message. Build project creation API, display-output step handler, and complete end-to-end workflow-init.
+
+**Workflow Steps:**
+- **Step 9:** Create project (execute-action - complex multi-action)
+- **Step 10:** Confirm success (display-output)
+
+**Process:**
+1. Study BMAD workflow-init steps 9-10 implementation
+2. Create wireframes for success message display
+3. Define step config JSON
+4. Seed steps 9-10
+5. Build step handlers + project creation API
+6. Test end-to-end workflow
+
+**Acceptance Criteria:**
+
+**Step Handler Extensions:**
+- [ ] `ExecuteActionStepHandler` extensions:
+  - Supports `file` action type:
+    - Operation: `mkdir` with recursive flag
+    - Uses Node-compatible Bun APIs: `import { mkdir } from "node:fs/promises"`
+  - Supports `git` action type:
+    - Operation: `init`, `commit`
+    - Uses `simple-git` library
+  - Supports `database` action type:
+    - Operation: `insert` into projects table
+    - Returns inserted record ID
+  - Executes multiple actions sequentially
+  - Rolls back on error (delete directory if DB insert fails)
+  - Handles errors gracefully with clear messages
+- [ ] `DisplayOutputStepHandler` implementation:
+  - Renders content template with variable interpolation (Handlebars)
+  - Supports markdown formatting
+  - Supports conditionals (Handlebars `{{#if}}` helpers)
+  - No user input required (read-only display)
+
+**UI Components:**
+- [ ] `DisplayOutputStep` component:
+  - Renders markdown content with formatting
+  - Shows success icon/checkmark (celebratory feel)
+  - Displays project details (name, path, workflow path)
+  - "Continue to Dashboard" button to navigate to home page
+  - Confetti animation (optional but delightful)
+
+**Project Creation API:**
+- [ ] POST `/api/projects` endpoint:
+  - Accepts: `name`, `path`, `workflowPathId`, `userId`
+  - Validates:
+    - Project name is unique for this user
+    - Directory doesn't already exist at `path/name`
+    - Workflow path exists in database
+  - Creates directory: `await mkdir(path/name, { recursive: true })`
+  - Initializes git repository: `git init`
+  - Creates initial commit with README (optional)
+  - Inserts project record into database:
+    - `name`, `path`, `userId`, `workflowPathId`, `initializedByExecutionId`
+  - Returns project ID and full project object
+  - Error handling: Cleanup on failure (delete directory if created)
+
+**Seeding:**
+- [ ] Step 9 seeded with execute-action config:
+  - Actions: file (mkdir), git (init), database (insert projects)
+  - Variables used: `{{project_path}}`, `{{project_name}}`, `{{selected_workflow_path_id}}`, `{{current_user_id}}`, `{{execution_id}}`
+- [ ] Step 10 seeded with display-output config:
+  - Success message template with project details
+  - Markdown formatted with celebration
+
+**Testing:**
+- [ ] Unit tests for execute-action extensions (using `bun test`)
+- [ ] Unit tests for display-output handler
+- [ ] Unit tests for POST /api/projects endpoint
+- [ ] Test: Step 9 creates project directory at correct path
+- [ ] Test: Git repository initialized in project directory
+- [ ] Test: Project record saved to database with all fields
+- [ ] Test: Step 10 displays success message with correct variables
+- [ ] Test: Can navigate to dashboard after completion
+- [ ] **END-TO-END TEST:** Complete workflow-init from step 1 to step 10
+- [ ] **END-TO-END TEST:** New project appears in projects list on home page
+- [ ] Error handling test: Cleanup on failure (directory deleted if DB insert fails)
+
+**Wireframes:**
+- Success message display (formatted, celebratory, informative)
+- Dashboard navigation flow
+
+**Technical Notes:**
+- Use Node-compatible Bun file system APIs: `import { mkdir } from "node:fs/promises"`
+- Use `simple-git` library for git operations
+- Project path validation: Check directory doesn't exist before creating
+- Cleanup strategy: `try-catch` with rollback (delete dir if DB fails)
+- Success message template in step 10 config (Handlebars syntax)
+- Reference: `docs/epics/epic-1-database-implementation.md` → Steps 9-10
 
 ---
 
 ### Epic 1 Summary
 
-**Total Effort:** ~16 days (3.2 weeks) = 2 weeks sprint with some overtime
-**Stories:** 6 (added workflow-init as Story 1.4)
-**Dependencies:** None (foundation)
-**Risks:** Database schema changes may cascade to other epics
+**Total Effort:** ~21 days (4.2 weeks)
+**Stories:** 8 stories
+**Dependencies:** None (foundation epic)
 
-**Key Addition:** Workflow-init provides conversational project setup matching BMAD's UX, critical for first-time user experience (see User Journey 1 in PRD)
+**Epic 1 Delivers:**
+- ✅ Complete database foundation (16 tables, no migrations - Docker reset approach)
+- ✅ Web application with authentication (better-auth)
+- ✅ LLM models selection page (OpenRouter integration)
+- ✅ Generic workflow execution engine (reusable for all future workflows)
+- ✅ 5 step type handlers (ask-user, execute-action, llm-generate, ask-user-chat, display-output)
+- ✅ Complete workflow-init-new (10 steps, end-to-end tested)
+- ✅ Users can create projects through conversational workflow
+- ✅ All code tested with Bun test framework
+
+**Ready for Epic 2:**
+- Epic 2 will implement product-brief workflow using the same workflow engine
+- New step types can be added as needed (invoke-workflow, conditional branching, etc.)
+- Workflow engine is proven, tested, and production-ready
+- UI patterns established (stepper, step containers, chat interface)
 
 ---
 
