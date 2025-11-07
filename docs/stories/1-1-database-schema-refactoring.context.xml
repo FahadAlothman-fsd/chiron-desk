@@ -1,0 +1,253 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>1</storyId>
+    <title>Database Schema Refactoring</title>
+    <status>draft</status>
+    <generatedAt>2025-11-07</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/1-1-database-schema-refactoring.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>a developer</asA>
+    <iWant>a clean database schema with Docker-based reset capability</iWant>
+    <soThat>I can iterate rapidly during development without migration conflicts and have a solid foundation for the workflow execution engine</soThat>
+    <tasks>
+      <task id="1" title="Update Database Schema Files">
+        <subtask>Update workflows.ts - add initializerType, remove isProjectInitializer, add index on module</subtask>
+        <subtask>Update projects.ts - add userId FK, add index on userId</subtask>
+        <subtask>Update app-config.ts - add userId unique constraint and FK</subtask>
+        <subtask>Create step-configs.ts - define Zod schemas for 5 step config types</subtask>
+        <subtask>Delete deprecated table files (workflow-step-branches, workflow-step-actions)</subtask>
+        <subtask>Update workflow-steps.ts - add index on workflowId</subtask>
+        <subtask>Update workflow-executions.ts - add indexes on status and projectId</subtask>
+      </task>
+      <task id="2" title="Create Docker Reset Script">
+        <subtask>Create scripts/reset-db.sh with warning prompt and docker compose commands</subtask>
+        <subtask>Make script executable (chmod +x)</subtask>
+        <subtask>Add npm scripts to root package.json (db:reset, db:push)</subtask>
+      </task>
+      <task id="3" title="Remove Migration System">
+        <subtask>Delete all migration files from packages/db/src/migrations/</subtask>
+        <subtask>Remove migration scripts from packages/db/package.json</subtask>
+        <subtask>Update .gitignore to exclude migrations folder</subtask>
+      </task>
+      <task id="4" title="Configure Test Framework">
+        <subtask>Verify Bun test configuration</subtask>
+        <subtask>Create schema.test.ts for schema validation tests</subtask>
+        <subtask>Create step-configs.test.ts for Zod schema validation tests</subtask>
+        <subtask>Create constraints.test.ts for foreign key constraint tests</subtask>
+      </task>
+      <task id="5" title="Validate Complete Schema">
+        <subtask>Run reset script and verify success (test idempotency 3x)</subtask>
+        <subtask>Verify all 15 tables created via psql</subtask>
+        <subtask>Verify 5 indexes created</subtask>
+        <subtask>Verify schema changes (initializerType, userId FK, etc.)</subtask>
+        <subtask>Run all tests and verify passing</subtask>
+      </task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="AC1" title="Schema Update Complete">
+      <requirement>Remove workflow_step_branches and workflow_step_actions tables (deprecated)</requirement>
+      <requirement>Update workflows table: add initializerType field, remove isProjectInitializer</requirement>
+      <requirement>Update projects table: add userId foreign key</requirement>
+      <requirement>Update app_config table: add userId unique constraint</requirement>
+      <requirement>Define TypeScript step config types using Zod schemas: AskUserStepConfig, AskUserChatStepConfig, ExecuteActionStepConfig, LLMGenerateStepConfig, DisplayOutputStepConfig</requirement>
+    </criterion>
+    <criterion id="AC2" title="Docker Reset Script Functional">
+      <requirement>Script scripts/reset-db.sh created with docker-compose down -v, up -d, and Drizzle push</requirement>
+      <requirement>Script is executable and runs without errors</requirement>
+      <requirement>Command 'bun run db:reset' works cleanly</requirement>
+    </criterion>
+    <criterion id="AC3" title="Migration System Suspended for MVP">
+      <requirement>All files in packages/db/src/migrations/ deleted for MVP phase</requirement>
+      <requirement>KEEP migration commands in package.json scripts - they will be needed for production later</requirement>
+      <requirement>Schema changes applied directly via drizzle-kit push during MVP development</requirement>
+      <requirement>Add clear documentation: Docker reset approach is MVP-ONLY, migrations will be re-enabled for production</requirement>
+    </criterion>
+    <criterion id="AC4" title="Database Tables and Relationships">
+      <requirement>All 15 tables created with correct schema (Workflows, Execution/State, Templates/Agents, Auth/User, Optional dialog_sessions)</requirement>
+      <requirement>Foreign key constraints correctly defined</requirement>
+      <requirement>Indexes on frequently queried columns: projects.userId, workflows.module, workflow_executions.status, workflow_steps.workflowId</requirement>
+    </criterion>
+    <criterion id="AC5" title="Test Framework Configured">
+      <requirement>Bun test framework configured (test files: *.test.ts or *.spec.ts)</requirement>
+      <requirement>At least one schema validation test exists</requirement>
+      <requirement>Command 'bun test' runs successfully without errors</requirement>
+    </criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/tech-spec-epic-1.md</path>
+        <title>Epic Technical Specification: Foundation + Workflow-Init Engine</title>
+        <section>Data Models and Contracts - Core Database Tables</section>
+        <snippet>Complete schema definitions for all 15 tables including workflows, workflow_steps, workflow_executions, projects, workflow_paths, agents, and app_config. Step config types defined using Zod schemas with JSONB storage for extensibility.</snippet>
+      </doc>
+      <doc>
+        <path>docs/epics/tech-spec-epic-1.md</path>
+        <title>Epic Technical Specification: Foundation + Workflow-Init Engine</title>
+        <section>System Architecture Alignment - Database Layer</section>
+        <snippet>Key architectural patterns: JSONB step configuration in workflow_steps.config field (no new tables for new patterns), tag-based workflow path filtering using JSONB tags, dual progress tracking with executedSteps and executedVsPath, multi-user isolation via userId foreign keys.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/database-schema-architecture.md</path>
+        <title>Database Schema Architecture</title>
+        <section>Schema Structure - 15 Tables Overview</section>
+        <snippet>Complete 15-table schema categorized into: Workflow Definition (2), Execution &amp; State (5), Templates &amp; Agents (2), Auth &amp; User (5), Optional (1). Uses PostgreSQL 17 with Drizzle ORM 0.44.2 for type-safe operations.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/database-schema-architecture.md</path>
+        <title>Database Schema Architecture</title>
+        <section>Implementation Patterns - JSONB Step Configuration</section>
+        <snippet>All step-specific configuration lives in workflow_steps.config JSONB field to enable adding new step types without schema migrations. Branches and actions embedded in step config for runtime extensibility.</snippet>
+      </doc>
+      <doc>
+        <path>docs/PRD.md</path>
+        <title>Chiron Product Requirements Document</title>
+        <section>BMAD Workflow Engine Requirements</section>
+        <snippet>FR001: Store workflow definitions in PostgreSQL database and execute from database. FR004: Resolve variables using 4-level precedence. FR005: Maintain workflow state and enable resume/restart.</snippet>
+      </doc>
+      <doc>
+        <path>docs/PRD.md</path>
+        <title>Chiron Product Requirements Document</title>
+        <section>Database Management Requirements</section>
+        <snippet>FR032: Initialize and migrate Chiron PostgreSQL database on first launch, creating all required tables for system-wide and project-specific data.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <file>
+        <path>packages/db/src/schema/workflows.ts</path>
+        <kind>schema</kind>
+        <symbol>workflows table</symbol>
+        <lines>55-75</lines>
+        <reason>Contains isProjectInitializer field that needs to be replaced with initializerType. Current definition uses boolean, need to change to text field with nullable values for "new-project", "existing-project", or null.</reason>
+      </file>
+      <file>
+        <path>packages/db/src/schema/workflows.ts</path>
+        <kind>schema</kind>
+        <symbol>workflowSteps table</symbol>
+        <lines>82-109</lines>
+        <reason>workflow_steps table definition with existing indexes. Need to verify index structure matches requirements.</reason>
+      </file>
+      <file>
+        <path>packages/db/src/schema/workflows.ts</path>
+        <kind>schema</kind>
+        <symbol>workflowExecutions table</symbol>
+        <lines>166-229</lines>
+        <reason>Contains status and projectId fields that need indexes. Already has indexes defined, need to verify completeness.</reason>
+      </file>
+      <file>
+        <path>packages/db/src/schema/workflows.ts</path>
+        <kind>schema</kind>
+        <symbol>Step config TypeScript types</symbol>
+        <lines>231-314</lines>
+        <reason>Existing TypeScript step config types. These will be replaced with Zod schema-based types in new step-configs.ts file.</reason>
+      </file>
+      <file>
+        <path>packages/db/src/schema/core.ts</path>
+        <kind>schema</kind>
+        <symbol>projects table</symbol>
+        <lines>22-63</lines>
+        <reason>Projects table exists but missing userId foreign key. Need to add userId field with reference to user(id) and create index on it.</reason>
+      </file>
+      <file>
+        <path>packages/db/src/schema/core.ts</path>
+        <kind>schema</kind>
+        <symbol>appConfig table</symbol>
+        <lines>157-172</lines>
+        <reason>App config table exists but missing userId unique constraint. Need to add userId field with unique constraint and FK to user table.</reason>
+      </file>
+      <file>
+        <path>packages/db/src/schema/auth.ts</path>
+        <kind>schema</kind>
+        <symbol>user, session, account, verification tables</symbol>
+        <lines>1-51</lines>
+        <reason>Better-auth managed tables. These are the reference tables for userId foreign keys. Do NOT modify these tables.</reason>
+      </file>
+      <file>
+        <path>packages/db/src/schema/workflows.ts</path>
+        <kind>schema</kind>
+        <symbol>workflowStepBranches, workflowStepActions tables</symbol>
+        <lines>111-161</lines>
+        <reason>Deprecated tables that need to be removed. Step branches and actions now inline in step config JSONB.</reason>
+      </file>
+    </code>
+    <dependencies>
+      <package ecosystem="node" name="drizzle-orm" version="^0.44.2" scope="runtime">Type-safe ORM for PostgreSQL schema definitions and queries</package>
+      <package ecosystem="node" name="pg" version="^8.14.1" scope="runtime">PostgreSQL client driver for database connections</package>
+      <package ecosystem="node" name="drizzle-kit" version="^0.31.2" scope="dev">Drizzle CLI tools for schema push, migrations, and studio</package>
+      <package ecosystem="node" name="zod" version="^4.1.11" scope="runtime">Runtime validation and TypeScript type inference for step config schemas</package>
+      <package ecosystem="node" name="typescript" version="^5.8.2" scope="dev">TypeScript compiler for type safety</package>
+      <package ecosystem="node" name="bun" version="^1.3.0" scope="runtime">JavaScript runtime and test framework</package>
+      <package ecosystem="docker" name="postgres" version="latest" scope="runtime">PostgreSQL 17 database container (chiron-postgres)</package>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="architectural">Docker reset approach is MVP-ONLY. Keep migration commands in package.json for future production use. Do NOT remove db:generate or db:migrate scripts - only delete migration files.</constraint>
+    <constraint type="architectural">JSONB step configuration pattern: All step-specific config stored in workflow_steps.config JSONB field. No separate tables for branches or actions.</constraint>
+    <constraint type="architectural">Better-auth table compatibility: Do NOT modify user, session, account, or verification tables. These are managed by better-auth library.</constraint>
+    <constraint type="data-integrity">Add foreign key constraints with cascade deletes: projects.userId → user(id), app_config.userId → user(id)</constraint>
+    <constraint type="data-integrity">Add unique constraint on app_config.userId to ensure one config per user</constraint>
+    <constraint type="performance">Add indexes on frequently queried columns: projects.userId, workflows.module, workflow_executions.status, workflow_executions.projectId, workflow_steps.workflowId</constraint>
+    <constraint type="validation">Zod schemas for step configs provide runtime type safety. Define schemas first, then infer TypeScript types using z.infer&lt;typeof schema&gt; for single source of truth.</constraint>
+    <constraint type="development">Docker reset script must be idempotent - safe to run multiple times without errors. Include user confirmation prompt before destroying data.</constraint>
+    <constraint type="testing">Bun test framework required for all tests. Test files must follow pattern: *.test.ts or *.spec.ts</constraint>
+    <constraint type="pattern">Use Drizzle .index() method for type-safe index definitions inline in table definitions, not separate SQL files</constraint>
+  </constraints>
+  <interfaces>
+    <interface>
+      <name>workflows table schema</name>
+      <kind>database-table</kind>
+      <signature>workflows { id: uuid, name: text unique, displayName: text, module: text, agentId: uuid FK, initializerType: text nullable, isStandalone: boolean, requiresProjectContext: boolean, outputArtifactType: text, outputTemplateId: uuid }</signature>
+      <path>packages/db/src/schema/workflows.ts</path>
+    </interface>
+    <interface>
+      <name>projects table schema</name>
+      <kind>database-table</kind>
+      <signature>projects { id: uuid, name: text unique, path: text, userId: text FK → user(id), workflowPathId: uuid FK, initializedByExecutionId: uuid FK, executedVsPath: jsonb }</signature>
+      <path>packages/db/src/schema/core.ts</path>
+    </interface>
+    <interface>
+      <name>appConfig table schema</name>
+      <kind>database-table</kind>
+      <signature>app_config { id: uuid, userId: text unique FK → user(id), openrouterApiKey: text, anthropicApiKey: text, openaiApiKey: text, defaultLlmProvider: text }</signature>
+      <path>packages/db/src/schema/core.ts</path>
+    </interface>
+    <interface>
+      <name>Drizzle index definition pattern</name>
+      <kind>schema-pattern</kind>
+      <signature>pgTable('table_name', { /* fields */ }, (table) => ({ indexName: index('idx_name').on(table.column) }))</signature>
+      <path>packages/db/src/schema/*.ts</path>
+    </interface>
+    <interface>
+      <name>Zod schema type inference pattern</name>
+      <kind>type-pattern</kind>
+      <signature>export const schema = z.object({ /* fields */ }); export type TypeName = z.infer&lt;typeof schema&gt;;</signature>
+      <path>packages/db/src/schema/step-configs.ts (new file)</path>
+    </interface>
+  </interfaces>
+  <tests>
+    <standards>Bun test framework used for all testing (built-in, no additional config needed). Test files follow naming convention: *.test.ts or *.spec.ts. Tests organized co-located with source files in packages/db/src/schema/ directory. Unit tests focus on schema validation, Zod schema validation, and foreign key constraint enforcement. Integration tests validate Docker reset script functionality and database seeding idempotency.</standards>
+    <locations>
+      <location>packages/db/src/schema/schema.test.ts</location>
+      <location>packages/db/src/schema/step-configs.test.ts</location>
+      <location>packages/db/src/schema/constraints.test.ts</location>
+    </locations>
+    <ideas>
+      <test criterion="AC1">Test that workflows table has initializerType field and does NOT have isProjectInitializer field by querying schema metadata</test>
+      <test criterion="AC1">Test that projects table has userId foreign key by attempting insert with invalid userId and expecting FK violation</test>
+      <test criterion="AC1">Test that appConfig table has unique userId constraint by attempting duplicate userId insert and expecting unique violation</test>
+      <test criterion="AC1">Validate all 5 Zod step config schemas (AskUserStepConfig, AskUserChatStepConfig, ExecuteActionStepConfig, LLMGenerateStepConfig, DisplayOutputStepConfig) accept valid configs and reject invalid ones using safeParse</test>
+      <test criterion="AC2">Manually test Docker reset script runs without errors, containers restart successfully, and schema is applied. Test idempotency by running 3 times consecutively.</test>
+      <test criterion="AC4">Verify all 15 tables exist by querying PostgreSQL information_schema after reset</test>
+      <test criterion="AC4">Verify 5 indexes created (idx_projects_user_id, idx_workflows_module, idx_workflow_executions_status, idx_workflow_executions_project_id, idx_workflow_steps_workflow_id) by querying pg_indexes</test>
+      <test criterion="AC5">Test Bun test command runs successfully with all tests passing using 'bun test' command</test>
+    </ideas>
+  </tests>
+</story-context>
