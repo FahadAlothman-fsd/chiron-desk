@@ -1,4 +1,5 @@
 import {
+	boolean,
 	index,
 	integer,
 	jsonb,
@@ -52,27 +53,33 @@ export const workflowStatusEnum = pgEnum("workflow_status", [
 // Complete workflow definitions
 // ============================================
 
-export const workflows = pgTable("workflows", {
-	id: uuid("id").primaryKey().defaultRandom(),
-	name: text("name").notNull().unique(), // e.g., "brainstorm-project", "research", "workflow-init"
-	displayName: text("display_name").notNull(),
-	description: text("description"),
-	module: text("module"), // "bmm", "cis", "custom"
+export const workflows = pgTable(
+	"workflows",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		name: text("name").notNull().unique(), // e.g., "brainstorm-project", "research", "workflow-init"
+		displayName: text("display_name").notNull(),
+		description: text("description"),
+		module: text("module"), // "bmm", "cis", "custom"
 
-	agentId: uuid("agent_id").references(() => agents.id),
+		agentId: uuid("agent_id").references(() => agents.id),
 
-	// Special flags (NEW from workflow-schema-snapshot.md)
-	isProjectInitializer: boolean("is_project_initializer").default(false), // Only one per module
-	isStandalone: boolean("is_standalone").default(true), // Can run without project context
-	requiresProjectContext: boolean("requires_project_context").default(false),
+		// Special flags (UPDATED - replaced isProjectInitializer with initializerType)
+		initializerType: text("initializer_type"), // "new-project", "existing-project", null
+		isStandalone: boolean("is_standalone").default(true), // Can run without project context
+		requiresProjectContext: boolean("requires_project_context").default(false),
 
-	// Output artifact configuration (optional)
-	outputArtifactType: text("output_artifact_type"), // "prd", "architecture", "story", etc.
-	outputTemplateId: uuid("output_template_id"), // Reference to workflow_templates table
+		// Output artifact configuration (optional)
+		outputArtifactType: text("output_artifact_type"), // "prd", "architecture", "story", etc.
+		outputTemplateId: uuid("output_template_id"), // Reference to workflow_templates table
 
-	createdAt: timestamp("created_at").notNull().defaultNow(),
-	updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+		createdAt: timestamp("created_at").notNull().defaultNow(),
+		updatedAt: timestamp("updated_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		moduleIdx: index("idx_workflows_module").on(table.module),
+	}),
+);
 
 // ============================================
 // WORKFLOW STEPS TABLE (UPDATED - Aligned with workflow-schema-snapshot.md)
@@ -100,65 +107,13 @@ export const workflowSteps = pgTable(
 		createdAt: timestamp("created_at").notNull().defaultNow(),
 	},
 	(table) => ({
-		workflowIdIdx: index("workflow_steps_workflow_id_idx").on(table.workflowId),
+		workflowIdIdx: index("idx_workflow_steps_workflow_id").on(table.workflowId),
 		workflowStepNumIdx: index("workflow_steps_workflow_step_idx").on(
 			table.workflowId,
 			table.stepNumber,
 		),
 	}),
 );
-
-// ============================================
-// WORKFLOW STEP BRANCHES TABLE
-// N-way conditional routing (boolean, select, abstract)
-// ============================================
-
-export const workflowStepBranches = pgTable("workflow_step_branches", {
-	id: uuid("id").primaryKey().defaultRandom(),
-
-	stepId: uuid("step_id")
-		.notNull()
-		.references(() => workflowSteps.id, { onDelete: "cascade" }),
-
-	// Branch configuration
-	branchKey: text("branch_key").notNull(), // "true", "false", "1", "2", "3", etc.
-	branchLabel: text("branch_label"), // Display text for select options (optional)
-
-	// Target
-	nextStepId: uuid("next_step_id")
-		.notNull()
-		.references(() => workflowSteps.id),
-
-	// Ordering for select dropdowns
-	displayOrder: integer("display_order"),
-
-	createdAt: timestamp("created_at").notNull().defaultNow(),
-});
-
-// ============================================
-// WORKFLOW STEP ACTIONS TABLE
-// Actions within steps (sequential/parallel execution)
-// ============================================
-
-export const workflowStepActions = pgTable("workflow_step_actions", {
-	id: uuid("id").primaryKey().defaultRandom(),
-
-	stepId: uuid("step_id")
-		.notNull()
-		.references(() => workflowSteps.id, { onDelete: "cascade" }),
-
-	actionType: text("action_type").notNull(), // "set-variable", "database-insert", "database-query"
-	actionConfig: jsonb("action_config").notNull(), // Action-specific parameters
-
-	// Chiron's execution pattern
-	executionMode: actionExecutionEnum("execution_mode").notNull(),
-	sequenceOrder: integer("sequence_order").notNull(),
-
-	// Conditional execution (optional)
-	condition: text("condition"),
-
-	createdAt: timestamp("created_at").notNull().defaultNow(),
-});
 
 // ============================================
 // WORKFLOW EXECUTIONS TABLE (UPDATED - Added executedSteps tracking)
@@ -217,10 +172,10 @@ export const workflowExecutions = pgTable(
 		updatedAt: timestamp("updated_at").notNull().defaultNow(),
 	},
 	(table) => ({
-		projectIdIdx: index("workflow_executions_project_id_idx").on(
+		projectIdIdx: index("idx_workflow_executions_project_id").on(
 			table.projectId,
 		),
-		statusIdx: index("workflow_executions_status_idx").on(table.status),
+		statusIdx: index("idx_workflow_executions_status").on(table.status),
 		projectStatusIdx: index("workflow_executions_project_status_idx").on(
 			table.projectId,
 			table.status,

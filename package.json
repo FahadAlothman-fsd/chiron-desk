@@ -27,6 +27,7 @@
     "dev:native": "turbo -F native dev",
     "dev:web": "turbo -F web dev",
     "dev:server": "turbo -F server dev",
+    "db:reset": "turbo -F @chiron/scripts db:reset",
     "db:push": "turbo -F @chiron/db db:push",
     "db:studio": "turbo -F @chiron/db db:studio",
     "db:generate": "turbo -F @chiron/db db:generate",

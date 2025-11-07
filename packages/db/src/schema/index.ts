@@ -10,6 +10,9 @@ export * from "./agents";
 // Workflow definitions and execution
 export * from "./workflows";
 
+// Step config Zod schemas and types
+export * from "./step-configs";
+
 // Workflow templates (Handlebars templates for artifacts)
 export * from "./workflow-templates";
 

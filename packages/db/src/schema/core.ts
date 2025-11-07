@@ -8,7 +8,8 @@ import {
 	timestamp,
 	uuid,
 } from "drizzle-orm/pg-core";
-import { workflowExecutions } from "./workflows";
+import { user } from "./auth";
+import { workflowExecutions, workflows } from "./workflows";
 
 // ============================================
 // NO ENUMS! All project metadata is data, not schema constraints
@@ -25,6 +26,11 @@ export const projects = pgTable(
 		id: uuid("id").primaryKey().defaultRandom(),
 		name: text("name").notNull().unique(),
 		path: text("path").notNull(), // File system path to project
+
+		// User ownership (multi-user support)
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
 
 		// Workflow path reference (replaces level/type/fieldType enums)
 		workflowPathId: uuid("workflow_path_id")
@@ -56,6 +62,7 @@ export const projects = pgTable(
 	},
 	(table) => ({
 		nameIdx: index("projects_name_idx").on(table.name),
+		userIdIdx: index("idx_projects_user_id").on(table.userId),
 		workflowPathIdx: index("projects_workflow_path_idx").on(
 			table.workflowPathId,
 		),
@@ -157,6 +164,12 @@ export const projectState = pgTable("project_state", {
 
 export const appConfig = pgTable("app_config", {
 	id: uuid("id").primaryKey().defaultRandom(),
+
+	// User-specific configuration (one config per user)
+	userId: text("user_id")
+		.notNull()
+		.unique()
+		.references(() => user.id, { onDelete: "cascade" }),
 
 	// LLM Provider API Keys (encrypted at rest!)
 	openrouterApiKey: text("openrouter_api_key"), // PRIMARY - required for first-time setup

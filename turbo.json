@@ -52,6 +52,11 @@
 		"seed": {
 			"cache": false,
 			"dependsOn": ["^build"]
+		},
+		"db:reset": {
+			"cache": false,
+			"persistent": true,
+			"interactive": true
 		}
 	}
 }

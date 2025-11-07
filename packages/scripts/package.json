@@ -2,7 +2,8 @@
 	"name": "@chiron/scripts",
 	"type": "module",
 	"scripts": {
-		"seed": "bun run src/seed.ts"
+		"seed": "bun run src/seed.ts",
+		"db:reset": "bash src/reset-db.sh"
 	},
 	"dependencies": {
 		"@chiron/auth": "workspace:*",
