@@ -1,3 +1,4 @@
+import "../../test-setup"; // Load environment variables
 import { describe, expect, test } from "bun:test";
 import { db } from "../index";
 import { agents, appConfig, projects, user, workflows } from "./index";

@@ -18,6 +18,7 @@ async function main() {
 	const { seedWorkflowPaths } = await import("./seeds/workflow-paths");
 	const { seedAgents } = await import("./seeds/agents");
 	const { seedWorkflows } = await import("./seeds/workflows");
+	const { seedWorkflowInitNew } = await import("./seeds/workflow-init-new");
 	const { seedUsers } = await import("./seeds/users");
 
 	try {
@@ -45,6 +46,11 @@ async function main() {
 		console.log("\n🔄 Seeding workflows...");
 		await seedWorkflows();
 		console.log("✅ Workflows seeded");
+
+		// Seed workflow-init-new (Story 1.2 - AC#3)
+		console.log("\n📋 Seeding workflow-init-new...");
+		await seedWorkflowInitNew();
+		console.log("✅ workflow-init-new seeded");
 
 		// Seed users (Story 1.2)
 		console.log("\n👤 Seeding test user...");

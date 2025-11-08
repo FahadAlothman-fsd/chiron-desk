@@ -1,0 +1,255 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>2</storyId>
+    <title>Core Data Seeding</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-07</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>/home/gondilf/Desktop/projects/masters/chiron/docs/stories/1-2-core-data-seeding.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer</asA>
+    <iWant>essential seed data populated in the database</iWant>
+    <soThat>I have the foundational agents, workflows, and paths needed to test the workflow execution engine and enable users to initialize projects</soThat>
+    <tasks>
+      <task id="1" name="Reuse Better-Auth User Seeding">
+        <subtasks>
+          <subtask>Verify existing better-auth seed script location</subtask>
+          <subtask>Document user seeding approach in Dev Notes</subtask>
+        </subtasks>
+      </task>
+      <task id="2" name="Create Agents Seed Script">
+        <subtasks>
+          <subtask>Create packages/scripts/src/seeds/agents.ts with 6 agent definitions</subtask>
+          <subtask>Create packages/scripts/src/seeds/agents.test.ts with unit tests</subtask>
+        </subtasks>
+      </task>
+      <task id="3" name="Create Workflow-Init-New Seed Script">
+        <subtasks>
+          <subtask>Create packages/scripts/src/seeds/workflow-init-new.ts with metadata only</subtask>
+          <subtask>Create packages/scripts/src/seeds/workflow-init-new.test.ts with unit tests</subtask>
+        </subtasks>
+      </task>
+      <task id="4" name="Create Workflow Paths Seed Script">
+        <subtasks>
+          <subtask>Create packages/scripts/src/seeds/workflow-paths.ts with 6 path definitions</subtask>
+          <subtask>Create packages/scripts/src/seeds/workflow-paths.test.ts with unit tests</subtask>
+        </subtasks>
+      </task>
+      <task id="5" name="Create Master Seed Script">
+        <subtasks>
+          <subtask>Create packages/scripts/src/seed.ts to orchestrate all seeds</subtask>
+          <subtask>Add db:seed scripts to package.json files</subtask>
+        </subtasks>
+      </task>
+      <task id="6" name="Validate Database Tests from Story 1.1">
+        <subtasks>
+          <subtask>Run Story 1.1 schema tests</subtask>
+          <subtask>Run Story 1.1 constraint tests</subtask>
+          <subtask>Run Story 1.1 Zod validation tests</subtask>
+          <subtask>Document test results in Dev Agent Record</subtask>
+        </subtasks>
+      </task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="AC1" title="User Seeding Complete">
+      <description>Better-auth users seeded successfully using existing seed scripts. At least one test user exists for development. User IDs are available for foreign key references.</description>
+    </criterion>
+    <criterion id="AC2" title="Core Agents Seeded">
+      <description>6 core agents seeded into agents table: PM, Analyst, Architect, DEV, SM, UX Designer. Each agent has name, displayName, description, role, LLM configuration. All agents marked as active: true.</description>
+    </criterion>
+    <criterion id="AC3" title="Workflow-Init-New Metadata Seeded">
+      <description>workflow-init-new workflow record created in workflows table with all required fields. NO steps seeded yet (steps will be added in Stories 1.5-1.8).</description>
+    </criterion>
+    <criterion id="AC4" title="Workflow Paths Seeded">
+      <description>6 workflow paths seeded into workflow_paths table with correct tags JSONB (track, fieldType), displayName, description, educationText, and sequenceOrder.</description>
+    </criterion>
+    <criterion id="AC5" title="Seed Script Idempotency">
+      <description>All seed scripts can run multiple times without errors using .onConflictDoNothing() or existence checks. Running bun run db:seed twice produces identical database state.</description>
+    </criterion>
+    <criterion id="AC6" title="Test Execution">
+      <description>Unit tests for all seed functions pass. Can run complete seed process: bun run db:seed. All database tests from Story 1.1 now pass (schema, constraints, FK validation).</description>
+    </criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/tech-spec-epic-1.md</path>
+        <title>Epic Technical Specification: Foundation + Workflow-Init Engine</title>
+        <section>Data Models and Contracts</section>
+        <snippet>Defines database table structures for agents, workflows, workflow_steps, workflow_paths, and projects. Specifies exact field names, types, and JSONB structures used throughout Epic 1 seed data implementation.</snippet>
+      </doc>
+      <doc>
+        <path>docs/epics/tech-spec-epic-1.md</path>
+        <title>Epic Technical Specification: Foundation + Workflow-Init Engine</title>
+        <section>Database Seed Sequence</section>
+        <snippet>Story 1.2 seed order: (1) better-auth users, (2) 6 agents with LLM config, (3) workflow-init-new metadata only, (4) 6 workflow paths with tags JSONB. Agent seed includes PM, Analyst, Architect, DEV, SM, UX Designer.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/database-schema-architecture.md</path>
+        <title>Database Schema Architecture</title>
+        <section>Pattern 2: Tag-Based Workflow Path Filtering</section>
+        <snippet>workflow_paths.tags JSONB enables dynamic filtering without hardcoded enums. Example query: SELECT * FROM workflow_paths WHERE tags->>'fieldType' = 'greenfield'. Tags structure includes track, fieldType, and complexity keys.</snippet>
+      </doc>
+      <doc>
+        <path>docs/epics/epic-1-database-implementation.md</path>
+        <title>Epic 1: Database Schema Implementation</title>
+        <section>Seed Files: workflow-paths-bmm.ts</section>
+        <snippet>6 BMM workflow paths: quick-flow/method/enterprise × greenfield/brownfield. Each has displayName, description, educationText, tags JSONB, recommendedFor array, estimatedTime, agentSupport, and sequenceOrder fields.</snippet>
+      </doc>
+      <doc>
+        <path>docs/PRD.md</path>
+        <title>Product Requirements Document</title>
+        <section>Epic 1: Core Infrastructure & Database Foundation</section>
+        <snippet>High-level context: Epic 1 establishes database foundation with 15 PostgreSQL tables, core agent definitions, workflow-init-new project setup, and generic workflow execution engine.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>packages/db/src/schema/core.ts</path>
+        <kind>schema</kind>
+        <symbol>projects, workflowPaths, appConfig</symbol>
+        <lines>23-186</lines>
+        <reason>Table definitions for projects (with userId FK), workflowPaths (with tags JSONB), and appConfig (with userId unique constraint). Story 1.2 seeds depend on these structures.</reason>
+      </artifact>
+      <artifact>
+        <path>packages/db/src/schema/workflows.ts</path>
+        <kind>schema</kind>
+        <symbol>workflows, workflowSteps</symbol>
+        <lines>56-116</lines>
+        <reason>Workflow and workflowSteps table definitions with initializerType field and JSONB config. Story 1.2 seeds workflow-init-new metadata referencing PM agent.</reason>
+      </artifact>
+      <artifact>
+        <path>packages/db/src/schema/agents.ts</path>
+        <kind>schema</kind>
+        <symbol>agents, llmProviderEnum</symbol>
+        <lines>18-43</lines>
+        <reason>Agents table schema with LLM configuration fields (llmProvider enum, llmModel, llmTemperature, tools, mcpServers). Story 1.2 seeds 6 core agents matching this structure.</reason>
+      </artifact>
+      <artifact>
+        <path>packages/scripts/src/seeds/agents.ts</path>
+        <kind>seed-script</kind>
+        <symbol>seedAgents, CORE_AGENTS</symbol>
+        <lines>3-117</lines>
+        <reason>Existing agent seed script with 6 agents (analyst, pm, architect, dev, sm, ux-designer). Story 1.2 references this pattern for idempotent seeding with .onConflictDoNothing().</reason>
+      </artifact>
+      <artifact>
+        <path>packages/scripts/src/seed.ts</path>
+        <kind>seed-orchestrator</kind>
+        <symbol>main</symbol>
+        <lines>7-64</lines>
+        <reason>Master seed orchestration script. Story 1.2 extends this to add workflow-init-new and workflow paths seeding after agents seed completes.</reason>
+      </artifact>
+      <artifact>
+        <path>packages/scripts/src/seeds/workflow-paths.ts</path>
+        <kind>seed-script</kind>
+        <symbol>seedWorkflowPaths</symbol>
+        <lines>12-41</lines>
+        <reason>Existing workflow paths seed reading from YAML files. Story 1.2 creates new seed for 6 BMM paths (quick-flow/method/enterprise × greenfield/brownfield) with tags JSONB.</reason>
+      </artifact>
+      <artifact>
+        <path>packages/scripts/src/seeds/workflows.ts</path>
+        <kind>seed-script</kind>
+        <symbol>seedWorkflows, getAgentId, AGENT_WORKFLOW_MAP</symbol>
+        <lines>6-194</lines>
+        <reason>Existing workflow seed pattern with agent ID lookup. Story 1.2 creates workflow-init-new seed following this pattern to query PM agent ID before inserting workflow record.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <ecosystem name="node">
+        <package name="drizzle-orm" version="0.44.2">Type-safe database ORM for schema definitions and queries</package>
+        <package name="drizzle-seed" version="^0.1.2">Drizzle utility for database reset and potentially data generation. Currently used for reset() function. Could be leveraged for generating test data or realistic seed values.</package>
+        <package name="pg" version="^8.14.1">PostgreSQL driver for database connection</package>
+        <package name="@chiron/db" version="workspace:*">Internal package containing schema definitions and db client</package>
+        <package name="@chiron/auth" version="workspace:*">Better-auth integration for user table reference</package>
+        <package name="bun" version=">=1.1.0">Runtime for seed script execution and testing</package>
+        <package name="js-yaml" version="^4.1.0">YAML parsing for workflow configuration files</package>
+      </ecosystem>
+      <ecosystem name="docker">
+        <package name="postgres" version="17-alpine">PostgreSQL database container for local development</package>
+      </ecosystem>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>Seed Script Idempotency: All seed scripts MUST use .onConflictDoNothing() or existence checks to safely run multiple times without duplicates. Required for bun run db:reset && bun run db:seed development workflow.</constraint>
+    <constraint>Foreign Key Dependencies: Seed order MUST be: (1) Users (better-auth), (2) Agents, (3) Workflows (requires PM agent ID), (4) Workflow Paths. Violating order causes FK constraint failures.</constraint>
+    <constraint>Agent LLM Configuration: Agents table uses llmProvider enum ('anthropic', 'openrouter', 'openai'). Seed values must match enum. llmTemperature stored as TEXT for precision (e.g., "0.7").</constraint>
+    <constraint>Workflow initializerType: Field accepts "new-project", "existing-project", or null. Story 1.2 seeds only workflow-init-new with initializerType="new-project". No steps seeded yet (deferred to Stories 1.5-1.8).</constraint>
+    <constraint>Workflow Paths Tags Structure: tags JSONB must contain track (quick-flow/method/enterprise), fieldType (greenfield/brownfield), and complexity (simple/moderate/high) keys. Used for dynamic filtering in workflow-init step 5.</constraint>
+    <constraint>Better-Auth User Management: Better-auth handles user seeding independently. Chiron extends with app_config but does NOT modify user table directly. Reuse existing better-auth seed approach.</constraint>
+    <constraint>Testing Framework: All tests use Bun test framework (bun test). No jest, mocha, or other test runners. Follow existing test patterns in packages/db/src/schema/schema.test.ts.</constraint>
+    <constraint>No Database Migrations: Docker reset approach used during development. No Drizzle migrations created. Schema changes require db:reset (drops all tables, recreates from schema definitions).</constraint>
+    <constraint>Drizzle-Seed Usage: drizzle-seed (v0.1.2) currently used for reset() function. Can potentially be leveraged for generating realistic test data or scaffolding seed values. Consider using seed generators for workflow path recommendedFor arrays or agent description variations if needed.</constraint>
+  </constraints>
+  <interfaces>
+    <interface>
+      <name>db.insert(agents).values(agentData).onConflictDoNothing()</name>
+      <kind>Drizzle ORM Insert</kind>
+      <signature>Insert&lt;AgentSchema&gt; -&gt; Promise&lt;AgentRecord | undefined&gt;</signature>
+      <path>packages/scripts/src/seeds/agents.ts</path>
+    </interface>
+    <interface>
+      <name>db.query.agents.findFirst({ where: (agents, { eq }) =&gt; eq(agents.name, "pm") })</name>
+      <kind>Drizzle ORM Query</kind>
+      <signature>Query&lt;AgentSchema&gt; -&gt; Promise&lt;AgentRecord | null&gt;</signature>
+      <path>packages/scripts/src/seeds/workflows.ts</path>
+    </interface>
+    <interface>
+      <name>db.insert(workflows).values(workflowData).onConflictDoNothing()</name>
+      <kind>Drizzle ORM Insert</kind>
+      <signature>Insert&lt;WorkflowSchema&gt; -&gt; Promise&lt;WorkflowRecord | undefined&gt;</signature>
+      <path>packages/scripts/src/seeds/workflows.ts</path>
+    </interface>
+    <interface>
+      <name>db.insert(workflowPaths).values(pathData).onConflictDoNothing()</name>
+      <kind>Drizzle ORM Insert</kind>
+      <signature>Insert&lt;WorkflowPathSchema&gt; -&gt; Promise&lt;WorkflowPathRecord | undefined&gt;</signature>
+      <path>packages/scripts/src/seeds/workflow-paths.ts</path>
+    </interface>
+    <interface>
+      <name>agents.llmProvider ENUM</name>
+      <kind>PostgreSQL Enum Constraint</kind>
+      <signature>llmProviderEnum = "anthropic" | "openrouter" | "openai"</signature>
+      <path>packages/db/src/schema/agents.ts</path>
+    </interface>
+    <interface>
+      <name>projects.userId → user.id (FK with CASCADE DELETE)</name>
+      <kind>Foreign Key Constraint</kind>
+      <signature>projects.userId REFERENCES user.id ON DELETE CASCADE</signature>
+      <path>packages/db/src/schema/core.ts</path>
+    </interface>
+    <interface>
+      <name>workflows.agentId → agents.id (FK)</name>
+      <kind>Foreign Key Constraint</kind>
+      <signature>workflows.agentId REFERENCES agents.id</signature>
+      <path>packages/db/src/schema/workflows.ts</path>
+    </interface>
+  </interfaces>
+  <tests>
+    <standards>Bun test framework used for all unit and integration tests. Test files colocated with source files using .test.ts suffix. Existing pattern in packages/db/src/schema/schema.test.ts validates schema structure, FK constraints, and JSONB field types. Seed tests should verify idempotency (run twice = same result), foreign key resolution (agent IDs valid), and data integrity (all required fields populated). Use db.query API for assertions rather than raw SQL.</standards>
+    <locations>
+      <location>packages/scripts/src/seeds/*.test.ts</location>
+      <location>packages/db/src/schema/schema.test.ts</location>
+      <location>packages/db/src/schema/constraints.test.ts</location>
+    </locations>
+    <ideas>
+      <idea criterion="AC1">Test user seeding: Verify at least one user exists after seed, user ID can be queried for FK references</idea>
+      <idea criterion="AC2">Test agent seeding: Verify 6 agents created, all have required fields (name, displayName, role, llmProvider, llmModel), all marked active=true, PM agent has anthropic provider, DEV agent exists with expected role</idea>
+      <idea criterion="AC2">Test agent idempotency: Run seedAgents() twice, verify no duplicates created (6 agents both times), .onConflictDoNothing() works correctly</idea>
+      <idea criterion="AC3">Test workflow-init-new seeding: Verify workflow created with name="workflow-init-new", initializerType="new-project", agentId references PM agent (FK valid), isStandalone=true, requiresProjectContext=false</idea>
+      <idea criterion="AC3">Test workflow agent assignment: Query PM agent first, verify workflow.agentId matches PM agent.id, test FK constraint (cannot insert workflow with invalid agentId)</idea>
+      <idea criterion="AC4">Test workflow paths seeding: Verify 6 paths created, all have tags JSONB with track/fieldType/complexity keys, sequenceOrder is 1-6, recommendedFor is array of strings</idea>
+      <idea criterion="AC4">Test JSONB tag queries: SELECT * FROM workflow_paths WHERE tags->>'fieldType'='greenfield' returns 3 paths (quick-flow, method, enterprise greenfield variants)</idea>
+      <idea criterion="AC4">Test workflow path metadata: Verify displayName, description, educationText, estimatedTime, agentSupport all populated, no null values on required fields</idea>
+      <idea criterion="AC5">Test seed script idempotency: Run bun run db:seed, count rows, run again, verify same row counts (no duplicates), test with agents, workflows, and paths</idea>
+      <idea criterion="AC6">Test complete seed process: Run db:reset followed by db:seed, verify all tables populated in correct order (users → agents → workflows → paths), verify FK relationships valid</idea>
+      <idea criterion="AC6">Test Story 1.1 integration: After seeding, re-run Story 1.1 schema tests, constraint tests, and Zod validation tests - all should pass with seed data present</idea>
+    </ideas>
+  </tests>
+</story-context>
