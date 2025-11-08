@@ -3,9 +3,41 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Commit Mono Font - Self-hosted for Tauri desktop app */
+@font-face {
+  font-family: 'CommitMono';
+  src: url('/fonts/CommitMono-400-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'CommitMono';
+  src: url('/fonts/CommitMono-400-Italic.woff2') format('woff2');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'CommitMono';
+  src: url('/fonts/CommitMono-700-Regular.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'CommitMono';
+  src: url('/fonts/CommitMono-700-Italic.woff2') format('woff2');
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
 @theme {
-  --font-sans: "Inter", "Geist", ui-sans-serif, system-ui, sans-serif,
-    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-sans: "CommitMono", "JetBrains Mono", "Fira Code", "SF Mono", "Consolas", "Monaco", "Courier New", monospace;
 }
 
 html,
@@ -59,8 +91,9 @@ body {
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
+  /* CARBON Green Accent - Primary action color */
+  --primary: oklch(0.56 0.19 142);
+  --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -70,7 +103,8 @@ body {
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  /* CARBON Green Accent - Ring (focus states) */
+  --ring: oklch(0.56 0.19 142);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
@@ -78,12 +112,14 @@ body {
   --chart-5: oklch(0.645 0.246 16.439);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
+  /* CARBON Green Accent - Sidebar active state */
+  --sidebar-primary: oklch(0.56 0.19 142);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* CARBON Green Accent - Sidebar ring */
+  --sidebar-ring: oklch(0.56 0.19 142);
 }
 
 @theme inline {

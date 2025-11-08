@@ -1,0 +1,489 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>3</storyId>
+    <title>Web UI Foundation + LLM Models Page</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-08</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/1-3-web-ui-foundation.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer building Chiron</asA>
+    <iWant>a functional web UI foundation with sidebar navigation, empty states, API key management, and LLM models display</iWant>
+    <soThat>I can provide users with an intuitive interface to configure OpenRouter and view available models before implementing full project management features</soThat>
+    <tasks>
+      <phase name="Phase 1: Foundation Setup">
+        <task id="1.1">Install shadcn components (sidebar-08, empty, table, input, select, card, checkbox)</task>
+        <task id="1.2">Install Commit Mono font - self-hosted for Tauri app (verify fonts in apps/web/public/fonts/)</task>
+        <task id="1.3">Update root layout with sidebar-08 (modify __root.tsx, create app-sidebar.tsx)</task>
+        <task id="1.4">Create navigation configuration (lib/nav-config.ts with Home, Projects, Models, Settings)</task>
+      </phase>
+      <phase name="Phase 2: Home Page with Empty State">
+        <task id="2.1">Update home route (modify index.tsx with projects list query)</task>
+        <task id="2.2">Create empty state component (projects/projects-empty.tsx using shadcn Empty)</task>
+        <task id="2.3">Create projects list component placeholder</task>
+      </phase>
+      <phase name="Phase 3: Settings Page with API Keys">
+        <task id="3.1">Create settings route (routes/settings.tsx with session protection)</task>
+        <task id="3.2">Create API key configuration UI (settings/api-keys-card.tsx)</task>
+        <task id="3.3">API key state management (TanStack Query mutations for save/update/remove/test)</task>
+        <task id="3.4">Backend API endpoints (packages/api/src/routers/settings.ts)</task>
+        <task id="3.5">Encryption service (packages/api/src/services/encryption.ts with AES-256-GCM)</task>
+      </phase>
+      <phase name="Phase 4: LLM Models Page with Data Table">
+        <task id="4.1">Create models route (routes/models.tsx with session protection)</task>
+        <task id="4.2">Create models data table columns (models/columns.tsx with sortable headers)</task>
+        <task id="4.3">Create data table component (models/data-table.tsx with filtering/pagination)</task>
+        <task id="4.4">Backend models endpoint (packages/api/src/routers/models.ts)</task>
+        <task id="4.5">Models service layer - Provider Abstraction Pattern (packages/api/src/services/models.ts)</task>
+      </phase>
+      <phase name="Phase 5: Projects API Endpoint">
+        <task id="5.1">Extend projects router (add list procedure to packages/api/src/routers/projects.ts)</task>
+      </phase>
+      <phase name="Phase 6: Integration &amp; Testing">
+        <task id="6.1">End-to-end flow testing (manual test all routes and features)</task>
+        <task id="6.2">Component testing (unit tests for Empty, Sidebar, DataTable, API Keys Form)</task>
+        <task id="6.3">Visual design validation (verify Commit Mono, shadcn components, CARBON theme)</task>
+      </phase>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <group name="Root Layout &amp; Sidebar" ids="AC1-4">
+      <criterion id="AC1">Sidebar-08 block installed via bunx shadcn@latest add sidebar-08 and integrated into __root.tsx</criterion>
+      <criterion id="AC2">Sidebar displays 4 navigation items with correct icons and labels (Home, Projects, LLM Models, Settings)</criterion>
+      <criterion id="AC3">Sidebar collapses to icon-only mode when trigger button clicked</criterion>
+      <criterion id="AC4">Active route highlighted with data-[active=true] state</criterion>
+    </group>
+    <group name="Home Page Empty State" ids="AC5-7a">
+      <criterion id="AC5">Empty component displays when projects.length === 0</criterion>
+      <criterion id="AC6">"Create Project" button rendered and visible (primary button style)</criterion>
+      <criterion id="AC7">FolderCode icon displayed in EmptyMedia component</criterion>
+      <criterion id="AC7a">Button click logs to console (placeholder - no actual project creation)</criterion>
+    </group>
+    <group name="Settings Page API Configuration" ids="AC16-20">
+      <criterion id="AC16">Settings page displays API key input section for OpenRouter only</criterion>
+      <criterion id="AC17">OpenRouter section has checkbox, password input, Show toggle, Test button, Update button, Remove button, Status badge</criterion>
+      <criterion id="AC18">Save button stores encrypted API key in app_config.openrouterApiKey with correct userId</criterion>
+      <criterion id="AC19">Status indicators update after test request (Valid ✅ / Invalid ❌ / Not Configured ⚪)</criterion>
+      <criterion id="AC20">Encryption service uses AES-256 to encrypt keys before database storage</criterion>
+    </group>
+    <group name="LLM Models Page Data Table" ids="AC8-15">
+      <criterion id="AC8">Models page fetches and displays models from OpenRouter only (when API key configured)</criterion>
+      <criterion id="AC9">Search input filters models by name (client-side fuzzy matching)</criterion>
+      <criterion id="AC10">Provider dropdown shows unique providers from fetched models</criterion>
+      <criterion id="AC11">Min Context dropdown shows options: All, 8k, 32k, 128k, 200k+</criterion>
+      <criterion id="AC12">Table columns sortable via header click (Model Name, Provider, Context Length, Price)</criterion>
+      <criterion id="AC13">Pagination displays 25 models per page with Previous/Next buttons</criterion>
+      <criterion id="AC14">Loading state shows skeleton table rows while fetching data</criterion>
+      <criterion id="AC15">Error state shows Empty component with Retry button when API fails</criterion>
+    </group>
+    <group name="Visual Design &amp; Typography" ids="AC21-25">
+      <criterion id="AC21">Commit Mono font loaded from self-hosted files and applied to all body text</criterion>
+      <criterion id="AC22">All components use shadcn-compatible CSS variables (--background, --foreground, --primary, etc.)</criterion>
+      <criterion id="AC23">Dark mode enabled by default</criterion>
+      <criterion id="AC24">Sidebar matches sidebar-08 block design pattern</criterion>
+      <criterion id="AC25">Empty component matches shadcn Empty component design pattern</criterion>
+    </group>
+    <group name="API Endpoints" ids="AC26-30">
+      <criterion id="AC26">trpc.projects.list returns user's projects filtered by userId</criterion>
+      <criterion id="AC27">trpc.models.list returns models from OpenRouter when API key configured</criterion>
+      <criterion id="AC28">trpc.settings.getApiKey returns masked OpenRouter API key (last 4 chars) and enabled status</criterion>
+      <criterion id="AC29">trpc.settings.saveApiKey encrypts key and stores in app_config.openrouterApiKey</criterion>
+      <criterion id="AC29a">trpc.settings.updateApiKey allows updating existing API key (re-encrypts)</criterion>
+      <criterion id="AC29b">trpc.settings.removeApiKey deletes stored API key from app_config</criterion>
+      <criterion id="AC30">trpc.settings.testApiKey validates OpenRouter API key via test request (with provider abstraction pattern for future extensibility)</criterion>
+    </group>
+    <group name="Data Formatting" ids="AC31-33">
+      <criterion id="AC31">Context length formatted correctly (8000 → "8k", 128000 → "128k", 200000 → "200k", 1000000 → "1M")</criterion>
+      <criterion id="AC32">Price formatted as "$input/$output" per 1M tokens</criterion>
+      <criterion id="AC33">Provider names displayed as received from OpenRouter API response</criterion>
+    </group>
+    <group name="Navigation &amp; Routing" ids="AC34-37">
+      <criterion id="AC34">Clicking sidebar nav item navigates to correct route (all 4 routes verified)</criterion>
+      <criterion id="AC35">Models and Settings routes require authentication (redirect to /login if no session)</criterion>
+      <criterion id="AC36">Active route detection works correctly (highlights current page in sidebar)</criterion>
+      <criterion id="AC37">Sidebar state (collapsed/expanded) persists across route changes</criterion>
+    </group>
+    <group name="Error Handling" ids="AC38-41">
+      <criterion id="AC38">Models page shows error Empty component when OpenRouter API fetch fails</criterion>
+      <criterion id="AC39">Settings page shows "Invalid" status when test API key fails</criterion>
+      <criterion id="AC40">Protected routes redirect to login with appropriate error message</criterion>
+      <criterion id="AC41">Data table shows "No results" empty state when filters return zero rows</criterion>
+    </group>
+    <group name="Performance &amp; UX" ids="AC42-45">
+      <criterion id="AC42">Models page loads within 2 seconds with 150 models from OpenRouter</criterion>
+      <criterion id="AC43">Data table filtering/sorting responds within 100ms (client-side operations)</criterion>
+      <criterion id="AC44">API key test completes within 3 seconds (shows loading spinner during test)</criterion>
+      <criterion id="AC45">Sidebar navigation transitions are smooth (no layout shift or flicker)</criterion>
+    </group>
+    <group name="Testing Coverage" ids="AC46-48">
+      <criterion id="AC46">Unit tests written for all new components (Empty, Sidebar, DataTable, API Keys Form)</criterion>
+      <criterion id="AC47">Integration tests written for all new API endpoints (projects.list, models.list, settings.*)</criterion>
+      <criterion id="AC48">Manual testing checklist completed</criterion>
+    </group>
+    <group name="Component Installation" ids="AC49-50">
+      <criterion id="AC49">All shadcn components installed using bunx shadcn@latest add &lt;component-name&gt;</criterion>
+      <criterion id="AC50">TanStack Table installed via bun add @tanstack/react-table</criterion>
+    </group>
+    <group name="Extensibility Architecture" ids="AC51-52">
+      <criterion id="AC51">Models service implements provider abstraction pattern with ModelProvider interface</criterion>
+      <criterion id="AC52">Adding new providers requires: Implement ModelProvider interface, Register in provider registry, Add UI fields (future story), No refactoring of existing core logic</criterion>
+    </group>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/PRD.md</path>
+        <title>Chiron Product Requirements Document</title>
+        <section>Functional Requirements - User Interface and Visualization</section>
+        <snippet>FR016-FR020 define core UI requirements: Multi-Agent Dashboard, Story Kanban board, Artifact Workbench, Structured Exploration Lists, and Phase Navigation. FR035 specifies project list API endpoint requirement.</snippet>
+      </doc>
+      <doc>
+        <path>docs/PRD.md</path>
+        <title>Chiron Product Requirements Document</title>
+        <section>Non-Functional Requirements - Usability</section>
+        <snippet>NFR003: Minimum 1280x720 responsive layout, shadcn/ui components, visual design matching UX foundation specification. Desktop-first approach with Tauri.</snippet>
+      </doc>
+      <doc>
+        <path>docs/epics/tech-spec-epic-1.md</path>
+        <title>Epic 1 Technical Specification</title>
+        <section>Story 1.3 - Web UI Foundation + LLM Models Page</section>
+        <snippet>Establishes React + TanStack Router web foundation with better-auth authentication. Delivers sidebar navigation (shadcn sidebar-08), home page with empty states, LLM models page (OpenRouter integration with TanStack Table), and Settings page with API key management using AES-256 encryption.</snippet>
+      </doc>
+      <doc>
+        <path>docs/epics/tech-spec-epic-1.md</path>
+        <title>Epic 1 Technical Specification</title>
+        <section>System Architecture Alignment - Technology Stack</section>
+        <snippet>React 19 + TypeScript + Vite + Tailwind CSS + shadcn/ui. TanStack Router for routing, TanStack Table for data tables, TanStack React Query for server state. Better-auth for authentication. OpenRouter for LLM API access.</snippet>
+      </doc>
+      <doc>
+        <path>docs/design/ux-design-specification.md</path>
+        <title>Chiron UX Design Specification</title>
+        <section>Design System Foundation - shadcn/ui Component Registry</section>
+        <snippet>Use shadcn/ui as component foundation with copy-paste philosophy. Components: Button, Dialog, Card, Tabs, Select, Input, Textarea, Dropdown, Tooltip, Popover. Install via bunx shadcn@latest add. Theming via CSS variables + Tailwind config for dark mode.</snippet>
+      </doc>
+      <doc>
+        <path>docs/design/ux-design-specification.md</path>
+        <title>Chiron UX Design Specification</title>
+        <section>Core User Experience - Technical Typography &amp; Monospace Aesthetic</section>
+        <snippet>CARBON theme: Commit Mono font for all typography (self-hosted WOFF2 files), corner borders on cards/tables/buttons, dark mode default with sharp corners (border-radius: 0), monospace aesthetic for code-centric feel.</snippet>
+      </doc>
+      <doc>
+        <path>docs/epics/epic-1-database-implementation.md</path>
+        <title>Epic 1 - Database Implementation</title>
+        <section>Story 1.3 Detailed Specification</section>
+        <snippet>Transform home page to project list with empty state, add sidebar navigation using sidebar-08 block, implement LLM models page with OpenRouter API integration and TanStack Table, create Settings page with encrypted API key management. Use existing better-auth setup, connect to tRPC endpoints.</snippet>
+      </doc>
+      <doc>
+        <path>docs/stories/1-2-core-data-seeding.md</path>
+        <title>Story 1.2 - Core Data Seeding (Completed)</title>
+        <section>Completion Notes - Existing Infrastructure</section>
+        <snippet>Database schema complete with 15 tables, seeded with 6 agents and 26 workflows. TanStack Router configured with root layout, better-auth client at lib/auth-client.ts, tRPC client at utils/trpc.ts. Projects router exists with create/get/delete endpoints. Dashboard route has session protection pattern.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>apps/web/src/routes/__root.tsx</path>
+        <kind>route-layout</kind>
+        <symbol>RootComponent</symbol>
+        <lines>1-68</lines>
+        <reason>Root layout to be modified - Replace Header with SidebarProvider + AppSidebar + SidebarInset for sidebar-08 pattern integration</reason>
+      </artifact>
+      <artifact>
+        <path>apps/web/src/routes/index.tsx</path>
+        <kind>route</kind>
+        <symbol>HomeComponent</symbol>
+        <lines>1-51</lines>
+        <reason>Home page to be transformed - Remove ASCII art, add projects.list query, conditional render for empty state vs projects list</reason>
+      </artifact>
+      <artifact>
+        <path>apps/web/src/routes/dashboard.tsx</path>
+        <kind>route</kind>
+        <symbol>beforeLoad</symbol>
+        <lines>9-18</lines>
+        <reason>Session protection pattern reference - Copy beforeLoad pattern for new models.tsx and settings.tsx routes requiring authentication</reason>
+      </artifact>
+      <artifact>
+        <path>apps/web/src/components/header.tsx</path>
+        <kind>component</kind>
+        <symbol>Header</symbol>
+        <lines>all</lines>
+        <reason>Current header component - Will be replaced by AppSidebar in root layout, may reuse user menu/theme toggle logic</reason>
+      </artifact>
+      <artifact>
+        <path>packages/api/src/routers/projects.ts</path>
+        <kind>router</kind>
+        <symbol>projectsRouter.list</symbol>
+        <lines>236-252</lines>
+        <reason>Existing projects list endpoint - Already implemented, returns all projects ordered by createdAt DESC. Add userId filtering when multi-user support enabled.</reason>
+      </artifact>
+      <artifact>
+        <path>packages/api/src/routers/index.ts</path>
+        <kind>router-index</kind>
+        <symbol>appRouter</symbol>
+        <lines>all</lines>
+        <reason>API router registry - Add new models and settings routers here after creation</reason>
+      </artifact>
+      <artifact>
+        <path>apps/web/public/fonts/CommitMono-400-Regular.woff2</path>
+        <kind>font-asset</kind>
+        <symbol>CommitMono</symbol>
+        <lines>n/a</lines>
+        <reason>Self-hosted Commit Mono font files (4 variants) already present - Just add @font-face declarations to index.css</reason>
+      </artifact>
+      <artifact>
+        <path>apps/web/src/index.css</path>
+        <kind>stylesheet</kind>
+        <symbol>global-styles</symbol>
+        <lines>all</lines>
+        <reason>Global CSS file - Add Commit Mono @font-face declarations, verify shadcn CSS variables for CARBON theme (dark mode)</reason>
+      </artifact>
+      <artifact>
+        <path>apps/web/src/utils/trpc.ts</path>
+        <kind>client-utility</kind>
+        <symbol>trpc</symbol>
+        <lines>all</lines>
+        <reason>tRPC client utility - Reference for making tRPC queries (useQuery pattern for fetching projects, models, settings)</reason>
+      </artifact>
+      <artifact>
+        <path>apps/web/src/lib/auth-client.ts</path>
+        <kind>auth-client</kind>
+        <symbol>authClient</symbol>
+        <lines>all</lines>
+        <reason>Better-auth client - Use for session checks in protected routes (models, settings), already configured</reason>
+      </artifact>
+      <artifact>
+        <path>packages/db/src/schema/app-config.ts</path>
+        <kind>schema</kind>
+        <symbol>appConfig</symbol>
+        <lines>all</lines>
+        <reason>App config table schema - Store encrypted API keys here with userId foreign key (openrouterApiKey field)</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <node>
+        <package name="react" version="19.1.0">Core UI framework</package>
+        <package name="@tanstack/react-router" version="^1.114.25">Routing and navigation</package>
+        <package name="@tanstack/react-query" version="^5.85.5">Server state management</package>
+        <package name="@tanstack/react-table" version="NOT_YET_INSTALLED">Data table (AC50 - install via bun add @tanstack/react-table)</package>
+        <package name="@trpc/tanstack-react-query" version="^11.5.0">tRPC React Query integration</package>
+        <package name="better-auth" version="catalog:">Authentication (existing)</package>
+        <package name="tailwindcss" version="^4.0.15">CSS framework</package>
+        <package name="lucide-react" version="^0.473.0">Icon library for sidebar nav icons</package>
+        <package name="shadcn/ui" version="latest">Component registry (install via bunx shadcn@latest add)</package>
+        <package name="zod" version="catalog:">Schema validation for API inputs</package>
+        <package name="class-variance-authority" version="^0.7.1">Component variant management</package>
+        <package name="clsx" version="^2.1.1">Conditional class names</package>
+        <package name="tailwind-merge" version="^3.3.1">Tailwind class merging utility</package>
+      </node>
+      <external>
+        <api name="OpenRouter" endpoint="https://openrouter.ai/api/v1/models">Fetch available LLM models with pricing/specs. Requires API key stored in app_config table.</api>
+      </external>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <architectural>
+      <constraint>Use existing better-auth configuration from packages/auth/ - no new auth setup required</constraint>
+      <constraint>Follow CARBON UX theme: Corner borders (border-radius: 0), monospace typography (Commit Mono), dark mode default</constraint>
+      <constraint>Use shadcn/ui components from registry - install via bunx shadcn@latest add component-name (NOT npm)</constraint>
+      <constraint>Self-host Commit Mono font from apps/web/public/fonts/ (4 WOFF2 files already present) for Tauri desktop app offline support</constraint>
+      <constraint>TanStack Router for routing, TanStack Query for server state, TanStack Table for data tables</constraint>
+      <constraint>Connect to tRPC API endpoints in packages/api/ - no REST endpoints</constraint>
+      <constraint>All shadcn installations use bunx (Bun runtime) not npm</constraint>
+      <constraint>Provider abstraction pattern: Models service implements ModelProvider interface for future multi-provider support (Anthropic, OpenAI) without refactoring core logic</constraint>
+    </architectural>
+    <data>
+      <constraint>API key encryption using AES-256-GCM before database storage in app_config.openrouterApiKey</constraint>
+      <constraint>Multi-user isolation: userId foreign key on app_config for future multi-tenancy support</constraint>
+      <constraint>Projects filtered by userId when multi-user support enabled (currently all users see all projects)</constraint>
+    </data>
+    <ui-ux>
+      <constraint>Responsive layout minimum 1280x720 (desktop-first, mobile deferred)</constraint>
+      <constraint>Visual design matches UX foundation specification CARBON theme</constraint>
+      <constraint>Sidebar matches shadcn sidebar-08 block design pattern exactly</constraint>
+      <constraint>Empty component matches shadcn Empty component design pattern</constraint>
+      <constraint>Data table follows shadcn data-table pattern with TanStack Table</constraint>
+    </ui-ux>
+    <testing>
+      <constraint>80% line coverage target for components (Empty, Sidebar, DataTable, API Keys Form)</constraint>
+      <constraint>90% line coverage target for API endpoints (projects.list, models.list, settings.*)</constraint>
+      <constraint>Bun test framework for all unit and integration tests</constraint>
+    </testing>
+  </constraints>
+  <interfaces>
+    <api-endpoint>
+      <name>trpc.projects.list</name>
+      <kind>tRPC procedure</kind>
+      <signature>list: publicProcedure.query() => Promise&lt;{ projects: Project[] }&gt;</signature>
+      <path>packages/api/src/routers/projects.ts</path>
+      <description>Returns all projects ordered by createdAt DESC. Add userId filter when multi-user support enabled.</description>
+    </api-endpoint>
+    <api-endpoint>
+      <name>trpc.models.list</name>
+      <kind>tRPC procedure (TO CREATE)</kind>
+      <signature>list: protectedProcedure.query() => Promise&lt;{ models: Model[] }&gt;</signature>
+      <path>packages/api/src/routers/models.ts</path>
+      <description>Fetch models from OpenRouter API when API key configured. Returns empty array if key not configured. Requires authentication.</description>
+    </api-endpoint>
+    <api-endpoint>
+      <name>trpc.settings.getApiKey</name>
+      <kind>tRPC procedure (TO CREATE)</kind>
+      <signature>getApiKey: protectedProcedure.query() => Promise&lt;{ key: string (masked), enabled: boolean }&gt;</signature>
+      <path>packages/api/src/routers/settings.ts</path>
+      <description>Returns masked OpenRouter API key (last 4 chars visible) and enabled status from app_config table filtered by userId</description>
+    </api-endpoint>
+    <api-endpoint>
+      <name>trpc.settings.saveApiKey</name>
+      <kind>tRPC procedure (TO CREATE)</kind>
+      <signature>saveApiKey: protectedProcedure.input(z.object({ key: string, enabled: boolean })).mutation() => Promise&lt;{ success: boolean }&gt;</signature>
+      <path>packages/api/src/routers/settings.ts</path>
+      <description>Encrypts API key using AES-256-GCM and stores in app_config.openrouterApiKey with userId</description>
+    </api-endpoint>
+    <api-endpoint>
+      <name>trpc.settings.updateApiKey</name>
+      <kind>tRPC procedure (TO CREATE)</kind>
+      <signature>updateApiKey: protectedProcedure.input(z.object({ key: string })).mutation() => Promise&lt;{ success: boolean }&gt;</signature>
+      <path>packages/api/src/routers/settings.ts</path>
+      <description>Re-encrypts and updates existing API key in app_config</description>
+    </api-endpoint>
+    <api-endpoint>
+      <name>trpc.settings.removeApiKey</name>
+      <kind>tRPC procedure (TO CREATE)</kind>
+      <signature>removeApiKey: protectedProcedure.mutation() => Promise&lt;{ success: boolean }&gt;</signature>
+      <path>packages/api/src/routers/settings.ts</path>
+      <description>Deletes stored API key from app_config filtered by userId</description>
+    </api-endpoint>
+    <api-endpoint>
+      <name>trpc.settings.testApiKey</name>
+      <kind>tRPC procedure (TO CREATE)</kind>
+      <signature>testApiKey: protectedProcedure.input(z.object({ key: string })).mutation() => Promise&lt;{ valid: boolean }&gt;</signature>
+      <path>packages/api/src/routers/settings.ts</path>
+      <description>Validates OpenRouter API key via test request to GET https://openrouter.ai/api/v1/models with Authorization header</description>
+    </api-endpoint>
+    <component-interface>
+      <name>ModelProvider</name>
+      <kind>TypeScript interface (TO CREATE)</kind>
+      <signature>interface ModelProvider { name: string; fetchModels(apiKey: string): Promise&lt;Model[]&gt;; testApiKey(apiKey: string): Promise&lt;boolean&gt;; }</signature>
+      <path>packages/api/src/services/models.ts</path>
+      <description>Provider abstraction pattern for future multi-provider support. OpenRouterProvider implements this interface. Future providers (Anthropic, OpenAI) can be added by implementing interface and registering in provider registry without refactoring core logic.</description>
+    </component-interface>
+    <component-interface>
+      <name>Encryption Service</name>
+      <kind>Service module (TO CREATE)</kind>
+      <signature>encrypt(plaintext: string): string; decrypt(ciphertext: string): string;</signature>
+      <path>packages/api/src/services/encryption.ts</path>
+      <description>AES-256-GCM encryption/decryption for API keys. Uses ENCRYPTION_KEY environment variable (generate on first launch if missing).</description>
+    </component-interface>
+  </interfaces>
+  <tests>
+    <standards>
+      <framework>Bun test framework for all unit and integration tests</framework>
+      <frontend-testing>Vitest (already configured) + @testing-library/react for component tests. Mock tRPC calls using msw (Mock Service Worker).</frontend-testing>
+      <backend-testing>Bun test (native runner) for API routers and services. Test database or in-memory SQLite for isolation. Mock external APIs (OpenRouter).</backend-testing>
+      <e2e-testing>Playwright or Cypress for critical user journeys (Settings → Models flow, Navigation). Limited scope for MVP.</e2e-testing>
+      <coverage-targets>80% line coverage for components (Empty, Sidebar, DataTable, API Keys Form). 90% line coverage for API endpoints (projects.list, models.list, settings.*). 100% for critical user journeys.</coverage-targets>
+      <test-patterns>Follow existing test pattern from packages/api/src/routers/projects.test.ts for API testing. Component tests follow React Testing Library best practices (user-centric queries, no implementation details).</test-patterns>
+    </standards>
+    <locations>
+      <frontend>apps/web/src/**/*.test.tsx - Component unit tests</frontend>
+      <backend>packages/api/src/**/*.test.ts - API router and service integration tests</backend>
+      <e2e>apps/web/e2e/**/*.test.ts - End-to-end Playwright/Cypress tests</e2e>
+      <fixtures>apps/web/src/test/fixtures/*.ts - Mock data (models, projects)</fixtures>
+    </locations>
+    <ideas>
+      <test-suite id="TS1" name="Empty Component" criteria="AC5,AC6,AC7,AC7a">
+        <test>Renders empty state with correct title and description</test>
+        <test>Displays FolderCode icon from Tabler Icons or Lucide</test>
+        <test>Shows "Create Project" button with primary styling</test>
+        <test>Button click logs to console (placeholder behavior)</test>
+        <test>Uses shadcn Empty component primitives correctly</test>
+      </test-suite>
+      <test-suite id="TS2" name="App Sidebar" criteria="AC1,AC2,AC3,AC4,AC34,AC36,AC37">
+        <test>Renders all 4 navigation items (Home, Projects, Models, Settings) with correct icons</test>
+        <test>Highlights active route with data-[active=true] state</test>
+        <test>Collapses to icon-only mode when trigger clicked</test>
+        <test>Navigates to correct route on item click</test>
+        <test>Sidebar state (collapsed/expanded) persists across navigation</test>
+      </test-suite>
+      <test-suite id="TS3" name="Models Data Table" criteria="AC9,AC10,AC11,AC12,AC13,AC14,AC15">
+        <test>Renders table with correct columns (Model Name, Provider, Context Length, Price)</test>
+        <test>Sorts by column header click (ascending/descending toggle)</test>
+        <test>Filters by search input (model name fuzzy match)</test>
+        <test>Filters by provider dropdown (unique providers from API)</test>
+        <test>Filters by min context dropdown (All, 8k, 32k, 128k, 200k+)</test>
+        <test>Shows skeleton rows during loading state</test>
+        <test>Shows empty component on error with retry button</test>
+        <test>Pagination shows 25 rows per page with Previous/Next buttons</test>
+      </test-suite>
+      <test-suite id="TS4" name="API Keys Form" criteria="AC16,AC17,AC18,AC19,AC20">
+        <test>Renders OpenRouter section with enable checkbox, password input, Show toggle, Test/Update/Remove buttons</test>
+        <test>Password input masks API key by default, Show button toggles visibility</test>
+        <test>Test button triggers validation mutation and updates status badge</test>
+        <test>Update button triggers updateApiKey mutation</test>
+        <test>Remove button triggers removeApiKey mutation</test>
+        <test>Status badge shows correct state (Valid ✅ / Invalid ❌ / Not Configured ⚪)</test>
+        <test>Save button disabled when no changes made, triggers saveApiKey mutation when enabled</test>
+      </test-suite>
+      <test-suite id="TS5" name="Projects Router" criteria="AC26">
+        <test>list procedure returns user's projects only (filters by userId when multi-user enabled)</test>
+        <test>list procedure returns empty array when user has no projects</test>
+        <test>list procedure requires authentication (throws UNAUTHORIZED if no session)</test>
+        <test>list procedure orders projects by createdAt DESC</test>
+      </test-suite>
+      <test-suite id="TS6" name="Models Router" criteria="AC8,AC27,AC30">
+        <test>list procedure returns OpenRouter models when API key configured and enabled</test>
+        <test>list procedure returns empty array when key not configured</test>
+        <test>list procedure formats context length correctly (200000 → "200k")</test>
+        <test>list procedure formats prices correctly ($3/$15 format)</test>
+        <test>list procedure handles OpenRouter API errors gracefully</test>
+        <test>list procedure uses provider abstraction pattern (ModelProvider interface)</test>
+      </test-suite>
+      <test-suite id="TS7" name="Settings Router" criteria="AC28,AC29,AC29a,AC29b,AC30">
+        <test>getApiKey returns masked key (shows last 4 chars only) and enabled status</test>
+        <test>saveApiKey encrypts key before storing in database using AES-256</test>
+        <test>saveApiKey updates app_config table with userId foreign key</test>
+        <test>updateApiKey re-encrypts and updates existing key</test>
+        <test>removeApiKey deletes key from app_config filtered by userId</test>
+        <test>testApiKey validates OpenRouter key via test request to /api/v1/models</test>
+        <test>testApiKey returns invalid for incorrect keys (HTTP 401)</test>
+      </test-suite>
+      <test-suite id="TS8" name="Encryption Service" criteria="AC20">
+        <test>encrypt produces different ciphertext each time (IV randomization)</test>
+        <test>decrypt reverses encryption correctly</test>
+        <test>decrypt fails gracefully with invalid ciphertext</test>
+        <test>uses AES-256-GCM algorithm</test>
+        <test>uses ENCRYPTION_KEY environment variable</test>
+      </test-suite>
+      <test-suite id="TS9" name="Models Service" criteria="AC30,AC31,AC32,AC51,AC52">
+        <test>OpenRouterProvider.fetchModels parses API response correctly</test>
+        <test>OpenRouterProvider.fetchModels handles HTTP 401 (invalid API key)</test>
+        <test>OpenRouterProvider.fetchModels handles network errors</test>
+        <test>OpenRouterProvider.testApiKey validates via API test request</test>
+        <test>formatContextLength handles various token counts (8k, 32k, 128k, 200k, 1M)</test>
+        <test>formatPrice handles fractional dollars correctly</test>
+        <test>Provider abstraction allows adding new providers without refactoring core logic</test>
+      </test-suite>
+      <test-suite id="TS10" name="E2E - Settings to Models Flow" criteria="AC42,AC43,AC44">
+        <test>User can add OpenRouter API key and see models on Models page</test>
+        <test>User can update existing OpenRouter API key</test>
+        <test>User can remove OpenRouter API key and models page shows empty state</test>
+        <test>User sees "Not configured" status before adding key, "Valid" after successful test</test>
+        <test>Models page loads within 2 seconds with 150 models</test>
+        <test>Data table filtering/sorting responds within 100ms</test>
+        <test>API key test completes within 3 seconds</test>
+      </test-suite>
+      <test-suite id="TS11" name="E2E - Navigation" criteria="AC34,AC35,AC36,AC37,AC45">
+        <test>Sidebar navigation works across all routes (Home, Projects, Models, Settings)</test>
+        <test>Active route highlighted correctly on each page</test>
+        <test>Sidebar collapse/expand persists across navigation</test>
+        <test>Protected routes (Models, Settings) redirect to /login when not authenticated</test>
+        <test>Sidebar navigation transitions are smooth (no layout shift or flicker)</test>
+      </test-suite>
+    </ideas>
+  </tests>
+</story-context>

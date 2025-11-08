@@ -28,7 +28,7 @@ async function validateProjectPath(
 ): Promise<{ valid: boolean; error?: string }> {
 	try {
 		console.log(`[API] Validating path: ${path}`);
-		
+
 		// Check if path is absolute
 		if (!path.startsWith("/")) {
 			console.log(`[API] Path is not absolute: ${path}`);
@@ -41,7 +41,7 @@ async function validateProjectPath(
 		try {
 			const stats = await fs.stat(path);
 			console.log(`[API] Directory exists: ${stats.isDirectory()}`);
-			
+
 			if (!stats.isDirectory()) {
 				return { valid: false, error: "Path exists but is not a directory" };
 			}
@@ -49,7 +49,7 @@ async function validateProjectPath(
 			// Check if directory is empty or has .git
 			const files = await fs.readdir(path);
 			console.log(`[API] Directory contents: ${files}`);
-			
+
 			if (files.length === 0) {
 				console.log(`[API] Directory is empty - valid`);
 				return { valid: true }; // Empty directory is valid
@@ -58,69 +58,6 @@ async function validateProjectPath(
 			if (files.includes(".git")) {
 				console.log(`[API] Directory has .git - valid`);
 				return { valid: true }; // Valid git repository
-			}
-
-			console.log(`[API] Directory not empty and no .git - invalid`);
-			return {
-				valid: false,
-				error: "Directory must be empty or contain a valid git repository",
-			};
-		} catch (statError) {
-			console.log(`[API] Directory does not exist, testing creation... Error: ${statError.code}`);
-			
-			// Directory doesn't exist, check if we can create it
-			try {
-				// Test creation by actually creating and keeping it for project creation
-				await fs.mkdir(path, { recursive: true });
-				console.log(`[API] Successfully created directory: ${path}`);
-				
-				// Verify it was created
-				const createdStats = await fs.stat(path);
-				console.log(`[API] Created directory exists: ${createdStats.isDirectory()}`);
-				
-				return { valid: true }; // Can create directory
-			} catch (createError) {
-				console.log(`[API] Failed to create directory: ${createError.code}`);
-				return {
-					valid: false,
-					error: "Cannot create directory at specified path",
-				};
-			}
-		}
-	} catch (error) {
-		console.log(`[API] Validation failed: ${error}`);
-		return { valid: false, error: "Failed to validate project path" };
-	}
-}
-
-		console.log(`[API] Path is absolute, checking directory existence...`);
-
-		// Check if directory exists
-		try {
-			const stats = await fs.stat(path);
-			console.log(`[API] Directory exists: ${stats.isDirectory()}`);
-
-			if (!stats.isDirectory()) {
-				return { valid: false, error: "Path exists but is not a directory" };
-			}
-
-			// Check if directory is empty or has .git
-			const files = await fs.readdir(path);
-			console.log(`[API] Directory contents: ${files}`);
-
-			if (files.length === 0) {
-				console.log(`[API] Directory is empty - valid`);
-				return { valid: true }; // Empty directory is valid
-			}
-
-			if (files.includes(".git")) {
-				console.log(`[API] Directory has .git - valid`);
-				// Verify it's a valid git repository
-				const gitPath = join(path, ".git");
-				const gitStats = await fs.stat(gitPath);
-				if (gitStats.isDirectory()) {
-					return { valid: true }; // Valid git repository
-				}
 			}
 
 			console.log(`[API] Directory not empty and no .git - invalid`);

@@ -3,59 +3,119 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
-	DropdownMenuLabel,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { authClient } from "@/lib/auth-client";
-import { Button } from "./ui/button";
 import { Skeleton } from "./ui/skeleton";
+import {
+	SidebarMenu,
+	SidebarMenuButton,
+	SidebarMenuItem,
+	useSidebar,
+} from "@/components/ui/sidebar";
+import { ChevronsUpDown, Bot, Settings, LogOut } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export default function UserMenu() {
 	const navigate = useNavigate();
 	const { data: session, isPending } = authClient.useSession();
+	const { isMobile } = useSidebar();
 
 	if (isPending) {
-		return <Skeleton className="h-9 w-24" />;
+		return <Skeleton className="h-12 w-full" />;
 	}
 
 	if (!session) {
-		return (
-			<Button variant="outline" asChild>
-				<Link to="/login">Sign In</Link>
-			</Button>
-		);
+		return null;
 	}
 
+	// Get initials from name for avatar
+	const initials = session.user.name
+		? session.user.name
+				.split(" ")
+				.map((n) => n[0])
+				.join("")
+				.toUpperCase()
+				.slice(0, 2)
+		: "U";
+
 	return (
-		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<Button variant="outline">{session.user.name}</Button>
-			</DropdownMenuTrigger>
-			<DropdownMenuContent className="bg-card">
-				<DropdownMenuLabel>My Account</DropdownMenuLabel>
-				<DropdownMenuSeparator />
-				<DropdownMenuItem>{session.user.email}</DropdownMenuItem>
-				<DropdownMenuItem asChild>
-					<Button
-						variant="destructive"
-						className="w-full"
-						onClick={() => {
-							authClient.signOut({
-								fetchOptions: {
-									onSuccess: () => {
-										navigate({
-											to: "/",
-										});
-									},
-								},
-							});
-						}}
+		<SidebarMenu>
+			<SidebarMenuItem>
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<SidebarMenuButton
+							size="lg"
+							className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+						>
+							<Avatar className="h-8 w-8 rounded-lg">
+								<AvatarFallback className="rounded-lg">
+									{initials}
+								</AvatarFallback>
+							</Avatar>
+							<div className="grid flex-1 text-left text-sm leading-tight">
+								<span className="truncate font-semibold">
+									{session.user.name}
+								</span>
+								<span className="truncate text-xs">{session.user.email}</span>
+							</div>
+							<ChevronsUpDown className="ml-auto size-4" />
+						</SidebarMenuButton>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent
+						className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
+						side={isMobile ? "bottom" : "right"}
+						align="end"
+						sideOffset={4}
 					>
-						Sign Out
-					</Button>
-				</DropdownMenuItem>
-			</DropdownMenuContent>
-		</DropdownMenu>
+						<div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+							<Avatar className="h-8 w-8 rounded-lg">
+								<AvatarFallback className="rounded-lg">
+									{initials}
+								</AvatarFallback>
+							</Avatar>
+							<div className="grid flex-1 text-left text-sm leading-tight">
+								<span className="truncate font-semibold">
+									{session.user.name}
+								</span>
+								<span className="truncate text-xs text-muted-foreground">
+									{session.user.email}
+								</span>
+							</div>
+						</div>
+						<DropdownMenuSeparator />
+						<DropdownMenuItem asChild>
+							<Link to="/models" className="cursor-pointer">
+								<Bot className="mr-2 h-4 w-4" />
+								Models
+							</Link>
+						</DropdownMenuItem>
+						<DropdownMenuItem asChild>
+							<Link to="/settings" className="cursor-pointer">
+								<Settings className="mr-2 h-4 w-4" />
+								Settings
+							</Link>
+						</DropdownMenuItem>
+						<DropdownMenuSeparator />
+						<DropdownMenuItem
+							className="cursor-pointer hover:bg-destructive hover:text-destructive-foreground"
+							onClick={() => {
+								authClient.signOut({
+									fetchOptions: {
+										onSuccess: () => {
+											navigate({ to: "/" });
+										},
+									},
+								});
+							}}
+						>
+							<LogOut className="mr-2 h-4 w-4" />
+							Log out
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
+			</SidebarMenuItem>
+		</SidebarMenu>
 	);
 }

@@ -1,4 +1,3 @@
-import Header from "@/components/header";
 import Loader from "@/components/loader";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
@@ -54,13 +53,10 @@ function RootComponent() {
 				disableTransitionOnChange
 				storageKey="vite-ui-theme"
 			>
-				<div className="grid grid-rows-[auto_1fr] h-svh">
-					<Header />
-					{isFetching ? <Loader /> : <Outlet />}
-				</div>
+				<div className="h-screen">{isFetching ? <Loader /> : <Outlet />}</div>
 				<Toaster richColors />
 			</ThemeProvider>
-			<TanStackRouterDevtools position="bottom-left" />
+			<TanStackRouterDevtools position="top-right" />
 			<ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />
 		</>
 	);
