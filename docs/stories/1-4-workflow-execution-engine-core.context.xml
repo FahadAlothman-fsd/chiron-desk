@@ -1,0 +1,350 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>4</storyId>
+    <title>Workflow Execution Engine Core</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-09</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/1-4-workflow-execution-engine-core.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer building Chiron's workflow orchestration system</asA>
+    <iWant>a generic workflow execution engine that loads workflows from the database, executes steps sequentially, manages state, and resolves variables</iWant>
+    <soThat>all future BMAD workflows can be executed without custom code, enabling runtime workflow modification and consistent execution behavior across all methodology phases</soThat>
+    <tasks>
+### Task 1: Workflow Loader Service (AC: #1, #2, #3, #4)
+- [ ] **Subtask 1.1:** Create `packages/api/src/services/workflow-engine/workflow-loader.ts` - Implement `loadWorkflow(workflowId: string)` function, query workflows + workflow_steps, sort by stepNumber ascending, return structured object
+- [ ] **Subtask 1.2:** Implement workflow structure validation - Check no duplicate step numbers, verify nextStepNumber references, detect cycles, throw descriptive errors
+- [ ] **Subtask 1.3:** Write unit tests for workflow loader
+
+### Task 2: Step Executor Framework (AC: #5, #6, #7, #8, #9)
+- [ ] **Subtask 2.1:** Define step handler interface in `packages/api/src/services/workflow-engine/step-handler.ts`
+- [ ] **Subtask 2.2:** Implement step type registry in `packages/api/src/services/workflow-engine/step-registry.ts`
+- [ ] **Subtask 2.3:** Implement step execution loop in `packages/api/src/services/workflow-engine/executor.ts`
+- [ ] **Subtask 2.4:** Write unit tests for step executor
+
+### Task 3: Variable Resolver (AC: #10-#15)
+- [ ] **Subtask 3.1:** Implement variable resolver with Handlebars in `packages/api/src/services/workflow-engine/variable-resolver.ts`
+- [ ] **Subtask 3.2:** Define execution context type in `packages/api/src/services/workflow-engine/execution-context.ts`
+- [ ] **Subtask 3.3:** Implement precedence merging logic (Level 1 > Level 2 > Level 3 > Level 4)
+- [ ] **Subtask 3.4:** Cache Handlebars templates for performance
+- [ ] **Subtask 3.5:** Write unit tests for variable resolver
+
+### Task 4: State Management (AC: #16-#22)
+- [ ] **Subtask 4.1:** Implement workflow execution state creation in `packages/api/src/services/workflow-engine/state-manager.ts`
+- [ ] **Subtask 4.2:** Implement step completion tracking - Update executedSteps JSONB
+- [ ] **Subtask 4.3:** Implement pause/resume functionality
+- [ ] **Subtask 4.4:** Implement workflow completion/failure handlers
+- [ ] **Subtask 4.5:** Write unit tests for state manager
+
+### Task 5: Event System (AC: #23-#25)
+- [ ] **Subtask 5.1:** Implement event bus in `packages/api/src/services/workflow-engine/event-bus.ts`
+- [ ] **Subtask 5.2:** Emit events in executor (workflow_started, step_started, step_completed, etc.)
+- [ ] **Subtask 5.3:** Implement tRPC SSE subscription endpoint in `workflowRouter`
+- [ ] **Subtask 5.4:** Frontend tRPC subscription hook
+- [ ] **Subtask 5.5:** Write unit tests for event system
+
+### Task 6: UI Components - Wizard Stepper Pattern (AC: #26-#28)
+- [ ] **Subtask 6.1:** Install framer-motion: `bun add framer-motion`
+- [ ] **Subtask 6.2:** Create shared stepper types in `apps/web/src/components/workflows/types.ts`
+- [ ] **Subtask 6.3:** Create IconWrapper component in `apps/web/src/components/ui/icon-wrapper.tsx`
+- [ ] **Subtask 6.4:** Create WorkflowStepperWizard component in `apps/web/src/components/workflows/steppers/wizard/workflow-stepper-wizard.tsx`
+- [ ] **Subtask 6.5:** Create WizardStepContainer component in `apps/web/src/components/workflows/steppers/wizard/wizard-step-container.tsx`
+- [ ] **Subtask 6.6:** Create example step content components
+- [ ] **Subtask 6.7:** Implement auto-advance logic in executor
+- [ ] **Subtask 6.8:** Write component tests (Vitest + React Testing Library)
+
+### Task 7: Integration & Testing (AC: #29-#35)
+- [ ] **Subtask 7.1:** End-to-end integration test for empty workflow
+- [ ] **Subtask 7.2:** Error handling integration test
+- [ ] **Subtask 7.3:** Performance validation tests
+- [ ] **Subtask 7.4:** Manual testing checklist
+</tasks>
+  </story>
+
+  <acceptanceCriteria>
+**Workflow Loader:**
+- [ ] **AC1:** Workflow loader service reads workflow + steps from database by workflow ID
+- [ ] **AC2:** Steps loaded in correct order (sorted by stepNumber ascending)
+- [ ] **AC3:** Workflow structure validated (no missing steps, valid nextStepNumber references, no cycles)
+- [ ] **AC4:** Validation errors thrown with clear messages
+
+**Step Executor Framework:**
+- [ ] **AC5:** Generic step handler interface defined: executeStep(step, context) → result
+- [ ] **AC6:** Step type registry maps step types to handler implementations
+- [ ] **AC7:** Step execution loop executes steps sequentially, respecting nextStepNumber
+- [ ] **AC8:** Step transitions support auto-advance and wait-for-user-input modes
+- [ ] **AC9:** Unrecognized step type throws clear error
+
+**Variable Resolver:**
+- [ ] **AC10:** Variable resolver uses Handlebars templating for {{variable}} syntax
+- [ ] **AC11:** 4-level precedence implemented: System → Execution → Step outputs → Defaults
+- [ ] **AC12:** First match wins (Level 1 before Level 2, etc.)
+- [ ] **AC13:** Nested variables supported: {{user.name}}, {{array[0]}}, {{step_4.recommended_track}}
+- [ ] **AC14:** Missing required variable throws error
+- [ ] **AC15:** Handlebars templates compiled and cached
+
+**State Management:**
+- [ ] **AC16:** workflow_executions record created on workflow start (status: "running")
+- [ ] **AC17:** currentStep field updated after each step completion
+- [ ] **AC18:** executedSteps JSONB field tracks step-by-step history
+- [ ] **AC19:** Can pause workflow mid-execution (status: "paused")
+- [ ] **AC20:** Can resume paused workflow from last completed step
+- [ ] **AC21:** Workflow completion sets status to "completed" and completedAt timestamp
+- [ ] **AC22:** Workflow errors set status to "error" and populate error text field
+
+**Event System:**
+- [ ] **AC23:** Events emitted at lifecycle transitions (workflow_started, step_started, step_completed, workflow_completed, workflow_error)
+- [ ] **AC24:** Event system uses Node EventEmitter for internal event bus
+- [ ] **AC25:** tRPC SSE subscription endpoint for real-time events
+
+**UI Components:**
+- [ ] **AC26:** WorkflowStepper component displays step X of N, progress bar, current step title/goal
+- [ ] **AC27:** WorkflowStepContainer component: wrapper with Next/Back buttons, loading state, error display
+- [ ] **AC28:** Auto-advance for backend-only steps
+
+**Testing:**
+- [ ] **AC29:** Unit tests for workflow engine services (load, execute, resolve variables, state management)
+- [ ] **AC30:** Integration test: Start → pause → resume
+- [ ] **AC31:** Error handling test: Invalid step type triggers clear error
+- [ ] **AC32:** Variable resolution test: Nested variables, missing variables
+
+**Performance:**
+- [ ] **AC33:** Step transitions execute within 200ms
+- [ ] **AC34:** Variable resolution completes within 50ms for typical templates
+- [ ] **AC35:** Database queries for workflow loading complete within 100ms
+</acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <artifact>
+        <path>docs/PRD.md</path>
+        <title>Product Requirements Document</title>
+        <section>Functional Requirements</section>
+        <snippet>FR002: System shall execute workflows following BMAD's workflow.xml engine rules (steps, actions, templates, elicitation). FR004: System shall resolve variables using 4-level precedence (config_source, system-generated, user input, defaults). FR005: System shall maintain workflow state and enable resume/restart of interrupted workflows.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/epics.md</path>
+        <title>Epic Breakdown</title>
+        <section>Epic 1: Foundation + Workflow-Init Engine</section>
+        <snippet>Story 1.4: Workflow Execution Engine Core. Build the generic workflow execution engine foundation that will power all workflows in Chiron. This is the core service that loads workflows from the database, executes steps sequentially, manages state, and resolves variables.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/epics/tech-spec-epic-1.md</path>
+        <title>Epic 1 Technical Specification</title>
+        <section>Detailed Design - Services and Modules</section>
+        <snippet>Workflow Engine Service: Load workflows from DB, execute steps sequentially, manage state, resolve variables. Step Handler Registry: Register and dispatch step type handlers. Variable Resolver: Resolve {{variable}} references using Handlebars with 4-level precedence. Event Bus: Emit workflow events for real-time UI updates.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/architecture/database-schema-architecture.md</path>
+        <title>Database Schema Architecture</title>
+        <section>Schema Structure - Execution & State</section>
+        <snippet>workflow_executions table: Runtime workflow execution state with executedSteps JSONB tracking step-by-step history. Dual Progress Tracking: executedSteps (step-level) + executedVsPath (workflow-level) provide complete visibility.</snippet>
+      </artifact>
+      <artifact>
+        <path>bmad/core/tasks/workflow.xml</path>
+        <title>BMAD Workflow Engine Rules</title>
+        <section>Flow and Execution</section>
+        <snippet>Execute ALL steps in instructions IN EXACT ORDER. Steps execute in exact numerical order (1, 2, 3...). Optional steps: Ask user unless #yolo mode active. Template-output tags: Save content → Show user → Get approval before continuing.</snippet>
+      </artifact>
+    </docs>
+    <code>
+      <artifact>
+        <path>packages/api/src/services/workflow-engine/workflow-loader.ts</path>
+        <kind>service</kind>
+        <symbol>loadWorkflow</symbol>
+        <lines>N/A - To be created</lines>
+        <reason>Core workflow loader service - reads workflows and steps from database, validates structure</reason>
+      </artifact>
+      <artifact>
+        <path>packages/api/src/services/workflow-engine/executor.ts</path>
+        <kind>service</kind>
+        <symbol>executeWorkflow</symbol>
+        <lines>N/A - To be created</lines>
+        <reason>Main execution loop - orchestrates step-by-step workflow execution with state management</reason>
+      </artifact>
+      <artifact>
+        <path>packages/api/src/services/workflow-engine/step-handler.ts</path>
+        <kind>interface</kind>
+        <symbol>StepHandler</symbol>
+        <lines>N/A - To be created</lines>
+        <reason>Generic step handler interface that all step type handlers must implement</reason>
+      </artifact>
+      <artifact>
+        <path>packages/api/src/services/workflow-engine/step-registry.ts</path>
+        <kind>service</kind>
+        <symbol>StepRegistry</symbol>
+        <lines>N/A - To be created</lines>
+        <reason>Registry mapping step types to handler implementations for extensibility</reason>
+      </artifact>
+      <artifact>
+        <path>packages/api/src/services/workflow-engine/variable-resolver.ts</path>
+        <kind>service</kind>
+        <symbol>resolveVariables</symbol>
+        <lines>N/A - To be created</lines>
+        <reason>Handlebars-based variable resolution with 4-level precedence system</reason>
+      </artifact>
+      <artifact>
+        <path>packages/api/src/services/workflow-engine/state-manager.ts</path>
+        <kind>service</kind>
+        <symbol>StateManager</symbol>
+        <lines>N/A - To be created</lines>
+        <reason>Manages workflow execution state persistence and resume capability</reason>
+      </artifact>
+      <artifact>
+        <path>packages/api/src/services/workflow-engine/event-bus.ts</path>
+        <kind>service</kind>
+        <symbol>EventBus</symbol>
+        <lines>N/A - To be created</lines>
+        <reason>Event system using Node EventEmitter for workflow lifecycle events</reason>
+      </artifact>
+      <artifact>
+        <path>packages/api/src/routers/index.ts</path>
+        <kind>router</kind>
+        <symbol>appRouter</symbol>
+        <lines>1-20</lines>
+        <reason>Existing tRPC router index - will add workflows router here</reason>
+      </artifact>
+      <artifact>
+        <path>packages/db/src/schema/workflows.ts</path>
+        <kind>schema</kind>
+        <symbol>workflows, workflow_steps, workflow_executions</symbol>
+        <lines>N/A - Existing tables</lines>
+        <reason>Database schema for workflows - already created in Story 1.1</reason>
+      </artifact>
+      <artifact>
+        <path>apps/web/src/components/workflows/types.ts</path>
+        <kind>types</kind>
+        <symbol>WorkflowStepperBaseProps, WorkflowStepDefinition</symbol>
+        <lines>N/A - To be created</lines>
+        <reason>Shared TypeScript types for all stepper variants</reason>
+      </artifact>
+      <artifact>
+        <path>apps/web/src/components/ui/icon-wrapper.tsx</path>
+        <kind>component</kind>
+        <symbol>IconWrapper</symbol>
+        <lines>N/A - To be created</lines>
+        <reason>Reusable component for corner bracket decoration on icons</reason>
+      </artifact>
+      <artifact>
+        <path>apps/web/src/components/workflows/steppers/wizard/workflow-stepper-wizard.tsx</path>
+        <kind>component</kind>
+        <symbol>WorkflowStepperWizard</symbol>
+        <lines>N/A - To be created</lines>
+        <reason>Horizontal progress bar stepper for quick linear workflows</reason>
+      </artifact>
+      <artifact>
+        <path>apps/web/src/components/workflows/steppers/wizard/wizard-step-container.tsx</path>
+        <kind>component</kind>
+        <symbol>WizardStepContainer</symbol>
+        <lines>N/A - To be created</lines>
+        <reason>Animated step wrapper with navigation, loading, and error states</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <node>
+        <package name="handlebars" version="^4.7.8">Template engine for variable resolution</package>
+        <package name="framer-motion" version="latest">Animation library for step transitions</package>
+        <package name="@trpc/server" version="catalog:">Type-safe API routing (existing)</package>
+        <package name="hono" version="catalog:">Lightweight web framework (existing)</package>
+        <package name="zod" version="catalog:">Runtime validation (existing)</package>
+        <package name="drizzle-orm" version="^0.44.2">Database ORM (existing)</package>
+      </node>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+- Workflow engine MUST be generic and reusable for all future workflows (not workflow-init-specific)
+- Step handlers registered in type registry enable extensibility without engine refactoring
+- JSONB executedSteps field tracks complete execution history for audit trail and resume capability
+- Variable resolution follows exact BMAD precedence rules per /bmad/core/tasks/workflow.xml
+- State persistence after each step completion ensures recovery from crashes
+- Event-driven architecture enables real-time UI updates without polling
+- Use Bun test framework for all testing
+- Follow existing project patterns from Stories 1.1-1.3 (tRPC routers, service layer, React components)
+</constraints>
+
+  <interfaces>
+    <interface>
+      <name>StepHandler</name>
+      <kind>TypeScript Interface</kind>
+      <signature>
+interface StepHandler {
+  executeStep(step: WorkflowStep, context: ExecutionContext, userInput?: any): Promise&lt;StepResult&gt;;
+}
+
+interface StepResult {
+  output: any;
+  nextStepNumber: number | null;
+  requiresUserInput: boolean;
+}
+      </signature>
+      <path>packages/api/src/services/workflow-engine/step-handler.ts</path>
+    </interface>
+    <interface>
+      <name>ExecutionContext</name>
+      <kind>TypeScript Interface</kind>
+      <signature>
+interface ExecutionContext {
+  systemVariables: { current_user_id: string, execution_id: string, date: string };
+  executionVariables: Record&lt;string, any&gt;; // from workflow_executions.variables
+  stepOutputs: Record&lt;number, any&gt;; // from executedSteps
+  defaultValues: Record&lt;string, any&gt;; // from step config
+}
+      </signature>
+      <path>packages/api/src/services/workflow-engine/execution-context.ts</path>
+    </interface>
+    <interface>
+      <name>workflowRouter</name>
+      <kind>tRPC Router</kind>
+      <signature>
+export const workflowRouter = router({
+  execute: publicProcedure.input(z.object({ workflowId: z.string(), projectId: z.string().optional() })).mutation(async ({ input }) =&gt; { ... }),
+  submitStep: publicProcedure.input(z.object({ executionId: z.string(), stepNumber: z.number(), userInput: z.any() })).mutation(async ({ input }) =&gt; { ... }),
+  getExecution: publicProcedure.input(z.object({ executionId: z.string() })).query(async ({ input }) =&gt; { ... }),
+  onWorkflowEvent: publicProcedure.input(z.object({ executionId: z.string() })).subscription(({ input }) =&gt; { ... })
+});
+      </signature>
+      <path>packages/api/src/routers/workflows.ts</path>
+    </interface>
+    <interface>
+      <name>WorkflowStepperWizard</name>
+      <kind>React Component</kind>
+      <signature>
+interface WorkflowStepperWizardProps {
+  currentStep: number;
+  totalSteps: number;
+  steps: WorkflowStepDefinition[];
+  onStepClick?: (stepNumber: number) =&gt; void;
+}
+
+export function WorkflowStepperWizard({ currentStep, totalSteps, steps, onStepClick }: WorkflowStepperWizardProps) { ... }
+      </signature>
+      <path>apps/web/src/components/workflows/steppers/wizard/workflow-stepper-wizard.tsx</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+All tests use Bun test framework (`bun test`). Unit tests for each service in isolation with mocked dependencies. Integration tests for full workflow execution with real database. Component tests for UI with mocked tRPC queries. Performance tests for variable resolution and step transitions. Story 1.4 focuses on empty workflow (0 steps) - step handlers will be tested in Stories 1.5-1.8.
+    </standards>
+    <locations>
+packages/api/src/services/workflow-engine/**/*.test.ts
+apps/web/src/components/workflows/**/*.test.tsx
+    </locations>
+    <ideas>
+- Test AC29-1: Load workflow-init-new from database (metadata only, 0 steps for Story 1.4) → executeWorkflow should complete immediately for empty workflow
+- Test AC29-2: Execute empty workflow (0 steps) successfully → verify workflow_executions record created with status "completed"
+- Test AC29-3: Variable resolution with all 4 precedence levels → test that system variables override execution variables, etc.
+- Test AC29-4: Workflow state saves/loads from database → verify executedSteps JSONB persists correctly
+- Test AC30: Start workflow → pause → resume from correct step → verify currentStep and executedSteps restored correctly
+- Test AC31: Invalid step type triggers clear error → register only "ask-user" handler, try to execute "unknown-step", expect UnknownStepTypeError
+- Test AC32: Variable resolution edge cases → nested variables ({{user.name}}), array access ({{items[0]}}), missing variables (expect error)
+- Test AC33-35: Performance validation → measure step transition time, variable resolution time, database query time
+- Component Test: WorkflowStepperWizard displays correct progress (e.g., "Step 3 of 10") and visual progress bar
+- Component Test: WizardStepContainer shows Back/Continue buttons and loading state during step execution
+    </ideas>
+  </tests>
+</story-context>
