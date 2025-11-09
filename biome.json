@@ -66,5 +66,12 @@
 		"formatter": {
 			"quoteStyle": "double"
 		}
+	},
+	"css": {
+		"parser": {
+			"cssModules": false,
+			"allowWrongLineComments": false,
+			"tailwindDirectives": true
+		}
 	}
 }

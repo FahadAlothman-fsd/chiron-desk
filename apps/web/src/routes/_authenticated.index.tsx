@@ -35,7 +35,7 @@ function HomeComponent() {
 	}>;
 
 	return (
-		<div className="container mx-auto max-w-4xl">
+		<div className="container mx-auto my-auto max-w-4xl">
 			{projects.length === 0 ? (
 				<ProjectsEmpty />
 			) : (
