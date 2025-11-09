@@ -1,9 +1,9 @@
 import "../../test-setup"; // Load environment variables
-import { describe, expect, test, beforeAll } from "bun:test";
-import { db, workflows, agents } from "@chiron/db";
+import { beforeAll, describe, expect, test } from "bun:test";
+import { agents, db, workflows } from "@chiron/db";
+import { eq } from "drizzle-orm";
 import { seedAgents } from "./agents";
 import { seedWorkflowInitNew } from "./workflow-init-new";
-import { eq } from "drizzle-orm";
 
 describe("Workflow-Init-New Seeding", () => {
 	beforeAll(async () => {

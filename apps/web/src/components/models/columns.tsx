@@ -1,24 +1,24 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import {
 	ArrowUpDown,
-	Copy,
 	Check,
-	X,
+	Copy,
 	FileText,
 	Image,
 	Mic,
-	Video,
 	Type,
+	Video,
+	X,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useState } from "react";
 
 export interface Model {
 	id: string;
@@ -109,7 +109,7 @@ export const columns: ColumnDef<Model>[] = [
 		header: "Provider",
 		cell: ({ row }) => {
 			return (
-				<div className="text-sm font-medium">{row.getValue("provider")}</div>
+				<div className="font-medium text-sm">{row.getValue("provider")}</div>
 			);
 		},
 		size: 120,
@@ -118,7 +118,7 @@ export const columns: ColumnDef<Model>[] = [
 		accessorKey: "name",
 		header: "Model",
 		cell: ({ row }) => {
-			return <div className="text-sm font-medium">{row.getValue("name")}</div>;
+			return <div className="font-medium text-sm">{row.getValue("name")}</div>;
 		},
 		size: 200,
 	},
@@ -129,7 +129,7 @@ export const columns: ColumnDef<Model>[] = [
 			const id = row.getValue("id") as string;
 			return (
 				<div className="flex items-center gap-1">
-					<code className="text-xs text-muted-foreground">{id}</code>
+					<code className="text-muted-foreground text-xs">{id}</code>
 					<CopyButton text={id} />
 				</div>
 			);
@@ -229,7 +229,7 @@ export const columns: ColumnDef<Model>[] = [
 		cell: ({ row }) => {
 			const price = row.getValue("inputPrice") as number;
 			return (
-				<div className="text-sm text-muted-foreground">${price.toFixed(2)}</div>
+				<div className="text-muted-foreground text-sm">${price.toFixed(2)}</div>
 			);
 		},
 		size: 100,
@@ -251,7 +251,7 @@ export const columns: ColumnDef<Model>[] = [
 		cell: ({ row }) => {
 			const price = row.getValue("outputPrice") as number;
 			return (
-				<div className="text-sm text-muted-foreground">${price.toFixed(2)}</div>
+				<div className="text-muted-foreground text-sm">${price.toFixed(2)}</div>
 			);
 		},
 		size: 100,
@@ -282,7 +282,7 @@ export const columns: ColumnDef<Model>[] = [
 		cell: ({ row }) => {
 			const knowledge = row.original.knowledge;
 			return (
-				<div className="text-xs text-muted-foreground">{knowledge || "-"}</div>
+				<div className="text-muted-foreground text-xs">{knowledge || "-"}</div>
 			);
 		},
 		size: 90,
@@ -304,7 +304,7 @@ export const columns: ColumnDef<Model>[] = [
 		cell: ({ row }) => {
 			const releaseDate = row.original.releaseDate;
 			return (
-				<div className="text-xs text-muted-foreground">
+				<div className="text-muted-foreground text-xs">
 					{releaseDate || "-"}
 				</div>
 			);

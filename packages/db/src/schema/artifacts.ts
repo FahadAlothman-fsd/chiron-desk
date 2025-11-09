@@ -1,4 +1,11 @@
-import { index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+	index,
+	jsonb,
+	pgTable,
+	text,
+	timestamp,
+	uuid,
+} from "drizzle-orm/pg-core";
 import { projects } from "./core";
 import { workflows } from "./workflows";
 
@@ -31,8 +38,6 @@ export const projectArtifacts = pgTable(
 	(table) => ({
 		projectIdIdx: index("project_artifacts_project_id_idx").on(table.projectId),
 		typeIdx: index("project_artifacts_type_idx").on(table.artifactType),
-		gitHashIdx: index("project_artifacts_git_hash_idx").on(
-			table.gitCommitHash,
-		),
+		gitHashIdx: index("project_artifacts_git_hash_idx").on(table.gitCommitHash),
 	}),
 );

@@ -1,12 +1,12 @@
-import { createFileRoute, redirect, Outlet } from "@tanstack/react-router";
-import { authClient } from "@/lib/auth-client";
+import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { AppSidebar } from "@/components/app-sidebar";
+import { Separator } from "@/components/ui/separator";
 import {
 	SidebarInset,
 	SidebarProvider,
 	SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { Separator } from "@/components/ui/separator";
+import { authClient } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/_authenticated")({
 	beforeLoad: async () => {
@@ -31,7 +31,7 @@ function AuthenticatedLayout() {
 							className="mr-2 h-4 data-[orientation=vertical]:h-4"
 						/>
 						<div className="flex-1">
-							<h1 className="text-lg font-semibold">Chiron</h1>
+							<h1 className="font-semibold text-lg">Chiron</h1>
 						</div>
 					</div>
 				</header>

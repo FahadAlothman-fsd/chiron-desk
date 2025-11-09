@@ -1,8 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { trpc } from "@/utils/trpc";
 import { useQuery } from "@tanstack/react-query";
+import { createFileRoute } from "@tanstack/react-router";
 import { ProjectsEmpty } from "@/components/projects/projects-empty";
 import { ProjectsList } from "@/components/projects/projects-list";
+import { trpc } from "@/utils/trpc";
 
 export const Route = createFileRoute("/_authenticated/")({
 	component: HomeComponent,
@@ -13,7 +13,7 @@ function HomeComponent() {
 
 	if (projectsQuery.isLoading) {
 		return (
-			<div className="flex items-center justify-center min-h-[400px]">
+			<div className="flex min-h-[400px] items-center justify-center">
 				<p className="text-muted-foreground">Loading projects...</p>
 			</div>
 		);
@@ -21,7 +21,7 @@ function HomeComponent() {
 
 	if (projectsQuery.isError) {
 		return (
-			<div className="flex items-center justify-center min-h-[400px]">
+			<div className="flex min-h-[400px] items-center justify-center">
 				<p className="text-destructive">Failed to load projects</p>
 			</div>
 		);

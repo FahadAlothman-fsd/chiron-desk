@@ -1,8 +1,8 @@
 import "../../test-setup"; // Load environment variables
-import { describe, expect, test, beforeAll } from "bun:test";
-import { db, agents } from "@chiron/db";
-import { seedAgents } from "./agents";
+import { describe, expect, test } from "bun:test";
+import { agents, db } from "@chiron/db";
 import { eq } from "drizzle-orm";
+import { seedAgents } from "./agents";
 
 describe("Agent Seeding", () => {
 	test("seedAgents() ensures 6 agents exist", async () => {

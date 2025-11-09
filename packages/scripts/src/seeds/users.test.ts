@@ -2,8 +2,8 @@ import "../../test-setup"; // Load environment variables
 import { describe, expect, test } from "bun:test";
 import { db } from "@chiron/db";
 import { user } from "@chiron/db/schema/auth";
-import { seedUsers } from "./users";
 import { eq } from "drizzle-orm";
+import { seedUsers } from "./users";
 
 describe("User Seeding", () => {
 	test("seedUsers() creates test user", async () => {

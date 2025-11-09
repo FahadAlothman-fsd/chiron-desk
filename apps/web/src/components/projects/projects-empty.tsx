@@ -1,6 +1,6 @@
 import { FolderKanban } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { BorderAccent } from "@/components/ui/border-accent";
+import { Button } from "@/components/ui/button";
 
 export function ProjectsEmpty() {
 	const handleCreateProject = () => {

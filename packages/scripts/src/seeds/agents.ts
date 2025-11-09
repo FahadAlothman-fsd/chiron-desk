@@ -1,4 +1,4 @@
-import { db, agents } from "@chiron/db";
+import { agents, db } from "@chiron/db";
 
 const CORE_AGENTS = [
 	{

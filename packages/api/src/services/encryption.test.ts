@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { encrypt, decrypt, maskApiKey } from "./encryption";
+import { decrypt, encrypt, maskApiKey } from "./encryption";
 
 describe("Encryption Service", () => {
 	test("encrypt produces different ciphertext each time (IV randomization)", () => {

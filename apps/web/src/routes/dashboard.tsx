@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
 import { trpc } from "@/utils/trpc";
 

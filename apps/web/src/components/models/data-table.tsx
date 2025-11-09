@@ -1,4 +1,3 @@
-import { useState, useMemo } from "react";
 import type { SortingState } from "@tanstack/react-table";
 import {
 	flexRender,
@@ -7,14 +6,7 @@ import {
 	getSortedRowModel,
 	useReactTable,
 } from "@tanstack/react-table";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -24,6 +16,14 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@/components/ui/table";
 import { columns, type Model } from "./columns";
 
 interface ModelsDataTableProps {
@@ -108,7 +108,7 @@ export function ModelsDataTable({ data }: ModelsDataTableProps) {
 		<div className="space-y-3">
 			{/* Filter Bar */}
 			<div className="flex flex-wrap gap-3">
-				<div className="flex-1 min-w-[200px]">
+				<div className="min-w-[200px] flex-1">
 					<Input
 						placeholder="Filter by model..."
 						value={searchQuery}
@@ -144,7 +144,7 @@ export function ModelsDataTable({ data }: ModelsDataTableProps) {
 			</div>
 
 			{/* Table with horizontal scroll */}
-			<div className="rounded-md border overflow-x-auto">
+			<div className="overflow-x-auto rounded-md border">
 				<Table className="text-sm">
 					<TableHeader>
 						{table.getHeaderGroups().map((headerGroup) => (
@@ -152,7 +152,7 @@ export function ModelsDataTable({ data }: ModelsDataTableProps) {
 								{headerGroup.headers.map((header) => (
 									<TableHead
 										key={header.id}
-										className="h-9 px-3 text-xs font-medium whitespace-nowrap"
+										className="h-9 whitespace-nowrap px-3 font-medium text-xs"
 										style={{
 											width: header.column.columnDef.size
 												? `${header.column.columnDef.size}px`
@@ -175,7 +175,7 @@ export function ModelsDataTable({ data }: ModelsDataTableProps) {
 							table.getRowModel().rows.map((row) => (
 								<TableRow
 									key={row.id}
-									className="border-b hover:bg-muted/30 transition-colors"
+									className="border-b transition-colors hover:bg-muted/30"
 								>
 									{row.getVisibleCells().map((cell) => (
 										<TableCell
@@ -199,7 +199,7 @@ export function ModelsDataTable({ data }: ModelsDataTableProps) {
 							<TableRow>
 								<TableCell
 									colSpan={columns.length}
-									className="h-24 text-center text-sm text-muted-foreground"
+									className="h-24 text-center text-muted-foreground text-sm"
 								>
 									No results found.
 								</TableCell>

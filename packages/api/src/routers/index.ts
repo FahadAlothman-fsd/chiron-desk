@@ -1,6 +1,6 @@
 import { protectedProcedure, publicProcedure, router } from "../index";
-import { projectsRouter } from "./projects";
 import { modelsRouter } from "./models";
+import { projectsRouter } from "./projects";
 import { settingsRouter } from "./settings";
 
 export const appRouter = router({

@@ -1,7 +1,7 @@
-import { db, workflowPaths } from "@chiron/db";
 import { readdir, readFile } from "node:fs/promises";
-import { join, dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { db, workflowPaths } from "@chiron/db";
 import yaml from "js-yaml";
 
 // Get the directory of this file

@@ -1,9 +1,8 @@
+import { promises as fs } from "node:fs";
+import { db, projects } from "@chiron/db";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { db, projects, projectState } from "@chiron/db";
 import { publicProcedure, router } from "../index";
-import { promises as fs } from "node:fs";
-import { join } from "node:path";
 
 // Zod schemas for input validation
 const createProjectSchema = z.object({
@@ -35,7 +34,7 @@ async function validateProjectPath(
 			return { valid: false, error: "Path must be absolute" };
 		}
 
-		console.log(`[API] Path is absolute, checking directory existence...`);
+		console.log("[API] Path is absolute, checking directory existence...");
 
 		// Check if directory exists
 		try {
@@ -51,16 +50,16 @@ async function validateProjectPath(
 			console.log(`[API] Directory contents: ${files}`);
 
 			if (files.length === 0) {
-				console.log(`[API] Directory is empty - valid`);
+				console.log("[API] Directory is empty - valid");
 				return { valid: true }; // Empty directory is valid
 			}
 
 			if (files.includes(".git")) {
-				console.log(`[API] Directory has .git - valid`);
+				console.log("[API] Directory has .git - valid");
 				return { valid: true }; // Valid git repository
 			}
 
-			console.log(`[API] Directory not empty and no .git - invalid`);
+			console.log("[API] Directory not empty and no .git - invalid");
 			return {
 				valid: false,
 				error: "Directory must be empty or contain a valid git repository",

@@ -1,4 +1,4 @@
-import { db, workflows, agents } from "@chiron/db";
+import { db, workflows } from "@chiron/db";
 
 /**
  * Seeds the workflow-init-new workflow metadata

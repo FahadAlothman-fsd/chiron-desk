@@ -1,4 +1,4 @@
-import { resolve, dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "dotenv";
 
@@ -13,5 +13,5 @@ config({ path: envPath });
 
 // Verify DATABASE_URL is loaded
 if (!process.env.DATABASE_URL) {
-  throw new Error(`DATABASE_URL not found. Checked: ${envPath}`);
+	throw new Error(`DATABASE_URL not found. Checked: ${envPath}`);
 }

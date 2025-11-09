@@ -1,13 +1,11 @@
-import { router, protectedProcedure } from "../index";
 import { db } from "@chiron/db";
-import { appConfig } from "@chiron/db/schema";
-import { eq } from "@chiron/db/drizzle";
+import { protectedProcedure, router } from "../index";
 import { decrypt } from "../services/encryption";
 import {
-	getProvider,
+	fetchModelsFromOpenRouter,
 	formatContextLength,
 	formatPrice,
-	fetchModelsFromOpenRouter,
+	getProvider,
 } from "../services/models";
 
 export const modelsRouter = router({

@@ -1,6 +1,5 @@
-import { expect, test, describe, beforeAll, afterAll } from "bun:test";
-import { promises as fs } from "fs";
-import { join } from "path";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { promises as fs } from "node:fs";
 
 // Test data with unique names
 const timestamp = Date.now();
@@ -18,7 +17,7 @@ describe("Projects CRUD Operations", () => {
 
 	beforeAll(async () => {
 		// Start server in background for testing
-		const { spawn } = await import("child_process");
+		const { spawn } = await import("node:child_process");
 
 		// Clean up any existing test directory
 		try {

@@ -1,12 +1,12 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Check, Eye, EyeOff, Loader2, X } from "lucide-react";
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { trpc, trpcClient } from "@/utils/trpc";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Eye, EyeOff, Loader2, Check, X } from "lucide-react";
-import { toast } from "sonner";
+import { trpc, trpcClient } from "@/utils/trpc";
 
 type Status = "valid" | "invalid" | "not-configured" | "testing";
 
@@ -110,7 +110,7 @@ export function ApiKeysCard() {
 			} else {
 				saveKeyMutation.mutate(apiKey);
 			}
-		} catch (error) {
+		} catch (_error) {
 			setStatus("invalid");
 			toast.error("Failed to validate API key before saving");
 		}
@@ -138,28 +138,28 @@ export function ApiKeysCard() {
 		switch (status) {
 			case "valid":
 				return (
-					<div className="flex items-center gap-1 text-sm text-green-600">
+					<div className="flex items-center gap-1 text-green-600 text-sm">
 						<Check className="h-4 w-4" />
 						Valid
 					</div>
 				);
 			case "invalid":
 				return (
-					<div className="flex items-center gap-1 text-sm text-destructive">
+					<div className="flex items-center gap-1 text-destructive text-sm">
 						<X className="h-4 w-4" />
 						Invalid
 					</div>
 				);
 			case "testing":
 				return (
-					<div className="flex items-center gap-1 text-sm text-muted-foreground">
+					<div className="flex items-center gap-1 text-muted-foreground text-sm">
 						<Loader2 className="h-4 w-4 animate-spin" />
 						Testing...
 					</div>
 				);
 			default:
 				return (
-					<div className="text-sm text-muted-foreground">Not configured</div>
+					<div className="text-muted-foreground text-sm">Not configured</div>
 				);
 		}
 	};
@@ -169,7 +169,7 @@ export function ApiKeysCard() {
 			<Card className="p-6">
 				<div className="flex items-center gap-2">
 					<Loader2 className="h-4 w-4 animate-spin" />
-					<span className="text-sm text-muted-foreground">Loading...</span>
+					<span className="text-muted-foreground text-sm">Loading...</span>
 				</div>
 			</Card>
 		);
@@ -179,8 +179,8 @@ export function ApiKeysCard() {
 		<Card className="p-6">
 			<div className="space-y-4">
 				<div>
-					<h2 className="text-xl font-semibold">API Configuration</h2>
-					<p className="mt-1 text-sm text-muted-foreground">
+					<h2 className="font-semibold text-xl">API Configuration</h2>
+					<p className="mt-1 text-muted-foreground text-sm">
 						Configure your OpenRouter API key. Keys are encrypted and stored
 						securely.
 					</p>
@@ -206,7 +206,7 @@ export function ApiKeysCard() {
 									type="button"
 									variant="ghost"
 									size="sm"
-									className="absolute right-0 top-0 h-full px-3"
+									className="absolute top-0 right-0 h-full px-3"
 									onClick={() => setShowKey(!showKey)}
 								>
 									{showKey ? (

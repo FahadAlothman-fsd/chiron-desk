@@ -8,7 +8,7 @@ import {
 const ALGORITHM = "aes-256-gcm";
 const SALT_LENGTH = 16;
 const IV_LENGTH = 16;
-const AUTH_TAG_LENGTH = 16;
+const _AUTH_TAG_LENGTH = 16;
 const KEY_LENGTH = 32;
 
 /**
@@ -69,7 +69,7 @@ export function decrypt(ciphertext: string): string {
 			throw new Error("Invalid ciphertext format");
 		}
 
-		const [saltB64, ivB64, authTagB64, encryptedData] = parts;
+		const [_saltB64, ivB64, authTagB64, encryptedData] = parts;
 		const iv = Buffer.from(ivB64, "base64");
 		const authTag = Buffer.from(authTagB64, "base64");
 		const key = getEncryptionKey();

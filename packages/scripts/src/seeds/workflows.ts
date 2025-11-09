@@ -1,6 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { agents, db, workflows } from "@chiron/db";
+import { db, workflows } from "@chiron/db";
 import yaml from "js-yaml";
 
 // Agent-Workflow Mapping Strategy (from story dev notes)

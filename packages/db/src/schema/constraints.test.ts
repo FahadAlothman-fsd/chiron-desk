@@ -1,7 +1,7 @@
 import "../../test-setup"; // Load environment variables
 import { describe, expect, test } from "bun:test";
 import { db } from "../index";
-import { agents, appConfig, projects, user, workflows } from "./index";
+import { projects, workflows } from "./index";
 
 describe("Foreign Key Constraints", () => {
 	test("cannot insert project with non-existent userId", async () => {

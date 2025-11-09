@@ -1,4 +1,12 @@
-import { integer, jsonb, pgTable, real, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+	integer,
+	jsonb,
+	pgTable,
+	real,
+	text,
+	timestamp,
+	uuid,
+} from "drizzle-orm/pg-core";
 import { projects } from "./core";
 
 // ============================================

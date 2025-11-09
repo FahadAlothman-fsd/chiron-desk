@@ -1,7 +1,7 @@
+import { appConfig, db, eq } from "@chiron/db";
 import { z } from "zod";
-import { router, protectedProcedure } from "../index";
-import { db, appConfig, eq } from "@chiron/db";
-import { encrypt, decrypt, maskApiKey } from "../services/encryption";
+import { protectedProcedure, router } from "../index";
+import { decrypt, encrypt, maskApiKey } from "../services/encryption";
 import { getProvider } from "../services/models";
 
 export const settingsRouter = router({

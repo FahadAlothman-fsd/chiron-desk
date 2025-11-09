@@ -97,7 +97,7 @@ export class OpenRouterProvider implements ModelProvider {
 	private parsePrice(priceString: string | undefined): number {
 		if (!priceString) return 0;
 		// OpenRouter prices are per token, convert to per 1M tokens
-		return parseFloat(priceString) * 1_000_000;
+		return Number.parseFloat(priceString) * 1_000_000;
 	}
 }
 
@@ -166,12 +166,13 @@ export async function fetchModelsFromOpenRouter(): Promise<Model[]> {
 				name: model.name || model.id,
 				provider: extractProviderFromId(model.id),
 				contextLength: model.context_length || 0,
-				inputPrice: parseFloat(model.pricing?.prompt || "0") * 1_000_000, // Convert to per 1M tokens
-				outputPrice: parseFloat(model.pricing?.completion || "0") * 1_000_000,
+				inputPrice: Number.parseFloat(model.pricing?.prompt || "0") * 1_000_000, // Convert to per 1M tokens
+				outputPrice:
+					Number.parseFloat(model.pricing?.completion || "0") * 1_000_000,
 				toolCall: model.supported_parameters?.includes("tools") || false,
 				reasoning:
 					(model.pricing?.internal_reasoning &&
-						parseFloat(model.pricing.internal_reasoning) > 0) ||
+						Number.parseFloat(model.pricing.internal_reasoning) > 0) ||
 					model.supported_parameters?.includes("reasoning") ||
 					model.supported_parameters?.includes("include_reasoning") ||
 					false,

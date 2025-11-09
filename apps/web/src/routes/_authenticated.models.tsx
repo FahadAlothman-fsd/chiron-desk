@@ -1,8 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { trpc } from "@/utils/trpc";
-import { ModelsDataTable } from "@/components/models/data-table";
+import { createFileRoute } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
+import { ModelsDataTable } from "@/components/models/data-table";
+import { trpc } from "@/utils/trpc";
 
 export const Route = createFileRoute("/_authenticated/models")({
 	component: ModelsPage,
@@ -14,7 +14,7 @@ function ModelsPage() {
 
 	if (modelsQuery.isLoading) {
 		return (
-			<div className="flex items-center justify-center min-h-[400px]">
+			<div className="flex min-h-[400px] items-center justify-center">
 				<div className="flex items-center gap-2">
 					<Loader2 className="h-6 w-6 animate-spin" />
 					<span className="text-muted-foreground">Loading models...</span>
@@ -25,12 +25,12 @@ function ModelsPage() {
 
 	if (modelsQuery.isError) {
 		return (
-			<div className="flex items-center justify-center min-h-[400px]">
-				<div className="text-center space-y-2">
+			<div className="flex min-h-[400px] items-center justify-center">
+				<div className="space-y-2 text-center">
 					<p className="text-destructive">Failed to load models</p>
 					<button
 						onClick={() => modelsQuery.refetch()}
-						className="text-sm text-muted-foreground underline"
+						className="text-muted-foreground text-sm underline"
 					>
 						Retry
 					</button>
@@ -46,8 +46,8 @@ function ModelsPage() {
 			<div className="container mx-auto max-w-6xl">
 				<div className="flex min-h-[400px] flex-col items-center justify-center rounded-lg border border-dashed p-8 text-center">
 					<div className="space-y-2">
-						<h3 className="text-xl font-semibold">No Models Available</h3>
-						<p className="text-sm text-muted-foreground">
+						<h3 className="font-semibold text-xl">No Models Available</h3>
+						<p className="text-muted-foreground text-sm">
 							Failed to load models from OpenRouter. Please try again later.
 						</p>
 					</div>
@@ -59,8 +59,8 @@ function ModelsPage() {
 	return (
 		<div className="container mx-auto space-y-4 py-6">
 			<div>
-				<h1 className="text-2xl font-semibold">LLM Models</h1>
-				<p className="mt-1 text-sm text-muted-foreground">
+				<h1 className="font-semibold text-2xl">LLM Models</h1>
+				<p className="mt-1 text-muted-foreground text-sm">
 					Browse {models.length} available language models from OpenRouter
 				</p>
 			</div>

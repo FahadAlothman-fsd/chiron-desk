@@ -1,8 +1,8 @@
 import "../../test-setup"; // Load environment variables
-import { describe, expect, test, beforeAll } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { db, workflowPaths } from "@chiron/db";
-import { seedWorkflowPaths } from "./workflow-paths";
 import { sql } from "drizzle-orm";
+import { seedWorkflowPaths } from "./workflow-paths";
 
 describe("Workflow Paths Seeding", () => {
 	test("seedWorkflowPaths() ensures 6 BMM paths exist", async () => {

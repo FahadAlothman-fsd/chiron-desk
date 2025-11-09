@@ -1,4 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
+import { Bot, ChevronsUpDown, LogOut, Settings } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -6,16 +8,14 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { authClient } from "@/lib/auth-client";
-import { Skeleton } from "./ui/skeleton";
 import {
 	SidebarMenu,
 	SidebarMenuButton,
 	SidebarMenuItem,
 	useSidebar,
 } from "@/components/ui/sidebar";
-import { ChevronsUpDown, Bot, Settings, LogOut } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { authClient } from "@/lib/auth-client";
+import { Skeleton } from "./ui/skeleton";
 
 export default function UserMenu() {
 	const navigate = useNavigate();
@@ -79,7 +79,7 @@ export default function UserMenu() {
 								<span className="truncate font-semibold">
 									{session.user.name}
 								</span>
-								<span className="truncate text-xs text-muted-foreground">
+								<span className="truncate text-muted-foreground text-xs">
 									{session.user.email}
 								</span>
 							</div>
