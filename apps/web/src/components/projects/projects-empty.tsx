@@ -4,26 +4,26 @@ import { Button } from "@/components/ui/button";
 // L-Bracket corner component for tactical UI aesthetic
 const LBracket = ({
 	position,
-	size = 14,
+	size = 16,
 	color = "#22C55E", // Green-500 - matches the green accent
 }: {
 	position: "tl" | "tr" | "bl" | "br";
 	size?: number;
 	color?: string;
 }) => {
-	// Each corner gets a custom path that hugs the outer edge
+	// Each corner gets a custom path - positioned to sit ON the border
 	const paths = {
-		tl: "M 0 10 L 0 0 L 10 0", // Top-left: from left edge, up to corner, then right
-		tr: "M 4 0 L 14 0 L 14 10", // Top-right: from top, right to corner, then down
-		bl: "M 0 4 L 0 14 L 10 14", // Bottom-left: from left, down to corner, then right
-		br: "M 4 14 L 14 14 L 14 4", // Bottom-right: from bottom, right to corner, then up
+		tl: "M 0 12 L 0 0 L 12 0", // Top-left
+		tr: "M 4 0 L 16 0 L 16 12", // Top-right
+		bl: "M 0 4 L 0 16 L 12 16", // Bottom-left
+		br: "M 4 16 L 16 16 L 16 4", // Bottom-right
 	};
 
 	const positions = {
-		tl: "top-0 left-0",
-		tr: "top-0 right-0",
-		bl: "bottom-0 left-0",
-		br: "bottom-0 right-0",
+		tl: "-top-[1px] -left-[1px]",
+		tr: "-top-[1px] -right-[1px]",
+		bl: "-bottom-[1px] -left-[1px]",
+		br: "-bottom-[1px] -right-[1px]",
 	};
 
 	return (
@@ -31,10 +31,10 @@ const LBracket = ({
 			xmlns="http://www.w3.org/2000/svg"
 			width={size}
 			height={size}
-			viewBox="0 0 14 14"
+			viewBox="0 0 16 16"
 			fill="none"
 			stroke={color}
-			strokeWidth="2.5"
+			strokeWidth="2"
 			strokeLinecap="square"
 			strokeLinejoin="miter"
 			className={`absolute ${positions[position]} pointer-events-none`}
