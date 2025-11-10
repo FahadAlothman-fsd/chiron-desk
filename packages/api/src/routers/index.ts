@@ -2,6 +2,7 @@ import { protectedProcedure, publicProcedure, router } from "../index";
 import { modelsRouter } from "./models";
 import { projectsRouter } from "./projects";
 import { settingsRouter } from "./settings";
+import { workflowRouter } from "./workflows";
 
 export const appRouter = router({
 	healthCheck: publicProcedure.query(() => {
@@ -16,5 +17,6 @@ export const appRouter = router({
 	projects: projectsRouter,
 	models: modelsRouter,
 	settings: settingsRouter,
+	workflows: workflowRouter,
 });
 export type AppRouter = typeof appRouter;

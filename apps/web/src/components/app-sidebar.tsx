@@ -2,6 +2,7 @@
 
 import { useMatchRoute } from "@tanstack/react-router";
 import { Command } from "lucide-react";
+import { BorderAccent } from "@/components/ui/border-accent";
 import {
 	Sidebar,
 	SidebarContent,
@@ -28,9 +29,13 @@ export function AppSidebar() {
 					<SidebarMenuItem>
 						<SidebarMenuButton size="lg" asChild>
 							<a href="/">
-								<div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-									<Command className="size-4" />
-								</div>
+								<BorderAccent
+									cornerLength={8}
+									cornerStroke={1}
+									className="flex aspect-square size-8 items-center justify-center"
+								>
+									<Command className="size-4 text-sidebar-primary" />
+								</BorderAccent>
 								<div className="grid flex-1 text-left text-sm leading-tight">
 									<span className="truncate font-semibold">Chiron</span>
 									<span className="truncate text-xs">AI Workflows</span>

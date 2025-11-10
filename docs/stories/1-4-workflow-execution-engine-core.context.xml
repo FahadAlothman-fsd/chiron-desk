@@ -3,7 +3,7 @@
     <epicId>1</epicId>
     <storyId>4</storyId>
     <title>Workflow Execution Engine Core</title>
-    <status>drafted</status>
+    <status>validated</status>
     <generatedAt>2025-11-09</generatedAt>
     <generator>BMAD Story Context Workflow</generator>
     <sourceStoryPath>docs/stories/1-4-workflow-execution-engine-core.md</sourceStoryPath>
@@ -16,35 +16,82 @@
     <tasks>
 ### Task 1: Workflow Loader Service (AC: #1, #2, #3, #4)
 - [ ] **Subtask 1.1:** Create `packages/api/src/services/workflow-engine/workflow-loader.ts` - Implement `loadWorkflow(workflowId: string)` function, query workflows + workflow_steps, sort by stepNumber ascending, return structured object
-- [ ] **Subtask 1.2:** Implement workflow structure validation - Check no duplicate step numbers, verify nextStepNumber references, detect cycles, throw descriptive errors
-- [ ] **Subtask 1.3:** Write unit tests for workflow loader
+- [ ] **Subtask 1.2:** Implement workflow structure validation
+  - Allow gaps in step numbers (1, 3, 5...) with warning
+  - Verify nextStepNumber references point to valid steps
+  - Detect cycles: BLOCK if no branch steps, WARN if cycle has branch (state machine pattern OK)
+  - Hybrid cycle detection: Static warning + runtime 100-step execution limit
+  - Unknown step types: Load all steps, warn during load, auto-advance using nextStepNumber at runtime
+- [ ] **Subtask 1.3:** Write unit tests for workflow loader (gap detection, cycle detection, unknown types)
 
 ### Task 2: Step Executor Framework (AC: #5, #6, #7, #8, #9)
 - [ ] **Subtask 2.1:** Define step handler interface in `packages/api/src/services/workflow-engine/step-handler.ts`
-- [ ] **Subtask 2.2:** Implement step type registry in `packages/api/src/services/workflow-engine/step-registry.ts`
-- [ ] **Subtask 2.3:** Implement step execution loop in `packages/api/src/services/workflow-engine/executor.ts`
-- [ ] **Subtask 2.4:** Write unit tests for step executor
+- [ ] **Subtask 2.2:** Create STEP_HANDLERS type map in `packages/api/src/services/workflow-engine/step-types.ts`
+  - Export const STEP_HANDLERS object with all handler classes
+  - Derive StepType union from STEP_HANDLERS keys for type safety
+  - Use in DB schema validation and step registry
+- [ ] **Subtask 2.3:** Implement step type registry in `packages/api/src/services/workflow-engine/step-registry.ts`
+  - Initialize registry from STEP_HANDLERS map at startup
+  - Centralized handler registration for type safety
+- [ ] **Subtask 2.4:** Implement step execution loop in `packages/api/src/services/workflow-engine/executor.ts`
+  - Track step execution count, enforce 100-step limit
+  - Handle unknown step types: warn, auto-advance using nextStepNumber
+  - Error handling: Check errorHandling.skipOnFailure config, halt or skip accordingly
+  - Add TODO comment for optimistic locking (Epic 6)
+- [ ] **Subtask 2.5:** Write unit tests for step executor (unknown types, error handling, execution limit)
 
 ### Task 3: Variable Resolver (AC: #10-#15)
-- [ ] **Subtask 3.1:** Implement variable resolver with Handlebars in `packages/api/src/services/workflow-engine/variable-resolver.ts`
-- [ ] **Subtask 3.2:** Define execution context type in `packages/api/src/services/workflow-engine/execution-context.ts`
-- [ ] **Subtask 3.3:** Implement precedence merging logic (Level 1 > Level 2 > Level 3 > Level 4)
-- [ ] **Subtask 3.4:** Cache Handlebars templates for performance
-- [ ] **Subtask 3.5:** Write unit tests for variable resolver
+- [ ] **Subtask 3.1:** Install deepmerge: `bun add deepmerge` and `bun add -D @types/deepmerge`
+- [ ] **Subtask 3.2:** Implement variable resolver with Handlebars in `packages/api/src/services/workflow-engine/variable-resolver.ts`
+  - Use Handlebars.compile for {{variable}} syntax
+  - Support nested access: {{user.name}}, {{array[0]}}, {{step_4.recommended_track}}
+  - Support Handlebars helpers: #each, #if, #with (built-in, no custom helpers in Story 1.4)
+- [ ] **Subtask 3.3:** Define execution context type in `packages/api/src/services/workflow-engine/execution-context.ts`
+  - Level 1: System variables (current_user_id, execution_id, date, timestamp)
+  - Level 2: Execution variables (user inputs + LLM outputs + system-executed values)
+  - Level 3: Step outputs (from executedSteps JSONB)
+  - Level 4: Default values (from step config)
+  - Minimal context: no db/llmClient (handlers import directly from @chiron/db)
+- [ ] **Subtask 3.4:** Implement precedence merging logic (Level 1 > Level 2 > Level 3 > Level 4)
+  - Merge using object spread for precedence
+  - No custom template caching in Story 1.4 (keep simple)
+- [ ] **Subtask 3.5:** Write unit tests for variable resolver (nested variables, precedence levels, missing variables)
 
 ### Task 4: State Management (AC: #16-#22)
 - [ ] **Subtask 4.1:** Implement workflow execution state creation in `packages/api/src/services/workflow-engine/state-manager.ts`
+  - Create workflow_executions record on workflow start (status: "running")
+  - Initialize empty executedSteps JSONB object
+  - Add TODO comment: "Future enhancement - Save partial input for better UX (deferred to chat steps Story 1.6+)"
 - [ ] **Subtask 4.2:** Implement step completion tracking - Update executedSteps JSONB
+  - executedSteps key: step number (execution order) e.g., "1", "2", "3"
+  - executedSteps value: { stepId (UUID reference), status, startedAt, completedAt, output }
+  - Deep merge variables using deepmerge library: deepmerge(execution.variables, result.output)
+  - Add TODO comment: "Add optimistic locking for concurrent protection (Epic 6 multi-agent)"
 - [ ] **Subtask 4.3:** Implement pause/resume functionality
+  - Pause: Set status to "paused", save currentStep
+  - Resume: Validate status, set to "running", continue from currentStep with userInput
 - [ ] **Subtask 4.4:** Implement workflow completion/failure handlers
-- [ ] **Subtask 4.5:** Write unit tests for state manager
+  - Complete: status = "completed", set completedAt timestamp
+  - Error: status = "error", populate error text field
+  - skipOnFailure logic: Mark step as failed in executedSteps, continue to nextStepNumber
+- [ ] **Subtask 4.5:** Write unit tests for state manager (deep merge, pause/resume, error handling)
 
 ### Task 5: Event System (AC: #23-#25)
 - [ ] **Subtask 5.1:** Implement event bus in `packages/api/src/services/workflow-engine/event-bus.ts`
-- [ ] **Subtask 5.2:** Emit events in executor (workflow_started, step_started, step_completed, etc.)
+  - Use Node EventEmitter for internal event bus
+  - Define WorkflowEvent type union with 7 core events
+  - Minimal event payloads: executionId, stepNumber, timestamp (no full output data)
+- [ ] **Subtask 5.2:** Emit events in executor
+  - workflow_started, step_started, step_completed, workflow_paused, workflow_resumed, workflow_completed, workflow_error
+  - No event persistence (executedSteps JSONB serves as audit trail)
 - [ ] **Subtask 5.3:** Implement tRPC SSE subscription endpoint in `workflowRouter`
+  - Use tRPC .subscription() with observable
+  - Filter events by executionId
+  - tRPC handles SSE transport automatically (no WebSocket config needed in Story 1.4)
 - [ ] **Subtask 5.4:** Frontend tRPC subscription hook
-- [ ] **Subtask 5.5:** Write unit tests for event system
+  - Use trpc.workflows.onWorkflowEvent.useSubscription
+  - On event, invalidate getExecution query to fetch full step data
+- [ ] **Subtask 5.5:** Write unit tests for event system (emit events, subscription filtering)
 
 ### Task 6: UI Components - Wizard Stepper Pattern (AC: #26-#28)
 - [ ] **Subtask 6.1:** Install framer-motion: `bun add framer-motion`
@@ -245,23 +292,38 @@
     </code>
     <dependencies>
       <node>
-        <package name="handlebars" version="^4.7.8">Template engine for variable resolution</package>
+        <package name="handlebars" version="^4.7.8">Template engine for variable resolution with {{variable}} syntax</package>
+        <package name="deepmerge" version="^4.3.1">Deep merge utility for execution variables (lightweight, battle-tested)</package>
         <package name="framer-motion" version="latest">Animation library for step transitions</package>
         <package name="@trpc/server" version="catalog:">Type-safe API routing (existing)</package>
         <package name="hono" version="catalog:">Lightweight web framework (existing)</package>
         <package name="zod" version="catalog:">Runtime validation (existing)</package>
         <package name="drizzle-orm" version="^0.44.2">Database ORM (existing)</package>
       </node>
+      <node-dev>
+        <package name="@types/deepmerge" version="^2.2.0">TypeScript definitions for deepmerge</package>
+      </node-dev>
     </dependencies>
   </artifacts>
 
   <constraints>
 - Workflow engine MUST be generic and reusable for all future workflows (not workflow-init-specific)
-- Step handlers registered in type registry enable extensibility without engine refactoring
-- JSONB executedSteps field tracks complete execution history for audit trail and resume capability
-- Variable resolution follows exact BMAD precedence rules per /bmad/core/tasks/workflow.xml
+- Step handlers registered via hybrid approach: centralized STEP_HANDLERS type map for type safety
+- JSONB executedSteps field tracks complete execution history with stepId reference for audit trail
+- Variable resolution: Handlebars with 4-level precedence (System > Execution > Step Outputs > Defaults)
+- Level 2 (Execution Variables) includes both user inputs AND LLM-generated values (decisions, artifacts)
+- Deep merge execution variables using deepmerge library (preserves nested objects)
+- Workflow loader validation: Allow step gaps (warn), block pure cycles, warn on cycles with branches
+- Unknown step types: Load all steps, auto-advance using nextStepNumber at runtime with warning
+- Error handling: Config-driven skipOnFailure boolean (no retry logic in Story 1.4)
 - State persistence after each step completion ensures recovery from crashes
-- Event-driven architecture enables real-time UI updates without polling
+- TODO: Add optimistic locking for concurrent execution protection (Epic 6 multi-agent)
+- No partial input saving in Story 1.4 (deferred to chat step implementation)
+- Event system: tRPC SSE subscriptions with minimal payloads (IDs only, frontend fetches details)
+- 7 core events: workflow_started, step_started, step_completed, workflow_paused, workflow_resumed, workflow_completed, workflow_error
+- No event persistence (executedSteps JSONB serves as audit trail)
+- Runtime limit: 100 step executions per workflow prevents infinite loops
+- Services (db, llmClient) imported directly by handlers, not passed in ExecutionContext
 - Use Bun test framework for all testing
 - Follow existing project patterns from Stories 1.1-1.3 (tRPC routers, service layer, React components)
 </constraints>
