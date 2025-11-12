@@ -952,6 +952,21 @@ WHERE id = '...';
 - Implement variable resolution
 - Add executedSteps tracking
 
+**Story 1.6: Mastra + Ax Integration with Approval Gates**
+- Install Mastra (@mastra/core, @mastra/pg, @mastra/memory, @mastra/evals) and Ax (@ax-llm/ax)
+- Configure Mastra PostgreSQL storage (mastra.* schema)
+- Implement ACE optimizer for PM Agent (online learning from rejections)
+- Add database schema: agents.instructions, ace_playbooks, mipro_training_examples
+- Build approval gate UI with side effects (update_summary, update_complexity tools)
+- Implement data collection (save approved outputs for MiPRO Phase 2)
+- **Add Anthropic API key configuration to Settings UI**
+  - Update settings router with Anthropic endpoints (getAnthropicKey, saveAnthropicKey, testAnthropicKey)
+  - Add Anthropic API key card to Settings page
+  - Add link to Anthropic API key setup guide (https://console.anthropic.com/settings/keys)
+  - List available Anthropic models in UI (claude-3-5-sonnet, claude-3-7-sonnet, claude-opus-4, etc.)
+  - Update environment variable documentation (.env.example files)
+- Testing: Test approval flow, rejection flow (ACE learning), example collection
+
 ---
 
 ## Questions for PM/Team

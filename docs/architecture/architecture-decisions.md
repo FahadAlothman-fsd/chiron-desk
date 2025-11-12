@@ -286,6 +286,290 @@ validation:
 
 ---
 
+### Decision #7: AI Agent Framework & LLM Optimization ✅ DECIDED
+
+**Choice:** Mastra + Ax
+**Date Decided:** 2025-11-12
+**Story Context:** Story 1.6 (Workflow Init Steps 3-4: Description + Complexity Analysis)
+
+**Stack Components:**
+- **Mastra (@mastra/core):** Agent orchestration, approval-gate workflows, tool calling
+- **Ax (@ax-llm/ax):** LLM optimization with ACE (Agentic Context Engineering) playbooks
+- **ai-sdk:** Used internally by Mastra (no direct integration needed)
+- **Effect:** Deferred to Epic 4+ (multi-agent concurrency needs)
+
+**Architecture:**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ CHIRON WORKFLOW ENGINE (Existing)                           │
+│ - Orchestrates workflow steps                               │
+│ - Manages state, transitions, variables                     │
+│ - Supports all step types (ask-user, execute-action, etc)  │
+└────────────────┬────────────────────────────────────────────┘
+                 │
+                 ├──> When stepType = "ask-user-chat"
+                 │
+                 ▼
+┌─────────────────────────────────────────────────────────────┐
+│ MASTRA AGENT (New)                                          │
+│ - Agent instructions from DB (agents.instructions field)    │
+│ - ACE playbooks injected at runtime                         │
+│ - Tools: MCP tools + custom side effect tools               │
+│ - Suspend/resume on approval-required responses             │
+└────────────────┬────────────────────────────────────────────┘
+                 │
+                 ├──> When tool triggers side effect
+                 │
+                 ▼
+┌─────────────────────────────────────────────────────────────┐
+│ AX GENERATOR (New)                                          │
+│ - Build signature from user-defined config                  │
+│ - Load ACE playbook from DB (ace_playbooks table)           │
+│ - Generate output (summary, complexity, custom fields)      │
+│ - Return for user approval                                  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Rationale:**
+
+1. **Mastra for Orchestration:**
+   - Native suspend/resume for approval gates (critical for Story 1.6)
+   - Agent abstractions with tool calling
+   - MCP integration for external tools (Context7, filesystem, etc.)
+   - Multi-turn conversation management
+   - Built on ai-sdk (battle-tested LLM interface)
+
+2. **Ax for Optimization:**
+   - ACE playbooks for agent knowledge that evolves
+   - Online learning from user feedback (no training data needed)
+   - Structured playbook prevents context collapse
+   - GEPA deferred to Phase 2 (when sufficient usage data exists)
+
+3. **Why Not Alternatives:**
+   - **Effect + ai-sdk:** Too much custom implementation, no approval-gate primitives
+   - **Pure ai-sdk:** No agent abstractions, manual conversation management
+   - **Mastra Workflows:** Different abstraction (code-first vs config-first), risky to reimplement
+
+**Key Design Decisions:**
+
+1. **ACE Playbooks (Agent-Level Knowledge):**
+   - Scope: Agent-wide (helps all tasks the agent performs)
+   - Storage: `ace_playbooks` table linked to `agentId`
+   - Initial scope: Global (all users contribute to shared knowledge)
+   - Future: User-specific or project-specific scopes if needed
+   - Updates: From any user feedback on any side effect
+   - **Purpose:** General patterns that apply across workflows (e.g., "When user mentions healthcare, ask about compliance")
+   - **Learning:** Online learning from rejection feedback (no training data needed upfront)
+
+2. **MiPRO Optimizations (Task-Specific - Phase 2):**
+   - Scope: Per side effect type (e.g., "summary-generation", "complexity-classification")
+   - Storage: `mipro_training_examples` table + `mipro_optimizations` table
+   - **Phase 1 (Story 1.6):** Collect approved examples only (prepare for future optimization)
+   - **Phase 2 (Story 1.7+):** Run MiPRO optimization after 50+ approved examples
+   - Purpose: Optimize specific prompts + few-shot examples for classification/generation tasks
+   - **Key Difference from ACE:** Task-specific optimization vs general agent knowledge
+
+3. **GEPA (Multi-Objective - Phase 3+):**
+   - **Deferred:** Not needed for Story 1.6 (tasks too simple)
+   - Potential use: Party mode optimization, high-volume scenarios with cost/speed trade-offs
+   - Would optimize for multiple objectives: accuracy + token efficiency + speed
+
+4. **Mastra Storage Architecture:**
+   - **PostgreSQL storage** via `@mastra/pg` with custom schema: `mastra.*`
+   - Stores: conversation threads, messages, user working memory, workflow snapshots
+   - **Separation of concerns:**
+     - Mastra tables: Agent conversations, memory, semantic recall
+     - Chiron tables: Workflow orchestration, approval state, ACE/MiPRO data
+   - **Benefits:** Automatic thread management, semantic recall (RAG over past conversations), working memory
+   - Mastra creates these tables: `mastra_threads`, `mastra_messages`, `mastra_resources`, `mastra_workflow_snapshot`, `mastra_traces`
+
+5. **Mastra Scorers (Quality Monitoring):**
+   - Built-in scorers: answer-relevancy, completeness, faithfulness, hallucination detection
+   - Run asynchronously (don't slow down responses)
+   - Stored in `mastra_scorers` table
+   - **Purpose:** Filter high-quality examples for future MiPRO training, track quality trends
+
+6. **Side Effect Signatures:**
+   - User-defined (no predetermined signatures)
+   - Built from workflow config at runtime
+   - Ax signatures constructed dynamically: `inputs → outputs`
+   - Support for `class` enums with runtime options from workflow paths
+
+7. **MCP Integration:**
+   - Connect to any MCP server (Context7, filesystem, etc.)
+   - Tools automatically available to agents via `mcp.getTools()`
+   - Mix MCP tools with custom side effect tools
+   - Per-user dynamic tool configuration supported
+
+8. **Agent Instructions:**
+   - New field: `agents.instructions` (text) in database
+   - Base system prompt loaded from DB at runtime
+   - ACE playbooks injected into instructions before agent creation
+   - Enables workflow-specific agents with evolving knowledge
+
+**Implementation:**
+
+```typescript
+// 1. Configure Mastra with PostgreSQL storage
+const mastraStorage = new PostgresStore({
+  connectionString: process.env.DATABASE_URL,
+  schemaName: "mastra" // Separate from Chiron tables
+});
+
+const mastra = new Mastra({
+  storage: mastraStorage
+});
+
+// 2. Agent with ACE playbook + Mastra memory
+const agent = new Agent({
+  name: "pm",
+  instructions: buildInstructionsWithACE(
+    agentRecord.instructions,  // From DB
+    acePlaybook                // Injected at runtime
+  ),
+  model: anthropic("claude-3-5-sonnet-20241022"),
+  tools: { updateSummary, updateComplexity },
+  memory: new Memory({
+    storage: mastraStorage,
+    options: {
+      lastMessages: 10,        // Conversation history
+      semanticRecall: { topK: 5, messageRange: 100 } // RAG over past conversations
+    }
+  }),
+  scorers: {
+    relevancy: {
+      scorer: createAnswerRelevancyScorer({ model: openai("gpt-4o-mini") }),
+      sampling: { type: "ratio", rate: 1 }
+    }
+  }
+});
+
+// 3. Generate response (Mastra handles conversation storage)
+const response = await agent.generate(userMessage, {
+  memory: {
+    resource: `user-${userId}`,      // User-scoped working memory
+    thread: `workflow-${executionId}` // This workflow's thread
+  }
+});
+
+// 4. On tool call (side effect):
+const result = await generateWithAx(sideEffectConfig, variables, workflow);
+// → Builds signature from config
+// → Loads ACE playbook if exists
+// → Generates output
+// → Returns for approval
+
+// 5. On user APPROVAL:
+await db.insert(miproTrainingExamples).values({
+  sideEffectType: "summary",
+  input: { conversation, expertise },
+  expectedOutput: approvedValue // Approved summary
+});
+// → Save for future MiPRO optimization
+
+// 6. On user REJECTION:
+await updateACEPlaybook(field, rejectedValue, feedback);
+// → Reflector analyzes: "Why was this rejected?"
+// → Curator adds new playbook bullets
+// → Saved to ace_playbooks table
+// → Agent smarter for future interactions!
+```
+
+**Package Dependencies:**
+```json
+{
+  "dependencies": {
+    "@mastra/core": "^0.1.x",        // Agent framework
+    "@mastra/pg": "latest",          // PostgreSQL storage adapter
+    "@mastra/memory": "latest",      // Memory management
+    "@mastra/evals": "latest",       // Scorers for quality monitoring
+    "@mastra/mcp": "latest",         // MCP client/server
+    "@ax-llm/ax": "latest",          // ACE + MiPRO optimizers
+    "@ai-sdk/anthropic": "^0.x.x",   // Claude (used by Mastra)
+    "@ai-sdk/openai": "^0.x.x"       // GPT (for scorers)
+  }
+}
+```
+
+**NOT Using (For Now):**
+- ❌ `ai` (ai-sdk core) - Mastra uses internally
+- ❌ `effect` - Deferred to Epic 4+ (multi-agent concurrency)
+- ❌ `@mastra/libsql` - Using PostgreSQL instead
+
+**Applies to:**
+- Story 1.6: Workflow init steps 3-4 (description + complexity with approval gates)
+- Future: All ask-user-chat steps with LLM-generated side effects
+- Future: Multi-agent orchestration (Epic 4+)
+
+**Alternatives Considered:**
+
+1. **Mastra Only (No Ax):**
+   - Pro: Simpler, one framework
+   - Con: No prompt optimization, manual prompt engineering
+   - Con: No online learning from user feedback
+
+2. **Ax + ai-sdk (No Mastra):**
+   - Pro: Full control, lightweight
+   - Con: Must build approval-gate pattern from scratch
+   - Con: No agent abstractions, manual tool orchestration
+   - Con: Risky for MVP timeline
+
+3. **Effect + ai-sdk + Ax:**
+   - Pro: Best-in-class error handling, concurrency
+   - Con: Steep learning curve (functional programming paradigm)
+   - Con: No approval-gate primitives, must implement
+   - Con: Over-engineered for Story 1.6 needs
+
+4. **Reimplementing Mastra Workflows:**
+   - Pro: Full control over workflow DSL
+   - Con: High maintenance burden (keep up with Mastra changes)
+   - Con: Lesson from "I regret it" article: avoid deep integrations
+   - Decision: Use Chiron workflow engine + Mastra agents (not Mastra workflows)
+
+**Optimizer Usage Strategy:**
+
+| Optimizer | Purpose | When to Use | Story 1.6 |
+|-----------|---------|-------------|-----------|
+| **ACE** | Agent-level general knowledge | Always! Online learning from feedback | ✅ Phase 1 |
+| **MiPRO** | Task-specific optimization (prompts + demos) | After 50+ approved examples | ⚠️ Phase 2 (collect examples in Phase 1) |
+| **GEPA** | Multi-objective trade-offs (accuracy + cost + speed) | High-volume scenarios, party mode | ❌ Phase 3+ (deferred) |
+
+**Data Collection Strategy (Story 1.6):**
+
+```typescript
+// ALWAYS save approved examples for future MiPRO training
+if (userApproved) {
+  await db.insert(miproTrainingExamples).values({
+    sideEffectType: "summary", // or "complexity"
+    input: { conversation, expertise, ...otherInputs },
+    expectedOutput: approvedValue,
+    scorerResults: scorerMetrics, // From Mastra scorers
+    createdAt: new Date()
+  });
+}
+
+// ALWAYS update ACE on rejection
+if (userRejected && feedback) {
+  await updateACEPlaybook(sideEffectType, rejectedValue, feedback);
+}
+```
+
+**Future Considerations:**
+
+- **Epic 4+ (Multi-Agent Orchestration):** Re-evaluate Effect for concurrency patterns
+- **Story 1.7+ (MiPRO Optimization):** Run MiPRO after collecting 50+ approved examples per side effect type
+- **Phase 3+ (GEPA):** Consider for party mode or high-volume scenarios with quality/speed/cost trade-offs
+- **User/Project Scoping:** Add ACE playbook scopes if global learning insufficient
+
+**References:**
+- Research: `/docs/research/spike-ax-mastra-approval-gates.md`
+- Research: `/docs/research/framework-decision-matrix.md`
+- Research: `/docs/research/mastra-deep-dive.md`
+- Research: `/docs/research/ax-deep-dive-ace-gepa.md`
+
+---
+
 ## Technology Stack Summary
 
 **Confirmed Decisions:**
@@ -300,9 +584,12 @@ validation:
 - **UI Library:** shadcn/ui + Tailwind CSS
 - **Migrations:** drizzle-kit push (MVP), migrate (production)
 - **Git Operations:** simple-git library
+- **AI Agent Framework:** Mastra + Ax (ACE playbooks)
+- **LLM Optimization:** Ax (ACE for online learning, GEPA deferred)
 
 **Deferred Decisions (To Relevant Epics):**
-- **Orchestration Framework** (Effect/Mastra): Deferred to Epic 3 (Multi-Agent Orchestration Core)
+- **Effect Framework:** Deferred to Epic 4+ (multi-agent concurrency)
+- **GEPA Optimization:** Deferred to Phase 2 (after sufficient usage data)
 - **Testing Strategy:** Deferred to Epic 1 (Vitest + Playwright sufficient for MVP)
 - **Process Management:** Deferred to Epic 3 (Bun.spawn() baseline, refine during implementation)
 - **Monorepo Configuration:** Basic Turborepo pipeline (build, dev, lint, test)
@@ -314,13 +601,12 @@ validation:
 
 ## Next Steps
 
-1. Decide on Git operations library (Decision #5)
-2. Complete remaining critical decisions (6-10)
-3. Address cross-cutting concerns (Step 5)
-4. Define project structure and boundaries (Step 6)
-5. Design novel architectural patterns (Step 7)
-6. Define implementation patterns to prevent agent conflicts (Step 8)
+1. ✅ Complete AI framework decision (Decision #7)
+2. Update sprint status with architecture approval
+3. Create Story 1.6 context file and implementation plan
+4. Schema design: Add `agents.instructions` field, `ace_playbooks` table
+5. Install dependencies: `@mastra/core`, `@mastra/mcp`, `@ax-llm/ax`
 
 ---
 
-_Last Updated: 2025-11-03_
+_Last Updated: 2025-11-12_

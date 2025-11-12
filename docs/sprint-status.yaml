@@ -45,9 +45,12 @@ development_status:
   1-5-workflow-init-steps-1-2-foundation: in-progress
   
   # SPIKE: Blocking Story 1.6
-  spike-ax-mastra-approval-gates: in-progress # BLOCKER for 1.6
+  spike-ax-mastra-approval-gates: done # Architecture approved (see ADR #7)
   
-  1-6-workflow-init-steps-4-6-analysis: blocked # Waiting on spike completion
+  # Story 1.6: Approval-gate chat with ACE + Mastra
+  # Phase 1: ACE playbooks + example collection for future MiPRO
+  # See: /docs/research/ax-optimizers-comparison-mipro-gepa-ace.md
+  1-6-workflow-init-steps-3-4-description-complexity: ready-for-story-drafting
   1-7-workflow-init-steps-7-8-naming: backlog
   1-8-workflow-init-steps-9-10-creation-and-confirmation: backlog
   epic-1-retrospective: optional
