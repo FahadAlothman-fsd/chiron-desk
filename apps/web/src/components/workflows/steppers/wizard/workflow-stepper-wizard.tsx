@@ -1,5 +1,8 @@
 import { cn } from "@/lib/utils";
-import type { WorkflowStepperBaseProps } from "../../types";
+import type {
+	WorkflowStepperBaseProps,
+	WorkflowStepDefinition,
+} from "../../types";
 
 /**
  * WorkflowStepperWizard - Horizontal progress bar for quick linear workflows
@@ -24,75 +27,78 @@ export function WorkflowStepperWizard({
 	className,
 }: WorkflowStepperWizardProps) {
 	const currentStepData = steps.find((s) => s.number === currentStep);
+	const currentStepIndex = steps.findIndex((s) => s.number === currentStep);
+
+	// Split steps: completed + current on left, upcoming on right
+	const leftSteps = steps.slice(0, currentStepIndex + 1);
+	const rightSteps = steps.slice(currentStepIndex + 1);
+
+	const renderStep = (step: WorkflowStepDefinition, showTooltip = true) => {
+		const isCompleted = step.number < currentStep;
+		const isCurrent = step.number === currentStep;
+		const isUpcoming = step.number > currentStep;
+		const isClickable = onStepClick && step.number < currentStep;
+
+		return (
+			<div
+				key={step.id}
+				className="relative group"
+				onClick={() => isClickable && onStepClick(step.number)}
+				onKeyDown={(e) => {
+					if (isClickable && (e.key === "Enter" || e.key === " ")) {
+						onStepClick(step.number);
+					}
+				}}
+				role={isClickable ? "button" : undefined}
+				tabIndex={isClickable ? 0 : undefined}
+			>
+				{/* Tooltip on hover for non-current steps */}
+				{showTooltip && !isCurrent && (
+					<div className="absolute -top-10 left-1/2 transform -translate-x-1/2 bg-popover border border-border px-2 py-1 text-xs text-popover-foreground whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+						{step.name}
+					</div>
+				)}
+
+				{/* Step Element */}
+				<div
+					className={cn(
+						"border border-muted-foreground flex items-center justify-center transition-all",
+						isCurrent &&
+							"w-8 h-8 bg-primary border-primary text-primary-foreground text-sm font-medium",
+						isCompleted &&
+							"w-4 h-8 bg-[oklch(0.75_0.08_142)] border-muted-foreground",
+						isUpcoming && "w-4 h-8 bg-muted border-muted-foreground",
+						isClickable && "cursor-pointer hover:opacity-80",
+					)}
+				>
+					{isCurrent && step.number}
+				</div>
+			</div>
+		);
+	};
 
 	return (
-		<div className={cn("w-full space-y-4", className)}>
-			{/* Progress text */}
-			<div className="text-muted-foreground text-sm">
-				Step {currentStep} of {totalSteps}
-				{currentStepData && (
-					<span className="ml-2 font-medium text-foreground">
-						{currentStepData.name}
-					</span>
-				)}
-			</div>
-
-			{/* Progress bar */}
-			<div className="flex items-center gap-2 overflow-x-auto pb-2">
-				{steps.map((step) => {
-					const isCompleted = step.number < currentStep;
-					const isCurrent = step.number === currentStep;
-					const isUpcoming = step.number > currentStep;
-					const isClickable = onStepClick && step.number < currentStep;
-
-					return (
-						<div
-							key={step.id}
-							className={cn(
-								"relative flex items-center justify-center transition-all",
-								isCurrent && "h-10 w-10",
-								!isCurrent && "h-8 w-1",
-								isClickable && "cursor-pointer hover:opacity-80",
-							)}
-							onClick={() => isClickable && onStepClick(step.number)}
-							onKeyDown={(e) => {
-								if (isClickable && (e.key === "Enter" || e.key === " ")) {
-									onStepClick(step.number);
-								}
-							}}
-							role={isClickable ? "button" : undefined}
-							tabIndex={isClickable ? 0 : undefined}
-							title={!isCurrent ? step.name : undefined}
-						>
-							{/* Completed step: green bar */}
-							{isCompleted && (
-								<div className="h-full w-full rounded-sm bg-green-500" />
-							)}
-
-							{/* Current step: numbered box with border accent */}
-							{isCurrent && (
-								<div className="relative flex h-full w-full items-center justify-center rounded-md border-2 border-green-500 bg-background">
-									<span className="font-semibold text-green-500 text-lg">
-										{step.number}
-									</span>
-								</div>
-							)}
-
-							{/* Upcoming step: grey bar */}
-							{isUpcoming && (
-								<div className="h-full w-full rounded-sm bg-muted" />
-							)}
-						</div>
-					);
-				})}
-			</div>
-
-			{/* Current step goal (optional) */}
-			{currentStepData?.goal && (
-				<div className="text-muted-foreground text-sm italic">
-					{currentStepData.goal}
+		<div className={cn("w-full", className)}>
+			{/* Stepper: Left (completed + current + name) and Right (upcoming) */}
+			<div className="flex items-center justify-between gap-4">
+				{/* Left side: Completed + Current + Step Name */}
+				<div className="flex items-center gap-3">
+					<div className="flex items-center gap-2">
+						{leftSteps.map((step) => renderStep(step))}
+					</div>
+					{/* Current step name */}
+					{currentStepData && (
+						<span className="text-foreground text-sm font-normal">
+							{currentStepData.name}
+						</span>
+					)}
 				</div>
-			)}
+
+				{/* Right side: Upcoming steps */}
+				<div className="flex items-center gap-2">
+					{rightSteps.map((step) => renderStep(step))}
+				</div>
+			</div>
 		</div>
 	);
 }

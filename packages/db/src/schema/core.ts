@@ -3,6 +3,7 @@ import {
 	index,
 	integer,
 	jsonb,
+	pgEnum,
 	pgTable,
 	text,
 	timestamp,
@@ -10,6 +11,17 @@ import {
 } from "drizzle-orm/pg-core";
 import { user } from "./auth";
 import { workflowExecutions, workflows } from "./workflows";
+
+// ============================================
+// PROJECT STATUS ENUM
+// ============================================
+
+export const projectStatusEnum = pgEnum("project_status", [
+	"initializing",
+	"active",
+	"archived",
+	"failed",
+]);
 
 // ============================================
 // NO ENUMS! All project metadata is data, not schema constraints
@@ -24,18 +36,24 @@ export const projects = pgTable(
 	"projects",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
-		name: text("name").notNull().unique(),
-		path: text("path").notNull(), // File system path to project
+		name: text("name").notNull(), // Removed .unique() - multiple projects can have same name
+		path: text("path"), // File system path to project (nullable until Step 2 completes)
+
+		// Project status tracking
+		status: projectStatusEnum("status").notNull().default("initializing"),
 
 		// User ownership (multi-user support)
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
 
+		// Workflow initializer reference (for Story 1.5+)
+		initializerWorkflowId: uuid("initializer_workflow_id").references(
+			() => workflows.id,
+		),
+
 		// Workflow path reference (replaces level/type/fieldType enums)
-		workflowPathId: uuid("workflow_path_id")
-			.notNull()
-			.references(() => workflowPaths.id),
+		workflowPathId: uuid("workflow_path_id").references(() => workflowPaths.id),
 
 		// Audit trail - which workflow-init execution created this project
 		initializedByExecutionId: uuid("initialized_by_execution_id").references(
@@ -65,6 +83,10 @@ export const projects = pgTable(
 		userIdIdx: index("idx_projects_user_id").on(table.userId),
 		workflowPathIdx: index("projects_workflow_path_idx").on(
 			table.workflowPathId,
+		),
+		statusIdx: index("idx_projects_status").on(table.status),
+		initializerWorkflowIdIdx: index("idx_projects_initializer_workflow_id").on(
+			table.initializerWorkflowId,
 		),
 	}),
 );

@@ -1,6 +1,6 @@
 import { observable } from "@trpc/server/observable";
 import { z } from "zod";
-import { publicProcedure, router } from "../index";
+import { publicProcedure, protectedProcedure, router } from "../index";
 import {
 	type WorkflowEvent,
 	workflowEventBus,
@@ -10,6 +10,8 @@ import {
 	executeWorkflow,
 } from "../services/workflow-engine/executor";
 import { stateManager } from "../services/workflow-engine/state-manager";
+import { db } from "@chiron/db";
+import { eq } from "drizzle-orm";
 
 /**
  * Workflow Router - tRPC endpoints for workflow execution
@@ -35,6 +37,22 @@ export const workflowRouter = router({
 			});
 
 			return { executionId };
+		}),
+
+	/**
+	 * Story 1.5: Continue an existing execution (for execute-action steps)
+	 * Use this instead of execute() when an execution already exists
+	 */
+	continue: publicProcedure
+		.input(
+			z.object({
+				executionId: z.string().uuid(),
+				userId: z.string().default("system"),
+			}),
+		)
+		.mutation(async ({ input }) => {
+			await continueExecution(input.executionId, input.userId);
+			return { success: true };
 		}),
 
 	/**
@@ -134,5 +152,66 @@ export const workflowRouter = router({
 					unsubscribe();
 				};
 			});
+		}),
+
+	/**
+	 * Story 1.5: Get workflow initializers
+	 * Returns workflows that can be used to initialize a new project
+	 */
+	getInitializers: protectedProcedure
+		.input(
+			z.object({
+				type: z.enum(["new-project", "existing-project"]),
+			}),
+		)
+		.query(async ({ input }) => {
+			const initializers = await db.query.workflows.findMany({
+				where: (workflows, { eq }) => eq(workflows.initializerType, input.type),
+				orderBy: (workflows, { asc }) => [asc(workflows.displayName)],
+			});
+
+			return { workflows: initializers };
+		}),
+
+	/**
+	 * Story 1.5: Get workflow by ID
+	 * Returns a single workflow by its ID
+	 */
+	getById: protectedProcedure
+		.input(
+			z.object({
+				id: z.string().uuid(),
+			}),
+		)
+		.query(async ({ input }) => {
+			const workflow = await db.query.workflows.findFirst({
+				where: (workflows, { eq }) => eq(workflows.id, input.id),
+			});
+
+			if (!workflow) {
+				throw new Error(`Workflow not found: ${input.id}`);
+			}
+
+			return workflow;
+		}),
+
+	/**
+	 * Get all steps for a workflow
+	 * Returns steps sorted by stepNumber
+	 */
+	getSteps: protectedProcedure
+		.input(
+			z.object({
+				workflowId: z.string().uuid(),
+			}),
+		)
+		.query(async ({ input }) => {
+			const steps = await db.query.workflowSteps.findMany({
+				where: (workflowSteps, { eq }) =>
+					eq(workflowSteps.workflowId, input.workflowId),
+				orderBy: (workflowSteps, { asc }) => [asc(workflowSteps.stepNumber)],
+			});
+
+			return { steps };
 		}),
 }) as ReturnType<typeof router>;

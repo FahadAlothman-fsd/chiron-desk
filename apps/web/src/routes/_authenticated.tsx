@@ -9,11 +9,23 @@ import {
 import { authClient } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/_authenticated")({
-	beforeLoad: async () => {
-		const session = await authClient.getSession();
+	beforeLoad: async ({ location }) => {
+		// Force fresh session check (no cache)
+		const session = await authClient.getSession({
+			fetchOptions: {
+				cache: "no-store",
+			},
+		});
+		console.log(
+			"[Auth Check] Session:",
+			session.data ? "exists" : "missing",
+			"for path:",
+			location.pathname,
+		);
 		if (!session.data) {
-			throw redirect({ to: "/login" });
+			throw redirect({ to: "/login", search: { redirect: location.href } });
 		}
+		return { session: session.data };
 	},
 	component: AuthenticatedLayout,
 });

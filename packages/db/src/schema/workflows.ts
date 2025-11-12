@@ -187,13 +187,26 @@ export const workflowExecutions = pgTable(
 // TYPESCRIPT TYPES FOR STEP CONFIGS
 // ============================================
 
-// AskUserStep - Captures user input
+// AskUserStep - Captures user input (UPDATED for Story 1.5)
 export type AskUserStepConfig = {
+	type: "ask-user";
+	message?: string;
 	question: string;
-	inputType: "text" | "boolean" | "select" | "number";
-	options?: string[]; // For select type
-	validation?: string; // Zod schema as string
-	storeAs: string; // Variable name in workflow_executions.variables
+	responseType: "boolean" | "string" | "number" | "choice" | "path";
+	responseVariable: string;
+	pathConfig?: {
+		startPath?: string;
+		selectMode: "file" | "directory";
+		mustExist?: boolean;
+	};
+	validation?: {
+		required?: boolean;
+		minLength?: number;
+		maxLength?: number;
+		pattern?: string;
+		min?: number;
+		max?: number;
+	};
 };
 
 // LLMGenerateStep - Generate content with LLM
@@ -219,10 +232,50 @@ export type CheckConditionStepConfig = {
 	// Routing defined in workflow_step_branches table
 };
 
-// ExecuteActionStep - Run actions
+// ExecuteActionStep - Run actions (UPDATED for Story 1.5)
 export type ExecuteActionStepConfig = {
-	description: string;
-	// Actions defined in workflow_step_actions table
+	type: "execute-action";
+	actions: Array<SetVariableAction | FileAction | GitAction | DatabaseAction>;
+	executionMode: "sequential" | "parallel";
+	requiresUserConfirmation?: boolean; // If true, step pauses for user to click Continue
+};
+
+// SetVariableAction - Set a variable value
+export type SetVariableAction = {
+	type: "set-variable";
+	config: {
+		variable: string;
+		value: unknown; // Can be literal or "{{variable_reference}}"
+	};
+};
+
+// FileAction - File system operations (future stories)
+export type FileAction = {
+	type: "file";
+	config: {
+		operation: "create" | "read" | "update" | "delete";
+		path: string;
+		content?: string;
+	};
+};
+
+// GitAction - Git operations (future stories)
+export type GitAction = {
+	type: "git";
+	config: {
+		operation: "init" | "add" | "commit" | "push" | "clone";
+		// Additional config per operation
+	};
+};
+
+// DatabaseAction - Database operations (future stories)
+export type DatabaseAction = {
+	type: "database";
+	config: {
+		operation: "insert" | "update" | "delete" | "query";
+		table: string;
+		data?: Record<string, unknown>;
+	};
 };
 
 // InvokeWorkflowStep - Call sub-workflow

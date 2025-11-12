@@ -13,10 +13,16 @@ app.use(logger());
 app.use(
 	"/*",
 	cors({
-		origin: process.env.CORS_ORIGIN || "",
-		allowMethods: ["GET", "POST", "OPTIONS"],
+		origin: [
+			process.env.CORS_ORIGIN || "http://localhost:3001",
+			"tauri://localhost",
+			"http://localhost:3002",
+			"http://localhost:3003",
+		],
+		allowMethods: ["GET", "POST", "OPTIONS", "PUT", "DELETE"],
 		allowHeaders: ["Content-Type", "Authorization"],
 		credentials: true,
+		exposeHeaders: ["Set-Cookie"],
 	}),
 );
 

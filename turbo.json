@@ -17,6 +17,11 @@
 			"cache": false,
 			"persistent": true
 		},
+		"desktop:dev": {
+			"cache": false,
+			"persistent": true,
+			"env": ["XAUTHORITY", "DISPLAY"]
+		},
 		"db:push": {
 			"cache": false,
 			"persistent": true

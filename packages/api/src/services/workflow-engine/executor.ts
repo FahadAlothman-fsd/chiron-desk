@@ -121,18 +121,39 @@ export async function continueExecution(
 	let currentStepNumber = 1;
 	const executedSteps = execution.executedSteps as Record<number, any>;
 
-	// Find last completed step
+	// Find steps that are truly completed (not waiting)
 	const completedStepNumbers = Object.keys(executedSteps)
 		.map(Number)
+		.filter((stepNum) => executedSteps[stepNum].status === "completed")
 		.sort((a, b) => b - a);
 
-	if (completedStepNumbers.length > 0) {
+	// Check if there's a waiting step
+	const waitingStepNumbers = Object.keys(executedSteps)
+		.map(Number)
+		.filter((stepNum) => executedSteps[stepNum].status === "waiting")
+		.sort((a, b) => a - b); // Oldest waiting step first
+
+	if (waitingStepNumbers.length > 0) {
+		// Resume from the waiting step (user is submitting input for it)
+		currentStepNumber = waitingStepNumbers[0];
+		console.log(
+			`[Executor] Found waiting step ${currentStepNumber}, resuming with user input`,
+		);
+	} else if (completedStepNumbers.length > 0) {
+		// No waiting steps, continue from last completed
 		const lastCompletedStep = completedStepNumbers[0];
 		const _lastStepData = executedSteps[lastCompletedStep];
 
 		// If last step has nextStepNumber, use it
 		const lastStep = steps.find((s) => s.stepNumber === lastCompletedStep);
 		currentStepNumber = lastStep?.nextStepNumber || lastCompletedStep + 1;
+		console.log(
+			`[Executor] Last completed step: ${lastCompletedStep}, continuing to step ${currentStepNumber}`,
+		);
+	} else {
+		console.log(
+			"[Executor] No completed or waiting steps, starting from step 1",
+		);
 	}
 
 	// Execute steps sequentially
@@ -175,7 +196,37 @@ export async function continueExecution(
 			const handler = stepRegistry.getHandler(currentStep.stepType);
 			const result = await handler.executeStep(currentStep, context, userInput);
 
-			// Save step completion
+			console.log(
+				`[Executor] Step ${currentStep.stepNumber} (${currentStep.stepType}) result:`,
+				{
+					requiresUserInput: result.requiresUserInput,
+					nextStepNumber: result.nextStepNumber,
+					hasOutput: Object.keys(result.output).length > 0,
+				},
+			);
+
+			// Check if step requires user input BEFORE saving
+			if (result.requiresUserInput) {
+				console.log(
+					`[Executor] Step ${currentStep.stepNumber} requires user input - pausing execution`,
+				);
+
+				// Mark step as waiting (not completed yet)
+				await updateExecutedSteps(
+					executionId,
+					currentStep.stepNumber,
+					currentStep.id,
+					{},
+					"waiting",
+				);
+
+				// Pause execution - wait for user input submission
+				await pauseExecution(executionId, currentStep.stepNumber);
+				workflowEventBus.emitWorkflowPaused(executionId);
+				return;
+			}
+
+			// Step completed without user input - save result
 			await updateExecutedSteps(
 				executionId,
 				currentStep.stepNumber,
@@ -190,13 +241,9 @@ export async function continueExecution(
 			// Emit step_completed event
 			workflowEventBus.emitStepCompleted(executionId, currentStep.stepNumber);
 
-			// Check if step requires user input
-			if (result.requiresUserInput) {
-				// Pause execution - wait for user input submission
-				await pauseExecution(executionId);
-				workflowEventBus.emitWorkflowPaused(executionId);
-				return;
-			}
+			console.log(
+				`[Executor] Step ${currentStep.stepNumber} completed - continuing to next step`,
+			);
 
 			// Determine next step
 			currentStepNumber = result.nextStepNumber ?? currentStep.nextStepNumber;
@@ -271,7 +318,7 @@ async function updateExecutedSteps(
 	stepNumber: number,
 	stepId: string,
 	output: Record<string, unknown>,
-	status: "completed" | "failed" | "skipped",
+	status: "completed" | "failed" | "skipped" | "waiting",
 	error?: string,
 ): Promise<void> {
 	// Fetch current executedSteps
@@ -292,7 +339,7 @@ async function updateExecutedSteps(
 		stepId,
 		status,
 		startedAt: executedSteps[stepNumber]?.startedAt || new Date().toISOString(),
-		completedAt: status !== "completed" ? undefined : new Date().toISOString(),
+		completedAt: status === "completed" ? new Date().toISOString() : undefined,
 		output: status === "completed" ? output : undefined,
 		error,
 	};
@@ -343,7 +390,16 @@ async function mergeExecutionVariables(
 /**
  * Pause execution
  */
-async function pauseExecution(executionId: string): Promise<void> {
+async function pauseExecution(
+	executionId: string,
+	stepNumber: number,
+): Promise<void> {
+	console.log(
+		"[Executor] pauseExecution called for:",
+		executionId,
+		"at step:",
+		stepNumber,
+	);
 	await db
 		.update(workflowExecutions)
 		.set({
@@ -352,12 +408,14 @@ async function pauseExecution(executionId: string): Promise<void> {
 			updatedAt: new Date(),
 		})
 		.where(eq(workflowExecutions.id, executionId));
+	console.log("[Executor] Execution paused successfully at step:", stepNumber);
 }
 
 /**
  * Complete execution
  */
 async function completeExecution(executionId: string): Promise<void> {
+	console.log("[Executor] completeExecution called for:", executionId);
 	await db
 		.update(workflowExecutions)
 		.set({
@@ -366,6 +424,7 @@ async function completeExecution(executionId: string): Promise<void> {
 			updatedAt: new Date(),
 		})
 		.where(eq(workflowExecutions.id, executionId));
+	console.log("[Executor] Execution completed successfully");
 }
 
 /**

@@ -1,9 +1,11 @@
 /**
  * Step Types Map - Centralized type map for compile-time type safety
- * Story 1.4: Only placeholder handlers (actual implementations in Stories 1.5-1.8)
+ * Story 1.5: Real implementations for execute-action and ask-user handlers
  */
 
 import type { StepHandler } from "./step-handler";
+import { ExecuteActionStepHandler } from "./step-handlers/execute-action-handler";
+import { AskUserStepHandler } from "./step-handlers/ask-user-handler";
 
 // Placeholder handlers for Story 1.4 (actual implementations in future stories)
 // These handlers will auto-advance using nextStepNumber
@@ -28,11 +30,11 @@ class PlaceholderStepHandler implements StepHandler {
  * Add new step types here as they are implemented
  */
 export const STEP_HANDLERS = {
-	"ask-user": new PlaceholderStepHandler("ask-user"),
+	"ask-user": new AskUserStepHandler(),
 	"llm-generate": new PlaceholderStepHandler("llm-generate"),
 	branch: new PlaceholderStepHandler("branch"),
 	"approval-checkpoint": new PlaceholderStepHandler("approval-checkpoint"),
-	"execute-action": new PlaceholderStepHandler("execute-action"),
+	"execute-action": new ExecuteActionStepHandler(),
 	"invoke-workflow": new PlaceholderStepHandler("invoke-workflow"),
 	"display-output": new PlaceholderStepHandler("display-output"),
 	"question-set": new PlaceholderStepHandler("question-set"),

@@ -19,7 +19,7 @@ describe("Workflow-Init-New Seeding", () => {
 		});
 
 		expect(workflow).toBeTruthy();
-		expect(workflow?.displayName).toBe("Initialize New Project");
+		expect(workflow?.displayName).toBe("Initialize New Project (Guided)");
 	});
 
 	test("Workflow has PM agent assigned", async () => {

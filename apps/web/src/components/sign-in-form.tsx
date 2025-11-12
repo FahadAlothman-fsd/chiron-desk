@@ -1,5 +1,6 @@
 import { useForm } from "@tanstack/react-form";
 import { useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import z from "zod";
 import { authClient } from "@/lib/auth-client";
@@ -13,9 +14,8 @@ export default function SignInForm({
 }: {
 	onSwitchToSignUp: () => void;
 }) {
-	const navigate = useNavigate({
-		from: "/",
-	});
+	const navigate = useNavigate();
+	const queryClient = useQueryClient();
 	const { isPending } = authClient.useSession();
 
 	const form = useForm({
@@ -24,23 +24,23 @@ export default function SignInForm({
 			password: "",
 		},
 		onSubmit: async ({ value }) => {
-			await authClient.signIn.email(
-				{
-					email: value.email,
-					password: value.password,
-				},
-				{
-					onSuccess: () => {
-						navigate({
-							to: "/",
-						});
-						toast.success("Sign in successful");
-					},
-					onError: (error) => {
-						toast.error(error.error.message || error.error.statusText);
-					},
-				},
-			);
+			const result = await authClient.signIn.email({
+				email: value.email,
+				password: value.password,
+			});
+
+			if (result.error) {
+				toast.error(result.error.message || "Sign in failed");
+				return;
+			}
+
+			toast.success("Sign in successful");
+
+			// Invalidate all queries to force refetch with new session
+			await queryClient.invalidateQueries();
+
+			// Navigate to home
+			navigate({ to: "/" });
 		},
 		validators: {
 			onSubmit: z.object({

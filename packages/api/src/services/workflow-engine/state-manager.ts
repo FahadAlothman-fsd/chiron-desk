@@ -1,4 +1,4 @@
-import { db, eq, workflowExecutions } from "@chiron/db";
+import { db, eq, workflowExecutions, workflowSteps } from "@chiron/db";
 import deepmerge from "deepmerge";
 
 /**
@@ -8,7 +8,7 @@ import deepmerge from "deepmerge";
 
 export interface ExecutedStepData {
 	stepId: string; // UUID reference to workflow_steps
-	status: "completed" | "failed" | "skipped";
+	status: "completed" | "failed" | "skipped" | "waiting";
 	startedAt: string;
 	completedAt?: string;
 	output?: Record<string, unknown>;
@@ -192,7 +192,7 @@ export class StateManager {
 	}
 
 	/**
-	 * Get execution state
+	 * Get execution state with current step details
 	 */
 	async getExecution(executionId: string) {
 		const [execution] = await db
@@ -201,7 +201,26 @@ export class StateManager {
 			.where(eq(workflowExecutions.id, executionId))
 			.limit(1);
 
-		return execution;
+		if (!execution) {
+			return null;
+		}
+
+		// If there's a current step, fetch its details
+		let currentStep = null;
+		if (execution.currentStepId) {
+			const [step] = await db
+				.select()
+				.from(workflowSteps)
+				.where(eq(workflowSteps.id, execution.currentStepId))
+				.limit(1);
+
+			currentStep = step || null;
+		}
+
+		return {
+			...execution,
+			currentStep,
+		};
 	}
 }
 

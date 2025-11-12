@@ -1,12 +1,10 @@
-import { FolderKanban } from "lucide-react";
+import { FolderKanban, Plus } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
 import { BorderAccent } from "@/components/ui/border-accent";
 import { Button } from "@/components/ui/button";
 
 export function ProjectsEmpty() {
-	const handleCreateProject = () => {
-		// Placeholder per AC7a - no actual project creation in Story 1.3
-		console.log("Create Project button clicked (placeholder)");
-	};
+	const navigate = useNavigate();
 
 	return (
 		<div className="flex min-h-[400px] flex-col items-center justify-center border border-dashed p-8 text-center">
@@ -20,7 +18,8 @@ export function ProjectsEmpty() {
 						Create your first project to start using Chiron's AI workflows.
 					</p>
 				</div>
-				<Button onClick={handleCreateProject} size="lg">
+				<Button onClick={() => navigate({ to: "/new-project" })} size="lg">
+					<Plus className="mr-2 h-4 w-4" />
 					Create Project
 				</Button>
 			</div>

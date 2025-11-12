@@ -109,8 +109,9 @@ describe("Workflow Engine Integration Tests", () => {
 	 * Note: Unknown step type test deferred to Story 1.5+ when custom step types can be dynamically registered
 	 * Currently all valid enum step types have placeholder handlers in Story 1.4
 	 */
-	it("should complete workflow execution even with all placeholder handlers", async () => {
-		// Create workflow using different placeholder step types
+	it("should complete workflow with auto-advancing execute-action step", async () => {
+		// Create workflow using different step types
+		// execute-action steps auto-advance unless requiresUserConfirmation=true
 		await db.insert(workflowSteps).values([
 			{
 				workflowId: testWorkflowId,
@@ -133,12 +134,17 @@ describe("Workflow Engine Integration Tests", () => {
 				stepNumber: 3,
 				goal: "Action step",
 				stepType: "execute-action",
-				config: {},
+				config: {
+					type: "execute-action",
+					actions: [],
+					executionMode: "sequential",
+					requiresUserConfirmation: false, // Auto-advance
+				},
 				nextStepNumber: null,
 			},
 		]);
 
-		// Execute workflow - all placeholders should auto-advance
+		// Execute workflow - should complete automatically
 		const executionId = await executeWorkflow({
 			workflowId: testWorkflowId,
 			userId: testUserId,
@@ -149,7 +155,7 @@ describe("Workflow Engine Integration Tests", () => {
 		expect(execution).toBeDefined();
 		expect(execution?.status).toBe("completed");
 
-		// All steps should be completed (placeholder handlers auto-advance)
+		// All 3 steps completed
 		const executedSteps = execution?.executedSteps as Record<number, any>;
 		expect(executedSteps[1].status).toBe("completed");
 		expect(executedSteps[2].status).toBe("completed");
