@@ -42,8 +42,12 @@ development_status:
   1-2-core-data-seeding: done
   1-3-web-ui-foundation-and-llm-models-page: done
   1-4-workflow-execution-engine-core: done
-  1-5-workflow-init-steps-1-2-foundation: drafted
-  1-6-workflow-init-steps-4-6-analysis: backlog
+  1-5-workflow-init-steps-1-2-foundation: in-progress
+  
+  # SPIKE: Blocking Story 1.6
+  spike-ax-mastra-approval-gates: in-progress # BLOCKER for 1.6
+  
+  1-6-workflow-init-steps-4-6-analysis: blocked # Waiting on spike completion
   1-7-workflow-init-steps-7-8-naming: backlog
   1-8-workflow-init-steps-9-10-creation-and-confirmation: backlog
   epic-1-retrospective: optional

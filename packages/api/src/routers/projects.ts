@@ -1,16 +1,32 @@
 import { promises as fs } from "node:fs";
-import { db, projects } from "@chiron/db";
+import { db, projects, workflowExecutions, workflows } from "@chiron/db";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { publicProcedure, router } from "../index";
+import { publicProcedure, protectedProcedure, router } from "../index";
+import { eq } from "drizzle-orm";
+import { executeWorkflow } from "../services/workflow-engine/executor";
 
 // Zod schemas for input validation
 const createProjectSchema = z.object({
-	name: z.string().min(1, "Project name is required"),
-	path: z.string().min(1, "Project path is required"),
-	level: z.enum(["0", "1", "2", "3", "4"]),
-	type: z.enum(["software", "game"]),
-	fieldType: z.enum(["greenfield", "brownfield"]),
+	name: z
+		.string()
+		.min(1, "Project name is required")
+		.default("Untitled Project"),
+	path: z.string().min(1, "Project path is required").optional(),
+	level: z.enum(["0", "1", "2", "3", "4"]).optional(),
+	type: z.enum(["software", "game"]).optional(),
+	fieldType: z.enum(["greenfield", "brownfield"]).optional(),
+});
+
+// Story 1.5: New schema for project creation (minimal, immediate creation)
+const createProjectMinimalSchema = z.object({
+	name: z.string().optional().default("Untitled Project"),
+	initializerWorkflowId: z.string().uuid("Invalid workflow ID format"),
+});
+
+const setInitializerSchema = z.object({
+	projectId: z.string().uuid("Invalid project ID format"),
+	initializerWorkflowId: z.string().uuid("Invalid workflow ID format"),
 });
 
 const getProjectSchema = z.object({
@@ -257,6 +273,158 @@ export const projectsRouter = router({
 				throw new TRPCError({
 					code: "INTERNAL_SERVER_ERROR",
 					message: "Failed to delete project",
+				});
+			}
+		}),
+
+	// Story 1.5: Create project with minimal info (immediate creation)
+	createMinimal: protectedProcedure
+		.input(createProjectMinimalSchema)
+		.mutation(async ({ input, ctx }) => {
+			try {
+				// Verify the workflow exists and is an initializer
+				const workflow = await db.query.workflows.findFirst({
+					where: (workflows, { eq }) =>
+						eq(workflows.id, input.initializerWorkflowId),
+				});
+
+				if (!workflow) {
+					throw new TRPCError({
+						code: "BAD_REQUEST",
+						message: "Workflow not found",
+					});
+				}
+
+				if (!workflow.initializerType) {
+					throw new TRPCError({
+						code: "BAD_REQUEST",
+						message: "Workflow is not an initializer workflow",
+					});
+				}
+
+				// Create project with initializer already set
+				const [newProject] = await db
+					.insert(projects)
+					.values({
+						name: input.name,
+						userId: ctx.session.user.id,
+						status: "initializing",
+						path: null, // Will be set in Step 2
+						initializerWorkflowId: input.initializerWorkflowId,
+						workflowPathId: null, // Will be set in Step 9
+					})
+					.returning();
+
+				// Create and START workflow execution (CRITICAL FIX: Bug #5)
+				// executeWorkflow creates the execution AND sets current_step_id to Step 1
+				const executionId = await executeWorkflow({
+					workflowId: input.initializerWorkflowId,
+					userId: ctx.session.user.id,
+					projectId: newProject.id,
+				});
+
+				// Update project with execution ID (CRITICAL FIX: Bug #3)
+				await db
+					.update(projects)
+					.set({ initializedByExecutionId: executionId })
+					.where(eq(projects.id, newProject.id));
+
+				return {
+					project: { ...newProject, initializedByExecutionId: executionId },
+					executionId: executionId,
+				};
+			} catch (error) {
+				console.error("Error creating project:", error);
+				throw new TRPCError({
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to create project",
+				});
+			}
+		}),
+
+	// Story 1.5: Set workflow initializer for project
+	setInitializer: protectedProcedure
+		.input(setInitializerSchema)
+		.mutation(async ({ input, ctx }) => {
+			try {
+				// Check if project exists and belongs to user
+				const project = await db.query.projects.findFirst({
+					where: (projects, { eq, and }) =>
+						and(
+							eq(projects.id, input.projectId),
+							eq(projects.userId, ctx.session.user.id),
+						),
+				});
+
+				if (!project) {
+					throw new TRPCError({
+						code: "NOT_FOUND",
+						message: "Project not found or unauthorized",
+					});
+				}
+
+				// Check if workflow exists and is an initializer
+				const workflow = await db.query.workflows.findFirst({
+					where: (workflows, { eq }) =>
+						eq(workflows.id, input.initializerWorkflowId),
+				});
+
+				if (!workflow || !workflow.initializerType) {
+					throw new TRPCError({
+						code: "BAD_REQUEST",
+						message: "Invalid initializer workflow",
+					});
+				}
+
+				// Get first step of workflow
+				const [firstStep] = await db.query.workflowSteps.findMany({
+					where: (workflowSteps, { eq }) =>
+						eq(workflowSteps.workflowId, input.initializerWorkflowId),
+					orderBy: (workflowSteps, { asc }) => [asc(workflowSteps.stepNumber)],
+					limit: 1,
+				});
+
+				if (!firstStep) {
+					throw new TRPCError({
+						code: "BAD_REQUEST",
+						message: "Workflow has no steps",
+					});
+				}
+
+				// Create workflow execution with first step set
+				const [execution] = await db
+					.insert(workflowExecutions)
+					.values({
+						projectId: input.projectId,
+						workflowId: input.initializerWorkflowId,
+						status: "idle",
+						currentStepId: firstStep.id,
+						variables: {},
+					})
+					.returning();
+
+				// Update project with initializer workflow AND execution ID
+				const [updatedProject] = await db
+					.update(projects)
+					.set({
+						initializerWorkflowId: input.initializerWorkflowId,
+						initializedByExecutionId: execution.id,
+					})
+					.where(eq(projects.id, input.projectId))
+					.returning();
+
+				return {
+					project: updatedProject,
+					execution,
+				};
+			} catch (error) {
+				if (error instanceof TRPCError) {
+					throw error;
+				}
+				console.error("Error setting initializer:", error);
+				throw new TRPCError({
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to set initializer workflow",
 				});
 			}
 		}),
