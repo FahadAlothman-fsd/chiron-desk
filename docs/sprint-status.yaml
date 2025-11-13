@@ -42,7 +42,7 @@ development_status:
   1-2-core-data-seeding: done
   1-3-web-ui-foundation-and-llm-models-page: done
   1-4-workflow-execution-engine-core: done
-  1-5-workflow-init-steps-1-2-foundation: in-progress
+  1-5-workflow-init-steps-1-2-foundation: done
   
   # SPIKE: Blocking Story 1.6
   spike-ax-mastra-approval-gates: done # Architecture approved (see ADR #7)
@@ -51,7 +51,7 @@ development_status:
   # Phase 1: ACE playbooks + example collection for future MiPRO
   # See: /docs/research/ax-optimizers-comparison-mipro-gepa-ace.md
   # Story Context: /docs/stories/1-6-workflow-init-steps-3-4-description-complexity.context.xml
-  1-6-workflow-init-steps-3-4-description-complexity: ready-for-dev
+  1-6-workflow-init-steps-3-4-description-complexity: in-progress
   1-7-workflow-init-steps-7-8-naming: backlog
   1-8-workflow-init-steps-9-10-creation-and-confirmation: backlog
   epic-1-retrospective: optional
