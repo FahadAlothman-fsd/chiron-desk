@@ -50,7 +50,8 @@ development_status:
   # Story 1.6: Approval-gate chat with ACE + Mastra
   # Phase 1: ACE playbooks + example collection for future MiPRO
   # See: /docs/research/ax-optimizers-comparison-mipro-gepa-ace.md
-  1-6-workflow-init-steps-3-4-description-complexity: ready-for-story-drafting
+  # Story Context: /docs/stories/1-6-workflow-init-steps-3-4-description-complexity.context.xml
+  1-6-workflow-init-steps-3-4-description-complexity: ready-for-dev
   1-7-workflow-init-steps-7-8-naming: backlog
   1-8-workflow-init-steps-9-10-creation-and-confirmation: backlog
   epic-1-retrospective: optional
