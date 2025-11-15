@@ -8,6 +8,7 @@ export interface ExecutionContext {
 	systemVariables: {
 		current_user_id: string;
 		execution_id: string;
+		project_id: string | null;
 		date: string;
 		timestamp: string;
 	};
@@ -29,6 +30,7 @@ export interface ExecutionContext {
 export function buildExecutionContext(params: {
 	executionId: string;
 	userId: string;
+	projectId?: string | null;
 	variables: Record<string, unknown>;
 	executedSteps: Record<
 		number,
@@ -51,6 +53,7 @@ export function buildExecutionContext(params: {
 		systemVariables: {
 			current_user_id: params.userId,
 			execution_id: params.executionId,
+			project_id: params.projectId || null,
 			date: new Date().toISOString().split("T")[0], // YYYY-MM-DD
 			timestamp: new Date().toISOString(),
 		},

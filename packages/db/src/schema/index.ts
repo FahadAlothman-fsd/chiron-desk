@@ -1,6 +1,8 @@
 // Export all schemas from a single index
 // This allows: import * as schema from './schema'
 
+// ACE playbooks and MiPRO training examples
+export * from "./ace";
 // Agent definitions
 export * from "./agents";
 // Generated artifacts tracking

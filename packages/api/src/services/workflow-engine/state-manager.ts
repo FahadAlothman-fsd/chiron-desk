@@ -132,7 +132,7 @@ export class StateManager {
 	 * Resume paused workflow
 	 */
 	async resumeExecution(executionId: string): Promise<void> {
-		// Validate status is "paused"
+		// Validate status is "paused" or "active" (for chat steps that are already active)
 		const [execution] = await db
 			.select()
 			.from(workflowExecutions)
@@ -143,19 +143,23 @@ export class StateManager {
 			throw new Error(`Execution not found: ${executionId}`);
 		}
 
-		if (execution.status !== "paused") {
+		// Allow resuming if paused OR if already active (chat steps can receive messages while active)
+		if (execution.status !== "paused" && execution.status !== "active") {
 			throw new Error(
-				`Cannot resume execution with status: ${execution.status}. Expected "paused".`,
+				`Cannot resume execution with status: ${execution.status}. Expected "paused" or "active".`,
 			);
 		}
 
-		await db
-			.update(workflowExecutions)
-			.set({
-				status: "active",
-				updatedAt: new Date(),
-			})
-			.where(eq(workflowExecutions.id, executionId));
+		// Only update status if currently paused
+		if (execution.status === "paused") {
+			await db
+				.update(workflowExecutions)
+				.set({
+					status: "active",
+					updatedAt: new Date(),
+				})
+				.where(eq(workflowExecutions.id, executionId));
+		}
 	}
 
 	/**

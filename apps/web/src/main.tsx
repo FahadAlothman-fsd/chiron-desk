@@ -1,9 +1,10 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
+import { httpBatchLink } from "@trpc/client";
 import ReactDOM from "react-dom/client";
 import Loader from "./components/loader";
 import { routeTree } from "./routeTree.gen";
-import { queryClient, trpc } from "./utils/trpc";
+import { queryClient, trpc, trpcClient } from "./utils/trpc";
 
 const router = createRouter({
 	routeTree,
@@ -12,7 +13,11 @@ const router = createRouter({
 	context: { trpc, queryClient },
 	Wrap: function WrapComponent({ children }: { children: React.ReactNode }) {
 		return (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+			<trpc.Provider client={trpcClient} queryClient={queryClient}>
+				<QueryClientProvider client={queryClient}>
+					{children}
+				</QueryClientProvider>
+			</trpc.Provider>
 		);
 	},
 });

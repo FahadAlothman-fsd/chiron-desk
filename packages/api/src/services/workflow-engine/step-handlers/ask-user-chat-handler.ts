@@ -1,0 +1,757 @@
+import type { AskUserChatStepConfig, WorkflowStep } from "@chiron/db";
+import type { ExecutionContext } from "../execution-context";
+import type { StepHandler, StepResult } from "../step-handler";
+import { RuntimeContext } from "@mastra/core/runtime-context";
+import {
+	getMastraInstance,
+	createThread,
+	getThread,
+	getThreadMessages,
+} from "../../mastra/mastra-service";
+import { db, agents } from "@chiron/db";
+import { eq } from "drizzle-orm";
+import { buildAxGenerationTool } from "../tools/ax-generation-tool";
+import { buildDatabaseQueryTool } from "../tools/database-query-tool";
+import { stateManager } from "../state-manager";
+
+/**
+ * AskUserChatStepHandler - Conversational chat interface with AI agent
+ *
+ * Architecture: Uses registered Mastra agents with dynamic configuration
+ *
+ * This handler uses agents registered with Mastra at startup. Agent configuration
+ * (instructions, model, tools) is loaded dynamically via RuntimeContext on each call,
+ * allowing for real-time updates without server restarts.
+ *
+ * Features:
+ * - Registered agents with dynamic configuration via RuntimeContext
+ * - Automatic conversation history loading by Mastra
+ * - ACE playbook injection based on scope (global/user/project)
+ * - User-specific API key loading per request
+ * - Thread management for conversation persistence
+ * - Completion condition checking
+ *
+ * @see docs/architecture/dynamic-agent-registration.md
+ * @see docs/architecture/STORY-1-6-ARCHITECTURE-SUMMARY.md
+ */
+export class AskUserChatStepHandler implements StepHandler {
+	// Cache agent names to avoid redundant DB queries
+	private agentNameCache = new Map<string, string>();
+
+	constructor() {
+		// No longer need ACE optimizer - handled in agent-loader
+	}
+
+	/**
+	 * Get agent name from agentId (with caching)
+	 * This is needed because Mastra uses agent names for lookup
+	 */
+	private async getAgentName(agentId: string): Promise<string> {
+		// Check cache first
+		if (this.agentNameCache.has(agentId)) {
+			return this.agentNameCache.get(agentId)!;
+		}
+
+		// Query database
+		const [agentRecord] = await db
+			.select({ name: agents.name })
+			.from(agents)
+			.where(eq(agents.id, agentId))
+			.limit(1);
+
+		if (!agentRecord) {
+			throw new Error(`Agent not found: ${agentId}`);
+		}
+
+		// Cache for future calls
+		this.agentNameCache.set(agentId, agentRecord.name);
+		return agentRecord.name;
+	}
+
+	/**
+	 * Build tools for agent with precedence: step > workflow > agent
+	 *
+	 * Tool Precedence:
+	 * 1. Step config tools (highest priority - most specific)
+	 * 2. Workflow config tools (medium priority - workflow-wide)
+	 * 3. Agent config tools (lowest priority - agent defaults)
+	 *
+	 * Tools with same name: step overrides workflow, workflow overrides agent
+	 */
+	private async buildToolsForAgent(
+		config: AskUserChatStepConfig,
+		context: ExecutionContext,
+		agentId: string,
+	): Promise<Record<string, any>> {
+		const allTools: Record<string, any> = {};
+
+		// 1. Load agent tools (lowest priority)
+		// TODO: Implement when agents.tools JSONB is populated
+		// const agentTools = await loadAgentTools(config.agentId);
+		// Object.assign(allTools, agentTools);
+
+		// 2. Load workflow tools (medium priority)
+		// TODO: Implement when workflow.tools is defined
+		// const workflowTools = await loadWorkflowTools(context.workflowId);
+		// Object.assign(allTools, workflowTools);
+
+		// 3. Build step tools (highest priority)
+		if (config.tools && config.tools.length > 0) {
+			console.log(
+				`[AskUserChatHandler] Building ${config.tools.length} step tools...`,
+			);
+
+			for (const toolConfig of config.tools) {
+				console.log(
+					`[AskUserChatHandler] Building tool: ${toolConfig.name} (${toolConfig.toolType})`,
+				);
+
+				try {
+					let baseTool: any;
+
+					switch (toolConfig.toolType) {
+						case "ax-generation":
+							baseTool = await buildAxGenerationTool(
+								toolConfig,
+								context,
+								agentId,
+							);
+							break;
+
+						case "database-query":
+							baseTool = await buildDatabaseQueryTool(toolConfig, context);
+							break;
+
+						case "custom":
+							// Custom tools deprecated - use ax-generation or database-query instead
+							// All Story 1.6 tools are either ax-generation or database-query
+							console.warn(
+								`[AskUserChatHandler] Custom tool type deprecated. Use ax-generation instead: ${toolConfig.name}`,
+							);
+							continue;
+
+						default:
+							console.warn(
+								`[AskUserChatHandler] Unknown tool type: ${toolConfig.toolType}`,
+							);
+							continue;
+					}
+
+					if (baseTool) {
+						// Wrap tool with prerequisite validation
+						const wrappedTool = this.wrapToolWithPrerequisites(
+							baseTool,
+							toolConfig,
+							context,
+						);
+
+						allTools[toolConfig.name] = wrappedTool;
+						console.log(
+							`[AskUserChatHandler] ✓ Built tool: ${toolConfig.name}`,
+						);
+					}
+				} catch (error) {
+					console.error(
+						`[AskUserChatHandler] Failed to build tool ${toolConfig.name}:`,
+						error,
+					);
+					// Continue building other tools even if one fails
+				}
+			}
+		}
+
+		console.log(
+			`[AskUserChatHandler] Total tools registered: ${Object.keys(allTools).length}`,
+		);
+		return allTools;
+	}
+
+	/**
+	 * Wrap tool with prerequisite validation
+	 *
+	 * This ensures sequential tool execution:
+	 * - update_summary can run immediately
+	 * - update_complexity requires project_description
+	 * - fetch_workflow_paths requires complexity_classification
+	 * - etc.
+	 *
+	 * NOTE: We preserve the original tool object to maintain Mastra's internal
+	 * properties (type, schema, etc.) and only wrap the execute function.
+	 */
+	private wrapToolWithPrerequisites(
+		baseTool: any,
+		toolConfig: any,
+		context: ExecutionContext,
+	): any {
+		const requiredVariables = toolConfig.requiredVariables || [];
+
+		// If no prerequisites, return tool as-is
+		if (requiredVariables.length === 0) {
+			return baseTool;
+		}
+
+		// Store original execute function
+		const originalExecute = baseTool.execute.bind(baseTool);
+
+		// Override execute with prerequisite checking wrapper
+		baseTool.execute = async (input: unknown) => {
+			// Check prerequisites
+			const missing = requiredVariables.filter((varName: string) => {
+				// Check in execution variables AND approval states
+				const hasInVars = varName in context.executionVariables;
+				const approvalStates =
+					(context.executionVariables.approval_states as Record<string, any>) ||
+					{};
+
+				// Check if variable exists in any approved tool output
+				const hasInApprovals = Object.values(approvalStates).some(
+					(state: any) => state.value && varName in state.value,
+				);
+
+				return !hasInVars && !hasInApprovals;
+			});
+
+			if (missing.length > 0) {
+				const errorMsg = `Tool "${toolConfig.name}" cannot execute yet. Missing required variables: ${missing.join(", ")}. Please complete previous steps first.`;
+				console.warn(`[AskUserChatHandler] ${errorMsg}`);
+
+				throw new Error(errorMsg);
+			}
+
+			// Prerequisites met, execute tool
+			console.log(
+				`[AskUserChatHandler] Executing tool: ${toolConfig.name} (prerequisites satisfied)`,
+			);
+			return await originalExecute(input);
+		};
+
+		return baseTool;
+	}
+
+	/**
+	 * Update the last assistant message with tool_calls metadata
+	 * This allows the UI to display which tools were called by the agent
+	 */
+	private async updateLastAssistantMessageMetadata(
+		threadId: string,
+		agentId: string,
+		toolCalls: Array<{ name: string }>,
+	): Promise<void> {
+		try {
+			const mastra = await getMastraInstance();
+			const storage = mastra.getStorage();
+
+			if (!storage) {
+				console.warn(
+					"[AskUserChatHandler] Storage not available for metadata update",
+				);
+				return;
+			}
+
+			// Get all messages in thread
+			const messages = await getThreadMessages(threadId);
+
+			// Find the last assistant message
+			const assistantMessages = messages.filter((m) => m.role === "assistant");
+			if (assistantMessages.length === 0) {
+				console.warn(
+					"[AskUserChatHandler] No assistant messages found to update",
+				);
+				return;
+			}
+
+			const lastAssistantMessage =
+				assistantMessages[assistantMessages.length - 1];
+
+			// Get agent info for metadata
+			const [agentRecord] = await db
+				.select({ name: agents.name, icon: agents.icon })
+				.from(agents)
+				.where(eq(agents.id, agentId))
+				.limit(1);
+
+			// Update message metadata with tool calls and agent info
+			const updatedMetadata = {
+				...(lastAssistantMessage.metadata || {}),
+				agent_id: agentId,
+				agent_name: agentRecord?.name || "Assistant",
+				agent_icon: agentRecord?.icon || "🤖",
+				tool_calls: toolCalls,
+			};
+
+			// Update message in storage
+			await storage.saveMessages({
+				messages: [
+					{
+						...lastAssistantMessage,
+						metadata: updatedMetadata,
+					},
+				],
+			});
+
+			console.log(
+				`[AskUserChatHandler] Updated message metadata with ${toolCalls.length} tool calls`,
+			);
+		} catch (error) {
+			console.error(
+				"[AskUserChatHandler] Error updating message metadata:",
+				error,
+			);
+			// Don't throw - metadata update is non-critical
+		}
+	}
+
+	async executeStep(
+		step: WorkflowStep,
+		context: ExecutionContext,
+		userInput?: unknown,
+	): Promise<StepResult> {
+		const config = step.config as AskUserChatStepConfig;
+
+		console.log(
+			"[AskUserChatHandler] executeStep called",
+			"userInput:",
+			userInput,
+		);
+
+		// Initialize or load Mastra agent and thread
+		const agentContext = await this.initializeAgent(config, context);
+
+		// Save thread ID to execution variables if new thread created
+		const output: Record<string, unknown> = {};
+		if (agentContext.needsSave) {
+			output.mastra_thread_id = agentContext.threadId;
+		}
+
+		// Check if step is already complete (tools approved while paused)
+		// This allows auto-completion after approval mutations without requiring more user input
+		const isComplete = await this.checkCompletionCondition(config, context);
+
+		if (isComplete) {
+			console.log(
+				"[AskUserChatHandler] Step complete - all required tools approved",
+			);
+			// Extract output variables
+			const outputs = this.extractOutputVariables(config, context);
+			return {
+				output: {
+					...outputs,
+					...output, // Include thread ID if it was just created
+					mastra_thread_id: agentContext.threadId, // Always include thread ID
+				},
+				nextStepNumber: step.nextStepNumber ?? null,
+				requiresUserInput: false,
+			};
+		}
+
+		// If no user input, show initial message and wait
+		if (!userInput) {
+			console.log(
+				"[AskUserChatHandler] No user input - awaiting first message",
+			);
+			return {
+				output: {
+					...output,
+					agent_context: {
+						threadId: agentContext.threadId,
+					},
+					initial_message: config.initialMessage,
+				},
+				nextStepNumber: step.nextStepNumber ?? null,
+				requiresUserInput: true,
+			};
+		}
+
+		// If user input provided, process it through agent
+		console.log("[AskUserChatHandler] Processing user message:", userInput);
+
+		// Get agent name from database (one-time query per step execution)
+		// Agent configuration (instructions, model, tools) is loaded dynamically via RuntimeContext
+		const agentName = await this.getAgentName(config.agentId);
+
+		// Get registered agent from Mastra
+		const mastra = await getMastraInstance();
+		const agent = mastra.getAgent(agentName);
+
+		if (!agent) {
+			throw new Error(`Agent not registered with Mastra: ${agentName}`);
+		}
+
+		// Build tools with precedence: step > workflow > agent
+		const tools = await this.buildToolsForAgent(
+			config,
+			context,
+			config.agentId,
+		);
+
+		// Create RuntimeContext with required data for dynamic loading
+		const runtimeContext = new RuntimeContext();
+		runtimeContext.set("userId", context.systemVariables.current_user_id);
+		runtimeContext.set("projectId", context.variables?.project_id);
+		runtimeContext.set("variables", context.variables || {});
+		runtimeContext.set("executionId", context.executionId); // For tool access to execution
+
+		const threadId = agentContext.threadId;
+		const userId = context.systemVariables.current_user_id as string;
+
+		// Call agent with RuntimeContext - Mastra handles conversation history automatically
+		console.log(
+			"[AskUserChatHandler] Calling registered agent with RuntimeContext...",
+		);
+		console.log(
+			`[AskUserChatHandler] Registered ${Object.keys(tools).length} tools:`,
+			Object.keys(tools),
+		);
+
+		// Use the SAME resourceId that was used to create the thread
+		const resourceId = `user-${userId}`;
+		console.log(
+			`[AskUserChatHandler] Using threadId: ${threadId}, resourceId: ${resourceId}`,
+		);
+
+		// Mastra expects toolsets as Record<string, Record<string, Tool>>
+		// Wrap our tools in a toolset object
+		const toolsets = Object.keys(tools).length > 0 ? { stepTools: tools } : {};
+
+		const result = await agent.generate(String(userInput), {
+			memory: {
+				thread: threadId,
+				resource: resourceId,
+			},
+			toolsets, // Pass step-specific tools wrapped in toolset
+			runtimeContext, // Triggers dynamic loading of instructions, model
+			maxSteps: 5,
+		});
+
+		console.log("[AskUserChatHandler] Agent response received:", result.text);
+
+		// DEBUG: Log the entire result structure to understand what we're getting
+		console.log("[AskUserChatHandler] Result keys:", Object.keys(result));
+		console.log(
+			"[AskUserChatHandler] toolCalls count:",
+			result.toolCalls?.length || 0,
+		);
+		console.log(
+			"[AskUserChatHandler] toolResults count:",
+			result.toolResults?.length || 0,
+		);
+		console.log(
+			"[AskUserChatHandler] uiMessages count:",
+			result.uiMessages?.length || 0,
+		);
+		if (result.toolResults && result.toolResults.length > 0) {
+			console.log(
+				"[AskUserChatHandler] toolResults structure:",
+				JSON.stringify(result.toolResults, null, 2),
+			);
+		}
+		if (result.uiMessages && result.uiMessages.length > 0) {
+			console.log(
+				"[AskUserChatHandler] First uiMessage structure:",
+				JSON.stringify(result.uiMessages[0], null, 2),
+			);
+		}
+
+		// Add tool_calls metadata to assistant message
+		if (result.toolCalls && result.toolCalls.length > 0) {
+			await this.updateLastAssistantMessageMetadata(
+				threadId,
+				config.agentId,
+				result.toolCalls.map((tc) => ({ name: tc.toolName })),
+			);
+		}
+
+		// Process tool results for approval gates
+		// Tool results are in result.toolResults[].payload.result
+		const approvalStates =
+			(context.executionVariables.approval_states as Record<string, any>) || {};
+
+		let toolsProcessed = 0;
+		if (result.toolResults && result.toolResults.length > 0) {
+			for (const toolResultItem of result.toolResults) {
+				// Extract tool name and result from the payload
+				const toolName = toolResultItem.payload?.toolName;
+				const toolResult = toolResultItem.payload?.result;
+
+				if (!toolName || !toolResult) {
+					console.log("[AskUserChatHandler] Skipping invalid tool result item");
+					continue;
+				}
+
+				toolsProcessed++;
+
+				console.log(
+					`[AskUserChatHandler] Processed tool ${toolName} result:`,
+					toolResult,
+				);
+
+				// Check if tool requires approval
+				if (
+					toolResult &&
+					typeof toolResult === "object" &&
+					"type" in toolResult &&
+					toolResult.type === "approval_required"
+				) {
+					console.log(
+						`[AskUserChatHandler] Tool ${toolName} requires approval`,
+					);
+
+					// Save to approval states
+					approvalStates[toolName] = {
+						status: "pending",
+						value: toolResult.generated_value || toolResult.value || {},
+						reasoning: toolResult.reasoning,
+						rejection_history:
+							approvalStates[toolName]?.rejection_history || [],
+						createdAt: new Date().toISOString(),
+					};
+				}
+			}
+		}
+
+		if (toolsProcessed > 0) {
+			console.log(
+				`[AskUserChatHandler] Processed ${toolsProcessed} tool results`,
+			);
+			console.log(
+				`[AskUserChatHandler] About to save approval states for executionId: ${context.systemVariables.execution_id}`,
+			);
+			console.log(
+				`[AskUserChatHandler] Approval states to save:`,
+				JSON.stringify(approvalStates, null, 2),
+			);
+
+			try {
+				// Save updated approval states to execution variables
+				await stateManager.mergeExecutionVariables(
+					context.systemVariables.execution_id,
+					{
+						approval_states: approvalStates,
+					},
+				);
+
+				console.log(
+					`[AskUserChatHandler] ✓ Successfully updated approval states`,
+				);
+			} catch (error) {
+				console.error(
+					`[AskUserChatHandler] ✗ Error saving approval states:`,
+					error,
+				);
+				throw error;
+			}
+		}
+
+		// Mastra automatically saves messages when agent is registered
+		// No manual saving needed!
+
+		// Check if step is complete after agent processing
+		const isCompleteAfterAgent = await this.checkCompletionCondition(
+			config,
+			context,
+		);
+
+		if (isCompleteAfterAgent) {
+			// Extract output variables
+			const outputs = this.extractOutputVariables(config, context);
+			return {
+				output: {
+					...outputs,
+					...output, // Include thread ID if it was just created
+					mastra_thread_id: agentContext.threadId, // Always include thread ID
+				},
+				nextStepNumber: step.nextStepNumber ?? null,
+				requiresUserInput: false,
+			};
+		}
+
+		// Step not complete, wait for more user input
+		return {
+			output: {
+				...output, // Include thread ID if it was just created
+				mastra_thread_id: agentContext.threadId, // Always include thread ID for message retrieval
+			},
+			nextStepNumber: step.nextStepNumber ?? null,
+			requiresUserInput: true,
+		};
+	}
+
+	/**
+	 * Initialize or load Mastra thread for conversation
+	 *
+	 * With dynamic agent registration, we no longer create agents here.
+	 * We only manage the Mastra thread for conversation persistence.
+	 *
+	 * @param config - Step configuration
+	 * @param context - Execution context
+	 * @returns Thread ID and needsSave flag
+	 */
+	private async initializeAgent(
+		config: AskUserChatStepConfig,
+		context: ExecutionContext,
+	): Promise<{
+		threadId: string;
+		needsSave: boolean;
+	}> {
+		// Get or create Mastra thread
+		let threadId = context.executionVariables.mastra_thread_id as
+			| string
+			| undefined;
+		let needsSave = false;
+
+		if (!threadId) {
+			const thread = await createThread(
+				`user-${context.systemVariables.current_user_id}`,
+			);
+			threadId = thread.id;
+			needsSave = true; // Need to save thread ID to execution variables
+			console.log("[AskUserChatHandler] Created new thread:", threadId);
+		} else {
+			// Verify thread exists
+			const thread = await getThread(threadId);
+			if (!thread) {
+				// Thread not found, create new one
+				const newThread = await createThread(
+					`user-${context.systemVariables.current_user_id}`,
+				);
+				threadId = newThread.id;
+				needsSave = true;
+				console.log(
+					"[AskUserChatHandler] Thread not found, created new:",
+					threadId,
+				);
+			}
+		}
+
+		return {
+			threadId,
+			needsSave,
+		};
+	}
+
+	/**
+	 * Check completion condition for chat step
+	 *
+	 * Supported conditions:
+	 * - all-tools-approved: All required tools have been approved
+	 * - user-satisfied: User explicitly marks as complete (future)
+	 * - max-turns: Maximum conversation turns reached (future)
+	 * - confidence-threshold: AI confidence threshold (future)
+	 */
+	private async checkCompletionCondition(
+		config: AskUserChatStepConfig,
+		context: ExecutionContext,
+	): Promise<boolean> {
+		const condition = config.completionCondition;
+
+		switch (condition.type) {
+			case "all-tools-approved": {
+				const requiredTools = condition.requiredTools || [];
+
+				// If no tools required, never complete automatically
+				// (This prevents empty requiredTools from causing immediate completion)
+				if (requiredTools.length === 0) {
+					return false;
+				}
+
+				const approvalStates = (context.executionVariables.approval_states ||
+					{}) as Record<
+					string,
+					{ status: "pending" | "approved" | "rejected" }
+				>;
+
+				// Check if all required tools have been approved
+				return requiredTools.every((toolName) => {
+					const state = approvalStates[toolName];
+					return state && state.status === "approved";
+				});
+			}
+
+			case "user-satisfied":
+			case "max-turns":
+			case "confidence-threshold":
+				// TODO: Implement these conditions in future iterations
+				console.warn(
+					`[AskUserChatHandler] Completion condition "${condition.type}" not yet implemented`,
+				);
+				return false;
+
+			default:
+				throw new Error(
+					`Unknown completion condition type: ${(condition as any).type}`,
+				);
+		}
+	}
+
+	/**
+	 * Extract output variables from approval states
+	 *
+	 * Maps output variable names to their values from approval_states
+	 * Example: { project_description: "approval_states.update_summary.value" }
+	 */
+	private extractOutputVariables(
+		config: AskUserChatStepConfig,
+		context: ExecutionContext,
+	): Record<string, unknown> {
+		if (!config.outputVariables) {
+			return {};
+		}
+
+		const outputs: Record<string, unknown> = {};
+		const approvalStates = (context.executionVariables.approval_states ||
+			{}) as Record<string, { value: unknown }>;
+
+		for (const [outputName, path] of Object.entries(config.outputVariables)) {
+			// Parse path like "approval_states.update_summary.value" or "approval_states.update_summary.value.summary"
+			if (typeof path !== "string") {
+				console.warn(
+					`[AskUserChatHandler] Invalid output variable path type: ${typeof path}`,
+				);
+				continue;
+			}
+
+			const pathParts = path.split(".");
+			if (pathParts.length >= 3 && pathParts[0] === "approval_states") {
+				const toolName = pathParts[1];
+				if (!toolName) {
+					console.warn(
+						`[AskUserChatHandler] Missing tool name in path: ${path}`,
+					);
+					continue;
+				}
+
+				const state = approvalStates[toolName];
+				if (!state) {
+					console.warn(
+						`[AskUserChatHandler] Tool state not found: ${toolName}`,
+					);
+					continue;
+				}
+
+				// Navigate the rest of the path starting from the tool state
+				// e.g., "value.summary" or just "value"
+				const remainingPath = pathParts.slice(2);
+				let value: any = state;
+
+				for (const part of remainingPath) {
+					if (value && typeof value === "object" && part in value) {
+						value = value[part];
+					} else {
+						value = undefined;
+						break;
+					}
+				}
+
+				if (value !== undefined) {
+					outputs[outputName] = value;
+				}
+			} else {
+				console.warn(
+					`[AskUserChatHandler] Unsupported output variable path: ${path}`,
+				);
+			}
+		}
+
+		return outputs;
+	}
+}

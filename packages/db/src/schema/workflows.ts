@@ -11,6 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { agents } from "./agents";
 import { projects } from "./core";
+import type { StepConfig } from "./step-configs";
 
 // ============================================
 // ENUMS
@@ -25,6 +26,7 @@ export const workflowPatternEnum = pgEnum("workflow_pattern", [
 
 export const stepTypeEnum = pgEnum("step_type", [
 	"ask-user",
+	"ask-user-chat", // Story 1.6 - Conversational chat with AI agent
 	"llm-generate",
 	"branch", // Renamed from "check-condition" for clarity (N-way branching)
 	"approval-checkpoint",
@@ -120,6 +122,7 @@ export const workflowSteps = pgTable(
 // Runtime workflow execution state (pause/resume)
 // ============================================
 
+// @ts-ignore - Circular reference with workflowSteps is intentional for foreign key
 export const workflowExecutions = pgTable(
 	"workflow_executions",
 	{
@@ -188,135 +191,8 @@ export const workflowExecutions = pgTable(
 // ============================================
 
 // AskUserStep - Captures user input (UPDATED for Story 1.5)
-export type AskUserStepConfig = {
-	type: "ask-user";
-	message?: string;
-	question: string;
-	responseType: "boolean" | "string" | "number" | "choice" | "path";
-	responseVariable: string;
-	pathConfig?: {
-		startPath?: string;
-		selectMode: "file" | "directory";
-		mustExist?: boolean;
-	};
-	validation?: {
-		required?: boolean;
-		minLength?: number;
-		maxLength?: number;
-		pattern?: string;
-		min?: number;
-		max?: number;
-	};
-};
+// NOTE: Step config types are now defined in step-configs.ts using Zod schemas
+// Import them from there instead of duplicating here
 
-// LLMGenerateStep - Generate content with LLM
-export type LLMGenerateStepConfig = {
-	promptTemplate: string; // Can use {{variable}} interpolation
-	outputSchema: string; // Zod schema as JSON string
-	streaming: boolean;
-	temperature?: number;
-	storeAs: string; // Variable name
-};
-
-// CheckConditionStep - Evaluate condition and route
-export type CheckConditionStepConfig = {
-	conditionType: "boolean" | "select" | "abstract";
-	evaluateVariable: string; // Variable name from workflow_executions.variables
-
-	// For ABSTRACT only (LLM evaluates)
-	abstractCondition?: {
-		llmPrompt: string;
-		evaluationSchema: string; // Zod schema (usually z.boolean())
-	};
-
-	// Routing defined in workflow_step_branches table
-};
-
-// ExecuteActionStep - Run actions (UPDATED for Story 1.5)
-export type ExecuteActionStepConfig = {
-	type: "execute-action";
-	actions: Array<SetVariableAction | FileAction | GitAction | DatabaseAction>;
-	executionMode: "sequential" | "parallel";
-	requiresUserConfirmation?: boolean; // If true, step pauses for user to click Continue
-};
-
-// SetVariableAction - Set a variable value
-export type SetVariableAction = {
-	type: "set-variable";
-	config: {
-		variable: string;
-		value: unknown; // Can be literal or "{{variable_reference}}"
-	};
-};
-
-// FileAction - File system operations (future stories)
-export type FileAction = {
-	type: "file";
-	config: {
-		operation: "create" | "read" | "update" | "delete";
-		path: string;
-		content?: string;
-	};
-};
-
-// GitAction - Git operations (future stories)
-export type GitAction = {
-	type: "git";
-	config: {
-		operation: "init" | "add" | "commit" | "push" | "clone";
-		// Additional config per operation
-	};
-};
-
-// DatabaseAction - Database operations (future stories)
-export type DatabaseAction = {
-	type: "database";
-	config: {
-		operation: "insert" | "update" | "delete" | "query";
-		table: string;
-		data?: Record<string, unknown>;
-	};
-};
-
-// InvokeWorkflowStep - Call sub-workflow
-export type InvokeWorkflowStepConfig = {
-	invokedWorkflowName: string;
-	inputParams: Record<string, unknown>; // Can use {{variable}} interpolation
-	outputMapping: Record<string, string>; // Map sub-workflow outputs to variables
-};
-
-// DisplayOutputStep - Show message to user
-export type DisplayOutputStepConfig = {
-	outputTemplate: string; // Can use {{variable}} interpolation
-	outputType: "info" | "success" | "warning" | "error";
-};
-
-// LoadContextStep - Load context into workflow
-export type LoadContextStepConfig = {
-	contextSource: "inline" | "database" | "variable";
-
-	// For inline (context defined in workflow config)
-	contextContent?: string;
-
-	// For database (query for artifact content)
-	databaseQuery?: {
-		table: string;
-		where: Record<string, unknown>;
-		selectField: string;
-	};
-
-	// For variable (copy from existing variable)
-	sourceVariable?: string;
-
-	storeAs: string; // Variable name
-};
-
-// Union type for all step configs
-export type StepConfig =
-	| AskUserStepConfig
-	| LLMGenerateStepConfig
-	| CheckConditionStepConfig
-	| ExecuteActionStepConfig
-	| InvokeWorkflowStepConfig
-	| DisplayOutputStepConfig
-	| LoadContextStepConfig;
+// Inferred type for workflow step records from database
+export type WorkflowStep = typeof workflowSteps.$inferSelect;

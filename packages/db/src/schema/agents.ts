@@ -28,6 +28,9 @@ export const agents = pgTable("agents", {
 	llmModel: text("llm_model").notNull(),
 	llmTemperature: text("llm_temperature"), // Stored as text for precision
 
+	// Agent instructions (system prompt)
+	instructions: text("instructions"), // Multi-line agent instructions, ACE playbook injected at runtime
+
 	// Agent capabilities
 	tools: jsonb("tools").$type<AgentTool[]>(),
 	mcpServers: jsonb("mcp_servers").$type<string[]>(),

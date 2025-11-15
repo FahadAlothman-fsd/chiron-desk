@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { trpc, trpcClient } from "@/utils/trpc";
+import { AnthropicApiKeySection } from "./anthropic-api-key-section";
 
 type Status = "valid" | "invalid" | "not-configured" | "testing";
 
@@ -19,15 +20,13 @@ export function ApiKeysCard() {
 	const queryClient = useQueryClient();
 
 	// Get existing API key
-	const { data: keyData, isLoading } = useQuery(
-		trpc.settings.getApiKey.queryOptions(),
-	);
+	const { data: keyData, isLoading } = trpc.settings.getApiKey.useQuery();
 
 	// Mutations
 	const saveKeyMutation = useMutation({
 		mutationFn: (key: string) => trpcClient.settings.saveApiKey.mutate({ key }),
 		onSuccess: () => {
-			queryClient.invalidateQueries(trpc.settings.getApiKey.queryOptions());
+			queryClient.invalidateQueries({ queryKey: [["settings", "getApiKey"]] });
 			setStatus("valid");
 			setIsEditing(false);
 			setShowKey(false);
@@ -42,7 +41,7 @@ export function ApiKeysCard() {
 		mutationFn: (key: string) =>
 			trpcClient.settings.updateApiKey.mutate({ key }),
 		onSuccess: () => {
-			queryClient.invalidateQueries(trpc.settings.getApiKey.queryOptions());
+			queryClient.invalidateQueries({ queryKey: [["settings", "getApiKey"]] });
 			setStatus("valid");
 			setIsEditing(false);
 			setShowKey(false);
@@ -56,7 +55,7 @@ export function ApiKeysCard() {
 	const removeKeyMutation = useMutation({
 		mutationFn: () => trpcClient.settings.removeApiKey.mutate(),
 		onSuccess: () => {
-			queryClient.invalidateQueries(trpc.settings.getApiKey.queryOptions());
+			queryClient.invalidateQueries({ queryKey: [["settings", "getApiKey"]] });
 			setApiKey("");
 			setStatus("not-configured");
 			setIsEditing(false);
@@ -261,6 +260,11 @@ export function ApiKeysCard() {
 								)}
 							</div>
 						</div>
+					</div>
+
+					{/* Anthropic API Key Section */}
+					<div className="border-t pt-4">
+						<AnthropicApiKeySection />
 					</div>
 				</div>
 

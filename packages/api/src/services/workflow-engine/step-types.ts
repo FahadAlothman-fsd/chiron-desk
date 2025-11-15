@@ -6,6 +6,7 @@
 import type { StepHandler } from "./step-handler";
 import { ExecuteActionStepHandler } from "./step-handlers/execute-action-handler";
 import { AskUserStepHandler } from "./step-handlers/ask-user-handler";
+import { AskUserChatStepHandler } from "./step-handlers/ask-user-chat-handler";
 
 // Placeholder handlers for Story 1.4 (actual implementations in future stories)
 // These handlers will auto-advance using nextStepNumber
@@ -31,6 +32,7 @@ class PlaceholderStepHandler implements StepHandler {
  */
 export const STEP_HANDLERS = {
 	"ask-user": new AskUserStepHandler(),
+	"ask-user-chat": new AskUserChatStepHandler(),
 	"llm-generate": new PlaceholderStepHandler("llm-generate"),
 	branch: new PlaceholderStepHandler("branch"),
 	"approval-checkpoint": new PlaceholderStepHandler("approval-checkpoint"),

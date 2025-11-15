@@ -52,6 +52,9 @@ temp
 # Symlinked files
 components.json
 
+# Shadcn accidentally created directory (should use apps/web/src/components)
+@/
+
 # Database migrations (MVP development only - using drizzle-kit push instead)
 packages/db/src/migrations/*.sql
 packages/db/src/migrations/meta/*_snapshot.json

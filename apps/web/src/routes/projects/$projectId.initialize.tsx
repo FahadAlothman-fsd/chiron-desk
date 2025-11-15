@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { WorkflowStepperWizard } from "@/components/workflows/steppers/wizard/workflow-stepper-wizard";
 import { AskUserStep } from "@/components/workflows/steps/ask-user-step";
+import { AskUserChatStepNew as AskUserChatStep } from "@/components/workflows/steps/ask-user-chat-step-new";
 import { ExecuteActionStep } from "@/components/workflows/steps/execute-action-step";
 import type { WorkflowStepDefinition } from "@/components/workflows/types";
 import { trpcClient } from "@/utils/trpc";
@@ -125,7 +126,6 @@ function InitializePage() {
 		) {
 			continueWorkflow.mutate({
 				executionId: execution.id,
-				userId: "system", // TODO: Get from auth context
 			});
 		}
 	}, [project, executionsData, workflowData, continueWorkflow.isPending]);
@@ -173,7 +173,7 @@ function InitializePage() {
 
 	return (
 		<div className="flex min-h-screen items-center justify-center p-6">
-			<div className="w-full max-w-2xl space-y-8">
+			<div className="w-full max-w-7xl space-y-8">
 				{/* Workflow Stepper */}
 				<WorkflowStepperWizard
 					currentStep={displayStepNumber}
@@ -231,7 +231,6 @@ function InitializePage() {
 									? () => {
 											continueWorkflow.mutate({
 												executionId: execution.id,
-												userId: "system",
 											});
 										}
 									: undefined
@@ -241,7 +240,6 @@ function InitializePage() {
 									? () => {
 											submitStep.mutate({
 												executionId: execution.id,
-												userId: "system",
 												userInput: {},
 											});
 										}
@@ -265,12 +263,23 @@ function InitializePage() {
 							onSubmit={(value) => {
 								submitStep.mutate({
 									executionId: execution.id,
-									userId: "system",
 									userInput: value,
 								});
 							}}
 						/>
 					)}
+
+					{displayStepData?.stepType === "ask-user-chat" &&
+						!isViewingHistory && (
+							<AskUserChatStep
+								executionId={execution.id}
+								stepConfig={displayStepData.config as any}
+								onComplete={() => {
+									// Refresh execution to get next step
+									refetchExecution();
+								}}
+							/>
+						)}
 
 					{displayStepData?.stepType === "ask-user" &&
 						isViewingCompletedStep && (

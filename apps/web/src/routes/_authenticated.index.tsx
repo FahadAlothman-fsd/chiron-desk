@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { ProjectsEmpty } from "@/components/projects/projects-empty";
 import { ProjectsList } from "@/components/projects/projects-list";
@@ -9,7 +8,7 @@ export const Route = createFileRoute("/_authenticated/")({
 });
 
 function HomeComponent() {
-	const projectsQuery = useQuery(trpc.projects.list.queryOptions());
+	const projectsQuery = trpc.projects.list.useQuery();
 
 	if (projectsQuery.isLoading) {
 		return (

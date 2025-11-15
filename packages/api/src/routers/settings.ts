@@ -141,4 +141,113 @@ export const settingsRouter = router({
 				return { valid: false };
 			}
 		}),
+
+	/**
+	 * Get Anthropic API key configuration
+	 */
+	getAnthropicApiKey: protectedProcedure.query(async ({ ctx }) => {
+		const userId = ctx.session.user.id;
+
+		const config = await db.query.appConfig.findFirst({
+			where: (appConfig, { eq }) => eq(appConfig.userId, userId),
+		});
+
+		if (!config || !config.anthropicApiKey) {
+			return {
+				key: null,
+				maskedKey: null,
+				enabled: false,
+			};
+		}
+
+		try {
+			const decryptedKey = decrypt(config.anthropicApiKey);
+			return {
+				key: decryptedKey,
+				maskedKey: maskApiKey(decryptedKey),
+				enabled: true,
+			};
+		} catch {
+			return {
+				key: null,
+				maskedKey: null,
+				enabled: false,
+			};
+		}
+	}),
+
+	/**
+	 * Save Anthropic API key
+	 */
+	saveAnthropicApiKey: protectedProcedure
+		.input(
+			z.object({
+				key: z.string().min(1, "API key cannot be empty"),
+			}),
+		)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const encryptedKey = encrypt(input.key);
+
+			const existingConfig = await db.query.appConfig.findFirst({
+				where: (appConfig, { eq }) => eq(appConfig.userId, userId),
+			});
+
+			if (existingConfig) {
+				await db
+					.update(appConfig)
+					.set({
+						anthropicApiKey: encryptedKey,
+						updatedAt: new Date(),
+					})
+					.where(eq(appConfig.userId, ctx.session.user.id));
+			} else {
+				await db.insert(appConfig).values({
+					userId,
+					anthropicApiKey: encryptedKey,
+				});
+			}
+
+			return { success: true };
+		}),
+
+	/**
+	 * Remove Anthropic API key
+	 */
+	removeAnthropicApiKey: protectedProcedure.mutation(async ({ ctx }) => {
+		const userId = ctx.session.user.id;
+
+		await db
+			.update(appConfig)
+			.set({
+				anthropicApiKey: null,
+				updatedAt: new Date(),
+			})
+			.where(eq(appConfig.userId, userId));
+
+		return { success: true };
+	}),
+
+	/**
+	 * Test Anthropic API key validity
+	 */
+	testAnthropicApiKey: protectedProcedure
+		.input(
+			z.object({
+				key: z.string().min(1),
+			}),
+		)
+		.mutation(async ({ input }) => {
+			const provider = getProvider("anthropic");
+			if (!provider) {
+				throw new Error("Anthropic provider not found");
+			}
+
+			try {
+				const isValid = await provider.testApiKey(input.key);
+				return { valid: isValid };
+			} catch {
+				return { valid: false };
+			}
+		}),
 });

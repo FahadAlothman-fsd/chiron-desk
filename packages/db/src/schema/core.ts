@@ -55,7 +55,8 @@ export const projects = pgTable(
 		// Workflow path reference (replaces level/type/fieldType enums)
 		workflowPathId: uuid("workflow_path_id").references(() => workflowPaths.id),
 
-		// Audit trail - which workflow-init execution created this project
+		// Initialized by execution ID (intentional circular reference)
+		// @ts-ignore - Circular reference is intentional for audit trail
 		initializedByExecutionId: uuid("initialized_by_execution_id").references(
 			() => workflowExecutions.id,
 		),

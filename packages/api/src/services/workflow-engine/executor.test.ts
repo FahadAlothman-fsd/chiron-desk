@@ -7,7 +7,13 @@ import {
 	workflowSteps,
 	workflows,
 } from "@chiron/db";
-import { executeWorkflow } from "./executor";
+import os from "node:os";
+import path from "node:path";
+import {
+	continueExecution,
+	executeWorkflow,
+	WorkflowExecutionError,
+} from "./executor";
 import { stepRegistry } from "./step-registry";
 
 describe("Workflow Executor", () => {
@@ -248,5 +254,230 @@ describe("Workflow Executor", () => {
 		expect(registeredTypes).toContain("execute-action");
 		expect(registeredTypes).toContain("display-output");
 		expect(registeredTypes).toHaveLength(8); // All step types from step-types.ts
+	});
+
+	describe("Error Handling", () => {
+		it("should not auto-advance when ask-user step validation fails", async () => {
+			// Create workflow with ask-user step (path validation)
+			await db.insert(workflowSteps).values({
+				workflowId: testWorkflowId,
+				stepNumber: 1,
+				goal: "Get project path",
+				stepType: "ask-user",
+				config: {
+					type: "ask-user",
+					question: "Select project directory",
+					responseType: "path",
+					responseVariable: "project_path",
+					pathConfig: {
+						selectMode: "directory",
+						mustExist: false,
+					},
+				},
+				nextStepNumber: null,
+			});
+
+			// Start workflow
+			const executionId = await executeWorkflow({
+				workflowId: testWorkflowId,
+				userId: testUserId,
+			});
+
+			// Attempt to submit invalid path (directory traversal)
+			const invalidPath = "/some/path/../../../etc/passwd";
+
+			try {
+				await continueExecution(executionId, testUserId, invalidPath);
+				throw new Error("Expected validation error");
+			} catch (error: any) {
+				expect(error.message).toContain("Directory traversal not allowed");
+			}
+
+			// Verify workflow remained paused (didn't auto-advance)
+			const [execution] = await db
+				.select()
+				.from(workflowExecutions)
+				.where(eq(workflowExecutions.id, executionId))
+				.limit(1);
+
+			expect(execution.status).toBe("paused");
+			const executedSteps = execution.executedSteps as Record<number, any>;
+			expect(executedSteps[1].status).toBe("waiting");
+		});
+
+		it("should mark execution as failed when step execution fails without skipOnFailure", async () => {
+			// Create workflow with execute-action step that will fail (invalid action type)
+			await db.insert(workflowSteps).values({
+				workflowId: testWorkflowId,
+				stepNumber: 1,
+				goal: "Execute failing action",
+				stepType: "execute-action",
+				config: {
+					type: "execute-action",
+					actions: [
+						{
+							type: "invalid-action-type", // This will cause handler to throw error
+							config: {},
+						},
+					],
+					executionMode: "sequential",
+				},
+				nextStepNumber: null,
+			});
+
+			try {
+				await executeWorkflow({
+					workflowId: testWorkflowId,
+					userId: testUserId,
+				});
+				throw new Error("Expected execution to fail");
+			} catch (error: any) {
+				expect(error).toBeInstanceOf(WorkflowExecutionError);
+				expect(error.stepNumber).toBe(1);
+			}
+
+			// Verify execution marked as failed
+			const [execution] = await db
+				.select()
+				.from(workflowExecutions)
+				.where(eq(workflowExecutions.workflowId, testWorkflowId))
+				.limit(1);
+
+			expect(execution.status).toBe("failed");
+			expect(execution.error).toBeDefined();
+		});
+
+		it("should support retry by calling continueExecution with corrected input", async () => {
+			// Create workflow with ask-user step
+			await db.insert(workflowSteps).values({
+				workflowId: testWorkflowId,
+				stepNumber: 1,
+				goal: "Get project path",
+				stepType: "ask-user",
+				config: {
+					type: "ask-user",
+					question: "Select project directory",
+					responseType: "path",
+					responseVariable: "project_path",
+					pathConfig: {
+						selectMode: "directory",
+						mustExist: false,
+					},
+				},
+				nextStepNumber: null,
+			});
+
+			// Start workflow
+			const executionId = await executeWorkflow({
+				workflowId: testWorkflowId,
+				userId: testUserId,
+			});
+
+			// First attempt with invalid path
+			const invalidPath = "../invalid";
+			try {
+				await continueExecution(executionId, testUserId, invalidPath);
+			} catch (error: any) {
+				expect(error.message).toContain("must be absolute");
+			}
+
+			// Retry with valid path
+			const validPath = path.join(os.tmpdir(), "valid-project");
+			await continueExecution(executionId, testUserId, validPath);
+
+			// Verify workflow completed with valid input
+			const [execution] = await db
+				.select()
+				.from(workflowExecutions)
+				.where(eq(workflowExecutions.id, executionId))
+				.limit(1);
+
+			expect(execution.status).toBe("completed");
+			expect((execution.variables as any).project_path).toBe(validPath);
+		});
+
+		it("should include step number in error when step execution fails", async () => {
+			// Create workflow with failing step
+			await db.insert(workflowSteps).values({
+				workflowId: testWorkflowId,
+				stepNumber: 3,
+				goal: "Failing step",
+				stepType: "execute-action",
+				config: {
+					type: "execute-action",
+					actions: [
+						{
+							type: "invalid-action-type", // Invalid action type will cause error
+							config: {},
+						},
+					],
+					executionMode: "sequential",
+				},
+				nextStepNumber: null,
+			});
+
+			try {
+				await executeWorkflow({
+					workflowId: testWorkflowId,
+					userId: testUserId,
+				});
+			} catch (error: any) {
+				expect(error).toBeInstanceOf(WorkflowExecutionError);
+				expect(error.executionId).toBeDefined();
+				expect(error.stepNumber).toBe(3);
+				expect(error.message).toBeDefined();
+			}
+		});
+
+		it("should handle validation errors with clear error messages", async () => {
+			// Create workflow with ask-user step
+			await db.insert(workflowSteps).values({
+				workflowId: testWorkflowId,
+				stepNumber: 1,
+				goal: "Get project path",
+				stepType: "ask-user",
+				config: {
+					type: "ask-user",
+					question: "Select project directory",
+					responseType: "path",
+					responseVariable: "project_path",
+					pathConfig: {
+						selectMode: "directory",
+						mustExist: false,
+					},
+				},
+				nextStepNumber: null,
+			});
+
+			const executionId = await executeWorkflow({
+				workflowId: testWorkflowId,
+				userId: testUserId,
+			});
+
+			// Test various validation error scenarios
+			const testCases = [
+				{
+					input: "/some/path/../../../etc/passwd",
+					expectedError: "Directory traversal not allowed",
+				},
+				{
+					input: "/nonexistent/parent/project",
+					expectedError: "Parent directory does not exist",
+				},
+				{
+					input: "relative/path",
+					expectedError: "must be absolute",
+				},
+			];
+
+			for (const testCase of testCases) {
+				try {
+					await continueExecution(executionId, testUserId, testCase.input);
+					throw new Error(`Expected error for input: ${testCase.input}`);
+				} catch (error: any) {
+					expect(error.message).toContain(testCase.expectedError);
+				}
+			}
+		});
 	});
 });

@@ -183,6 +183,7 @@ export async function continueExecution(
 		const context = buildExecutionContext({
 			executionId,
 			userId,
+			projectId: execution.projectId,
 			variables: execution.variables as Record<string, unknown>,
 			executedSteps: execution.executedSteps as any,
 			defaultValues: {},
@@ -211,14 +212,17 @@ export async function continueExecution(
 					`[Executor] Step ${currentStep.stepNumber} requires user input - pausing execution`,
 				);
 
-				// Mark step as waiting (not completed yet)
+				// Mark step as waiting (not completed yet) - SAVE OUTPUT (e.g., thread IDs)
 				await updateExecutedSteps(
 					executionId,
 					currentStep.stepNumber,
 					currentStep.id,
-					{},
+					result.output, // Save output even when waiting for user input
 					"waiting",
 				);
+
+				// Merge output into execution variables (e.g., mastra_thread_id)
+				await mergeExecutionVariables(executionId, result.output);
 
 				// Pause execution - wait for user input submission
 				await pauseExecution(executionId, currentStep.stepNumber);
@@ -340,7 +344,7 @@ async function updateExecutedSteps(
 		status,
 		startedAt: executedSteps[stepNumber]?.startedAt || new Date().toISOString(),
 		completedAt: status === "completed" ? new Date().toISOString() : undefined,
-		output: status === "completed" ? output : undefined,
+		output: status === "completed" || status === "waiting" ? output : undefined, // Save output for waiting steps too
 		error,
 	};
 

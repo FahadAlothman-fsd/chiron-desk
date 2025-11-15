@@ -49,27 +49,121 @@ export const askUserStepConfigSchema = z.object({
 });
 
 /**
- * AskUserChatStepConfig - Interactive chat dialog with LLM
+ * AskUserChatStepConfig - Interactive chat dialog with LLM and dynamic tools
  *
  * @example
  * {
- *   systemPrompt: "You are a helpful brainstorming assistant",
+ *   agentId: "pm-agent-uuid",
  *   initialMessage: "Let's brainstorm ideas for your project!",
- *   outputVariable: "brainstorm_results",
+ *   tools: [
+ *     {
+ *       name: "update_summary",
+ *       toolType: "ax-generation",
+ *       requiredVariables: ["conversation_history"],
+ *       requiresApproval: true,
+ *       axSignature: {
+ *         input: [
+ *           { name: "conversation_history", type: "string", source: "context", description: "Chat history" },
+ *           { name: "ace_context", type: "string", source: "playbook", description: "Learned patterns" }
+ *         ],
+ *         output: [
+ *           { name: "project_description", type: "string", description: "Generated summary" },
+ *           { name: "reasoning", type: "string", description: "Why this summary", internal: true }
+ *         ],
+ *         strategy: "ChainOfThought"
+ *       }
+ *     },
+ *     {
+ *       name: "fetch_workflow_paths",
+ *       toolType: "database-query",
+ *       requiredVariables: ["complexity_classification"],
+ *       databaseQuery: {
+ *         table: "workflow_paths",
+ *         filters: [
+ *           { field: "tags->>'fieldType'", operator: "eq", value: "{{detected_field_type}}" },
+ *           { field: "tags->>'complexity'", operator: "eq", value: "{{complexity_classification}}" }
+ *         ]
+ *       }
+ *     }
+ *   ],
  *   completionCondition: {
- *     type: "user-satisfied"
+ *     type: "all-tools-approved",
+ *     requiredTools: ["update_summary", "update_complexity", "select_workflow_path", "generate_project_name"]
+ *   },
+ *   outputVariables: {
+ *     project_description: "approval_states.update_summary.value",
+ *     complexity_classification: "approval_states.update_complexity.value",
+ *     selected_workflow_path_id: "approval_states.select_workflow_path.value",
+ *     project_name: "approval_states.generate_project_name.value"
  *   }
  * }
  */
 export const askUserChatStepConfigSchema = z.object({
-	systemPrompt: z.string(),
-	initialMessage: z.string(),
-	outputVariable: z.string(),
+	agentId: z.string().uuid(),
+	initialMessage: z.string().optional(),
+	tools: z
+		.array(
+			z.object({
+				name: z.string(),
+				toolType: z.enum(["ax-generation", "database-query", "custom"]),
+				requiredVariables: z.array(z.string()).optional(),
+				requiresApproval: z.boolean().optional(),
+				// Ax-generation specific config
+				axSignature: z
+					.object({
+						input: z.array(
+							z.object({
+								name: z.string(),
+								type: z.string(),
+								source: z.enum(["variable", "context", "literal", "playbook"]),
+								variableName: z.string().optional(), // For source: "variable"
+								defaultValue: z.unknown().optional(), // For source: "literal"
+								description: z.string(),
+								internal: z.boolean().optional(), // If true, hidden from approval UI
+							}),
+						),
+						output: z.array(
+							z.object({
+								name: z.string(),
+								type: z.string(),
+								description: z.string(),
+								internal: z.boolean().optional(), // If true, not shown in approval
+							}),
+						),
+						strategy: z.enum(["ChainOfThought", "Predict"]),
+					})
+					.optional(),
+				// Database-query specific config
+				databaseQuery: z
+					.object({
+						table: z.string(),
+						filters: z.array(
+							z.object({
+								field: z.string(), // Supports JSONB paths like "tags->>'complexity'"
+								operator: z.enum(["eq", "contains", "gt", "lt"]),
+								value: z.string(), // Can use {{variable}} syntax
+							}),
+						),
+						outputVariable: z.string(), // Variable name to store results
+					})
+					.optional(),
+				// Custom tool specific config
+				customToolHandler: z.string().optional(), // Handler function name
+			}),
+		)
+		.optional(),
 	completionCondition: z.object({
-		type: z.enum(["user-satisfied", "confidence-threshold", "max-turns"]),
+		type: z.enum([
+			"user-satisfied",
+			"all-tools-approved",
+			"confidence-threshold",
+			"max-turns",
+		]),
+		requiredTools: z.array(z.string()).optional(), // For "all-tools-approved"
 		threshold: z.number().optional(),
 		maxTurns: z.number().optional(),
 	}),
+	outputVariables: z.record(z.string(), z.string()).optional(), // Map output variable names to paths in execution.variables
 });
 
 /**
