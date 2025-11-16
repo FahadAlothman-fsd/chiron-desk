@@ -112,9 +112,6 @@ export class AskUserChatStepHandler implements StepHandler {
 				try {
 					// Process optionsSource if present - fetch options from database BEFORE building tool
 					if (toolConfig.optionsSource) {
-						console.log(
-							`[OptionsSource] 🔄 fetchAndStoreOptions called for ${toolConfig.name} at ${new Date().toISOString()}`,
-						);
 						await this.fetchAndStoreOptions(toolConfig.optionsSource, context);
 					}
 
@@ -807,14 +804,6 @@ export class AskUserChatStepHandler implements StepHandler {
 							typeof v === "object" && v.value ? v.value : v,
 						),
 					);
-
-					// Check if variable already exists
-					const existingOptions = context.executionVariables[outputVariable];
-					if (existingOptions) {
-						console.log(
-							`[OptionsSource] ⚠️  Variable "${outputVariable}" already exists with ${Array.isArray(existingOptions) ? existingOptions.length : "unknown"} entries. REPLACING...`,
-						);
-					}
 
 					// Remove duplicates based on the 'value' property
 					// Tags structure: {name, value, description}

@@ -124,16 +124,12 @@ export class StateManager {
 
 				// Variables ending in '_options' are database-sourced → REPLACE
 				if (keyName?.endsWith("_options")) {
-					console.log(
-						`[StateManager] Replacing array for '${keyName}' (database-sourced options)`,
-					);
+					console.log(`[StateManager] Replacing '${keyName}' (db-sourced)`);
 					return source;
 				}
 
 				// All other arrays → APPEND (user-generated content like epics, requirements)
-				console.log(
-					`[StateManager] Appending to array for '${keyName || "unknown"}' (user-generated content)`,
-				);
+				console.log(`[StateManager] Appending to '${keyName || "unknown"}'`);
 				return [...target, ...source];
 			},
 		});

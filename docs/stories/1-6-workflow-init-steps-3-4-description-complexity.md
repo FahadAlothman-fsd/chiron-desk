@@ -1426,6 +1426,55 @@ import { ChatContainer, MessageList, Message, PromptInput, ThinkingIndicator } f
 </ChatContainer>
 ```
 
+**8. Variable Naming Convention: `_options` Suffix**
+```typescript
+/**
+ * NAMING CONVENTION: Variables ending in '_options' are database-sourced
+ * and use REPLACE merge strategy. All other arrays use APPEND strategy.
+ * 
+ * This enables:
+ * - Database-sourced options (complexity_options, workflow_path_options) 
+ *   to be refreshed without duplication
+ * - User/AI-generated arrays (epics, requirements, stakeholders) 
+ *   to accumulate over conversation
+ */
+
+// ✅ Database-sourced → REPLACE (prevents duplicates)
+complexity_options: [
+  { name: "Quick Flow", value: "quick-flow", description: "..." },
+  { name: "BMad Method", value: "bmad-method", description: "..." },
+  { name: "Enterprise", value: "enterprise", description: "..." }
+]
+// Fetched on every message, but array stays at 3 items (not 6, 9, 12...)
+
+// ✅ User-generated → APPEND (accumulates)
+epics: [
+  { id: 1, name: "User Auth", scope: "..." },
+  { id: 2, name: "Dashboard", scope: "..." },
+  { id: 3, name: "API", scope: "..." }  // Grows as PM discovers more epics
+]
+
+// Implementation in StateManager.mergeExecutionVariables():
+arrayMerge: (target, source) => {
+  const keyName = findKeyInOutput(source);
+  
+  if (keyName?.endsWith("_options")) {
+    return source;  // REPLACE: [1,2,3] + [1,2,3] = [1,2,3]
+  }
+  
+  return [...target, ...source];  // APPEND: [1,2,3] + [4,5] = [1,2,3,4,5]
+}
+```
+
+**Why This Matters:**
+- **Story 1.6**: Prevents `complexity_options` from duplicating on every chat message
+- **Future BMad Workflows**: Enables PRD/Architecture workflows to build up `epics`, `requirements`, `stakeholders` lists over conversational turns
+- **Clear Intent**: Suffix communicates "this is static data from DB, not user input"
+
+**Files Modified:**
+- `packages/api/src/services/workflow-engine/state-manager.ts` - Array merge logic
+- `packages/api/src/services/workflow-engine/step-handlers/ask-user-chat-handler.ts` - Options fetching
+
 ### **Key Files Structure**
 
 ```
