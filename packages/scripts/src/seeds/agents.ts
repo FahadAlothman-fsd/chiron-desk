@@ -22,8 +22,8 @@ const CORE_AGENTS = [
 		description:
 			"Product Manager - Guides project planning with strategic wisdom and investigative insight.",
 		role: "product-manager",
-		llmProvider: "anthropic" as const,
-		llmModel: "claude-sonnet-4-20250514",
+		llmProvider: "openrouter" as const,
+		llmModel: "google/gemini-2.0-flash-exp:free",
 		llmTemperature: "0.7",
 		tools: null,
 		mcpServers: null,
