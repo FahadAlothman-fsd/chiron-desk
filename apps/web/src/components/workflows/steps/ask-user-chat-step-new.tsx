@@ -255,7 +255,7 @@ export function AskUserChatStepNew({
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
 	// Default to Gemini Flash 2.0 (cheaper, faster, supports tool calling)
 	const [model, setModel] = useState<string>(
-		"openrouter:google/gemini-2.0-flash-exp:free",
+		"openrouter:google/gemini-2.0-flash-exp",
 	);
 	const [modelSelectorOpen, setModelSelectorOpen] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);
