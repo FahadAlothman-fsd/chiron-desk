@@ -253,9 +253,9 @@ export function AskUserChatStepNew({
 	onComplete,
 }: AskUserChatStepProps) {
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
-	// Default to Claude 3.5 Sonnet (most popular and reliable)
+	// Default to Gemini Flash 2.0 (cheaper, faster, supports tool calling)
 	const [model, setModel] = useState<string>(
-		"openrouter:anthropic/claude-3.5-sonnet",
+		"openrouter:google/gemini-2.0-flash-exp:free",
 	);
 	const [modelSelectorOpen, setModelSelectorOpen] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);
