@@ -782,7 +782,7 @@ export class AskUserChatStepHandler implements StepHandler {
 				// Extract distinct values if distinctField specified
 				if (distinctField) {
 					// Handle JSONB path extraction (e.g., "tags->'complexity'")
-					const distinctValues = results
+					const extractedValues = results
 						.map((row: any) => {
 							// Extract value from JSONB path
 							if (distinctField.includes("->")) {
@@ -798,10 +798,18 @@ export class AskUserChatStepHandler implements StepHandler {
 						})
 						.filter((v: any) => v !== null && v !== undefined);
 
-					// Remove duplicates and store
+					// Remove duplicates based on the 'value' property
+					// Tags structure: {name: string, value: string, description: string}
 					const uniqueValues = [
 						...new Map(
-							distinctValues.map((v: any) => [JSON.stringify(v), v]),
+							extractedValues.map((v: any) => {
+								// Deduplicate by the 'value' field if tag is an object
+								const key =
+									typeof v === "object" && v.value
+										? v.value
+										: JSON.stringify(v);
+								return [key, v];
+							}),
 						).values(),
 					];
 

@@ -105,11 +105,25 @@ export const workflowPaths = pgTable("workflow_paths", {
 	educationText: text("education_text"), // Long-form explanation for UI cards
 
 	// FREE-FORM TAGS (not enums!) - workflow-init filters dynamically on these
+	// Each tag is an object with {name, value, description} for AI context
 	tags: jsonb("tags").$type<{
-		track?: string; // "quick-flow" | "method" | "enterprise"
-		fieldType?: string; // "greenfield" | "brownfield"
-		complexity?: string; // "simple" | "moderate" | "complex"
-		[key: string]: string | undefined; // Custom tags allowed!
+		complexity?: {
+			name: string; // e.g., "BMad Method Track"
+			value: string; // e.g., "method"
+			description: string; // Full explanation for AI agent
+		};
+		fieldType?: {
+			name: string; // e.g., "Greenfield"
+			value: string; // e.g., "greenfield"
+			description: string; // Explanation
+		};
+		[key: string]:
+			| {
+					name: string;
+					value: string;
+					description: string;
+			  }
+			| undefined;
 	}>(),
 
 	// Metadata for workflow-init's recommendation engine

@@ -28,6 +28,13 @@ interface ToolConfig {
 	description: string;
 	requiresApproval: boolean;
 	requiredVariables?: string[];
+	optionsSource?: {
+		table: string;
+		distinctField?: string;
+		filterBy?: Record<string, unknown>;
+		orderBy?: string;
+		outputVariable: string;
+	};
 }
 
 interface ApprovalState {
@@ -230,46 +237,42 @@ export function ToolStatusSidebar({
 										{tool.description}
 									</p>
 
-									{/* Available Options (if fetched from database) */}
+									{/* Available Options (if fetched from database via optionsSource) */}
 									{(() => {
-										// Check if there are options available for this tool
-										// Look for {tool.name}_options or complexity_options pattern
-										const optionsKey = Object.keys(executionVariables).find(
-											(key) =>
-												key.includes("options") &&
-												(key.includes(tool.name.replace("update_", "")) ||
-													key.includes("complexity")),
-										);
+										// Only show options if this tool has optionsSource configured
+										if (!tool.optionsSource) {
+											return null;
+										}
 
-										if (optionsKey) {
-											const options = executionVariables[optionsKey];
-											if (
-												Array.isArray(options) &&
-												options.length > 0 &&
-												status !== "approved"
-											) {
-												return (
-													<div className="mb-3 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md">
-														<div className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
-															Available Options
-														</div>
-														<div className="space-y-1">
-															{options.map((option: any, idx: number) => (
-																<div
-																	key={idx}
-																	className="text-xs text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded"
-																>
-																	{typeof option === "object" && option.name
-																		? `${option.name}${option.description ? ` - ${option.description}` : ""}`
-																		: typeof option === "object"
-																			? JSON.stringify(option)
-																			: String(option)}
-																</div>
-															))}
-														</div>
+										const optionsVarName = tool.optionsSource.outputVariable;
+										const options = executionVariables[optionsVarName];
+
+										if (
+											Array.isArray(options) &&
+											options.length > 0 &&
+											status !== "approved"
+										) {
+											return (
+												<div className="mb-3 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md">
+													<div className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
+														Available Options
 													</div>
-												);
-											}
+													<div className="space-y-1">
+														{options.map((option: any, idx: number) => (
+															<div
+																key={idx}
+																className="text-xs text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded"
+															>
+																{typeof option === "object" && option.name
+																	? `${option.name}${option.description ? ` - ${option.description}` : ""}`
+																	: typeof option === "object"
+																		? JSON.stringify(option)
+																		: String(option)}
+															</div>
+														))}
+													</div>
+												</div>
+											);
 										}
 										return null;
 									})()}

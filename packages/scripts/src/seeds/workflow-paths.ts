@@ -40,13 +40,48 @@ export async function seedWorkflowPaths() {
 		const track = data.track || "";
 		const fieldType = data.field_type || "";
 
-		// Determine complexity based on track
-		const complexityMap: Record<string, string> = {
-			"quick-flow": "simple",
-			method: "moderate",
-			enterprise: "complex",
+		// Create structured tag objects with {name, value, description}
+		const complexityTagMap: Record<
+			string,
+			{ name: string; value: string; description: string }
+		> = {
+			"quick-flow": {
+				name: "Quick Flow Track",
+				value: "quick-flow",
+				description:
+					"Fast implementation track using tech-spec planning only. Best for bug fixes, small features, and changes with clear scope. Typical range: 1-15 stories. Examples: bug fixes, OAuth login, search features.",
+			},
+			method: {
+				name: "BMad Method Track",
+				value: "method",
+				description:
+					"Full product planning track using PRD + Architecture + UX. Best for products, platforms, and complex features requiring system design. Typical range: 10-50+ stories. Examples: admin dashboards, e-commerce platforms, SaaS products.",
+			},
+			enterprise: {
+				name: "Enterprise Method Track",
+				value: "enterprise",
+				description:
+					"Extended enterprise planning track adding Security Architecture, DevOps Strategy, and Test Strategy to BMad Method. Best for enterprise requirements, compliance needs, and multi-tenant systems. Typical range: 30+ stories. Examples: multi-tenant platforms, compliance-driven systems, mission-critical applications.",
+			},
 		};
-		const complexity = complexityMap[track] || "moderate";
+
+		const fieldTypeTagMap: Record<
+			string,
+			{ name: string; value: string; description: string }
+		> = {
+			greenfield: {
+				name: "Greenfield",
+				value: "greenfield",
+				description:
+					"Starting a new project from scratch with no existing codebase.",
+			},
+			brownfield: {
+				name: "Brownfield",
+				value: "brownfield",
+				description:
+					"Working with an existing codebase, adding features or refactoring.",
+			},
+		};
 
 		// Generate appropriate metadata based on track and field type
 		const educationTextMap: Record<string, string> = {
@@ -94,9 +129,8 @@ export async function seedWorkflowPaths() {
 				description: data.description,
 				educationText: educationTextMap[name] || data.description,
 				tags: {
-					track,
-					fieldType,
-					complexity,
+					complexity: complexityTagMap[track] || complexityTagMap.method,
+					fieldType: fieldTypeTagMap[fieldType] || fieldTypeTagMap.greenfield,
 				},
 				recommendedFor: data.recommended_for || null,
 				estimatedTime: estimatedTimeMap[track] || null,
