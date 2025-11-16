@@ -171,7 +171,7 @@ export async function seedWorkflowInitNew() {
 				description:
 					"Classify the project's complexity level based on scope, team size, and technical requirements",
 				usageGuidance:
-					"Call this tool ONLY after the project_description has been approved by the user. Use the approved summary and conversation context about team size, timeline, and technical scope to determine the appropriate complexity level. Select from the available complexity options.",
+					"IMMEDIATELY call this tool after the project_description is approved by the user. DO NOT ask the user to classify complexity manually - automatically analyze the conversation context (team size, timeline, technical scope, feature list) and select the appropriate complexity level from the complexity_options provided. This is a required step that must execute automatically.",
 				requiredVariables: ["project_description"], // Must run after summary approved
 				requiresApproval: true,
 				// Fetch available complexity options from database
