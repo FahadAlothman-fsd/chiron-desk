@@ -253,9 +253,9 @@ export function AskUserChatStepNew({
 	onComplete,
 }: AskUserChatStepProps) {
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
-	// Default to Gemini Flash 2.0 (cheaper, faster, supports tool calling)
+	// Default to Claude 3.5 Sonnet (Gemini has tool calling issues - see separate investigation)
 	const [model, setModel] = useState<string>(
-		"openrouter:google/gemini-2.0-flash-exp",
+		"openrouter:anthropic/claude-3.5-sonnet",
 	);
 	const [modelSelectorOpen, setModelSelectorOpen] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);
