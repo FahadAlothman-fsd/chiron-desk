@@ -189,7 +189,7 @@ export function ToolStatusSidebar({
 				</div>
 			</CardHeader>
 
-			<CardContent className="p-0 flex-1 overflow-y-auto">
+			<CardContent className="p-0 flex-1 overflow-y-auto overflow-x-hidden">
 				<Accordion
 					type="multiple"
 					defaultValue={defaultOpenItems}
@@ -261,7 +261,7 @@ export function ToolStatusSidebar({
 														{options.map((option: any, idx: number) => (
 															<div
 																key={idx}
-																className="rounded bg-blue-100 px-2 py-1 text-blue-700 text-xs dark:bg-blue-900 dark:text-blue-300"
+																className="rounded bg-blue-100 px-2 py-1 text-blue-700 text-xs dark:bg-blue-900 dark:text-blue-300 break-words"
 															>
 																{typeof option === "object" && option.name
 																	? `${option.name}${option.description ? ` - ${option.description}` : ""}`
