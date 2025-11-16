@@ -1,5 +1,5 @@
-import { FolderKanban, Plus } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
+import { FolderKanban, Plus } from "lucide-react";
 import { BorderAccent } from "@/components/ui/border-accent";
 import { Button } from "@/components/ui/button";
 

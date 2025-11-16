@@ -11,7 +11,7 @@ console.log("=== Greenfield Workflow Paths ===");
 for (const row of results) {
 	console.log(`\nName: ${row.name}`);
 	console.log(`Display Name: ${row.displayName}`);
-	console.log(`Tags:`, JSON.stringify(row.tags, null, 2));
+	console.log("Tags:", JSON.stringify(row.tags, null, 2));
 }
 
 process.exit(0);

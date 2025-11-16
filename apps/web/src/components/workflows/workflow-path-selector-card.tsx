@@ -1,18 +1,18 @@
+import { AlertTriangle, Check, Loader2, Star } from "lucide-react";
 import { useState } from "react";
-import {
-	Card,
-	CardHeader,
-	CardTitle,
-	CardContent,
-	CardFooter,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
-import { Check, Loader2, Star, AlertTriangle } from "lucide-react";
-import { trpc } from "@/utils/trpc";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+	Card,
+	CardContent,
+	CardFooter,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { trpc } from "@/utils/trpc";
 
 /**
  * WorkflowPathSelectorCard - Custom approval UI for workflow path selection
@@ -123,12 +123,12 @@ export function WorkflowPathSelectorCard({
 				<CardTitle className="flex items-center justify-between text-lg">
 					<span>
 						{isApproved && (
-							<Check className="inline h-5 w-5 text-green-600 mr-2" />
+							<Check className="mr-2 inline h-5 w-5 text-green-600" />
 						)}
 						Select Workflow Path
 					</span>
 					{isApproved && (
-						<span className="text-sm text-green-600 font-normal">
+						<span className="font-normal text-green-600 text-sm">
 							Selected ✓
 						</span>
 					)}
@@ -149,9 +149,7 @@ export function WorkflowPathSelectorCard({
 						return (
 							<div
 								key={path.id}
-								className={`
-									border rounded-lg p-4 cursor-pointer transition-all
-									${selectedPathId === path.id ? "border-blue-500 bg-blue-50 dark:bg-blue-950" : "border-border"}
+								className={`cursor-pointer rounded-lg border p-4 transition-all${selectedPathId === path.id ? "border-blue-500 bg-blue-50 dark:bg-blue-950" : "border-border"}
 									${isRecommended ? "border-yellow-500 shadow-md" : ""}
 									${isApproved ? "opacity-60" : "hover:border-blue-300"}
 								`}
@@ -170,38 +168,38 @@ export function WorkflowPathSelectorCard({
 									/>
 
 									{/* Path Content */}
-									<div className="flex-1 min-w-0">
+									<div className="min-w-0 flex-1">
 										{/* Path Header */}
-										<div className="flex items-center gap-2 mb-2">
+										<div className="mb-2 flex items-center gap-2">
 											<Label
 												htmlFor={path.id}
-												className="text-base font-semibold cursor-pointer flex items-center gap-2"
+												className="flex cursor-pointer items-center gap-2 font-semibold text-base"
 											>
 												<span>
 													{getComplexityIcon(path.tags?.complexity)}{" "}
 													{path.displayName}
 												</span>
 												{isRecommended && (
-													<Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+													<Star className="h-4 w-4 fill-yellow-500 text-yellow-500" />
 												)}
 											</Label>
 										</div>
 
 										{/* Path Description */}
-										<p className="text-sm text-muted-foreground mb-3">
+										<p className="mb-3 text-muted-foreground text-sm">
 											{path.description}
 										</p>
 
 										{/* Recommended Reasons */}
 										{isRecommended && reasoning?.reasons && (
-											<div className="mb-3 p-3 bg-yellow-50 dark:bg-yellow-950 rounded-md border border-yellow-200 dark:border-yellow-800">
-												<div className="text-sm font-medium mb-2">
+											<div className="mb-3 rounded-md border border-yellow-200 bg-yellow-50 p-3 dark:border-yellow-800 dark:bg-yellow-950">
+												<div className="mb-2 font-medium text-sm">
 													Best for your project because:
 												</div>
-												<ul className="text-sm space-y-1">
+												<ul className="space-y-1 text-sm">
 													{reasoning.reasons.map((reason, idx) => (
 														<li key={idx} className="flex items-start gap-2">
-															<Check className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+															<Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-green-600" />
 															<span>{reason}</span>
 														</li>
 													))}
@@ -211,12 +209,12 @@ export function WorkflowPathSelectorCard({
 
 										{/* Warnings for Non-Recommended */}
 										{!isRecommended && hasWarnings && (
-											<div className="mb-3 p-3 bg-orange-50 dark:bg-orange-950 rounded-md border border-orange-200 dark:border-orange-800">
-												<div className="text-sm font-medium mb-2 flex items-center gap-2">
+											<div className="mb-3 rounded-md border border-orange-200 bg-orange-50 p-3 dark:border-orange-800 dark:bg-orange-950">
+												<div className="mb-2 flex items-center gap-2 font-medium text-sm">
 													<AlertTriangle className="h-4 w-4 text-orange-600" />
 													May not be ideal because:
 												</div>
-												<ul className="text-sm space-y-1">
+												<ul className="space-y-1 text-sm">
 													{warnings.map((warning, idx) => (
 														<li key={idx} className="flex items-start gap-2">
 															<span className="text-orange-600">⚠</span>
@@ -229,11 +227,11 @@ export function WorkflowPathSelectorCard({
 
 										{/* Deliverables */}
 										{path.deliverables && path.deliverables.length > 0 && (
-											<div className="mt-3 p-3 bg-muted/50 rounded-md">
-												<div className="text-sm font-medium mb-2">
+											<div className="mt-3 rounded-md bg-muted/50 p-3">
+												<div className="mb-2 font-medium text-sm">
 													What you'll get:
 												</div>
-												<ul className="text-sm space-y-1">
+												<ul className="space-y-1 text-sm">
 													{path.deliverables.map((deliverable, idx) => (
 														<li key={idx} className="flex items-start gap-2">
 															<span className="text-blue-600">•</span>
@@ -245,7 +243,7 @@ export function WorkflowPathSelectorCard({
 										)}
 
 										{/* Tags */}
-										<div className="flex gap-2 mt-3">
+										<div className="mt-3 flex gap-2">
 											{path.tags?.complexity && (
 												<Badge variant="secondary">
 													{path.tags.complexity.replace("-", " ")}
@@ -273,12 +271,12 @@ export function WorkflowPathSelectorCard({
 					>
 						{isLoading ? (
 							<>
-								<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
 								Selecting...
 							</>
 						) : (
 							<>
-								<Check className="h-4 w-4 mr-2" />
+								<Check className="mr-2 h-4 w-4" />
 								Continue with Selected Path
 							</>
 						)}

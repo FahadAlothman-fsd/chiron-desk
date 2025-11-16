@@ -1,5 +1,5 @@
 import { db, miproTrainingExamples } from "@chiron/db";
-import { eq, desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 
 /**
  * MiPRO Data Collector Service

@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeAll } from "bun:test";
+import { beforeAll, describe, expect, it } from "bun:test";
 import {
-	getMastraInstance,
 	createThread,
+	getMastraInstance,
 	getThread,
 	getThreadMessages,
 } from "./mastra-service";

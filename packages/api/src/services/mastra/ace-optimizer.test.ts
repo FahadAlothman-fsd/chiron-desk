@@ -1,8 +1,7 @@
 import "../../../test-setup";
-import { describe, it, expect, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
+import { acePlaybooks, agents, db } from "@chiron/db";
 import { AceOptimizer } from "./ace-optimizer";
-import { db } from "@chiron/db";
-import { acePlaybooks, agents } from "@chiron/db";
 
 describe("ACE Optimizer", () => {
 	let optimizer: AceOptimizer;

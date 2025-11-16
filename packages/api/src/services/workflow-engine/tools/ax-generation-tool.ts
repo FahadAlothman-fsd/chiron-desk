@@ -1,13 +1,13 @@
-import { ax, ai } from "@ax-llm/ax";
+import { ai, ax } from "@ax-llm/ax";
 import type { AskUserChatStepConfig } from "@chiron/db";
-import type { ExecutionContext } from "../execution-context";
-import { getThreadMessages } from "../../mastra/mastra-service";
-import { AceOptimizer } from "../../mastra/ace-optimizer";
+import { appConfig, db } from "@chiron/db";
 import { createTool } from "@mastra/core/tools";
-import { z } from "zod";
-import { db, appConfig } from "@chiron/db";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
 import { decrypt } from "../../encryption";
+import { AceOptimizer } from "../../mastra/ace-optimizer";
+import { getThreadMessages } from "../../mastra/mastra-service";
+import type { ExecutionContext } from "../execution-context";
 
 /**
  * Ax-Generation Tool Builder
@@ -134,7 +134,7 @@ export async function buildAxGenerationTool(
 			try {
 				const result = await program.forward(aiService, resolvedInputs);
 
-				console.log(`[AxGenerationTool] Generated result:`, result);
+				console.log("[AxGenerationTool] Generated result:", result);
 
 				// Filter out internal fields
 				const publicResult = filterInternalFields(result, axConfig);
@@ -267,11 +267,11 @@ async function resolveInputs(
 							// Log the actual structure to debug
 							if (idx === 0) {
 								console.log(
-									`[AxGenerationTool] Sample message content type:`,
+									"[AxGenerationTool] Sample message content type:",
 									typeof msg.content,
 								);
 								console.log(
-									`[AxGenerationTool] Sample message content:`,
+									"[AxGenerationTool] Sample message content:",
 									JSON.stringify(content, null, 2),
 								);
 							}
@@ -298,7 +298,7 @@ async function resolveInputs(
 						} catch (error) {
 							// If parsing fails, use as string
 							console.warn(
-								`[AxGenerationTool] Failed to parse message content:`,
+								"[AxGenerationTool] Failed to parse message content:",
 								error,
 							);
 							text = String(msg.content);
@@ -308,7 +308,7 @@ async function resolveInputs(
 					.join("\n");
 
 				console.log(
-					`[AxGenerationTool] Formatted conversation_history:`,
+					"[AxGenerationTool] Formatted conversation_history:",
 					conversationHistory.substring(0, 200),
 				);
 

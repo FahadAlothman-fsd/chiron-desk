@@ -9,9 +9,9 @@
  * - generate_project_name: Project name suggestions with validation
  */
 
-export { buildSelectPathTool } from "./select-workflow-path-tool";
 export {
 	buildGenerateProjectNameTool,
-	validateProjectName,
 	validateCustomProjectName,
+	validateProjectName,
 } from "./generate-project-name-tool";
+export { buildSelectPathTool } from "./select-workflow-path-tool";

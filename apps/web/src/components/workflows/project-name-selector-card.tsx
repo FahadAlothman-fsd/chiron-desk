@@ -1,18 +1,18 @@
+import { Check, Loader2, Sparkles } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import {
 	Card,
-	CardHeader,
-	CardTitle,
 	CardContent,
 	CardFooter,
+	CardHeader,
+	CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Check, Loader2, Sparkles } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { trpc } from "@/utils/trpc";
-import { toast } from "sonner";
 
 /**
  * ProjectNameSelectorCard - Custom approval UI for project name selection
@@ -156,12 +156,12 @@ export function ProjectNameSelectorCard({
 				<CardTitle className="flex items-center justify-between text-lg">
 					<span>
 						{isApproved && (
-							<Check className="inline h-5 w-5 text-green-600 mr-2" />
+							<Check className="mr-2 inline h-5 w-5 text-green-600" />
 						)}
 						📝 Project Name Suggestions
 					</span>
 					{isApproved && (
-						<span className="text-sm text-green-600 font-normal">
+						<span className="font-normal text-green-600 text-sm">
 							Selected ✓
 						</span>
 					)}
@@ -184,9 +184,7 @@ export function ProjectNameSelectorCard({
 					{suggestions.map((suggestion, idx) => (
 						<div
 							key={suggestion.name}
-							className={`
-								border rounded-lg p-4 cursor-pointer transition-all
-								${selectedOption === suggestion.name ? "border-blue-500 bg-blue-50 dark:bg-blue-950" : "border-border"}
+							className={`cursor-pointer rounded-lg border p-4 transition-all${selectedOption === suggestion.name ? "border-blue-500 bg-blue-50 dark:bg-blue-950" : "border-border"}
 								${suggestion.recommended ? "border-yellow-500 shadow-sm" : ""}
 								${isApproved ? "opacity-60" : "hover:border-blue-300"}
 							`}
@@ -202,17 +200,17 @@ export function ProjectNameSelectorCard({
 									id={suggestion.name}
 									className="mt-1"
 								/>
-								<div className="flex-1 min-w-0">
+								<div className="min-w-0 flex-1">
 									<Label
 										htmlFor={suggestion.name}
-										className="text-base font-semibold cursor-pointer flex items-center gap-2"
+										className="flex cursor-pointer items-center gap-2 font-semibold text-base"
 									>
 										<code className="font-mono">{suggestion.name}</code>
 										{suggestion.recommended && (
 											<Sparkles className="h-4 w-4 text-yellow-500" />
 										)}
 									</Label>
-									<p className="text-sm text-muted-foreground mt-1">
+									<p className="mt-1 text-muted-foreground text-sm">
 										{suggestion.reasoning}
 									</p>
 								</div>
@@ -234,9 +232,7 @@ export function ProjectNameSelectorCard({
 
 					{/* Custom Name Option */}
 					<div
-						className={`
-							border rounded-lg p-4 cursor-pointer transition-all
-							${selectedOption === "custom" ? "border-blue-500 bg-blue-50 dark:bg-blue-950" : "border-border"}
+						className={`cursor-pointer rounded-lg border p-4 transition-all${selectedOption === "custom" ? "border-blue-500 bg-blue-50 dark:bg-blue-950" : "border-border"}
 							${isApproved ? "opacity-60" : "hover:border-blue-300"}
 						`}
 						onClick={() => {
@@ -247,10 +243,10 @@ export function ProjectNameSelectorCard({
 					>
 						<div className="flex items-start gap-3">
 							<RadioGroupItem value="custom" id="custom" className="mt-1" />
-							<div className="flex-1 min-w-0 space-y-3">
+							<div className="min-w-0 flex-1 space-y-3">
 								<Label
 									htmlFor="custom"
-									className="text-base font-semibold cursor-pointer"
+									className="cursor-pointer font-semibold text-base"
 								>
 									Use custom name instead
 								</Label>
@@ -274,9 +270,9 @@ export function ProjectNameSelectorCard({
 
 									{/* Validation Message */}
 									{customNameError ? (
-										<p className="text-sm text-red-600">{customNameError}</p>
+										<p className="text-red-600 text-sm">{customNameError}</p>
 									) : (
-										<p className="text-xs text-muted-foreground">
+										<p className="text-muted-foreground text-xs">
 											Must be kebab-case, 3-50 characters (lowercase, numbers,
 											hyphens only)
 										</p>
@@ -284,8 +280,8 @@ export function ProjectNameSelectorCard({
 
 									{/* Live Preview */}
 									{customName && !customNameError && (
-										<div className="p-2 bg-green-50 dark:bg-green-950 rounded-md border border-green-200 dark:border-green-800">
-											<p className="text-sm text-green-700 dark:text-green-300 flex items-center gap-2">
+										<div className="rounded-md border border-green-200 bg-green-50 p-2 dark:border-green-800 dark:bg-green-950">
+											<p className="flex items-center gap-2 text-green-700 text-sm dark:text-green-300">
 												<Check className="h-4 w-4" />
 												Valid project name: <code>{customName}</code>
 											</p>
@@ -308,12 +304,12 @@ export function ProjectNameSelectorCard({
 					>
 						{isLoading ? (
 							<>
-								<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
 								Saving...
 							</>
 						) : (
 							<>
-								<Check className="h-4 w-4 mr-2" />
+								<Check className="mr-2 h-4 w-4" />
 								Accept Selected Name
 							</>
 						)}

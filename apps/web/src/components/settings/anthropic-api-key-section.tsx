@@ -162,7 +162,7 @@ export function AnthropicApiKeySection() {
 		<div className="space-y-4">
 			<div className="space-y-2">
 				<Label htmlFor="anthropic-key">Anthropic API Key (Optional)</Label>
-				<p className="text-xs text-muted-foreground">
+				<p className="text-muted-foreground text-xs">
 					Use your Claude API key as a fallback when OpenRouter is unavailable
 				</p>
 				<div className="flex gap-2">

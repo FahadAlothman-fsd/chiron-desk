@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { db, projects, workflows, workflowExecutions } from "@chiron/db";
+import { db, projects, workflowExecutions, workflows } from "@chiron/db";
 import { eq } from "drizzle-orm";
 
 describe("Projects Router - Story 1.5", () => {

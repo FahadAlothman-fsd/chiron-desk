@@ -1,13 +1,13 @@
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
+	AlertCircle,
 	CheckCircle2,
 	Circle,
 	Clock,
-	XCircle,
-	AlertCircle,
 	Loader2,
+	XCircle,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
 	Tooltip,
 	TooltipContent,
@@ -109,7 +109,7 @@ export function ToolStatusPanel({
 			case "not_started":
 				return <Circle className="h-4 w-4 text-muted-foreground" />;
 			case "executing":
-				return <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />;
+				return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />;
 			case "awaiting_approval":
 				return <Clock className="h-4 w-4 text-yellow-500" />;
 			case "approved":
@@ -167,12 +167,12 @@ export function ToolStatusPanel({
 			<CardHeader>
 				<CardTitle className="flex items-center justify-between text-base">
 					<span>Tool Execution Progress</span>
-					<span className="text-sm font-normal text-muted-foreground">
+					<span className="font-normal text-muted-foreground text-sm">
 						{approvedCount}/{totalTools}
 					</span>
 				</CardTitle>
 				{/* Progress Bar */}
-				<div className="mt-2 h-2 bg-muted rounded-full overflow-hidden">
+				<div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
 					<div
 						className="h-full bg-green-500 transition-all duration-500"
 						style={{ width: `${progress}%` }}
@@ -191,14 +191,14 @@ export function ToolStatusPanel({
 						<TooltipProvider key={tool.name}>
 							<Tooltip>
 								<TooltipTrigger asChild>
-									<div className="flex items-start gap-3 p-2 hover:bg-muted/50 rounded-md transition-colors cursor-pointer">
+									<div className="flex cursor-pointer items-start gap-3 rounded-md p-2 transition-colors hover:bg-muted/50">
 										{/* Status Icon */}
 										<div className="mt-0.5">{getStatusIcon(status)}</div>
 
 										{/* Tool Info */}
-										<div className="flex-1 min-w-0">
-											<div className="flex items-center gap-2 mb-1">
-												<span className="text-sm font-medium truncate">
+										<div className="min-w-0 flex-1">
+											<div className="mb-1 flex items-center gap-2">
+												<span className="truncate font-medium text-sm">
 													{tool.name
 														.replace(/_/g, " ")
 														.replace(/\b\w/g, (l) => l.toUpperCase())}
@@ -211,13 +211,13 @@ export function ToolStatusPanel({
 													</Badge>
 												)}
 											</div>
-											<p className="text-xs text-muted-foreground line-clamp-1">
+											<p className="line-clamp-1 text-muted-foreground text-xs">
 												{tool.description}
 											</p>
 
 											{/* Blocked Message */}
 											{status === "blocked" && missingPrereqs.length > 0 && (
-												<div className="mt-1 text-xs text-orange-600 dark:text-orange-400">
+												<div className="mt-1 text-orange-600 text-xs dark:text-orange-400">
 													Waiting for:{" "}
 													{missingPrereqs
 														.map((v) => v.replace(/_/g, " "))
@@ -229,7 +229,7 @@ export function ToolStatusPanel({
 											{status === "rejected" &&
 												approvalState?.rejection_history &&
 												approvalState.rejection_history.length > 0 && (
-													<div className="mt-1 text-xs text-red-600 dark:text-red-400 italic">
+													<div className="mt-1 text-red-600 text-xs italic dark:text-red-400">
 														Last feedback:{" "}
 														{
 															approvalState.rejection_history[
@@ -245,13 +245,13 @@ export function ToolStatusPanel({
 									<div className="space-y-1">
 										<div className="font-medium">{tool.description}</div>
 										{tool.requiresApproval && (
-											<div className="text-xs text-muted-foreground">
+											<div className="text-muted-foreground text-xs">
 												Requires user approval
 											</div>
 										)}
 										{tool.requiredVariables &&
 											tool.requiredVariables.length > 0 && (
-												<div className="text-xs text-muted-foreground">
+												<div className="text-muted-foreground text-xs">
 													Prerequisites:{" "}
 													{tool.requiredVariables
 														.map((v) => v.replace(/_/g, " "))

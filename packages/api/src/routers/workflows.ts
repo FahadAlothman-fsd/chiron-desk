@@ -1,6 +1,11 @@
+import { db, workflowExecutions } from "@chiron/db";
 import { observable } from "@trpc/server/observable";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { publicProcedure, protectedProcedure, router } from "../index";
+import { protectedProcedure, publicProcedure, router } from "../index";
+import { AceOptimizer } from "../services/mastra/ace-optimizer";
+import { getThreadMessages } from "../services/mastra/mastra-service";
+import { MiProCollector } from "../services/mastra/mipro-collector";
 import {
 	type WorkflowEvent,
 	workflowEventBus,
@@ -10,12 +15,6 @@ import {
 	executeWorkflow,
 } from "../services/workflow-engine/executor";
 import { stateManager } from "../services/workflow-engine/state-manager";
-import { db } from "@chiron/db";
-import { workflowExecutions } from "@chiron/db";
-import { eq } from "drizzle-orm";
-import { AceOptimizer } from "../services/mastra/ace-optimizer";
-import { MiProCollector } from "../services/mastra/mipro-collector";
-import { getThreadMessages } from "../services/mastra/mastra-service";
 
 /**
  * Workflow Router - tRPC endpoints for workflow execution

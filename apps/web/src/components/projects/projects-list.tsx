@@ -1,7 +1,7 @@
-import { Plus, Loader2 } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
-import { Button } from "@/components/ui/button";
+import { Loader2, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 interface Project {
 	id: string;
@@ -75,7 +75,7 @@ export function ProjectsList({ projects }: ProjectsListProps) {
 						}}
 						role="button"
 						tabIndex={0}
-						className="rounded-lg border p-4 transition-colors hover:bg-accent cursor-pointer"
+						className="cursor-pointer rounded-lg border p-4 transition-colors hover:bg-accent"
 					>
 						<div className="flex items-start justify-between">
 							<h3 className="font-medium">{project.name}</h3>
@@ -90,7 +90,7 @@ export function ProjectsList({ projects }: ProjectsListProps) {
 							Created {new Date(project.createdAt).toLocaleDateString()}
 						</p>
 						{project.status === "initializing" && (
-							<p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
+							<p className="mt-1 text-blue-600 text-xs dark:text-blue-400">
 								Click to resume setup
 							</p>
 						)}

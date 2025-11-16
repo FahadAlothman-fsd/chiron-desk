@@ -1,12 +1,10 @@
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
+	AlertCircle,
 	CheckCircle2,
 	Circle,
 	Clock,
-	XCircle,
-	AlertCircle,
 	Loader2,
+	XCircle,
 } from "lucide-react";
 import {
 	Accordion,
@@ -14,6 +12,8 @@ import {
 	AccordionItem,
 	AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 /**
  * ToolStatusSidebar - Accordion-based tool progress with inline approval cards
@@ -113,7 +113,7 @@ export function ToolStatusSidebar({
 			case "not_started":
 				return <Circle className="h-4 w-4 text-muted-foreground" />;
 			case "executing":
-				return <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />;
+				return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />;
 			case "awaiting_approval":
 				return <Clock className="h-4 w-4 text-yellow-500" />;
 			case "approved":
@@ -176,12 +176,12 @@ export function ToolStatusSidebar({
 			<CardHeader className="pb-3">
 				<CardTitle className="flex items-center justify-between text-base">
 					<span>Tool Execution Progress</span>
-					<span className="text-sm font-normal text-muted-foreground">
+					<span className="font-normal text-muted-foreground text-sm">
 						{approvedCount}/{totalTools}
 					</span>
 				</CardTitle>
 				{/* Progress Bar */}
-				<div className="mt-2 h-2 bg-muted rounded-full overflow-hidden">
+				<div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
 					<div
 						className="h-full bg-green-500 transition-all duration-500"
 						style={{ width: `${progress}%` }}
@@ -208,14 +208,14 @@ export function ToolStatusSidebar({
 								className="border-b-0"
 							>
 								<AccordionTrigger className="px-4 py-3 hover:bg-muted/50 hover:no-underline">
-									<div className="flex items-center gap-3 w-full">
+									<div className="flex w-full items-center gap-3">
 										{/* Status Icon */}
 										<div className="flex-shrink-0">{getStatusIcon(status)}</div>
 
 										{/* Tool Info */}
-										<div className="flex-1 min-w-0 text-left">
-											<div className="flex items-center gap-2 mb-1">
-												<span className="text-sm font-medium truncate">
+										<div className="min-w-0 flex-1 text-left">
+											<div className="mb-1 flex items-center gap-2">
+												<span className="truncate font-medium text-sm">
 													{tool.name
 														.replace(/_/g, " ")
 														.replace(/\b\w/g, (l) => l.toUpperCase())}
@@ -233,7 +233,7 @@ export function ToolStatusSidebar({
 								</AccordionTrigger>
 								<AccordionContent className="px-4 pb-4">
 									{/* Tool Description */}
-									<p className="text-sm text-muted-foreground mb-3">
+									<p className="mb-3 text-muted-foreground text-sm">
 										{tool.description}
 									</p>
 
@@ -253,15 +253,15 @@ export function ToolStatusSidebar({
 											status !== "approved"
 										) {
 											return (
-												<div className="mb-3 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md">
-													<div className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
+												<div className="mb-3 rounded-md border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-950">
+													<div className="mb-2 font-medium text-blue-900 text-sm dark:text-blue-100">
 														Available Options
 													</div>
 													<div className="space-y-1">
 														{options.map((option: any, idx: number) => (
 															<div
 																key={idx}
-																className="text-xs text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded"
+																className="rounded bg-blue-100 px-2 py-1 text-blue-700 text-xs dark:bg-blue-900 dark:text-blue-300"
 															>
 																{typeof option === "object" && option.name
 																	? `${option.name}${option.description ? ` - ${option.description}` : ""}`
@@ -279,11 +279,11 @@ export function ToolStatusSidebar({
 
 									{/* Blocked Message */}
 									{status === "blocked" && missingPrereqs.length > 0 && (
-										<div className="p-3 bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800 rounded-md mb-3">
-											<div className="text-sm font-medium text-orange-900 dark:text-orange-100 mb-1">
+										<div className="mb-3 rounded-md border border-orange-200 bg-orange-50 p-3 dark:border-orange-800 dark:bg-orange-950">
+											<div className="mb-1 font-medium text-orange-900 text-sm dark:text-orange-100">
 												Blocked
 											</div>
-											<div className="text-xs text-orange-700 dark:text-orange-300">
+											<div className="text-orange-700 text-xs dark:text-orange-300">
 												Waiting for:{" "}
 												{missingPrereqs
 													.map((v) => v.replace(/_/g, " "))
@@ -296,11 +296,11 @@ export function ToolStatusSidebar({
 									{status === "rejected" &&
 										approvalState?.rejection_history &&
 										approvalState.rejection_history.length > 0 && (
-											<div className="p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-md mb-3">
-												<div className="text-sm font-medium text-red-900 dark:text-red-100 mb-1">
+											<div className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-950">
+												<div className="mb-1 font-medium text-red-900 text-sm dark:text-red-100">
 													Last Rejection
 												</div>
-												<div className="text-xs text-red-700 dark:text-red-300 italic">
+												<div className="text-red-700 text-xs italic dark:text-red-300">
 													{
 														approvalState.rejection_history[
 															approvalState.rejection_history.length - 1
@@ -312,8 +312,8 @@ export function ToolStatusSidebar({
 
 									{/* Awaiting Approval Message (no card - that's in the chat) */}
 									{status === "awaiting_approval" && approvalState && (
-										<div className="mt-2 p-3 bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-md">
-											<div className="text-sm font-medium text-yellow-900 dark:text-yellow-100 mb-1">
+										<div className="mt-2 rounded-md border border-yellow-200 bg-yellow-50 p-3 dark:border-yellow-800 dark:bg-yellow-950">
+											<div className="mb-1 font-medium text-sm text-yellow-900 dark:text-yellow-100">
 												Pending Your Approval
 											</div>
 											<div className="text-xs text-yellow-700 dark:text-yellow-300">
@@ -324,8 +324,8 @@ export function ToolStatusSidebar({
 
 									{/* Approved Content Summary */}
 									{status === "approved" && approvalState && (
-										<div className="mt-2 p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-md">
-											<div className="text-sm font-medium text-green-900 dark:text-green-100 mb-2">
+										<div className="mt-2 rounded-md border border-green-200 bg-green-50 p-3 dark:border-green-800 dark:bg-green-950">
+											<div className="mb-2 font-medium text-green-900 text-sm dark:text-green-100">
 												✓ Approved
 											</div>
 											<div className="space-y-2">
@@ -336,10 +336,10 @@ export function ToolStatusSidebar({
 
 														return (
 															<div key={key} className="space-y-1">
-																<div className="text-xs font-medium text-green-900 dark:text-green-100 capitalize">
+																<div className="font-medium text-green-900 text-xs capitalize dark:text-green-100">
 																	{key.replace(/_/g, " ")}
 																</div>
-																<div className="text-xs text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900 p-2 rounded">
+																<div className="rounded bg-green-100 p-2 text-green-700 text-xs dark:bg-green-900 dark:text-green-300">
 																	{typeof value === "string"
 																		? value
 																		: JSON.stringify(value, null, 2)}

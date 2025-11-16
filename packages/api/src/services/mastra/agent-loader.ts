@@ -1,11 +1,11 @@
+import { acePlaybooks, agents, appConfig, db } from "@chiron/db";
 import { Agent } from "@mastra/core/agent";
-import { Memory } from "@mastra/memory";
 import type { RuntimeContext } from "@mastra/core/runtime-context";
-import { db, agents, appConfig, acePlaybooks } from "@chiron/db";
-import { eq, and, or } from "drizzle-orm";
+import { Memory } from "@mastra/memory";
+import { and, eq, or } from "drizzle-orm";
+import Handlebars from "handlebars";
 import { decrypt } from "../encryption";
 import { loadModel, type ModelConfig } from "./model-loader";
-import Handlebars from "handlebars";
 
 /**
  * Agent Loader - Dynamically loads and registers agents from database

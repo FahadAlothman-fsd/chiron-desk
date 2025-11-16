@@ -122,7 +122,7 @@ export const workflowSteps = pgTable(
 // Runtime workflow execution state (pause/resume)
 // ============================================
 
-// @ts-ignore - Circular reference with workflowSteps is intentional for foreign key
+// @ts-expect-error - Circular reference with workflowSteps is intentional for foreign key
 export const workflowExecutions = pgTable(
 	"workflow_executions",
 	{

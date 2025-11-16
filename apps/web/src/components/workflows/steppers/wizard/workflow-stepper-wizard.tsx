@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import type {
-	WorkflowStepperBaseProps,
 	WorkflowStepDefinition,
+	WorkflowStepperBaseProps,
 } from "../../types";
 
 /**
@@ -42,7 +42,7 @@ export function WorkflowStepperWizard({
 		return (
 			<div
 				key={step.id}
-				className="relative group"
+				className="group relative"
 				onClick={() => isClickable && onStepClick(step.number)}
 				onKeyDown={(e) => {
 					if (isClickable && (e.key === "Enter" || e.key === " ")) {
@@ -54,7 +54,7 @@ export function WorkflowStepperWizard({
 			>
 				{/* Tooltip on hover for non-current steps */}
 				{showTooltip && !isCurrent && (
-					<div className="absolute -top-10 left-1/2 transform -translate-x-1/2 bg-popover border border-border px-2 py-1 text-xs text-popover-foreground whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+					<div className="-top-10 -translate-x-1/2 pointer-events-none absolute left-1/2 z-10 transform whitespace-nowrap border border-border bg-popover px-2 py-1 text-popover-foreground text-xs opacity-0 transition-opacity group-hover:opacity-100">
 						{step.name}
 					</div>
 				)}
@@ -62,12 +62,12 @@ export function WorkflowStepperWizard({
 				{/* Step Element */}
 				<div
 					className={cn(
-						"border border-muted-foreground flex items-center justify-center transition-all",
+						"flex items-center justify-center border border-muted-foreground transition-all",
 						isCurrent &&
-							"w-8 h-8 bg-primary border-primary text-primary-foreground text-sm font-medium",
+							"h-8 w-8 border-primary bg-primary font-medium text-primary-foreground text-sm",
 						isCompleted &&
-							"w-4 h-8 bg-[oklch(0.75_0.08_142)] border-muted-foreground",
-						isUpcoming && "w-4 h-8 bg-muted border-muted-foreground",
+							"h-8 w-4 border-muted-foreground bg-[oklch(0.75_0.08_142)]",
+						isUpcoming && "h-8 w-4 border-muted-foreground bg-muted",
 						isClickable && "cursor-pointer hover:opacity-80",
 					)}
 				>
@@ -88,7 +88,7 @@ export function WorkflowStepperWizard({
 					</div>
 					{/* Current step name */}
 					{currentStepData && (
-						<span className="text-foreground text-sm font-normal">
+						<span className="font-normal text-foreground text-sm">
 							{currentStepData.name}
 						</span>
 					)}

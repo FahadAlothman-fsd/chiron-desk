@@ -1,17 +1,17 @@
+import { useQueryClient } from "@tanstack/react-query";
+import { Check, ChevronDown, ChevronUp, Loader2, X } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import {
 	Card,
-	CardHeader,
-	CardTitle,
 	CardContent,
 	CardFooter,
+	CardHeader,
+	CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Check, X, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { trpc } from "@/utils/trpc";
-import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
 
 /**
  * ApprovalCard - Inline approval UI for AI-generated content
@@ -123,18 +123,18 @@ export function ApprovalCard({
 				<CardTitle className="flex items-center justify-between text-lg">
 					<span>
 						{isApproved && (
-							<Check className="inline h-5 w-5 text-green-600 mr-2" />
+							<Check className="mr-2 inline h-5 w-5 text-green-600" />
 						)}
-						{isRejected && <X className="inline h-5 w-5 text-red-600 mr-2" />}
+						{isRejected && <X className="mr-2 inline h-5 w-5 text-red-600" />}
 						{displayToolName}
 					</span>
 					{isApproved && (
-						<span className="text-sm text-green-600 font-normal">
+						<span className="font-normal text-green-600 text-sm">
 							Approved ✓
 						</span>
 					)}
 					{isRejected && (
-						<span className="text-sm text-red-600 font-normal">Rejected</span>
+						<span className="font-normal text-red-600 text-sm">Rejected</span>
 					)}
 				</CardTitle>
 			</CardHeader>
@@ -148,10 +148,10 @@ export function ApprovalCard({
 
 						return (
 							<div key={key} className="space-y-1">
-								<div className="text-sm font-medium text-muted-foreground capitalize">
+								<div className="font-medium text-muted-foreground text-sm capitalize">
 									{key.replace(/_/g, " ")}
 								</div>
-								<div className="p-3 bg-background rounded-md border">
+								<div className="rounded-md border bg-background p-3">
 									{typeof value === "string"
 										? value
 										: JSON.stringify(value, null, 2)}
@@ -166,7 +166,7 @@ export function ApprovalCard({
 					<div className="border-t pt-3">
 						<button
 							onClick={() => setIsReasoningExpanded(!isReasoningExpanded)}
-							className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full"
+							className="flex w-full items-center gap-2 font-medium text-muted-foreground text-sm transition-colors hover:text-foreground"
 						>
 							{isReasoningExpanded ? (
 								<ChevronUp className="h-4 w-4" />
@@ -177,7 +177,7 @@ export function ApprovalCard({
 						</button>
 
 						{isReasoningExpanded && (
-							<div className="mt-2 p-3 bg-muted/50 rounded-md text-sm text-muted-foreground">
+							<div className="mt-2 rounded-md bg-muted/50 p-3 text-muted-foreground text-sm">
 								{reasoning}
 							</div>
 						)}
@@ -187,7 +187,7 @@ export function ApprovalCard({
 				{/* Feedback Input (shown when rejecting) */}
 				{showFeedbackInput && !isReadOnly && (
 					<div className="space-y-2 border-t pt-3">
-						<label className="text-sm font-medium">
+						<label className="font-medium text-sm">
 							Why are you rejecting this? (This helps Athena improve)
 						</label>
 						<Textarea
@@ -213,12 +213,12 @@ export function ApprovalCard({
 							>
 								{isLoading ? (
 									<>
-										<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+										<Loader2 className="mr-2 h-4 w-4 animate-spin" />
 										Approving...
 									</>
 								) : (
 									<>
-										<Check className="h-4 w-4 mr-2" />
+										<Check className="mr-2 h-4 w-4" />
 										Accept
 									</>
 								)}
@@ -229,7 +229,7 @@ export function ApprovalCard({
 								disabled={isLoading}
 								className="flex-1"
 							>
-								<X className="h-4 w-4 mr-2" />
+								<X className="mr-2 h-4 w-4" />
 								Reject & Explain
 							</Button>
 						</>
@@ -243,7 +243,7 @@ export function ApprovalCard({
 							>
 								{isLoading ? (
 									<>
-										<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+										<Loader2 className="mr-2 h-4 w-4 animate-spin" />
 										Submitting...
 									</>
 								) : (

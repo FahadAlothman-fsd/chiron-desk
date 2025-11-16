@@ -41,6 +41,7 @@ export async function seedWorkflowPaths() {
 		const fieldType = data.field_type || "";
 
 		// Create structured tag objects with {name, value, description}
+		// Map from YAML track values to structured tags
 		const complexityTagMap: Record<
 			string,
 			{ name: string; value: string; description: string }
@@ -51,13 +52,27 @@ export async function seedWorkflowPaths() {
 				description:
 					"Fast implementation track using tech-spec planning only. Best for bug fixes, small features, and changes with clear scope. Typical range: 1-15 stories. Examples: bug fixes, OAuth login, search features.",
 			},
-			method: {
+			"bmad-method": {
 				name: "BMad Method Track",
 				value: "method",
 				description:
 					"Full product planning track using PRD + Architecture + UX. Best for products, platforms, and complex features requiring system design. Typical range: 10-50+ stories. Examples: admin dashboards, e-commerce platforms, SaaS products.",
 			},
+			method: {
+				// Alias for backwards compatibility
+				name: "BMad Method Track",
+				value: "method",
+				description:
+					"Full product planning track using PRD + Architecture + UX. Best for products, platforms, and complex features requiring system design. Typical range: 10-50+ stories. Examples: admin dashboards, e-commerce platforms, SaaS products.",
+			},
+			"enterprise-bmad-method": {
+				name: "Enterprise Method Track",
+				value: "enterprise",
+				description:
+					"Extended enterprise planning track adding Security Architecture, DevOps Strategy, and Test Strategy to BMad Method. Best for enterprise requirements, compliance needs, and multi-tenant systems. Typical range: 30+ stories. Examples: multi-tenant platforms, compliance-driven systems, mission-critical applications.",
+			},
 			enterprise: {
+				// Alias for backwards compatibility
 				name: "Enterprise Method Track",
 				value: "enterprise",
 				description:
@@ -101,14 +116,18 @@ export async function seedWorkflowPaths() {
 
 		const estimatedTimeMap: Record<string, string> = {
 			"quick-flow": "1-2 weeks",
-			method: "4-8 weeks",
-			enterprise: "3-6 months",
+			"bmad-method": "4-8 weeks",
+			method: "4-8 weeks", // Alias
+			"enterprise-bmad-method": "3-6 months",
+			enterprise: "3-6 months", // Alias
 		};
 
 		const agentSupportMap: Record<string, string> = {
 			"quick-flow": "PM, DEV",
-			method: "PM, Analyst, Architect, DEV, SM",
-			enterprise: "All 6 agents",
+			"bmad-method": "PM, Analyst, Architect, DEV, SM",
+			method: "PM, Analyst, Architect, DEV, SM", // Alias
+			"enterprise-bmad-method": "All 6 agents",
+			enterprise: "All 6 agents", // Alias
 		};
 
 		// Determine sequence order

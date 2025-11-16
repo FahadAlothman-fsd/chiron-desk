@@ -5,8 +5,8 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { WorkflowStepperWizard } from "@/components/workflows/steppers/wizard/workflow-stepper-wizard";
-import { AskUserStep } from "@/components/workflows/steps/ask-user-step";
 import { AskUserChatStepNew as AskUserChatStep } from "@/components/workflows/steps/ask-user-chat-step-new";
+import { AskUserStep } from "@/components/workflows/steps/ask-user-step";
 import { ExecuteActionStep } from "@/components/workflows/steps/execute-action-step";
 import type { WorkflowStepDefinition } from "@/components/workflows/types";
 import { trpcClient } from "@/utils/trpc";
@@ -205,7 +205,7 @@ function InitializePage() {
 				<div className="rounded-lg border bg-card p-6 shadow-sm">
 					{/* Read-only banner for completed steps */}
 					{isViewingCompletedStep && (
-						<div className="mb-4 rounded-md bg-muted p-3 text-center text-sm text-muted-foreground">
+						<div className="mb-4 rounded-md bg-muted p-3 text-center text-muted-foreground text-sm">
 							You are viewing a completed step in read-only mode. Changes cannot
 							be made.
 						</div>

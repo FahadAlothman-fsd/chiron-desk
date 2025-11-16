@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from "react";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Card } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
-import { trpc } from "@/utils/trpc";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { trpc } from "@/utils/trpc";
 import { ApprovalCard } from "../approval-card";
 
 /**
@@ -176,9 +176,9 @@ export function AskUserChatStep({
 		: [];
 
 	return (
-		<div className="flex flex-col h-full max-h-[600px]">
+		<div className="flex h-full max-h-[600px] flex-col">
 			{/* Message List */}
-			<div className="flex-1 overflow-y-auto p-4 space-y-4">
+			<div className="flex-1 space-y-4 overflow-y-auto p-4">
 				{messages.map((message) => (
 					<MessageBubble key={message.id} message={message} />
 				))}
@@ -200,7 +200,7 @@ export function AskUserChatStep({
 
 				{/* Thinking Indicator */}
 				{isLoading && (
-					<div className="flex items-center gap-2 text-sm text-muted-foreground">
+					<div className="flex items-center gap-2 text-muted-foreground text-sm">
 						<Loader2 className="h-4 w-4 animate-spin" />
 						<span>Athena is thinking...</span>
 					</div>
@@ -217,7 +217,7 @@ export function AskUserChatStep({
 						onChange={(e) => setInputValue(e.target.value)}
 						onKeyDown={handleKeyDown}
 						placeholder="Type your message... (Shift+Enter for new line)"
-						className="min-h-[60px] max-h-[120px]"
+						className="max-h-[120px] min-h-[60px]"
 						disabled={isLoading}
 					/>
 					<Button
@@ -230,7 +230,7 @@ export function AskUserChatStep({
 				</div>
 
 				{/* Agent/Model Selector (Future Enhancement) */}
-				<div className="mt-2 flex gap-2 text-xs text-muted-foreground">
+				<div className="mt-2 flex gap-2 text-muted-foreground text-xs">
 					<span>📋 Athena</span>
 					<span>•</span>
 					<span>{selectedModel}</span>
@@ -319,7 +319,7 @@ function MessageBubble({ message }: { message: Message }) {
 		>
 			{/* Agent Attribution (for assistant messages) */}
 			{!isUser && message.metadata && (
-				<div className="flex items-center gap-2 text-sm text-muted-foreground px-1">
+				<div className="flex items-center gap-2 px-1 text-muted-foreground text-sm">
 					{message.metadata.agent_icon && (
 						<span>{message.metadata.agent_icon}</span>
 					)}
@@ -337,16 +337,16 @@ function MessageBubble({ message }: { message: Message }) {
 
 			{/* Thinking Block (if present and not user message) */}
 			{!isUser && parsedContent.thinking && (
-				<Card className="max-w-[80%] p-3 bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+				<Card className="max-w-[80%] border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-950">
 					<button
 						onClick={() => setShowThinking(!showThinking)}
-						className="flex items-center gap-2 text-sm font-medium text-blue-700 dark:text-blue-300 w-full"
+						className="flex w-full items-center gap-2 font-medium text-blue-700 text-sm dark:text-blue-300"
 					>
 						<span>{showThinking ? "▼" : "▶"}</span>
 						<span>💭 Extended Thinking</span>
 					</button>
 					{showThinking && (
-						<p className="mt-2 text-sm text-blue-900 dark:text-blue-100 whitespace-pre-wrap">
+						<p className="mt-2 whitespace-pre-wrap text-blue-900 text-sm dark:text-blue-100">
 							{parsedContent.thinking}
 						</p>
 					)}
@@ -366,14 +366,14 @@ function MessageBubble({ message }: { message: Message }) {
 			{!isUser &&
 				message.metadata?.tool_calls &&
 				message.metadata.tool_calls.length > 0 && (
-					<div className="text-xs text-muted-foreground px-1">
+					<div className="px-1 text-muted-foreground text-xs">
 						🔧 Used tools:{" "}
 						{message.metadata.tool_calls.map((t) => t.name).join(", ")}
 					</div>
 				)}
 
 			{/* Timestamp */}
-			<div className="text-xs text-muted-foreground px-1">
+			<div className="px-1 text-muted-foreground text-xs">
 				{new Date(message.created_at).toLocaleTimeString()}
 			</div>
 		</div>

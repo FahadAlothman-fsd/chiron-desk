@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { trpc } from "@/utils/trpc";
+import { CheckIcon, MessageSquareIcon, Sparkles, Wrench } from "lucide-react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
 	Conversation,
@@ -9,21 +9,12 @@ import {
 	ConversationEmptyState,
 	ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
+import { Loader } from "@/components/ai-elements/loader";
 import {
 	Message,
 	MessageContent,
 	MessageResponse,
 } from "@/components/ai-elements/message";
-import {
-	PromptInput,
-	PromptInputBody,
-	PromptInputFooter,
-	PromptInputSubmit,
-	PromptInputTextarea,
-	PromptInputTools,
-	PromptInputButton,
-	type PromptInputMessage,
-} from "@/components/ai-elements/prompt-input";
 import {
 	ModelSelector,
 	ModelSelectorContent,
@@ -37,17 +28,26 @@ import {
 	ModelSelectorTrigger,
 } from "@/components/ai-elements/model-selector";
 import {
+	PromptInput,
+	PromptInputBody,
+	PromptInputButton,
+	PromptInputFooter,
+	type PromptInputMessage,
+	PromptInputSubmit,
+	PromptInputTextarea,
+	PromptInputTools,
+} from "@/components/ai-elements/prompt-input";
+import {
 	Reasoning,
 	ReasoningContent,
 	ReasoningTrigger,
 } from "@/components/ai-elements/reasoning";
-import { Loader } from "@/components/ai-elements/loader";
-import { MessageSquareIcon, CheckIcon, Sparkles, Wrench } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { trpc } from "@/utils/trpc";
 import { ApprovalCard } from "../approval-card";
+import { ProjectNameSelectorCard } from "../project-name-selector-card";
 import { ToolStatusSidebar } from "../tool-status-sidebar";
 import { WorkflowPathSelectorCard } from "../workflow-path-selector-card";
-import { ProjectNameSelectorCard } from "../project-name-selector-card";
-import { Badge } from "@/components/ui/badge";
 
 /**
  * AI Elements-powered chat interface for workflow steps
@@ -347,9 +347,9 @@ export function AskUserChatStepNew({
 	const allApprovals = approvalStates ? Object.entries(approvalStates) : [];
 
 	return (
-		<div className="flex gap-6 h-full max-h-[calc(100vh-200px)]">
+		<div className="flex h-full max-h-[calc(100vh-200px)] gap-6">
 			{/* Main Chat Area - Takes priority */}
-			<div className="flex flex-col flex-1 min-w-0 min-h-0">
+			<div className="flex min-h-0 min-w-0 flex-1 flex-col">
 				{/* Conversation Area */}
 				<Conversation className="flex-1">
 					<ConversationContent>
@@ -380,7 +380,7 @@ export function AskUserChatStepNew({
 										<Message from={message.role} key={message.id}>
 											{/* Agent Name, Timestamp & Tool Calls (for assistant) */}
 											{!isUser && (
-												<div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground flex-wrap">
+												<div className="mb-2 flex flex-wrap items-center gap-2 text-muted-foreground text-xs">
 													<span className="font-medium">
 														{message.metadata?.agent_icon}{" "}
 														{message.metadata?.agent_name || "Assistant"}
@@ -393,7 +393,7 @@ export function AskUserChatStepNew({
 																<span>•</span>
 																<div className="flex items-center gap-1.5">
 																	<Wrench className="size-3" />
-																	<span className="text-[10px] font-medium">
+																	<span className="font-medium text-[10px]">
 																		{message.metadata.tool_calls.length} tool
 																		{message.metadata.tool_calls.length === 1
 																			? ""
@@ -401,13 +401,13 @@ export function AskUserChatStepNew({
 																		called
 																	</span>
 																</div>
-																<div className="flex gap-1 flex-wrap">
+																<div className="flex flex-wrap gap-1">
 																	{message.metadata.tool_calls.map(
 																		(tool, idx) => (
 																			<Badge
 																				key={idx}
 																				variant="secondary"
-																				className="text-[10px] px-1.5 py-0 h-4"
+																				className="h-4 px-1.5 py-0 text-[10px]"
 																			>
 																				{tool.name}
 																			</Badge>
@@ -436,7 +436,7 @@ export function AskUserChatStepNew({
 
 											{/* Timestamp (for user) */}
 											{isUser && (
-												<div className="text-xs text-muted-foreground text-right mt-1">
+												<div className="mt-1 text-right text-muted-foreground text-xs">
 													{timestamp}
 												</div>
 											)}
@@ -506,7 +506,7 @@ export function AskUserChatStepNew({
 										<MessageContent>
 											<div className="flex items-center gap-2">
 												<Loader />
-												<span className="text-sm text-muted-foreground">
+												<span className="text-muted-foreground text-sm">
 													Athena is thinking...
 												</span>
 											</div>
@@ -593,7 +593,7 @@ export function AskUserChatStepNew({
 								</ModelSelector>
 
 								{/* Agent Info */}
-								<div className="flex items-center gap-2 text-xs text-muted-foreground ml-auto">
+								<div className="ml-auto flex items-center gap-2 text-muted-foreground text-xs">
 									<Sparkles className="size-3" />
 									<span>Athena</span>
 								</div>
