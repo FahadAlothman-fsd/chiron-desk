@@ -172,8 +172,8 @@ export function ToolStatusSidebar({
 		.map((t) => t.name);
 
 	return (
-		<Card className={`${className} overflow-hidden`}>
-			<CardHeader className="pb-3">
+		<Card className={`${className} flex flex-col overflow-hidden`}>
+			<CardHeader className="pb-3 flex-shrink-0">
 				<CardTitle className="flex items-center justify-between text-base">
 					<span>Tool Execution Progress</span>
 					<span className="font-normal text-muted-foreground text-sm">
@@ -189,7 +189,7 @@ export function ToolStatusSidebar({
 				</div>
 			</CardHeader>
 
-			<CardContent className="p-0">
+			<CardContent className="p-0 flex-1 overflow-y-auto">
 				<Accordion
 					type="multiple"
 					defaultValue={defaultOpenItems}
