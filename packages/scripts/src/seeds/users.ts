@@ -1,9 +1,13 @@
 import { auth } from "@chiron/auth";
+import { appConfig, db, user } from "@chiron/db";
+import { eq } from "drizzle-orm";
 
 const TEST_USER = {
 	email: "test@chiron.local",
 	name: "Test User",
 	password: "test123456", // Min 8 chars for better-auth
+	openrouterApiKey:
+		"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",
 };
 
 /**
@@ -11,8 +15,8 @@ const TEST_USER = {
  * Requires better-auth admin plugin to be enabled
  */
 export async function seedUsers() {
+	// Step 1: Create user with better-auth
 	try {
-		// Use better-auth admin API to create user
 		await auth.api.signUpEmail({
 			body: {
 				email: TEST_USER.email,
@@ -34,5 +38,37 @@ export async function seedUsers() {
 			console.error("  ❌ Error creating test user:", error);
 			throw error;
 		}
+	}
+
+	// Step 2: Add OpenRouter API key to user's app_config (AFTER user exists)
+	try {
+		const testUser = await db.query.user.findFirst({
+			where: eq(user.email, TEST_USER.email),
+		});
+
+		if (!testUser) {
+			console.error("  ❌ Test user not found for API key setup");
+			return;
+		}
+
+		await db
+			.insert(appConfig)
+			.values({
+				userId: testUser.id,
+				openrouterApiKey: TEST_USER.openrouterApiKey,
+				defaultLlmProvider: "openrouter",
+			})
+			.onConflictDoUpdate({
+				target: appConfig.userId,
+				set: {
+					openrouterApiKey: TEST_USER.openrouterApiKey,
+					defaultLlmProvider: "openrouter",
+				},
+			});
+
+		console.log(`  ✓ OpenRouter API key configured for test user`);
+	} catch (error: any) {
+		console.error("  ❌ Error setting up API key:", error);
+		throw error;
 	}
 }
