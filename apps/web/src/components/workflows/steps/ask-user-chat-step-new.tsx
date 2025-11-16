@@ -347,8 +347,8 @@ export function AskUserChatStepNew({
 	const allApprovals = approvalStates ? Object.entries(approvalStates) : [];
 
 	return (
-		<div className="flex h-full max-h-[calc(100vh-200px)] gap-6">
-			{/* Main Chat Area - Takes priority */}
+		<div className="flex h-[calc(100vh-12rem)] gap-6">
+			{/* Main Chat Area - Takes priority, full height like proper chat */}
 			<div className="flex min-h-0 min-w-0 flex-1 flex-col">
 				{/* Conversation Area */}
 				<Conversation className="flex-1">
@@ -609,7 +609,7 @@ export function AskUserChatStepNew({
 
 			{/* Tool Status Sidebar with Accordion */}
 			{stepConfig.tools && stepConfig.tools.length > 0 && (
-				<div className="w-96 flex-shrink-0 overflow-hidden">
+				<div className="w-96 flex-shrink-0">
 					<ToolStatusSidebar
 						tools={stepConfig.tools}
 						approvalStates={approvalStates}
@@ -618,7 +618,7 @@ export function AskUserChatStepNew({
 						}
 						executionId={executionId}
 						agentId={stepConfig.agentId}
-						className="sticky top-4 max-h-[calc(100vh-240px)] overflow-y-auto"
+						className="h-full overflow-y-auto"
 					/>
 				</div>
 			)}

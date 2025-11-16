@@ -172,8 +172,8 @@ function InitializePage() {
 		isViewingHistory && viewingStepNumber < currentStepNumber;
 
 	return (
-		<div className="flex min-h-screen items-center justify-center p-6">
-			<div className="w-full max-w-7xl space-y-8">
+		<div className="flex min-h-screen flex-col p-6">
+			<div className="w-full max-w-7xl mx-auto space-y-8 flex-1 flex flex-col">
 				{/* Workflow Stepper */}
 				<WorkflowStepperWizard
 					currentStep={displayStepNumber}
@@ -201,8 +201,8 @@ function InitializePage() {
 					</div>
 				)}
 
-				{/* Step Content Container */}
-				<div className="rounded-lg border bg-card p-6 shadow-sm">
+				{/* Step Content Container - Full height for chat */}
+				<div className="rounded-lg border bg-card p-6 shadow-sm flex-1 flex flex-col">
 					{/* Read-only banner for completed steps */}
 					{isViewingCompletedStep && (
 						<div className="mb-4 rounded-md bg-muted p-3 text-center text-muted-foreground text-sm">
