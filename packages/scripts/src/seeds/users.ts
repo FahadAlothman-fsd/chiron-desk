@@ -1,6 +1,7 @@
 import { auth } from "@chiron/auth";
 import { appConfig, db, user } from "@chiron/db";
 import { eq } from "drizzle-orm";
+import { encrypt } from "../../../api/src/services/encryption";
 
 const TEST_USER = {
 	email: "test@chiron.local",
@@ -51,17 +52,20 @@ export async function seedUsers() {
 			return;
 		}
 
+		// Encrypt API key before storing
+		const encryptedApiKey = encrypt(TEST_USER.openrouterApiKey);
+
 		await db
 			.insert(appConfig)
 			.values({
 				userId: testUser.id,
-				openrouterApiKey: TEST_USER.openrouterApiKey,
+				openrouterApiKey: encryptedApiKey,
 				defaultLlmProvider: "openrouter",
 			})
 			.onConflictDoUpdate({
 				target: appConfig.userId,
 				set: {
-					openrouterApiKey: TEST_USER.openrouterApiKey,
+					openrouterApiKey: encryptedApiKey,
 					defaultLlmProvider: "openrouter",
 				},
 			});

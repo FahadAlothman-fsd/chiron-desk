@@ -23,7 +23,7 @@ const CORE_AGENTS = [
 			"Product Manager - Guides project planning with strategic wisdom and investigative insight.",
 		role: "product-manager",
 		llmProvider: "openrouter" as const,
-		llmModel: "meta-llama/llama-3.3-70b-instruct:free",
+		llmModel: "google/gemini-2.0-flash-exp:free",
 		llmTemperature: "0.7",
 		tools: null,
 		mcpServers: null,

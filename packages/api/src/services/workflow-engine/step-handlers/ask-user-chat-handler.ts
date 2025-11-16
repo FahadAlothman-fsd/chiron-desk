@@ -798,8 +798,15 @@ export class AskUserChatStepHandler implements StepHandler {
 						})
 						.filter((v: any) => v !== null && v !== undefined);
 
+					console.log(
+						`[OptionsSource] Extracted ${extractedValues.length} values BEFORE deduplication:`,
+						extractedValues.map((v: any) =>
+							typeof v === "object" && v.value ? v.value : v,
+						),
+					);
+
 					// Remove duplicates based on the 'value' property
-					// Tags structure: {name: string, value: string, description: string}
+					// Tags structure: {name, value, description}
 					const uniqueValues = [
 						...new Map(
 							extractedValues.map((v: any) => {
@@ -816,8 +823,10 @@ export class AskUserChatStepHandler implements StepHandler {
 					context.executionVariables[outputVariable] = uniqueValues;
 
 					console.log(
-						`[OptionsSource] Extracted ${uniqueValues.length} unique values for ${outputVariable}:`,
-						uniqueValues,
+						`[OptionsSource] Extracted ${uniqueValues.length} unique values AFTER deduplication for ${outputVariable}:`,
+						uniqueValues.map((v: any) =>
+							typeof v === "object" && v.value ? v.value : v,
+						),
 					);
 				} else {
 					// Store full results
