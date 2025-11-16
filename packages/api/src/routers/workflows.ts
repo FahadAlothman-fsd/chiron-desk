@@ -294,6 +294,21 @@ export const workflowRouter = router({
 			toolState.value = input.approvedValue;
 			toolState.approved_at = new Date().toISOString();
 
+			// Extract output fields from approved value and merge into execution variables
+			// This allows subsequent tools to access these variables as prerequisites
+			if (input.approvedValue && typeof input.approvedValue === "object") {
+				// Merge all non-internal fields from approved value into execution.variables
+				for (const [key, value] of Object.entries(input.approvedValue)) {
+					// Skip internal fields (reasoning, etc.) - only extract actual outputs
+					if (key !== "reasoning" && key !== "internal") {
+						execution.variables[key] = value;
+						console.log(
+							`[ApproveToolCall] Extracted output variable: ${key} = ${typeof value === "string" ? value.substring(0, 50) + "..." : JSON.stringify(value)}`,
+						);
+					}
+				}
+			}
+
 			// Get agent ID from execution or current step config
 			let agentId: string | undefined;
 			if (execution.agentId) {

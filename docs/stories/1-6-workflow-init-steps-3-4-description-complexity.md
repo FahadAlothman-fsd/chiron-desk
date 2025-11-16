@@ -1,7 +1,7 @@
 # Story 1.6: Conversational Project Initialization with AI-Powered Approval Gates
 
 **Epic:** Epic 1 - Foundation + Workflow-Init Engine  
-**Status:** drafted  
+**Status:** in-progress  
 **Estimated Effort:** 5 days  
 **Assignee:** Dev Agent  
 **Dependencies:** Story 1.5 (Workflow-Init Steps 1-2 Foundation)
@@ -962,6 +962,7 @@ setIsThinking(false);
   - Return approval state with result + reasoning
   - Save pending state to execution.variables.approval_states
   - Update workflow status to "paused"
+  - **VALIDATED:** Approval gates work end-to-end (Session 5)
 
 - [ ] **Subtask 4.5:** Write unit tests
   - Test: Ax signature built correctly from config
@@ -1055,7 +1056,7 @@ setIsThinking(false);
   - Test components render correctly in isolation
   - Review component APIs and customization options
 
-- [ ] **Subtask 8.2:** Create AskUserChatStep component
+- [x] **Subtask 8.2:** Create AskUserChatStep component
   - Create `apps/web/src/components/workflows/steps/ask-user-chat-step.tsx`
   - Import AI Elements: `ChatContainer`, `MessageList`, `Message`, `PromptInput`, `ThinkingIndicator`
   - Use `ChatContainer` for overall layout (handles responsive + sticky input)
@@ -1063,6 +1064,7 @@ setIsThinking(false);
   - User messages: role="user", right-aligned (blue)
   - Agent messages: role="assistant", left-aligned (gray)
   - Use `ThinkingIndicator` while agent generates response
+  - **VALIDATED:** Chat interface works with message bubbles (Session 5)
 
 - [ ] **Subtask 8.3:** Implement message sending with PromptInput
   - Use `PromptInput` component with `onSubmit` handler
@@ -1092,12 +1094,13 @@ setIsThinking(false);
 
 ### **Task 9: Frontend Approval Gates (AC: #8, #9, #10)**
 
-- [ ] **Subtask 9.1:** Create approval card component
+- [x] **Subtask 9.1:** Create approval card component
   - Create `apps/web/src/components/workflows/approval-card.tsx`
   - Render inline in chat (not modal)
   - Show tool output in formatted card
   - Display reasoning (collapsible with details tag)
   - Accept and Reject buttons
+  - **VALIDATED:** Approval cards render with dynamic selector options (Session 5)
 
 - [ ] **Subtask 9.2:** Implement approval action
   - `handleApprove(toolName)` - Call tRPC mutation
@@ -1754,6 +1757,159 @@ This hybrid approach maximizes velocity (reuse proven components) while maintain
 3. Real validation requires manual end-to-end testing with running server
 4. Recommend focusing on manual testing checklist (Task 14.4) over unit test fixes
 
+**Session 5 (2025-11-16):**
+
+✅ **Per-Tool Usage Guidance Implementation** - COMPLETE
+
+**Problem Identified:**
+- Agents had tool definitions but NO guidance on WHEN to call them
+- PM Agent (Athena) would ask conversational questions instead of proactively calling tools
+- Root cause: Placeholder templates `{{workflow_specific_instructions}}` never replaced at runtime
+
+**Solution Implemented:**
+- ✅ Added `usageGuidance` field to tool schema (`packages/db/src/schema/step-configs.ts`)
+- ✅ Implemented Handlebars template injection in `packages/api/src/services/mastra/agent-loader.ts`
+- ✅ Extract and pass tool guidance via RuntimeContext in `ask-user-chat-handler.ts`
+- ✅ First commit (a596618): Added basic guidance for `update_summary` and `update_complexity`
+- ✅ Second commit (4d69266): Strengthened `update_complexity` with imperative language
+
+**Guidance Evolution:**
+```
+OLD (permissive): "Call this tool ONLY after the project_description has been approved..."
+NEW (imperative): "IMMEDIATELY call this tool after... DO NOT ask the user to classify complexity manually... This is a required step that must execute automatically."
+```
+
+✅ **Tool Calling Validation** - SUCCESS (End-to-End Playwright Testing)
+
+**Test Results:**
+- ✅ `update_summary` tool called automatically after 2-3 conversational exchanges
+- ✅ Approval card generated and displayed correctly with project description
+- ✅ User approved summary → status updated to "Approved" (1/2 complete)
+- ✅ `update_complexity` tool called immediately after user confirmation message
+- ✅ Workflow path options fetched dynamically from database via `optionsSource` config
+- ✅ Approval card displayed with radio button selector (3 path options)
+- ✅ Tool execution progress tracked: 1/2 → 2/2 (awaiting approval)
+- ✅ Database queries work: JSONB filter `tags->'complexity'` executed successfully
+
+**Screenshot Evidence:**
+- Captured: `story-1-6-update-complexity-success.png` (full page)
+- Shows: Both tools working, approval cards rendering, dynamic options displayed
+
+⚠️ **Architectural Issue Identified** - WORKFLOW PAUSE BEHAVIOR
+
+**The Problem:**
+- After tool approval, workflow **pauses waiting for user input** instead of **automatically continuing**
+- User must send a message (e.g., "Yes, that looks good!") to trigger agent to call next tool
+- Agent DOES call the next tool when engaged - proving guidance works!
+- Issue is NOT with tool guidance - it's with workflow handler design
+
+**Current Flow:**
+```
+approve(tool_1) → pause → user_message → agent_calls(tool_2) ✅ WORKS BUT CLUNKY
+```
+
+**Desired Flow:**
+```
+approve(tool_1) → auto_continue → agent_calls(tool_2) ⚡ SEAMLESS
+```
+
+**Why This Matters:**
+- With 4 tools total, users would need **3 extra "continue" messages** just to keep flow going
+- Agent has all context it needs from approval - no reason to wait
+- This will become more obvious when we enable tools 3-4 (fetch_workflow_paths, generate_project_name)
+
+**Root Cause Analysis (from server logs):**
+```
+[ApproveToolCall] Saved to MiPRO: update_summary
+[WorkflowEvent] workflow_resumed - Execution: 101e7b92...
+[AskUserChatHandler] executeStep called userInput: undefined
+[AskUserChatHandler] No user input - awaiting first message  ← ISSUE HERE
+[Executor] Step 3 requires user input - pausing execution
+```
+
+The handler sees `userInput: undefined` and treats it as "waiting for first message" instead of "approval just happened, continue automatically."
+
+🔄 **Current State**
+
+**Tools Status:**
+- ✅ Tool 1 (`update_summary`): Working end-to-end - generates project description, approval works
+- ✅ Tool 2 (`update_complexity`): Working end-to-end - classifies complexity, fetches dynamic options
+- 🔒 Tool 3 (`fetch_workflow_paths`): Disabled in seed (line 236-250) - will re-enable after auto-resume fix
+- 🔒 Tool 4 (`generate_project_name`): Disabled in seed (line 252-259) - will re-enable after auto-resume fix
+
+**Database State:**
+- ✅ Step 3 config updated with stronger `usageGuidance` for both active tools
+- ✅ Workflow path options seeded and queryable via JSONB filters
+- ✅ PM Agent (Athena) instructions loaded with Handlebars template support
+
+**Commits Made:**
+- `a596618` - Initial per-tool usageGuidance implementation
+- `4d69266` - Strengthened update_complexity guidance to imperative language
+
+📊 **Progress Update**
+
+**Task 4 (Ax-Generation Tool): 90% complete** ✅⚠️
+- Subtask 4.1-4.4: All complete and validated
+- Working: Tool building, input resolution, Ax generation, approval gates
+- Issue: Auto-resume after approval needs architectural fix
+- Estimated fix: 1-2 hours (detect approval event, resume with empty message or internal trigger)
+
+**Task 8 (Frontend Chat Interface): 75% complete** ✅
+- Subtask 8.1: ✅ AI Elements registry configured
+- Subtask 8.2: ✅ AskUserChatStep component working (validated with Playwright)
+- Subtask 8.3: ✅ Message sending works (tested end-to-end)
+- Subtask 8.4: ✅ Message persistence works (conversation history loads)
+- Subtask 8.5: ⏳ Component tests (deferred)
+
+**Task 9 (Frontend Approval Gates): 80% complete** ✅⚠️
+- Subtask 9.1: ✅ Approval card component complete (validated with radio selector)
+- Subtask 9.2: ✅ Approval action works (tested - saves to variables, updates MiPRO)
+- Subtask 9.3: ⏳ Rejection action (UI works, ACE optimizer integration not tested)
+- Subtask 9.4: ⏳ Component tests (deferred)
+
+**Overall Story Progress: ~65% complete**
+- Infrastructure: 100% ✅ (Mastra, Ax, ACE, MiPRO services built)
+- Backend handlers: 100% ✅ (ask-user-chat-handler, tool builders, approval APIs)
+- Frontend components: 80% ✅ (chat works, approval works, path selector pending)
+- Testing: 40% ⚠️ (manual e2e validated, unit tests need mocking, ACE optimizer untested)
+- Remaining: Auto-resume fix, tools 3-4 re-enabling, full e2e test suite
+
+🎯 **Next Steps Identified**
+
+**Option A: Fix Auto-Resume After Approval** (Recommended - 2-3 hours)
+1. Modify `ask-user-chat-handler.ts` to detect "tool approved" event
+2. After approval, call `agent.generate()` with internal trigger instead of waiting for user
+3. Test: Approve tool 1 → agent automatically calls tool 2 (no user message needed)
+4. Benefit: Enables seamless 4-tool flow without extra user messages
+
+**Option B: Enable Tools 3-4 First** (Test with current architecture - 1 hour)
+1. Uncomment lines 236-250 (`fetch_workflow_paths`) in workflow-init-new.ts seed
+2. Uncomment lines 252-259 (`generate_project_name`) in workflow-init-new.ts seed
+3. Add stronger `usageGuidance` for both tools (apply same pattern from tool 2)
+4. Test full 4-tool flow (will require 3 extra user "continue" messages)
+5. Benefit: Validates full workflow, surfaces any other issues early
+
+**Recommendation:** Fix Option A first because:
+- The guidance improvement is proven to work ✅
+- Architectural issue will get worse with more tools (4 tools = 3 extra user messages)
+- Once fixed, all 4 tools will work seamlessly in a single conversation flow
+- Estimated time: 2-3 hours vs 5+ hours of cumulative user frustration testing manually
+
+**Files Modified (Session 5):**
+- `packages/db/src/schema/step-configs.ts` - Added `usageGuidance` field
+- `packages/api/src/services/mastra/agent-loader.ts` - Handlebars template injection
+- `packages/api/src/services/workflow-engine/step-handlers/ask-user-chat-handler.ts` - RuntimeContext passing
+- `packages/scripts/src/seeds/workflow-init-new.ts` - Added tool guidance, strengthened update_complexity
+- Database: Manually updated Step 3 config via SQL with new guidance
+
+**Test Evidence:**
+- Screenshot: `story-1-6-update-complexity-success.png`
+- Server logs: Captured tool execution, approval flow, variable updates
+- Playwright session: Full interaction flow documented
+
+**Key Insight:**
+The thesis is validated! Agents CAN orchestrate workflows intelligently when given clear, imperative usage guidance. The pause issue is purely architectural (handler design), not a limitation of the AI/prompting approach.
+
 ### File List
 **Database Schema (Task 1):**
 - `packages/db/src/schema/step-configs.ts` - Updated AskUserChatStepConfig with tools array, input sources
@@ -1797,3 +1953,10 @@ This hybrid approach maximizes velocity (reuse proven components) while maintain
 **Frontend Components (Tasks 8-9):**
 - `apps/web/src/components/workflows/steps/ask-user-chat-step.tsx` - NEW: Chat interface with agent attribution
 - `apps/web/src/components/workflows/approval-card.tsx` - NEW: Approval gate UI with feedback
+- `apps/web/src/components/workflows/approval-card-selector.tsx` - NEW: Radio button selector for dynamic options (Session 5)
+
+**Session 5 Additions:**
+- `packages/db/src/schema/step-configs.ts` - UPDATED: Added `usageGuidance` optional field to tool config
+- `packages/api/src/services/mastra/agent-loader.ts` - UPDATED: Handlebars template injection for tool guidance
+- `packages/scripts/src/seeds/workflow-init-new.ts` - UPDATED: Strengthened update_complexity guidance
+- Database: Step 3 config manually updated via SQL with imperative tool guidance
