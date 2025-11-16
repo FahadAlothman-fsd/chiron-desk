@@ -81,7 +81,14 @@ export class StateManager {
 
 	/**
 	 * Merge step output into execution variables using deep merge
-	 * Preserves nested objects and arrays
+	 *
+	 * Array merge strategy (naming convention):
+	 * - Variables ending in '_options' (database-sourced) → REPLACE array
+	 * - All other variables (user/AI-generated) → APPEND to array
+	 *
+	 * This allows:
+	 * - Static option lists from DB to be refreshed without duplication
+	 * - Dynamic content (epics, requirements, etc.) to accumulate over conversation
 	 */
 	async mergeExecutionVariables(
 		executionId: string,
@@ -101,8 +108,35 @@ export class StateManager {
 		const currentVariables =
 			(execution.variables as Record<string, unknown>) || {};
 
-		// Deep merge (output overwrites conflicting keys)
-		const mergedVariables = deepmerge(currentVariables, output);
+		// Deep merge with conditional array handling based on naming convention
+		// We need to manually check keys since deepmerge doesn't provide them in arrayMerge
+		const mergedVariables = deepmerge(currentVariables, output, {
+			arrayMerge: (target, source) => {
+				// Find which key in output has this source array
+				// This is safe because we're processing one variable at a time
+				let keyName: string | undefined;
+				for (const [k, v] of Object.entries(output)) {
+					if (v === source) {
+						keyName = k;
+						break;
+					}
+				}
+
+				// Variables ending in '_options' are database-sourced → REPLACE
+				if (keyName?.endsWith("_options")) {
+					console.log(
+						`[StateManager] Replacing array for '${keyName}' (database-sourced options)`,
+					);
+					return source;
+				}
+
+				// All other arrays → APPEND (user-generated content like epics, requirements)
+				console.log(
+					`[StateManager] Appending to array for '${keyName || "unknown"}' (user-generated content)`,
+				);
+				return [...target, ...source];
+			},
+		});
 
 		// Save back to database
 		await db
