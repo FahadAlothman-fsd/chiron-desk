@@ -110,6 +110,11 @@ export class AskUserChatStepHandler implements StepHandler {
 				});
 
 				try {
+					// Process optionsSource if present - fetch options from database BEFORE building tool
+					if (toolConfig.optionsSource) {
+						await this.fetchAndStoreOptions(toolConfig.optionsSource, context);
+					}
+
 					let baseTool: any;
 
 					switch (toolConfig.toolType) {
@@ -691,6 +696,147 @@ export class AskUserChatStepHandler implements StepHandler {
 			threadId,
 			needsSave,
 		};
+	}
+
+	/**
+	 * Fetch options from database via optionsSource config and store in execution variables
+	 *
+	 * This is used for tools that need dynamic options (e.g., complexity levels from workflow_paths).
+	 * The options are fetched once and stored in execution.variables for the tool to access.
+	 *
+	 * Example: update_complexity tool needs complexity_options from workflow_paths table
+	 */
+	private async fetchAndStoreOptions(
+		optionsSource: NonNullable<
+			NonNullable<AskUserChatStepConfig["tools"]>[number]["optionsSource"]
+		>,
+		context: ExecutionContext,
+	): Promise<void> {
+		const { table, distinctField, filterBy, orderBy, outputVariable } =
+			optionsSource;
+
+		console.log(`[OptionsSource] Fetching options from ${table}`, {
+			distinctField,
+			filterBy,
+			orderBy,
+			outputVariable,
+		});
+
+		try {
+			// Import database utilities
+			const { db, workflowPaths } = await import("@chiron/db");
+			const { sql } = await import("drizzle-orm");
+
+			// Build query based on table
+			let query: any;
+
+			if (table === "workflow_paths") {
+				// Query workflow_paths table
+				query = db.select().from(workflowPaths).$dynamic();
+
+				// Apply filters if provided
+				if (filterBy) {
+					for (const [filterField, filterValue] of Object.entries(filterBy)) {
+						// Handle JSONB path queries (e.g., "tags->'fieldType'->>'value'")
+						if (filterField.includes("->")) {
+							// Resolve template variables in filter value (e.g., {{detected_field_type}})
+							let resolvedValue = String(filterValue);
+							const templateMatch = resolvedValue.match(/\{\{([^}]+)\}\}/);
+							if (templateMatch) {
+								const varName = templateMatch[1];
+								const varValue = context.executionVariables[varName];
+								if (varValue) {
+									resolvedValue = String(varValue);
+									console.log(
+										`[OptionsSource] Resolved {{${varName}}} → "${resolvedValue}"`,
+									);
+								}
+							}
+
+							// Build JSONB filter using raw SQL
+							query = query.where(
+								sql`${sql.raw(filterField)} = ${resolvedValue}`,
+							);
+							console.log(
+								`[OptionsSource] Added JSONB filter: ${filterField} = ${resolvedValue}`,
+							);
+						} else {
+							// Regular field filter
+							query = query.where(
+								sql`${sql.raw(filterField)} = ${filterValue}`,
+							);
+						}
+					}
+				}
+
+				// Apply ordering if provided
+				if (orderBy) {
+					query = query.orderBy(sql.raw(orderBy));
+				}
+
+				// Execute query
+				const results = await query;
+
+				console.log(`[OptionsSource] Query returned ${results.length} results`);
+
+				// Extract distinct values if distinctField specified
+				if (distinctField) {
+					// Handle JSONB path extraction (e.g., "tags->'complexity'")
+					const distinctValues = results
+						.map((row: any) => {
+							// Extract value from JSONB path
+							if (distinctField.includes("->")) {
+								// Parse the JSONB path (e.g., "tags->'complexity'")
+								// For simplicity, handle one level deep
+								const pathMatch = distinctField.match(/(\w+)->['"](\w+)['"]/);
+								if (pathMatch) {
+									const [, field, key] = pathMatch;
+									return row[field]?.[key];
+								}
+							}
+							return row[distinctField];
+						})
+						.filter((v: any) => v !== null && v !== undefined);
+
+					// Remove duplicates and store
+					const uniqueValues = [
+						...new Map(
+							distinctValues.map((v: any) => [JSON.stringify(v), v]),
+						).values(),
+					];
+
+					context.executionVariables[outputVariable] = uniqueValues;
+
+					console.log(
+						`[OptionsSource] Extracted ${uniqueValues.length} unique values for ${outputVariable}:`,
+						uniqueValues,
+					);
+				} else {
+					// Store full results
+					context.executionVariables[outputVariable] = results;
+					console.log(
+						`[OptionsSource] Stored ${results.length} results in ${outputVariable}`,
+					);
+				}
+
+				// Save to database
+				await stateManager.mergeExecutionVariables(
+					context.systemVariables.execution_id,
+					{
+						[outputVariable]: context.executionVariables[outputVariable],
+					},
+				);
+
+				console.log(
+					`[OptionsSource] ✓ Saved ${outputVariable} to execution variables`,
+				);
+			} else {
+				throw new Error(`Unsupported optionsSource table: ${table}`);
+			}
+		} catch (error) {
+			console.error(`[OptionsSource] ✗ Failed to fetch options:`, error);
+			throw error;
+		}
 	}
 
 	/**
