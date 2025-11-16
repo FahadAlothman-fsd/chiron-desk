@@ -178,6 +178,13 @@ const models = [
 	},
 	// Meta Models
 	{
+		id: "openrouter:meta-llama/llama-3.3-70b-instruct:free",
+		name: "Llama 3.3 70B (Free)",
+		chef: "Meta",
+		chefSlug: "meta-llama",
+		providers: ["openrouter"],
+	},
+	{
 		id: "openrouter:meta-llama/llama-3.3-70b-instruct",
 		name: "Llama 3.3 70B",
 		chef: "Meta",
@@ -253,9 +260,9 @@ export function AskUserChatStepNew({
 	onComplete,
 }: AskUserChatStepProps) {
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
-	// Default to Claude 3.5 Sonnet (Gemini has tool calling issues - see separate investigation)
+	// Default to Llama 3.3 70B (FREE, supports tool calling)
 	const [model, setModel] = useState<string>(
-		"openrouter:anthropic/claude-3.5-sonnet",
+		"openrouter:meta-llama/llama-3.3-70b-instruct:free",
 	);
 	const [modelSelectorOpen, setModelSelectorOpen] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);

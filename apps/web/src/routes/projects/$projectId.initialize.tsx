@@ -173,7 +173,7 @@ function InitializePage() {
 
 	return (
 		<div className="flex min-h-screen flex-col p-6">
-			<div className="w-full max-w-7xl mx-auto space-y-8 flex-1 flex flex-col">
+			<div className="mx-auto flex w-full max-w-7xl flex-1 flex-col space-y-8">
 				{/* Workflow Stepper */}
 				<WorkflowStepperWizard
 					currentStep={displayStepNumber}
@@ -202,7 +202,7 @@ function InitializePage() {
 				)}
 
 				{/* Step Content Container - Full height for chat */}
-				<div className="rounded-lg border bg-card p-6 shadow-sm flex-1 flex flex-col">
+				<div className="flex flex-1 flex-col rounded-lg border bg-card p-6 shadow-sm">
 					{/* Read-only banner for completed steps */}
 					{isViewingCompletedStep && (
 						<div className="mb-4 rounded-md bg-muted p-3 text-center text-muted-foreground text-sm">
