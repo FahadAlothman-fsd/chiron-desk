@@ -106,8 +106,20 @@ export const askUserChatStepConfigSchema = z.object({
 			z.object({
 				name: z.string(),
 				toolType: z.enum(["ax-generation", "database-query", "custom"]),
+				description: z.string().optional(), // Tool description for LLM (what it does)
+				usageGuidance: z.string().optional(), // When/how to use this tool (injected into agent instructions)
 				requiredVariables: z.array(z.string()).optional(),
 				requiresApproval: z.boolean().optional(),
+				// Dynamic options source - fetch options from database before tool execution
+				optionsSource: z
+					.object({
+						table: z.string(), // Table to query
+						distinctField: z.string(), // Field to get unique values from (supports JSONB like "tags->'complexity'")
+						filterBy: z.record(z.string()).optional(), // Optional filters (supports {{variable}} syntax)
+						orderBy: z.string().optional(), // Field to order by
+						outputVariable: z.string(), // Variable name to store fetched options
+					})
+					.optional(),
 				// Ax-generation specific config
 				axSignature: z
 					.object({

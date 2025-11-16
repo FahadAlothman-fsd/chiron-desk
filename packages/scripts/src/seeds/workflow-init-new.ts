@@ -124,6 +124,10 @@ export async function seedWorkflowInitNew() {
 			{
 				name: "update_summary",
 				toolType: "ax-generation",
+				description:
+					"Generate a concise project summary from conversation history",
+				usageGuidance:
+					"Call this tool after 2-3 exchanges with the user about their project. Wait until you understand: what problem they're solving, who the target users are, and key features or requirements. Do NOT call this tool in your first response - gather information first through conversation.",
 				requiredVariables: [], // Can execute anytime based on conversation
 				requiresApproval: true,
 				axSignature: {
@@ -164,8 +168,22 @@ export async function seedWorkflowInitNew() {
 			{
 				name: "update_complexity",
 				toolType: "ax-generation",
+				description:
+					"Classify the project's complexity level based on scope, team size, and technical requirements",
+				usageGuidance:
+					"Call this tool ONLY after the project_description has been approved by the user. Use the approved summary and conversation context about team size, timeline, and technical scope to determine the appropriate complexity level. Select from the available complexity options.",
 				requiredVariables: ["project_description"], // Must run after summary approved
 				requiresApproval: true,
+				// Fetch available complexity options from database
+				optionsSource: {
+					table: "workflow_paths",
+					distinctField: "tags->'complexity'", // Get unique complexity tags
+					filterBy: {
+						"tags->'fieldType'->>'value'": "{{detected_field_type}}", // Filter by field type (greenfield/brownfield)
+					},
+					orderBy: "sequence_order", // Order by sequence
+					outputVariable: "complexity_options", // Store in execution.variables
+				},
 				axSignature: {
 					input: [
 						{
@@ -182,6 +200,14 @@ export async function seedWorkflowInitNew() {
 							description: "Context about team size, timeline, scope",
 						},
 						{
+							name: "complexity_options",
+							type: "json", // Ax doesn't support "array" type - use "json" for structured data
+							source: "variable",
+							variableName: "complexity_options",
+							description:
+								"Available complexity levels with structured metadata (value, name, description)",
+						},
+						{
 							name: "ace_context",
 							type: "string",
 							source: "playbook",
@@ -192,7 +218,8 @@ export async function seedWorkflowInitNew() {
 						{
 							name: "complexity_classification",
 							type: "string",
-							description: "Classification: quick-flow, method, or enterprise",
+							description:
+								"Selected complexity value (e.g., 'simple', 'moderate', 'complex')",
 							internal: false,
 						},
 						{
@@ -206,47 +233,30 @@ export async function seedWorkflowInitNew() {
 				},
 			},
 
-			// Tool 3: Fetch Available Workflow Paths from Database
-			{
-				name: "fetch_workflow_paths",
-				toolType: "database-query",
-				requiredVariables: ["complexity_classification", "detected_field_type"],
-				requiresApproval: false, // Auto-executes (database query)
-				databaseQuery: {
-					table: "workflow_paths",
-					filters: [
-						{
-							field: "tags->>'fieldType'",
-							operator: "eq",
-							value: "{{detected_field_type}}",
-						},
-						{
-							field: "tags->>'complexity'",
-							operator: "eq",
-							value: "{{complexity_classification}}",
-						},
-					],
-					outputVariable: "available_workflow_paths",
-				},
-			},
+			// Tool 3: TEMPORARILY DISABLED - Will fix after update_summary and update_complexity work
+			// {
+			// 	name: "fetch_workflow_paths",
+			// 	toolType: "ax-generation",
+			// 	requiredVariables: ["complexity_classification", "detected_field_type"],
+			// 	requiresApproval: true,
+			// 	axSignature: {
+			// 		systemPrompt: "...",
+			// 		userPromptTemplate: "...",
+			// 		optionSource: {...},
+			// 		outputVariable: "selected_workflow_path",
+			// 		outputFields: [...],
+			// 		strategy: "ChainOfThought",
+			// 	},
+			// },
 
-			// Tool 4: Present Workflow Path Selection to User
-			{
-				name: "select_workflow_path",
-				toolType: "custom",
-				customToolHandler: "select_workflow_path",
-				requiredVariables: ["available_workflow_paths"],
-				requiresApproval: true, // User must choose a path
-			},
-
-			// Tool 5: Generate Project Name Suggestions
-			{
-				name: "generate_project_name",
-				toolType: "custom",
-				customToolHandler: "generate_project_name",
-				requiredVariables: ["project_description", "complexity_classification"],
-				requiresApproval: true, // User selects or provides custom name
-			},
+			// Tool 4: TEMPORARILY DISABLED
+			// {
+			// 	name: "generate_project_name",
+			// 	toolType: "custom",
+			// 	customToolHandler: "generate_project_name",
+			// 	requiredVariables: ["project_description", "complexity_classification"],
+			// 	requiresApproval: true,
+			// },
 		],
 
 		completionCondition: {
@@ -254,17 +264,18 @@ export async function seedWorkflowInitNew() {
 			requiredTools: [
 				"update_summary",
 				"update_complexity",
-				"select_workflow_path",
-				"generate_project_name",
+				// TEMPORARILY DISABLED - Will re-enable after testing tools 1-2
+				// "fetch_workflow_paths",
+				// "generate_project_name",
 			],
-			// Note: fetch_workflow_paths auto-executes, not in requiredTools
 		},
 
 		outputVariables: {
 			project_description: "approval_states.update_summary.value",
 			complexity_classification: "approval_states.update_complexity.value",
-			selected_workflow_path_id: "approval_states.select_workflow_path.value",
-			project_name: "approval_states.generate_project_name.value",
+			// TEMPORARILY DISABLED - Will re-enable after testing tools 1-2
+			// selected_workflow_path: "approval_states.fetch_workflow_paths.value",
+			// project_name: "approval_states.generate_project_name.value",
 		},
 	};
 

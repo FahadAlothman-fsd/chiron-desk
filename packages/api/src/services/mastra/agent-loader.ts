@@ -5,6 +5,7 @@ import { db, agents, appConfig, acePlaybooks } from "@chiron/db";
 import { eq, and, or } from "drizzle-orm";
 import { decrypt } from "../encryption";
 import { loadModel, type ModelConfig } from "./model-loader";
+import Handlebars from "handlebars";
 
 /**
  * Agent Loader - Dynamically loads and registers agents from database
@@ -135,8 +136,32 @@ async function loadInstructions({
 	projectId?: string;
 	variables?: Record<string, unknown>;
 }): Promise<string> {
-	// Start with base instructions
+	// Start with base instructions (contains Handlebars placeholders)
 	let instructions = agentRecord.instructions || "";
+
+	// Build tool guidance from individual tool usageGuidance fields
+	const toolsGuidance = (variables?.tools_guidance as string[]) || [];
+	const toolsGuidanceSection =
+		toolsGuidance.length > 0
+			? toolsGuidance.join("\n")
+			: "No specific tool usage guidance provided.";
+
+	// Build context for Handlebars template resolution
+	const templateContext = {
+		workflow_id: variables?.workflow_id || "unknown",
+		step_number: variables?.step_number || "",
+		step_objective: variables?.step_objective || "",
+		workflow_specific_instructions: toolsGuidanceSection,
+		// Include all variables for flexibility
+		...variables,
+	};
+
+	// Resolve Handlebars placeholders in agent instructions
+	const compiledTemplate = Handlebars.compile(instructions, {
+		strict: false, // Don't throw on missing variables (return empty string)
+		noEscape: true, // Don't HTML-escape output
+	});
+	instructions = compiledTemplate(templateContext);
 
 	// Inject current model information (so agent knows what model it's running on)
 	const selectedModel = variables?.selected_model as string | undefined;
@@ -184,10 +209,12 @@ async function loadModelWithUserKey({
 		selectedModel,
 		agentDefault: agentRecord.llmModel,
 		usingModel: modelToUse,
+		provider: agentRecord.llmProvider,
 	});
 
-	// Parse model config
-	const modelConfig = parseModelConfig(modelToUse);
+	// Use agent's configured provider (not derived from model string)
+	const provider = agentRecord.llmProvider;
+	const modelId = modelToUse;
 
 	// Load user's API key
 	const [userConfigRecord] = await db
@@ -201,33 +228,24 @@ async function loadModelWithUserKey({
 
 	// Decrypt appropriate API key based on provider
 	let apiKey: string | undefined;
-	if (
-		modelConfig.provider === "openrouter" &&
-		userConfigRecord.openrouterApiKey
-	) {
+	if (provider === "openrouter" && userConfigRecord.openrouterApiKey) {
 		apiKey = decrypt(userConfigRecord.openrouterApiKey);
-	} else if (
-		modelConfig.provider === "anthropic" &&
-		userConfigRecord.anthropicApiKey
-	) {
+	} else if (provider === "anthropic" && userConfigRecord.anthropicApiKey) {
 		apiKey = decrypt(userConfigRecord.anthropicApiKey);
-	} else if (
-		modelConfig.provider === "openai" &&
-		userConfigRecord.openaiApiKey
-	) {
+	} else if (provider === "openai" && userConfigRecord.openaiApiKey) {
 		apiKey = decrypt(userConfigRecord.openaiApiKey);
 	}
 
 	if (!apiKey) {
 		throw new Error(
-			`No API key found for provider: ${modelConfig.provider}, user: ${userId}`,
+			`No API key found for provider: ${provider}, user: ${userId}`,
 		);
 	}
 
 	// Create model instance with user's API key
 	const fullModelConfig: ModelConfig = {
-		provider: modelConfig.provider as any,
-		modelId: modelConfig.modelId,
+		provider: provider as any,
+		modelId: modelId,
 		apiKey,
 	};
 
@@ -317,13 +335,14 @@ export function createDynamicAgent(
 			});
 		},
 
-		// Dynamic tools - loads from DB on every call
-		// TODO: Implement tool loading - currently returns empty
-		tools: async ({ runtimeContext }: { runtimeContext: RuntimeContext }) => {
-			return await loadTools({
-				agentId: agentRecord.id,
-			});
-		},
+		// Dynamic tools - DISABLED
+		// Tools are passed dynamically via toolsets in agent.generate() call
+		// to allow per-workflow-step tool configuration
+		// tools: async ({ runtimeContext }: { runtimeContext: RuntimeContext }) => {
+		// 	return await loadTools({
+		// 		agentId: agentRecord.id,
+		// 	});
+		// },
 
 		// Memory configuration - uses shared Mastra storage
 		memory: new Memory({

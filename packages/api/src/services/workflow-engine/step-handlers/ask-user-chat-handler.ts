@@ -102,9 +102,12 @@ export class AskUserChatStepHandler implements StepHandler {
 			);
 
 			for (const toolConfig of config.tools) {
-				console.log(
-					`[AskUserChatHandler] Building tool: ${toolConfig.name} (${toolConfig.toolType})`,
-				);
+				console.log(`[ToolRegistration] Building ${toolConfig.name}`, {
+					type: toolConfig.toolType,
+					hasOptionsSource: !!toolConfig.optionsSource,
+					requiredVariables: toolConfig.requiredVariables || [],
+					requiresApproval: toolConfig.requiresApproval,
+				});
 
 				try {
 					let baseTool: any;
@@ -126,13 +129,16 @@ export class AskUserChatStepHandler implements StepHandler {
 							// Custom tools deprecated - use ax-generation or database-query instead
 							// All Story 1.6 tools are either ax-generation or database-query
 							console.warn(
-								`[AskUserChatHandler] Custom tool type deprecated. Use ax-generation instead: ${toolConfig.name}`,
+								`[ToolRegistration] ⚠️ Skipping deprecated custom tool: ${toolConfig.name}`,
+							);
+							console.warn(
+								`[ToolRegistration] Please convert ${toolConfig.name} to ax-generation or database-query type`,
 							);
 							continue;
 
 						default:
 							console.warn(
-								`[AskUserChatHandler] Unknown tool type: ${toolConfig.toolType}`,
+								`[ToolRegistration] ⚠️ Unknown tool type for ${toolConfig.name}: ${toolConfig.toolType}`,
 							);
 							continue;
 					}
@@ -147,13 +153,22 @@ export class AskUserChatStepHandler implements StepHandler {
 
 						allTools[toolConfig.name] = wrappedTool;
 						console.log(
-							`[AskUserChatHandler] ✓ Built tool: ${toolConfig.name}`,
+							`[ToolRegistration] ✓ Registered ${toolConfig.name} to agent`,
+							{
+								toolId: baseTool.id,
+								hasDescription: !!baseTool.description,
+							},
 						);
 					}
 				} catch (error) {
+					// CRITICAL: Log but continue - don't let one tool failure prevent others
 					console.error(
-						`[AskUserChatHandler] Failed to build tool ${toolConfig.name}:`,
-						error,
+						`[ToolRegistration] ❌ Failed to build ${toolConfig.name}:`,
+						error instanceof Error ? error.message : String(error),
+					);
+					console.error(`[ToolRegistration] Stack trace:`, error);
+					console.warn(
+						`[ToolRegistration] Continuing with other tools despite failure`,
 					);
 					// Continue building other tools even if one fails
 				}
@@ -185,44 +200,76 @@ export class AskUserChatStepHandler implements StepHandler {
 	): any {
 		const requiredVariables = toolConfig.requiredVariables || [];
 
-		// If no prerequisites, return tool as-is
-		if (requiredVariables.length === 0) {
-			return baseTool;
-		}
-
 		// Store original execute function
 		const originalExecute = baseTool.execute.bind(baseTool);
 
-		// Override execute with prerequisite checking wrapper
+		// Override execute with prerequisite AND approval checking wrapper
 		baseTool.execute = async (input: unknown) => {
-			// Check prerequisites
-			const missing = requiredVariables.filter((varName: string) => {
-				// Check in execution variables AND approval states
-				const hasInVars = varName in context.executionVariables;
-				const approvalStates =
-					(context.executionVariables.approval_states as Record<string, any>) ||
-					{};
-
-				// Check if variable exists in any approved tool output
-				const hasInApprovals = Object.values(approvalStates).some(
-					(state: any) => state.value && varName in state.value,
-				);
-
-				return !hasInVars && !hasInApprovals;
+			console.log(`[ToolExecution] ${toolConfig.name} called by agent`, {
+				hasRequiredVars: requiredVariables.length > 0,
+				requiresApproval: toolConfig.requiresApproval,
 			});
 
-			if (missing.length > 0) {
-				const errorMsg = `Tool "${toolConfig.name}" cannot execute yet. Missing required variables: ${missing.join(", ")}. Please complete previous steps first.`;
-				console.warn(`[AskUserChatHandler] ${errorMsg}`);
+			// First, check if tool is already approved
+			const approvalStates =
+				(context.executionVariables.approval_states as Record<string, any>) ||
+				{};
+			const toolState = approvalStates[toolConfig.name];
 
-				throw new Error(errorMsg);
+			if (toolState && toolState.status === "approved") {
+				console.log(
+					`[ToolExecution] ⏭️ ${toolConfig.name} already approved, returning cached value`,
+					{
+						approvalStatus: toolState.status,
+					},
+				);
+				// Return the approved value without re-executing
+				return toolState.value;
+			}
+
+			// Check prerequisites (only if not already approved)
+			if (requiredVariables.length > 0) {
+				const missing = requiredVariables.filter((varName: string) => {
+					// Check in execution variables AND approval states
+					const hasInVars = varName in context.executionVariables;
+
+					// Check if variable exists in any approved tool output
+					const hasInApprovals = Object.values(approvalStates).some(
+						(state: any) => state.value && varName in state.value,
+					);
+
+					return !hasInVars && !hasInApprovals;
+				});
+
+				if (missing.length > 0) {
+					// Build helpful error message with context
+					const missingList = missing.map((v) => `  • ${v}`).join("\n");
+
+					const errorMsg =
+						`Tool "${toolConfig.name}" cannot execute yet.\n\n` +
+						`Missing required inputs:\n${missingList}\n\n` +
+						`These inputs are generated by previous workflow steps. ` +
+						`Please complete the earlier steps in sequence before attempting to use this tool.`;
+
+					console.warn(`[AskUserChatHandler] ${errorMsg}`);
+
+					throw new Error(errorMsg);
+				}
 			}
 
 			// Prerequisites met, execute tool
 			console.log(
-				`[AskUserChatHandler] Executing tool: ${toolConfig.name} (prerequisites satisfied)`,
+				`[ToolExecution] ✓ Prerequisites satisfied for ${toolConfig.name}, executing...`,
 			);
-			return await originalExecute(input);
+			const result = await originalExecute(input);
+			console.log(`[ToolExecution] ✓ ${toolConfig.name} execution completed`, {
+				resultType: typeof result,
+				hasApprovalRequired:
+					result && typeof result === "object" && "type" in result
+						? result.type === "approval_required"
+						: false,
+			});
+			return result;
 		};
 
 		return baseTool;
@@ -384,11 +431,24 @@ export class AskUserChatStepHandler implements StepHandler {
 			config.agentId,
 		);
 
+		// Extract usageGuidance from tools for injection into agent instructions
+		const toolsGuidance = (config.tools || [])
+			.filter((t) => t.usageGuidance)
+			.map((t) => `**${t.name}**: ${t.usageGuidance}`);
+
 		// Create RuntimeContext with required data for dynamic loading
 		const runtimeContext = new RuntimeContext();
 		runtimeContext.set("userId", context.systemVariables.current_user_id);
 		runtimeContext.set("projectId", context.variables?.project_id);
-		runtimeContext.set("variables", context.variables || {});
+		runtimeContext.set("variables", {
+			...context.variables,
+			// Workflow context for agent instructions template replacement
+			workflow_id: context.workflowId,
+			step_number: step.stepNumber,
+			step_objective: `Complete ${config.completionCondition.type}`,
+			tools_guidance: toolsGuidance, // Array of tool guidance strings
+			selected_model: context.variables?.selected_model,
+		});
 		runtimeContext.set("executionId", context.executionId); // For tool access to execution
 
 		const threadId = agentContext.threadId;
@@ -490,10 +550,11 @@ export class AskUserChatStepHandler implements StepHandler {
 					toolResult &&
 					typeof toolResult === "object" &&
 					"type" in toolResult &&
-					toolResult.type === "approval_required"
+					(toolResult.type === "approval_required" ||
+						toolResult.type === "approval_required_selector")
 				) {
 					console.log(
-						`[AskUserChatHandler] Tool ${toolName} requires approval`,
+						`[AskUserChatHandler] Tool ${toolName} requires approval (type: ${toolResult.type})`,
 					);
 
 					// Save to approval states
@@ -501,6 +562,9 @@ export class AskUserChatStepHandler implements StepHandler {
 						status: "pending",
 						value: toolResult.generated_value || toolResult.value || {},
 						reasoning: toolResult.reasoning,
+						...(toolResult.type === "approval_required_selector" && {
+							available_options: toolResult.available_options || [],
+						}),
 						rejection_history:
 							approvalStates[toolName]?.rejection_history || [],
 						createdAt: new Date().toISOString(),
