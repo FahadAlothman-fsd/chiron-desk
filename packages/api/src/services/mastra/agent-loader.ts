@@ -205,16 +205,22 @@ async function loadModelWithUserKey({
 	const selectedModel = variables?.selected_model as string | undefined;
 	const modelToUse = selectedModel || agentRecord.llmModel;
 
+	// Parse model string: "provider:modelId" -> extract modelId
+	// Frontend sends format like "openrouter:anthropic/claude-3.5-sonnet"
+	// We need just "anthropic/claude-3.5-sonnet" for the provider
+	const parts = modelToUse.split(":");
+	const modelId = parts.length === 2 ? parts[1] : modelToUse;
+
 	console.log(`[Agent Loader] Model selection for ${agentRecord.name}:`, {
 		selectedModel,
 		agentDefault: agentRecord.llmModel,
 		usingModel: modelToUse,
+		parsedModelId: modelId,
 		provider: agentRecord.llmProvider,
 	});
 
 	// Use agent's configured provider (not derived from model string)
 	const provider = agentRecord.llmProvider;
-	const modelId = modelToUse;
 
 	// Load user's API key
 	const [userConfigRecord] = await db

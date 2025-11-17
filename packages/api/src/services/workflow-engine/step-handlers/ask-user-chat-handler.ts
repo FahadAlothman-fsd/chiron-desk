@@ -444,17 +444,16 @@ export class AskUserChatStepHandler implements StepHandler {
 		// Create RuntimeContext with required data for dynamic loading
 		const runtimeContext = new RuntimeContext();
 		runtimeContext.set("userId", context.systemVariables.current_user_id);
-		runtimeContext.set("projectId", context.variables?.project_id);
+		runtimeContext.set("projectId", context.systemVariables.project_id);
 		runtimeContext.set("variables", {
-			...context.variables,
+			...context.executionVariables,
 			// Workflow context for agent instructions template replacement
-			workflow_id: context.workflowId,
 			step_number: step.stepNumber,
 			step_objective: `Complete ${config.completionCondition.type}`,
 			tools_guidance: toolsGuidance, // Array of tool guidance strings
-			selected_model: context.variables?.selected_model,
+			selected_model: context.executionVariables?.selected_model,
 		});
-		runtimeContext.set("executionId", context.executionId); // For tool access to execution
+		runtimeContext.set("executionId", context.systemVariables.execution_id); // For tool access to execution
 
 		const threadId = agentContext.threadId;
 		const userId = context.systemVariables.current_user_id as string;
