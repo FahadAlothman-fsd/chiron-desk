@@ -56,8 +56,8 @@ export async function buildAxGenerationTool(
 
 	const axConfig = config.axSignature;
 
-	// Build Ax signature string from config
-	const signatureString = buildAxSignatureString(axConfig);
+	// Build Ax signature string from config (with dynamic class options support)
+	const signatureString = buildAxSignatureString(axConfig, context, config);
 
 	// Create Ax program with strategy
 	const program = ax(signatureString);
@@ -106,15 +106,33 @@ export async function buildAxGenerationTool(
 			if (userConfig?.openrouterApiKey) {
 				try {
 					apiKey = decrypt(userConfig.openrouterApiKey);
-				} catch (error) {
+				} catch (_error) {
 					console.warn(
 						"[AxGenerationTool] Failed to decrypt user API key, using env fallback",
 					);
 				}
 			}
 
-			if (userConfig?.selectedModelId) {
+			// Model selection precedence:
+			// 1. Runtime selection from UI (highest priority - per-execution choice)
+			// 2. User's saved preference (medium priority - account default)
+			// 3. System default (lowest priority - fallback)
+			if (context.executionVariables.selected_model) {
+				const runtimeModel = context.executionVariables
+					.selected_model as string;
+				// Parse format "provider:modelId" -> extract modelId
+				const parts = runtimeModel.split(":");
+				modelId = parts.length === 2 ? parts[1] : runtimeModel;
+				console.log(
+					`[AxGenerationTool] Using runtime model selection: ${runtimeModel} (parsed: ${modelId})`,
+				);
+			} else if (userConfig?.selectedModelId) {
 				modelId = userConfig.selectedModelId;
+				console.log(
+					`[AxGenerationTool] Using user's saved model preference: ${modelId}`,
+				);
+			} else {
+				console.log(`[AxGenerationTool] Using default model: ${modelId}`);
 			}
 
 			// Create AxAIService from user settings
@@ -147,6 +165,25 @@ export async function buildAxGenerationTool(
 
 				// If requires approval, return approval state structure
 				if (config.requiresApproval) {
+					// Check if this tool has optionsSource (for card selector UI)
+					if (config.optionsSource) {
+						const availableOptions =
+							context.executionVariables[config.optionsSource.outputVariable];
+
+						console.log(
+							`[AxGenerationTool] Tool ${config.name} requires approval with options selector`,
+						);
+
+						return {
+							type: "approval_required_selector",
+							tool_name: config.name,
+							generated_value: publicResult,
+							available_options: availableOptions || [],
+							reasoning,
+						};
+					}
+
+					// Standard text-based approval (no options)
 					return {
 						type: "approval_required",
 						tool_name: config.name,
@@ -170,23 +207,61 @@ export async function buildAxGenerationTool(
 }
 
 /**
- * Build Ax signature string from config
+ * Build Ax signature string from config with dynamic class options support
  *
- * Example output:
- * "conversation_history:string, project_description:string -> summary:string, reasoning:string"
+ * Supports dynamic class types that pull options from database:
+ * - Regular: "fieldName:string" → "fieldName:string"
+ * - Class (static): type="class" → uses hardcoded options
+ * - Class (dynamic): type="class" + optionsSource → pulls from context.executionVariables
+ *
+ * Example outputs:
+ * - "conversation_history:string, project_description:string -> summary:string, reasoning:string"
+ * - "description:string -> complexity:class \"simple, moderate, complex\" \"Complexity level\", reasoning:string"
  *
  * @param axConfig - Ax signature configuration
+ * @param context - Execution context with variables (for dynamic class options)
+ * @param config - Tool configuration (for optionsSource)
  * @returns Signature string for ax()
  */
 function buildAxSignatureString(
 	axConfig: NonNullable<ToolConfig["axSignature"]>,
+	context: ExecutionContext,
+	config: ToolConfig,
 ): string {
 	const inputs = axConfig.input
 		.map((input) => `${input.name}:${input.type}`)
 		.join(", ");
 
 	const outputs = axConfig.output
-		.map((output) => `${output.name}:${output.type}`)
+		.map((output) => {
+			// Check if this is a class type that needs dynamic options from database
+			if (output.type === "class" && config.optionsSource) {
+				// Get options from context (already fetched by fetchAndStoreOptions)
+				const optionsVariable = config.optionsSource.outputVariable;
+				const options = context.executionVariables[optionsVariable] as Array<{
+					value: string;
+				}>;
+
+				if (options && Array.isArray(options) && options.length > 0) {
+					// Extract just the values: ["simple", "moderate", "complex"]
+					const optionValues = options.map((opt) => opt.value).join(", ");
+
+					console.log(
+						`[AxGenerationTool] Building class field '${output.name}' with dynamic options: [${optionValues}]`,
+					);
+
+					// Build: fieldName:class "option1, option2, option3" "Description"
+					return `${output.name}:class "${optionValues}" "${output.description || ""}"`;
+				}
+
+				console.warn(
+					`[AxGenerationTool] Class field '${output.name}' has optionsSource but no options found in variable '${optionsVariable}'`,
+				);
+			}
+
+			// Regular field (string, number, boolean, etc.)
+			return `${output.name}:${output.type}`;
+		})
 		.join(", ");
 
 	return `${inputs} -> ${outputs}`;

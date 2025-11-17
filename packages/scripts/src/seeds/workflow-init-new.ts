@@ -217,9 +217,8 @@ export async function seedWorkflowInitNew() {
 					output: [
 						{
 							name: "complexity_classification",
-							type: "string",
-							description:
-								"Selected complexity value (e.g., 'simple', 'moderate', 'complex')",
+							type: "class", // ✅ Use class type to constrain LLM to valid options
+							description: "Selected complexity value from available options",
 							internal: false,
 						},
 						{

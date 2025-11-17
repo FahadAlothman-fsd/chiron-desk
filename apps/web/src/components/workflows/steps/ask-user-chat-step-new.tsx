@@ -45,6 +45,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/utils/trpc";
 import { ApprovalCard } from "../approval-card";
+import { ApprovalCardSelector } from "../approval-card-selector";
 import { ProjectNameSelectorCard } from "../project-name-selector-card";
 import { ToolStatusSidebar } from "../tool-status-sidebar";
 import { WorkflowPathSelectorCard } from "../workflow-path-selector-card";
@@ -77,6 +78,11 @@ interface ApprovalState {
 	status: "pending" | "approved" | "rejected";
 	value: Record<string, unknown>;
 	reasoning?: string;
+	available_options?: Array<{
+		value: string;
+		name: string;
+		description: string;
+	}>;
 	rejection_history?: Array<{
 		feedback: string;
 		timestamp: string;
@@ -249,7 +255,7 @@ function parseMessageContent(content: string): ParsedContent {
 		}
 
 		return { text: content };
-	} catch (error) {
+	} catch (_error) {
 		return { text: content };
 	}
 }
@@ -486,6 +492,29 @@ export function AskUserChatStepNew({
 													toolName={toolName}
 													suggestions={nameData.suggestions || []}
 													isApproved={state.status === "approved"}
+												/>
+											</div>
+										);
+									}
+
+									// Card selector for tools with available options
+									if (
+										state.available_options &&
+										state.available_options.length > 0
+									) {
+										return (
+											<div key={toolName} className="my-4">
+												<ApprovalCardSelector
+													executionId={executionId}
+													agentId={stepConfig.agentId}
+													toolName={toolName}
+													generatedValue={
+														state.value as Record<string, unknown>
+													}
+													availableOptions={state.available_options}
+													reasoning={state.reasoning}
+													isApproved={state.status === "approved"}
+													isRejected={state.status === "rejected"}
 												/>
 											</div>
 										);
