@@ -2009,3 +2009,56 @@ The thesis is validated! Agents CAN orchestrate workflows intelligently when giv
 - `packages/api/src/services/mastra/agent-loader.ts` - UPDATED: Handlebars template injection for tool guidance
 - `packages/scripts/src/seeds/workflow-init-new.ts` - UPDATED: Strengthened update_complexity guidance
 - Database: Step 3 config manually updated via SQL with imperative tool guidance
+
+---
+
+## Session 6: Rejection → Regeneration Loop
+
+### ✅ Completed
+- Fixed rejection flow to trigger agent regeneration using `[REGENERATION_REQUESTED]` marker
+- Verified ACE playbook integration: rejection feedback → saved to DB → loaded on regeneration
+- Updated documentation to reflect that ACE playbooks ARE used during regeneration
+- Commits:
+  - `1efbb57` - feat: automatic tool regeneration after rejection with feedback
+  - `d82851b` - fix: pass regeneration marker to trigger workflow continuation after rejection
+  - `2f3aeb5` - docs: document ACE playbook limitation in regeneration flow
+
+### 🎯 Current State
+The rejection → feedback → regenerate loop is **fully implemented**:
+
+1. **User rejects tool output** → Feedback saved to ACE playbook (workflows.ts:688-699)
+2. **Agent regenerates** → RuntimeContext triggers dynamic config loading (ask-user-chat-handler.ts:530-538)
+3. **ACE playbooks loaded** → Fresh from database (agent-loader.ts:175-178)
+4. **Learned patterns injected** → Into agent instructions as markdown (agent-loader.ts:177)
+
+### 📝 Future Work: Advanced Optimizers
+**Deferred to future story** - Infrastructure exists but not yet integrated:
+
+- **GEPA** (Multi-objective optimization) - Quality vs speed vs cost trade-offs
+- **MiPRO** (Few-shot learning) - Optimize Ax signatures with collected training data
+- **ACE Full Algorithm** - Generator/Reflector/Curator loop (currently just simple bullet append)
+
+**Current implementation**: 
+- ACE "online learning" = append feedback as bullet to playbook
+- Works for basic learning, but doesn't reformulate feedback into general patterns
+
+**What we have**:
+- ✅ ACE playbook database schema (`acePlaybooks` table)
+- ✅ Basic ACE optimizer service (`ace-optimizer.ts`)
+- ✅ MiPRO collector service (`mipro-collector.ts`) 
+- ✅ Playbook loading/saving infrastructure
+- ✅ Scope-based playbook filtering (global/user/project)
+
+**What's missing for full optimization**:
+- ❌ Ax framework optimizers integration (GEPA/MiPRO/ACE from `@ax-llm/ax`)
+- ❌ Generator/Reflector/Curator loop from ACE paper
+- ❌ Training data collection for MiPRO
+- ❌ Tool-specific optimization metrics
+- ❌ Pareto frontier analysis for multi-objective optimization
+
+**Reference**:
+- ACE Paper: https://arxiv.org/abs/2510.04618
+- Ax Optimizers: https://axllm.dev/optimize/
+- GEPA Docs: https://axllm.dev/gepa/
+- MiPRO Docs: https://axllm.dev/mipro/
+- ACE Docs: https://axllm.dev/ace/

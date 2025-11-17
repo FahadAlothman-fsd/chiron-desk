@@ -703,9 +703,9 @@ export const workflowRouter = router({
 				);
 			}
 
-			// NOTE: ACE playbook is updated above, but not yet used during regeneration
-			// Future story: Inject ACE playbook into agent context when regenerating
-			// For now, reset status to "pending" so agent can regenerate with rejection feedback
+			// NOTE: ACE playbook updated above and loaded during regeneration
+			// Agent loader fetches fresh playbook from DB via runtimeContext (agent-loader.ts:175-178)
+			// Reset status to "pending" so agent regenerates with both feedback + learned patterns
 			toolState.status = "pending";
 			toolState.regenerationNeeded = true;
 
