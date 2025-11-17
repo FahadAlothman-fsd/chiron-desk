@@ -396,8 +396,8 @@ async function resolveInputs(
 
 			case "playbook": {
 				// ACE playbook integration deferred to future story
-				// For now, playbook input sources are not supported
-				inputs[inputConfig.name] = "";
+				// Provide placeholder value to satisfy Ax signature validation
+				inputs[inputConfig.name] = "No learned patterns available yet.";
 				break;
 			}
 
