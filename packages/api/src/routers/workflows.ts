@@ -2,7 +2,7 @@ import { db, workflowExecutions } from "@chiron/db";
 import { observable } from "@trpc/server/observable";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { protectedProcedure, publicProcedure, router } from "../index";
+import { protectedProcedure, router } from "../index";
 import { AceOptimizer } from "../services/mastra/ace-optimizer";
 import { getThreadMessages } from "../services/mastra/mastra-service";
 import { MiProCollector } from "../services/mastra/mipro-collector";
@@ -75,35 +75,6 @@ export const workflowRouter = router({
 			// Resume execution with user input
 			await stateManager.resumeExecution(input.executionId);
 			await continueExecution(input.executionId, userId, input.userInput);
-
-			return { success: true };
-		}),
-
-	/**
-	 * Story 1.6: Send chat message to AI agent
-	 * Convenience alias for submitStep with model selection support
-	 */
-	sendChatMessage: protectedProcedure
-		.input(
-			z.object({
-				executionId: z.string().uuid(),
-				message: z.string(),
-				selectedModel: z.string().optional(),
-			}),
-		)
-		.mutation(async ({ input, ctx }) => {
-			const userId = ctx.session.user.id;
-
-			// If model is selected, merge it into execution variables
-			if (input.selectedModel) {
-				await stateManager.mergeExecutionVariables(input.executionId, {
-					selected_model: input.selectedModel,
-				});
-			}
-
-			// Resume execution with user message
-			await stateManager.resumeExecution(input.executionId);
-			await continueExecution(input.executionId, userId, input.message);
 
 			return { success: true };
 		}),
@@ -302,7 +273,7 @@ export const workflowRouter = router({
 					if (key !== "reasoning" && key !== "internal") {
 						execution.variables[key] = value;
 						console.log(
-							`[ApproveToolCall] Extracted output variable: ${key} = ${typeof value === "string" ? value.substring(0, 50) + "..." : JSON.stringify(value)}`,
+							`[ApproveToolCall] Extracted output variable: ${key} = ${typeof value === "string" ? `${value.substring(0, 50)}...` : JSON.stringify(value)}`,
 						);
 					}
 				}
@@ -479,6 +450,11 @@ export const workflowRouter = router({
 				})),
 			};
 		}),
+
+	/**
+	 * Story 1.6: Send chat message to AI agent
+	 * Convenience alias for submitStep with model selection support
+	 */
 
 	/**
 	 * Story 1.6: Send chat message and get agent response

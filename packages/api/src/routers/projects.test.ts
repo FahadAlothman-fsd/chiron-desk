@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { db, projects, workflowExecutions, workflows } from "@chiron/db";
+import { db, projects, workflowExecutions } from "@chiron/db";
 import { eq } from "drizzle-orm";
 
 describe("Projects Router - Story 1.5", () => {
@@ -93,9 +93,9 @@ describe("Projects Router - Story 1.5", () => {
 		});
 
 		expect(project).toBeDefined();
-		expect(project!.name).toBe("Test Project Story 1.5");
-		expect(project!.status).toBe("initializing");
-		expect(project!.userId).toBe(testUserId);
+		expect(project?.name).toBe("Test Project Story 1.5");
+		expect(project?.status).toBe("initializing");
+		expect(project?.userId).toBe(testUserId);
 	});
 
 	test("project should have initializerWorkflowId set", async () => {
@@ -104,7 +104,7 @@ describe("Projects Router - Story 1.5", () => {
 		});
 
 		expect(project).toBeDefined();
-		expect(project!.initializerWorkflowId).toBe(testWorkflowId);
+		expect(project?.initializerWorkflowId).toBe(testWorkflowId);
 	});
 
 	test("project path should be null until Step 2 completes", async () => {
@@ -113,7 +113,7 @@ describe("Projects Router - Story 1.5", () => {
 		});
 
 		expect(project).toBeDefined();
-		expect(project!.path).toBe(null);
+		expect(project?.path).toBe(null);
 	});
 
 	test("workflowPathId should be null until Step 9 completes", async () => {
@@ -122,7 +122,7 @@ describe("Projects Router - Story 1.5", () => {
 		});
 
 		expect(project).toBeDefined();
-		expect(project!.workflowPathId).toBe(null);
+		expect(project?.workflowPathId).toBe(null);
 	});
 
 	test("workflow execution should be created for the project", async () => {
@@ -132,10 +132,10 @@ describe("Projects Router - Story 1.5", () => {
 		});
 
 		expect(execution).toBeDefined();
-		expect(execution!.projectId).toBe(testProjectId);
-		expect(execution!.workflowId).toBe(testWorkflowId);
-		expect(execution!.status).toBe("idle");
-		expect(execution!.variables).toEqual({});
+		expect(execution?.projectId).toBe(testProjectId);
+		expect(execution?.workflowId).toBe(testWorkflowId);
+		expect(execution?.status).toBe("idle");
+		expect(execution?.variables).toEqual({});
 	});
 
 	test("projects.get should retrieve project by ID", async () => {
@@ -144,8 +144,8 @@ describe("Projects Router - Story 1.5", () => {
 		});
 
 		expect(retrieved).toBeDefined();
-		expect(retrieved!.id).toBe(testProjectId);
-		expect(retrieved!.name).toBe("Test Project Story 1.5");
+		expect(retrieved?.id).toBe(testProjectId);
+		expect(retrieved?.name).toBe("Test Project Story 1.5");
 	});
 
 	test("projects.delete should remove project and cascade to executions", async () => {

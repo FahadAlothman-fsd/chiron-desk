@@ -70,7 +70,7 @@ export async function seedUsers() {
 				},
 			});
 
-		console.log(`  ✓ OpenRouter API key configured for test user`);
+		console.log("  ✓ OpenRouter API key configured for test user");
 	} catch (error: any) {
 		console.error("  ❌ Error setting up API key:", error);
 		throw error;

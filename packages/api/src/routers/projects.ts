@@ -1,5 +1,5 @@
 import { promises as fs } from "node:fs";
-import { db, projects, workflowExecutions, workflows } from "@chiron/db";
+import { db, projects, workflowExecutions } from "@chiron/db";
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";

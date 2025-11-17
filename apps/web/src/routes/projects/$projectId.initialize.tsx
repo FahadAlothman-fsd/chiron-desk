@@ -46,7 +46,7 @@ function InitializePage() {
 		queryKey: ["workflows", "execution", project?.initializedByExecutionId],
 		queryFn: async () => {
 			return trpcClient.workflows.getExecution.query({
-				executionId: project!.initializedByExecutionId!,
+				executionId: project?.initializedByExecutionId!,
 			});
 		},
 		enabled: !!project?.initializedByExecutionId,
@@ -58,7 +58,7 @@ function InitializePage() {
 		queryKey: ["workflows", "getById", project?.initializerWorkflowId],
 		queryFn: async () => {
 			return trpcClient.workflows.getById.query({
-				id: project!.initializerWorkflowId!,
+				id: project?.initializerWorkflowId!,
 			});
 		},
 		enabled: !!project?.initializerWorkflowId,
@@ -69,7 +69,7 @@ function InitializePage() {
 		queryKey: ["workflows", "getSteps", project?.initializerWorkflowId],
 		queryFn: async () => {
 			return trpcClient.workflows.getSteps.query({
-				workflowId: project!.initializerWorkflowId!,
+				workflowId: project?.initializerWorkflowId!,
 			});
 		},
 		enabled: !!project?.initializerWorkflowId,
@@ -128,7 +128,13 @@ function InitializePage() {
 				executionId: execution.id,
 			});
 		}
-	}, [project, executionsData, workflowData, continueWorkflow.isPending]);
+	}, [
+		project,
+		executionsData,
+		workflowData,
+		continueWorkflow.isPending,
+		continueWorkflow.mutate,
+	]);
 
 	if (!project || !executionsData || !workflowData || !workflowStepsData) {
 		return (
@@ -142,7 +148,7 @@ function InitializePage() {
 	}
 
 	const execution = executionsData;
-	const workflow = workflowData;
+	const _workflow = workflowData;
 	const allWorkflowSteps = workflowStepsData.steps;
 	const currentStepNumber = execution.currentStep?.stepNumber || 1;
 	const currentStepData = execution.currentStep;

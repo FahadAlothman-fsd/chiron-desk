@@ -1,5 +1,5 @@
 import { db, workflowPaths } from "@chiron/db";
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
 const results = await db
 	.select()

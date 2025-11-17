@@ -55,7 +55,7 @@ export async function buildGenerateProjectNameTool(
 	return {
 		name: config.name || "generate_project_name",
 		description: "Generate project name suggestions",
-		execute: async (input: unknown) => {
+		execute: async (_input: unknown) => {
 			// Get project description from variables
 			const projectDescription = context.executionVariables
 				.project_description as string;

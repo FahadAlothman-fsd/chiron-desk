@@ -165,7 +165,7 @@ When the user describes their project, call update_summary to generate a project
 			// Simulate user message that triggers tool call
 			// NOTE: This is a mock test - in real execution, Mastra agent.generate()
 			// would call the tool, which would return the approval_required structure
-			const userInput = "I want to build a task management app for teams";
+			const _userInput = "I want to build a task management app for teams";
 
 			// IMPORTANT: For this test to pass, we need to:
 			// 1. Mock the Mastra agent.generate() call to simulate tool execution

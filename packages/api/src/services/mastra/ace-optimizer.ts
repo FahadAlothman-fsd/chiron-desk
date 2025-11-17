@@ -125,8 +125,8 @@ export class AceOptimizer {
 	 */
 	private formatFeedbackAsBullet(
 		feedback: string,
-		input: Record<string, unknown>,
-		prediction: unknown,
+		_input: Record<string, unknown>,
+		_prediction: unknown,
 	): string {
 		// Simple bullet format: feedback directly
 		// Future: Use LLM to reformulate as general pattern

@@ -28,7 +28,7 @@ import { loadModel, type ModelConfig } from "./model-loader";
  * Parse model string into provider and modelId
  * Format: "provider:model" or "provider/model"
  */
-function parseModelConfig(modelString: string): {
+function _parseModelConfig(modelString: string): {
 	provider: string;
 	modelId: string;
 } {
@@ -264,7 +264,7 @@ async function loadModelWithUserKey({
  * TODO: Implement dynamic tool loading
  * Currently returns empty object - tools will be added in future iteration
  */
-async function loadTools({
+async function _loadTools({
 	agentId,
 }: {
 	agentId: string;

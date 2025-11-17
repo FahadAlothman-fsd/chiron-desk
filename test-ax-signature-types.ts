@@ -111,7 +111,7 @@ try {
     complexity:json "Classification with metadata"
   `;
 
-	const test4Program = ax(test4Signature);
+	const _test4Program = ax(test4Signature);
 	console.log("✅ Signature accepted (surprising!):");
 	console.log(test4Signature);
 } catch (error) {

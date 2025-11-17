@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Check, Eye, EyeOff, Loader2, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";

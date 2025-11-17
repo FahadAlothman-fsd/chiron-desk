@@ -37,7 +37,7 @@ export async function buildSelectPathTool(
 	return {
 		name: config.name || "select_workflow_path",
 		description: "Present workflow path options for user selection",
-		execute: async (input: unknown) => {
+		execute: async (_input: unknown) => {
 			// Validate that workflow paths have been fetched
 			const availablePaths = context.executionVariables
 				.available_workflow_paths as Array<Record<string, unknown>> | undefined;

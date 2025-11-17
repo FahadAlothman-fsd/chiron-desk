@@ -118,7 +118,7 @@ describe("AskUserStepHandler", () => {
 			};
 
 			// Use raw path with .. instead of path.join which normalizes it
-			const testPath = tempDir + "/../evil-path";
+			const testPath = `${tempDir}/../evil-path`;
 
 			await expect(
 				handler.executeStep(mockStep, mockContext, testPath),

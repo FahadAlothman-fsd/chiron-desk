@@ -11,7 +11,7 @@ import type { StepHandler, StepResult } from "../step-handler";
 export class AskUserStepHandler implements StepHandler {
 	async executeStep(
 		step: WorkflowStep,
-		context: ExecutionContext,
+		_context: ExecutionContext,
 		userInput?: unknown,
 	): Promise<StepResult> {
 		const config = step.config as AskUserStepConfig;
@@ -127,7 +127,7 @@ export class AskUserStepHandler implements StepHandler {
 		// Check write permissions to parent directory
 		try {
 			await fs.promises.access(parentDir, fs.constants.W_OK);
-		} catch (error) {
+		} catch (_error) {
 			throw new ValidationError("No write permission to parent directory");
 		}
 

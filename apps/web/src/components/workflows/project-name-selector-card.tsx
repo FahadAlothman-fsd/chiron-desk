@@ -181,7 +181,7 @@ export function ProjectNameSelectorCard({
 					disabled={isApproved || isLoading}
 				>
 					{/* AI Suggestions */}
-					{suggestions.map((suggestion, idx) => (
+					{suggestions.map((suggestion, _idx) => (
 						<div
 							key={suggestion.name}
 							className={`cursor-pointer rounded-lg border p-4 transition-all${selectedOption === suggestion.name ? "border-blue-500 bg-blue-50 dark:bg-blue-950" : "border-border"}

@@ -38,10 +38,6 @@ export class AskUserChatStepHandler implements StepHandler {
 	// Cache agent names to avoid redundant DB queries
 	private agentNameCache = new Map<string, string>();
 
-	constructor() {
-		// No longer need ACE optimizer - handled in agent-loader
-	}
-
 	/**
 	 * Get agent name from agentId (with caching)
 	 * This is needed because Mastra uses agent names for lookup
@@ -655,7 +651,7 @@ export class AskUserChatStepHandler implements StepHandler {
 	 * @returns Thread ID and needsSave flag
 	 */
 	private async initializeAgent(
-		config: AskUserChatStepConfig,
+		_config: AskUserChatStepConfig,
 		context: ExecutionContext,
 	): Promise<{
 		threadId: string;

@@ -77,7 +77,7 @@ describe("AskUserStep", () => {
 		});
 
 		it("shows validation error for empty required path", async () => {
-			const user = userEvent.setup();
+			const _user = userEvent.setup();
 			const onSubmit = mock(() => {});
 
 			render(

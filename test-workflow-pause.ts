@@ -9,7 +9,7 @@ import { eq } from "drizzle-orm";
 
 async function testWorkflowPause() {
 	console.log("\n🧪 Testing Workflow Pause Behavior\n");
-	console.log("=" + repeat("=", 60));
+	console.log(`=${repeat("=", 60)}`);
 
 	try {
 		// Step 1: Create a test project
@@ -133,7 +133,7 @@ async function testWorkflowPause() {
 			console.log("   ✅ PASS: Step 2 hasn't started yet");
 		}
 
-		console.log("\n" + "=".repeat(62));
+		console.log(`\n${"=".repeat(62)}`);
 		if (passed) {
 			console.log("🎉 All tests PASSED! Workflow pauses correctly.");
 		} else {

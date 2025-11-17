@@ -63,8 +63,8 @@ export function AskUserChatStep({
 	const [messages, setMessages] = useState<Message[]>([]);
 	const [inputValue, setInputValue] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
-	const [selectedAgent, setSelectedAgent] = useState(stepConfig.agentId);
-	const [selectedModel, setSelectedModel] = useState(
+	const [_selectedAgent, _setSelectedAgent] = useState(stepConfig.agentId);
+	const [selectedModel, _setSelectedModel] = useState(
 		"claude-sonnet-4-20250514",
 	);
 	const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -72,7 +72,7 @@ export function AskUserChatStep({
 	// Auto-scroll to bottom when new messages arrive
 	useEffect(() => {
 		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-	}, [messages]);
+	}, []);
 
 	// Load message history using tRPC
 	const { data: messageHistory, isLoading: isLoadingHistory } =
@@ -122,7 +122,7 @@ export function AskUserChatStep({
 				},
 			]);
 		}
-	}, [messageHistory, stepConfig.initialMessage]);
+	}, [messageHistory, stepConfig.initialMessage, selectedModel]);
 
 	async function handleSendMessage() {
 		if (!inputValue.trim() || isLoading || sendMessage.isPending) return;
@@ -299,7 +299,7 @@ function parseMessageContent(content: string): ParsedContent {
 
 		// Fallback to original content
 		return { text: content };
-	} catch (error) {
+	} catch (_error) {
 		// If parsing fails, return original content
 		return { text: content };
 	}

@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { queryClient, trpcClient } from "@/utils/trpc";
+import { trpcClient } from "@/utils/trpc";
 
 export const Route = createFileRoute("/projects/$projectId/select-initializer")(
 	{

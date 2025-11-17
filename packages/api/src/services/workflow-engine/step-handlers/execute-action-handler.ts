@@ -141,7 +141,7 @@ export class ExecuteActionStepHandler implements StepHandler {
 	private async executeAction(
 		action: ExecuteActionStepConfig["actions"][0],
 		context: ExecutionContext,
-		currentOutput: Record<string, unknown>,
+		_currentOutput: Record<string, unknown>,
 	): Promise<Record<string, unknown>> {
 		switch (action.type) {
 			case "set-variable":

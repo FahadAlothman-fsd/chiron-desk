@@ -1,7 +1,7 @@
 import "../../../../test-setup";
-import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import type { AskUserChatStepConfig } from "@chiron/db";
-import { acePlaybooks, agents, db, workflowSteps } from "@chiron/db";
+import { acePlaybooks, agents, db } from "@chiron/db";
 import { eq } from "drizzle-orm";
 import type { ExecutionContext } from "../types";
 import { AskUserChatStepHandler } from "./ask-user-chat-handler";
