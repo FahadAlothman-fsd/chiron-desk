@@ -393,7 +393,10 @@ export class AskUserChatStepHandler implements StepHandler {
 		}
 
 		// If no user input, show initial message and wait
-		if (!userInput) {
+		// Allow special marker "[REGENERATION_REQUESTED]" for tool rejection flow
+		const isRegenerationRequest = userInput === "[REGENERATION_REQUESTED]";
+
+		if (!userInput && !isRegenerationRequest) {
 			console.log(
 				"[AskUserChatHandler] No user input - awaiting first message",
 			);
@@ -502,7 +505,10 @@ export class AskUserChatStepHandler implements StepHandler {
 		const toolsets = Object.keys(tools).length > 0 ? { stepTools: tools } : {};
 
 		// If there are rejected tools, prepend regeneration instructions to user input
-		let effectiveUserInput = String(userInput);
+		// Strip the [REGENERATION_REQUESTED] marker if present
+		let effectiveUserInput =
+			userInput === "[REGENERATION_REQUESTED]" ? "" : String(userInput);
+
 		if (rejectedTools.length > 0) {
 			const regenerationInstructions = rejectedTools
 				.map(
@@ -511,7 +517,8 @@ export class AskUserChatStepHandler implements StepHandler {
 				)
 				.join("\n");
 			effectiveUserInput =
-				regenerationInstructions + "\n\n" + effectiveUserInput;
+				regenerationInstructions +
+				(effectiveUserInput ? "\n\n" + effectiveUserInput : "");
 			console.log(
 				"[AskUserChatHandler] Injecting regeneration instructions for rejected tools:",
 				rejectedTools.map((rt) => rt.toolName),

@@ -714,8 +714,13 @@ export const workflowRouter = router({
 			});
 
 			// Resume workflow for regeneration
+			// Pass a special marker as user input so the handler knows to process rejected tools
 			await stateManager.resumeExecution(input.executionId);
-			await continueExecution(input.executionId, userId, "");
+			await continueExecution(
+				input.executionId,
+				userId,
+				"[REGENERATION_REQUESTED]",
+			);
 
 			workflowEventBus.emitWorkflowResumed(input.executionId);
 
