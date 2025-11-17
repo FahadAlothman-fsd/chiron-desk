@@ -167,6 +167,13 @@ const models = [
 		chefSlug: "openai",
 		providers: ["openrouter"],
 	},
+	{
+		id: "openrouter:openai/gpt-oss-120b",
+		name: "GPT OSS 120B",
+		chef: "OpenAI",
+		chefSlug: "openai",
+		providers: ["openrouter"],
+	},
 	// Google Models
 	{
 		id: "openrouter:google/gemini-2.0-flash-exp",
