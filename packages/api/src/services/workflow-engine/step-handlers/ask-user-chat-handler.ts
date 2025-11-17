@@ -437,6 +437,33 @@ export class AskUserChatStepHandler implements StepHandler {
 			.filter((t) => t.usageGuidance)
 			.map((t) => `**${t.name}**: ${t.usageGuidance}`);
 
+		// Check for rejected tools that need regeneration
+		const currentApprovalStates = (context.executionVariables.approval_states ||
+			{}) as Record<
+			string,
+			{
+				status: "pending" | "approved" | "rejected";
+				rejection_history?: Array<{
+					feedback: string;
+					rejectedAt: string;
+					previousOutput?: unknown;
+				}>;
+				regenerationNeeded?: boolean;
+			}
+		>;
+
+		const rejectedTools = Object.entries(currentApprovalStates)
+			.filter(
+				([_, state]) =>
+					state.status === "pending" && state.regenerationNeeded === true,
+			)
+			.map(([toolName, state]) => ({
+				toolName,
+				lastFeedback:
+					state.rejection_history?.[state.rejection_history.length - 1]
+						?.feedback || "",
+			}));
+
 		// Create RuntimeContext with required data for dynamic loading
 		const runtimeContext = new RuntimeContext();
 		runtimeContext.set("userId", context.systemVariables.current_user_id);
@@ -448,6 +475,7 @@ export class AskUserChatStepHandler implements StepHandler {
 			step_objective: `Complete ${config.completionCondition.type}`,
 			tools_guidance: toolsGuidance, // Array of tool guidance strings
 			selected_model: context.executionVariables?.selected_model,
+			rejected_tools: rejectedTools, // Pass rejected tools info
 		});
 		runtimeContext.set("executionId", context.systemVariables.execution_id); // For tool access to execution
 
@@ -473,7 +501,24 @@ export class AskUserChatStepHandler implements StepHandler {
 		// Wrap our tools in a toolset object
 		const toolsets = Object.keys(tools).length > 0 ? { stepTools: tools } : {};
 
-		const result = await agent.generate(String(userInput), {
+		// If there are rejected tools, prepend regeneration instructions to user input
+		let effectiveUserInput = String(userInput);
+		if (rejectedTools.length > 0) {
+			const regenerationInstructions = rejectedTools
+				.map(
+					(rt) =>
+						`\n\n[SYSTEM: The user rejected the output from **${rt.toolName}** with this feedback: "${rt.lastFeedback}". Please regenerate the output for this tool, taking the feedback into account. Call the tool again with improved parameters.]`,
+				)
+				.join("\n");
+			effectiveUserInput =
+				regenerationInstructions + "\n\n" + effectiveUserInput;
+			console.log(
+				"[AskUserChatHandler] Injecting regeneration instructions for rejected tools:",
+				rejectedTools.map((rt) => rt.toolName),
+			);
+		}
+
+		const result = await agent.generate(effectiveUserInput, {
 			memory: {
 				thread: threadId,
 				resource: resourceId,
