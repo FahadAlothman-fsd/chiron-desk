@@ -3,7 +3,6 @@ import { observable } from "@trpc/server/observable";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
-import { AceOptimizer } from "../services/mastra/ace-optimizer";
 import { getThreadMessages } from "../services/mastra/mastra-service";
 import { MiProCollector } from "../services/mastra/mipro-collector";
 import {
@@ -375,17 +374,8 @@ export const workflowRouter = router({
 				rejected_at: new Date().toISOString(),
 			});
 
-			// Update ACE playbook with feedback
-			const aceOptimizer = new AceOptimizer();
-			const sectionName = determineSectionName(input.toolName);
-			await aceOptimizer.applyOnlineUpdate(
-				input.agentId,
-				sectionName,
-				input.feedback,
-				toolState.input || {},
-				toolState.value,
-				"global", // TODO: Support user/project scopes
-			);
+			// Real ACE optimizer (Reflector → Curator loop) deferred to future story
+			// Rejection feedback is stored in rejection_history above
 
 			// Update execution variables
 			await db
@@ -403,7 +393,7 @@ export const workflowRouter = router({
 				`[WorkflowRouter] Rejected tool: ${input.toolName}, feedback: ${input.feedback}`,
 			);
 
-			// Resume workflow - agent will regenerate with updated ACE playbook
+			// Resume workflow - agent will see rejection feedback via system message
 			await continueExecution(input.executionId, userId);
 
 			return { success: true };
@@ -671,41 +661,10 @@ export const workflowRouter = router({
 				updatedVariables,
 			);
 
-			// Trigger ACE optimizer to update playbook
-			const aceOptimizer = new AceOptimizer();
-
-			// Determine section name based on tool type
-			const sectionName = determineSectionName(input.toolName);
-
-			// Get agent ID from execution
-			const agentId = execution.agentId || "";
-			if (!agentId) {
-				console.warn(
-					"[RejectToolOutput] No agentId in execution, skipping ACE update",
-				);
-			} else {
-				// Load existing playbook
-				const playbook = await aceOptimizer.loadPlaybook(agentId, "global");
-
-				// Apply online update with rejection feedback
-				const updatedPlaybook = await aceOptimizer.applyOnlineUpdate(
-					playbook,
-					toolState.value, // Current prediction
-					input.feedback, // User's feedback
-					sectionName,
-				);
-
-				// Save updated playbook
-				await aceOptimizer.savePlaybook(updatedPlaybook);
-
-				console.log(
-					`[RejectToolOutput] Updated ACE playbook for ${input.toolName}`,
-				);
-			}
-
-			// NOTE: ACE playbook updated above and loaded during regeneration
-			// Agent loader fetches fresh playbook from DB via runtimeContext (agent-loader.ts:175-178)
-			// Reset status to "pending" so agent regenerates with both feedback + learned patterns
+			// NOTE: Rejection feedback is stored in rejection_history above
+			// When agent regenerates, feedback is injected as system message (ask-user-chat-handler.ts:514-528)
+			// Real ACE optimizer (Reflector → Curator loop) deferred to future story
+			// Reset status to "pending" so agent can regenerate with rejection feedback
 			toolState.status = "pending";
 			toolState.regenerationNeeded = true;
 
@@ -728,20 +687,3 @@ export const workflowRouter = router({
 			return { success: true, regenerationTriggered: true };
 		}),
 }) as ReturnType<typeof router>;
-
-/**
- * Determine ACE playbook section name based on tool name
- * This helps organize learned patterns by tool type
- */
-function determineSectionName(toolName: string): string {
-	if (toolName.includes("summary")) {
-		return "Summary Generation Patterns";
-	}
-	if (toolName.includes("complexity")) {
-		return "Complexity Classification Patterns";
-	}
-	if (toolName.includes("name")) {
-		return "Project Naming Patterns";
-	}
-	return "General Patterns";
-}

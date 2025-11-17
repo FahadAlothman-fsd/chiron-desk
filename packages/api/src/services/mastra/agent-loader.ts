@@ -1,8 +1,8 @@
-import { acePlaybooks, agents, appConfig, db } from "@chiron/db";
+import { agents, appConfig, db } from "@chiron/db";
 import { Agent } from "@mastra/core/agent";
 import type { RuntimeContext } from "@mastra/core/runtime-context";
 import { Memory } from "@mastra/memory";
-import { and, eq, or } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import Handlebars from "handlebars";
 import { decrypt } from "../encryption";
 import { loadModel, type ModelConfig } from "./model-loader";
@@ -18,7 +18,6 @@ import { loadModel, type ModelConfig } from "./model-loader";
  * - Agents are registered with Mastra at startup
  * - Configuration is loaded from database on EVERY agent.generate() call
  * - RuntimeContext provides userId, projectId, variables for dynamic behavior
- * - ACE playbooks are injected based on scope (global/user/project)
  * - User API keys are loaded per-request for model authentication
  *
  * @see docs/architecture/dynamic-agent-registration.md
@@ -45,83 +44,10 @@ function _parseModelConfig(modelString: string): {
 }
 
 /**
- * Load ACE playbooks for an agent based on scope
- *
- * Scope priority: project > user > global
- * Multiple playbooks can apply, they are merged in order
- */
-async function loadACEPlaybooks(
-	agentId: string,
-	userId?: string,
-	projectId?: string,
-): Promise<
-	Array<{
-		scope: string;
-		playbook: {
-			sections: Record<string, { bullets: string[] }>;
-		};
-	}>
-> {
-	const conditions = [
-		eq(acePlaybooks.agentId, agentId),
-		or(
-			eq(acePlaybooks.scope, "global"),
-			userId
-				? and(eq(acePlaybooks.scope, "user"), eq(acePlaybooks.userId, userId))
-				: undefined,
-			projectId
-				? and(
-						eq(acePlaybooks.scope, "project"),
-						eq(acePlaybooks.projectId, projectId),
-					)
-				: undefined,
-		),
-	].filter(Boolean);
-
-	const playbooks = await db
-		.select()
-		.from(acePlaybooks)
-		.where(and(...conditions))
-		.orderBy(acePlaybooks.updatedAt);
-
-	return playbooks;
-}
-
-/**
- * Format ACE playbooks into markdown sections for instruction injection
- */
-function formatACEPlaybooks(
-	playbooks: Array<{
-		scope: string;
-		playbook: { sections: Record<string, { bullets: string[] }> };
-	}>,
-): string {
-	if (playbooks.length === 0) return "";
-
-	let formatted = "\n\n---\n## ACE Context (Learned Patterns)\n\n";
-
-	for (const pb of playbooks) {
-		formatted += `### ${pb.scope.charAt(0).toUpperCase() + pb.scope.slice(1)} Scope\n\n`;
-
-		for (const [sectionName, sectionData] of Object.entries(
-			pb.playbook.sections,
-		)) {
-			formatted += `**${sectionName}:**\n`;
-			for (const bullet of sectionData.bullets) {
-				formatted += `- ${bullet}\n`;
-			}
-			formatted += "\n";
-		}
-	}
-
-	return formatted;
-}
-
-/**
- * Load agent instructions with ACE playbook injection
+ * Load agent instructions with dynamic context
  *
  * This function is called on EVERY agent.generate() call via runtimeContext,
- * ensuring ACE playbooks are always fresh from the database.
+ * allowing for dynamic instruction updates based on workflow context.
  *
  * Note: agentRecord is passed from closure to avoid redundant DB query
  */
@@ -169,12 +95,6 @@ async function loadInstructions({
 	instructions += `\n\n---\n## System Information\n\n**Current Model**: ${currentModel}\n`;
 	if (selectedModel) {
 		instructions += `**Note**: User selected this model (overriding default: ${agentRecord.llmModel})\n`;
-	}
-
-	// Load and inject ACE playbooks
-	const playbooks = await loadACEPlaybooks(agentRecord.id, userId, projectId);
-	if (playbooks.length > 0) {
-		instructions += formatACEPlaybooks(playbooks);
 	}
 
 	return instructions;

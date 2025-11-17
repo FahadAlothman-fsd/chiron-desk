@@ -442,7 +442,7 @@ export class AskUserChatStepHandler implements StepHandler {
 
 		// Check for rejected tools that need regeneration
 		// NOTE: Rejection feedback is injected as system message (lines 512-521)
-		// ACE playbooks are loaded dynamically via runtimeContext (agent-loader.ts:175-178)
+		// Real ACE optimizer (Reflector → Curator loop) deferred to future story
 		const currentApprovalStates = (context.executionVariables.approval_states ||
 			{}) as Record<
 			string,

@@ -5,7 +5,6 @@ import { createTool } from "@mastra/core/tools";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { decrypt } from "../../encryption";
-import { AceOptimizer } from "../../mastra/ace-optimizer";
 import { getThreadMessages } from "../../mastra/mastra-service";
 import type { ExecutionContext } from "../execution-context";
 
@@ -287,7 +286,6 @@ async function resolveInputs(
 	agentId: string,
 ): Promise<Record<string, unknown>> {
 	const inputs: Record<string, unknown> = {};
-	const aceOptimizer = new AceOptimizer();
 
 	for (const inputConfig of inputConfigs) {
 		switch (inputConfig.source) {
@@ -397,15 +395,9 @@ async function resolveInputs(
 			}
 
 			case "playbook": {
-				// Load ACE playbook for agent
-				const playbook = await aceOptimizer.loadPlaybook(agentId, "global");
-
-				if (playbook) {
-					const formatted = aceOptimizer.formatPlaybookForPrompt(playbook);
-					inputs[inputConfig.name] = formatted;
-				} else {
-					inputs[inputConfig.name] = ""; // Empty if no playbook exists yet
-				}
+				// ACE playbook integration deferred to future story
+				// For now, playbook input sources are not supported
+				inputs[inputConfig.name] = "";
 				break;
 			}
 
