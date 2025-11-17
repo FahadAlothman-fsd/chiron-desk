@@ -17,7 +17,6 @@ async function main() {
 	const { db } = await import("@chiron/db");
 	const { seedWorkflowPaths } = await import("./seeds/workflow-paths");
 	const { seedAgents } = await import("./seeds/agents");
-	const { seedAcePlaybooks } = await import("./seeds/ace-playbooks");
 	const { seedWorkflows } = await import("./seeds/workflows");
 	const { seedWorkflowInitNew } = await import("./seeds/workflow-init-new");
 	const { seedUsers } = await import("./seeds/users");
@@ -42,11 +41,6 @@ async function main() {
 		console.log("\n🤖 Seeding agents...");
 		await seedAgents();
 		console.log("✅ Agents seeded");
-
-		// Seed ACE playbooks (Story 1.6)
-		console.log("\n🎓 Seeding ACE playbooks...");
-		await seedAcePlaybooks();
-		console.log("✅ ACE playbooks seeded");
 
 		// Seed workflows (Story 1.2)
 		console.log("\n🔄 Seeding workflows...");
