@@ -374,6 +374,34 @@ export function AskUserChatStepNew({
 			})
 		: [];
 
+	// Merge messages and approval cards into a single chronological timeline
+	type TimelineItem =
+		| { type: "message"; data: ChatMessage }
+		| { type: "approval"; toolName: string; state: ApprovalState };
+
+	const timeline: TimelineItem[] = [
+		...messages.map((msg) => ({ type: "message" as const, data: msg })),
+		...allApprovals.map(([toolName, state]) => ({
+			type: "approval" as const,
+			toolName,
+			state,
+		})),
+	].sort((a, b) => {
+		const timeA =
+			a.type === "message"
+				? new Date(a.data.created_at).getTime()
+				: a.state.createdAt
+					? new Date(a.state.createdAt).getTime()
+					: 0;
+		const timeB =
+			b.type === "message"
+				? new Date(b.data.created_at).getTime()
+				: b.state.createdAt
+					? new Date(b.state.createdAt).getTime()
+					: 0;
+		return timeA - timeB;
+	});
+
 	return (
 		<div className="flex h-[calc(100vh-12rem)] gap-6">
 			{/* Main Chat Area - Takes priority, full height like proper chat */}
@@ -381,7 +409,7 @@ export function AskUserChatStepNew({
 				{/* Conversation Area */}
 				<Conversation className="flex-1">
 					<ConversationContent>
-						{messages.length === 0 ? (
+						{timeline.length === 0 ? (
 							<ConversationEmptyState
 								icon={
 									<MessageSquareIcon className="size-12 text-muted-foreground" />
@@ -394,139 +422,164 @@ export function AskUserChatStepNew({
 							/>
 						) : (
 							<>
-								{messages.map((message) => {
-									const parsedContent = parseMessageContent(message.content);
-									const isUser = message.role === "user";
-									const timestamp = new Date(
-										message.created_at,
-									).toLocaleTimeString([], {
-										hour: "2-digit",
-										minute: "2-digit",
-									});
+								{timeline.map((item) => {
+									// Render message
+									if (item.type === "message") {
+										const message = item.data;
+										const parsedContent = parseMessageContent(message.content);
+										const isUser = message.role === "user";
+										const timestamp = new Date(
+											message.created_at,
+										).toLocaleTimeString([], {
+											hour: "2-digit",
+											minute: "2-digit",
+										});
 
-									return (
-										<Message from={message.role} key={message.id}>
-											{/* Agent Name, Timestamp & Tool Calls (for assistant) */}
-											{!isUser && (
-												<div className="mb-2 flex flex-wrap items-center gap-2 text-muted-foreground text-xs">
-													<span className="font-medium">
-														{message.metadata?.agent_icon}{" "}
-														{message.metadata?.agent_name || "Assistant"}
-													</span>
-													<span>•</span>
-													<span>{timestamp}</span>
-													{message.metadata?.tool_calls &&
-														message.metadata.tool_calls.length > 0 && (
-															<>
-																<span>•</span>
-																<div className="flex items-center gap-1.5">
-																	<Wrench className="size-3" />
-																	<span className="font-medium text-[10px]">
-																		{message.metadata.tool_calls.length} tool
-																		{message.metadata.tool_calls.length === 1
-																			? ""
-																			: "s"}{" "}
-																		called
-																	</span>
-																</div>
-																<div className="flex flex-wrap gap-1">
-																	{message.metadata.tool_calls.map(
-																		(tool, idx) => (
-																			<Badge
-																				key={idx}
-																				variant="secondary"
-																				className="h-4 px-1.5 py-0 text-[10px]"
-																			>
-																				{tool.name}
-																			</Badge>
-																		),
-																	)}
-																</div>
-															</>
-														)}
-												</div>
-											)}
-
-											<MessageContent>
-												{/* Thinking Block */}
-												{!isUser && parsedContent.thinking && (
-													<Reasoning className="mb-2">
-														<ReasoningTrigger />
-														<ReasoningContent>
-															{parsedContent.thinking}
-														</ReasoningContent>
-													</Reasoning>
+										return (
+											<Message from={message.role} key={message.id}>
+												{/* Agent Name, Timestamp & Tool Calls (for assistant) */}
+												{!isUser && (
+													<div className="mb-2 flex flex-wrap items-center gap-2 text-muted-foreground text-xs">
+														<span className="font-medium">
+															{message.metadata?.agent_icon}{" "}
+															{message.metadata?.agent_name || "Assistant"}
+														</span>
+														<span>•</span>
+														<span>{timestamp}</span>
+														{message.metadata?.tool_calls &&
+															message.metadata.tool_calls.length > 0 && (
+																<>
+																	<span>•</span>
+																	<div className="flex items-center gap-1.5">
+																		<Wrench className="size-3" />
+																		<span className="font-medium text-[10px]">
+																			{message.metadata.tool_calls.length} tool
+																			{message.metadata.tool_calls.length === 1
+																				? ""
+																				: "s"}{" "}
+																			called
+																		</span>
+																	</div>
+																	<div className="flex flex-wrap gap-1">
+																		{message.metadata.tool_calls.map(
+																			(tool, idx) => (
+																				<Badge
+																					key={idx}
+																					variant="secondary"
+																					className="h-4 px-1.5 py-0 text-[10px]"
+																				>
+																					{tool.name}
+																				</Badge>
+																			),
+																		)}
+																	</div>
+																</>
+															)}
+													</div>
 												)}
 
-												{/* Main Message */}
-												<MessageResponse>{parsedContent.text}</MessageResponse>
-											</MessageContent>
+												<MessageContent>
+													{/* Thinking Block */}
+													{!isUser && parsedContent.thinking && (
+														<Reasoning className="mb-2">
+															<ReasoningTrigger />
+															<ReasoningContent>
+																{parsedContent.thinking}
+															</ReasoningContent>
+														</Reasoning>
+													)}
 
-											{/* Timestamp (for user) */}
-											{isUser && (
-												<div className="mt-1 text-right text-muted-foreground text-xs">
-													{timestamp}
+													{/* Main Message */}
+													<MessageResponse>
+														{parsedContent.text}
+													</MessageResponse>
+												</MessageContent>
+
+												{/* Timestamp (for user) */}
+												{isUser && (
+													<div className="mt-1 text-right text-muted-foreground text-xs">
+														{timestamp}
+													</div>
+												)}
+											</Message>
+										);
+									}
+
+									// Render approval card
+									if (item.type === "approval") {
+										const toolName = item.toolName;
+										const state = item.state;
+										// Render custom card for select_workflow_path
+										if (toolName === "select_workflow_path") {
+											const pathData = state.value as {
+												available_paths?: any[];
+												reasoning?: any;
+											};
+											return (
+												<div key={`approval-${toolName}`} className="my-4">
+													<WorkflowPathSelectorCard
+														executionId={executionId}
+														agentId={stepConfig.agentId}
+														toolName={toolName}
+														availablePaths={pathData.available_paths || []}
+														reasoning={pathData.reasoning}
+														isApproved={state.status === "approved"}
+													/>
 												</div>
-											)}
-										</Message>
-									);
-								})}
+											);
+										}
 
-								{/* Approval Cards IN THE CHAT (with custom variants for special tools) */}
-								{allApprovals.map(([toolName, state]) => {
-									// Render custom card for select_workflow_path
-									if (toolName === "select_workflow_path") {
-										const pathData = state.value as {
-											available_paths?: any[];
-											reasoning?: any;
-										};
-										return (
-											<div key={toolName} className="my-4">
-												<WorkflowPathSelectorCard
-													executionId={executionId}
-													agentId={stepConfig.agentId}
-													toolName={toolName}
-													availablePaths={pathData.available_paths || []}
-													reasoning={pathData.reasoning}
-													isApproved={state.status === "approved"}
-												/>
-											</div>
-										);
-									}
+										// Render custom card for generate_project_name
+										if (toolName === "generate_project_name") {
+											const nameData = state.value as {
+												suggestions?: any[];
+											};
+											return (
+												<div key={`approval-${toolName}`} className="my-4">
+													<ProjectNameSelectorCard
+														executionId={executionId}
+														agentId={stepConfig.agentId}
+														toolName={toolName}
+														suggestions={nameData.suggestions || []}
+														isApproved={state.status === "approved"}
+													/>
+												</div>
+											);
+										}
 
-									// Render custom card for generate_project_name
-									if (toolName === "generate_project_name") {
-										const nameData = state.value as {
-											suggestions?: any[];
-										};
-										return (
-											<div key={toolName} className="my-4">
-												<ProjectNameSelectorCard
-													executionId={executionId}
-													agentId={stepConfig.agentId}
-													toolName={toolName}
-													suggestions={nameData.suggestions || []}
-													isApproved={state.status === "approved"}
-												/>
-											</div>
-										);
-									}
+										// Card selector for tools with available options
+										if (
+											state.available_options &&
+											state.available_options.length > 0
+										) {
+											return (
+												<div key={`approval-${toolName}`} className="my-4">
+													<ApprovalCardSelector
+														executionId={executionId}
+														agentId={stepConfig.agentId}
+														toolName={toolName}
+														generatedValue={
+															state.value as Record<string, unknown>
+														}
+														availableOptions={state.available_options}
+														reasoning={state.reasoning}
+														isApproved={state.status === "approved"}
+														isRejected={state.status === "rejected"}
+													/>
+												</div>
+											);
+										}
 
-									// Card selector for tools with available options
-									if (
-										state.available_options &&
-										state.available_options.length > 0
-									) {
+										// Default approval card for other tools
 										return (
-											<div key={toolName} className="my-4">
-												<ApprovalCardSelector
+											<div key={`approval-${toolName}`} className="my-4">
+												<ApprovalCard
 													executionId={executionId}
 													agentId={stepConfig.agentId}
 													toolName={toolName}
 													generatedValue={
 														state.value as Record<string, unknown>
 													}
-													availableOptions={state.available_options}
 													reasoning={state.reasoning}
 													isApproved={state.status === "approved"}
 													isRejected={state.status === "rejected"}
@@ -535,20 +588,7 @@ export function AskUserChatStepNew({
 										);
 									}
 
-									// Default approval card for other tools
-									return (
-										<div key={toolName} className="my-4">
-											<ApprovalCard
-												executionId={executionId}
-												agentId={stepConfig.agentId}
-												toolName={toolName}
-												generatedValue={state.value as Record<string, unknown>}
-												reasoning={state.reasoning}
-												isApproved={state.status === "approved"}
-												isRejected={state.status === "rejected"}
-											/>
-										</div>
-									);
+									return null;
 								})}
 
 								{/* Loading Indicator */}
