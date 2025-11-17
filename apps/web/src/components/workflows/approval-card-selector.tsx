@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Check, ChevronDown, ChevronUp, Loader2, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -64,13 +64,36 @@ export function ApprovalCardSelector({
 	const queryClient = useQueryClient();
 
 	// Extract AI's recommended value from generatedValue
-	// For update_complexity: { complexity_classification: "simple" }
-	// For select_workflow_path: { selected_path_id: "abc123" }
-	const aiRecommendedValue = Object.values(generatedValue)[0] as string;
+	// The generatedValue object may contain multiple fields (e.g., classification + reasoning)
+	// We need to find the field that matches one of the available option values
+	// For update_complexity: { complexity_classification: "method", reasoning: "..." }
+	// For select_workflow_path: { selected_path_id: "abc123", ... }
+	const aiRecommendedValue = (() => {
+		// Try to find a value in generatedValue that matches an available option
+		for (const value of Object.values(generatedValue)) {
+			const valueStr = value as string;
+			if (availableOptions.some((opt) => opt.value === valueStr)) {
+				return valueStr;
+			}
+		}
+		// Fallback: use first value (old behavior)
+		return Object.values(generatedValue)[0] as string;
+	})();
+
+	// Debug logging
+	console.log("[ApprovalCardSelector] Props:", {
+		toolName,
+		generatedValue,
+		aiRecommendedValue,
+		availableOptions: availableOptions.map((o) => o.value),
+	});
 
 	// User's selected value (initialized to AI's recommendation)
 	const [selectedValue, setSelectedValue] =
 		useState<string>(aiRecommendedValue);
+
+	// Debug: Log when selectedValue changes
+	console.log("[ApprovalCardSelector] selectedValue:", selectedValue);
 
 	// Approval mutation
 	const approveMutation = trpc.workflows.approveToolCall.useMutation({
