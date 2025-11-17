@@ -87,6 +87,7 @@ interface ApprovalState {
 		feedback: string;
 		timestamp: string;
 	}>;
+	createdAt?: string;
 }
 
 interface ToolConfig {
@@ -364,7 +365,14 @@ export function AskUserChatStepNew({
 		?.approval_states as Record<string, ApprovalState> | undefined;
 
 	// Show ALL approvals in chat (pending, approved, rejected) so users can see the history
-	const allApprovals = approvalStates ? Object.entries(approvalStates) : [];
+	// Sort by createdAt timestamp to maintain chronological order (oldest first)
+	const allApprovals = approvalStates
+		? Object.entries(approvalStates).sort((a, b) => {
+				const timeA = a[1].createdAt ? new Date(a[1].createdAt).getTime() : 0;
+				const timeB = b[1].createdAt ? new Date(b[1].createdAt).getTime() : 0;
+				return timeA - timeB;
+			})
+		: [];
 
 	return (
 		<div className="flex h-[calc(100vh-12rem)] gap-6">

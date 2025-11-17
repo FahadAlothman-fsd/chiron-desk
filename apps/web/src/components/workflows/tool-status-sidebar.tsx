@@ -43,6 +43,7 @@ interface ApprovalState {
 	reasoning?: string;
 	rejection_history?: Array<{ feedback: string; timestamp: string }>;
 	rejection_count?: number;
+	createdAt?: string;
 }
 
 interface ToolStatusSidebarProps {
