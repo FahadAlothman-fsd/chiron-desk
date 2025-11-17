@@ -36,6 +36,7 @@ interface ApprovalCardProps {
 	reasoning?: string;
 	isApproved?: boolean;
 	isRejected?: boolean;
+	createdAt?: string;
 }
 
 export function ApprovalCard({
@@ -46,6 +47,7 @@ export function ApprovalCard({
 	reasoning,
 	isApproved = false,
 	isRejected = false,
+	createdAt,
 }: ApprovalCardProps) {
 	const [isReasoningExpanded, setIsReasoningExpanded] = useState(false);
 	const [showFeedbackInput, setShowFeedbackInput] = useState(false);
@@ -112,6 +114,13 @@ export function ApprovalCard({
 		.replace(/_/g, " ")
 		.replace(/\b\w/g, (l) => l.toUpperCase());
 
+	const timestamp = createdAt
+		? new Date(createdAt).toLocaleTimeString([], {
+				hour: "2-digit",
+				minute: "2-digit",
+			})
+		: undefined;
+
 	return (
 		<Card
 			className={`
@@ -137,6 +146,9 @@ export function ApprovalCard({
 						<span className="font-normal text-red-600 text-sm">Rejected</span>
 					)}
 				</CardTitle>
+				{timestamp && (
+					<div className="mt-1 text-muted-foreground text-xs">{timestamp}</div>
+				)}
 			</CardHeader>
 
 			<CardContent className="space-y-4">

@@ -565,6 +565,7 @@ export function AskUserChatStepNew({
 														reasoning={state.reasoning}
 														isApproved={state.status === "approved"}
 														isRejected={state.status === "rejected"}
+														createdAt={state.createdAt}
 													/>
 												</div>
 											);
@@ -583,6 +584,7 @@ export function AskUserChatStepNew({
 													reasoning={state.reasoning}
 													isApproved={state.status === "approved"}
 													isRejected={state.status === "rejected"}
+													createdAt={state.createdAt}
 												/>
 											</div>
 										);
