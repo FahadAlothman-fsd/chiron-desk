@@ -703,8 +703,9 @@ export const workflowRouter = router({
 				);
 			}
 
-			// TODO: Trigger tool regeneration with updated ACE context
-			// For now, reset status to "pending" so agent can regenerate
+			// NOTE: ACE playbook is updated above, but not yet used during regeneration
+			// Future story: Inject ACE playbook into agent context when regenerating
+			// For now, reset status to "pending" so agent can regenerate with rejection feedback
 			toolState.status = "pending";
 			toolState.regenerationNeeded = true;
 

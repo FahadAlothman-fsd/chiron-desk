@@ -441,6 +441,8 @@ export class AskUserChatStepHandler implements StepHandler {
 			.map((t) => `**${t.name}**: ${t.usageGuidance}`);
 
 		// Check for rejected tools that need regeneration
+		// NOTE: Rejection feedback is injected as system message (lines 512-521)
+		// ACE playbooks are updated but not yet used during regeneration (future story)
 		const currentApprovalStates = (context.executionVariables.approval_states ||
 			{}) as Record<
 			string,
