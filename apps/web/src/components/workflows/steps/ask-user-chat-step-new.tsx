@@ -23,7 +23,6 @@ import {
 	ModelSelectorInput,
 	ModelSelectorItem,
 	ModelSelectorList,
-	ModelSelectorLogo,
 	ModelSelectorName,
 	ModelSelectorTrigger,
 } from "@/components/ai-elements/model-selector";
@@ -630,11 +629,6 @@ export function AskUserChatStepNew({
 								>
 									<ModelSelectorTrigger asChild>
 										<PromptInputButton variant="ghost" size="sm">
-											{selectedModelData?.chefSlug && (
-												<ModelSelectorLogo
-													provider={selectedModelData.chefSlug}
-												/>
-											)}
 											{selectedModelData?.name && (
 												<ModelSelectorName>
 													{selectedModelData.name}
@@ -669,7 +663,6 @@ export function AskUserChatStepNew({
 																}}
 																value={m.id}
 															>
-																<ModelSelectorLogo provider={m.chefSlug} />
 																<ModelSelectorName>{m.name}</ModelSelectorName>
 																{model === m.id ? (
 																	<CheckIcon className="ml-auto size-4" />

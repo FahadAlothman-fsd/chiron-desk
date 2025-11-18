@@ -126,10 +126,12 @@ async function loadModelWithUserKey({
 	const modelToUse = selectedModel || agentRecord.llmModel;
 
 	// Parse model string: "provider:modelId" -> extract modelId
-	// Frontend sends format like "openrouter:anthropic/claude-3.5-sonnet"
-	// We need just "anthropic/claude-3.5-sonnet" for the provider
-	const parts = modelToUse.split(":");
-	const modelId = parts.length === 2 ? parts[1] : modelToUse;
+	// Frontend sends format like "openrouter:anthropic/claude-3.5-sonnet" or "openrouter:meta-llama/llama-3.3-70b-instruct:free"
+	// We need just "anthropic/claude-3.5-sonnet" or "meta-llama/llama-3.3-70b-instruct:free" for the provider
+	// Use indexOf to split only on FIRST colon (model IDs can contain colons like "model:free")
+	const firstColonIndex = modelToUse.indexOf(":");
+	const modelId =
+		firstColonIndex !== -1 ? modelToUse.slice(firstColonIndex + 1) : modelToUse;
 
 	console.log(`[Agent Loader] Model selection for ${agentRecord.name}:`, {
 		selectedModel,

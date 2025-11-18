@@ -120,8 +120,12 @@ export async function buildAxGenerationTool(
 				const runtimeModel = context.executionVariables
 					.selected_model as string;
 				// Parse format "provider:modelId" -> extract modelId
-				const parts = runtimeModel.split(":");
-				modelId = parts.length === 2 ? parts[1] : runtimeModel;
+				// Use indexOf to split only on FIRST colon (model IDs can contain colons like "model:free")
+				const firstColonIndex = runtimeModel.indexOf(":");
+				modelId =
+					firstColonIndex !== -1
+						? runtimeModel.slice(firstColonIndex + 1)
+						: runtimeModel;
 				console.log(
 					`[AxGenerationTool] Using runtime model selection: ${runtimeModel} (parsed: ${modelId})`,
 				);
