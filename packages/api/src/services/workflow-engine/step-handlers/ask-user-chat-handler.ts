@@ -825,6 +825,9 @@ export class AskUserChatStepHandler implements StepHandler {
 
 				// Apply filters if provided
 				if (filterBy) {
+					const { and } = await import("drizzle-orm");
+					const conditions: any[] = [];
+
 					for (const [filterField, filterValue] of Object.entries(filterBy)) {
 						// Handle JSONB path queries (e.g., "tags->'fieldType'->>'value'")
 						if (filterField.includes("->")) {
@@ -843,18 +846,22 @@ export class AskUserChatStepHandler implements StepHandler {
 							}
 
 							// Build JSONB filter using raw SQL
-							query = query.where(
-								sql`${sql.raw(filterField)} = ${resolvedValue}`,
-							);
+							conditions.push(sql`${sql.raw(filterField)} = ${resolvedValue}`);
 							console.log(
 								`[OptionsSource] Added JSONB filter: ${filterField} = ${resolvedValue}`,
 							);
 						} else {
 							// Regular field filter
-							query = query.where(
-								sql`${sql.raw(filterField)} = ${filterValue}`,
-							);
+							conditions.push(sql`${sql.raw(filterField)} = ${filterValue}`);
 						}
+					}
+
+					// Apply all conditions with AND
+					if (conditions.length > 0) {
+						query = query.where(and(...conditions));
+						console.log(
+							`[OptionsSource] Applied ${conditions.length} filter conditions with AND`,
+						);
 					}
 				}
 
