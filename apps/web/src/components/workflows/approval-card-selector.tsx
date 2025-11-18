@@ -108,6 +108,10 @@ export function ApprovalCardSelector({
 					{ input: { executionId } },
 				],
 			});
+			// CRITICAL: Invalidate execution to refresh variables (for blocked tool detection)
+			queryClient.invalidateQueries({
+				queryKey: [["workflows", "getExecution"], { input: { executionId } }],
+			});
 		},
 		onError: (error) => {
 			toast.error(`Approval failed: ${error.message}`);
@@ -128,8 +132,23 @@ export function ApprovalCardSelector({
 
 	async function handleApprove() {
 		// Submit the user's selected value (which might differ from AI's recommendation)
+		// Find the key in generatedValue that matches an available option value
+		// This ensures we use the correct output field (e.g., complexity_classification)
+		// and not internal fields like "reasoning"
+		const outputFieldKey = Object.keys(generatedValue).find((key) =>
+			availableOptions.some(
+				(opt) => opt.value === (generatedValue[key] as string),
+			),
+		);
+
+		if (!outputFieldKey) {
+			throw new Error(
+				`Could not find output field in generatedValue matching available options`,
+			);
+		}
+
 		const approvedValue = {
-			[Object.keys(generatedValue)[0]]: selectedValue,
+			[outputFieldKey]: selectedValue,
 		};
 
 		await approveMutation.mutateAsync({

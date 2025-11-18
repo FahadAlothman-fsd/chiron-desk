@@ -65,6 +65,10 @@ export function ApprovalCard({
 					{ input: { executionId } },
 				],
 			});
+			// CRITICAL: Invalidate execution to refresh variables (for blocked tool detection)
+			queryClient.invalidateQueries({
+				queryKey: [["workflows", "getExecution"], { input: { executionId } }],
+			});
 		},
 		onError: (error) => {
 			toast.error(`Approval failed: ${error.message}`);
