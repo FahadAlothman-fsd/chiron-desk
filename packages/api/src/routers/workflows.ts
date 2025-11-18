@@ -263,6 +263,9 @@ export const workflowRouter = router({
 			toolState.value = input.approvedValue;
 			toolState.approved_at = new Date().toISOString();
 
+			// Clear regenerationNeeded flag to prevent re-triggering rejection flow
+			toolState.regenerationNeeded = false;
+
 			// Extract output fields from approved value and merge into execution variables
 			// This allows subsequent tools to access these variables as prerequisites
 			if (input.approvedValue && typeof input.approvedValue === "object") {
@@ -366,12 +369,18 @@ export const workflowRouter = router({
 			}
 
 			// Update approval state with rejection
-			toolState.status = "rejected";
+			// Save previous output before marking for regeneration
+			const previousOutput = toolState.output;
+
+			// Set status to "pending" to allow agent to regenerate
+			toolState.status = "pending";
+			toolState.regenerationNeeded = true;
 			toolState.rejection_count = (toolState.rejection_count || 0) + 1;
 			toolState.rejection_history = toolState.rejection_history || [];
 			toolState.rejection_history.push({
 				feedback: input.feedback,
-				rejected_at: new Date().toISOString(),
+				rejectedAt: new Date().toISOString(),
+				previousOutput: previousOutput,
 			});
 
 			// Real ACE optimizer (Reflector → Curator loop) deferred to future story
@@ -674,13 +683,9 @@ export const workflowRouter = router({
 			});
 
 			// Resume workflow for regeneration
-			// Pass a special marker as user input so the handler knows to process rejected tools
+			// Handler will detect rejected tools from approval_states and process regeneration
 			await stateManager.resumeExecution(input.executionId);
-			await continueExecution(
-				input.executionId,
-				userId,
-				"[REGENERATION_REQUESTED]",
-			);
+			await continueExecution(input.executionId, userId);
 
 			workflowEventBus.emitWorkflowResumed(input.executionId);
 

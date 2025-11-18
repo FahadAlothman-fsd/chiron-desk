@@ -98,6 +98,7 @@ export async function continueExecution(
 	userId: string,
 	userInput?: unknown,
 ): Promise<void> {
+	console.log(`[Executor] continueExecution called with userInput:`, userInput);
 	// Load execution state
 	const [execution] = await db
 		.select()
@@ -195,6 +196,10 @@ export async function continueExecution(
 			workflowEventBus.emitStepStarted(executionId, currentStep.stepNumber);
 
 			const handler = stepRegistry.getHandler(currentStep.stepType);
+			console.log(
+				`[Executor] Calling handler for step ${currentStep.stepNumber}, userInput:`,
+				userInput,
+			);
 			const result = await handler.executeStep(currentStep, context, userInput);
 
 			console.log(

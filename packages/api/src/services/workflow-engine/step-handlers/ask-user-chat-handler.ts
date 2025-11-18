@@ -1,5 +1,5 @@
 import type { AskUserChatStepConfig, WorkflowStep } from "@chiron/db";
-import { agents, db } from "@chiron/db";
+import { agents, db, workflowExecutions } from "@chiron/db";
 import { RuntimeContext } from "@mastra/core/runtime-context";
 import { eq } from "drizzle-orm";
 import {
@@ -392,13 +392,56 @@ export class AskUserChatStepHandler implements StepHandler {
 			};
 		}
 
-		// If no user input, show initial message and wait
-		// Allow special marker "[REGENERATION_REQUESTED]" for tool rejection flow
-		const isRegenerationRequest = userInput === "[REGENERATION_REQUESTED]";
+		// Check for rejected tools that need regeneration BEFORE checking user input
+		// This allows rejection flow to work without requiring userInput parameter
+		// IMPORTANT: Reload execution state from DB to get fresh approval_states
+		// (context.executionVariables may be stale if rejection was just saved)
+		const [freshExecution] = await db
+			.select()
+			.from(workflowExecutions)
+			.where(
+				eq(
+					workflowExecutions.id,
+					context.systemVariables.execution_id as string,
+				),
+			)
+			.limit(1);
 
-		if (!userInput && !isRegenerationRequest) {
+		const currentApprovalStates = (freshExecution?.variables?.approval_states ||
+			{}) as Record<
+			string,
+			{
+				status: "pending" | "approved" | "rejected";
+				rejection_history?: Array<{
+					feedback: string;
+					rejectedAt: string;
+					previousOutput?: unknown;
+				}>;
+				regenerationNeeded?: boolean;
+			}
+		>;
+
+		const rejectedTools = Object.entries(currentApprovalStates)
+			.filter(
+				([_, state]) =>
+					// Check for regenerationNeeded flag (primary) or rejected status (fallback)
+					state.regenerationNeeded === true ||
+					(state.status === "rejected" && state.rejection_history?.length > 0),
+			)
+			.map(([toolName, state]) => {
+				const lastRejection =
+					state.rejection_history?.[state.rejection_history.length - 1];
+				return {
+					toolName,
+					lastFeedback: lastRejection?.feedback || "",
+					previousOutput: lastRejection?.previousOutput,
+				};
+			});
+
+		// If no user input AND no rejected tools, show initial message and wait
+		if (!userInput && rejectedTools.length === 0) {
 			console.log(
-				"[AskUserChatHandler] No user input - awaiting first message",
+				"[AskUserChatHandler] No user input and no rejected tools - awaiting first message",
 			);
 			return {
 				output: {
@@ -411,6 +454,13 @@ export class AskUserChatStepHandler implements StepHandler {
 				nextStepNumber: step.nextStepNumber ?? null,
 				requiresUserInput: true,
 			};
+		}
+
+		// If we have rejected tools but no user input, we're in regeneration mode
+		if (!userInput && rejectedTools.length > 0) {
+			console.log(
+				"[AskUserChatHandler] No user input but found rejected tools - entering regeneration mode",
+			);
 		}
 
 		// If user input provided, process it through agent
@@ -439,35 +489,6 @@ export class AskUserChatStepHandler implements StepHandler {
 		const toolsGuidance = (config.tools || [])
 			.filter((t) => t.usageGuidance)
 			.map((t) => `**${t.name}**: ${t.usageGuidance}`);
-
-		// Check for rejected tools that need regeneration
-		// NOTE: Rejection feedback is injected as system message (lines 512-521)
-		// Real ACE optimizer (Reflector → Curator loop) deferred to future story
-		const currentApprovalStates = (context.executionVariables.approval_states ||
-			{}) as Record<
-			string,
-			{
-				status: "pending" | "approved" | "rejected";
-				rejection_history?: Array<{
-					feedback: string;
-					rejectedAt: string;
-					previousOutput?: unknown;
-				}>;
-				regenerationNeeded?: boolean;
-			}
-		>;
-
-		const rejectedTools = Object.entries(currentApprovalStates)
-			.filter(
-				([_, state]) =>
-					state.status === "pending" && state.regenerationNeeded === true,
-			)
-			.map(([toolName, state]) => ({
-				toolName,
-				lastFeedback:
-					state.rejection_history?.[state.rejection_history.length - 1]
-						?.feedback || "",
-			}));
 
 		// Create RuntimeContext with required data for dynamic loading
 		const runtimeContext = new RuntimeContext();
@@ -507,22 +528,36 @@ export class AskUserChatStepHandler implements StepHandler {
 		const toolsets = Object.keys(tools).length > 0 ? { stepTools: tools } : {};
 
 		// If there are rejected tools, prepend regeneration instructions to user input
-		// Strip the [REGENERATION_REQUESTED] marker if present
-		let effectiveUserInput =
-			userInput === "[REGENERATION_REQUESTED]" ? "" : String(userInput);
+		let effectiveUserInput = userInput ? String(userInput) : "";
 
 		if (rejectedTools.length > 0) {
 			const regenerationInstructions = rejectedTools
-				.map(
-					(rt) =>
-						`\n\n[SYSTEM: The user rejected the output from **${rt.toolName}** with this feedback: "${rt.lastFeedback}". Please regenerate the output for this tool, taking the feedback into account. Call the tool again with improved parameters.]`,
-				)
+				.map((rt) => {
+					let instruction = `\n\n[SYSTEM: The user rejected the output from **${rt.toolName}**.`;
+
+					// Include previous output if available
+					if (rt.previousOutput !== undefined) {
+						const outputStr =
+							typeof rt.previousOutput === "string"
+								? rt.previousOutput
+								: JSON.stringify(rt.previousOutput, null, 2);
+						instruction += `\n\n**Previous Output (REJECTED):**\n${outputStr}`;
+					}
+
+					// Include user feedback
+					instruction += `\n\n**User Feedback:**\n"${rt.lastFeedback}"`;
+
+					// Add instructions
+					instruction += `\n\n**Instructions:**\nPlease regenerate the output for this tool, addressing the user's feedback. Learn from what was wrong in the previous output and improve upon it. Call the tool again with improved parameters.]`;
+
+					return instruction;
+				})
 				.join("\n");
 			effectiveUserInput =
 				regenerationInstructions +
 				(effectiveUserInput ? "\n\n" + effectiveUserInput : "");
 			console.log(
-				"[AskUserChatHandler] Injecting regeneration instructions for rejected tools:",
+				"[AskUserChatHandler] Injecting regeneration instructions with previous output for rejected tools:",
 				rejectedTools.map((rt) => rt.toolName),
 			);
 		}
@@ -541,6 +576,11 @@ export class AskUserChatStepHandler implements StepHandler {
 
 		// DEBUG: Log the entire result structure to understand what we're getting
 		console.log("[AskUserChatHandler] Result keys:", Object.keys(result));
+		console.log("[AskUserChatHandler] result.text:", result.text);
+		console.log(
+			"[AskUserChatHandler] result.text length:",
+			result.text?.length || 0,
+		);
 		console.log(
 			"[AskUserChatHandler] toolCalls count:",
 			result.toolCalls?.length || 0,

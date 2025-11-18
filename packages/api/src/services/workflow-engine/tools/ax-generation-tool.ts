@@ -320,11 +320,25 @@ async function resolveInputs(
 					break;
 				}
 
+				console.log(
+					`[AxGenerationTool] Fetching messages for thread: ${threadId}`,
+				);
 				const messages = await getThreadMessages(threadId);
 
 				console.log(
-					`[AxGenerationTool] Formatting ${messages.length} messages for conversation_history`,
+					`[AxGenerationTool] Formatting ${messages.length} messages for conversation_history (thread: ${threadId})`,
 				);
+
+				// Handle case where thread exists but has no messages yet
+				// This can happen on first message when tool executes before user message is committed
+				if (messages.length === 0) {
+					console.log(
+						`[AxGenerationTool] Thread ${threadId} has no messages yet, using minimal context for ${inputConfig.name}`,
+					);
+					inputs[inputConfig.name] =
+						"user: Initial conversation - gathering project requirements.";
+					break;
+				}
 
 				// Format messages as conversation history string
 				const conversationHistory = messages
