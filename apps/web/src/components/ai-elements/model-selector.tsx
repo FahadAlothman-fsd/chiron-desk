@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { ComponentProps, ReactNode } from "react";
 import {
 	Command,
@@ -169,16 +170,43 @@ export const ModelSelectorLogo = ({
 	provider,
 	className,
 	...props
-}: ModelSelectorLogoProps) => (
-	<img
-		{...props}
-		alt={`${provider} logo`}
-		className={cn("size-3", className)}
-		height={12}
-		src={`https://models.dev/logos/${provider}.svg`}
-		width={12}
-	/>
-);
+}: ModelSelectorLogoProps) => {
+	const [error, setError] = useState(false);
+
+	if (error) {
+		// Fallback: Show first 2 letters of provider in a colored circle
+		const initials = provider
+			.split("-")
+			.map((word) => word[0])
+			.join("")
+			.slice(0, 2)
+			.toUpperCase();
+
+		return (
+			<div
+				className={cn(
+					"size-3 flex items-center justify-center rounded-full bg-primary/10 text-[0.4rem] font-semibold text-primary",
+					className,
+				)}
+				title={`${provider} logo`}
+			>
+				{initials}
+			</div>
+		);
+	}
+
+	return (
+		<img
+			{...props}
+			alt={`${provider} logo`}
+			className={cn("size-3", className)}
+			height={12}
+			src={`https://models.dev/logos/${provider}.svg`}
+			width={12}
+			onError={() => setError(true)}
+		/>
+	);
+};
 
 export type ModelSelectorLogoGroupProps = ComponentProps<"div">;
 
