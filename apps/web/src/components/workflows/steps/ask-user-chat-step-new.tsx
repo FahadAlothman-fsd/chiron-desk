@@ -510,18 +510,15 @@ export function AskUserChatStepNew({
 										const state = item.state;
 										// Render custom card for select_workflow_path
 										if (toolName === "select_workflow_path") {
-											const pathData = state.value as {
-												available_paths?: any[];
-												reasoning?: any;
-											};
+											// Fix: Read from state.available_options, not state.value.available_paths
 											return (
 												<div key={`approval-${toolName}`} className="my-4">
 													<WorkflowPathSelectorCard
 														executionId={executionId}
 														agentId={stepConfig.agentId}
 														toolName={toolName}
-														availablePaths={pathData.available_paths || []}
-														reasoning={pathData.reasoning}
+														availablePaths={state.available_options || []}
+														reasoning={state.reasoning}
 														isApproved={state.status === "approved"}
 													/>
 												</div>

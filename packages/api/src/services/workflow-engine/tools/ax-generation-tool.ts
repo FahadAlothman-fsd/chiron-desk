@@ -173,8 +173,41 @@ export async function buildAxGenerationTool(
 						const availableOptions =
 							context.executionVariables[config.optionsSource.outputVariable];
 
+						// Auto-select optimization: If there's only ONE option, skip approval and auto-select it
+						if (
+							Array.isArray(availableOptions) &&
+							availableOptions.length === 1
+						) {
+							const singleOption = availableOptions[0];
+							console.log(
+								`[AxGenerationTool] Tool ${config.name} has only 1 option - auto-selecting without approval`,
+								{ option: singleOption },
+							);
+
+							// Return the auto-selected value directly (no approval needed)
+							// Use the ID as the selected value (consistent with manual selection)
+							const autoSelectedValue =
+								singleOption.id || singleOption.value || singleOption;
+
+							// Build result matching the expected output field name
+							// For select_workflow_path: { selected_workflow_path_id: "uuid" }
+							const outputField = axConfig.output.find((o) => !o.internal);
+							if (outputField) {
+								return {
+									[outputField.name]: autoSelectedValue,
+									reasoning: `Auto-selected (only 1 option available): ${singleOption.displayName || singleOption.name || autoSelectedValue}`,
+								};
+							}
+
+							return {
+								...publicResult,
+								reasoning: `Auto-selected (only 1 option available): ${singleOption.displayName || singleOption.name || autoSelectedValue}`,
+							};
+						}
+
 						console.log(
 							`[AxGenerationTool] Tool ${config.name} requires approval with options selector`,
+							{ optionCount: availableOptions?.length || 0 },
 						);
 
 						return {

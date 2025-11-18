@@ -620,6 +620,9 @@ export class AskUserChatStepHandler implements StepHandler {
 		const approvalStates =
 			(context.executionVariables.approval_states as Record<string, any>) || {};
 
+		// Track auto-selected values to save to DB
+		const autoSelectedVariables: Record<string, unknown> = {};
+
 		let toolsProcessed = 0;
 		if (result.toolResults && result.toolResults.length > 0) {
 			for (const toolResultItem of result.toolResults) {
@@ -663,6 +666,21 @@ export class AskUserChatStepHandler implements StepHandler {
 							approvalStates[toolName]?.rejection_history || [],
 						createdAt: new Date().toISOString(),
 					};
+				} else if (toolResult && typeof toolResult === "object") {
+					// Tool returned value directly (auto-selected, no approval needed)
+					// Save directly to execution variables
+					console.log(
+						`[AskUserChatHandler] Tool ${toolName} returned direct value (auto-selected)`,
+					);
+
+					// Merge the tool result fields into execution variables
+					// For example: { selected_workflow_path_id: "uuid", reasoning: "..." }
+					// becomes: executionVariables.selected_workflow_path_id = "uuid"
+					for (const [key, value] of Object.entries(toolResult)) {
+						context.executionVariables[key] = value;
+						autoSelectedVariables[key] = value;
+						console.log(`[AskUserChatHandler] Auto-selected ${key}:`, value);
+					}
 				}
 			}
 		}
@@ -672,30 +690,40 @@ export class AskUserChatStepHandler implements StepHandler {
 				`[AskUserChatHandler] Processed ${toolsProcessed} tool results`,
 			);
 			console.log(
-				`[AskUserChatHandler] About to save approval states for executionId: ${context.systemVariables.execution_id}`,
+				`[AskUserChatHandler] About to save to executionId: ${context.systemVariables.execution_id}`,
 			);
 			console.log(
 				"[AskUserChatHandler] Approval states to save:",
 				JSON.stringify(approvalStates, null, 2),
 			);
+			console.log(
+				"[AskUserChatHandler] Auto-selected variables to save:",
+				JSON.stringify(autoSelectedVariables, null, 2),
+			);
 
 			try {
-				// Save updated approval states to execution variables
+				// Build the variables to save
+				// Include both approval_states AND any auto-selected values
+				const variablesToSave: Record<string, unknown> = {
+					approval_states: approvalStates,
+					...autoSelectedVariables, // Spread auto-selected values into the save
+				};
+
+				console.log(
+					"[AskUserChatHandler] All variables to save:",
+					Object.keys(variablesToSave),
+				);
+
 				await stateManager.mergeExecutionVariables(
 					context.systemVariables.execution_id,
-					{
-						approval_states: approvalStates,
-					},
+					variablesToSave,
 				);
 
 				console.log(
-					"[AskUserChatHandler] ✓ Successfully updated approval states",
+					"[AskUserChatHandler] ✓ Successfully updated approval states and execution variables",
 				);
 			} catch (error) {
-				console.error(
-					"[AskUserChatHandler] ✗ Error saving approval states:",
-					error,
-				);
+				console.error("[AskUserChatHandler] ✗ Error saving variables:", error);
 				throw error;
 			}
 		}

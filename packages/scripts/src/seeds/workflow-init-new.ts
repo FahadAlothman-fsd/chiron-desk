@@ -231,50 +231,16 @@ export async function seedWorkflowInitNew() {
 					strategy: "ChainOfThought",
 				},
 			},
-
-			// Tool 3: TEMPORARILY DISABLED - Will fix after update_summary and update_complexity work
-			// {
-			// 	name: "fetch_workflow_paths",
-			// 	toolType: "ax-generation",
-			// 	requiredVariables: ["complexity_classification", "detected_field_type"],
-			// 	requiresApproval: true,
-			// 	axSignature: {
-			// 		systemPrompt: "...",
-			// 		userPromptTemplate: "...",
-			// 		optionSource: {...},
-			// 		outputVariable: "selected_workflow_path",
-			// 		outputFields: [...],
-			// 		strategy: "ChainOfThought",
-			// 	},
-			// },
-
-			// Tool 4: TEMPORARILY DISABLED
-			// {
-			// 	name: "generate_project_name",
-			// 	toolType: "custom",
-			// 	customToolHandler: "generate_project_name",
-			// 	requiredVariables: ["project_description", "complexity_classification"],
-			// 	requiresApproval: true,
-			// },
 		],
 
 		completionCondition: {
 			type: "all-tools-approved",
-			requiredTools: [
-				"update_summary",
-				"update_complexity",
-				// TEMPORARILY DISABLED - Will re-enable after testing tools 1-2
-				// "fetch_workflow_paths",
-				// "generate_project_name",
-			],
+			requiredTools: ["update_summary", "update_complexity"],
 		},
 
 		outputVariables: {
 			project_description: "approval_states.update_summary.value",
 			complexity_classification: "approval_states.update_complexity.value",
-			// TEMPORARILY DISABLED - Will re-enable after testing tools 1-2
-			// selected_workflow_path: "approval_states.fetch_workflow_paths.value",
-			// project_name: "approval_states.generate_project_name.value",
 		},
 	};
 
