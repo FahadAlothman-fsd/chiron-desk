@@ -10,10 +10,10 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
+import { getValueByPath } from "@/lib/json-path";
 import { trpc } from "@/utils/trpc";
+import { OptionCard } from "./option-card";
 
 /**
  * ApprovalCardSelector - Card-based selector UI for AI-generated choices
@@ -31,18 +31,16 @@ import { trpc } from "@/utils/trpc";
  * - Feedback input for rejections
  */
 
-interface Option {
-	value: string;
-	name: string;
-	description: string;
-}
+import type { DisplayConfig } from "./option-card";
 
 interface ApprovalCardSelectorProps {
 	executionId: string;
 	agentId: string;
 	toolName: string;
 	generatedValue: Record<string, unknown>; // AI's recommended choice
-	availableOptions: Option[]; // All available options from database
+	availableOptions: Array<Record<string, unknown>>; // All available options from database
+	displayConfig?: DisplayConfig; // How to render the options
+	requireFeedbackOnOverride?: boolean; // Show feedback when user overrides AI
 	reasoning?: string;
 	isApproved?: boolean;
 	isRejected?: boolean;
@@ -55,6 +53,8 @@ export function ApprovalCardSelector({
 	toolName,
 	generatedValue,
 	availableOptions,
+	displayConfig,
+	requireFeedbackOnOverride = false,
 	reasoning,
 	isApproved = false,
 	isRejected = false,
@@ -66,19 +66,35 @@ export function ApprovalCardSelector({
 	const queryClient = useQueryClient();
 
 	// Extract AI's recommended value from generatedValue
-	// The generatedValue object may contain multiple fields (e.g., classification + reasoning)
-	// We need to find the field that matches one of the available option values
-	// For update_complexity: { complexity_classification: "method", reasoning: "..." }
-	// For select_workflow_path: { selected_path_id: "abc123", ... }
+	// Use displayConfig to know which field contains the value to match
 	const aiRecommendedValue = (() => {
-		// Try to find a value in generatedValue that matches an available option
-		for (const value of Object.values(generatedValue)) {
-			const valueStr = value as string;
-			if (availableOptions.some((opt) => opt.value === valueStr)) {
-				return valueStr;
+		if (displayConfig) {
+			// Try to find a value in generatedValue that matches an available option
+			// by extracting the value field from each option using displayConfig
+			for (const value of Object.values(generatedValue)) {
+				const valueStr = value as string;
+				if (
+					availableOptions.some((opt) => {
+						const optValue = getValueByPath(opt, displayConfig.fields.value);
+						return optValue === valueStr;
+					})
+				) {
+					return valueStr;
+				}
+			}
+		} else {
+			// Legacy: Try to match old Option interface (value, name, description)
+			for (const value of Object.values(generatedValue)) {
+				const valueStr = value as string;
+				const optValue = (availableOptions[0] as any)?.value;
+				if (optValue !== undefined) {
+					if (availableOptions.some((opt: any) => opt.value === valueStr)) {
+						return valueStr;
+					}
+				}
 			}
 		}
-		// Fallback: use first value (old behavior)
+		// Fallback: use first value
 		return Object.values(generatedValue)[0] as string;
 	})();
 
@@ -87,7 +103,8 @@ export function ApprovalCardSelector({
 		toolName,
 		generatedValue,
 		aiRecommendedValue,
-		availableOptions: availableOptions.map((o) => o.value),
+		displayConfig,
+		availableOptions,
 	});
 
 	// User's selected value (initialized to AI's recommendation)
@@ -181,9 +198,12 @@ export function ApprovalCardSelector({
 		.replace(/\b\w/g, (l) => l.toUpperCase());
 
 	// Find the selected option details
-	const selectedOption = availableOptions.find(
-		(opt) => opt.value === selectedValue,
-	);
+	const selectedOption = availableOptions.find((opt) => {
+		if (displayConfig) {
+			return getValueByPath(opt, displayConfig.fields.value) === selectedValue;
+		}
+		return (opt as any).value === selectedValue;
+	});
 
 	return (
 		<Card
@@ -229,72 +249,105 @@ export function ApprovalCardSelector({
 							Selected Option
 						</div>
 						<div className="rounded-lg border-2 border-green-500 bg-background p-4">
-							<div className="mb-1 font-semibold text-base">
-								{selectedOption?.name}
-							</div>
-							<div className="text-muted-foreground text-sm">
-								{selectedOption?.description}
-							</div>
+							{displayConfig && selectedOption ? (
+								<>
+									<div className="mb-1 font-semibold text-base">
+										{getValueByPath(selectedOption, displayConfig.fields.title)}
+									</div>
+									{displayConfig.fields.description && (
+										<div className="text-muted-foreground text-sm">
+											{getValueByPath(
+												selectedOption,
+												displayConfig.fields.description,
+											)}
+										</div>
+									)}
+								</>
+							) : (
+								// Legacy fallback
+								<>
+									<div className="mb-1 font-semibold text-base">
+										{(selectedOption as any)?.name}
+									</div>
+									<div className="text-muted-foreground text-sm">
+										{(selectedOption as any)?.description}
+									</div>
+								</>
+							)}
 						</div>
 					</div>
+				) : displayConfig ? (
+					// NEW: Use generic OptionCard component with displayConfig
+					<div className="space-y-3">
+						{availableOptions.map((option) => {
+							const optionValue = getValueByPath<string>(
+								option,
+								displayConfig.fields.value,
+							);
+							const isAiRecommendation = optionValue === aiRecommendedValue;
+							const isSelected = optionValue === selectedValue;
+
+							return (
+								<OptionCard
+									key={optionValue}
+									option={option}
+									displayConfig={displayConfig}
+									isSelected={isSelected}
+									isRecommended={isAiRecommendation}
+									onSelect={() => setSelectedValue(optionValue || "")}
+								/>
+							);
+						})}
+					</div>
 				) : (
-					// Interactive: Show radio group with cards
+					// LEGACY: Fallback for old Option interface (no displayConfig)
 					<div className="space-y-3">
 						<div className="font-medium text-sm">
 							Athena recommends:{" "}
 							<span className="text-primary">
 								{
-									availableOptions.find(
-										(opt) => opt.value === aiRecommendedValue,
+									(
+										availableOptions.find(
+											(opt: any) => opt.value === aiRecommendedValue,
+										) as any
 									)?.name
 								}
 							</span>
 						</div>
 
-						<RadioGroup value={selectedValue} onValueChange={setSelectedValue}>
-							{availableOptions.map((option) => {
-								const isAiRecommendation = option.value === aiRecommendedValue;
-								const isSelected = option.value === selectedValue;
-
-								return (
-									<div key={option.value} className="relative">
-										<RadioGroupItem
-											value={option.value}
-											id={`option-${option.value}`}
-											className="peer sr-only"
-										/>
-										<Label
-											htmlFor={`option-${option.value}`}
-											className={`flex cursor-pointer flex-col rounded-lg border-2 p-4 transition-all${
-												isSelected
-													? "border-primary bg-primary/5"
-													: "border-border hover:border-primary/50"
-											}
-											`}
-										>
-											<div className="flex items-start justify-between gap-2">
-												<div className="flex-1">
-													<div className="mb-1 font-semibold text-base">
-														{option.name}
-														{isAiRecommendation && (
-															<span className="ml-2 font-normal text-primary text-xs">
-																⭐ AI Recommendation
-															</span>
-														)}
-													</div>
-													<div className="text-muted-foreground text-sm">
-														{option.description}
-													</div>
-												</div>
-												{isSelected && (
-													<Check className="mt-0.5 h-5 w-5 flex-shrink-0 text-primary" />
-												)}
-											</div>
-										</Label>
+						<div className="space-y-2">
+							{availableOptions.map((option: any) => (
+								<div
+									key={option.value}
+									onClick={() => setSelectedValue(option.value)}
+									onKeyDown={(e) => {
+										if (e.key === "Enter" || e.key === " ") {
+											setSelectedValue(option.value);
+										}
+									}}
+									role="radio"
+									aria-checked={option.value === selectedValue}
+									tabIndex={0}
+									className={`cursor-pointer rounded-lg border-2 p-4 transition-all ${
+										option.value === selectedValue
+											? "border-primary bg-primary/5"
+											: "border-border hover:border-primary/50"
+									}`}
+								>
+									<div className="font-semibold text-base">
+										{option.name}
+										{option.value === aiRecommendedValue && (
+											<span className="ml-2 text-primary text-xs">
+												⭐ AI Recommendation
+											</span>
+										)}
 									</div>
-								);
-							})}
-						</RadioGroup>
+									<div className="text-muted-foreground text-sm">
+										{option.description}
+									</div>
+								</div>
+							))}
+						</div>
 					</div>
 				)}
 

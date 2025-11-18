@@ -110,14 +110,57 @@ export const askUserChatStepConfigSchema = z.object({
 				usageGuidance: z.string().optional(), // When/how to use this tool (injected into agent instructions)
 				requiredVariables: z.array(z.string()).optional(),
 				requiresApproval: z.boolean().optional(),
+				requireFeedbackOnOverride: z.boolean().optional(), // Show feedback textarea when user selects non-AI option
 				// Dynamic options source - fetch options from database before tool execution
 				optionsSource: z
 					.object({
 						table: z.string(), // Table to query
-						distinctField: z.string(), // Field to get unique values from (supports JSONB like "tags->'complexity'")
+						selectFields: z.array(z.string()).optional(), // Fields to fetch (default: all fields)
+						distinctField: z.string().optional(), // Field to get unique values from (supports JSONB like "tags->'complexity'")
 						filterBy: z.record(z.string()).optional(), // Optional filters (supports {{variable}} syntax)
 						orderBy: z.string().optional(), // Field to order by
 						outputVariable: z.string(), // Variable name to store fetched options
+						// Display configuration - how to render options in approval cards
+						displayConfig: z
+							.object({
+								cardLayout: z.enum(["simple", "detailed"]), // Card complexity level
+								fields: z.object({
+									// Core fields (required)
+									value: z.string(), // JSON path to the value field (what gets submitted)
+									title: z.string(), // JSON path to title field
+									// Optional fields
+									subtitle: z.string().optional(), // JSON path to subtitle field
+									description: z.string().optional(), // JSON path to description field
+									// Nested expandable sections (for detailed cards)
+									sections: z
+										.array(
+											z.object({
+												label: z.string(), // Section header ("Phases & Workflows")
+												icon: z.string().optional(), // Emoji/icon prefix
+												dataPath: z.string(), // JSON path to array data
+												renderAs: z.enum(["list", "nested-list", "grid"]), // Render style
+												collapsible: z.boolean().optional(), // Allow expand/collapse
+												defaultExpanded: z.boolean().optional(), // Start expanded/collapsed
+												// How to render each item in the section
+												itemFields: z.object({
+													title: z.string(), // Item title field
+													subtitle: z.string().optional(), // Item subtitle field
+													icon: z.string().optional(), // Static icon or field path
+													// For nested lists (recursive)
+													children: z.string().optional(), // JSON path to child array
+													childFields: z
+														.object({
+															title: z.string(),
+															icon: z.string().optional(),
+														})
+														.optional(),
+												}),
+											}),
+										)
+										.optional(),
+								}),
+							})
+							.optional(),
 					})
 					.optional(),
 				// Ax-generation specific config

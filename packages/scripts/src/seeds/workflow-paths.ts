@@ -1,7 +1,13 @@
 import { readdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { db, workflowPaths } from "@chiron/db";
+import {
+	db,
+	workflowPaths,
+	workflowPathWorkflows,
+	workflows,
+} from "@chiron/db";
+import { eq } from "drizzle-orm";
 import yaml from "js-yaml";
 
 // Get the directory of this file
@@ -140,7 +146,8 @@ export async function seedWorkflowPaths() {
 			"enterprise-brownfield": 6,
 		};
 
-		await db
+		// Insert workflow path
+		const insertedPath = await db
 			.insert(workflowPaths)
 			.values({
 				name,
@@ -156,8 +163,95 @@ export async function seedWorkflowPaths() {
 				agentSupport: agentSupportMap[track] || null,
 				sequenceOrder: sequenceMap[name] || 0,
 			})
-			.onConflictDoNothing();
+			.onConflictDoUpdate({
+				target: workflowPaths.name,
+				set: {
+					displayName,
+					description: data.description,
+					educationText: educationTextMap[name] || data.description,
+					tags: {
+						complexity: complexityTagMap[track] || complexityTagMap.method,
+						fieldType: fieldTypeTagMap[fieldType] || fieldTypeTagMap.greenfield,
+					},
+					recommendedFor: data.recommended_for || null,
+					estimatedTime: estimatedTimeMap[track] || null,
+					agentSupport: agentSupportMap[track] || null,
+					sequenceOrder: sequenceMap[name] || 0,
+				},
+			})
+			.returning();
 
-		console.log(`  ✓ ${name} (${displayName})`);
+		let workflowPathId = insertedPath[0]?.id;
+
+		// Fallback: if upsert didn't return ID (e.g. no changes made), fetch it
+		if (!workflowPathId) {
+			// Use raw select instead of query builder to be safe
+			const existing = await db
+				.select({ id: workflowPaths.id })
+				.from(workflowPaths)
+				.where(eq(workflowPaths.name, name))
+				.limit(1);
+			workflowPathId = existing[0]?.id;
+		}
+
+		console.log(`    Path ID for ${name}: ${workflowPathId}`);
+
+		// Seed workflow_path_workflows join table from phases
+		if (data.phases && Array.isArray(data.phases) && workflowPathId) {
+			console.log(`    Seeding ${data.phases.length} phases for ${name}...`);
+
+			// Clean up existing join rows for this path first to avoid duplicates
+			await db
+				.delete(workflowPathWorkflows)
+				.where(eq(workflowPathWorkflows.workflowPathId, workflowPathId));
+
+			for (const phaseData of data.phases) {
+				const phaseNumber =
+					phaseData.phase !== undefined ? phaseData.phase : null;
+				const phaseWorkflows = phaseData.workflows || [];
+
+				if (phaseNumber === null) {
+					console.warn(
+						`    ⚠️  Phase number missing in ${name}, skipping phase`,
+					);
+					continue;
+				}
+
+				for (let i = 0; i < phaseWorkflows.length; i++) {
+					const workflowData = phaseWorkflows[i];
+					const workflowName = workflowData.id;
+
+					// Look up workflow by name
+					const workflow = await db.query.workflows.findFirst({
+						where: eq(workflows.name, workflowName),
+					});
+
+					if (!workflow) {
+						console.warn(
+							`    ⚠️  Workflow '${workflowName}' not found, skipping`,
+						);
+						continue;
+					}
+
+					// Insert into join table
+					await db
+						.insert(workflowPathWorkflows)
+						.values({
+							workflowPathId,
+							workflowId: workflow.id,
+							phase: phaseNumber,
+							sequenceOrder: i + 1,
+							isOptional: workflowData.optional || false,
+							isRecommended: workflowData.recommended || false,
+						})
+						.onConflictDoNothing();
+				}
+			}
+			console.log(
+				`  ✓ ${name} (${displayName}) with ${data.phases.length} phases`,
+			);
+		} else {
+			console.log(`  ✓ ${name} (${displayName})`);
+		}
 	}
 }

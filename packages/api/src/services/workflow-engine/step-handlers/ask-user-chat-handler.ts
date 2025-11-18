@@ -94,14 +94,31 @@ export class AskUserChatStepHandler implements StepHandler {
 		// 3. Build step tools (highest priority)
 		if (config.tools && config.tools.length > 0) {
 			console.log(
-				`[AskUserChatHandler] Building ${config.tools.length} step tools...`,
+				`[AskUserChatHandler] Building tools dynamically based on current execution state...`,
 			);
 
 			for (const toolConfig of config.tools) {
-				console.log(`[ToolRegistration] Building ${toolConfig.name}`, {
+				// CHECK PREREQUISITES FIRST - skip if not met (dynamic tool unlocking)
+				const requiredVars = toolConfig.requiredVariables || [];
+				const missingVars = requiredVars.filter(
+					(varName) => !(varName in context.executionVariables),
+				);
+
+				if (missingVars.length > 0) {
+					console.log(
+						`[ToolRegistration] ⏭️ Skipping ${toolConfig.name} - prerequisites not met`,
+						{
+							missing: missingVars,
+							required: requiredVars,
+						},
+					);
+					continue; // Skip building this tool - it will be built on next executeStep call when prerequisites are met
+				}
+
+				console.log(`[ToolRegistration] ✓ Building ${toolConfig.name}`, {
 					type: toolConfig.toolType,
 					hasOptionsSource: !!toolConfig.optionsSource,
-					requiredVariables: toolConfig.requiredVariables || [],
+					requiredVariables: requiredVars,
 					requiresApproval: toolConfig.requiresApproval,
 				});
 
@@ -661,6 +678,9 @@ export class AskUserChatStepHandler implements StepHandler {
 						reasoning: toolResult.reasoning,
 						...(toolResult.type === "approval_required_selector" && {
 							available_options: toolResult.available_options || [],
+							display_config: toolResult.display_config, // How to render options in cards
+							require_feedback_on_override:
+								toolResult.require_feedback_on_override, // Show feedback on override
 						}),
 						rejection_history:
 							approvalStates[toolName]?.rejection_history || [],
@@ -829,11 +849,18 @@ export class AskUserChatStepHandler implements StepHandler {
 		>,
 		context: ExecutionContext,
 	): Promise<void> {
-		const { table, distinctField, filterBy, orderBy, outputVariable } =
-			optionsSource;
+		const {
+			table,
+			distinctField,
+			selectFields,
+			filterBy,
+			orderBy,
+			outputVariable,
+		} = optionsSource;
 
 		console.log(`[OptionsSource] Fetching options from ${table}`, {
 			distinctField,
+			selectFields,
 			filterBy,
 			orderBy,
 			outputVariable,
@@ -841,8 +868,9 @@ export class AskUserChatStepHandler implements StepHandler {
 
 		try {
 			// Import database utilities
-			const { db, workflowPaths } = await import("@chiron/db");
-			const { sql } = await import("drizzle-orm");
+			const { db, workflowPaths, workflowPathWorkflows, workflows } =
+				await import("@chiron/db");
+			const { sql, eq } = await import("drizzle-orm");
 
 			// Build query based on table
 			let query: any;
@@ -899,9 +927,74 @@ export class AskUserChatStepHandler implements StepHandler {
 				}
 
 				// Execute query
-				const results = await query;
+				let results = await query;
 
 				console.log(`[OptionsSource] Query returned ${results.length} results`);
+
+				// If selectFields includes "phases", we need to fetch and attach phases data
+				if (selectFields && selectFields.includes("phases")) {
+					console.log(
+						`[OptionsSource] Fetching phases data for ${results.length} workflow paths`,
+					);
+
+					// Fetch phases data for each workflow path
+					for (const result of results) {
+						// Query workflow_path_workflows join table to get phases
+						const pathWorkflows = await db
+							.select({
+								phase: workflowPathWorkflows.phase,
+								sequenceOrder: workflowPathWorkflows.sequenceOrder,
+								isOptional: workflowPathWorkflows.isOptional,
+								isRecommended: workflowPathWorkflows.isRecommended,
+								workflowId: workflowPathWorkflows.workflowId,
+								workflowName: workflows.name,
+								workflowDisplayName: workflows.displayName,
+							})
+							.from(workflowPathWorkflows)
+							.leftJoin(
+								workflows,
+								eq(workflowPathWorkflows.workflowId, workflows.id),
+							)
+							.where(eq(workflowPathWorkflows.workflowPathId, result.id))
+							.orderBy(
+								workflowPathWorkflows.phase,
+								workflowPathWorkflows.sequenceOrder,
+							);
+
+						// Group workflows by phase
+						const phaseMap = new Map<number, any>();
+
+						for (const pw of pathWorkflows) {
+							const phaseNum = pw.phase ?? 0;
+
+							if (!phaseMap.has(phaseNum)) {
+								phaseMap.set(phaseNum, {
+									phase: phaseNum,
+									name: `Phase ${phaseNum}`,
+									workflows: [],
+								});
+							}
+
+							phaseMap.get(phaseNum).workflows.push({
+								id: pw.workflowId,
+								name: pw.workflowName,
+								displayName: pw.workflowDisplayName,
+								isOptional: pw.isOptional,
+								isRecommended: pw.isRecommended,
+								sequenceOrder: pw.sequenceOrder,
+							});
+						}
+
+						// Convert map to array and attach to result
+						result.phases = Array.from(phaseMap.values()).sort(
+							(a, b) => a.phase - b.phase,
+						);
+
+						console.log(
+							`[OptionsSource] Attached ${result.phases.length} phases to workflow path "${result.name}"`,
+						);
+					}
+				}
 
 				// Extract distinct values if distinctField specified
 				if (distinctField) {

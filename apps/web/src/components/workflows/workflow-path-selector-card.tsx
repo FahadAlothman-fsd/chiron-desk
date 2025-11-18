@@ -99,6 +99,17 @@ export function WorkflowPathSelectorCard({
 	const recommendedPathId =
 		reasoning?.recommendedPathId || availablePaths[0]?.id;
 
+	// Helper to normalize tag objects/string values
+	const normalizeTag = (tag?: unknown): string | undefined => {
+		if (!tag) return undefined;
+		if (typeof tag === "string") return tag;
+		if (typeof tag === "object") {
+			const record = tag as { value?: string; name?: string; label?: string };
+			return record.value || record.name || record.label;
+		}
+		return String(tag);
+	};
+
 	// Get complexity icon
 	function getComplexityIcon(complexity?: string) {
 		switch (complexity) {
@@ -145,6 +156,8 @@ export function WorkflowPathSelectorCard({
 						const isRecommended = path.id === recommendedPathId;
 						const warnings = reasoning?.warnings?.[path.id] || [];
 						const hasWarnings = warnings.length > 0;
+						const complexityTag = normalizeTag(path.tags?.complexity);
+						const fieldTypeTag = normalizeTag(path.tags?.fieldType);
 
 						return (
 							<div
@@ -176,9 +189,9 @@ export function WorkflowPathSelectorCard({
 												className="flex cursor-pointer items-center gap-2 font-semibold text-base"
 											>
 												<span>
-													{getComplexityIcon(path.tags?.complexity)}{" "}
-													{path.displayName}
+													{getComplexityIcon(complexityTag)} {path.displayName}
 												</span>
+
 												{isRecommended && (
 													<Star className="h-4 w-4 fill-yellow-500 text-yellow-500" />
 												)}
@@ -244,13 +257,13 @@ export function WorkflowPathSelectorCard({
 
 										{/* Tags */}
 										<div className="mt-3 flex gap-2">
-											{path.tags?.complexity && (
+											{complexityTag && (
 												<Badge variant="secondary">
-													{path.tags.complexity.replace("-", " ")}
+													{complexityTag.replace(/-/g, " ")}
 												</Badge>
 											)}
-											{path.tags?.fieldType && (
-												<Badge variant="secondary">{path.tags.fieldType}</Badge>
+											{fieldTypeTag && (
+												<Badge variant="secondary">{fieldTypeTag}</Badge>
 											)}
 										</div>
 									</div>

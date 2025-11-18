@@ -183,6 +183,16 @@ export async function seedWorkflowInitNew() {
 					},
 					orderBy: "sequence_order", // Order by sequence
 					outputVariable: "complexity_options", // Store in execution.variables
+					// Display configuration - how to render options in approval cards
+					displayConfig: {
+						cardLayout: "simple",
+						fields: {
+							value: "value", // The complexity value to submit (e.g., "quick-flow")
+							title: "name", // Display name (e.g., "Quick Flow Track")
+							description: "description", // Full description text
+						},
+					},
+					requireFeedbackOnOverride: true, // Ask user for feedback when overriding AI's choice
 				},
 				axSignature: {
 					input: [
@@ -231,16 +241,141 @@ export async function seedWorkflowInitNew() {
 					strategy: "ChainOfThought",
 				},
 			},
+
+			// Tool 3: Select Workflow Path
+			{
+				name: "select_workflow_path",
+				toolType: "ax-generation",
+				description:
+					"Present available workflow paths filtered by complexity and field type, allowing user to select the methodology that best fits their project",
+				usageGuidance:
+					"Call this tool IMMEDIATELY after complexity_classification is approved. Fetch matching workflow paths from the database and recommend the most appropriate one based on the project's complexity and requirements. Present all options to the user for selection.",
+				requiredVariables: ["complexity_classification", "detected_field_type"],
+				requiresApproval: true,
+				// Fetch available workflow paths from database
+				optionsSource: {
+					table: "workflow_paths",
+					selectFields: [
+						"id",
+						"name",
+						"displayName",
+						"description",
+						"tags",
+						"phases",
+					], // Fetch full records
+					filterBy: {
+						"tags->'complexity'->>'value'": "{{complexity_classification}}", // Match selected complexity
+						"tags->'fieldType'->>'value'": "{{detected_field_type}}", // Match field type
+					},
+					orderBy: "sequence_order",
+					outputVariable: "workflow_path_options",
+					requireFeedbackOnOverride: true, // Ask why if user picks different path than AI recommended
+					// Display configuration - detailed cards with phases
+					displayConfig: {
+						cardLayout: "detailed",
+						fields: {
+							value: "id", // Submit the workflow path UUID
+							title: "displayName", // e.g., "Quick Flow - Greenfield"
+							subtitle: "tags.recommendedFor.value", // e.g., "Solo dev, 2-3 weeks, simple features"
+							description: "description", // Full description text
+							sections: [
+								{
+									label: "Phases & Workflows",
+									icon: "🗂️",
+									dataPath: "phases", // Array of phase objects
+									renderAs: "nested-list",
+									collapsible: true,
+									defaultExpanded: true,
+									itemFields: {
+										title: "name", // Phase name (e.g., "Phase 1: Discovery")
+										subtitle: "duration", // Phase duration (e.g., "1-2 weeks")
+										children: "workflows", // Nested workflows array
+										childFields: {
+											title: "name", // Workflow name (e.g., "User Research")
+											icon: "•",
+										},
+									},
+								},
+							],
+						},
+					},
+				},
+				axSignature: {
+					input: [
+						{
+							name: "complexity_classification",
+							type: "string",
+							source: "variable",
+							variableName: "complexity_classification",
+							description: "Selected complexity level",
+						},
+						{
+							name: "detected_field_type",
+							type: "string",
+							source: "variable",
+							variableName: "detected_field_type",
+							description: "Project field type (greenfield/brownfield)",
+						},
+						{
+							name: "workflow_path_options",
+							type: "json",
+							source: "variable",
+							variableName: "workflow_path_options",
+							description:
+								"Available workflow paths filtered by complexity and field type",
+						},
+						{
+							name: "project_description",
+							type: "string",
+							source: "variable",
+							variableName: "project_description",
+							description: "Project summary for context",
+						},
+						{
+							name: "conversation_history",
+							type: "string",
+							source: "context",
+							description: "Full conversation history",
+						},
+						{
+							name: "ace_context",
+							type: "string",
+							source: "playbook",
+							description: "Learned patterns for workflow path selection",
+						},
+					],
+					output: [
+						{
+							name: "selected_workflow_path_id",
+							type: "class", // Constrain to valid options
+							description: "Selected workflow path UUID from available options",
+							internal: false,
+						},
+						{
+							name: "reasoning",
+							type: "string",
+							description: "Why this workflow path is recommended",
+							internal: false,
+						},
+					],
+					strategy: "ChainOfThought",
+				},
+			},
 		],
 
 		completionCondition: {
 			type: "all-tools-approved",
-			requiredTools: ["update_summary", "update_complexity"],
+			requiredTools: [
+				"update_summary",
+				"update_complexity",
+				"select_workflow_path",
+			],
 		},
 
 		outputVariables: {
 			project_description: "approval_states.update_summary.value",
 			complexity_classification: "approval_states.update_complexity.value",
+			selected_workflow_path_id: "approval_states.select_workflow_path.value",
 		},
 	};
 

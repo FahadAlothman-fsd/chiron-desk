@@ -215,6 +215,8 @@ export async function buildAxGenerationTool(
 							tool_name: config.name,
 							generated_value: publicResult,
 							available_options: availableOptions || [],
+							display_config: config.optionsSource.displayConfig, // Pass displayConfig to frontend
+							require_feedback_on_override: config.requireFeedbackOnOverride, // Pass override feedback flag
 							reasoning,
 						};
 					}
@@ -275,24 +277,33 @@ function buildAxSignatureString(
 				// Get options from context (already fetched by fetchAndStoreOptions)
 				const optionsVariable = config.optionsSource.outputVariable;
 				const options = context.executionVariables[optionsVariable] as Array<{
-					value: string;
+					value?: string;
+					id?: string;
 				}>;
 
 				if (options && Array.isArray(options) && options.length > 0) {
-					// Extract just the values: ["simple", "moderate", "complex"]
-					const optionValues = options.map((opt) => opt.value).join(", ");
+					// Extract values - support both { value: "..." } and { id: "..." } formats
+					const optionValues = options
+						.map((opt) => opt.value || opt.id)
+						.filter((v) => v)
+						.join(", ");
 
-					console.log(
-						`[AxGenerationTool] Building class field '${output.name}' with dynamic options: [${optionValues}]`,
-					);
+					if (optionValues) {
+						console.log(
+							`[AxGenerationTool] Building class field '${output.name}' with dynamic options: [${optionValues}]`,
+						);
 
-					// Build: fieldName:class "option1, option2, option3" "Description"
-					return `${output.name}:class "${optionValues}" "${output.description || ""}"`;
+						// Build: fieldName:class "option1, option2, option3" "Description"
+						return `${output.name}:class "${optionValues}" "${output.description || ""}"`;
+					}
 				}
 
+				// Options not available yet - use string type as fallback
+				// This allows the tool to be registered before options are fetched
 				console.warn(
-					`[AxGenerationTool] Class field '${output.name}' has optionsSource but no options found in variable '${optionsVariable}'`,
+					`[AxGenerationTool] Class field '${output.name}' has optionsSource but no options found in variable '${optionsVariable}' - using string type as fallback`,
 				);
+				return `${output.name}:string`;
 			}
 
 			// Regular field (string, number, boolean, etc.)

@@ -47,7 +47,6 @@ import { ApprovalCard } from "../approval-card";
 import { ApprovalCardSelector } from "../approval-card-selector";
 import { ProjectNameSelectorCard } from "../project-name-selector-card";
 import { ToolStatusSidebar } from "../tool-status-sidebar";
-import { WorkflowPathSelectorCard } from "../workflow-path-selector-card";
 
 /**
  * AI Elements-powered chat interface for workflow steps
@@ -77,11 +76,12 @@ interface ApprovalState {
 	status: "pending" | "approved" | "rejected";
 	value: Record<string, unknown>;
 	reasoning?: string;
-	available_options?: Array<{
-		value: string;
-		name: string;
-		description: string;
-	}>;
+	available_options?: Array<Record<string, unknown>>; // Changed to generic to support any option shape
+	display_config?: {
+		cardLayout: "simple" | "detailed";
+		fields: Record<string, unknown>;
+	}; // How to render options
+	require_feedback_on_override?: boolean; // Show feedback when user overrides
 	rejection_history?: Array<{
 		feedback: string;
 		timestamp: string;
@@ -508,24 +508,8 @@ export function AskUserChatStepNew({
 									if (item.type === "approval") {
 										const toolName = item.toolName;
 										const state = item.state;
-										// Render custom card for select_workflow_path
-										if (toolName === "select_workflow_path") {
-											// Fix: Read from state.available_options, not state.value.available_paths
-											return (
-												<div key={`approval-${toolName}`} className="my-4">
-													<WorkflowPathSelectorCard
-														executionId={executionId}
-														agentId={stepConfig.agentId}
-														toolName={toolName}
-														availablePaths={state.available_options || []}
-														reasoning={state.reasoning}
-														isApproved={state.status === "approved"}
-													/>
-												</div>
-											);
-										}
-
 										// Render custom card for generate_project_name
+
 										if (toolName === "generate_project_name") {
 											const nameData = state.value as {
 												suggestions?: any[];
@@ -558,6 +542,10 @@ export function AskUserChatStepNew({
 															state.value as Record<string, unknown>
 														}
 														availableOptions={state.available_options}
+														displayConfig={state.display_config}
+														requireFeedbackOnOverride={
+															state.require_feedback_on_override
+														}
 														reasoning={state.reasoning}
 														isApproved={state.status === "approved"}
 														isRejected={state.status === "rejected"}

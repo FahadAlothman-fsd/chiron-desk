@@ -32,11 +32,6 @@ async function main() {
 			console.log("✅ Database reset complete");
 		}
 
-		// Seed workflow paths
-		console.log("\n📍 Seeding workflow paths...");
-		await seedWorkflowPaths();
-		console.log("✅ Workflow paths seeded");
-
 		// Seed agents
 		console.log("\n🤖 Seeding agents...");
 		await seedAgents();
@@ -46,6 +41,11 @@ async function main() {
 		console.log("\n🔄 Seeding workflows...");
 		await seedWorkflows();
 		console.log("✅ Workflows seeded");
+
+		// Seed workflow paths - MUST run after workflows are seeded!
+		console.log("\n📍 Seeding workflow paths...");
+		await seedWorkflowPaths();
+		console.log("✅ Workflow paths seeded");
 
 		// Seed workflow-init-new (Story 1.2 - AC#3)
 		console.log("\n📋 Seeding workflow-init-new...");
