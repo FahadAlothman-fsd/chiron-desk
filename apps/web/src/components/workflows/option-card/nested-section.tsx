@@ -74,7 +74,7 @@ export function NestedSection({ data, config, depth = 0 }: NestedSectionProps) {
 								{/* Item */}
 								<div className="flex items-start gap-2 text-sm">
 									<span className="shrink-0 text-muted-foreground">{icon}</span>
-									<div className="flex-1 min-w-0">
+									<div className="min-w-0 flex-1">
 										<span className="font-medium">{title}</span>
 										{subtitle && (
 											<span className="ml-2 text-muted-foreground text-xs">
@@ -93,11 +93,11 @@ export function NestedSection({ data, config, depth = 0 }: NestedSectionProps) {
 											{children.map((child, childIndex) => {
 												const childTitle = getValueByPath<string>(
 													child,
-													config.itemFields.childFields!.title,
+													config.itemFields.childFields?.title,
 													"",
 												);
 												const childIcon =
-													config.itemFields.childFields!.icon || "•";
+													config.itemFields.childFields?.icon || "•";
 
 												return (
 													<div

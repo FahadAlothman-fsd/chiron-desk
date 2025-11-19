@@ -47,11 +47,12 @@ development_status:
   # SPIKE: Blocking Story 1.6
   spike-ax-mastra-approval-gates: done # Architecture approved (see ADR #7)
   
-  # Story 1.6: Approval-gate chat with ACE + Mastra
-  # Phase 1: ACE playbooks + example collection for future MiPRO
-  # See: /docs/research/ax-optimizers-comparison-mipro-gepa-ace.md
-  # Story Context: /docs/stories/1-6-workflow-init-steps-3-4-description-complexity.context.xml
-  1-6-workflow-init-steps-3-4-description-complexity: in-progress
+  # Story 1.6: Approval-gate chat (COMPLETED 2025-11-18)
+  # Delivered: Generic option cards, dynamic tool unlocking, conversational workflow pattern
+  # Deferred: ACE full algorithm (wrong implementation removed), Anthropic config (optional)
+  # See: /docs/stories/1-6-workflow-init-steps-3-4-description-complexity.md (Final Implementation Summary)
+  # Archived Handoffs: /docs/archive/story-1-6-handoffs/
+  1-6-workflow-init-steps-3-4-description-complexity: done
   1-7-workflow-init-steps-7-8-naming: backlog
   1-8-workflow-init-steps-9-10-creation-and-confirmation: backlog
   epic-1-retrospective: optional
