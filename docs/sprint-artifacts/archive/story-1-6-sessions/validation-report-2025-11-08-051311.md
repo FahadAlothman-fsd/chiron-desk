@@ -1,6 +1,6 @@
 # Story Quality Validation Report
 
-**Document:** docs/stories/1-3-web-ui-foundation.md  
+**Document:** docs/sprint-artifacts/1-3-web-ui-foundation.md  
 **Checklist:** bmad/bmm/workflows/4-implementation/create-story/checklist.md  
 **Date:** 2025-11-08 05:13:11  
 **Validator:** Independent Validation Agent
@@ -154,7 +154,7 @@
   - Overview explains what will be delivered but not in standard user story format
   - **Impact:** Missing standard user story voice/format
 - ✓ Story has comprehensive sections covering requirements, wireframes, implementation, testing, ACs
-- ✓ File in correct location: `docs/stories/1-3-web-ui-foundation.md`
+- ✓ File in correct location: `docs/sprint-artifacts/1-3-web-ui-foundation.md`
 - ✓ Metadata complete: Epic, Status, Effort, Assignee, Dependencies
 - ⚠️ **NOTE:** Story structure is non-standard but comprehensive - uses "Overview" + "Requirements Context Summary" instead of classic template sections
 
@@ -302,7 +302,7 @@ Add at end of story (before final references):
 ## Dev Agent Record
 
 ### Context Reference
-**Story Location:** docs/stories/1-3-web-ui-foundation.md  
+**Story Location:** docs/sprint-artifacts/1-3-web-ui-foundation.md  
 **Epic:** Epic 1 - Database Implementation  
 **Dependencies:** Story 1.2 (Core Data Seeding) - Completed
 

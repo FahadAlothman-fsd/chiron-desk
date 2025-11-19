@@ -1631,10 +1631,10 @@ This hybrid approach maximizes velocity (reuse proven components) while maintain
 ## Dev Agent Record
 
 ### Context Reference
-**Story Location:** docs/stories/1-6-workflow-init-steps-3-4-description-complexity.md  
+**Story Location:** docs/sprint-artifacts/1-6-workflow-init-steps-3-4-description-complexity.md  
 **Epic:** Epic 1 - Foundation + Workflow-Init Engine  
 **Dependencies:** Story 1.5 (Workflow-Init Steps 1-2 Foundation) - In Progress  
-**Story Context File:** docs/stories/1-6-workflow-init-steps-3-4-description-complexity.context.xml (to be created via *story-context workflow)
+**Story Context File:** docs/sprint-artifacts/1-6-workflow-init-steps-3-4-description-complexity.context.xml (to be created via *story-context workflow)
 
 ### Agent Model Used
 {{agent_model_name_version}}

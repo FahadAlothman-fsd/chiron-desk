@@ -31,7 +31,7 @@ Story 1.6 successfully delivers a groundbreaking implementation of the **convers
 
 ### 1. ✅ Load Story and Extract Metadata
 
-- [x] Story file loaded: `docs/stories/1-6-workflow-init-steps-3-4-description-complexity.md`
+- [x] Story file loaded: `docs/sprint-artifacts/1-6-workflow-init-steps-3-4-description-complexity.md`
 - [x] Sections parsed successfully
 - [x] Metadata extracted:
   - **Epic:** Epic 1 - Foundation + Workflow-Init Engine
@@ -223,7 +223,7 @@ Story 1.6 successfully delivers a groundbreaking implementation of the **convers
   - [x] Completion Notes List ✅
   - [x] File List ✅
 - [x] Change Log initialized ✅ (2 entries including AI Elements update)
-- [x] File location correct: `docs/stories/1-6-workflow-init-steps-3-4-description-complexity.md` ✅
+- [x] File location correct: `docs/sprint-artifacts/1-6-workflow-init-steps-3-4-description-complexity.md` ✅
 
 **Result:** ✅ **PASS** - Perfect story structure
 

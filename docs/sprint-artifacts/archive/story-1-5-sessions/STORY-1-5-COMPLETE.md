@@ -62,9 +62,9 @@ Story 1.5 is now fully implemented with all major functionality working end-to-e
 - `apps/web/src/components/ui/radio-group.tsx` (installed via shadcn)
 
 ### Documentation:
-- `docs/stories/STORY-1-5-REMAINING-IMPLEMENTATION.md`
-- `docs/stories/STORY-1-5-SESSION-SUMMARY.md`
-- `docs/stories/STORY-1-5-COMPLETE.md` (this file)
+- `docs/sprint-artifacts/STORY-1-5-REMAINING-IMPLEMENTATION.md`
+- `docs/sprint-artifacts/STORY-1-5-SESSION-SUMMARY.md`
+- `docs/sprint-artifacts/STORY-1-5-COMPLETE.md` (this file)
 
 ---
 

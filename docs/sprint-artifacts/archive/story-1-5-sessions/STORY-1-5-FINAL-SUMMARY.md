@@ -547,8 +547,8 @@ if (isTauri) {
 - `STORY-1-5-COMPLETE.md` - Completion notes
 
 ### Architecture Docs
-- `docs/stories/1-5-workflow-init-steps-1-2-foundation.md` - Story specification
-- `docs/stories/1-5-workflow-init-steps-1-2-foundation.context.xml` - Context file
+- `docs/sprint-artifacts/1-5-workflow-init-steps-1-2-foundation.md` - Story specification
+- `docs/sprint-artifacts/1-5-workflow-init-steps-1-2-foundation.context.xml` - Context file
 - `docs/architecture/workflow-engine-structure.md` - Engine architecture
 
 ---

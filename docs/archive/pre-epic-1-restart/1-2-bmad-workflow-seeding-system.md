@@ -378,11 +378,11 @@ The workflow seeding implementation is **architecturally sound** with good code 
   - Call from `seed.ts` after workflows seeding
   - Use `.onConflictDoNothing()` for idempotency
 
-- [ ] **[High]** Fix false completion: Uncheck "Read instructions.md" subtask OR implement it [file: docs/stories/1-2-bmad-workflow-seeding-system.md:32]
+- [ ] **[High]** Fix false completion: Uncheck "Read instructions.md" subtask OR implement it [file: docs/sprint-artifacts/1-2-bmad-workflow-seeding-system.md:32]
   - If instructions.md not needed: Uncheck the subtask
   - If needed: Implement instructions.md reading in workflows.ts and store in workflows.instructions column
 
-- [ ] **[Med]** Uncheck all testing subtasks until actual execution [file: docs/stories/1-2-bmad-workflow-seeding-system.md:40-45]
+- [ ] **[Med]** Uncheck all testing subtasks until actual execution [file: docs/sprint-artifacts/1-2-bmad-workflow-seeding-system.md:40-45]
   - Uncheck lines 41-45 (all test subtasks)
   - Re-check after running `bun run db:seed:reset` and verifying results
 

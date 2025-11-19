@@ -2,7 +2,7 @@
 # project: chiron
 # project_key: chiron
 # tracking_system: file-system
-# story_location: {project-root}/docs/stories
+# story_location: {project-root}/docs/sprint-artifacts
 
 # STATUS DEFINITIONS:
 # ==================
@@ -33,7 +33,7 @@ generated: 2025-11-07
 project: chiron
 project_key: chiron
 tracking_system: file-system
-story_location: "{project-root}/docs/stories"
+story_location: "{project-root}/docs/sprint-artifacts"
 
 development_status:
   # Epic 1: Foundation + Workflow-Init Engine (~21 days / 4.2 weeks)
@@ -50,7 +50,7 @@ development_status:
   # Story 1.6: Approval-gate chat (COMPLETED 2025-11-18)
   # Delivered: Generic option cards, dynamic tool unlocking, conversational workflow pattern
   # Deferred: ACE full algorithm (wrong implementation removed), Anthropic config (optional)
-  # See: /docs/stories/1-6-workflow-init-steps-3-4-description-complexity.md (Final Implementation Summary)
+  # See: /docs/sprint-artifacts/1-6-workflow-init-steps-3-4-description-complexity.md (Final Implementation Summary)
   # Archived Handoffs: /docs/archive/story-1-6-handoffs/
   1-6-workflow-init-steps-3-4-description-complexity: done
   1-7-workflow-init-steps-7-8-naming: backlog

@@ -1,6 +1,6 @@
 # Validation Report
 
-**Document:** docs/stories/1-1-database-schema-refactoring.context.xml  
+**Document:** docs/sprint-artifacts/1-1-database-schema-refactoring.context.xml  
 **Checklist:** bmad/bmm/workflows/4-implementation/story-context/checklist.md  
 **Date:** 2025-11-07 07:15:15  
 **Validated By:** SM Agent (Bob)

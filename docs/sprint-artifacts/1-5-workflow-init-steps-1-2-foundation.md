@@ -1153,10 +1153,10 @@ const path = await invoke<string>('pick_folder', { defaultPath: '/home' });
 ## Dev Agent Record
 
 ### Context Reference
-**Story Location:** docs/stories/1-5-workflow-init-steps-1-2-foundation.md  
+**Story Location:** docs/sprint-artifacts/1-5-workflow-init-steps-1-2-foundation.md  
 **Epic:** Epic 1 - Foundation + Workflow-Init Engine  
 **Dependencies:** Story 1.4 (Workflow Execution Engine Core) - Review  
-**Story Context File:** docs/stories/1-5-workflow-init-steps-1-2-foundation.context.xml
+**Story Context File:** docs/sprint-artifacts/1-5-workflow-init-steps-1-2-foundation.context.xml
 
 ### Agent Model Used
 Claude 3.5 Sonnet (via Claude Code)
@@ -1178,8 +1178,8 @@ Claude 3.5 Sonnet (via Claude Code)
 - Total: 44 tests passing
 
 **Documentation Created:**
-- Implementation guide: `docs/stories/STORY-1-5-REMAINING-IMPLEMENTATION.md`
-- Session summary: `docs/stories/STORY-1-5-SESSION-SUMMARY.md`
+- Implementation guide: `docs/sprint-artifacts/STORY-1-5-REMAINING-IMPLEMENTATION.md`
+- Session summary: `docs/sprint-artifacts/STORY-1-5-SESSION-SUMMARY.md`
 
 **Remaining:** Frontend routing (Tasks 7.2-7.3, 8.1-8.5, 9-12) - documented with code examples
 
@@ -1214,9 +1214,9 @@ Claude 3.5 Sonnet (via Claude Code)
 - Bug fixes (if any discovered during testing)
 
 **See detailed summaries:**
-- `docs/stories/STORY-1-5-SESSION-SUMMARY.md` (Session 1 details)
-- `docs/stories/STORY-1-5-REMAINING-IMPLEMENTATION.md` (Implementation guide)
-- `docs/stories/STORY-1-5-COMPLETE.md` (Final completion summary)
+- `docs/sprint-artifacts/STORY-1-5-SESSION-SUMMARY.md` (Session 1 details)
+- `docs/sprint-artifacts/STORY-1-5-REMAINING-IMPLEMENTATION.md` (Implementation guide)
+- `docs/sprint-artifacts/STORY-1-5-COMPLETE.md` (Final completion summary)
 
 **Status:** Ready for review pending manual testing verification
 
@@ -1260,7 +1260,7 @@ Claude 3.5 Sonnet (via Claude Code)
 - `apps/web/src/components/workflows/steps/ask-user-step.test.tsx`
 
 **Documentation Created:**
-- `docs/stories/STORY-1-5-REMAINING-IMPLEMENTATION.md` (implementation guide for remaining work)
+- `docs/sprint-artifacts/STORY-1-5-REMAINING-IMPLEMENTATION.md` (implementation guide for remaining work)
 
 **Database Migrations:**
 - `packages/db/src/migrations/0000_bizarre_human_cannonball.sql` (project_status enum, indexes)

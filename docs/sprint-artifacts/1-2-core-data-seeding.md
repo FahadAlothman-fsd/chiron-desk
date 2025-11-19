@@ -286,7 +286,7 @@ So that **I have the foundational agents, workflows, and paths needed to test th
 - [Source: docs/epics.md - Epic 1, Story 1.2 - Acceptance Criteria] - Seed data requirements
 - [Source: docs/architecture/database-schema-architecture.md - Pattern 2: Tag-Based Workflow Path Filtering] - Tag structure for paths
 - [Source: docs/PRD.md - Epic 1: Core Infrastructure & Database Foundation] - High-level context for seed data
-- [Source: docs/stories/1-1-database-schema-refactoring.md#Dev-Agent-Record] - Previous story context and files created
+- [Source: docs/sprint-artifacts/1-1-database-schema-refactoring.md#Dev-Agent-Record] - Previous story context and files created
 
 ### Project Structure Notes
 

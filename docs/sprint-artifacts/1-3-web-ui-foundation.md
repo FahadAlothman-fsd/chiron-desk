@@ -1317,7 +1317,7 @@ The following are explicitly **NOT** required for this story:
 - Push to feature branch for review (if team workflow)
 
 **Step 5: Documentation**
-- Update story file `docs/stories/1-3-web-ui-foundation.md` with completion notes
+- Update story file `docs/sprint-artifacts/1-3-web-ui-foundation.md` with completion notes
 - Document provider abstraction pattern for future reference
 - Note any technical debt or follow-up items for future stories
 
@@ -1437,10 +1437,10 @@ This ensures the app always displays in a quality monospace font even if CommitM
 ## Dev Agent Record
 
 ### Context Reference
-**Story Location:** docs/stories/1-3-web-ui-foundation.md  
+**Story Location:** docs/sprint-artifacts/1-3-web-ui-foundation.md  
 **Epic:** Epic 1 - Database Implementation  
 **Dependencies:** Story 1.2 (Core Data Seeding) - Completed  
-**Story Context File:** docs/stories/1-3-web-ui-foundation.context.xml (Generated: 2025-11-08)
+**Story Context File:** docs/sprint-artifacts/1-3-web-ui-foundation.context.xml (Generated: 2025-11-08)
 
 ### Supporting Documentation
 - **Story Context:** All implementation details, testing, and technical decisions consolidated in this story file
@@ -1617,10 +1617,10 @@ packages/api/src/services/encryption.ts
 packages/api/src/services/models.ts
 packages/api/src/services/encryption.test.ts
 packages/api/src/services/models.test.ts
-docs/stories/1-3-IMPLEMENTATION-NOTES.md
-docs/stories/1-3-UI-ENHANCEMENT-NOTES.md
-docs/stories/1-3-manual-testing-checklist.md
-docs/stories/1-3-testing-summary.md
+docs/sprint-artifacts/1-3-IMPLEMENTATION-NOTES.md
+docs/sprint-artifacts/1-3-UI-ENHANCEMENT-NOTES.md
+docs/sprint-artifacts/1-3-manual-testing-checklist.md
+docs/sprint-artifacts/1-3-testing-summary.md
 ```
 
 **MODIFIED:**  

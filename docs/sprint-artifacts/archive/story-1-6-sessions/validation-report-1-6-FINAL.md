@@ -235,8 +235,8 @@ Skip context generation, Dev works from story directly.
 ---
 
 **Validation Reports:**
-- Initial: `docs/stories/validation-report-2025-11-13-040417.md`
-- Final: `docs/stories/validation-report-1-6-FINAL.md`
+- Initial: `docs/sprint-artifacts/validation-report-2025-11-13-040417.md`
+- Final: `docs/sprint-artifacts/validation-report-1-6-FINAL.md`
 
 **Story Status:** ✅ **Production-ready with perfect quality score**
 

@@ -60,7 +60,7 @@ while (currentStepNumber !== null) {
 - No evidence of UI validation
 
 **Fix Applied:**
-- Created comprehensive manual testing checklist: `docs/stories/1-4-manual-testing-checklist.md`
+- Created comprehensive manual testing checklist: `docs/sprint-artifacts/1-4-manual-testing-checklist.md`
 - Updated story Subtask 7.4 to reference checklist
 - Marked subtask as incomplete (checkbox unchecked)
 - Added note: "Testing deferred pending UI implementation in Stories 1.5-1.8"
@@ -72,8 +72,8 @@ while (currentStepNumber !== null) {
 - Manual testing checklist ready for execution when workflows are available
 
 **Files Changed:**
-- `docs/stories/1-4-manual-testing-checklist.md` (NEW)
-- `docs/stories/1-4-workflow-execution-engine-core.md` (Subtask 7.4 updated)
+- `docs/sprint-artifacts/1-4-manual-testing-checklist.md` (NEW)
+- `docs/sprint-artifacts/1-4-workflow-execution-engine-core.md` (Subtask 7.4 updated)
 
 ---
 
@@ -95,7 +95,7 @@ while (currentStepNumber !== null) {
 
 **Files Changed:**
 - `packages/api/src/services/workflow-engine/integration.test.ts` (NEW - 3 tests)
-- `docs/stories/1-4-workflow-execution-engine-core.md` (Completion notes + file list)
+- `docs/sprint-artifacts/1-4-workflow-execution-engine-core.md` (Completion notes + file list)
 
 **Test Results:**
 ```
@@ -185,9 +185,9 @@ while (currentStepNumber !== null) {
 2. `packages/api/src/services/workflow-engine/integration.test.ts` - **NEW** (3 tests)
 
 ### Documentation:
-3. `docs/stories/1-4-workflow-execution-engine-core.md` - Updated completion notes, file list, change log, subtask 7.4
-4. `docs/stories/1-4-manual-testing-checklist.md` - **NEW**
-5. `docs/stories/1-4-code-review-fixes-summary.md` - **NEW** (this file)
+3. `docs/sprint-artifacts/1-4-workflow-execution-engine-core.md` - Updated completion notes, file list, change log, subtask 7.4
+4. `docs/sprint-artifacts/1-4-manual-testing-checklist.md` - **NEW**
+5. `docs/sprint-artifacts/1-4-code-review-fixes-summary.md` - **NEW** (this file)
 
 ---
 

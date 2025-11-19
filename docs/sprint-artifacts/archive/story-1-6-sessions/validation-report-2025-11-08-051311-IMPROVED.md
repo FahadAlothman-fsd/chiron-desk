@@ -1,6 +1,6 @@
 # Story Quality Validation Report (Post-Improvement)
 
-**Document:** docs/stories/1-3-web-ui-foundation.md  
+**Document:** docs/sprint-artifacts/1-3-web-ui-foundation.md  
 **Checklist:** bmad/bmm/workflows/4-implementation/create-story/checklist.md  
 **Date:** 2025-11-08 05:13:11 (Re-validated after auto-improvement)  
 **Validator:** Independent Validation Agent

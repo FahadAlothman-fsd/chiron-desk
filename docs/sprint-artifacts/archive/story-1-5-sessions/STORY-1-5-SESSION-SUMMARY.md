@@ -134,7 +134,7 @@
 
 ## Implementation Guide Created
 
-**File:** `docs/stories/STORY-1-5-REMAINING-IMPLEMENTATION.md`
+**File:** `docs/sprint-artifacts/STORY-1-5-REMAINING-IMPLEMENTATION.md`
 
 This guide contains:
 - Complete code examples for all remaining components

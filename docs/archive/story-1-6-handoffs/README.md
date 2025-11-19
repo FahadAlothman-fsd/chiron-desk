@@ -2,7 +2,7 @@
 
 **Story:** 1.6 - Conversational Project Initialization with AI-Powered Approval Gates  
 **Status:** ✅ DONE (Completed: 2025-11-18)  
-**Canonical Reference:** `/docs/stories/1-6-workflow-init-steps-3-4-description-complexity.md`
+**Canonical Reference:** `/docs/sprint-artifacts/1-6-workflow-init-steps-3-4-description-complexity.md`
 
 ---
 
@@ -52,7 +52,7 @@ This folder contains **detailed session-by-session handoff documents** created d
 
 ## When to Reference These Documents
 
-**Use the Canonical Story File** (`docs/stories/1-6-workflow-init-steps-3-4-description-complexity.md`) for:
+**Use the Canonical Story File** (`docs/sprint-artifacts/1-6-workflow-init-steps-3-4-description-complexity.md`) for:
 - ✅ What was delivered (features, ACs, scope)
 - ✅ Architectural decisions and patterns
 - ✅ Final implementation summary
@@ -88,8 +88,8 @@ This folder contains **detailed session-by-session handoff documents** created d
 
 ## Related Documentation
 
-- **Story File:** `/docs/stories/1-6-workflow-init-steps-3-4-description-complexity.md`
-- **Story Context:** `/docs/stories/1-6-workflow-init-steps-3-4-description-complexity.context.xml`
+- **Story File:** `/docs/sprint-artifacts/1-6-workflow-init-steps-3-4-description-complexity.md`
+- **Story Context:** `/docs/sprint-artifacts/1-6-workflow-init-steps-3-4-description-complexity.context.xml`
 - **Architecture:** `/docs/architecture/STORY-1-6-ARCHITECTURE-SUMMARY.md`
 - **Dynamic Tools:** `/docs/architecture/dynamic-tool-options.md`
 - **Sprint Status:** `/docs/sprint-status.yaml`

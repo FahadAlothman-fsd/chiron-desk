@@ -130,9 +130,9 @@ apps/web/src/components/workflows/approval-card-selector.tsx        # Radio sele
 ### Documentation (Updated Session 5):
 
 ```bash
-docs/stories/1-6-workflow-init-steps-3-4-description-complexity.md  # Story doc (Session 5 added)
+docs/sprint-artifacts/1-6-workflow-init-steps-3-4-description-complexity.md  # Story doc (Session 5 added)
 docs/architecture/dynamic-tool-options.md                            # Architecture explanation
-docs/stories/1-6-card-selector-approval.md                           # Card selector story
+docs/sprint-artifacts/1-6-card-selector-approval.md                           # Card selector story
 ```
 
 ---
@@ -313,7 +313,7 @@ DELETE FROM projects WHERE status = 'initializing';
 ## 📝 Documentation References
 
 ### Story Documentation:
-- **Main Story**: `docs/stories/1-6-workflow-init-steps-3-4-description-complexity.md`
+- **Main Story**: `docs/sprint-artifacts/1-6-workflow-init-steps-3-4-description-complexity.md`
   - Status: Updated with Session 5 progress (line 1760)
   - Tasks: 65% complete overall
   - Acceptance Criteria: 17 ACs, ~8 validated
@@ -324,7 +324,7 @@ DELETE FROM projects WHERE status = 'initializing';
 - **Database Schema**: `docs/architecture/database-schema-architecture.md`
 
 ### Design Docs:
-- **Card Selector**: `docs/stories/1-6-card-selector-approval.md`
+- **Card Selector**: `docs/sprint-artifacts/1-6-card-selector-approval.md`
 - **Wireframes**: Sections 2, 4, 5 in main story doc
 
 ---

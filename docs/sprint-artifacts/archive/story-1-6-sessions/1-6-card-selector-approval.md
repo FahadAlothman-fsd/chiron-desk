@@ -434,7 +434,7 @@ Returns:
 - ✅ `/apps/web/src/components/workflows/steps/ask-user-chat-step-new.tsx`
 
 ### Documentation
-- ✅ `/docs/stories/1-6-card-selector-approval.md` (this file)
+- ✅ `/docs/sprint-artifacts/1-6-card-selector-approval.md` (this file)
 
 ---
 

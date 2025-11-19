@@ -379,7 +379,7 @@ The engine delivers:
   - Test: Workflow loading completes within 100ms
 - [ ] **Subtask 7.4:** Manual testing checklist - DEFERRED TO STORY 1.5
   - **Deferral Note:** No workflow UI pages exist in Story 1.4 (only components). Manual testing will be performed in Story 1.5 when workflow pages are implemented and actual workflow-init steps are functional.
-  - Checklist exists at: docs/stories/1-4-manual-testing-checklist.md
+  - Checklist exists at: docs/sprint-artifacts/1-4-manual-testing-checklist.md
   - Will test: Start workflow from UI, stepper display, pause/resume, real-time events, error handling
 
 ---
@@ -666,10 +666,10 @@ apps/web/src/components/workflows/
 ## Dev Agent Record
 
 ### Context Reference
-**Story Location:** docs/stories/1-4-workflow-execution-engine-core.md  
+**Story Location:** docs/sprint-artifacts/1-4-workflow-execution-engine-core.md  
 **Epic:** Epic 1 - Foundation + Workflow-Init Engine  
 **Dependencies:** Story 1.3 (Web UI Foundation + LLM Models Page) - In Review  
-**Story Context File:** docs/stories/1-4-workflow-execution-engine-core.context.xml  
+**Story Context File:** docs/sprint-artifacts/1-4-workflow-execution-engine-core.context.xml  
 **Validation Session:** 2025-11-09 - All 5 components validated with design decisions documented
 
 ### Agent Model Used

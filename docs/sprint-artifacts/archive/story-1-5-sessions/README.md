@@ -9,7 +9,7 @@
 
 These are **temporary session documentation files** created during Story 1.5 implementation. All information has been consolidated into the main story file:
 
-**Main Story:** `docs/stories/1-5-workflow-init-steps-1-2-foundation.md`
+**Main Story:** `docs/sprint-artifacts/1-5-workflow-init-steps-1-2-foundation.md`
 
 ---
 

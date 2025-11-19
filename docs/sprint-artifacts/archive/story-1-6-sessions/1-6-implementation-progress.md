@@ -341,7 +341,7 @@ This is the **THESIS VALIDATION STORY** for Chiron! It implements the conversati
 - Keep config semantic and decoupled from SQL details
 
 **Status:** Acknowledged, will address during Task 5 implementation  
-**See:** `docs/stories/1-6-workflow-path-concern-clarified.md` for full analysis
+**See:** `docs/sprint-artifacts/1-6-workflow-path-concern-clarified.md` for full analysis
 
 ---
 
@@ -471,8 +471,8 @@ This is the **THESIS VALIDATION STORY** for Chiron! It implements the conversati
 - `docs/research/ax-optimizers-comparison-mipro-gepa-ace.md` - Optimizer comparison
 
 **Story Files:**
-- `docs/stories/1-6-workflow-init-steps-3-4-description-complexity.md` - Story definition
-- `docs/stories/1-6-workflow-init-steps-3-4-description-complexity.context.xml` - Story context
+- `docs/sprint-artifacts/1-6-workflow-init-steps-3-4-description-complexity.md` - Story definition
+- `docs/sprint-artifacts/1-6-workflow-init-steps-3-4-description-complexity.context.xml` - Story context
 
 **Sprint Status:**
 - `docs/sprint-status.yaml` - Story marked as **in-progress**

@@ -89,11 +89,11 @@ docs/architecture/
 
 6. **Archive ALL Epic 1 stories (written against old schema):**
    ```bash
-   git mv docs/stories/1-1-database-schema-design-and-migration-system.md docs/archive/pre-epic-1-restart/
-   git mv docs/stories/1-2-bmad-workflow-seeding-system.md docs/archive/pre-epic-1-restart/
-   git mv docs/stories/1-2-bmad-workflow-seeding-system.context.xml docs/archive/pre-epic-1-restart/
-   git mv docs/stories/1-3-project-crud-operations.md docs/archive/pre-epic-1-restart/
-   git mv docs/stories/1-3-project-crud-operations.context.xml docs/archive/pre-epic-1-restart/
+   git mv docs/sprint-artifacts/1-1-database-schema-design-and-migration-system.md docs/archive/pre-epic-1-restart/
+   git mv docs/sprint-artifacts/1-2-bmad-workflow-seeding-system.md docs/archive/pre-epic-1-restart/
+   git mv docs/sprint-artifacts/1-2-bmad-workflow-seeding-system.context.xml docs/archive/pre-epic-1-restart/
+   git mv docs/sprint-artifacts/1-3-project-crud-operations.md docs/archive/pre-epic-1-restart/
+   git mv docs/sprint-artifacts/1-3-project-crud-operations.context.xml docs/archive/pre-epic-1-restart/
    ```
    - **Reason:** Stories reference old schema with enums, missing tables, wrong assumptions
 
@@ -508,7 +508,7 @@ docs/
 - [ ] ✅ `docs/README.md` created with canonical document list
 - [ ] ✅ `workflow-status.yaml` reset - Epic 1 and Stories 1.1-1.3 to not-started
 - [ ] ✅ `sprint-status.yaml` reset - Stories 1.1-1.3 to backlog
-- [ ] ✅ `docs/stories/` directory empty (ready for fresh stories)
+- [ ] ✅ `docs/sprint-artifacts/` directory empty (ready for fresh stories)
 - [ ] ✅ Git commit with detailed change log
 - [ ] ✅ No contradictory schema information in active docs
 - [ ] ✅ No contaminated tracking state
@@ -521,7 +521,7 @@ docs/
 ### **Immediate:**
 1. ✅ Complete this reconciliation plan (all 7 phases)
 2. ✅ Git commit changes
-3. ✅ Verify clean state (no stories in docs/stories/, tracking reset)
+3. ✅ Verify clean state (no stories in docs/sprint-artifacts/, tracking reset)
 
 ### **Next Session with Architect:**
 1. Load `docs/architecture/CANONICAL-WORKFLOW-SCHEMA.md`
