@@ -1,0 +1,109 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>1.7</storyId>
+    <title>Workflow-Init Refactor & Project Naming</title>
+    <status>drafted</status>
+    <generatedAt>Thu Nov 20 2025</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/1-7-workflow-init-refactor-and-naming.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>User</asA>
+    <iWant>to be guided through project naming within the conversational flow and have a seamless initialization experience</iWant>
+    <soThat>I don't have to switch contexts between "chatting" and "form filling" and can efficiently set up my project</soThat>
+    <tasks>
+      - Refactor Workflow Steps (AC: 1, 2, 7)
+        - Remove existing Step 1 (Set field type) from `workflow-init-new` seed
+        - Seed **Step 1** as the Chat/Athena step (was Step 3)
+        - Seed **Step 2** as the Directory Selection step (was Step 2)
+      - Update Tool Configurations (AC: 3)
+        - Update `update_complexity` tool to use hardcoded "greenfield" literal
+        - Update `select_workflow_path` tool to use hardcoded "greenfield" literal
+      - Implement `update_project_name` Tool (AC: 4, 5)
+        - Add `update_project_name` to `AskUserChatStepConfig` in Step 1
+        - Configure tool trigger (post-path selection)
+        - Configure generic OptionCard/approval UI for name suggestion
+        - Implement validation logic (`^[a-z0-9-]+$`)
+      - Update Chat Completion (AC: 6)
+        - Add `update_project_name` to `requiredTools`
+        - Verify completion logic requires all approvals
+      - Testing (AC: 8)
+        - Verify `bun db:seed` runs cleanly with new order
+        - Verify end-to-end conversational flow followed by directory selection
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    1. Workflow structure is refactored to remove the redundant "field type" step (old Step 1).
+    2. Steps are reordered to prioritize the conversation: **Step 1 = Chat (Athena)**, **Step 2 = Directory Selection**.
+    3. Existing tools (`update_complexity`, `select_workflow_path`) use hardcoded "greenfield" filter instead of a variable.
+    4. A new `update_project_name` tool is implemented within the Chat Step (Step 1).
+    5. The project naming tool enforces kebab-case validation (`^[a-z0-9-]+$`).
+    6. The Chat Step completion condition requires the project name to be approved.
+    7. Step 2 (Directory Selection) prompts the user *after* the project details are finalized.
+    8. The entire flow (Chat [Summary -> Complexity -> Path -> Name] -> Directory) works end-to-end.
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      - path: docs/architecture/STORY-1-6-ARCHITECTURE-SUMMARY.md
+        title: Story 1.6 Architecture Summary
+        section: Core Architecture Decision
+        snippet: "An approval-gate chat workflow where: 1. PM Agent chats... 2. Agent triggers side effects... 3. User reviews... 4. System learns..."
+      - path: docs/architecture/dynamic-tool-options.md
+        title: Dynamic Tool Options System
+        section: Solution: `optionsSource` Configuration
+        snippet: "The solution adds an `optionsSource` field to tool configurations that: 1. Fetches options dynamically... 3. Provides structured metadata..."
+      - path: docs/epics/epic-1-foundation.md
+        title: Epic 1: Foundation + Workflow-Init Engine
+        section: Story 1.7: Workflow-Init Steps 7-8 (Naming)
+        snippet: "Implement workflow-init steps 7-8: Generate project name suggestions (LLM structured output), user selects name or provides custom..."
+    </docs>
+    <code>
+      - path: packages/scripts/src/seeds/workflow-init-new.ts
+        kind: file
+        symbol: seedWorkflowInitNew
+        lines: 1-397
+        reason: Primary seed file defining the workflow structure and tool configurations. Needs refactoring (remove Step 1, reorder) and new tool addition.
+      - path: packages/api/src/services/workflow-engine/step-handlers/ask-user-chat-handler.ts
+        kind: class
+        symbol: AskUserChatStepHandler
+        lines: 37-1202
+        reason: Handler for the chat step. Ensures validation logic and tool execution flow are supported.
+    </code>
+    <dependencies>
+      - node:fs (Node.js File System)
+      - simple-git (Git operations)
+      - @mastra/core (AI Agent Framework)
+      - @ax-llm/ax (Structured Generation)
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    - Project name must be kebab-case (`^[a-z0-9-]+$`).
+    - Workflow must be idempotent (seed script must handle updates cleanly).
+    - Step order must be Chat -> Directory.
+    - Use generic `ax-generation` tool type for consistency.
+  </constraints>
+  <interfaces>
+    - name: AskUserChatStepConfig
+      kind: interface
+      signature: "interface AskUserChatStepConfig { agentId: string; tools: ToolConfig[]; completionCondition: { type: 'all-tools-approved', requiredTools: string[] }; ... }"
+      path: packages/db/src/schema/step-configs.ts
+  </interfaces>
+  <tests>
+    <standards>
+      Use `bun test` for unit tests. Validate seed script idempotency by running `bun db:seed` multiple times. Test end-to-end flow manually or via integration test script.
+    </standards>
+    <locations>
+      - packages/scripts/src/seeds/workflow-init-new.ts (Seed logic)
+    </locations>
+    <ideas>
+      - Verify `workflow_steps` table has correct step numbers after seeding.
+      - Verify `AskUserChatStepConfig` includes `update_project_name` in `tools` and `requiredTools`.
+      - Verify regex validation prevents invalid project names.
+    </ideas>
+  </tests>
+</story-context>

@@ -6,10 +6,11 @@
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:3001",
-    "beforeDevCommand": "bun run front:dev",
+    "beforeDevCommand": "bun run dev",
     "beforeBuildCommand": "bun run build"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "chiron",

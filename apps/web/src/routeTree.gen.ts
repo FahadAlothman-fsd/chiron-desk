@@ -9,68 +9,230 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as AiRouteImport } from './routes/ai'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
+import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated.index'
+import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated.settings'
+import { Route as AuthenticatedNewProjectRouteImport } from './routes/_authenticated.new-project'
+import { Route as AuthenticatedModelsRouteImport } from './routes/_authenticated.models'
+import { Route as ProjectsProjectIdSelectInitializerRouteImport } from './routes/projects/$projectId.select-initializer'
+import { Route as ProjectsProjectIdInitializeRouteImport } from './routes/projects/$projectId.initialize'
 
-const AiRoute = AiRouteImport.update({
-  id: '/ai',
-  path: '/ai',
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRoute = AuthenticatedRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedNewProjectRoute = AuthenticatedNewProjectRouteImport.update({
+  id: '/new-project',
+  path: '/new-project',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedModelsRoute = AuthenticatedModelsRouteImport.update({
+  id: '/models',
+  path: '/models',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const ProjectsProjectIdSelectInitializerRoute =
+  ProjectsProjectIdSelectInitializerRouteImport.update({
+    id: '/projects/$projectId/select-initializer',
+    path: '/projects/$projectId/select-initializer',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ProjectsProjectIdInitializeRoute =
+  ProjectsProjectIdInitializeRouteImport.update({
+    id: '/projects/$projectId/initialize',
+    path: '/projects/$projectId/initialize',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/ai': typeof AiRoute
+  '/dashboard': typeof DashboardRoute
+  '/login': typeof LoginRoute
+  '/models': typeof AuthenticatedModelsRoute
+  '/new-project': typeof AuthenticatedNewProjectRoute
+  '/settings': typeof AuthenticatedSettingsRoute
+  '/': typeof AuthenticatedIndexRoute
+  '/projects/$projectId/initialize': typeof ProjectsProjectIdInitializeRoute
+  '/projects/$projectId/select-initializer': typeof ProjectsProjectIdSelectInitializerRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/ai': typeof AiRoute
+  '/dashboard': typeof DashboardRoute
+  '/login': typeof LoginRoute
+  '/models': typeof AuthenticatedModelsRoute
+  '/new-project': typeof AuthenticatedNewProjectRoute
+  '/settings': typeof AuthenticatedSettingsRoute
+  '/': typeof AuthenticatedIndexRoute
+  '/projects/$projectId/initialize': typeof ProjectsProjectIdInitializeRoute
+  '/projects/$projectId/select-initializer': typeof ProjectsProjectIdSelectInitializerRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/ai': typeof AiRoute
+  '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/dashboard': typeof DashboardRoute
+  '/login': typeof LoginRoute
+  '/_authenticated/models': typeof AuthenticatedModelsRoute
+  '/_authenticated/new-project': typeof AuthenticatedNewProjectRoute
+  '/_authenticated/settings': typeof AuthenticatedSettingsRoute
+  '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/projects/$projectId/initialize': typeof ProjectsProjectIdInitializeRoute
+  '/projects/$projectId/select-initializer': typeof ProjectsProjectIdSelectInitializerRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/ai'
+  fullPaths:
+    | '/dashboard'
+    | '/login'
+    | '/models'
+    | '/new-project'
+    | '/settings'
+    | '/'
+    | '/projects/$projectId/initialize'
+    | '/projects/$projectId/select-initializer'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/ai'
-  id: '__root__' | '/' | '/ai'
+  to:
+    | '/dashboard'
+    | '/login'
+    | '/models'
+    | '/new-project'
+    | '/settings'
+    | '/'
+    | '/projects/$projectId/initialize'
+    | '/projects/$projectId/select-initializer'
+  id:
+    | '__root__'
+    | '/_authenticated'
+    | '/dashboard'
+    | '/login'
+    | '/_authenticated/models'
+    | '/_authenticated/new-project'
+    | '/_authenticated/settings'
+    | '/_authenticated/'
+    | '/projects/$projectId/initialize'
+    | '/projects/$projectId/select-initializer'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  AiRoute: typeof AiRoute
+  AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  DashboardRoute: typeof DashboardRoute
+  LoginRoute: typeof LoginRoute
+  ProjectsProjectIdInitializeRoute: typeof ProjectsProjectIdInitializeRoute
+  ProjectsProjectIdSelectInitializerRoute: typeof ProjectsProjectIdSelectInitializerRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/ai': {
-      id: '/ai'
-      path: '/ai'
-      fullPath: '/ai'
-      preLoaderRoute: typeof AiRouteImport
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: ''
+      preLoaderRoute: typeof AuthenticatedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/': {
+      id: '/_authenticated/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+      preLoaderRoute: typeof AuthenticatedIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/settings': {
+      id: '/_authenticated/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/new-project': {
+      id: '/_authenticated/new-project'
+      path: '/new-project'
+      fullPath: '/new-project'
+      preLoaderRoute: typeof AuthenticatedNewProjectRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/models': {
+      id: '/_authenticated/models'
+      path: '/models'
+      fullPath: '/models'
+      preLoaderRoute: typeof AuthenticatedModelsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/projects/$projectId/select-initializer': {
+      id: '/projects/$projectId/select-initializer'
+      path: '/projects/$projectId/select-initializer'
+      fullPath: '/projects/$projectId/select-initializer'
+      preLoaderRoute: typeof ProjectsProjectIdSelectInitializerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/projects/$projectId/initialize': {
+      id: '/projects/$projectId/initialize'
+      path: '/projects/$projectId/initialize'
+      fullPath: '/projects/$projectId/initialize'
+      preLoaderRoute: typeof ProjectsProjectIdInitializeRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
 }
 
+interface AuthenticatedRouteChildren {
+  AuthenticatedModelsRoute: typeof AuthenticatedModelsRoute
+  AuthenticatedNewProjectRoute: typeof AuthenticatedNewProjectRoute
+  AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
+  AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+}
+
+const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedModelsRoute: AuthenticatedModelsRoute,
+  AuthenticatedNewProjectRoute: AuthenticatedNewProjectRoute,
+  AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
+  AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+}
+
+const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
+  AuthenticatedRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  AiRoute: AiRoute,
+  AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  DashboardRoute: DashboardRoute,
+  LoginRoute: LoginRoute,
+  ProjectsProjectIdInitializeRoute: ProjectsProjectIdInitializeRoute,
+  ProjectsProjectIdSelectInitializerRoute:
+    ProjectsProjectIdSelectInitializerRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

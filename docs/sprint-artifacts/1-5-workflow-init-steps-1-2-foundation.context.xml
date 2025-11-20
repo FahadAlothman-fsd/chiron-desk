@@ -1,0 +1,549 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>5</storyId>
+    <title>Workflow-Init Steps 1-2 Foundation</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-10</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/1-5-workflow-init-steps-1-2-foundation.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>a developer building Chiron's workflow initialization system</asA>
+    <iWant>to implement project creation flow with workflow initializer selection and the first 2 steps of workflow-init-new (field type detection and directory selection)</iWant>
+    <soThat>users can start creating a new project, select their setup approach, and provide the foundational information (project location) before the description and path selection workflows in Story 1.6</soThat>
+    <tasks>
+      <task id="1" title="Database Schema Updates">
+        <subtask id="1.1">Update packages/db/src/schema/core.ts with project_status enum and projects table updates</subtask>
+        <subtask id="1.2">Update packages/db/src/schema/workflows.ts with ExecuteActionStepConfig and AskUserStepConfig types</subtask>
+        <subtask id="1.3">Generate and test Drizzle migration</subtask>
+      </task>
+      <task id="2" title="ExecuteActionStepHandler Implementation">
+        <subtask id="2.1">Create execute-action-handler.ts implementing StepHandler interface</subtask>
+        <subtask id="2.2">Implement set-variable action</subtask>
+        <subtask id="2.3">Implement sequential execution mode</subtask>
+        <subtask id="2.4">Register handler in step type registry</subtask>
+        <subtask id="2.5">Write unit tests for ExecuteActionStepHandler</subtask>
+      </task>
+      <task id="3" title="AskUserStepHandler Implementation">
+        <subtask id="3.1">Create ask-user-handler.ts implementing StepHandler interface</subtask>
+        <subtask id="3.2">Implement path validation logic</subtask>
+        <subtask id="3.3">Register handler in step type registry</subtask>
+        <subtask id="3.4">Write unit tests for AskUserStepHandler</subtask>
+      </task>
+      <task id="4" title="Workflow-Init Steps 1-2 Database Seeding">
+        <subtask id="4.1">Create workflow-init-new.ts seed file</subtask>
+        <subtask id="4.2">Define Step 1 config (field type detection)</subtask>
+        <subtask id="4.3">Define Step 2 config (directory selection)</subtask>
+        <subtask id="4.4">Update main seed script</subtask>
+        <subtask id="4.5">Verify seed data</subtask>
+      </task>
+      <task id="5" title="ExecuteActionStep UI Component">
+        <subtask id="5.1">Create execute-action-step.tsx with auto-executing UI</subtask>
+        <subtask id="5.2">Implement auto-advance logic</subtask>
+        <subtask id="5.3">Write component tests</subtask>
+      </task>
+      <task id="6" title="AskUserStep UI Component">
+        <subtask id="6.1">Create ask-user-step.tsx with dynamic response type rendering</subtask>
+        <subtask id="6.2">Implement path selector component</subtask>
+        <subtask id="6.3">Integrate Tauri file dialog</subtask>
+        <subtask id="6.4">Write component tests</subtask>
+      </task>
+      <task id="7" title="Project Creation Flow">
+        <subtask id="7.1">Create tRPC projects.create mutation</subtask>
+        <subtask id="7.2">Update home page with Create New Project button</subtask>
+        <subtask id="7.3">Add error handling</subtask>
+      </task>
+      <task id="8" title="Workflow Initializer Selector Page">
+        <subtask id="8.1">Install shadcn RadioGroup13 component</subtask>
+        <subtask id="8.2">Create tRPC workflows.getInitializers query</subtask>
+        <subtask id="8.3">Create tRPC projects.setInitializer mutation</subtask>
+        <subtask id="8.4">Create initializer selector page component</subtask>
+        <subtask id="8.5">Write component tests</subtask>
+      </task>
+      <task id="9" title="Workflow Initialize Page">
+        <subtask id="9.1">Create initialize page component</subtask>
+        <subtask id="9.2">Integrate WorkflowStepper component</subtask>
+        <subtask id="9.3">Integrate WizardStepContainer component</subtask>
+        <subtask id="9.4">Implement step component routing</subtask>
+        <subtask id="9.5">Implement step submission handler</subtask>
+        <subtask id="9.6">Add state persistence logic</subtask>
+      </task>
+      <task id="10" title="Variable Resolution Integration">
+        <subtask id="10.1">Add system variables to execution context</subtask>
+        <subtask id="10.2">Test variable resolution</subtask>
+      </task>
+      <task id="11" title="Error Handling">
+        <subtask id="11.1">Implement frontend validation feedback</subtask>
+        <subtask id="11.2">Implement backend validation errors</subtask>
+        <subtask id="11.3">Implement retry mechanism</subtask>
+        <subtask id="11.4">Write error handling tests</subtask>
+      </task>
+      <task id="12" title="Integration &amp; Testing">
+        <subtask id="12.1">End-to-end integration test</subtask>
+        <subtask id="12.2">State persistence test</subtask>
+        <subtask id="12.3">Multiple projects test</subtask>
+        <subtask id="12.4">Resume abandoned initialization test</subtask>
+        <subtask id="12.5">Manual testing checklist</subtask>
+      </task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <category name="Project Creation Flow">
+      <criterion id="AC1">Home page displays Create New Project button</criterion>
+      <criterion id="AC2">Clicking button calls projects.create tRPC mutation</criterion>
+      <criterion id="AC3">Backend creates project record with name: Untitled Project, status: initializing, path: null, initializerWorkflowId: null, userId: current_user_id</criterion>
+      <criterion id="AC4">User redirected to /projects/{projectId}/select-initializer</criterion>
+      <criterion id="AC5">Project record persists even if user abandons flow</criterion>
+      <criterion id="AC6">Selector page queries workflows table for initializer_type = new-project</criterion>
+      <criterion id="AC7">Page displays workflow-init-new-guided as card using shadcn RadioGroup13 component</criterion>
+      <criterion id="AC8">Card shows: Icon (Workflow icon), Title: Guided Setup, Description: Conversational setup for new projects (15-20 min)</criterion>
+      <criterion id="AC9">Card is auto-selected (only one option in Story 1.5)</criterion>
+      <criterion id="AC10">Continue button enabled when initializer selected</criterion>
+      <criterion id="AC11">Clicking Continue calls projects.setInitializer mutation</criterion>
+      <criterion id="AC12">Backend updates project.initializerWorkflowId and creates workflow_executions record</criterion>
+      <criterion id="AC13">projects.setInitializer mutation creates workflow execution with: projectId, workflowId, status: idle, variables: {}</criterion>
+      <criterion id="AC14">User redirected to /projects/{projectId}/initialize</criterion>
+      <criterion id="AC15">If project already has status: active, redirect to project dashboard instead</criterion>
+      <criterion id="AC16">If workflow execution already exists, resume from current step</criterion>
+    </category>
+    <category name="Step 1: Execute-Action (Field Type Detection)">
+      <criterion id="AC17">ExecuteActionStepHandler supports actions[].type: set-variable with config.variable and config.value</criterion>
+      <criterion id="AC18">Step 1 automatically executes without user input (no requiresUserInput)</criterion>
+      <criterion id="AC19">Step 1 sets detected_field_type = greenfield in workflow_executions.variables</criterion>
+      <criterion id="AC20">ExecuteActionStep UI component shows: Loading state (Spinner + Executing...), Success state (Checkmark + Completed, 500ms delay), Auto-advances to Step 2</criterion>
+      <criterion id="AC21">Step 1 config seeded to database with correct JSONB structure</criterion>
+      <criterion id="AC22">Step 1 completion tracked in workflow_executions.executedSteps[1]</criterion>
+    </category>
+    <category name="Step 2: Ask-User (Directory Selection)">
+      <criterion id="AC23">AskUserStepHandler supports responseType: path with pathConfig</criterion>
+      <criterion id="AC24">Path validation checks: Parent directory exists, No directory traversal (..), Path is absolute, User has write permissions to parent</criterion>
+      <criterion id="AC25">AskUserStep UI component renders: Message, Question, Path input with native file dialog button OR text input, Validation errors below input, Continue button (disabled when invalid or loading)</criterion>
+      <criterion id="AC26">Native file dialog (Tauri file picker) opens when user clicks browse button</criterion>
+      <criterion id="AC27">User can manually type path or use file browser</criterion>
+      <criterion id="AC28">Validation errors display clearly with specific messages</criterion>
+      <criterion id="AC29">User selection stored in workflow_executions.variables.project_path</criterion>
+      <criterion id="AC30">Step 2 config seeded to database with correct JSONB structure</criterion>
+    </category>
+    <category name="WorkflowStepper Integration">
+      <criterion id="AC31">Initialize page uses WorkflowStepperWizard component from Story 1.4</criterion>
+      <criterion id="AC32">Stepper displays Step 1 of 10 when on Step 1</criterion>
+      <criterion id="AC33">Stepper displays Step 2 of 10 when on Step 2</criterion>
+      <criterion id="AC34">Progress bar shows: 10% at Step 1, 20% at Step 2</criterion>
+      <criterion id="AC35">Current step goal displayed for each step</criterion>
+      <criterion id="AC36">WizardStepContainer component wraps step content</criterion>
+      <criterion id="AC37">Back button hidden (workflow-init is forward-only)</criterion>
+      <criterion id="AC38">Progress bar updates smoothly when advancing from Step 1 to Step 2</criterion>
+    </category>
+    <category name="Step Handler Registry">
+      <criterion id="AC39">ExecuteActionStepHandler registered in step type registry for step_type: execute-action</criterion>
+      <criterion id="AC40">AskUserStepHandler registered in step type registry for step_type: ask-user</criterion>
+      <criterion id="AC41">Step handlers implement StepHandler interface from Story 1.4</criterion>
+      <criterion id="AC42">Handlers throw clear errors for invalid config</criterion>
+    </category>
+    <category name="Workflow State Management">
+      <criterion id="AC43">Can start workflow-init-new from initializer selector</criterion>
+      <criterion id="AC44">Step 1 auto-executes and advances to Step 2 immediately</criterion>
+      <criterion id="AC45">Completing Step 2 stores path in variables and pauses workflow</criterion>
+      <criterion id="AC46">Can reload page at Step 2 and resume from same state</criterion>
+      <criterion id="AC47">Can reload page at Step 1 and it auto-executes again (idempotent)</criterion>
+      <criterion id="AC48">Workflow execution status updates correctly (idle → active → paused)</criterion>
+    </category>
+    <category name="Variable Resolution Integration">
+      <criterion id="AC49">System variables available in step context: {{project_id}}, {{execution_id}}, {{current_user_id}}</criterion>
+      <criterion id="AC50">Step outputs accessible as variables in subsequent steps</criterion>
+      <criterion id="AC51">Missing variable throws clear error</criterion>
+    </category>
+    <category name="Error Handling">
+      <criterion id="AC52">Invalid path shows specific error message</criterion>
+      <criterion id="AC53">Network error during step submission shows retry button</criterion>
+      <criterion id="AC54">Step config validation errors logged with step number and workflow ID</criterion>
+      <criterion id="AC55">Retry button re-executes failed step</criterion>
+      <criterion id="AC56">Error state doesn't auto-advance</criterion>
+    </category>
+    <category name="Database Schema">
+      <criterion id="AC57">project_status enum exists with values: initializing, active, archived, failed</criterion>
+      <criterion id="AC58">projects table has: status field, initializerWorkflowId field, path field (nullable)</criterion>
+      <criterion id="AC59">ExecuteActionStepConfig TypeScript type defined</criterion>
+      <criterion id="AC60">AskUserStepConfig TypeScript type defined</criterion>
+      <criterion id="AC61">SetVariableAction type defined</criterion>
+      <criterion id="AC62">Drizzle migration generated and tested</criterion>
+    </category>
+    <category name="Testing">
+      <criterion id="AC63">Unit tests for ExecuteActionStepHandler cover all scenarios</criterion>
+      <criterion id="AC64">Unit tests for AskUserStepHandler cover all validation scenarios</criterion>
+      <criterion id="AC65">Integration test: Complete project creation flow end-to-end</criterion>
+      <criterion id="AC66">Component tests for ExecuteActionStep cover all states</criterion>
+      <criterion id="AC67">Component tests for AskUserStep cover all interactions</criterion>
+      <criterion id="AC68">Component tests for initializer selector cover all scenarios</criterion>
+      <criterion id="AC69">State persistence test verifies resume capability</criterion>
+      <criterion id="AC70">Error recovery test validates retry mechanism</criterion>
+      <criterion id="AC71">Multiple projects test ensures isolation</criterion>
+      <criterion id="AC72">Resume abandoned initialization test validates recovery</criterion>
+      <criterion id="AC73">Performance validation ensures speed requirements met</criterion>
+    </category>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/PRD.md</path>
+        <title>Chiron Product Requirements Document</title>
+        <section>User Journey 1: First-Time Setup</section>
+        <snippet>Journey describes workflow-init conversation: project creation, field type detection, directory selection, and validation - directly supports Story 1.5 implementation of Steps 1-2</snippet>
+      </doc>
+      <doc>
+        <path>docs/PRD.md</path>
+        <title>Chiron Product Requirements Document</title>
+        <section>Functional Requirements</section>
+        <snippet>FR002: System shall execute workflows following BMAD workflow.xml engine rules. FR004: Resolve variables using 4-level precedence. FR005: Maintain workflow state and enable resume/restart</snippet>
+      </doc>
+      <doc>
+        <path>docs/epics/epic-1-database-implementation.md</path>
+        <title>Epic 1: Database Schema Implementation</title>
+        <section>Workflow-Init Seed Data Structure</section>
+        <snippet>Defines Step 1 config (field type detection with execute-action), Step 2 config (path selector with ask-user), JSONB structure, and step type definitions for ExecuteActionStepConfig and AskUserStepConfig</snippet>
+      </doc>
+      <doc>
+        <path>docs/stories/1-4-workflow-execution-engine-core.md</path>
+        <title>Story 1.4: Workflow Execution Engine Core</title>
+        <section>Infrastructure and Patterns</section>
+        <snippet>Provides StepHandler interface, step registry pattern, variable resolver, WorkflowStepperWizard component, WizardStepContainer component - all reusable for Story 1.5 implementation</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/database-schema-architecture.md</path>
+        <title>Database Schema Architecture</title>
+        <section>JSONB Config Patterns</section>
+        <snippet>Defines how step configs are stored as JSONB, validation patterns, and type safety requirements for workflow step configurations</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>packages/api/src/services/workflow-engine/step-handler.ts</path>
+        <kind>interface</kind>
+        <symbol>StepHandler</symbol>
+        <lines>1-46</lines>
+        <reason>Core interface that ExecuteActionStepHandler and AskUserStepHandler must implement - defines executeStep method signature and StepResult structure</reason>
+      </artifact>
+      <artifact>
+        <path>packages/api/src/services/workflow-engine/step-registry.ts</path>
+        <kind>service</kind>
+        <symbol>StepRegistry</symbol>
+        <lines>1-69</lines>
+        <reason>Registry where new step handlers (execute-action, ask-user) must be registered - provides getHandler, register, and has methods</reason>
+      </artifact>
+      <artifact>
+        <path>packages/api/src/services/workflow-engine/variable-resolver.ts</path>
+        <kind>service</kind>
+        <symbol>VariableResolver</symbol>
+        <lines>N/A</lines>
+        <reason>Used by step handlers to resolve {{variable}} references in step configs using 4-level precedence (system → execution → step outputs → defaults)</reason>
+      </artifact>
+      <artifact>
+        <path>packages/db/src/schema/workflows.ts</path>
+        <kind>schema</kind>
+        <symbol>workflows</symbol>
+        <lines>56-82</lines>
+        <reason>Table definition showing initializerType field (new-project/existing-project) for workflow-init-new identification</reason>
+      </artifact>
+      <artifact>
+        <path>packages/db/src/schema/workflows.ts</path>
+        <kind>schema</kind>
+        <symbol>workflowSteps</symbol>
+        <lines>89-116</lines>
+        <reason>Table definition with config JSONB field that stores ExecuteActionStepConfig and AskUserStepConfig structures</reason>
+      </artifact>
+      <artifact>
+        <path>packages/db/src/schema/workflows.ts</path>
+        <kind>schema</kind>
+        <symbol>workflowExecutions</symbol>
+        <lines>123-150</lines>
+        <reason>Table definition with variables and executedSteps JSONB fields for runtime state tracking during workflow execution</reason>
+      </artifact>
+      <artifact>
+        <path>packages/db/src/schema/core.ts</path>
+        <kind>schema</kind>
+        <symbol>projects</symbol>
+        <lines>23-70</lines>
+        <reason>Table definition needing updates: add status enum (initializing/active/archived/failed), initializerWorkflowId field, make path nullable</reason>
+      </artifact>
+      <artifact>
+        <path>apps/web/src/components/workflows/steppers/wizard/workflow-stepper-wizard.tsx</path>
+        <kind>component</kind>
+        <symbol>WorkflowStepperWizard</symbol>
+        <lines>N/A</lines>
+        <reason>UI component from Story 1.4 showing Step X of N progress - reusable for workflow-init Steps 1-2 visualization</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <node>
+        <package>@trpc/server</package>
+        <version>^11.5.0</version>
+        <usage>tRPC mutations and queries for project creation and workflow initializer selection</usage>
+      </node>
+      <node>
+        <package>@trpc/client</package>
+        <version>^11.5.0</version>
+        <usage>Frontend tRPC client for calling backend mutations</usage>
+      </node>
+      <node>
+        <package>zod</package>
+        <version>^4.1.11</version>
+        <usage>Input validation for tRPC procedures and step config validation</usage>
+      </node>
+      <node>
+        <package>handlebars</package>
+        <version>^4.7.8</version>
+        <usage>Variable resolution in step configs using {{variable}} syntax</usage>
+      </node>
+      <node>
+        <package>deepmerge</package>
+        <version>^4.3.1</version>
+        <usage>Deep merging execution variables when combining step outputs</usage>
+      </node>
+      <node>
+        <package>@tanstack/react-router</package>
+        <version>^1.114.25</version>
+        <usage>Client-side routing for initializer selector and initialize pages</usage>
+      </node>
+      <node>
+        <package>@tanstack/react-query</package>
+        <version>^5.85.5</version>
+        <usage>Query management for workflow state and project data</usage>
+      </node>
+      <node>
+        <package>@tauri-apps/cli</package>
+        <version>^2.4.0</version>
+        <usage>Tauri native file dialog for directory selection</usage>
+      </node>
+      <node>
+        <package>lucide-react</package>
+        <version>^0.553.0</version>
+        <usage>Icons for UI components (Workflow icon, checkmarks, spinners)</usage>
+      </node>
+      <node>
+        <package>framer-motion</package>
+        <version>^12.23.24</version>
+        <usage>Smooth animations for step transitions and progress bar updates</usage>
+      </node>
+      <node>
+        <package>class-variance-authority</package>
+        <version>^0.7.1</version>
+        <usage>Component variant styling for shadcn/ui components</usage>
+      </node>
+      <shadcn>
+        <component>RadioGroup13</component>
+        <registry>@ss-components</registry>
+        <usage>Card-based workflow initializer selector UI</usage>
+      </shadcn>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <architectural>
+      <constraint>Project record created IMMEDIATELY on Create New Project click (not at workflow end) - enables future sub-workflow invocation and better error recovery</constraint>
+      <constraint>Step handlers MUST be generic and reusable for any workflow using that step type - NO workflow-init-specific logic hardcoded</constraint>
+      <constraint>All UI and validation logic driven by JSONB step config - NO hardcoded behavior in handlers</constraint>
+      <constraint>Variable resolution uses 4-level precedence (system → execution → step outputs → defaults) - MUST follow BMAD workflow.xml rules exactly</constraint>
+      <constraint>Auto-advance for backend-only steps (execute-action) - user interaction required only for ask-user steps</constraint>
+      <constraint>Path validation MUST prevent directory traversal (..) and ensure write permissions - security first</constraint>
+      <constraint>One-way link: projects.initializerWorkflowId references workflow definition (not execution instance)</constraint>
+      <constraint>Forward-only navigation in workflow-init - NO back button support in Story 1.5</constraint>
+    </architectural>
+    <testing>
+      <constraint>Unit tests required for each step handler in isolation with mocked context</constraint>
+      <constraint>Integration tests required for full Steps 1-2 flow with real database</constraint>
+      <constraint>Component tests required for UI with mocked tRPC queries</constraint>
+      <constraint>Manual testing required for Tauri native file dialog (platform-specific behavior)</constraint>
+    </testing>
+    <database>
+      <constraint>workflow_steps.config JSONB MUST match TypeScript ExecuteActionStepConfig and AskUserStepConfig types exactly</constraint>
+      <constraint>Variable names MUST match Epic 1 specification: detected_field_type, project_path</constraint>
+      <constraint>Drizzle migration MUST be generated and tested before implementation</constraint>
+    </database>
+    <performance>
+      <constraint>Step 1 auto-execute MUST complete within 50ms</constraint>
+      <constraint>Path validation MUST complete within 100ms</constraint>
+      <constraint>Step submission MUST complete within 200ms</constraint>
+    </performance>
+  </constraints>
+  <interfaces>
+    <interface>
+      <name>StepHandler.executeStep</name>
+      <kind>TypeScript interface method</kind>
+      <signature>executeStep(step: WorkflowStep, context: ExecutionContext, userInput?: unknown): Promise&lt;StepResult&gt;</signature>
+      <path>packages/api/src/services/workflow-engine/step-handler.ts</path>
+      <usage>ExecuteActionStepHandler and AskUserStepHandler MUST implement this interface</usage>
+    </interface>
+    <interface>
+      <name>StepResult</name>
+      <kind>TypeScript type</kind>
+      <signature>{ output: Record&lt;string, unknown&gt;; nextStepNumber: number | null; requiresUserInput: boolean; }</signature>
+      <path>packages/api/src/services/workflow-engine/step-handler.ts</path>
+      <usage>Return type for all step handler executeStep methods</usage>
+    </interface>
+    <interface>
+      <name>projects.create tRPC mutation</name>
+      <kind>tRPC mutation</kind>
+      <signature>create: protectedProcedure.input(z.object({ name: z.string().optional() })).mutation()</signature>
+      <path>packages/api/src/trpc/routers/projects.ts (to be created)</path>
+      <usage>Creates project record with status: initializing, returns project ID for redirection</usage>
+    </interface>
+    <interface>
+      <name>workflows.getInitializers tRPC query</name>
+      <kind>tRPC query</kind>
+      <signature>getInitializers: protectedProcedure.input(z.object({ type: z.enum(['new-project', 'existing-project']) })).query()</signature>
+      <path>packages/api/src/trpc/routers/workflows.ts (to be created)</path>
+      <usage>Queries workflows table for initializer_type = new-project to display in selector</usage>
+    </interface>
+    <interface>
+      <name>projects.setInitializer tRPC mutation</name>
+      <kind>tRPC mutation</kind>
+      <signature>setInitializer: protectedProcedure.input(z.object({ projectId: string, initializerWorkflowId: string })).mutation()</signature>
+      <path>packages/api/src/trpc/routers/projects.ts (to be created)</path>
+      <usage>Updates project.initializerWorkflowId and creates workflow_executions record</usage>
+    </interface>
+    <interface>
+      <name>Tauri dialog.open</name>
+      <kind>Tauri API</kind>
+      <signature>open({ directory: boolean, multiple: boolean, defaultPath?: string }): Promise&lt;string | null&gt;</signature>
+      <path>@tauri-apps/plugin-dialog</path>
+      <usage>Opens native file dialog for directory selection in Step 2 path selector</usage>
+    </interface>
+  </interfaces>
+  <tests>
+    <standards>
+      Chiron uses Bun test framework for all backend tests and Vitest + React Testing Library for frontend component tests. Test files are co-located with source files using .test.ts/.test.tsx extension. Integration tests use real PostgreSQL test database (port 5434). Database is reset before each test suite using beforeAll hook. Mocks are created for external dependencies (Tauri APIs, tRPC queries). Test coverage required for all step handlers, tRPC procedures, and UI components. Performance tests validate execution time constraints (50ms for auto-execute, 100ms for validation, 200ms for submissions).
+    </standards>
+    <locations>
+      packages/api/src/services/workflow-engine/**/*.test.ts
+      packages/api/src/routers/**/*.test.ts
+      packages/scripts/src/seeds/**/*.test.ts
+      packages/db/src/schema/**/*.test.ts
+      apps/web/src/components/**/*.test.tsx
+    </locations>
+    <ideas>
+      <test id="AC63" criteria="AC63-64">
+        <description>Unit tests for ExecuteActionStepHandler</description>
+        <scenarios>
+          - Set-variable with literal value (e.g., detected_field_type = greenfield)
+          - Set-variable with variable reference (e.g., value: {{project_path}}/src)
+          - Sequential execution mode (multiple actions, cumulative context)
+          - Nested variable paths (e.g., metadata.complexity)
+          - Error handling for unknown action type
+          - Idempotent execution (same step can be run multiple times)
+        </scenarios>
+      </test>
+      <test id="AC64" criteria="AC64">
+        <description>Unit tests for AskUserStepHandler</description>
+        <scenarios>
+          - Path validation: valid absolute path with existing parent directory
+          - Path validation: invalid parent directory (doesn't exist)
+          - Path validation: relative path (rejected)
+          - Path validation: directory traversal with .. (blocked)
+          - Path validation: no write permissions to parent (error)
+          - Validation error messages are clear and actionable
+          - mustExist flag respected in pathConfig
+        </scenarios>
+      </test>
+      <test id="AC65" criteria="AC65">
+        <description>Integration test: Complete project creation flow end-to-end</description>
+        <scenarios>
+          - Create project via tRPC mutation
+          - Select initializer via setInitializer mutation
+          - Execute Step 1 (field type detection) - auto-executes
+          - Complete Step 2 (path selection) - user provides path
+          - Verify database state after each stage:
+            * Project record has status: initializing
+            * Workflow execution exists with correct workflowId
+            * executedSteps tracks Step 1 and Step 2 completion
+            * variables contains detected_field_type and project_path
+        </scenarios>
+      </test>
+      <test id="AC66" criteria="AC66-67">
+        <description>Component tests for ExecuteActionStep and AskUserStep</description>
+        <scenarios>
+          ExecuteActionStep:
+          - Shows loading state (spinner + Executing... text)
+          - Shows success state (checkmark + Completed)
+          - Auto-advances to next step after 500ms delay
+          - Displays error message if action fails
+          - Retry button triggers re-execution
+          
+          AskUserStep:
+          - Path selector renders correctly with input and browse button
+          - Native file dialog opens on button click (mocked)
+          - Manual path input works
+          - Validation errors display below input with specific messages
+          - Submit button disabled when invalid or loading
+          - Loading state shows spinner on button during submission
+        </scenarios>
+      </test>
+      <test id="AC68" criteria="AC68">
+        <description>Component tests for initializer selector page</description>
+        <scenarios>
+          - Displays workflow cards correctly using RadioGroup13
+          - Card shows icon, title, description
+          - Card auto-selected when only one option available
+          - Continue button enabled when selection made
+          - Navigates to initialize page on continue click
+          - Loading state during setInitializer mutation
+        </scenarios>
+      </test>
+      <test id="AC69" criteria="AC69, AC46-47">
+        <description>State persistence test: Resume workflow after page reload</description>
+        <scenarios>
+          - Start workflow, complete Step 1, reload page
+          - Verify Step 1 auto-executes again (idempotent set-variable)
+          - Complete Step 2, reload page
+          - Verify Step 2 still shows user's previously selected path
+          - Verify can continue from Step 2 without re-entering data
+        </scenarios>
+      </test>
+      <test id="AC70" criteria="AC70, AC52-56">
+        <description>Error recovery test: Validation and network errors</description>
+        <scenarios>
+          - Submit invalid path → see specific error message
+          - Correct path → submission succeeds
+          - Network error during submission → retry button appears
+          - Retry button click → step re-executes
+          - Successful retry → workflow advances to next step
+          - Error state doesn't auto-advance workflow
+        </scenarios>
+      </test>
+      <test id="AC71" criteria="AC71">
+        <description>Multiple projects test: Ensure execution isolation</description>
+        <scenarios>
+          - Create project A, select initializer, complete Step 1
+          - Create project B, select initializer, complete Step 1
+          - Verify both projects have separate workflow_executions records
+          - Verify variables don't leak between projects
+          - Resume project A → workflow state is correct for A
+        </scenarios>
+      </test>
+      <test id="AC72" criteria="AC72">
+        <description>Resume abandoned initialization test</description>
+        <scenarios>
+          - Create project, select initializer, complete Step 1
+          - Close browser without completing workflow
+          - Reopen application, navigate to project
+          - Verify project status = initializing
+          - Verify can resume from Step 2 (Step 1 already completed)
+          - Complete Step 2 → workflow continues normally
+        </scenarios>
+      </test>
+      <test id="AC73" criteria="AC73, AC33-35">
+        <description>Performance validation tests</description>
+        <scenarios>
+          - Step 1 auto-execute completes within 50ms
+          - Path validation completes within 100ms
+          - Step submission completes within 200ms
+          - Variable resolution completes within 50ms
+          - Database workflow loading completes within 100ms
+        </scenarios>
+      </test>
+    </ideas>
+  </tests>
+</story-context>

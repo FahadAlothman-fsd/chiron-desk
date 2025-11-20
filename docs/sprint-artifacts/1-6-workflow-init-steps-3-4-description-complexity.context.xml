@@ -1,0 +1,1102 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>6</storyId>
+    <title>Conversational Project Initialization with AI-Powered Approval Gates</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-13</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/1-6-workflow-init-steps-3-4-description-complexity.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer building Chiron's AI-powered workflow system</asA>
+    <iWant>to implement a conversational chat interface where the PM Agent guides users through project initialization, generates summaries and classifications using Ax signatures, and learns from user feedback via ACE optimizer</iWant>
+    <soThat>users experience a natural, intelligent project setup flow with human-in-the-loop approval gates, and the system continuously improves from user feedback - validating the core thesis of AI-assisted workflow orchestration</soThat>
+    <tasks>
+      <!-- Task 1: Database Schema Updates -->
+      <task id="1" title="Database Schema Updates">
+        <subtask id="1.1">Update packages/db/src/schema/workflows.ts - Add AskUserChatStepConfig TypeScript type</subtask>
+        <subtask id="1.2">Create ACE and MiPRO schema - packages/db/src/schema/ace.ts</subtask>
+        <subtask id="1.3">Update agents table schema - Add instructions TEXT field</subtask>
+        <subtask id="1.4">Apply schema changes - Run db:reset and seed scripts</subtask>
+      </task>
+      
+      <!-- Task 2: Mastra + Ax Infrastructure -->
+      <task id="2" title="Mastra + Ax Infrastructure">
+        <subtask id="2.1">Install dependencies - @mastra/core, @mastra/pg, @mastra/memory, @mastra/evals, @ax-llm/ax, @ai-sdk/anthropic</subtask>
+        <subtask id="2.2">Create Mastra service - packages/api/src/services/mastra/mastra-service.ts</subtask>
+        <subtask id="2.3">Create ACE optimizer service - packages/api/src/services/mastra/ace-optimizer.ts</subtask>
+        <subtask id="2.4">Create MiPRO data collector service - packages/api/src/services/mastra/mipro-collector.ts</subtask>
+        <subtask id="2.5">Write unit tests</subtask>
+      </task>
+      
+      <!-- Task 3: AskUserChatStepHandler Implementation -->
+      <task id="3" title="AskUserChatStepHandler Implementation">
+        <subtask id="3.1">Create step handler - packages/api/src/services/workflow-engine/step-handlers/ask-user-chat-handler.ts</subtask>
+        <subtask id="3.2">Implement agent initialization with ACE playbook injection</subtask>
+        <subtask id="3.3">Implement dynamic tool building from config</subtask>
+        <subtask id="3.4">Implement completion condition checking</subtask>
+        <subtask id="3.5">Write unit tests</subtask>
+      </task>
+      
+      <!-- Task 4: Ax-Generation Tool Type -->
+      <task id="4" title="Ax-Generation Tool Type">
+        <subtask id="4.1">Implement Ax tool builder - packages/api/src/services/workflow-engine/tools/ax-generation-tool.ts</subtask>
+        <subtask id="4.2">Implement input resolution (variable, context, literal sources)</subtask>
+        <subtask id="4.3">Implement Ax generation with ChainOfThought/Predict strategies</subtask>
+        <subtask id="4.4">Implement approval gate suspension</subtask>
+        <subtask id="4.5">Write unit tests</subtask>
+      </task>
+      
+      <!-- Task 5: Database-Query Tool Type -->
+      <task id="5" title="Database-Query Tool Type">
+        <subtask id="5.1">Implement DB query tool builder - packages/api/src/services/workflow-engine/tools/database-query-tool.ts</subtask>
+        <subtask id="5.2">Implement filter resolution with variable substitution</subtask>
+        <subtask id="5.3">Implement query execution with JSONB path support</subtask>
+        <subtask id="5.4">Write unit tests</subtask>
+      </task>
+      
+      <!-- Task 6: Custom Tool Type -->
+      <task id="6" title="Custom Tool Type">
+        <subtask id="6.1">Implement path selection tool - packages/api/src/services/workflow-engine/tools/custom/select-workflow-path-tool.ts</subtask>
+        <subtask id="6.2">Implement project name generation tool - packages/api/src/services/workflow-engine/tools/custom/generate-project-name-tool.ts</subtask>
+        <subtask id="6.3">Write unit tests</subtask>
+      </task>
+      
+      <!-- Task 7: Approval Flow Backend -->
+      <task id="7" title="Approval Flow Backend">
+        <subtask id="7.1">Implement approval API - packages/api/src/routers/workflows.ts approveToolCall mutation</subtask>
+        <subtask id="7.2">Implement rejection API - rejectToolCall mutation with ACE optimizer integration</subtask>
+        <subtask id="7.3">Write unit tests</subtask>
+      </task>
+      
+      <!-- Task 8: Frontend Chat Interface -->
+      <task id="8" title="Frontend Chat Interface">
+        <subtask id="8.1">Add AI Elements components via shadcn CLI</subtask>
+        <subtask id="8.2">Create AskUserChatStep component - apps/web/src/components/workflows/steps/ask-user-chat-step.tsx</subtask>
+        <subtask id="8.3">Implement message sending with PromptInput</subtask>
+        <subtask id="8.4">Implement message persistence with Mastra threads</subtask>
+        <subtask id="8.5">Write component tests</subtask>
+      </task>
+      
+      <!-- Task 9: Frontend Approval Gates -->
+      <task id="9" title="Frontend Approval Gates">
+        <subtask id="9.1">Create approval card component - apps/web/src/components/workflows/approval-card.tsx</subtask>
+        <subtask id="9.2">Implement approval action</subtask>
+        <subtask id="9.3">Implement rejection action with feedback input</subtask>
+        <subtask id="9.4">Write component tests</subtask>
+      </task>
+      
+      <!-- Task 10: Frontend Path Selection UI -->
+      <task id="10" title="Frontend Path Selection UI">
+        <subtask id="10.1">Create path selection cards - apps/web/src/components/workflows/path-selection-cards.tsx</subtask>
+        <subtask id="10.2">Implement path selection with tRPC mutation</subtask>
+        <subtask id="10.3">Write component tests</subtask>
+      </task>
+      
+      <!-- Task 11: Frontend Project Name UI -->
+      <task id="11" title="Frontend Project Name UI">
+        <subtask id="11.1">Create project name selector - apps/web/src/components/workflows/project-name-selector.tsx</subtask>
+        <subtask id="11.2">Implement name selection with validation</subtask>
+        <subtask id="11.3">Write component tests</subtask>
+      </task>
+      
+      <!-- Task 12: Database Seeding -->
+      <task id="12" title="Database Seeding">
+        <subtask id="12.1">Seed PM Agent with instructions - packages/scripts/src/seeds/agents.ts</subtask>
+        <subtask id="12.2">Seed initial ACE playbook - packages/scripts/src/seeds/ace-playbooks.ts</subtask>
+        <subtask id="12.3">Seed Step 3 configuration - packages/scripts/src/seeds/workflow-init-new.ts</subtask>
+        <subtask id="12.4">Test seeding - Run db:reset && db:seed and verify</subtask>
+      </task>
+      
+      <!-- Task 13: Anthropic Configuration -->
+      <task id="13" title="Anthropic Configuration">
+        <subtask id="13.1">Create Anthropic API router - packages/api/src/routers/anthropic.ts</subtask>
+        <subtask id="13.2">Implement key encryption with @node-rs/argon2</subtask>
+        <subtask id="13.3">Update Settings UI - apps/web/src/routes/_authenticated.settings.tsx</subtask>
+        <subtask id="13.4">Write tests</subtask>
+      </task>
+      
+      <!-- Task 14: Integration & End-to-End Testing -->
+      <task id="14" title="Integration & End-to-End Testing">
+        <subtask id="14.1">End-to-end workflow test - Complete workflow from start to Step 3 completion</subtask>
+        <subtask id="14.2">State persistence test - Reload mid-conversation and resume</subtask>
+        <subtask id="14.3">Performance test - Verify NFR001 requirements</subtask>
+        <subtask id="14.4">Manual testing checklist - Complete 24-item checklist</subtask>
+      </task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <!-- AC1: User can chat naturally with PM Agent -->
+    <criterion id="AC1" category="Conversational Chat Interface">
+      <title>User can chat naturally with PM Agent</title>
+      <checks>
+        <check>Step 3 renders chat interface with message bubbles</check>
+        <check>User can type messages and send them</check>
+        <check>Agent responds conversationally (not form-based)</check>
+        <check>Conversation history persists across page reloads</check>
+        <check>Agent asks clarifying questions before triggering tools</check>
+      </checks>
+    </criterion>
+    
+    <!-- AC2: Chat state managed with Mastra threads -->
+    <criterion id="AC2" category="Conversational Chat Interface">
+      <title>Chat state managed with Mastra threads</title>
+      <checks>
+        <check>Mastra thread created on first user message</check>
+        <check>Thread ID saved to workflow execution variables</check>
+        <check>Messages stored in mastra.mastra_messages table</check>
+        <check>Chat history retrievable via Mastra SDK</check>
+      </checks>
+    </criterion>
+    
+    <!-- AC3: update_summary tool generates project description -->
+    <criterion id="AC3" category="Tool Execution & AI Generation">
+      <title>update_summary tool generates project description</title>
+      <checks>
+        <check>Agent triggers tool after sufficient conversation</check>
+        <check>Tool uses Ax signature with ChainOfThought strategy</check>
+        <check>Summary appears in chat with reasoning (collapsible)</check>
+        <check>Summary includes key project details from conversation</check>
+        <check>User can approve or reject with feedback</check>
+      </checks>
+    </criterion>
+    
+    <!-- AC4: update_complexity tool classifies project -->
+    <criterion id="AC4" category="Tool Execution & AI Generation">
+      <title>update_complexity tool classifies project</title>
+      <checks>
+        <check>Tool only executes after project_description variable exists</check>
+        <check>Uses Ax signature to classify as: quick-flow, method, or enterprise</check>
+        <check>Classification includes reasoning explaining the decision</check>
+        <check>User can approve or reject classification</check>
+        <check>Tool returns validation error if prerequisites missing</check>
+      </checks>
+    </criterion>
+    
+    <!-- AC5: fetch_workflow_paths queries database -->
+    <criterion id="AC5" category="Tool Execution & AI Generation">
+      <title>fetch_workflow_paths queries database</title>
+      <checks>
+        <check>Tool auto-executes after complexity approved</check>
+        <check>Queries workflow_paths table with filters from config</check>
+        <check>Filters by detected_field_type AND complexity_classification</check>
+        <check>Supports JSONB path queries (tags->>'complexity')</check>
+        <check>Results stored in available_workflow_paths variable</check>
+      </checks>
+    </criterion>
+    
+    <!-- AC6: select_workflow_path presents options -->
+    <criterion id="AC6" category="Tool Execution & AI Generation">
+      <title>select_workflow_path presents options</title>
+      <checks>
+        <check>Tool renders path cards in chat interface</check>
+        <check>Cards show path name, description, and why it's recommended</check>
+        <check>User clicks card to select path</check>
+        <check>Selection saves to selected_workflow_path_id variable</check>
+        <check>Tool validates available_workflow_paths exists before executing</check>
+      </checks>
+    </criterion>
+    
+    <!-- AC7a: generate_project_name generates name suggestions -->
+    <criterion id="AC7a" category="Tool Execution & AI Generation">
+      <title>generate_project_name generates name suggestions</title>
+      <checks>
+        <check>Tool executes after workflow path selected</check>
+        <check>Uses Ax signature with Predict strategy (no CoT)</check>
+        <check>Generates 3-5 kebab-case project name suggestions</check>
+        <check>Suggestions based on project description and complexity</check>
+        <check>Approval gate triggers for user to review suggestions</check>
+      </checks>
+    </criterion>
+    
+    <!-- AC7b: User can select or provide custom project name -->
+    <criterion id="AC7b" category="Tool Execution & AI Generation">
+      <title>User can select or provide custom project name</title>
+      <checks>
+        <check>User can select one of the suggested names</check>
+        <check>User can choose "Use custom name instead" option</check>
+        <check>Custom name input field appears when custom option selected</check>
+        <check>Custom name validates against pattern: ^[a-z0-9-]+$</check>
+        <check>Custom name validates length: 3-50 characters</check>
+        <check>Real-time validation feedback shown to user</check>
+        <check>Approval triggers after valid selection/custom name provided</check>
+      </checks>
+    </criterion>
+    
+    <!-- AC8: Approval gates pause workflow for user decision -->
+    <criterion id="AC8" category="Approval Gate System">
+      <title>Approval gates pause workflow for user decision</title>
+      <checks>
+        <check>Tool execution suspends when requiresApproval: true</check>
+        <check>Approval state saved to workflow_executions.variables</check>
+        <check>Workflow status changes to "paused"</check>
+        <check>Frontend displays approval UI (Accept / Reject & Explain buttons)</check>
+        <check>Workflow resumes on user approval/rejection</check>
+      </checks>
+    </criterion>
+    
+    <!-- AC9: User can approve AI-generated outputs -->
+    <criterion id="AC9" category="Approval Gate System">
+      <title>User can approve AI-generated outputs</title>
+      <checks>
+        <check>Clicking "Accept" saves output to workflow variables</check>
+        <check>Approved output saved to mipro_training_examples table</check>
+        <check>Workflow status changes back to "active"</check>
+        <check>Agent continues to next tool</check>
+        <check>Final approved value persists (e.g., project_description)</check>
+      </checks>
+    </criterion>
+    
+    <!-- AC10: User can reject and provide feedback -->
+    <criterion id="AC10" category="Approval Gate System">
+      <title>User can reject and provide feedback</title>
+      <checks>
+        <check>Clicking "Reject & Explain" shows feedback input</check>
+        <check>User can type feedback explaining why they rejected</check>
+        <check>Feedback saves to approval_states.rejection_history</check>
+        <check>ACE optimizer updates playbook with feedback</check>
+        <check>Agent regenerates using updated ACE knowledge</check>
+        <check>User sees updated output for re-approval</check>
+      </checks>
+    </criterion>
+    
+    <!-- AC11: ACE playbook updates from rejection feedback -->
+    <criterion id="AC11" category="ACE Optimizer & Learning">
+      <title>ACE playbook updates from rejection feedback</title>
+      <checks>
+        <check>Rejection feedback triggers ACE optimizer</check>
+        <check>New bullet added to ace_playbooks.playbook</check>
+        <check>Playbook version incremented</check>
+        <check>totalUpdates counter incremented</check>
+        <check>Future tool executions include updated playbook context</check>
+      </checks>
+    </criterion>
+    
+    <!-- AC12: ACE playbook injected into agent instructions -->
+    <criterion id="AC12" category="ACE Optimizer & Learning">
+      <title>ACE playbook injected into agent instructions</title>
+      <checks>
+        <check>PM Agent instructions loaded from agents.instructions table</check>
+        <check>ACE playbook loaded from ace_playbooks table</check>
+        <check>Playbook formatted and appended to instructions</check>
+        <check>Agent sees "LEARNED PATTERNS" section in prompts</check>
+        <check>Playbook influences tool generation behavior</check>
+      </checks>
+    </criterion>
+    
+    <!-- AC13: Approved outputs saved for future optimization -->
+    <criterion id="AC13" category="MiPRO Data Collection">
+      <title>Approved outputs saved for future optimization</title>
+      <checks>
+        <check>Approval saves input + output to mipro_training_examples</check>
+        <check>Record includes tool name (for side effect type tracking)</check>
+        <check>Input includes conversation_history, ace_context, variables</check>
+        <check>Expected output includes approved value</check>
+        <check>Rejection history included (for MiPRO analysis)</check>
+      </checks>
+    </criterion>
+    
+    <!-- AC14: Tools built from step config at runtime -->
+    <criterion id="AC14" category="Dynamic Tool Building">
+      <title>Tools built from step config at runtime</title>
+      <checks>
+        <check>AskUserChatStepHandler reads config.tools array</check>
+        <check>Each tool config specifies toolType (ax-generation, database-query, custom)</check>
+        <check>Ax signatures built from config.axSignature specification</check>
+        <check>Database queries built from config.databaseQuery filters</check>
+        <check>Tools validate requiredVariables before execution</check>
+      </checks>
+    </criterion>
+    
+    <!-- AC15: Ax signatures support input sources -->
+    <criterion id="AC15" category="Dynamic Tool Building">
+      <title>Ax signatures support input sources</title>
+      <checks>
+        <check>Input fields can have source: "variable" (from execution.variables)</check>
+        <check>Input fields can have source: "context" (from Mastra thread)</check>
+        <check>Input fields can have source: "literal" (static value)</check>
+        <check>Variable resolution fails gracefully if variable missing</check>
+        <check>Conversation history fetched via Mastra SDK</check>
+      </checks>
+    </criterion>
+    
+    <!-- AC16: Step completes when all tools approved -->
+    <criterion id="AC16" category="Step Completion">
+      <title>Step completes when all tools approved</title>
+      <checks>
+        <check>Completion condition checks all required tools approved</check>
+        <check>Output variables extracted from tool results</check>
+        <check>Step marked as completed in executedSteps</check>
+        <check>Workflow advances to next step (Step 4 - future)</check>
+        <check>All required outputs saved to workflow variables</check>
+      </checks>
+    </criterion>
+    
+    <!-- AC17: Anthropic API key configurable in Settings -->
+    <criterion id="AC17" category="Anthropic Configuration">
+      <title>Anthropic API key configurable in Settings</title>
+      <checks>
+        <check>Settings page has Anthropic API key card</check>
+        <check>User can save, test, update, and remove API key</check>
+        <check>Key encrypted before storing in database</check>
+        <check>Key validation with Anthropic API works</check>
+        <check>Available Claude models displayed with pricing</check>
+      </checks>
+    </criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <!-- PRD: Product Requirements Document -->
+      <doc>
+        <path>docs/PRD.md</path>
+        <title>Chiron Product Requirements Document</title>
+        <section>Functional Requirements</section>
+        <snippet>FR002: System shall execute workflows following BMAD's workflow.xml engine rules (steps, actions, templates, elicitation). FR006: System shall coordinate 2+ AI coding agents executing workflows in parallel with human-in-the-loop approval gates.</snippet>
+      </doc>
+      
+      <!-- Epic 1: Foundation Epic -->
+      <doc>
+        <path>docs/epics/epic-1-foundation.md</path>
+        <title>Epic 1 - Foundation + Workflow-Init Engine</title>
+        <section>Story 1.6 Specification</section>
+        <snippet>Implement workflow-init steps 4-6: Analyze complexity (LLM classification), fetch workflow paths (DB query), help choose path (conversational chat). Build llm-generate and ask-user-chat step handlers. Includes Mastra + Ax integration with approval gates and Anthropic API key configuration.</snippet>
+      </doc>
+      
+      <!-- Architecture: Story 1.6 Architecture Summary -->
+      <doc>
+        <path>docs/architecture/STORY-1-6-ARCHITECTURE-SUMMARY.md</path>
+        <title>Story 1.6 Architecture Summary</title>
+        <section>Core Architecture Decision</section>
+        <snippet>Stack: Mastra + Ax (ACE playbooks). PM Agent chats with user → triggers side effects (generate summary, classify complexity) → User approves/rejects → System learns from feedback using ACE playbooks → Collects approved examples for future MiPRO optimization.</snippet>
+      </doc>
+      
+      <!-- Research: Mastra + Ax Approval Gates Spike -->
+      <doc>
+        <path>docs/research/spike-ax-mastra-approval-gates.md</path>
+        <title>Spike: Ax + Mastra Approval Gates for Chiron</title>
+        <section>Pattern 1: Approval-Gate Chat</section>
+        <snippet>User describes project in conversational chat → LLM triggers side-effect tools (updateSummary, updateComplexity) → Pauses chat → Shows UI modal → User approves/rejects → Chat continues UNTIL all required approvals received. Requires tool calling with human-in-the-loop approval gates, conversation state management, side effects trigger UI changes.</snippet>
+      </doc>
+      
+      <!-- Research: ACE and GEPA Optimizers -->
+      <doc>
+        <path>docs/research/ax-deep-dive-ace-gepa.md</path>
+        <title>Ax Deep Dive: ACE and GEPA Optimizers</title>
+        <section>ACE: Agentic Context Engineering</section>
+        <snippet>ACE mirrors Generator → Reflector → Curator loop. Represents context as structured bullets, applies incremental deltas, returns serialized playbook. Prevents context collapse with incremental updates. Supports online adaptation in production based on user feedback.</snippet>
+      </doc>
+      
+      <!-- Database Schema Architecture -->
+      <doc>
+        <path>docs/architecture/database-schema-architecture.md</path>
+        <title>Database Schema Architecture</title>
+        <section>Schema Structure - Workflow Definition</section>
+        <snippet>workflows table: Container for workflow definitions with initializerType, isStandalone, requiresProjectContext. workflow_steps table: Individual steps with stepType, config (JSONB), nextStepNumber. ALL step configuration stored in config JSONB for runtime extensibility.</snippet>
+      </doc>
+      
+      <!-- Database Schema: ACE Playbooks -->
+      <doc>
+        <path>docs/architecture/STORY-1-6-ARCHITECTURE-SUMMARY.md</path>
+        <title>Story 1.6 Architecture Summary</title>
+        <section>Database Architecture - ACE Playbooks</section>
+        <snippet>ace_playbooks table: agent_id, scope (global/user/project), playbook (JSONB structured bullets), version, total_updates. mipro_training_examples table: side_effect_type, input (JSONB), expected_output (JSONB), scorer_results. Mastra schema: mastra_threads, mastra_messages, mastra_resources (working memory), mastra_scorers (quality metrics).</snippet>
+      </doc>
+    </docs>
+    <code>
+      <!-- Workflow Engine: Step Handler Interface -->
+      <artifact>
+        <path>packages/api/src/services/workflow-engine/step-handler.ts</path>
+        <kind>interface</kind>
+        <symbol>StepHandler</symbol>
+        <lines>1-46</lines>
+        <reason>Core interface that all step handlers must implement. Defines executeStep signature and StepResult interface. New AskUserChatStepHandler must implement this.</reason>
+      </artifact>
+      
+      <!-- Workflow Engine: Existing Ask User Handler -->
+      <artifact>
+        <path>packages/api/src/services/workflow-engine/step-handlers/ask-user-handler.ts</path>
+        <kind>handler</kind>
+        <symbol>AskUserStepHandler</symbol>
+        <lines>1-150</lines>
+        <reason>Existing ask-user handler implementation. Reference for patterns: config validation, user input processing, variable storage. New chat handler will follow similar structure.</reason>
+      </artifact>
+      
+      <!-- Workflow Engine: Execute Action Handler -->
+      <artifact>
+        <path>packages/api/src/services/workflow-engine/step-handlers/execute-action-handler.ts</path>
+        <kind>handler</kind>
+        <symbol>ExecuteActionStepHandler</symbol>
+        <lines>1-200</lines>
+        <reason>Handles system actions (set-variable, database queries, file operations). Story 1.6 needs database query action for fetching workflow paths with JSONB filtering.</reason>
+      </artifact>
+      
+      <!-- Workflow Engine: Variable Resolver -->
+      <artifact>
+        <path>packages/api/src/services/workflow-engine/variable-resolver.ts</path>
+        <kind>service</kind>
+        <symbol>VariableResolver</symbol>
+        <lines>1-100</lines>
+        <reason>Resolves {{variable}} references using Handlebars. All step handlers use this for config interpolation. ACE playbook injection will use this pattern.</reason>
+      </artifact>
+      
+      <!-- Workflow Engine: Step Registry -->
+      <artifact>
+        <path>packages/api/src/services/workflow-engine/step-registry.ts</path>
+        <kind>registry</kind>
+        <symbol>StepRegistry</symbol>
+        <lines>1-50</lines>
+        <reason>Maps step types to handlers. New AskUserChatStepHandler must be registered here with "ask-user-chat" type.</reason>
+      </artifact>
+      
+      <!-- Database Schema: Workflow Steps -->
+      <artifact>
+        <path>packages/db/src/schema/workflows.ts</path>
+        <kind>schema</kind>
+        <symbol>workflowSteps</symbol>
+        <lines>89-116</lines>
+        <reason>Defines workflow_steps table with config JSONB field. All step configuration stored here. Story 1.6 adds AskUserChatStepConfig type.</reason>
+      </artifact>
+      
+      <!-- Database Schema: Step Configs -->
+      <artifact>
+        <path>packages/db/src/schema/step-configs.ts</path>
+        <kind>schema</kind>
+        <symbol>askUserChatStepConfigSchema</symbol>
+        <lines>51-73</lines>
+        <reason>Zod schema for ask-user-chat config validation. Defines systemPrompt, initialMessage, outputVariable, completionCondition. Needs expansion for tool config.</reason>
+      </artifact>
+      
+      <!-- Database Schema: Agents -->
+      <artifact>
+        <path>packages/db/src/schema/agents.ts</path>
+        <kind>schema</kind>
+        <symbol>agents</symbol>
+        <lines>19-43</lines>
+        <reason>Agents table with llmProvider, llmModel, tools, mcpServers. Story 1.6 adds instructions field for PM Agent system prompt and ACE playbook injection.</reason>
+      </artifact>
+      
+      <!-- Frontend: Ask User Step Component -->
+      <artifact>
+        <path>apps/web/src/components/workflows/steps/ask-user-step.tsx</path>
+        <kind>component</kind>
+        <symbol>AskUserStep</symbol>
+        <lines>1-150</lines>
+        <reason>Existing step UI component pattern. Handles user input, validation, submission. New AskUserChatStep will follow similar prop interface but with chat UI instead of form.</reason>
+      </artifact>
+      
+      <!-- Frontend: Workflow Stepper Wizard -->
+      <artifact>
+        <path>apps/web/src/components/workflows/steppers/wizard/workflow-stepper-wizard.tsx</path>
+        <kind>component</kind>
+        <symbol>WorkflowStepperWizard</symbol>
+        <lines>1-200</lines>
+        <reason>Main workflow UI container. Renders progress bar, step container, navigation. Chat step will be rendered within this wizard framework.</reason>
+      </artifact>
+      
+      <!-- Existing Services: Encryption -->
+      <artifact>
+        <path>packages/api/src/services/encryption.ts</path>
+        <kind>service</kind>
+        <symbol>encrypt, decrypt</symbol>
+        <lines>1-50</lines>
+        <reason>Encryption utilities for API keys. Story 1.6 uses this for Anthropic API key storage in app_config table.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <!-- New Dependencies for Story 1.6 - Mastra Framework -->
+      <package ecosystem="bun" location="packages/api">
+        <name>@mastra/core</name>
+        <version>latest</version>
+        <purpose>AI agent orchestration framework for PM Agent with tool calling, memory, streaming responses</purpose>
+        <installation>bun add @mastra/core</installation>
+      </package>
+      
+      <package ecosystem="bun" location="packages/api">
+        <name>@mastra/pg</name>
+        <version>latest</version>
+        <purpose>PostgreSQL storage adapter for Mastra (conversation threads, messages, working memory in mastra.* schema)</purpose>
+        <installation>bun add @mastra/pg</installation>
+      </package>
+      
+      <package ecosystem="bun" location="packages/api">
+        <name>@mastra/memory</name>
+        <version>latest</version>
+        <purpose>Conversation history and semantic recall for agents across sessions</purpose>
+        <installation>bun add @mastra/memory</installation>
+      </package>
+      
+      <package ecosystem="bun" location="packages/api">
+        <name>@mastra/evals</name>
+        <version>latest</version>
+        <purpose>Agent output quality scoring (answer relevancy, completeness metrics) for MiPRO data collection</purpose>
+        <installation>bun add @mastra/evals</installation>
+      </package>
+      
+      <!-- New Dependencies for Story 1.6 - Ax Framework -->
+      <package ecosystem="bun" location="packages/api">
+        <name>@ax-llm/ax</name>
+        <version>latest</version>
+        <purpose>Declarative LLM programming with ACE optimizer (online learning) and MiPRO (offline optimization) for structured outputs</purpose>
+        <installation>bun add @ax-llm/ax</installation>
+      </package>
+      
+      <!-- New Dependencies for Story 1.6 - AI SDK -->
+      <package ecosystem="bun" location="packages/api">
+        <name>@ai-sdk/anthropic</name>
+        <version>latest</version>
+        <purpose>Anthropic API integration for Claude models (claude-3-5-sonnet, claude-opus-4) as alternative to OpenRouter</purpose>
+        <installation>bun add @ai-sdk/anthropic</installation>
+      </package>
+      
+      <package ecosystem="bun" location="packages/api">
+        <name>@ai-sdk/openai</name>
+        <version>latest</version>
+        <purpose>OpenAI API integration for GPT models via Vercel AI SDK</purpose>
+        <installation>bun add @ai-sdk/openai</installation>
+      </package>
+      
+      <!-- Existing Dependencies (Already Installed) -->
+      <package ecosystem="bun" location="packages/db">
+        <name>drizzle-orm</name>
+        <version>0.44.2</version>
+        <purpose>Type-safe ORM for PostgreSQL database operations, JSONB support, schema management</purpose>
+      </package>
+      
+      <package ecosystem="bun" location="root">
+        <name>zod</name>
+        <version>4.1.11</version>
+        <purpose>Runtime schema validation for step configs, API inputs, Ax signatures</purpose>
+      </package>
+      
+      <package ecosystem="bun" location="root">
+        <name>handlebars</name>
+        <version>4.7.8</version>
+        <purpose>Template engine for variable interpolation in workflow configs ({{variable}} syntax)</purpose>
+      </package>
+      
+      <package ecosystem="bun" location="apps/web">
+        <name>@tanstack/react-router</name>
+        <version>1.114.25</version>
+        <purpose>Type-safe routing for web application with file-based route generation</purpose>
+      </package>
+      
+      <package ecosystem="bun" location="apps/web">
+        <name>@tanstack/react-query</name>
+        <version>5.85.5</version>
+        <purpose>Data fetching, caching, and state management for tRPC queries/mutations</purpose>
+      </package>
+      
+      <package ecosystem="bun" location="apps/web">
+        <name>@trpc/client</name>
+        <version>11.5.0</version>
+        <purpose>Type-safe API client for tRPC backend communication</purpose>
+      </package>
+      
+      <package ecosystem="bun" location="packages/api">
+        <name>@trpc/server</name>
+        <version>11.5.0</version>
+        <purpose>Type-safe API server framework for building routers and procedures</purpose>
+      </package>
+      
+      <package ecosystem="bun" location="packages/api">
+        <name>hono</name>
+        <version>4.8.2</version>
+        <purpose>Fast web framework for tRPC adapter and API endpoints</purpose>
+      </package>
+      
+      <package ecosystem="bun" location="apps/web">
+        <name>react</name>
+        <version>19.1.0</version>
+        <purpose>UI framework for building component-based interfaces</purpose>
+      </package>
+      
+      <package ecosystem="bun" location="apps/web">
+        <name>@radix-ui/react-*</name>
+        <version>various</version>
+        <purpose>Accessible UI primitives (dialog, checkbox, radio, tooltip, etc.) for shadcn/ui components</purpose>
+      </package>
+      
+      <package ecosystem="bun" location="apps/web">
+        <name>lucide-react</name>
+        <version>0.553.0</version>
+        <purpose>Icon library for UI components</purpose>
+      </package>
+      
+      <package ecosystem="bun" location="apps/web">
+        <name>tailwindcss</name>
+        <version>4.0.15</version>
+        <purpose>Utility-first CSS framework for styling</purpose>
+      </package>
+      
+      <package ecosystem="bun" location="packages/auth">
+        <name>better-auth</name>
+        <version>1.3.28</version>
+        <purpose>Authentication framework with PostgreSQL session management</purpose>
+      </package>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <!-- Development Constraints -->
+    <constraint category="architecture">
+      <rule>All step handlers MUST implement StepHandler interface with executeStep method</rule>
+      <source>packages/api/src/services/workflow-engine/step-handler.ts</source>
+    </constraint>
+    
+    <constraint category="architecture">
+      <rule>Step configuration MUST be stored in workflow_steps.config JSONB field, not separate tables</rule>
+      <source>docs/architecture/database-schema-architecture.md - Pattern 1: JSONB Step Configuration</source>
+    </constraint>
+    
+    <constraint category="architecture">
+      <rule>All runtime workflow data MUST be stored in workflow_executions.variables JSONB field</rule>
+      <source>packages/db/src/schema/workflows.ts - workflowExecutions table</source>
+    </constraint>
+    
+    <constraint category="security">
+      <rule>API keys MUST be encrypted before storing in app_config table using encryption service</rule>
+      <source>packages/api/src/services/encryption.ts</source>
+    </constraint>
+    
+    <constraint category="testing">
+      <rule>All services and handlers MUST have unit tests using Bun test framework</rule>
+      <source>docs/epics/epic-1-foundation.md - Testing Framework section</source>
+    </constraint>
+    
+    <constraint category="data-flow">
+      <rule>Variable resolution follows 4-level precedence: system variables → execution variables → step outputs → default values</rule>
+      <source>docs/PRD.md - FR004</source>
+    </constraint>
+    
+    <constraint category="state-management">
+      <rule>Conversation history MUST be stored in Mastra storage (mastra.mastra_messages), not workflow_executions.variables</rule>
+      <source>docs/architecture/STORY-1-6-ARCHITECTURE-SUMMARY.md - Separation of Concerns</source>
+    </constraint>
+    
+    <constraint category="learning">
+      <rule>ACE playbook updates MUST increment version number and totalUpdates counter</rule>
+      <source>docs/research/ax-deep-dive-ace-gepa.md - ACE Playbook Structure</source>
+    </constraint>
+    
+    <constraint category="approval-gates">
+      <rule>Approval state MUST be tracked in workflow_executions.variables.approval_states with status, value, reasoning, rejection_history</rule>
+      <source>docs/architecture/STORY-1-6-ARCHITECTURE-SUMMARY.md - Approval State Tracking</source>
+    </constraint>
+    
+    <constraint category="ui-patterns">
+      <rule>Chat interface MUST use AI Elements components (@ai-elements registry) for ChatContainer, MessageList, Message, PromptInput, ThinkingIndicator</rule>
+      <source>docs/stories/1-6-workflow-init-steps-3-4-description-complexity.md - AI Elements Integration Summary</source>
+    </constraint>
+    
+    <constraint category="code-style">
+      <rule>All TypeScript code MUST follow project conventions: use Bun APIs (import from "node:fs/promises"), async/await patterns, proper error handling</rule>
+      <source>Existing codebase patterns in packages/api/src/services/</source>
+    </constraint>
+  </constraints>
+  
+  <interfaces>
+    <!-- Core Workflow Engine Interfaces -->
+    <interface>
+      <name>StepHandler</name>
+      <kind>TypeScript interface</kind>
+      <signature>
+interface StepHandler {
+  executeStep(
+    step: WorkflowStep,
+    context: ExecutionContext,
+    userInput?: unknown
+  ): Promise&lt;StepResult&gt;;
+}
+
+interface StepResult {
+  output: Record&lt;string, unknown&gt;;
+  nextStepNumber: number | null;
+  requiresUserInput: boolean;
+}
+      </signature>
+      <path>packages/api/src/services/workflow-engine/step-handler.ts</path>
+    </interface>
+    
+    <!-- Mastra Agent Interface -->
+    <interface>
+      <name>MastraAgent</name>
+      <kind>Mastra framework</kind>
+      <signature>
+class Agent {
+  constructor(config: {
+    name: string;
+    instructions: string;
+    model: AI;
+    tools?: Record&lt;string, Tool&gt;;
+  })
+  
+  async stream(messages: Message[]): AsyncGenerator&lt;Message&gt;
+  async generate(messages: Message[]): Promise&lt;Message&gt;
+}
+      </signature>
+      <path>@mastra/core API</path>
+    </interface>
+    
+    <!-- Ax Signature Interface -->
+    <interface>
+      <name>AxSignature</name>
+      <kind>Ax framework</kind>
+      <signature>
+const signature = ax(`
+  input1:type "description",
+  input2:type "description" ->
+  output1:type "description",
+  output2:type "description"
+`);
+
+await signature.forward(ai, inputs);
+      </signature>
+      <path>@ax-llm/ax API</path>
+    </interface>
+    
+    <!-- ACE Optimizer Interface -->
+    <interface>
+      <name>AxACE</name>
+      <kind>Ax optimizer</kind>
+      <signature>
+class AxACE {
+  constructor(config: {
+    studentAI: AxAI;
+    teacherAI: AxAI;
+  }, options?: { initialPlaybook?: Playbook })
+  
+  async compile(program, examples, metric): Promise&lt;OptimizationResult&gt;
+  async applyOnlineUpdate(update: { example, prediction, feedback }): Promise&lt;CuratorDelta&gt;
+  getPlaybook(): Playbook
+}
+      </signature>
+      <path>@ax-llm/ax ACE optimizer</path>
+    </interface>
+    
+    <!-- Database: ACE Playbook Schema -->
+    <interface>
+      <name>AcePlaybook</name>
+      <kind>Database table</kind>
+      <signature>
+CREATE TABLE ace_playbooks (
+  id UUID PRIMARY KEY,
+  agent_id UUID REFERENCES agents(id),
+  scope TEXT DEFAULT 'global',
+  user_id UUID REFERENCES users(id),
+  project_id UUID REFERENCES projects(id),
+  playbook JSONB NOT NULL,
+  version INTEGER DEFAULT 1,
+  total_updates INTEGER DEFAULT 0,
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP
+);
+      </signature>
+      <path>Database schema - public.ace_playbooks</path>
+    </interface>
+    
+    <!-- Database: MiPRO Training Examples -->
+    <interface>
+      <name>MiproTrainingExample</name>
+      <kind>Database table</kind>
+      <signature>
+CREATE TABLE mipro_training_examples (
+  id UUID PRIMARY KEY,
+  side_effect_type TEXT NOT NULL,
+  input JSONB NOT NULL,
+  expected_output JSONB NOT NULL,
+  scorer_results JSONB,
+  created_at TIMESTAMP
+);
+      </signature>
+      <path>Database schema - public.mipro_training_examples</path>
+    </interface>
+    
+    <!-- tRPC Router Interface -->
+    <interface>
+      <name>WorkflowRouter</name>
+      <kind>tRPC router</kind>
+      <signature>
+export const workflowRouter = t.router({
+  startExecution: t.procedure
+    .input(z.object({ workflowId: z.string(), ... }))
+    .mutation(async ({ input, ctx }) => { ... }),
+  
+  submitStepInput: t.procedure
+    .input(z.object({ executionId: z.string(), userInput: z.unknown() }))
+    .mutation(async ({ input, ctx }) => { ... }),
+  
+  approveToolCall: t.procedure
+    .input(z.object({ executionId: z.string(), toolName: z.string() }))
+    .mutation(async ({ input, ctx }) => { ... }),
+  
+  rejectToolCall: t.procedure
+    .input(z.object({ executionId: z.string(), toolName: z.string(), feedback: z.string() }))
+    .mutation(async ({ input, ctx }) => { ... })
+});
+      </signature>
+      <path>packages/api/src/routers/workflows.ts</path>
+    </interface>
+  </interfaces>
+  <tests>
+    <standards>
+      <!-- Test Framework -->
+      <standard category="framework">
+        <rule>All tests MUST use Bun test framework (import from "bun:test")</rule>
+        <rule>Test files MUST be named *.test.ts or *.test.tsx</rule>
+        <rule>Run tests with: bun test (from project root)</rule>
+        <rule>Database tests require test-setup.ts import at top of file</rule>
+      </standard>
+      
+      <!-- Test Structure -->
+      <standard category="structure">
+        <rule>Use describe() blocks for grouping related tests</rule>
+        <rule>Use it() for individual test cases</rule>
+        <rule>Use beforeEach() for test setup, afterEach() for cleanup</rule>
+        <rule>Each test MUST be independent (no shared mutable state between tests)</rule>
+      </standard>
+      
+      <!-- Backend Testing Standards -->
+      <standard category="backend">
+        <rule>Step handlers MUST have unit tests validating config, execution, and output</rule>
+        <rule>Services MUST mock database calls using test database (DATABASE_URL env var)</rule>
+        <rule>API routers MUST test input validation, success cases, and error handling</rule>
+        <rule>Test database cleanup MUST happen in afterEach() to prevent pollution</rule>
+      </standard>
+      
+      <!-- Frontend Testing Standards -->
+      <standard category="frontend">
+        <rule>Component tests MUST use @testing-library/react with render, screen, userEvent</rule>
+        <rule>Mock functions MUST use mock() from "bun:test"</rule>
+        <rule>Use cleanup() in afterEach() to unmount components</rule>
+        <rule>Test user interactions with userEvent.setup() and await user.click/type</rule>
+        <rule>Verify rendered output with screen.getByRole, screen.getByText</rule>
+      </standard>
+      
+      <!-- Coverage Expectations -->
+      <standard category="coverage">
+        <rule>All new step handlers MUST have 80%+ code coverage</rule>
+        <rule>All new services MUST have unit tests for public methods</rule>
+        <rule>Critical paths (approval gates, ACE updates) MUST have integration tests</rule>
+        <rule>Edge cases (network errors, invalid inputs) MUST be tested</rule>
+      </standard>
+      
+      <!-- Test Data Patterns -->
+      <standard category="test-data">
+        <rule>Use consistent mock IDs: "test-execution-id", "test-workflow-id", "test-user-id"</rule>
+        <rule>Create minimal fixtures (don't over-specify test data)</rule>
+        <rule>Use descriptive test data names: "valid-project-name", "invalid-empty-string"</rule>
+        <rule>Mock ExecutionContext with all required fields: executionId, workflowId, projectId, userId, executionVariables, systemVariables</rule>
+      </standard>
+    </standards>
+    
+    <locations>
+      <!-- Backend Test Files (Story 1.6) -->
+      <location>
+        <path>packages/api/src/services/workflow-engine/step-handlers/ask-user-chat-handler.test.ts</path>
+        <purpose>Unit tests for AskUserChatStepHandler (chat initialization, tool execution, completion detection)</purpose>
+      </location>
+      
+      <location>
+        <path>packages/api/src/services/mastra/mastra-service.test.ts</path>
+        <purpose>Unit tests for Mastra service (agent initialization, thread management, message persistence)</purpose>
+      </location>
+      
+      <location>
+        <path>packages/api/src/services/mastra/ace-optimizer.test.ts</path>
+        <purpose>Unit tests for ACE optimizer service (playbook loading, online updates, version management)</purpose>
+      </location>
+      
+      <location>
+        <path>packages/api/src/services/mastra/mipro-collector.test.ts</path>
+        <purpose>Unit tests for MiPRO data collector (saving approved examples, scorer integration)</purpose>
+      </location>
+      
+      <location>
+        <path>packages/api/src/services/workflow-engine/tools/ax-generation-tool.test.ts</path>
+        <purpose>Unit tests for Ax generation tool builder (signature building, input resolution, approval gates)</purpose>
+      </location>
+      
+      <location>
+        <path>packages/api/src/services/workflow-engine/tools/database-query-tool.test.ts</path>
+        <purpose>Unit tests for database query tool (JSONB filtering, variable substitution, query execution)</purpose>
+      </location>
+      
+      <location>
+        <path>packages/api/src/services/workflow-engine/tools/custom/select-workflow-path-tool.test.ts</path>
+        <purpose>Unit tests for path selection custom tool</purpose>
+      </location>
+      
+      <location>
+        <path>packages/api/src/services/workflow-engine/tools/custom/generate-project-name-tool.test.ts</path>
+        <purpose>Unit tests for project name generation custom tool</purpose>
+      </location>
+      
+      <location>
+        <path>packages/api/src/routers/workflows.test.ts</path>
+        <purpose>Unit tests for workflow router (approveToolCall, rejectToolCall mutations with ACE integration)</purpose>
+      </location>
+      
+      <location>
+        <path>packages/api/src/routers/anthropic.test.ts</path>
+        <purpose>Unit tests for Anthropic API router (key encryption, validation, CRUD operations)</purpose>
+      </location>
+      
+      <!-- Frontend Test Files (Story 1.6) -->
+      <location>
+        <path>apps/web/src/components/workflows/steps/ask-user-chat-step.test.tsx</path>
+        <purpose>Component tests for AskUserChatStep (message sending, chat history, loading states)</purpose>
+      </location>
+      
+      <location>
+        <path>apps/web/src/components/workflows/approval-card.test.tsx</path>
+        <purpose>Component tests for approval card (approve/reject actions, feedback input)</purpose>
+      </location>
+      
+      <location>
+        <path>apps/web/src/components/workflows/path-selection-cards.test.tsx</path>
+        <purpose>Component tests for path selection UI (card rendering, selection action)</purpose>
+      </location>
+      
+      <location>
+        <path>apps/web/src/components/workflows/project-name-selector.test.tsx</path>
+        <purpose>Component tests for project name selector (suggestion selection, custom input validation)</purpose>
+      </location>
+      
+      <!-- Integration Test Files -->
+      <location>
+        <path>packages/api/src/services/workflow-engine/integration-step-3-4.test.ts</path>
+        <purpose>Integration test for Step 3-4 workflow flow (chat → summary approval → complexity classification → path fetch)</purpose>
+      </location>
+      
+      <!-- Database Seed Test Files -->
+      <location>
+        <path>packages/scripts/src/seeds/workflow-init-new.test.ts</path>
+        <purpose>Test Step 3 seeding with complete tool configuration</purpose>
+      </location>
+      
+      <location>
+        <path>packages/scripts/src/seeds/ace-playbooks.test.ts</path>
+        <purpose>Test initial ACE playbook seeding for PM Agent</purpose>
+      </location>
+    </locations>
+    
+    <ideas>
+      <!-- Unit Test Ideas: AskUserChatStepHandler -->
+      <idea category="ask-user-chat-handler">
+        <test>should initialize Mastra agent with PM Agent instructions + ACE playbook</test>
+        <test>should create Mastra thread on first message and save thread ID to variables</test>
+        <test>should build tools from config.tools array (ax-generation, database-query, custom types)</test>
+        <test>should resolve tool input sources (variable, context, literal) correctly</test>
+        <test>should trigger approval gate when tool has requiresApproval: true</test>
+        <test>should pause step execution and return requiresUserInput: true on approval gate</test>
+        <test>should resume execution after approval and continue with tool result</test>
+        <test>should detect completion when all required tools are approved</test>
+        <test>should extract output variables from tool results correctly</test>
+        <test>should validate requiredVariables before tool execution</test>
+        <test>should handle tool execution errors gracefully with error messages</test>
+      </idea>
+      
+      <!-- Unit Test Ideas: ACE Optimizer -->
+      <idea category="ace-optimizer">
+        <test>should load existing ACE playbook from database by agent_id and scope</test>
+        <test>should apply online update when user rejects tool output</test>
+        <test>should increment playbook version and totalUpdates on update</test>
+        <test>should format playbook as structured bullets for injection</test>
+        <test>should handle missing playbook gracefully (create new one)</test>
+        <test>should support global, user, and project scopes for playbooks</test>
+        <test>should save updated playbook to database after online learning</test>
+      </idea>
+      
+      <!-- Unit Test Ideas: Ax Generation Tool -->
+      <idea category="ax-generation-tool">
+        <test>should build Ax signature from config.axSignature specification</test>
+        <test>should resolve input fields from variable source (execution.variables)</test>
+        <test>should resolve input fields from context source (Mastra thread history)</test>
+        <test>should resolve input fields from literal source (static values)</test>
+        <test>should execute Ax signature with ChainOfThought strategy</test>
+        <test>should execute Ax signature with Predict strategy (no CoT)</test>
+        <test>should suspend execution on approval gate and save approval state</test>
+        <test>should inject ACE playbook into generation context</test>
+        <test>should validate requiredVariables exist before execution</test>
+        <test>should return structured output matching expected schema</test>
+      </idea>
+      
+      <!-- Unit Test Ideas: Database Query Tool -->
+      <idea category="database-query-tool">
+        <test>should execute SELECT query on workflow_paths table</test>
+        <test>should apply JSONB filter: tags->>'fieldType' = 'greenfield'</test>
+        <test>should substitute variables in filter values using {{variable}} syntax</test>
+        <test>should return query results as array in output variable</test>
+        <test>should handle empty result set gracefully</test>
+        <test>should validate table name against allowed tables</test>
+        <test>should handle database errors with clear messages</test>
+      </idea>
+      
+      <!-- Unit Test Ideas: Approval Flow -->
+      <idea category="approval-flow">
+        <test>should save approval state to workflow_executions.variables.approval_states</test>
+        <test>should include tool name, status, generated value, reasoning in approval state</test>
+        <test>should save approved output to mipro_training_examples with scorer results</test>
+        <test>should trigger ACE optimizer update on rejection with feedback</test>
+        <test>should regenerate tool output after ACE playbook update</test>
+        <test>should track rejection history in approval state for analysis</test>
+        <test>should mark workflow as paused when approval gate triggered</test>
+        <test>should resume workflow and change status to active after approval/rejection</test>
+      </idea>
+      
+      <!-- Integration Test Ideas -->
+      <idea category="integration">
+        <test>should complete Step 3 conversation → summary approval → complexity classification → path fetch flow</test>
+        <test>should persist conversation history in Mastra storage across page reloads</test>
+        <test>should update ACE playbook when user rejects summary with feedback</test>
+        <test>should save approved summary to mipro_training_examples for future optimization</test>
+        <test>should execute database query tool and return workflow paths filtered by complexity</test>
+        <test>should handle network errors during Anthropic API calls gracefully</test>
+      </idea>
+      
+      <!-- Frontend Component Test Ideas -->
+      <idea category="frontend-chat">
+        <test>should render chat interface with message bubbles</test>
+        <test>should display user messages aligned right (blue)</test>
+        <test>should display AI messages aligned left (gray)</test>
+        <test>should show typing indicator while agent generates response</test>
+        <test>should enable send button only when input has content</test>
+        <test>should clear input field after sending message</test>
+        <test>should scroll to bottom when new message arrives</test>
+        <test>should load conversation history on component mount</test>
+      </idea>
+      
+      <idea category="frontend-approval">
+        <test>should render approval card with generated content preview</test>
+        <test>should show reasoning in collapsible section</test>
+        <test>should enable Accept button immediately</test>
+        <test>should show feedback textarea when Reject button clicked</test>
+        <test>should disable Reject submit until feedback entered</test>
+        <test>should call approveToolCall mutation on Accept click</test>
+        <test>should call rejectToolCall mutation with feedback on Reject submit</test>
+        <test>should show loading state during approval/rejection</test>
+      </idea>
+      
+      <!-- NFR Test Ideas (Performance) -->
+      <idea category="performance">
+        <test>should complete chat turn in under 5 seconds (NFR001)</test>
+        <test>should render chat message within 100ms of receiving (NFR001)</test>
+        <test>should handle 50+ messages in thread without performance degradation</test>
+        <test>should cache ACE playbook to avoid repeated database queries</test>
+      </idea>
+      
+      <!-- Manual Testing Checklist -->
+      <idea category="manual">
+        <test>End-to-end: Start workflow-init → complete Step 3 chat → verify all tools approved → proceed to Step 4</test>
+        <test>Persistence: Reload page mid-conversation → verify chat history restored</test>
+        <test>Approval: Reject summary with feedback → verify ACE playbook updated → verify regenerated summary improved</test>
+        <test>Database: Verify workflow_paths query filters correctly by fieldType and complexity</test>
+        <test>Anthropic Config: Add API key in Settings → verify encryption → test validation → verify models listed</test>
+      </idea>
+    </ideas>
+  </tests>
+</story-context>
