@@ -50,7 +50,7 @@ function InitializePage() {
 			});
 		},
 		enabled: !!project?.initializedByExecutionId,
-		refetchInterval: false,
+		refetchInterval: 2000, // Poll for step transitions
 	});
 
 	// Get workflow details
@@ -275,17 +275,18 @@ function InitializePage() {
 						/>
 					)}
 
-					{displayStepData?.stepType === "ask-user-chat" &&
-						!isViewingHistory && (
-							<AskUserChatStep
-								executionId={execution.id}
-								stepConfig={displayStepData.config as any}
-								onComplete={() => {
-									// Refresh execution to get next step
-									refetchExecution();
-								}}
-							/>
-						)}
+					{displayStepData?.stepType === "ask-user-chat" && (
+						<AskUserChatStep
+							executionId={execution.id}
+							stepConfig={displayStepData.config as any}
+							stepGoal={displayStepData.goal}
+							readOnly={isViewingCompletedStep}
+							onComplete={() => {
+								// Refresh execution to get next step
+								refetchExecution();
+							}}
+						/>
+					)}
 
 					{displayStepData?.stepType === "ask-user" &&
 						isViewingCompletedStep && (

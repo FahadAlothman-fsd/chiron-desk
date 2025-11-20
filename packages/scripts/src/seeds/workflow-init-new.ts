@@ -58,63 +58,10 @@ export async function seedWorkflowInitNew() {
 		return;
 	}
 
-	// Step 1: Execute-Action (Field Type Detection)
-	const step1Config: ExecuteActionStepConfig = {
-		type: "execute-action",
-		actions: [
-			{
-				type: "set-variable",
-				config: {
-					variable: "detected_field_type",
-					value: "greenfield",
-				},
-			},
-		],
-		executionMode: "sequential",
-		requiresUserConfirmation: false, // Auto-execute variable setting
-	};
-
-	await db.insert(workflowSteps).values({
-		workflowId: workflow.id,
-		stepNumber: 1,
-		goal: "Set field type to greenfield",
-		stepType: "execute-action",
-		config: step1Config,
-		nextStepNumber: 2,
-	});
-
-	console.log("  ✓ Step 1: Set field type to greenfield");
-
-	// Step 2: Ask-User (Directory Selection)
-	const step2Config: AskUserStepConfig = {
-		type: "ask-user",
-		message: "Let's set up your project! Where would you like to create it?",
-		question: "Select your project directory",
-		responseType: "path",
-		responseVariable: "project_path",
-		pathConfig: {
-			selectMode: "directory",
-			mustExist: false, // Will create project dir later in Step 9
-		},
-		validation: {
-			required: true,
-		},
-	};
-
-	await db.insert(workflowSteps).values({
-		workflowId: workflow.id,
-		stepNumber: 2,
-		goal: "Get project directory location from user",
-		stepType: "ask-user",
-		config: step2Config,
-		nextStepNumber: 3, // Story 1.6: Continue to conversational chat
-	});
-
-	console.log("  ✓ Step 2: Get project directory location from user");
-
-	// Step 3: Ask-User-Chat (Conversational Project Initialization)
+	// Step 1: Ask-User-Chat (Conversational Project Initialization)
 	// Story 1.6: PM Agent (Athena) guides user through project setup
-	const step3Config: AskUserChatStepConfig = {
+	// Story 1.7: Added project naming and refactored to be Step 1
+	const step1Config: AskUserChatStepConfig = {
 		agentId: pmAgent.id,
 		initialMessage:
 			"Let's set up your new project! Tell me about what you're building - what problem are you solving for your users?",
@@ -137,12 +84,6 @@ export async function seedWorkflowInitNew() {
 							type: "string",
 							source: "context",
 							description: "Full conversation history with the user",
-						},
-						{
-							name: "ace_context",
-							type: "string",
-							source: "playbook",
-							description: "Learned patterns for generating summaries",
 						},
 					],
 					output: [
@@ -179,7 +120,7 @@ export async function seedWorkflowInitNew() {
 					table: "workflow_paths",
 					distinctField: "tags->'complexity'", // Get unique complexity tags
 					filterBy: {
-						"tags->'fieldType'->>'value'": "{{detected_field_type}}", // Filter by field type (greenfield/brownfield)
+						"tags->'fieldType'->>'value'": "greenfield", // Hardcoded greenfield per Story 1.7 AC 3
 					},
 					orderBy: "sequence_order", // Order by sequence
 					outputVariable: "complexity_options", // Store in execution.variables
@@ -217,12 +158,6 @@ export async function seedWorkflowInitNew() {
 							description:
 								"Available complexity levels with structured metadata (value, name, description)",
 						},
-						{
-							name: "ace_context",
-							type: "string",
-							source: "playbook",
-							description: "Learned patterns for complexity classification",
-						},
 					],
 					output: [
 						{
@@ -250,7 +185,7 @@ export async function seedWorkflowInitNew() {
 					"Present available workflow paths filtered by complexity and field type, allowing user to select the methodology that best fits their project",
 				usageGuidance:
 					"Call this tool IMMEDIATELY after complexity_classification is approved. Fetch matching workflow paths from the database and recommend the most appropriate one based on the project's complexity and requirements. Present all options to the user for selection.",
-				requiredVariables: ["complexity_classification", "detected_field_type"],
+				requiredVariables: ["complexity_classification"],
 				requiresApproval: true,
 				// Fetch available workflow paths from database
 				optionsSource: {
@@ -265,7 +200,7 @@ export async function seedWorkflowInitNew() {
 					], // Fetch full records
 					filterBy: {
 						"tags->'complexity'->>'value'": "{{complexity_classification}}", // Match selected complexity
-						"tags->'fieldType'->>'value'": "{{detected_field_type}}", // Match field type
+						"tags->'fieldType'->>'value'": "greenfield", // Hardcoded greenfield per Story 1.7 AC 3
 					},
 					orderBy: "sequence_order",
 					outputVariable: "workflow_path_options",
@@ -310,13 +245,6 @@ export async function seedWorkflowInitNew() {
 							description: "Selected complexity level",
 						},
 						{
-							name: "detected_field_type",
-							type: "string",
-							source: "variable",
-							variableName: "detected_field_type",
-							description: "Project field type (greenfield/brownfield)",
-						},
-						{
 							name: "workflow_path_options",
 							type: "json",
 							source: "variable",
@@ -337,12 +265,6 @@ export async function seedWorkflowInitNew() {
 							source: "context",
 							description: "Full conversation history",
 						},
-						{
-							name: "ace_context",
-							type: "string",
-							source: "playbook",
-							description: "Learned patterns for workflow path selection",
-						},
 					],
 					output: [
 						{
@@ -361,6 +283,52 @@ export async function seedWorkflowInitNew() {
 					strategy: "ChainOfThought",
 				},
 			},
+
+			// Tool 4: Generate/Approve Project Name (Story 1.7)
+			{
+				name: "update_project_name",
+				toolType: "ax-generation",
+				description:
+					"Suggest a project name based on the description and selected workflow path, and allow user to approve or edit it",
+				usageGuidance:
+					"Call this tool IMMEDIATELY after the workflow path is selected. Propose a project name that follows kebab-case conventions (lowercase, hyphens, no spaces). The user will have a chance to edit this name.",
+				requiredVariables: ["selected_workflow_path_id", "project_description"],
+				requiresApproval: true,
+				axSignature: {
+					input: [
+						{
+							name: "project_description",
+							type: "string",
+							source: "variable",
+							variableName: "project_description",
+							description: "Project summary",
+						},
+						{
+							name: "conversation_history",
+							type: "string",
+							source: "context",
+							description:
+								"Conversation history to pick up on user naming preferences",
+						},
+					],
+					output: [
+						{
+							name: "project_name",
+							type: "string",
+							description:
+								"Recommended project name (kebab-case, e.g. 'my-project-name')",
+							internal: false,
+						},
+						{
+							name: "reasoning",
+							type: "string",
+							description: "Why this name was chosen",
+							internal: true,
+						},
+					],
+					strategy: "ChainOfThought",
+				},
+			},
 		],
 
 		completionCondition: {
@@ -369,6 +337,7 @@ export async function seedWorkflowInitNew() {
 				"update_summary",
 				"update_complexity",
 				"select_workflow_path",
+				"update_project_name",
 			],
 		},
 
@@ -376,21 +345,50 @@ export async function seedWorkflowInitNew() {
 			project_description: "approval_states.update_summary.value",
 			complexity_classification: "approval_states.update_complexity.value",
 			selected_workflow_path_id: "approval_states.select_workflow_path.value",
+			project_name: "approval_states.update_project_name.value",
 		},
 	};
 
 	await db.insert(workflowSteps).values({
 		workflowId: workflow.id,
-		stepNumber: 3,
+		stepNumber: 1,
 		goal: "Conversational project initialization with AI-powered approval gates",
 		stepType: "ask-user-chat",
-		config: step3Config,
-		nextStepNumber: null, // Future: Step 4 will be added in later stories
+		config: step1Config,
+		nextStepNumber: 2,
 	});
 
-	console.log("  ✓ Step 3: Conversational project initialization (Athena)");
-	console.log(`    - ${step3Config.tools?.length || 0} tools configured`);
+	console.log("  ✓ Step 1: Conversational project initialization (Athena)");
+	console.log(`    - ${step1Config.tools?.length || 0} tools configured`);
 	console.log(
-		`    - Completion: ${step3Config.completionCondition.requiredTools?.length || 0} approvals required`,
+		`    - Completion: ${step1Config.completionCondition.requiredTools?.length || 0} approvals required`,
 	);
+
+	// Step 2: Ask-User (Directory Selection)
+	const step2Config: AskUserStepConfig = {
+		type: "ask-user",
+		message:
+			"Great! Now that we've defined your project, where should we create it?",
+		question: "Select your project directory",
+		responseType: "path",
+		responseVariable: "project_path",
+		pathConfig: {
+			selectMode: "directory",
+			mustExist: false, // Will create project dir later in Step 9
+		},
+		validation: {
+			required: true,
+		},
+	};
+
+	await db.insert(workflowSteps).values({
+		workflowId: workflow.id,
+		stepNumber: 2,
+		goal: "Get project directory location from user",
+		stepType: "ask-user",
+		config: step2Config,
+		nextStepNumber: null, // Future: Step 3 will be Create Project
+	});
+
+	console.log("  ✓ Step 2: Get project directory location from user");
 }

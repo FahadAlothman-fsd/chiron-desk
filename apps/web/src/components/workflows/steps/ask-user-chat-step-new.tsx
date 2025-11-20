@@ -104,7 +104,9 @@ interface AskUserChatStepProps {
 		initialMessage?: string;
 		tools?: ToolConfig[];
 	};
+	stepGoal?: string;
 	onComplete?: () => void;
+	readOnly?: boolean;
 }
 
 // Available models - actual models from OpenRouter
@@ -270,13 +272,13 @@ function parseMessageContent(content: string): ParsedContent {
 export function AskUserChatStepNew({
 	executionId,
 	stepConfig,
+	stepGoal,
 	onComplete,
+	readOnly = false,
 }: AskUserChatStepProps) {
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
-	// Default to Llama 3.3 70B (FREE, supports tool calling)
-	const [model, setModel] = useState<string>(
-		"openrouter:meta-llama/llama-3.3-70b-instruct:free",
-	);
+	// Default to GPT OSS 120B
+	const [model, setModel] = useState<string>("openrouter:openai/gpt-oss-120b");
 	const [modelSelectorOpen, setModelSelectorOpen] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);
 
@@ -510,17 +512,34 @@ export function AskUserChatStepNew({
 										const state = item.state;
 										// Render custom card for generate_project_name
 
-										if (toolName === "generate_project_name") {
+										if (toolName === "update_project_name") {
 											const nameData = state.value as {
 												suggestions?: any[];
+												project_name?: string;
+												reasoning?: string;
 											};
+
+											// Construct suggestions from single output if suggestions array is missing
+											const suggestions =
+												nameData.suggestions ||
+												(nameData.project_name
+													? [
+															{
+																name: nameData.project_name,
+																reasoning:
+																	nameData.reasoning || "AI suggested name",
+																recommended: true,
+															},
+														]
+													: []);
+
 											return (
 												<div key={`approval-${toolName}`} className="my-4">
 													<ProjectNameSelectorCard
 														executionId={executionId}
 														agentId={stepConfig.agentId}
 														toolName={toolName}
-														suggestions={nameData.suggestions || []}
+														suggestions={suggestions}
 														isApproved={state.status === "approved"}
 													/>
 												</div>
@@ -596,86 +615,92 @@ export function AskUserChatStepNew({
 					<ConversationScrollButton />
 				</Conversation>
 
-				{/* Input Area */}
-				<div className="border-t pt-4">
-					<PromptInput onSubmit={handleSubmit} className="max-w-full">
-						<PromptInputBody>
-							<PromptInputTextarea
-								placeholder="Type your message... (Shift+Enter for new line)"
-								disabled={isLoading}
-							/>
-						</PromptInputBody>
-						<PromptInputFooter>
-							<PromptInputTools>
-								{/* Model Selector */}
-								<ModelSelector
-									onOpenChange={setModelSelectorOpen}
-									open={modelSelectorOpen}
-								>
-									<ModelSelectorTrigger asChild>
-										<PromptInputButton variant="ghost" size="sm">
-											{selectedModelData?.name && (
-												<ModelSelectorName>
-													{selectedModelData.name}
-												</ModelSelectorName>
-											)}
-										</PromptInputButton>
-									</ModelSelectorTrigger>
-									<ModelSelectorContent>
-										<ModelSelectorInput placeholder="Search models..." />
-										<ModelSelectorList>
-											<ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
-											{[
-												"Anthropic",
-												"OpenAI",
-												"Google",
-												"Meta",
-												"Nous Research",
-											].map((chef) => {
-												const chefModels = models.filter(
-													(m) => m.chef === chef,
-												);
-												if (chefModels.length === 0) return null;
+				{/* Input Area - Hide when read-only */}
+				{!readOnly && (
+					<div className="border-t pt-4">
+						<PromptInput onSubmit={handleSubmit} className="max-w-full">
+							<PromptInputBody>
+								<PromptInputTextarea
+									placeholder="Type your message... (Shift+Enter for new line)"
+									disabled={isLoading}
+								/>
+							</PromptInputBody>
+							<PromptInputFooter>
+								<PromptInputTools>
+									{/* Model Selector */}
+									<ModelSelector
+										onOpenChange={setModelSelectorOpen}
+										open={modelSelectorOpen}
+									>
+										<ModelSelectorTrigger asChild>
+											<PromptInputButton variant="ghost" size="sm">
+												{selectedModelData?.name && (
+													<ModelSelectorName>
+														{selectedModelData.name}
+													</ModelSelectorName>
+												)}
+											</PromptInputButton>
+										</ModelSelectorTrigger>
+										<ModelSelectorContent>
+											<ModelSelectorInput placeholder="Search models..." />
+											<ModelSelectorList>
+												<ModelSelectorEmpty>
+													No models found.
+												</ModelSelectorEmpty>
+												{[
+													"Anthropic",
+													"OpenAI",
+													"Google",
+													"Meta",
+													"Nous Research",
+												].map((chef) => {
+													const chefModels = models.filter(
+														(m) => m.chef === chef,
+													);
+													if (chefModels.length === 0) return null;
 
-												return (
-													<ModelSelectorGroup key={chef} heading={chef}>
-														{chefModels.map((m) => (
-															<ModelSelectorItem
-																key={m.id}
-																onSelect={() => {
-																	setModel(m.id);
-																	setModelSelectorOpen(false);
-																}}
-																value={m.id}
-															>
-																<ModelSelectorName>{m.name}</ModelSelectorName>
-																{model === m.id ? (
-																	<CheckIcon className="ml-auto size-4" />
-																) : (
-																	<div className="ml-auto size-4" />
-																)}
-															</ModelSelectorItem>
-														))}
-													</ModelSelectorGroup>
-												);
-											})}
-										</ModelSelectorList>
-									</ModelSelectorContent>
-								</ModelSelector>
+													return (
+														<ModelSelectorGroup key={chef} heading={chef}>
+															{chefModels.map((m) => (
+																<ModelSelectorItem
+																	key={m.id}
+																	onSelect={() => {
+																		setModel(m.id);
+																		setModelSelectorOpen(false);
+																	}}
+																	value={m.id}
+																>
+																	<ModelSelectorName>
+																		{m.name}
+																	</ModelSelectorName>
+																	{model === m.id ? (
+																		<CheckIcon className="ml-auto size-4" />
+																	) : (
+																		<div className="ml-auto size-4" />
+																	)}
+																</ModelSelectorItem>
+															))}
+														</ModelSelectorGroup>
+													);
+												})}
+											</ModelSelectorList>
+										</ModelSelectorContent>
+									</ModelSelector>
 
-								{/* Agent Info */}
-								<div className="ml-auto flex items-center gap-2 text-muted-foreground text-xs">
-									<Sparkles className="size-3" />
-									<span>Athena</span>
-								</div>
-							</PromptInputTools>
-							<PromptInputSubmit
-								disabled={isLoading}
-								status={isLoading ? "streaming" : "ready"}
-							/>
-						</PromptInputFooter>
-					</PromptInput>
-				</div>
+									{/* Agent Info */}
+									<div className="ml-auto flex items-center gap-2 text-muted-foreground text-xs">
+										<Sparkles className="size-3" />
+										<span>Athena</span>
+									</div>
+								</PromptInputTools>
+								<PromptInputSubmit
+									disabled={isLoading}
+									status={isLoading ? "streaming" : "ready"}
+								/>
+							</PromptInputFooter>
+						</PromptInput>
+					</div>
+				)}
 			</div>
 
 			{/* Tool Status Sidebar with Accordion */}
@@ -689,6 +714,7 @@ export function AskUserChatStepNew({
 						}
 						executionId={executionId}
 						agentId={stepConfig.agentId}
+						stepGoal={stepGoal}
 						className="h-full overflow-y-auto"
 					/>
 				</div>

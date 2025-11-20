@@ -64,9 +64,7 @@ export function AskUserChatStep({
 	const [inputValue, setInputValue] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
 	const [_selectedAgent, _setSelectedAgent] = useState(stepConfig.agentId);
-	const [selectedModel, _setSelectedModel] = useState(
-		"claude-sonnet-4-20250514",
-	);
+	const [selectedModel, _setSelectedModel] = useState("openai/gpt-oss-120b");
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 
 	// Auto-scroll to bottom when new messages arrive

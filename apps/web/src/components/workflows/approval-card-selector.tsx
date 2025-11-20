@@ -153,9 +153,14 @@ export function ApprovalCardSelector({
 		// This ensures we use the correct output field (e.g., complexity_classification)
 		// and not internal fields like "reasoning"
 		const outputFieldKey = Object.keys(generatedValue).find((key) =>
-			availableOptions.some(
-				(opt) => opt.value === (generatedValue[key] as string),
-			),
+			availableOptions.some((opt) => {
+				// Use displayConfig to get the option's value field if configured
+				const optValue = displayConfig
+					? getValueByPath(opt, displayConfig.fields.value)
+					: (opt as any).value;
+
+				return optValue === (generatedValue[key] as string);
+			}),
 		);
 
 		if (!outputFieldKey) {
