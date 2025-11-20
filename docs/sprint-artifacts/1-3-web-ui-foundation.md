@@ -1557,10 +1557,10 @@ The following features were **added during implementation** as architectural imp
 
 - ✅ **UI Enhancement - OpenRouter Direct API Integration (2025-11-08):**
   - **Discovery:** models.dev API only has 7 OpenRouter models vs OpenRouter's actual 341 models
-  - **Solution:** Switched to OpenRouter's official public API endpoint (`/api/v1/models`)
+  - **Solution:** Switched to OpenRouter's official API endpoint (`/api/v1/models`) using each user's configured API key
   - **Backend Changes:**
-    - Created `fetchModelsFromOpenRouter()` function parsing all 341+ models
-    - New `listFromOpenRouter` tRPC endpoint (no API key required)
+    - Created `fetchModelsFromOpenRouter()` function parsing all 341+ models (later replaced by authenticated provider integration)
+    - Added authenticated `models.list` tRPC endpoint that decrypts the user's OpenRouter key and fetches their available models
     - Enhanced Model interface with toolCall, reasoning, modalities, releaseDate fields
     - Improved reasoning detection (checks `supported_parameters` + pricing)
   - **Frontend Changes:**
@@ -1632,10 +1632,10 @@ apps/web/src/index.css (Commit Mono fonts + CARBON green accent)
 apps/web/package.json (added @tanstack/react-table)
 apps/web/src/components/models/columns.tsx (13 columns, tooltips, Type icon for text)
 apps/web/src/components/models/data-table.tsx (compact styling)
-apps/web/src/components/ui/badge.tsx (shadcn - NEW)
 packages/api/src/routers/index.ts (added models & settings routers)
-packages/api/src/routers/models.ts (added listFromOpenRouter endpoint)
+packages/api/src/routers/models.ts (authenticated models.list endpoint using user key)
 packages/api/src/routers/projects.ts (added list procedure)
+
 packages/api/src/services/models.ts (OpenRouter direct API + enhanced fields)
 packages/api/tsdown.config.ts (test file exclusion)
 packages/db/src/index.ts (export eq, and, or, sql)

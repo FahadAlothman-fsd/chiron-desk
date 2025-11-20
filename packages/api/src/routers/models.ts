@@ -2,7 +2,6 @@ import { db } from "@chiron/db";
 import { protectedProcedure, router } from "../index";
 import { decrypt } from "../services/encryption";
 import {
-	fetchModelsFromOpenRouter,
 	formatContextLength,
 	formatPrice,
 	getProvider,
@@ -45,28 +44,6 @@ export const modelsRouter = router({
 			};
 		} catch (error) {
 			console.error("Failed to fetch models:", error);
-			return { models: [] };
-		}
-	}),
-
-	/**
-	 * List all models from OpenRouter public API
-	 * No API key required - shows all 341+ models for browsing
-	 */
-	listFromOpenRouter: protectedProcedure.query(async () => {
-		try {
-			const models = await fetchModelsFromOpenRouter();
-
-			// Format models for frontend display
-			return {
-				models: models.map((model) => ({
-					...model,
-					contextLengthFormatted: formatContextLength(model.contextLength),
-					priceFormatted: formatPrice(model.inputPrice, model.outputPrice),
-				})),
-			};
-		} catch (error) {
-			console.error("Failed to fetch from OpenRouter:", error);
 			return { models: [] };
 		}
 	}),

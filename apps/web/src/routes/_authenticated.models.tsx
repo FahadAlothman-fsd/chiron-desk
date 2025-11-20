@@ -1,5 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { ModelsDataTable } from "@/components/models/data-table";
 import { trpc } from "@/utils/trpc";
@@ -9,8 +8,7 @@ export const Route = createFileRoute("/_authenticated/models")({
 });
 
 function ModelsPage() {
-	// Use OpenRouter public API for all 341+ models (no API key needed)
-	const modelsQuery = useQuery(trpc.models.listFromOpenRouter.queryOptions());
+	const modelsQuery = trpc.models.list.useQuery();
 
 	if (modelsQuery.isLoading) {
 		return (
@@ -45,11 +43,18 @@ function ModelsPage() {
 		return (
 			<div className="container mx-auto max-w-6xl">
 				<div className="flex min-h-[400px] flex-col items-center justify-center rounded-lg border border-dashed p-8 text-center">
-					<div className="space-y-2">
+					<div className="space-y-3">
 						<h3 className="font-semibold text-xl">No Models Available</h3>
 						<p className="text-muted-foreground text-sm">
-							Failed to load models from OpenRouter. Please try again later.
+							Add your OpenRouter API key under Settings to list the models your
+							account can access.
 						</p>
+						<Link
+							to="/settings"
+							className="text-sm font-medium text-primary underline"
+						>
+							Go to Settings
+						</Link>
 					</div>
 				</div>
 			</div>
