@@ -149,7 +149,6 @@ export const agentsRouter = router({
 				step_objective: stepObjective,
 				// Add calculated values
 				tools_list: toolsListStr,
-				ace_playbook_content: "(ACE Playbook content injected at runtime)",
 				workflow_specific_instructions: "", // Empty by default as per handler
 			};
 

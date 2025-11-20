@@ -50,10 +50,6 @@ const CORE_AGENTS = [
   <available_tools>
     {{tools_list}}
   </available_tools>
-  
-  <learned_patterns>
-    {{ace_playbook_content}}
-  </learned_patterns>
 </agent>
 		`.trim(),
 	},
