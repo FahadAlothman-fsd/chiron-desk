@@ -53,7 +53,13 @@ development_status:
   # See: /docs/sprint-artifacts/1-6-workflow-init-steps-3-4-description-complexity.md (Final Implementation Summary)
   # Archived Handoffs: /docs/archive/story-1-6-handoffs/
   1-6-workflow-init-steps-3-4-description-complexity: done
-  1-7-workflow-init-refactor-and-naming: in-progress
+  
+  # Story 1.7: Workflow-Init Refactor & Project Naming (COMPLETED 2025-11-20)
+  # Delivered: Refactored step order, custom project naming tool, kebab-case validation
+  # Bug Fixes: Tool name mismatch fix, models page authentication fix
+  # Status: AI review approved, all AC verified
+  # See: /docs/sprint-artifacts/1-7-workflow-init-refactor-and-naming.md (AI Review Approved)
+  1-7-workflow-init-refactor-and-naming: review
   1-8-project-creation-and-confirmation: drafted
   epic-1-retrospective: optional
 
