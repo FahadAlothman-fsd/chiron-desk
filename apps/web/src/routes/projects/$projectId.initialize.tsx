@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { WorkflowStepperWizard } from "@/components/workflows/steppers/wizard/workflow-stepper-wizard";
-import { AskUserChatStepNew as AskUserChatStep } from "@/components/workflows/steps/ask-user-chat-step-new";
+import { AskUserChatStep } from "@/components/workflows/steps/ask-user-chat-step";
 import { AskUserStep } from "@/components/workflows/steps/ask-user-step";
 import { ExecuteActionStep } from "@/components/workflows/steps/execute-action-step";
 import type { WorkflowStepDefinition } from "@/components/workflows/types";

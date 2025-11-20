@@ -85,6 +85,12 @@ All previous findings have been resolved. The critical integration bug preventin
 - **Dependency Chain Restored:** The `select_workflow_path` tool now correctly triggers after complexity approval, unblocking the full workflow.
 - **Robust Tool Output Handling:** Added a fallback in the UI to construct the suggestions array from individual `project_name` and `reasoning` fields if the array is missing, preventing UI crashes from malformed LLM responses.
 
+### Final Code Polish (Refactoring)
+
+- **File Renaming:** `ask-user-chat-step-new.tsx` has been renamed to `ask-user-chat-step.tsx` to remove the temporary suffix.
+- **Imports Updated:** All references in `initialize.tsx` have been updated to point to the new file name.
+- **Verification:** Playwright tests confirmed the renamed component functions identically, with chat history, user input, and tool approval cards rendering correctly.
+
 ### Acceptance Criteria Coverage
 
 | AC# | Description | Status | Evidence |

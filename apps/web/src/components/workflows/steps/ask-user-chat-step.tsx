@@ -269,7 +269,7 @@ function parseMessageContent(content: string): ParsedContent {
 	}
 }
 
-export function AskUserChatStepNew({
+export function AskUserChatStep({
 	executionId,
 	stepConfig,
 	stepGoal,
@@ -510,7 +510,7 @@ export function AskUserChatStepNew({
 									if (item.type === "approval") {
 										const toolName = item.toolName;
 										const state = item.state;
-										// Render custom card for generate_project_name
+										// Render custom card for update_project_name
 
 										if (toolName === "update_project_name") {
 											const nameData = state.value as {
