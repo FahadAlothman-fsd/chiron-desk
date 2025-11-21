@@ -1,53 +1,61 @@
-# Story 1.8: Project Creation & Confirmation
+# Story 1.8: Project Initialization & Confirmation
 
 Status: drafted
 
 ## Story
 
 As a User,
-I want the system to physically create the project files and database records based on my approved choices,
-so that I can start working on my new project immediately.
+I want the system to initialize the selected directory as a Chiron project (Git + Database),
+so that I can start working immediately without the system trying to overwrite or delete my existing folders.
 
 ## Acceptance Criteria
 
-1. A new Step 3 "Project Creation" (`execute-action`) is implemented.
-2. The creation step performs filesystem operations (mkdir), git initialization, and database insertion.
-3. A rollback mechanism cleans up the directory if any part of the creation process fails.
-4. A new Step 4 "Success Display" (`display-output`) shows a celebratory message.
-5. A project creation API (or internal service method) handles the heavy lifting.
-6. The full workflow from "Select Directory" to "Success" works end-to-end.
+1. A new Step 3 "Project Initialization" (`execute-action`) is implemented.
+2. **Pre-flight Check:** The system verifies that `git` is installed and accessible in the system environment before attempting operations.
+3. The initialization step performs:
+    - **Git Initialization**: Runs `git init` (idempotent).
+    - **Database Update**: Updates the **existing** project record with the finalized details (path, name, etc.).
+4. **Configurable Mapping**: The `database` action configuration must explicitly map:
+    - **Values to Set**: Workflow Variables to Database Columns (e.g., `name: "{{project_name}}"`, `path: "{{project_path}}"`).
+    - **Where Clause**: Match the record using the system variable (e.g., `id: "{{project_id}}"`).
+5. **Safety First**: The system **must not** delete the project directory on failure.
+6. A new Step 4 "Success Display" (`display-output`) shows a celebratory message.
+7. The `initializedByExecutionId` field is **NOT** required/used.
 
 ## Tasks / Subtasks
 
-- [ ] Implement Step 3: Project Creation (AC: 1, 2, 3)
-  - [ ] Seed `execute-action` step
-  - [ ] Implement `file` action (mkdir recursive)
-  - [ ] Implement `git` action (`git init`)
-  - [ ] Implement `database` action (insert `projects` record)
-  - [ ] Ensure rollback logic is robust
-- [ ] Implement Step 4: Success Display (AC: 4)
-  - [ ] Seed `display-output` step with celebratory markdown template
-  - [ ] Add "Go to Project" navigation button configuration
-- [ ] Project Creation Logic (AC: 5)
-  - [ ] Implement backend logic for project creation (ensure `node:fs` and `simple-git` are used correctly)
-  - [ ] Ensure `userId` and `workflowPathId` are correctly passed from execution variables
-- [ ] End-to-End Validation (AC: 6)
-  - [ ] Verify directory creation
-  - [ ] Verify git repo existence
-  - [ ] Verify database record
-  - [ ] Verify success screen display
+- [x] Implement Step 3: Project Initialization (AC: 1, 3, 4, 5, 7)
+  - [x] Seed `execute-action` step
+  - [x] Implement `git` action (`git init`)
+  - [x] Implement `database` action with **generic update logic**:
+    - Read `action.payload.operation = "update"`.
+    - Read `action.payload.columns` (fields to set).
+    - Read `action.payload.where` (e.g., `{ id: "{{project_id}}" }`).
+    - Resolve `{{variables}}` in both columns and where clause.
+    - Perform UPDATE on `projects` table.
+  - [x] Remove `initializedByExecutionId` logic.
+- [x] Implement Git Availability Check (AC: 2)
+  - [x] Create `isGitInstalled()` helper.
+  - [x] Fail gracefully if missing.
+- [x] Implement Step 4: Success Display (AC: 6)
+  - [x] Seed `display-output` step.
+- [x] End-to-End Validation
+  - [x] Verify Git init.
+  - [x] Verify DB record is UPDATED (not inserted) correctly.
 
 ## Dev Notes
 
-- **Architecture:** This is the "Act" phase of the workflow. It consumes the variables set in Steps 1 and 2 (`project_path`, `project_name`, `selected_workflow_path_id`).
-- **Security:** Ensure that the `project_path` + `project_name` doesn't overwrite existing important system directories (though the `mkdir` check should handle this).
-- **Variables:** Access variables using the Handlebars syntax `{{variable_name}}`.
-- **API:** You may need to create a new internal service method `createProject` in `packages/api/src/services/project.ts` if it doesn't exist, or handle it directly in the `ExecuteAction` handler extensions.
+- **Architecture:** This is the "Act" phase. It consumes `project_path` and `project_name`.
+- **Safety:** Treat the file system as "User Land". Do not perform destructive deletes on the project folder.
+- **Git:** Use `simple-git`. `git.init()` is safe to run on existing repos.
+- **API Key Configuration:** Step 1 (ask-user-chat) uses `ax-generation` tools which require OpenRouter API key. The key is loaded from:
+  1. User's encrypted config in database (`appConfig.openrouterApiKey`)
+  2. Fallback to environment variable: `OPENROUTER_API_KEY` (defined in `apps/server/.env`)
 
 ### Project Structure Notes
 
 - `packages/scripts/src/seeds/workflow-init-new.ts`
-- `packages/api/src/services/workflow-engine/step-handlers/execute-action-handler.ts` (may need extension for `git` and `file` actions if not fully implemented in Story 1.8 scope previously).
+- `packages/api/src/services/workflow-engine/step-handlers/execute-action-handler.ts`
 
 ### References
 
@@ -58,7 +66,7 @@ so that I can start working on my new project immediately.
 
 ### Context Reference
 
-<!-- Path(s) to story context XML will be added here by context workflow -->
+[Context File](1-8-project-creation-and-confirmation.context.xml)
 
 ### Agent Model Used
 
@@ -68,4 +76,19 @@ Claude-3-5-Sonnet
 
 ### Completion Notes List
 
+- ✅ Implemented `execute-action` handler enhancements for `git` and `database` operations.
+- ✅ Added `simple-git` dependency to `@chiron/api`.
+- ✅ Implemented automatic `git init` and database record update in Step 3 of `workflow-init-new`.
+- ✅ Added Step 4 "Success Display" to `workflow-init-new`.
+- ✅ Removed legacy `initializedByExecutionId` logic from project creation endpoints.
+- ✅ Verified implementation with new unit tests in `execute-action-handler.test.ts` covering git initialization and database updates.
+- ✅ Fixed missing `OPENROUTER_API_KEY` in `apps/server/.env.example` for ax-generation tool API calls.
+
 ### File List
+
+- packages/api/package.json
+- packages/api/src/services/workflow-engine/step-handlers/execute-action-handler.ts
+- packages/api/src/services/workflow-engine/step-handlers/execute-action-handler.test.ts
+- packages/api/src/routers/projects.ts
+- packages/scripts/src/seeds/workflow-init-new.ts
+- packages/db/src/schema/step-configs.ts
