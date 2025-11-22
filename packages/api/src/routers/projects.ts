@@ -323,14 +323,11 @@ export const projectsRouter = router({
 					projectId: newProject.id,
 				});
 
-				// Update project with execution ID (CRITICAL FIX: Bug #3)
-				await db
-					.update(projects)
-					.set({ initializedByExecutionId: executionId })
-					.where(eq(projects.id, newProject.id));
+				// Story 1.8: No longer storing initializedByExecutionId in projects table (AC 7)
+				// The execution ID is tracked in workflow_executions table instead
 
 				return {
-					project: { ...newProject, initializedByExecutionId: executionId },
+					project: newProject,
 					executionId: executionId,
 				};
 			} catch (error) {
@@ -408,7 +405,6 @@ export const projectsRouter = router({
 					.update(projects)
 					.set({
 						initializerWorkflowId: input.initializerWorkflowId,
-						initializedByExecutionId: execution.id,
 					})
 					.where(eq(projects.id, input.projectId))
 					.returning();
