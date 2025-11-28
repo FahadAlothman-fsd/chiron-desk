@@ -1,15 +1,28 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { db, workflows } from "@chiron/db";
+import {
+	db,
+	type WorkflowMetadata,
+	type WorkflowTags,
+	workflows,
+} from "@chiron/db";
 import yaml from "js-yaml";
 
-// Agent-Workflow Mapping Strategy (from story dev notes)
+/**
+ * Story 2.1: Updated workflow seed to use tags/metadata JSONB fields
+ *
+ * Agent mapping is now stored in metadata.agentId instead of agentId column
+ * Workflow categorization uses tags JSONB (phase, type, track, module)
+ */
+
+// Agent-Workflow Mapping Strategy (now stored in metadata.agentId)
 const AGENT_WORKFLOW_MAP: Record<string, string> = {
 	// Analyst workflows
 	"product-brief": "analyst",
 	"brainstorm-project": "analyst",
 	research: "analyst",
-	"workflow-init": "analyst", // Added based on workflow-status
+	"workflow-init": "analyst",
+	brainstorming: "analyst",
 
 	// PM workflows
 	prd: "pm",
@@ -47,31 +60,104 @@ const AGENT_WORKFLOW_MAP: Record<string, string> = {
 	"innovation-strategy": "analyst",
 	"problem-solving": "analyst",
 	storytelling: "analyst",
-	brainstorming: "analyst",
 };
 
-// Pattern Detection Heuristics (from story dev notes)
-function detectPattern(workflowName: string): string {
+/**
+ * Detect workflow phase based on BMAD methodology
+ * Phase 0 = Discovery, 1 = Analysis, 2 = Planning, 3 = Solutioning, 4 = Implementation
+ */
+function detectPhase(workflowName: string): string {
 	const name = workflowName.toLowerCase();
 
-	if (name.includes("brainstorm") || name.includes("design-thinking")) {
-		return "structured-exploration";
-	}
-
-	if (name.includes("review") || name.includes("validate")) {
-		return "focused-dialogs";
-	}
-
+	// Phase 0: Discovery workflows
 	if (
-		name.includes("planning") ||
-		name.includes("sprint") ||
-		name.includes("parallel")
+		name.includes("brainstorm") ||
+		name.includes("research") ||
+		name.includes("product-brief")
 	) {
-		return "parallel-independence";
+		return "0";
 	}
 
-	// Default pattern
-	return "sequential-dependencies";
+	// Phase 1: Analysis workflows
+	if (name.includes("prd") || name.includes("validate")) {
+		return "1";
+	}
+
+	// Phase 2: Planning workflows
+	if (
+		name.includes("architecture") ||
+		name.includes("tech-spec") ||
+		name.includes("ux-design")
+	) {
+		return "2";
+	}
+
+	// Phase 3: Solutioning workflows
+	if (
+		name.includes("story") ||
+		name.includes("sprint") ||
+		name.includes("epic")
+	) {
+		return "3";
+	}
+
+	// Phase 4: Implementation workflows
+	if (
+		name.includes("dev") ||
+		name.includes("code") ||
+		name.includes("review")
+	) {
+		return "4";
+	}
+
+	// Default to phase 0
+	return "0";
+}
+
+/**
+ * Detect workflow type (method, technique, utility, initializer)
+ */
+function detectType(workflowName: string, _isStandalone?: boolean): string {
+	const name = workflowName.toLowerCase();
+
+	// Initializer workflows
+	if (name.includes("workflow-init") || name.includes("init")) {
+		return "initializer";
+	}
+
+	// Technique workflows (sub-workflows used within methods)
+	if (
+		name.includes("scamper") ||
+		name.includes("six-hats") ||
+		name.includes("technique")
+	) {
+		return "technique";
+	}
+
+	// Utility workflows (standalone tools)
+	if (
+		name.includes("validate") ||
+		name.includes("review") ||
+		name.includes("status")
+	) {
+		return "utility";
+	}
+
+	// Default to method (main workflow type)
+	return "method";
+}
+
+/**
+ * Detect module origin (bmm, cis, custom)
+ */
+function detectModule(filePath: string): string {
+	if (filePath.includes("/cis/")) {
+		return "cis";
+	}
+	if (filePath.includes("/bmm/")) {
+		return "bmm";
+	}
+	return "custom";
 }
 
 // Convert workflow name to display name
@@ -165,22 +251,44 @@ export async function seedWorkflows() {
 				continue;
 			}
 
-			// Determine pattern
-			const pattern = detectPattern(workflowName);
+			// Story 2.1: Build tags JSONB
+			const tags: WorkflowTags = {
+				phase: detectPhase(workflowName),
+				type: detectType(workflowName, data.standalone),
+				module: detectModule(filePath),
+			};
 
-			// Insert workflow
+			// Add track for initializer workflows
+			if (tags.type === "initializer") {
+				// Default to greenfield for new-project workflow-init
+				tags.track = workflowName.includes("existing")
+					? "brownfield"
+					: "greenfield";
+			}
+
+			// Story 2.1: Build metadata JSONB
+			const metadata: WorkflowMetadata = {
+				agentId, // Migrated from column
+				isStandalone: data.standalone ?? true, // Migrated from column
+				requiresProjectContext: !data.standalone, // Migrated from column
+			};
+
+			// Insert workflow with new schema
 			await db
 				.insert(workflows)
 				.values({
 					name: workflowName,
 					displayName: toDisplayName(workflowName),
-					agentId,
-					pattern: pattern as any,
+					description: data.description || null,
+					tags,
+					metadata,
 					outputArtifactType: data.template ? "markdown" : null,
 				})
 				.onConflictDoNothing();
 
-			console.log(`  ✓ ${workflowName} (${agentName}, ${pattern})`);
+			console.log(
+				`  ✓ ${workflowName} (${agentName}, phase: ${tags.phase}, type: ${tags.type})`,
+			);
 			seededCount++;
 		} catch (error) {
 			console.error(`  ❌ Error processing ${filePath}:`, error);
@@ -191,4 +299,50 @@ export async function seedWorkflows() {
 	console.log(
 		`\n  📊 Seeded ${seededCount} workflows, skipped ${skippedCount}`,
 	);
+}
+
+/**
+ * Story 2.1: Seed brainstorming workflow specifically for Phase 0 Dashboard
+ * This ensures the brainstorming workflow is available with correct tags
+ */
+export async function seedBrainstormingWorkflow() {
+	console.log("  🧠 Seeding brainstorming workflow for Phase 0...");
+
+	// Get analyst agent ID
+	const agentId = await getAgentId("analyst");
+	if (!agentId) {
+		console.warn("  ⚠️  Analyst agent not found - skipping brainstorming seed");
+		return;
+	}
+
+	const tags: WorkflowTags = {
+		phase: "0", // Phase 0: Discovery
+		type: "method", // Primary workflow type
+		module: "cis", // Creative Innovation System
+	};
+
+	const metadata: WorkflowMetadata = {
+		agentId,
+		isStandalone: false, // Requires project context
+		requiresProjectContext: true,
+		icon: "brain", // Lucide icon
+		color: "#8B5CF6", // Purple color
+		estimatedDuration: "15-30 min",
+		recommendedFor: ["new-projects", "ideation", "discovery"],
+	};
+
+	await db
+		.insert(workflows)
+		.values({
+			name: "brainstorming",
+			displayName: "Brainstorming Session",
+			description:
+				"Kick off your project by defining the core topic, goals, and scope with AI assistance",
+			tags,
+			metadata,
+			outputArtifactType: "markdown",
+		})
+		.onConflictDoNothing();
+
+	console.log("  ✓ Brainstorming workflow seeded");
 }

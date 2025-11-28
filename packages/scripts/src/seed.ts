@@ -17,7 +17,9 @@ async function main() {
 	const { db } = await import("@chiron/db");
 	const { seedWorkflowPaths } = await import("./seeds/workflow-paths");
 	const { seedAgents } = await import("./seeds/agents");
-	const { seedWorkflows } = await import("./seeds/workflows");
+	const { seedWorkflows, seedBrainstormingWorkflow } = await import(
+		"./seeds/workflows"
+	);
 	const { seedWorkflowInitNew } = await import("./seeds/workflow-init-new");
 	const { seedUsers } = await import("./seeds/users");
 
@@ -41,6 +43,11 @@ async function main() {
 		console.log("\n🔄 Seeding workflows...");
 		await seedWorkflows();
 		console.log("✅ Workflows seeded");
+
+		// Story 2.1: Seed brainstorming workflow for Phase 0 Dashboard
+		console.log("\n🧠 Seeding brainstorming workflow...");
+		await seedBrainstormingWorkflow();
+		console.log("✅ Brainstorming workflow seeded");
 
 		// Seed workflow paths - MUST run after workflows are seeded!
 		console.log("\n📍 Seeding workflow paths...");
