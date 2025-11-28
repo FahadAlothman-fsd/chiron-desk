@@ -79,7 +79,7 @@ export function ProjectSwitcher() {
 						side={isMobile ? "bottom" : "right"}
 						sideOffset={4}
 					>
-						<DropdownMenuLabel className="px-2 text-xs text-muted-foreground">
+						<DropdownMenuLabel className="px-2 text-muted-foreground text-xs">
 							Projects
 						</DropdownMenuLabel>
 						{activeProjects.length === 0 ? (
@@ -100,7 +100,7 @@ export function ProjectSwitcher() {
 										<div className="truncate font-medium">{project.name}</div>
 										{project.path && (
 											<div
-												className="truncate text-xs text-muted-foreground"
+												className="truncate text-muted-foreground text-xs"
 												title={project.path}
 											>
 												{project.path.split("/").slice(-2).join("/")}
