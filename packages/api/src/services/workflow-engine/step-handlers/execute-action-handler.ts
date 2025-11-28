@@ -1,4 +1,8 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
 import type { ExecuteActionStepConfig, WorkflowStep } from "@chiron/db";
+import { db, eq, projects } from "@chiron/db";
+import simpleGit from "simple-git";
 import type { ExecutionContext } from "../execution-context";
 import type { StepHandler, StepResult } from "../step-handler";
 import { resolveVariables } from "../variable-resolver";
@@ -6,6 +10,8 @@ import { resolveVariables } from "../variable-resolver";
 /**
  * ExecuteActionStepHandler - Executes backend actions without user input
  * Supports set-variable, file, git, and database actions
+ *
+ * Story 1.8: Added git init and database update operations
  */
 export class ExecuteActionStepHandler implements StepHandler {
 	async executeStep(
@@ -70,22 +76,72 @@ export class ExecuteActionStepHandler implements StepHandler {
 
 		for (const action of actions) {
 			if (action.type === "set-variable") {
-				let resolvedValue = action.config.value;
+				let resolvedValue = (action as any).config.value;
 
 				// Only resolve if it's a string (might contain {{variables}})
-				if (typeof action.config.value === "string") {
-					resolvedValue = resolveVariables(action.config.value, context);
+				if (typeof (action as any).config.value === "string") {
+					resolvedValue = resolveVariables(
+						(action as any).config.value,
+						context,
+					);
 				}
 
 				resolved.push({
 					...action,
 					config: {
-						...action.config,
+						...(action as any).config,
 						value: resolvedValue,
 					},
 				});
+			} else if (action.type === "git") {
+				// Resolve directory path for git operations
+				const gitAction = action as any;
+				const resolvedPath = resolveVariables(gitAction.config?.path, context);
+				resolved.push({
+					...action,
+					config: {
+						...gitAction.config,
+						path: resolvedPath,
+					},
+				});
+			} else if (action.type === "database") {
+				// Resolve variables in database action columns and where clause
+				const dbAction = action as any;
+				const resolvedColumns: Record<string, unknown> = {};
+				const resolvedWhere: Record<string, unknown> = {};
+
+				// Resolve column values
+				if (dbAction.config?.columns) {
+					for (const [key, value] of Object.entries(dbAction.config.columns)) {
+						if (typeof value === "string") {
+							resolvedColumns[key] = resolveVariables(value, context);
+						} else {
+							resolvedColumns[key] = value;
+						}
+					}
+				}
+
+				// Resolve where clause values
+				if (dbAction.config?.where) {
+					for (const [key, value] of Object.entries(dbAction.config.where)) {
+						if (typeof value === "string") {
+							resolvedWhere[key] = resolveVariables(value, context);
+						} else {
+							resolvedWhere[key] = value;
+						}
+					}
+				}
+
+				resolved.push({
+					...action,
+					config: {
+						...dbAction.config,
+						columns: resolvedColumns,
+						where: resolvedWhere,
+					},
+				});
 			} else {
-				// For future action types (file, git, database)
+				// For future action types (file)
 				resolved.push(action);
 			}
 		}
@@ -145,16 +201,16 @@ export class ExecuteActionStepHandler implements StepHandler {
 	): Promise<Record<string, unknown>> {
 		switch (action.type) {
 			case "set-variable":
-				return this.executeSetVariable(action, context);
+				return this.executeSetVariable(action as any, context);
 
 			case "file":
 				throw new Error("File actions not implemented yet (future story)");
 
 			case "git":
-				throw new Error("Git actions not implemented yet (future story)");
+				return this.executeGitAction(action as any, context);
 
 			case "database":
-				throw new Error("Database actions not implemented yet (future story)");
+				return this.executeDatabaseAction(action as any, context);
 
 			default:
 				throw new Error(`Unknown action type: ${(action as any).type}`);
@@ -165,10 +221,7 @@ export class ExecuteActionStepHandler implements StepHandler {
 	 * Execute set-variable action
 	 */
 	private async executeSetVariable(
-		action: Extract<
-			ExecuteActionStepConfig["actions"][0],
-			{ type: "set-variable" }
-		>,
+		action: { type: "set-variable"; config: { variable: string; value: any } },
 		context: ExecutionContext,
 	): Promise<Record<string, unknown>> {
 		const { variable, value } = action.config;
@@ -186,11 +239,11 @@ export class ExecuteActionStepHandler implements StepHandler {
 	 * Set nested variable path (e.g., "metadata.complexity")
 	 */
 	private setNestedVariable(
-		path: string,
+		variablePath: string,
 		value: unknown,
 		context: ExecutionContext,
 	): Record<string, unknown> {
-		const keys = path.split(".");
+		const keys = variablePath.split(".");
 		const rootKey = keys[0];
 		const nestedPath = keys.slice(1);
 
@@ -212,5 +265,140 @@ export class ExecuteActionStepHandler implements StepHandler {
 		current[nestedPath[nestedPath.length - 1]] = value;
 
 		return { [rootKey]: existing };
+	}
+
+	/**
+	 * Story 1.8: Execute git action (git init)
+	 */
+	private async executeGitAction(
+		action: {
+			type: "git";
+			config: { operation: string; path: string };
+		},
+		_context: ExecutionContext,
+	): Promise<Record<string, unknown>> {
+		const { operation, path: projectPath } = action.config;
+
+		// Pre-flight check: Verify git is installed
+		const gitInstalled = await this.isGitInstalled();
+		if (!gitInstalled) {
+			throw new Error(
+				"Git is not installed or not accessible. Please install git and try again.",
+			);
+		}
+
+		switch (operation) {
+			case "init": {
+				// Create directory if it doesn't exist
+				if (!fs.existsSync(projectPath)) {
+					await fs.promises.mkdir(projectPath, { recursive: true });
+					console.log(
+						`[ExecuteActionHandler] Created directory: ${projectPath}`,
+					);
+				}
+
+				// Initialize git repository (idempotent - safe to run on existing repos)
+				const git = simpleGit(projectPath);
+				await git.init();
+				console.log(
+					`[ExecuteActionHandler] Git initialized at: ${projectPath}`,
+				);
+
+				return {
+					git_initialized: true,
+					git_path: projectPath,
+				};
+			}
+
+			default:
+				throw new Error(`Unknown git operation: ${operation}`);
+		}
+	}
+
+	/**
+	 * Check if git is installed and accessible
+	 */
+	private async isGitInstalled(): Promise<boolean> {
+		try {
+			const git = simpleGit();
+			const version = await git.version();
+			console.log(`[ExecuteActionHandler] Git version: ${version.installed}`);
+			return version.installed !== undefined;
+		} catch (error) {
+			console.error("[ExecuteActionHandler] Git check failed:", error);
+			return false;
+		}
+	}
+
+	/**
+	 * Story 1.8: Execute database action (update project record)
+	 */
+	private async executeDatabaseAction(
+		action: {
+			type: "database";
+			config: {
+				table: string;
+				operation: string;
+				columns: Record<string, unknown>;
+				where: Record<string, unknown>;
+			};
+		},
+		_context: ExecutionContext,
+	): Promise<Record<string, unknown>> {
+		const { table, operation, columns, where } = action.config;
+
+		console.log(
+			`[ExecuteActionHandler] Database action: ${operation} on ${table}`,
+		);
+		console.log("[ExecuteActionHandler] Columns:", columns);
+		console.log("[ExecuteActionHandler] Where:", where);
+
+		switch (operation) {
+			case "update": {
+				// Currently only supporting projects table
+				if (table !== "projects") {
+					throw new Error(`Database table "${table}" not supported yet`);
+				}
+
+				// Validate where clause has id
+				if (!where.id) {
+					throw new Error("Database update requires 'id' in where clause");
+				}
+
+				// Build the update object
+				const updateData: Record<string, unknown> = {};
+
+				// Map column names to database fields
+				for (const [key, value] of Object.entries(columns)) {
+					updateData[key] = value;
+				}
+
+				// Add updatedAt timestamp
+				updateData.updatedAt = new Date();
+
+				// Execute update
+				const [updatedProject] = await db
+					.update(projects)
+					.set(updateData as any)
+					.where(eq(projects.id, where.id as string))
+					.returning();
+
+				if (!updatedProject) {
+					throw new Error(`Project with id ${where.id} not found`);
+				}
+
+				console.log(
+					`[ExecuteActionHandler] Updated project: ${updatedProject.id}`,
+				);
+
+				return {
+					database_updated: true,
+					updated_record_id: updatedProject.id,
+				};
+			}
+
+			default:
+				throw new Error(`Unknown database operation: ${operation}`);
+		}
 	}
 }

@@ -94,7 +94,7 @@ export class AskUserChatStepHandler implements StepHandler {
 		// 3. Build step tools (highest priority)
 		if (config.tools && config.tools.length > 0) {
 			console.log(
-				`[AskUserChatHandler] Building tools dynamically based on current execution state...`,
+				"[AskUserChatHandler] Building tools dynamically based on current execution state...",
 			);
 
 			for (const toolConfig of config.tools) {
@@ -965,7 +965,7 @@ export class AskUserChatStepHandler implements StepHandler {
 				}
 
 				// Execute query
-				let results = await query;
+				const results = await query;
 
 				console.log(`[OptionsSource] Query returned ${results.length} results`);
 

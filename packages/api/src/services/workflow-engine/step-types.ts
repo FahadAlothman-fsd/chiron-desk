@@ -6,6 +6,7 @@
 import type { StepHandler } from "./step-handler";
 import { AskUserChatStepHandler } from "./step-handlers/ask-user-chat-handler";
 import { AskUserStepHandler } from "./step-handlers/ask-user-handler";
+import { DisplayOutputStepHandler } from "./step-handlers/display-output-handler";
 import { ExecuteActionStepHandler } from "./step-handlers/execute-action-handler";
 
 // Placeholder handlers for Story 1.4 (actual implementations in future stories)
@@ -38,7 +39,7 @@ export const STEP_HANDLERS = {
 	"approval-checkpoint": new PlaceholderStepHandler("approval-checkpoint"),
 	"execute-action": new ExecuteActionStepHandler(),
 	"invoke-workflow": new PlaceholderStepHandler("invoke-workflow"),
-	"display-output": new PlaceholderStepHandler("display-output"),
+	"display-output": new DisplayOutputStepHandler(),
 	"question-set": new PlaceholderStepHandler("question-set"),
 } as const;
 

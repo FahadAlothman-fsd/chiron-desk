@@ -41,13 +41,17 @@ export async function executeWorkflow(params: {
 	// Load workflow and steps
 	const { workflow, steps } = await loadWorkflow(params.workflowId);
 
+	// Story 2.1: Get agentId from metadata JSONB field instead of column
+	const metadata = workflow.metadata as { agentId?: string } | null;
+	const agentId = metadata?.agentId || null;
+
 	// Create execution record
 	const [execution] = await db
 		.insert(workflowExecutions)
 		.values({
 			workflowId: params.workflowId,
 			projectId: params.projectId || null,
-			agentId: workflow.agentId || null,
+			agentId: agentId,
 			status: "active",
 			variables: {},
 			executedSteps: {},
@@ -98,7 +102,7 @@ export async function continueExecution(
 	userId: string,
 	userInput?: unknown,
 ): Promise<void> {
-	console.log(`[Executor] continueExecution called with userInput:`, userInput);
+	console.log("[Executor] continueExecution called with userInput:", userInput);
 	// Load execution state
 	const [execution] = await db
 		.select()
