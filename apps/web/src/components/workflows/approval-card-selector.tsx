@@ -251,7 +251,7 @@ export function ApprovalCardSelector({
 				{displayConfig ? (
 					// Use generic OptionCard component with displayConfig
 					<div className="space-y-3">
-						{availableOptions.map((option) => {
+						{availableOptions.map((option, index) => {
 							const optionValue = getValueByPath<string>(
 								option,
 								displayConfig.fields.value,
@@ -259,9 +259,12 @@ export function ApprovalCardSelector({
 							const isAiRecommendation = optionValue === aiRecommendedValue;
 							const isSelected = optionValue === selectedValue;
 
+							// Use option.id if available, otherwise fall back to index
+							const uniqueKey = (option as any).id || `option-${index}`;
+
 							return (
 								<OptionCard
-									key={optionValue}
+									key={uniqueKey}
 									option={option}
 									displayConfig={displayConfig}
 									isSelected={isSelected}

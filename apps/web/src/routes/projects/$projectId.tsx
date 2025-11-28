@@ -7,10 +7,13 @@ import {
 } from "@tanstack/react-router";
 import {
 	Brain,
+	ChevronDown,
 	ChevronRight,
 	Loader2,
+	Map,
 	Play,
 	Rocket,
+	Sparkles,
 	Target,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -24,6 +27,11 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { trpcClient } from "@/utils/trpc";
 
 export const Route = createFileRoute("/projects/$projectId")({
@@ -108,6 +116,7 @@ function ProjectDashboard() {
 		},
 	});
 	const project = projectData?.project;
+	const workflowPath = projectData?.workflowPath;
 
 	// Get Phase 0 workflows (Discovery)
 	const { data: phaseWorkflows, isLoading: workflowsLoading } = useQuery({
@@ -197,10 +206,18 @@ function ProjectDashboard() {
 						<p className="mt-1 text-muted-foreground">{project.description}</p>
 					)}
 				</div>
-				<Badge variant="secondary" className="flex items-center gap-1.5">
-					<Target className="h-3.5 w-3.5" />
-					Phase {currentPhase.id}: {currentPhase.name}
-				</Badge>
+				<div className="flex flex-col items-end gap-2">
+					{workflowPath && (
+						<Badge variant="outline" className="flex items-center gap-1.5">
+							<Map className="h-3.5 w-3.5" />
+							{workflowPath.displayName}
+						</Badge>
+					)}
+					<Badge variant="secondary" className="flex items-center gap-1.5">
+						<Target className="h-3.5 w-3.5" />
+						Phase {currentPhase.id}: {currentPhase.name}
+					</Badge>
+				</div>
 			</div>
 
 			{/* Next Recommended Action Card */}
@@ -256,16 +273,33 @@ function ProjectDashboard() {
 						</CardTitle>
 					</CardHeader>
 					<CardContent>
-						<div className="space-y-3">
-							<div className="flex items-center gap-2">
-								<div className="h-2 w-2 rounded-full bg-amber-500" />
-								<span className="font-medium">
-									Phase {currentPhase.id}: {currentPhase.name}
-								</span>
+						<div className="space-y-4">
+							{workflowPath && (
+								<div className="space-y-1">
+									<div className="flex items-center gap-2">
+										<Map className="h-4 w-4 text-muted-foreground" />
+										<span className="font-medium">
+											{workflowPath.displayName}
+										</span>
+									</div>
+									{workflowPath.description && (
+										<p className="pl-6 text-muted-foreground text-sm">
+											{workflowPath.description}
+										</p>
+									)}
+								</div>
+							)}
+							<div className="space-y-1">
+								<div className="flex items-center gap-2">
+									<div className="h-2 w-2 rounded-full bg-amber-500" />
+									<span className="font-medium">
+										Phase {currentPhase.id}: {currentPhase.name}
+									</span>
+								</div>
+								<p className="pl-4 text-muted-foreground text-sm">
+									Ready to start
+								</p>
 							</div>
-							<p className="pl-4 text-muted-foreground text-sm">
-								Ready to start
-							</p>
 						</div>
 					</CardContent>
 				</Card>
@@ -306,83 +340,202 @@ function ProjectDashboard() {
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
-					<div className="space-y-4">
-						{PHASES.map((phase, index) => {
-							const isActive = phase.id === currentPhase.id;
-							const isCompleted =
-								Number.parseInt(phase.id) < Number.parseInt(currentPhase.id);
-							const isPending =
-								Number.parseInt(phase.id) > Number.parseInt(currentPhase.id);
-
-							return (
-								<div
-									key={phase.id}
-									className={`flex items-center gap-4 rounded-lg p-3 transition-colors ${
-										isActive ? "bg-primary/5" : ""
-									}`}
-								>
-									{/* Phase indicator */}
-									<div
-										className={`flex h-8 w-8 items-center justify-center rounded-full font-medium text-sm ${
-											isActive
-												? "bg-primary text-primary-foreground"
-												: isCompleted
-													? "bg-green-500 text-white"
-													: "bg-muted text-muted-foreground"
-										}`}
-									>
-										{isCompleted ? "✓" : phase.id}
-									</div>
-
-									{/* Phase info */}
-									<div className="flex-1">
-										<div className="flex items-center gap-2">
-											<span
-												className={`font-medium ${
-													isActive
-														? "text-primary"
-														: isPending
-															? "text-muted-foreground"
-															: ""
-												}`}
-											>
-												Phase {phase.id}: {phase.name}
-											</span>
-											{isActive && (
-												<ChevronRight className="h-4 w-4 text-primary" />
-											)}
-										</div>
-										<p className="text-muted-foreground text-sm">
-											{phase.description}
-										</p>
-									</div>
-
-									{/* Progress bar */}
-									<div className="w-32">
-										<div className="h-2 overflow-hidden rounded-full bg-muted">
-											<div
-												className={`h-full transition-all ${
-													isCompleted
-														? "bg-green-500"
-														: isActive
-															? "bg-primary"
-															: "bg-transparent"
-												}`}
-												style={{
-													width: isCompleted ? "100%" : isActive ? "0%" : "0%",
-												}}
-											/>
-										</div>
-										<p className="mt-1 text-right text-muted-foreground text-xs">
-											{isCompleted ? "100%" : "0%"}
-										</p>
-									</div>
-								</div>
-							);
-						})}
+					<div className="space-y-2">
+						{PHASES.map((phase) => (
+							<PhaseItem
+								key={phase.id}
+								phase={phase}
+								currentPhaseId={currentPhase.id}
+								workflowPathId={project.workflowPathId}
+								projectId={projectId}
+							/>
+						))}
 					</div>
 				</CardContent>
 			</Card>
 		</div>
+	);
+}
+
+/**
+ * Collapsible phase item that shows workflows when expanded
+ * Filters workflows by the project's workflow path if available
+ */
+function PhaseItem({
+	phase,
+	currentPhaseId,
+	workflowPathId,
+	projectId,
+}: {
+	phase: (typeof PHASES)[number];
+	currentPhaseId: string;
+	workflowPathId: string | null | undefined;
+	projectId: string;
+}) {
+	const navigate = useNavigate();
+	const isActive = phase.id === currentPhaseId;
+	const isCompleted =
+		Number.parseInt(phase.id) < Number.parseInt(currentPhaseId);
+	const isPending = Number.parseInt(phase.id) > Number.parseInt(currentPhaseId);
+
+	// Fetch workflows for this phase, filtered by workflow path if available
+	const { data: workflowsData, isLoading } = useQuery({
+		queryKey: ["workflows", "phase", phase.id, "path", workflowPathId],
+		queryFn: async () => {
+			if (workflowPathId) {
+				// Use the path-filtered endpoint
+				return trpcClient.workflows.getByPhaseAndPath.query({
+					phase: phase.id,
+					workflowPathId,
+				});
+			}
+			// Fallback to all workflows for this phase (no path selected)
+			return trpcClient.workflows.getByPhase.query({ phase: phase.id });
+		},
+	});
+
+	// Execute workflow mutation
+	const executeWorkflow = useMutation({
+		mutationFn: async (workflowId: string) => {
+			return trpcClient.workflows.execute.mutate({
+				workflowId,
+				projectId,
+			});
+		},
+		onSuccess: () => {
+			toast.success("Workflow started!");
+			navigate({
+				to: "/projects/$projectId/initialize",
+				params: { projectId },
+			});
+		},
+		onError: (error: any) => {
+			toast.error("Failed to start workflow", {
+				description: error.message,
+			});
+		},
+	});
+
+	const workflows = workflowsData?.workflows ?? [];
+
+	return (
+		<Collapsible defaultOpen={isActive}>
+			<CollapsibleTrigger asChild>
+				<button
+					type="button"
+					className={`flex w-full items-center gap-4 rounded-lg p-3 text-left transition-colors hover:bg-accent ${
+						isActive ? "bg-primary/5" : ""
+					}`}
+				>
+					{/* Phase indicator */}
+					<div
+						className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-medium text-sm ${
+							isActive
+								? "bg-primary text-primary-foreground"
+								: isCompleted
+									? "bg-green-500 text-white"
+									: "bg-muted text-muted-foreground"
+						}`}
+					>
+						{isCompleted ? "✓" : phase.id}
+					</div>
+
+					{/* Phase info */}
+					<div className="flex-1">
+						<div className="flex items-center gap-2">
+							<span
+								className={`font-medium ${
+									isActive
+										? "text-primary"
+										: isPending
+											? "text-muted-foreground"
+											: ""
+								}`}
+							>
+								Phase {phase.id}: {phase.name}
+							</span>
+							{workflows.length > 0 && (
+								<Badge variant="secondary" className="text-xs">
+									{workflows.length} workflow{workflows.length !== 1 ? "s" : ""}
+								</Badge>
+							)}
+						</div>
+						<p className="text-muted-foreground text-sm">{phase.description}</p>
+					</div>
+
+					{/* Progress bar */}
+					<div className="w-24 shrink-0">
+						<div className="h-2 overflow-hidden rounded-full bg-muted">
+							<div
+								className={`h-full transition-all ${
+									isCompleted
+										? "bg-green-500"
+										: isActive
+											? "bg-primary"
+											: "bg-transparent"
+								}`}
+								style={{
+									width: isCompleted ? "100%" : isActive ? "0%" : "0%",
+								}}
+							/>
+						</div>
+						<p className="mt-1 text-right text-muted-foreground text-xs">
+							{isCompleted ? "100%" : "0%"}
+						</p>
+					</div>
+
+					{/* Expand indicator */}
+					<ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+				</button>
+			</CollapsibleTrigger>
+
+			<CollapsibleContent>
+				<div className="ml-12 space-y-1 border-muted border-l-2 py-2 pl-4">
+					{isLoading ? (
+						<div className="flex items-center gap-2 py-2 text-muted-foreground text-sm">
+							<Loader2 className="h-3 w-3 animate-spin" />
+							Loading workflows...
+						</div>
+					) : workflows.length === 0 ? (
+						<p className="py-2 text-muted-foreground text-sm italic">
+							No workflows available for this phase
+						</p>
+					) : (
+						workflows.map((workflow) => (
+							<div
+								key={workflow.id}
+								className="flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent"
+							>
+								<Sparkles className="h-4 w-4 text-muted-foreground" />
+								<div className="flex-1">
+									<p className="font-medium text-sm">
+										{workflow.displayName || workflow.name}
+									</p>
+									{workflow.description && (
+										<p className="line-clamp-1 text-muted-foreground text-xs">
+											{workflow.description}
+										</p>
+									)}
+								</div>
+								<Button
+									variant="ghost"
+									size="sm"
+									className="h-7 px-2"
+									disabled={isPending || executeWorkflow.isPending}
+									onClick={() => executeWorkflow.mutate(workflow.id)}
+								>
+									{executeWorkflow.isPending ? (
+										<Loader2 className="mr-1 h-3 w-3 animate-spin" />
+									) : (
+										<Play className="mr-1 h-3 w-3" />
+									)}
+									Start
+								</Button>
+							</div>
+						))
+					)}
+				</div>
+			</CollapsibleContent>
+		</Collapsible>
 	);
 }

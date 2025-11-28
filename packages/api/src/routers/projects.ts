@@ -1,5 +1,5 @@
 import { promises as fs } from "node:fs";
-import { db, projects, workflowExecutions } from "@chiron/db";
+import { db, projects, workflowExecutions, workflowPaths } from "@chiron/db";
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
@@ -217,8 +217,17 @@ export const projectsRouter = router({
 				});
 			}
 
+			// Fetch workflow path info if project has one
+			let workflowPath = null;
+			if (project.workflowPathId) {
+				workflowPath = await db.query.workflowPaths.findFirst({
+					where: (paths, { eq }) => eq(paths.id, project.workflowPathId!),
+				});
+			}
+
 			return {
 				project,
+				workflowPath,
 			};
 		} catch (error) {
 			if (error instanceof TRPCError) {

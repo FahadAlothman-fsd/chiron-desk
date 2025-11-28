@@ -1,6 +1,11 @@
-import { db, workflowExecutions } from "@chiron/db";
+import {
+	db,
+	workflowExecutions,
+	workflowPathWorkflows,
+	workflows,
+} from "@chiron/db";
 import { observable } from "@trpc/server/observable";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 import { getThreadMessages } from "../services/mastra/mastra-service";
@@ -221,13 +226,61 @@ export const workflowRouter = router({
 		)
 		.query(async ({ input }) => {
 			// Query using JSONB tags field: tags->>'phase' = input.phase
-			const workflows = await db.query.workflows.findMany({
+			const workflowResults = await db.query.workflows.findMany({
 				where: (workflows, { sql }) =>
 					sql`${workflows.tags}->>'phase' = ${input.phase}`,
 				orderBy: (workflows, { asc }) => [asc(workflows.displayName)],
 			});
 
-			return { workflows };
+			return { workflows: workflowResults };
+		}),
+
+	/**
+	 * Story 2.1: Get workflows by phase AND workflow path
+	 * Returns workflows that belong to a specific workflow path for a given phase
+	 * Uses the workflow_path_workflows junction table for filtering
+	 */
+	getByPhaseAndPath: protectedProcedure
+		.input(
+			z.object({
+				phase: z.string(), // e.g., "0", "1", "2", etc.
+				workflowPathId: z.string().uuid(),
+			}),
+		)
+		.query(async ({ input }) => {
+			// Convert phase string to integer for junction table query
+			const phaseNum = Number.parseInt(input.phase, 10);
+
+			// Query workflows via the junction table
+			const results = await db
+				.select({
+					workflow: workflows,
+					sequenceOrder: workflowPathWorkflows.sequenceOrder,
+					isOptional: workflowPathWorkflows.isOptional,
+					isRecommended: workflowPathWorkflows.isRecommended,
+				})
+				.from(workflowPathWorkflows)
+				.innerJoin(
+					workflows,
+					eq(workflowPathWorkflows.workflowId, workflows.id),
+				)
+				.where(
+					and(
+						eq(workflowPathWorkflows.workflowPathId, input.workflowPathId),
+						eq(workflowPathWorkflows.phase, phaseNum),
+					),
+				)
+				.orderBy(workflowPathWorkflows.sequenceOrder);
+
+			// Map to return workflow objects with additional path metadata
+			return {
+				workflows: results.map((r) => ({
+					...r.workflow,
+					sequenceOrder: r.sequenceOrder,
+					isOptional: r.isOptional,
+					isRecommended: r.isRecommended,
+				})),
+			};
 		}),
 
 	/**
