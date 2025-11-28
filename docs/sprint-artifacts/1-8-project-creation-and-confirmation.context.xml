@@ -1,0 +1,10 @@
+<context>
+  <story_id>1-8-project-creation-and-confirmation</story_id>
+  <documents>
+    <file path="packages/scripts/src/seeds/workflow-init-new.ts" description="Primary Seed File: Add Step 3 (Init) and Step 4 (Success) configurations here." />
+    <file path="packages/api/src/services/workflow-engine/step-handlers/execute-action-handler.ts" description="Step Handler: Implement generic 'database update' logic and 'git init' action." />
+    <file path="packages/api/src/services/workflow-engine/variable-resolver.ts" description="Reference: Logic for resolving {{variables}} in the handler." />
+    <file path="packages/api/src/services/workflow-engine/execution-context.ts" description="Reference: Verification of system variables (project_id) in context." />
+    <file path="docs/epics/epic-1-foundation.md" description="Epic Requirements and Context." />
+  </documents>
+</context>
