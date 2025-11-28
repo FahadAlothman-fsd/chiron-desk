@@ -27,7 +27,9 @@
 		"@trpc/client": "catalog:",
 		"@trpc/server": "catalog:",
 		"dotenv": "catalog:",
+		"drizzle-orm": "^0.44.7",
 		"hono": "catalog:",
+		"simple-git": "^3.30.0",
 		"zod": "catalog:"
 	}
 }
