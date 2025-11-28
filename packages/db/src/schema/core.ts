@@ -57,10 +57,9 @@ export const projects = pgTable(
 
 		// Initialized by execution ID (intentional circular reference)
 		// TODO: remove this as its not needed anymore
-		// @ts-expect-error - Circular reference is intentional for audit trail
-		initializedByExecutionId: uuid("initialized_by_execution_id").references(
-			() => workflowExecutions.id,
-		),
+		// initializedByExecutionId: uuid("initialized_by_execution_id").references(
+		// 	() => workflowExecutions.id,
+		// ),
 
 		// Progress tracking - compares executed workflows vs path definition
 		executedVsPath: jsonb("executed_vs_path")

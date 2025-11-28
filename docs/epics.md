@@ -38,13 +38,14 @@ This document provides the high-level epic roadmap for Chiron. Each epic has its
 | Epic | Title | Duration | Status | Document |
 |------|-------|----------|--------|----------|
 | **1** | **Foundation + Workflow-Init Engine** | 4.2 weeks | 🟢 **In Progress** | **[epic-1-foundation.md](./epics/epic-1-foundation.md)** |
-| 2 | Phase 1 - Analysis Complete | 3.5-4 weeks | ⏸️ Planned | [epic-2-phase-1-analysis.md](./epics/epic-2-phase-1-analysis.md) |
-| 3 | Phase 2 - Planning Complete | 3-3.5 weeks | ⏸️ Planned | [epic-3-phase-2-planning.md](./epics/epic-3-phase-2-planning.md) |
-| 4 | Git Worktree & Multi-Agent | 2-2.5 weeks | ⏸️ Planned | [epic-4-git-worktree.md](./epics/epic-4-git-worktree.md) |
-| 5 | Phase 3 - Solutioning Complete | 2.5-3 weeks | ⏸️ Planned | [epic-5-phase-3-solutioning.md](./epics/epic-5-phase-3-solutioning.md) |
-| 6 | Phase 4 - Implementation Complete | 3-3.5 weeks | ⏸️ Planned | [epic-6-phase-4-implementation.md](./epics/epic-6-phase-4-implementation.md) |
-| 7 | Polish & Extensibility | 2-2.5 weeks | ⏸️ Planned | [epic-7-polish.md](./epics/epic-7-polish.md) |
-| | **Total** | **18.5-21 weeks** | | **7 epics** |
+| 2 | Artifact Workbench (Brainstorming) | 2 weeks | 🟢 In Progress | [epic-2-artifact-workbench.md](./epics/epic-2-artifact-workbench.md) |
+| 3 | Artifact Workbench Part 2 (Research/Brief) | 2 weeks | ⏸️ Planned | [epic-3-artifact-workbench-part-2.md](./epics/epic-3-artifact-workbench-part-2.md) |
+| 4 | Phase 1 - Planning Workflows | 3-3.5 weeks | ⏸️ Planned | [epic-4-phase-1-planning.md](./epics/epic-4-phase-1-planning.md) |
+| 5 | Git Worktree & Multi-Agent | 2-2.5 weeks | ⏸️ Planned | [epic-5-git-worktree.md](./epics/epic-5-git-worktree.md) |
+| 6 | Phase 3 - Solutioning | 2.5-3 weeks | ⏸️ Planned | [epic-6-phase-3-solutioning.md](./epics/epic-6-phase-3-solutioning.md) |
+| 7 | Phase 4 - Implementation | 3.5-4 weeks | ⏸️ Planned | [epic-7-phase-4-implementation.md](./epics/epic-7-phase-4-implementation.md) |
+| 8 | Polish & Extensibility | 2-2.5 weeks | ⏸️ Planned | [epic-8-polish.md](./epics/epic-8-polish.md) |
+| | **Total** | **18.5-21 weeks** | | **8 epics** |
 
 ---
 
@@ -78,24 +79,30 @@ This document provides the high-level epic roadmap for Chiron. Each epic has its
 
 ---
 
-## Epic 2: Phase 1 - Analysis Complete
+## Epic 2: Artifact Workbench (Brainstorming Focus)
 
-**Goal:** Implement all Phase 1 (Analysis) workflows with Artifact Workbench UI, chat patterns, and tangential workflow support. Validate thesis: visual UX > CLI.
+**Goal:** Implement Artifact Workbench with Phase 0 workflows to validate thesis: visual UX + artifact-driven workflows > CLI approach.
 
-**Status:** ⏸️ Planned  
-**Document:** [epic-2-phase-1-analysis.md](./epics/epic-2-phase-1-analysis.md)
+**Status:** 🟢 In Progress
+**Document:** [epic-2-artifact-workbench.md](./epics/epic-2-artifact-workbench.md)
 
 **Key Deliverables:**
-- Artifact Workbench UI
-- Product-brief, brainstorm, research workflows
-- Chat patterns A & C
-- Tangent workflow system
+- Artifact Workbench UI (Split Pane)
+- Brainstorming Workflow (End-to-End)
+- Multi-agent Chat Pattern
+- Live Artifact Rendering
 
-**Stories:** 8 stories (details in epic document)
+**Stories:**
+- Story 2.1: Project Dashboard (The Entry Point) (2 days)
+- Story 2.2: Workbench Shell & Setup (Step 1) (3 days)
+- Story 2.3: Execution Loop & Child Workflows (Step 2) (3 days)
+- Story 2.4: Convergence & Kanban (Step 3) (3 days)
+- Story 2.5: Planning & Forms (Step 5) (3 days)
+- Story 2.6: Artifact Rendering & Persistence (Output) (2 days)
 
 ---
 
-## Epic 3-7: Future Epics
+## Epic 3-8: Future Epics
 
 **Status:** ⏸️ Planned  
 **Details:** See individual epic documents for high-level summaries. Detailed story breakdowns will be created just-in-time.
@@ -108,7 +115,7 @@ This document provides the high-level epic roadmap for Chiron. Each epic has its
 - ✅ Thesis validated in Week 5-6 (Epic 2) instead of Week 11-13
 - ✅ Patterns emerge organically from real workflow needs (not speculative)
 - ✅ Each phase delivers complete end-to-end value (working workflows + UI)
-- ✅ Infrastructure built just-in-time (multi-agent deferred until Epic 6 when needed)
+- ✅ Infrastructure built just-in-time (multi-agent deferred until needed in Epic 6)
 - ✅ User can use Chiron for real work starting Epic 2 (Analysis workflows functional)
 
 **Parallelization Opportunities:**

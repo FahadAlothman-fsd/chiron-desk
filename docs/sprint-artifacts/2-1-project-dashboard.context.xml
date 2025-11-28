@@ -1,0 +1,133 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>epic-2</epicId>
+    <storyId>2.1</storyId>
+    <title>Project Dashboard & Schema Foundation</title>
+    <status>drafted</status>
+    <generatedAt>Fri Nov 28 2025</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/2-1-project-dashboard.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>User</asA>
+    <iWant>a dashboard that shows my project's current phase and next recommended workflow, supported by a flexible database schema</iWant>
+    <soThat>I can start the right workflow with the right context</soThat>
+    <tasks>
+- [ ] Task 1: Schema Refactor (AC: 1)
+  - [ ] Modify `packages/db/src/schema/workflows.ts` to add `tags`, `metadata`
+  - [ ] Remove obsolete columns from `workflows.ts`
+  - [ ] Update types/interfaces in `packages/db` and `packages/api`
+  - [ ] Run migration/push to update local DB
+- [ ] Task 2: Seed Data (AC: 2)
+  - [ ] Create/Update seed file `packages/scripts/src/seeds/workflows.ts` (or similar)
+  - [ ] Add `brainstorming` workflow with `tags: { phase: "0", type: "method" }`
+  - [ ] Ensure `artifactTemplate` reference is set
+- [ ] Task 3: Dashboard UI Implementation (AC: 3, 4, 5)
+  - [ ] Create `apps/web/src/routes/dashboard.tsx` (or update existing)
+  - [ ] Implement Phase 0 visualization (Active/Pending state)
+  - [ ] Add "Start Brainstorming" button
+  - [ ] Connect button to `useWorkflow` hook or API to start execution
+  - [ ] Verify context (project details) is passed to reference
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+1. **Schema Refactor:** Update `workflows` table to support flexible metadata:
+   - ADD: `tags` (JSONB) for filtering (e.g., `type: "technique"`, `phase: "discovery"`)
+   - ADD: `metadata` (JSONB) for UI configuration
+   - REMOVE: `module`, `agentId`, `initializerType`, `isStandalone`, `requiresProjectContext` (move these to `metadata` or `tags` if still needed, or remove if obsolete)
+2. **Seed Workflow (Shell):** Seed the `brainstorming` workflow entry with correct `tags` and `artifactTemplate` (steps array can be empty shell for now).
+3. **Dashboard UI:** Implement the Project Dashboard showing Phase 0 (Discovery + Analysis) status.
+4. **Routing Logic:** "Start Brainstorming" button uses `workflow_paths` (or direct workflow lookup via tags) to determine availability.
+5. **Context Passing:** Clicking Start initiates the workflow engine with the project name/description context.
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <artifact>
+        <path>docs/epics/epic-2-artifact-workbench.md</path>
+        <title>Epic 2: Artifact Workbench</title>
+        <section>Story 2.1: Project Dashboard & Schema Foundation</section>
+        <snippet>Defines the dashboard requirements (Phase 0 status, Start Brainstorming button) and schema updates (tags/metadata JSONB) needed to support flexible workflow routing.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/architecture/database-schema-architecture.md</path>
+        <title>Database Schema Architecture</title>
+        <section>Category 1: Workflow Definition</section>
+        <snippet>Defines original `workflows` table structure (id, name, module, agentId...). This baseline is refactored in Story 2.1 to replace rigid columns with flexible `tags` and `metadata` JSONB fields.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/design/chiron-ui-wireframes-v1.md</path>
+        <title>Chiron UI Wireframes v1.0</title>
+        <section>Screen 1: Main Dashboard</section>
+        <snippet>Visual design for the Phase 0 Dashboard showing project status, active agents, and the 'Next Recommended Action' (Brainstorming) button.</snippet>
+      </artifact>
+      <artifact>
+        <path>docs/PRD.md</path>
+        <title>Product Requirements Document</title>
+        <section>User Interface Design Goals</section>
+        <snippet>FR016: Multi-Agent Dashboard showing active/queued/idle agents. FR020: Phase Navigation showing 4-phase progression.</snippet>
+      </artifact>
+    </docs>
+    <code>
+      <artifact>
+        <path>packages/db/src/schema/workflows.ts</path>
+        <kind>schema</kind>
+        <symbol>workflows</symbol>
+        <lines>58-84</lines>
+        <reason>Target for schema refactor. Current definition includes rigid columns (module, agentId, etc.) that must be replaced/moved to flexible JSONB fields (tags, metadata).</reason>
+      </artifact>
+      <artifact>
+        <path>packages/scripts/src/seeds/workflows.ts</path>
+        <kind>seed</kind>
+        <symbol>seedWorkflows</symbol>
+        <lines>119-194</lines>
+        <reason>Seeding logic needs to be updated to populate the new `tags` and `metadata` fields instead of the removed columns during workflow initialization.</reason>
+      </artifact>
+      <artifact>
+        <path>apps/web/src/routes/dashboard.tsx</path>
+        <kind>component</kind>
+        <symbol>RouteComponent</symbol>
+        <lines>20-32</lines>
+        <reason>Current dashboard implementation is a placeholder. Needs to be replaced with the Phase 0 visualization and action buttons defined in wireframes.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <dependency>drizzle-orm (Schema Management)</dependency>
+      <dependency>@tanstack/react-query (Data Fetching)</dependency>
+      <dependency>@trpc/client (API Calls)</dependency>
+      <dependency>framer-motion (UI Animations)</dependency>
+      <dependency>lucide-react (Icons)</dependency>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+- **Schema Evolution:** Changes to `workflows` table must use Drizzle migration workflow (`db:generate`, `db:push`).
+- **Flexible Configuration:** Use `tags` JSONB for all future categorizations to avoid schema churn (Decision #7).
+- **Type Safety:** Ensure Drizzle `.$type&lt;T&gt;()` is used for JSONB fields to maintain TypeScript safety.
+- **UI Consistency:** Dashboard must match Wireframe v1.0 layout and use shared UI components where possible.
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>WorkflowMetadata</name>
+      <kind>TypeScript Interface</kind>
+      <signature>interface WorkflowMetadata { icon?: string; color?: string; recommendedFor?: string[] }</signature>
+      <path>packages/db/src/schema/workflow-types.ts (Proposed)</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>Follow `docs/architecture/TESTING-DYNAMIC-AGENTS.md` patterns where applicable. Use `bun test` for backend/schema tests. UI tests should verify component rendering state.</standards>
+    <locations>
+      <location>packages/api/src/**/*.test.ts</location>
+      <location>packages/db/src/**/*.test.ts</location>
+    </locations>
+    <ideas>
+1. **Schema Test:** Verify `workflows` table accepts `tags` and `metadata` JSONB data.
+2. **Seed Test:** Run `db:seed` and verify `brainstorming` workflow exists with correct tags.
+3. **UI Test:** Render Dashboard component and verify "Start Brainstorming" button appears for Phase 0 project.
+    </ideas>
+  </tests>
+</story-context>

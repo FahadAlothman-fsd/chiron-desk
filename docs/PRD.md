@@ -716,26 +716,27 @@ The following epics are sequenced to maximize parallel development opportunities
 | Epic | Title | Effort | Dependencies | BMAD Phase | Thesis Validation |
 |------|-------|--------|--------------|------------|-------------------|
 | 1 | Core Foundation | 2w | None | Infrastructure | - |
-| 2 | Phase 1 - Analysis Complete | 3.5-4w | Epic 1 | Phase 1 | ✅ **Validated here (Week 5-6)** |
-| 3 | Phase 2 - Planning Complete | 3-3.5w | Epic 2 | Phase 2 | Pattern refinements |
-| 4 | Git Worktree & Multi-Agent | 2-2.5w | Epic 1 | Infrastructure | - |
-| 5 | Phase 3 - Solutioning Complete | 2.5-3w | Epic 3 | Phase 3 | New patterns |
-| 6 | Phase 4 - Implementation Complete | 3-3.5w | Epic 4, 5 | Phase 4 | Full orchestration |
-| 7 | Polish & Extensibility | 2-2.5w | Epic 6 | Cross-phase | - |
-| **Total** | **7 epics** | **18.5-21 weeks** | - | **All 4 phases** | **Early validation (Epic 2)** |
+| 2 | Artifact Workbench (Brainstorming) | 2w | Epic 1 | Phase 0 | ✅ **Validated here** |
+| 3 | Artifact Workbench Part 2 | 2w | Epic 2 | Phase 0 | - |
+| 4 | Phase 1 - Planning | 3-3.5w | Epic 3 | Phase 1 | - |
+| 5 | Git Worktree & Multi-Agent | 2-2.5w | Epic 1 | Infrastructure | - |
+| 6 | Phase 3 - Solutioning | 2.5-3w | Epic 4, 5 | Phase 3 | New patterns |
+| 7 | Phase 4 - Implementation | 3-3.5w | Epic 6 | Phase 4 | Full orchestration |
+| 8 | Polish & Extensibility | 2-2.5w | Epic 7 | Cross-phase | - |
+| **Total** | **8 epics** | **18.5-21 weeks** | - | **All 4 phases** | **Early validation (Epic 2)** |
 
 **Key Strategy Changes:**
 - ✅ Thesis validated in Week 5-6 (Epic 2) instead of Week 11-13 (original Epic 7)
 - ✅ Patterns emerge organically from real workflow needs (not speculative upfront design)
 - ✅ Each phase delivers complete end-to-end user value (working workflows + UI)
 - ✅ Infrastructure built just-in-time (multi-agent deferred until Epic 6 when needed)
-- ✅ User can use Chiron for real work starting Epic 2 (Phase 1 Analysis workflows functional)
+- ✅ User can use Chiron for real work starting Epic 2 (Brainstorming functional)
 
 **Parallelization Opportunities:**
-- Epic 4 (Git Worktree) can start after Epic 1, run parallel with Epic 2-3
+- Epic 5 (Git Worktree) can start after Epic 1, run parallel with Epic 2-3
 - This could reduce total timeline to ~16-18 weeks with careful scheduling
 
-> **Note:** Detailed epic breakdown with full story specifications is available in [epics.md](./epics.md). Epic 2 (Phase 1) has complete story breakdown. Epics 3-7 will be detailed just-in-time during implementation.
+> **Note:** Detailed epic breakdown with full story specifications is available in [epics.md](./epics.md). Epic 2 (Phase 0 Brainstorming) has complete story breakdown. Epics 3-8 will be detailed just-in-time during implementation.
 
 ---
 
