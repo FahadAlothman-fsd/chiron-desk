@@ -241,25 +241,54 @@ function parseMessageContent(content: string): ParsedContent {
 				type: string;
 				text?: string;
 				thinking?: string;
+				reasoning?: string;
+				details?: Array<{ type: string; text?: string }>;
 			}>;
 
 			const textParts = parts.filter((p) => p.type === "text");
-			const thinkingParts = parts.filter((p) => p.type === "thinking");
+			// Support both "thinking" and "reasoning" types for extended thinking
+			const thinkingParts = parts.filter(
+				(p) => p.type === "thinking" || p.type === "reasoning",
+			);
+
+			// Extract reasoning content - can be in "thinking", "reasoning", or nested in "details"
+			let thinkingContent: string | undefined;
+			if (thinkingParts.length > 0) {
+				const thinkingPart = thinkingParts[0];
+				thinkingContent =
+					thinkingPart.thinking ||
+					thinkingPart.reasoning ||
+					// Some models nest reasoning in details array
+					thinkingPart.details?.find((d) => d.type === "text")?.text;
+			}
 
 			return {
 				text: parsed.content || textParts[0]?.text || "",
-				thinking: thinkingParts[0]?.thinking,
+				thinking: thinkingContent,
 			};
 		}
 
 		// Format 2: Array format
 		if (Array.isArray(parsed) && parsed.length > 0) {
 			const textPart = parsed.find((p) => p.type === "text");
-			const thinkingPart = parsed.find((p) => p.type === "thinking");
+			const thinkingPart = parsed.find(
+				(p) => p.type === "thinking" || p.type === "reasoning",
+			);
+
+			// Extract reasoning content from various possible locations
+			let thinkingContent: string | undefined;
+			if (thinkingPart) {
+				thinkingContent =
+					thinkingPart.thinking ||
+					thinkingPart.reasoning ||
+					thinkingPart.details?.find(
+						(d: { type: string; text?: string }) => d.type === "text",
+					)?.text;
+			}
 
 			return {
 				text: textPart?.text || "",
-				thinking: thinkingPart?.thinking,
+				thinking: thinkingContent,
 			};
 		}
 
