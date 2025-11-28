@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { WorkflowStepperWizard } from "@/components/workflows/steppers/wizard/workflow-stepper-wizard";
 import { AskUserChatStep } from "@/components/workflows/steps/ask-user-chat-step";
 import { AskUserStep } from "@/components/workflows/steps/ask-user-step";
+import { DisplayOutputStep } from "@/components/workflows/steps/display-output-step";
 import { ExecuteActionStep } from "@/components/workflows/steps/execute-action-step";
 import type { WorkflowStepDefinition } from "@/components/workflows/types";
 import { trpcClient } from "@/utils/trpc";
@@ -31,27 +32,31 @@ function InitializePage() {
 	});
 	const project = projectData?.project;
 
-	// Redirect if project is already active
+	// Get workflow execution for this project (Story 2.1: query by projectId instead of executionId)
+	const { data: executionsData, refetch: refetchExecution } = useQuery({
+		queryKey: ["workflows", "executionByProject", projectId],
+		queryFn: async () => {
+			return trpcClient.workflows.getExecutionByProject.query({
+				projectId,
+			});
+		},
+		enabled: !!projectId,
+		refetchInterval: 2000, // Poll for step transitions
+	});
+
+	// Redirect if project is already active AND workflow is completed
+	// Don't redirect if there's still a workflow execution in progress (e.g., display-output step)
 	useEffect(() => {
-		if (project?.status === "active") {
+		if (
+			project?.status === "active" &&
+			executionsData?.status === "completed"
+		) {
 			navigate({
 				to: "/projects/$projectId",
 				params: { projectId },
 			});
 		}
-	}, [project?.status, navigate, projectId]);
-
-	// Get workflow execution for this project
-	const { data: executionsData, refetch: refetchExecution } = useQuery({
-		queryKey: ["workflows", "execution", project?.initializedByExecutionId],
-		queryFn: async () => {
-			return trpcClient.workflows.getExecution.query({
-				executionId: project?.initializedByExecutionId!,
-			});
-		},
-		enabled: !!project?.initializedByExecutionId,
-		refetchInterval: 2000, // Poll for step transitions
-	});
+	}, [project?.status, executionsData?.status, navigate, projectId]);
 
 	// Get workflow details
 	const { data: workflowData } = useQuery({
@@ -312,6 +317,23 @@ function InitializePage() {
 								</div>
 							</div>
 						)}
+
+					{displayStepData?.stepType === "display-output" && (
+						<DisplayOutputStep
+							config={displayStepData.config as any}
+							variables={execution.variables}
+							onContinue={
+								!isViewingHistory
+									? () => {
+											submitStep.mutate({
+												executionId: execution.id,
+												userInput: "continue",
+											});
+										}
+									: undefined
+							}
+						/>
+					)}
 
 					{!displayStepData && (
 						<div className="text-center text-muted-foreground">

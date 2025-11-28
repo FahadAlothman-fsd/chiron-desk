@@ -1,7 +1,10 @@
 import type {
 	AskUserChatStepConfig,
 	AskUserStepConfig,
+	DisplayOutputStepConfig,
 	ExecuteActionStepConfig,
+	WorkflowMetadata,
+	WorkflowTags,
 } from "@chiron/db";
 import { db, workflowSteps, workflows } from "@chiron/db";
 
@@ -9,6 +12,7 @@ import { db, workflowSteps, workflows } from "@chiron/db";
  * Seeds the workflow-init-new workflow metadata and steps 1-2
  * Story 1.5: Field type detection and directory selection
  * Steps 3+ will be added in Stories 1.6-1.8
+ * Story 2.1: Updated to use tags/metadata JSONB fields
  */
 export async function seedWorkflowInitNew() {
 	// Query PM agent ID
@@ -21,6 +25,22 @@ export async function seedWorkflowInitNew() {
 		return;
 	}
 
+	// Story 2.1: Use tags JSONB for workflow categorization
+	const tags: WorkflowTags = {
+		phase: "0", // Discovery phase
+		type: "initializer", // This is an initializer workflow
+		track: "greenfield", // For new projects
+		module: "bmm",
+	};
+
+	// Story 2.1: Use metadata JSONB for workflow configuration
+	const metadata: WorkflowMetadata = {
+		agentId: pmAgent.id,
+		isStandalone: true,
+		requiresProjectContext: false,
+		initializerType: "new-project", // Moved from column to metadata
+	};
+
 	// Insert workflow (idempotent)
 	const [workflow] = await db
 		.insert(workflows)
@@ -29,11 +49,8 @@ export async function seedWorkflowInitNew() {
 			displayName: "Initialize New Project (Guided)",
 			description:
 				"Conversational setup for new greenfield projects (15-20 min). Guides users through project path selection, analyzes complexity, and creates project directory with git repository.",
-			module: "bmm",
-			agentId: pmAgent.id,
-			initializerType: "new-project",
-			isStandalone: true,
-			requiresProjectContext: false,
+			tags,
+			metadata,
 			outputArtifactType: null, // No artifact generated
 		})
 		.onConflictDoUpdate({
@@ -42,11 +59,18 @@ export async function seedWorkflowInitNew() {
 				displayName: "Initialize New Project (Guided)",
 				description:
 					"Conversational setup for new greenfield projects (15-20 min). Guides users through project path selection, analyzes complexity, and creates project directory with git repository.",
+				tags,
+				metadata,
 			},
 		})
 		.returning();
 
 	console.log("  ✓ workflow-init-new (PM agent, initializer)");
+
+	if (!workflow) {
+		console.error("  ❌ Failed to create/update workflow-init-new");
+		return;
+	}
 
 	// Check if steps already exist
 	const existingSteps = await db.query.workflowSteps.findMany({
@@ -342,10 +366,13 @@ export async function seedWorkflowInitNew() {
 		},
 
 		outputVariables: {
-			project_description: "approval_states.update_summary.value",
-			complexity_classification: "approval_states.update_complexity.value",
-			selected_workflow_path_id: "approval_states.select_workflow_path.value",
-			project_name: "approval_states.update_project_name.value",
+			project_description:
+				"approval_states.update_summary.value.project_description",
+			complexity_classification:
+				"approval_states.update_complexity.value.complexity_classification",
+			selected_workflow_path_id:
+				"approval_states.select_workflow_path.value.selected_workflow_path_id",
+			project_name: "approval_states.update_project_name.value.project_name",
 		},
 	};
 
@@ -387,8 +414,84 @@ export async function seedWorkflowInitNew() {
 		goal: "Get project directory location from user",
 		stepType: "ask-user",
 		config: step2Config,
-		nextStepNumber: null, // Future: Step 3 will be Create Project
+		nextStepNumber: 3, // Continue to Step 3: Project Initialization
 	});
 
 	console.log("  ✓ Step 2: Get project directory location from user");
+
+	// Step 3: Execute-Action (Project Initialization)
+	// Story 1.8: Git init + Database update
+	const step3Config: ExecuteActionStepConfig = {
+		actions: [
+			// Action 1: Initialize git repository
+			{
+				type: "git",
+				config: {
+					operation: "init",
+					path: "{{project_path}}", // User provides full project path
+				},
+			},
+			// Action 2: Update project record in database
+			{
+				type: "database",
+				config: {
+					table: "projects",
+					operation: "update",
+					columns: {
+						name: "{{project_name}}",
+						path: "{{project_path}}", // User provides full project path
+						workflowPathId: "{{selected_workflow_path_id}}",
+						status: "active", // Mark project as active after initialization
+					},
+					where: {
+						id: "{{project_id}}",
+					},
+				},
+			},
+		],
+		executionMode: "sequential", // Git first, then DB update
+	};
+
+	await db.insert(workflowSteps).values({
+		workflowId: workflow.id,
+		stepNumber: 3,
+		goal: "Initialize git repository and update project record",
+		stepType: "execute-action",
+		config: step3Config,
+		nextStepNumber: 4, // Continue to Step 4: Success Display
+	});
+
+	console.log("  ✓ Step 3: Project Initialization (git init + DB update)");
+
+	// Step 4: Display-Output (Success Message)
+	// Story 1.8: Show celebratory success message
+	const step4Config: DisplayOutputStepConfig = {
+		contentTemplate: `🎉 **Project Created Successfully!**
+
+Your project **{{project_name}}** has been initialized at:
+\`{{project_path}}/{{project_name}}\`
+
+**What was set up:**
+- ✅ Git repository initialized
+- ✅ Project registered in Chiron
+- ✅ Workflow path selected: {{selected_workflow_path_id}}
+
+**Next Steps:**
+1. Open your project in VS Code or your preferred IDE
+2. Return to Chiron to start your first workflow
+3. Begin with the recommended Phase 0: Discovery workflows
+
+Happy building! 🚀`,
+	};
+
+	await db.insert(workflowSteps).values({
+		workflowId: workflow.id,
+		stepNumber: 4,
+		goal: "Display success message to user",
+		stepType: "display-output",
+		config: step4Config,
+		nextStepNumber: null, // End of workflow
+	});
+
+	console.log("  ✓ Step 4: Success Display");
 }
