@@ -4,14 +4,15 @@ import { db } from "../index";
 import { appConfig, projects, workflows } from "./index";
 
 describe("Database Schema", () => {
-	test("workflows table has initializerType field", async () => {
+	test("workflows table has tags and metadata JSONB fields (Story 2.1)", async () => {
 		// This test validates schema is applied correctly
 		// Query will fail if field doesn't exist
 		const result = await db
 			.select({
 				id: workflows.id,
 				name: workflows.name,
-				initializerType: workflows.initializerType,
+				tags: workflows.tags,
+				metadata: workflows.metadata,
 			})
 			.from(workflows)
 			.limit(1);

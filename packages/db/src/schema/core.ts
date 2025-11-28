@@ -10,7 +10,7 @@ import {
 	uuid,
 } from "drizzle-orm/pg-core";
 import { user } from "./auth";
-import { workflowExecutions, workflows } from "./workflows";
+import { workflows } from "./workflows";
 
 // ============================================
 // PROJECT STATUS ENUM

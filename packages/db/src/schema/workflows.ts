@@ -1,5 +1,4 @@
 import {
-	boolean,
 	index,
 	integer,
 	jsonb,
@@ -12,6 +11,54 @@ import {
 import { agents } from "./agents";
 import { projects } from "./core";
 import type { StepConfig } from "./step-configs";
+
+// ============================================
+// WORKFLOW TYPES - Story 2.1 Schema Refactor
+// ============================================
+
+/**
+ * WorkflowTags - JSONB type for flexible filtering
+ * Replaces rigid columns (module, initializerType, etc.) with dynamic tags
+ *
+ * @example
+ * {
+ *   phase: "0",           // BMAD phase (0=Discovery, 1=Analysis, etc.)
+ *   type: "method",       // Workflow type (method, technique, utility)
+ *   track: "greenfield",  // Project track (greenfield, brownfield)
+ *   complexity: "moderate" // Complexity classification
+ * }
+ */
+export interface WorkflowTags {
+	phase?: string; // BMAD phase: "0", "1", "2", "3", "4"
+	type?: string; // Workflow type: "method", "technique", "utility", "initializer"
+	track?: string; // Project track: "greenfield", "brownfield"
+	complexity?: string; // Complexity: "quick", "moderate", "enterprise"
+	module?: string; // Module origin: "bmm", "cis", "custom" (migrated from column)
+	[key: string]: string | undefined; // Allow additional custom tags
+}
+
+/**
+ * WorkflowMetadata - JSONB type for UI configuration
+ * Stores display-related settings that don't affect execution
+ *
+ * @example
+ * {
+ *   icon: "brain",
+ *   color: "#8B5CF6",
+ *   recommendedFor: ["new-projects", "ideation"],
+ *   estimatedDuration: "15-30 min"
+ * }
+ */
+export interface WorkflowMetadata {
+	icon?: string; // Lucide icon name
+	color?: string; // Hex color for UI
+	recommendedFor?: string[]; // Contexts where this workflow is recommended
+	estimatedDuration?: string; // Human-readable duration estimate
+	agentId?: string; // Associated agent UUID (migrated from column)
+	isStandalone?: boolean; // Can run without project context (migrated from column)
+	requiresProjectContext?: boolean; // Needs existing project (migrated from column)
+	[key: string]: unknown; // Allow additional custom metadata
+}
 
 // ============================================
 // ENUMS
@@ -51,8 +98,8 @@ export const workflowStatusEnum = pgEnum("workflow_status", [
 ]);
 
 // ============================================
-// WORKFLOWS TABLE (UPDATED - Added special flags and template reference)
-// Complete workflow definitions
+// WORKFLOWS TABLE (Story 2.1 - Schema Refactor)
+// Complete workflow definitions with flexible tags and metadata
 // ============================================
 
 export const workflows = pgTable(
@@ -62,16 +109,14 @@ export const workflows = pgTable(
 		name: text("name").notNull().unique(), // e.g., "brainstorm-project", "research", "workflow-init"
 		displayName: text("display_name").notNull(),
 		description: text("description"),
-		module: text("module"), // "bmm", "cis", "custom"
 
-		agentId: uuid("agent_id").references(() => agents.id),
+		// Story 2.1: Flexible JSONB fields replace rigid columns
+		// Tags for filtering (phase, type, track, complexity, etc.)
+		tags: jsonb("tags").$type<WorkflowTags>().default({}),
+		// Metadata for UI configuration (icon, color, recommendedFor, etc.)
+		metadata: jsonb("metadata").$type<WorkflowMetadata>().default({}),
 
-		// Special flags (UPDATED - replaced isProjectInitializer with initializerType)
-		initializerType: text("initializer_type"), // "new-project", "existing-project", null
-		isStandalone: boolean("is_standalone").default(true), // Can run without project context
-		requiresProjectContext: boolean("requires_project_context").default(false),
-
-		// Output artifact configuration (optional)
+		// Output artifact configuration (optional) - KEPT for artifact generation
 		outputArtifactType: text("output_artifact_type"), // "prd", "architecture", "story", etc.
 		outputTemplateId: uuid("output_template_id"), // Reference to workflow_templates table
 
@@ -79,7 +124,8 @@ export const workflows = pgTable(
 		updatedAt: timestamp("updated_at").notNull().defaultNow(),
 	},
 	(table) => ({
-		moduleIdx: index("idx_workflows_module").on(table.module),
+		// GIN index for efficient JSONB tag filtering
+		tagsIdx: index("idx_workflows_tags").using("gin", table.tags),
 	}),
 );
 
@@ -186,12 +232,14 @@ export const workflowExecutions = pgTable(
 );
 
 // ============================================
-// TYPESCRIPT TYPES FOR STEP CONFIGS
+// TYPESCRIPT TYPES
 // ============================================
 
-// AskUserStep - Captures user input (UPDATED for Story 1.5)
-// NOTE: Step config types are now defined in step-configs.ts using Zod schemas
-// Import them from there instead of duplicating here
+// Inferred type for workflow records from database
+export type Workflow = typeof workflows.$inferSelect;
 
 // Inferred type for workflow step records from database
 export type WorkflowStep = typeof workflowSteps.$inferSelect;
+
+// NOTE: Step config types are defined in step-configs.ts using Zod schemas
+// Import them from there instead of duplicating here

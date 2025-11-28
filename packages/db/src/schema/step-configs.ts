@@ -11,7 +11,9 @@ import { z } from "zod";
  *
  * @example
  * {
+ *   type: "ask-user",
  *   question: "What is your project name?",
+ *   message: "Let's name your project",
  *   responseType: "string",
  *   responseVariable: "project_name",
  *   validation: {
@@ -22,7 +24,9 @@ import { z } from "zod";
  * }
  */
 export const askUserStepConfigSchema = z.object({
+	type: z.literal("ask-user").optional(), // Optional type field for explicit config
 	question: z.string(),
+	message: z.string().optional(), // Display message before the question
 	responseType: z.enum([
 		"string",
 		"text",
@@ -37,6 +41,8 @@ export const askUserStepConfigSchema = z.object({
 			required: z.boolean().optional(),
 			minLength: z.number().optional(),
 			maxLength: z.number().optional(),
+			min: z.number().optional(), // For number type
+			max: z.number().optional(), // For number type
 			pattern: z.string().optional(),
 		})
 		.optional(),
@@ -44,6 +50,14 @@ export const askUserStepConfigSchema = z.object({
 		.object({
 			options: z.array(z.string()),
 			allowCustom: z.boolean().optional(),
+		})
+		.optional(),
+	// Path-specific configuration
+	pathConfig: z
+		.object({
+			selectMode: z.enum(["file", "directory"]).optional(),
+			mustExist: z.boolean().optional(),
+			allowedExtensions: z.array(z.string()).optional(),
 		})
 		.optional(),
 });
@@ -117,9 +131,10 @@ export const askUserChatStepConfigSchema = z.object({
 						table: z.string(), // Table to query
 						selectFields: z.array(z.string()).optional(), // Fields to fetch (default: all fields)
 						distinctField: z.string().optional(), // Field to get unique values from (supports JSONB like "tags->'complexity'")
-						filterBy: z.record(z.string()).optional(), // Optional filters (supports {{variable}} syntax)
+						filterBy: z.record(z.string(), z.string()).optional(), // Optional filters (supports {{variable}} syntax)
 						orderBy: z.string().optional(), // Field to order by
 						outputVariable: z.string(), // Variable name to store fetched options
+						requireFeedbackOnOverride: z.boolean().optional(), // Show feedback textarea when user selects non-AI option
 						// Display configuration - how to render options in approval cards
 						displayConfig: z
 							.object({
@@ -227,19 +242,55 @@ export const askUserChatStepConfigSchema = z.object({
  * @example
  * {
  *   actions: [
- *     { type: "set-variable", key: "foo", value: "bar" },
- *     { type: "database", operation: "insert", table: "projects" }
+ *     { type: "set-variable", config: { variable: "foo", value: "bar" } },
+ *     { type: "git", config: { operation: "init", path: "{{project_path}}" } },
+ *     { type: "database", config: { table: "projects", operation: "update", columns: { name: "{{project_name}}" }, where: { id: "{{project_id}}" } } }
  *   ]
  * }
  */
 export const executeActionStepConfigSchema = z.object({
 	actions: z.array(
-		z.object({
-			type: z.enum(["set-variable", "file", "git", "database"]),
-			// Type-specific fields can be extended here
-			// For MVP, we accept any additional properties
-		}),
+		z.discriminatedUnion("type", [
+			// Set variable action
+			z.object({
+				type: z.literal("set-variable"),
+				config: z.object({
+					variable: z.string(),
+					value: z.unknown(),
+				}),
+			}),
+			// Git action (Story 1.8)
+			z.object({
+				type: z.literal("git"),
+				config: z.object({
+					operation: z.enum(["init", "commit", "push"]),
+					path: z.string(), // Supports {{variable}} syntax
+					message: z.string().optional(), // For commit operations
+				}),
+			}),
+			// Database action (Story 1.8)
+			z.object({
+				type: z.literal("database"),
+				config: z.object({
+					table: z.string(),
+					operation: z.enum(["update", "insert"]),
+					columns: z.record(z.string(), z.unknown()), // Column values, supports {{variable}} syntax
+					where: z.record(z.string(), z.unknown()).optional(), // For update operations
+				}),
+			}),
+			// File action (future)
+			z.object({
+				type: z.literal("file"),
+				config: z.object({
+					operation: z.enum(["create", "read", "write", "delete"]),
+					path: z.string(),
+					content: z.string().optional(),
+				}),
+			}),
+		]),
 	),
+	executionMode: z.enum(["sequential", "parallel"]).optional(),
+	requiresUserConfirmation: z.boolean().optional(),
 });
 
 /**
