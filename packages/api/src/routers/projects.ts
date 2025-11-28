@@ -295,7 +295,9 @@ export const projectsRouter = router({
 					});
 				}
 
-				if (!workflow.initializerType) {
+				// Story 2.1: Check if workflow is an initializer using tags JSONB field
+				const workflowTags = workflow.tags as { type?: string } | null;
+				if (workflowTags?.type !== "initializer") {
 					throw new TRPCError({
 						code: "BAD_REQUEST",
 						message: "Workflow is not an initializer workflow",
@@ -366,7 +368,9 @@ export const projectsRouter = router({
 						eq(workflows.id, input.initializerWorkflowId),
 				});
 
-				if (!workflow || !workflow.initializerType) {
+				// Story 2.1: Check if workflow is an initializer using tags JSONB field
+				const workflowTags = workflow?.tags as { type?: string } | null;
+				if (!workflow || workflowTags?.type !== "initializer") {
 					throw new TRPCError({
 						code: "BAD_REQUEST",
 						message: "Invalid initializer workflow",

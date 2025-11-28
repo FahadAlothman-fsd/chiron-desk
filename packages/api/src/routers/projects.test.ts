@@ -23,9 +23,10 @@ describe("Projects Router - Story 1.5", () => {
 		testUserId = testUser.id;
 
 		// Get a workflow initializer for testing
+		// Story 2.1: Query using tags JSONB field instead of initializerType column
 		const workflow = await db.query.workflows.findFirst({
-			where: (workflows, { eq }) =>
-				eq(workflows.initializerType, "new-project"),
+			where: (workflows, { sql }) =>
+				sql`${workflows.tags}->>'type' = 'initializer' AND ${workflows.tags}->>'track' = 'greenfield'`,
 		});
 
 		if (!workflow) {

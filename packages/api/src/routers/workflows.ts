@@ -1,6 +1,6 @@
 import { db, workflowExecutions } from "@chiron/db";
 import { observable } from "@trpc/server/observable";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 import { getThreadMessages } from "../services/mastra/mastra-service";
@@ -98,6 +98,34 @@ export const workflowRouter = router({
 		}),
 
 	/**
+	 * Story 2.1: Get execution state by project ID
+	 * Finds the active/paused execution for a project (used by initialize page)
+	 */
+	getExecutionByProject: protectedProcedure
+		.input(
+			z.object({
+				projectId: z.string().uuid(),
+			}),
+		)
+		.query(async ({ input }) => {
+			// Query workflow_executions by project_id, get the most recent non-completed
+			const [execution] = await db
+				.select()
+				.from(workflowExecutions)
+				.where(eq(workflowExecutions.projectId, input.projectId))
+				.orderBy(sql`${workflowExecutions.startedAt} DESC`)
+				.limit(1);
+
+			if (!execution) {
+				return null;
+			}
+
+			// Build the same response structure as getExecution
+			const fullExecution = await stateManager.getExecution(execution.id);
+			return fullExecution;
+		}),
+
+	/**
 	 * Pause a running workflow
 	 */
 	pauseWorkflow: protectedProcedure
@@ -162,6 +190,7 @@ export const workflowRouter = router({
 	/**
 	 * Story 1.5: Get workflow initializers
 	 * Returns workflows that can be used to initialize a new project
+	 * Story 2.1: Updated to use tags JSONB field instead of initializerType column
 	 */
 	getInitializers: protectedProcedure
 		.input(
@@ -170,12 +199,35 @@ export const workflowRouter = router({
 			}),
 		)
 		.query(async ({ input }) => {
+			// Query using JSONB tags field: tags->>'type' = 'initializer' AND tags->>'track' = input.type
 			const initializers = await db.query.workflows.findMany({
-				where: (workflows, { eq }) => eq(workflows.initializerType, input.type),
+				where: (workflows, { sql }) =>
+					sql`${workflows.tags}->>'type' = 'initializer' AND ${workflows.tags}->>'track' = ${input.type === "new-project" ? "greenfield" : "brownfield"}`,
 				orderBy: (workflows, { asc }) => [asc(workflows.displayName)],
 			});
 
 			return { workflows: initializers };
+		}),
+
+	/**
+	 * Story 2.1: Get workflows by phase
+	 * Returns workflows filtered by phase tag (e.g., "0" for Discovery)
+	 */
+	getByPhase: protectedProcedure
+		.input(
+			z.object({
+				phase: z.string(), // e.g., "0", "1", "2", etc.
+			}),
+		)
+		.query(async ({ input }) => {
+			// Query using JSONB tags field: tags->>'phase' = input.phase
+			const workflows = await db.query.workflows.findMany({
+				where: (workflows, { sql }) =>
+					sql`${workflows.tags}->>'phase' = ${input.phase}`,
+				orderBy: (workflows, { asc }) => [asc(workflows.displayName)],
+			});
+
+			return { workflows };
 		}),
 
 	/**
