@@ -2,7 +2,7 @@ name: chiron
 
 services:
   postgres:
-    image: postgres
+    image: postgres:16
     container_name: chiron-postgres
     environment:
       POSTGRES_DB: chiron
