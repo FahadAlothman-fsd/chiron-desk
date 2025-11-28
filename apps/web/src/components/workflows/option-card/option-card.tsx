@@ -12,27 +12,42 @@ export function OptionCard({
 	isRecommended,
 	onSelect,
 	className,
+	disabled = false,
 }: OptionCardProps) {
 	return (
 		<Card
 			className={cn(
-				"cursor-pointer transition-all hover:shadow-md",
-				isSelected && "border-blue-500 bg-blue-50/50 ring-2 ring-blue-200",
+				"transition-all",
+				// Interactive styles only when not disabled
+				!disabled && "cursor-pointer hover:shadow-md",
+				// Selected state: use primary (green) accent with subtle background
+				isSelected && "border-primary bg-primary/5 ring-1 ring-primary/30",
+				// Recommended but not selected: subtle yellow hint (only when not disabled)
 				isRecommended &&
 					!isSelected &&
-					"border-yellow-500 ring-1 ring-yellow-200",
+					!disabled &&
+					"border-amber-500/50 ring-1 ring-amber-500/20",
+				// Non-selected, non-disabled: muted appearance
+				!isSelected && disabled && "opacity-60",
+				// Hover state for non-selected, non-disabled cards
+				!isSelected && !disabled && "hover:border-primary/50",
 				className,
 			)}
-			onClick={onSelect}
-			onKeyDown={(e) => {
-				if (e.key === "Enter" || e.key === " ") {
-					e.preventDefault();
-					onSelect();
-				}
-			}}
+			onClick={disabled ? undefined : onSelect}
+			onKeyDown={
+				disabled
+					? undefined
+					: (e) => {
+							if (e.key === "Enter" || e.key === " ") {
+								e.preventDefault();
+								onSelect();
+							}
+						}
+			}
 			role="radio"
 			aria-checked={isSelected}
-			tabIndex={0}
+			aria-disabled={disabled}
+			tabIndex={disabled ? -1 : 0}
 		>
 			<CardContent className="space-y-3 p-4">
 				{/* Radio button indicator */}
@@ -42,12 +57,12 @@ export function OptionCard({
 							className={cn(
 								"flex h-4 w-4 items-center justify-center rounded-full border-2 transition-colors",
 								isSelected
-									? "border-blue-600 bg-blue-600"
-									: "border-gray-300 bg-white",
+									? "border-primary bg-primary"
+									: "border-muted-foreground/30 bg-background",
 							)}
 						>
 							{isSelected && (
-								<div className="h-1.5 w-1.5 rounded-full bg-white" />
+								<div className="h-1.5 w-1.5 rounded-full bg-primary-foreground" />
 							)}
 						</div>
 					</div>

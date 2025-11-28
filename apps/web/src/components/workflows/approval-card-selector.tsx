@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { getValueByPath } from "@/lib/json-path";
+import { cn } from "@/lib/utils";
 import { trpc } from "@/utils/trpc";
 import { OptionCard } from "./option-card";
 
@@ -165,7 +166,7 @@ export function ApprovalCardSelector({
 
 		if (!outputFieldKey) {
 			throw new Error(
-				`Could not find output field in generatedValue matching available options`,
+				"Could not find output field in generatedValue matching available options",
 			);
 		}
 
@@ -246,43 +247,9 @@ export function ApprovalCardSelector({
 			</CardHeader>
 
 			<CardContent className="space-y-4">
-				{/* Card Selector */}
-				{isReadOnly ? (
-					// Read-only: Show selected option as static card
-					<div className="space-y-2">
-						<div className="font-medium text-muted-foreground text-sm">
-							Selected Option
-						</div>
-						<div className="rounded-lg border-2 border-green-500 bg-background p-4">
-							{displayConfig && selectedOption ? (
-								<>
-									<div className="mb-1 font-semibold text-base">
-										{getValueByPath(selectedOption, displayConfig.fields.title)}
-									</div>
-									{displayConfig.fields.description && (
-										<div className="text-muted-foreground text-sm">
-											{getValueByPath(
-												selectedOption,
-												displayConfig.fields.description,
-											)}
-										</div>
-									)}
-								</>
-							) : (
-								// Legacy fallback
-								<>
-									<div className="mb-1 font-semibold text-base">
-										{(selectedOption as any)?.name}
-									</div>
-									<div className="text-muted-foreground text-sm">
-										{(selectedOption as any)?.description}
-									</div>
-								</>
-							)}
-						</div>
-					</div>
-				) : displayConfig ? (
-					// NEW: Use generic OptionCard component with displayConfig
+				{/* Card Selector - Show all options, disabled when read-only */}
+				{displayConfig ? (
+					// Use generic OptionCard component with displayConfig
 					<div className="space-y-3">
 						{availableOptions.map((option) => {
 							const optionValue = getValueByPath<string>(
@@ -300,6 +267,7 @@ export function ApprovalCardSelector({
 									isSelected={isSelected}
 									isRecommended={isAiRecommendation}
 									onSelect={() => setSelectedValue(optionValue || "")}
+									disabled={isReadOnly}
 								/>
 							);
 						})}
@@ -307,41 +275,62 @@ export function ApprovalCardSelector({
 				) : (
 					// LEGACY: Fallback for old Option interface (no displayConfig)
 					<div className="space-y-3">
-						<div className="font-medium text-sm">
-							Athena recommends:{" "}
-							<span className="text-primary">
-								{
-									(
-										availableOptions.find(
-											(opt: any) => opt.value === aiRecommendedValue,
-										) as any
-									)?.name
-								}
-							</span>
-						</div>
+						{!isReadOnly && (
+							<div className="font-medium text-sm">
+								Athena recommends:{" "}
+								<span className="text-primary">
+									{
+										(
+											availableOptions.find(
+												(opt: any) => opt.value === aiRecommendedValue,
+											) as any
+										)?.name
+									}
+								</span>
+							</div>
+						)}
 
 						<div className="space-y-2">
 							{availableOptions.map((option: any) => (
 								<div
 									key={option.value}
-									onClick={() => setSelectedValue(option.value)}
-									onKeyDown={(e) => {
-										if (e.key === "Enter" || e.key === " ") {
-											setSelectedValue(option.value);
-										}
-									}}
+									onClick={
+										isReadOnly
+											? undefined
+											: () => setSelectedValue(option.value)
+									}
+									onKeyDown={
+										isReadOnly
+											? undefined
+											: (e) => {
+													if (e.key === "Enter" || e.key === " ") {
+														setSelectedValue(option.value);
+													}
+												}
+									}
 									role="radio"
 									aria-checked={option.value === selectedValue}
-									tabIndex={0}
-									className={`cursor-pointer rounded-lg border-2 p-4 transition-all ${
-										option.value === selectedValue
-											? "border-primary bg-primary/5"
-											: "border-border hover:border-primary/50"
-									}`}
+									aria-disabled={isReadOnly}
+									tabIndex={isReadOnly ? -1 : 0}
+									className={cn(
+										"rounded-lg border-2 p-4 transition-all",
+										// Interactive styles only when not read-only
+										!isReadOnly && "cursor-pointer",
+										// Selected state
+										option.value === selectedValue &&
+											"border-primary bg-primary/5",
+										// Non-selected: different styles for read-only vs interactive
+										option.value !== selectedValue &&
+											isReadOnly &&
+											"opacity-60",
+										option.value !== selectedValue &&
+											!isReadOnly &&
+											"border-border hover:border-primary/50",
+									)}
 								>
 									<div className="font-semibold text-base">
 										{option.name}
-										{option.value === aiRecommendedValue && (
+										{option.value === aiRecommendedValue && !isReadOnly && (
 											<span className="ml-2 text-primary text-xs">
 												⭐ AI Recommendation
 											</span>

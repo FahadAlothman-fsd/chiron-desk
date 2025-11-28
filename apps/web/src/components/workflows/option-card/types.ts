@@ -39,6 +39,7 @@ export interface OptionCardProps {
 	isRecommended: boolean;
 	onSelect: () => void;
 	className?: string;
+	disabled?: boolean; // When true, card is non-interactive (read-only view)
 }
 
 export interface CardHeaderProps {

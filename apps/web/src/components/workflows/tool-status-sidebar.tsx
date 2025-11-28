@@ -240,7 +240,7 @@ export function ToolStatusSidebar({
 
 					{/* Progress Bar (Only visible in progress tab via CSS logic or always visible as summary) */}
 					{/* Let's keep it always visible as a nice summary header */}
-					<div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+					<div className="mt-3 flex items-center justify-between text-muted-foreground text-xs">
 						<span>Completion</span>
 						<span>
 							{approvedCount}/{totalTools} Tools
@@ -257,7 +257,7 @@ export function ToolStatusSidebar({
 				<CardContent className="flex-1 overflow-hidden p-0">
 					<TabsContent
 						value="progress"
-						className="h-full overflow-y-auto overflow-x-hidden m-0 border-0"
+						className="m-0 h-full overflow-y-auto overflow-x-hidden border-0"
 					>
 						<Accordion
 							type="multiple"
@@ -426,18 +426,18 @@ export function ToolStatusSidebar({
 
 					<TabsContent
 						value="instructions"
-						className="h-full overflow-y-auto p-4 m-0 border-0"
+						className="m-0 h-full overflow-y-auto border-0 p-4"
 					>
 						<div className="space-y-6">
 							{/* Agent Persona */}
 							{agent && (
 								<div className="space-y-2">
-									<h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+									<h3 className="flex items-center gap-2 font-semibold text-muted-foreground text-sm uppercase tracking-wider">
 										<User className="h-3 w-3" />
 										Agent Persona
 									</h3>
-									<div className="rounded-md bg-primary/5 p-3 text-sm border border-primary/10">
-										<div className="font-medium mb-1">{agent.role}</div>
+									<div className="rounded-md border border-primary/10 bg-primary/5 p-3 text-sm">
+										<div className="mb-1 font-medium">{agent.role}</div>
 										<div className="text-muted-foreground text-xs">
 											{agent.description}
 										</div>
@@ -448,18 +448,18 @@ export function ToolStatusSidebar({
 							{/* Core Instructions (Collapsible) */}
 							{resolvedInstructions && (
 								<div className="space-y-2">
-									<h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+									<h3 className="flex items-center gap-2 font-semibold text-muted-foreground text-sm uppercase tracking-wider">
 										<FileText className="h-3 w-3" />
 										Core Instructions
 									</h3>
 									<Accordion type="single" collapsible className="w-full">
 										<AccordionItem value="instructions" className="border-none">
-											<AccordionTrigger className="py-2 px-3 rounded-md bg-muted/30 hover:bg-muted/50 text-xs font-medium hover:no-underline">
+											<AccordionTrigger className="rounded-md bg-muted/30 px-3 py-2 font-medium text-xs hover:bg-muted/50 hover:no-underline">
 												View System Prompt
 											</AccordionTrigger>
-											<AccordionContent className="px-0 pb-0 pt-2">
-												<div className="rounded-md bg-muted p-3 overflow-x-auto">
-													<pre className="text-[10px] leading-relaxed whitespace-pre-wrap font-mono text-muted-foreground">
+											<AccordionContent className="px-0 pt-2 pb-0">
+												<div className="overflow-x-auto rounded-md bg-muted p-3">
+													<pre className="whitespace-pre-wrap font-mono text-[10px] text-muted-foreground leading-relaxed">
 														{resolvedInstructions}
 													</pre>
 												</div>
@@ -471,7 +471,7 @@ export function ToolStatusSidebar({
 
 							{/* Active Guidelines Section */}
 							<div className="space-y-2">
-								<h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">
+								<h3 className="font-semibold text-muted-foreground text-sm uppercase tracking-wider">
 									Active Guidelines
 								</h3>
 								<div className="space-y-3">

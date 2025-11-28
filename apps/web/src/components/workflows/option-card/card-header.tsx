@@ -30,7 +30,7 @@ export function CardHeader({
 					)}
 				</h3>
 				{isSelected && (
-					<span className="shrink-0 text-green-600 text-sm">✓</span>
+					<span className="shrink-0 font-medium text-primary text-sm">✓</span>
 				)}
 			</div>
 
