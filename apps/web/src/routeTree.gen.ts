@@ -13,6 +13,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated.index'
+import { Route as ProjectsProjectIdRouteImport } from './routes/projects/$projectId'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated.settings'
 import { Route as AuthenticatedNewProjectRouteImport } from './routes/_authenticated.new-project'
 import { Route as AuthenticatedModelsRouteImport } from './routes/_authenticated.models'
@@ -38,6 +39,11 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const ProjectsProjectIdRoute = ProjectsProjectIdRouteImport.update({
+  id: '/projects/$projectId',
+  path: '/projects/$projectId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -55,15 +61,15 @@ const AuthenticatedModelsRoute = AuthenticatedModelsRouteImport.update({
 } as any)
 const ProjectsProjectIdSelectInitializerRoute =
   ProjectsProjectIdSelectInitializerRouteImport.update({
-    id: '/projects/$projectId/select-initializer',
-    path: '/projects/$projectId/select-initializer',
-    getParentRoute: () => rootRouteImport,
+    id: '/select-initializer',
+    path: '/select-initializer',
+    getParentRoute: () => ProjectsProjectIdRoute,
   } as any)
 const ProjectsProjectIdInitializeRoute =
   ProjectsProjectIdInitializeRouteImport.update({
-    id: '/projects/$projectId/initialize',
-    path: '/projects/$projectId/initialize',
-    getParentRoute: () => rootRouteImport,
+    id: '/initialize',
+    path: '/initialize',
+    getParentRoute: () => ProjectsProjectIdRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -72,6 +78,7 @@ export interface FileRoutesByFullPath {
   '/models': typeof AuthenticatedModelsRoute
   '/new-project': typeof AuthenticatedNewProjectRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
   '/': typeof AuthenticatedIndexRoute
   '/projects/$projectId/initialize': typeof ProjectsProjectIdInitializeRoute
   '/projects/$projectId/select-initializer': typeof ProjectsProjectIdSelectInitializerRoute
@@ -82,6 +89,7 @@ export interface FileRoutesByTo {
   '/models': typeof AuthenticatedModelsRoute
   '/new-project': typeof AuthenticatedNewProjectRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
   '/': typeof AuthenticatedIndexRoute
   '/projects/$projectId/initialize': typeof ProjectsProjectIdInitializeRoute
   '/projects/$projectId/select-initializer': typeof ProjectsProjectIdSelectInitializerRoute
@@ -94,6 +102,7 @@ export interface FileRoutesById {
   '/_authenticated/models': typeof AuthenticatedModelsRoute
   '/_authenticated/new-project': typeof AuthenticatedNewProjectRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
+  '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/projects/$projectId/initialize': typeof ProjectsProjectIdInitializeRoute
   '/projects/$projectId/select-initializer': typeof ProjectsProjectIdSelectInitializerRoute
@@ -106,6 +115,7 @@ export interface FileRouteTypes {
     | '/models'
     | '/new-project'
     | '/settings'
+    | '/projects/$projectId'
     | '/'
     | '/projects/$projectId/initialize'
     | '/projects/$projectId/select-initializer'
@@ -116,6 +126,7 @@ export interface FileRouteTypes {
     | '/models'
     | '/new-project'
     | '/settings'
+    | '/projects/$projectId'
     | '/'
     | '/projects/$projectId/initialize'
     | '/projects/$projectId/select-initializer'
@@ -127,6 +138,7 @@ export interface FileRouteTypes {
     | '/_authenticated/models'
     | '/_authenticated/new-project'
     | '/_authenticated/settings'
+    | '/projects/$projectId'
     | '/_authenticated/'
     | '/projects/$projectId/initialize'
     | '/projects/$projectId/select-initializer'
@@ -136,8 +148,7 @@ export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   DashboardRoute: typeof DashboardRoute
   LoginRoute: typeof LoginRoute
-  ProjectsProjectIdInitializeRoute: typeof ProjectsProjectIdInitializeRoute
-  ProjectsProjectIdSelectInitializerRoute: typeof ProjectsProjectIdSelectInitializerRoute
+  ProjectsProjectIdRoute: typeof ProjectsProjectIdRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -170,6 +181,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/projects/$projectId': {
+      id: '/projects/$projectId'
+      path: '/projects/$projectId'
+      fullPath: '/projects/$projectId'
+      preLoaderRoute: typeof ProjectsProjectIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/settings': {
       id: '/_authenticated/settings'
       path: '/settings'
@@ -193,17 +211,17 @@ declare module '@tanstack/react-router' {
     }
     '/projects/$projectId/select-initializer': {
       id: '/projects/$projectId/select-initializer'
-      path: '/projects/$projectId/select-initializer'
+      path: '/select-initializer'
       fullPath: '/projects/$projectId/select-initializer'
       preLoaderRoute: typeof ProjectsProjectIdSelectInitializerRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof ProjectsProjectIdRoute
     }
     '/projects/$projectId/initialize': {
       id: '/projects/$projectId/initialize'
-      path: '/projects/$projectId/initialize'
+      path: '/initialize'
       fullPath: '/projects/$projectId/initialize'
       preLoaderRoute: typeof ProjectsProjectIdInitializeRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof ProjectsProjectIdRoute
     }
   }
 }
@@ -226,13 +244,25 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
   AuthenticatedRouteChildren,
 )
 
+interface ProjectsProjectIdRouteChildren {
+  ProjectsProjectIdInitializeRoute: typeof ProjectsProjectIdInitializeRoute
+  ProjectsProjectIdSelectInitializerRoute: typeof ProjectsProjectIdSelectInitializerRoute
+}
+
+const ProjectsProjectIdRouteChildren: ProjectsProjectIdRouteChildren = {
+  ProjectsProjectIdInitializeRoute: ProjectsProjectIdInitializeRoute,
+  ProjectsProjectIdSelectInitializerRoute:
+    ProjectsProjectIdSelectInitializerRoute,
+}
+
+const ProjectsProjectIdRouteWithChildren =
+  ProjectsProjectIdRoute._addFileChildren(ProjectsProjectIdRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   DashboardRoute: DashboardRoute,
   LoginRoute: LoginRoute,
-  ProjectsProjectIdInitializeRoute: ProjectsProjectIdInitializeRoute,
-  ProjectsProjectIdSelectInitializerRoute:
-    ProjectsProjectIdSelectInitializerRoute,
+  ProjectsProjectIdRoute: ProjectsProjectIdRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
