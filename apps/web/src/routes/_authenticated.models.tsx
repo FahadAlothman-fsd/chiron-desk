@@ -1,4 +1,4 @@
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { ModelsDataTable } from "@/components/models/data-table";
 import { trpc } from "@/utils/trpc";
@@ -51,7 +51,7 @@ function ModelsPage() {
 						</p>
 						<Link
 							to="/settings"
-							className="text-sm font-medium text-primary underline"
+							className="font-medium text-primary text-sm underline"
 						>
 							Go to Settings
 						</Link>

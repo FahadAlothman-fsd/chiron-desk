@@ -1,5 +1,5 @@
-import { useState } from "react";
 import type { ComponentProps, ReactNode } from "react";
+import { useState } from "react";
 import {
 	Command,
 	CommandDialog,
@@ -185,7 +185,7 @@ export const ModelSelectorLogo = ({
 		return (
 			<div
 				className={cn(
-					"size-3 flex items-center justify-center rounded-full bg-primary/10 text-[0.4rem] font-semibold text-primary",
+					"flex size-3 items-center justify-center rounded-full bg-primary/10 font-semibold text-[0.4rem] text-primary",
 					className,
 				)}
 				title={`${provider} logo`}
