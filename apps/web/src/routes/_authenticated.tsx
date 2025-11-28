@@ -1,4 +1,9 @@
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import {
+	createFileRoute,
+	Outlet,
+	redirect,
+	useLocation,
+} from "@tanstack/react-router";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -31,6 +36,16 @@ export const Route = createFileRoute("/_authenticated")({
 });
 
 function AuthenticatedLayout() {
+	const location = useLocation();
+
+	// Project routes have their own layout with ProjectSidebar
+	// Don't wrap them with AppSidebar
+	const isProjectRoute = location.pathname.startsWith("/projects/");
+
+	if (isProjectRoute) {
+		return <Outlet />;
+	}
+
 	return (
 		<SidebarProvider>
 			<AppSidebar />
@@ -47,7 +62,7 @@ function AuthenticatedLayout() {
 						</div>
 					</div>
 				</header>
-				<main className="flex flex-1 flex-col gap-4 p-1">
+				<main className="flex flex-1 flex-col gap-4 p-4">
 					<Outlet />
 				</main>
 			</SidebarInset>
