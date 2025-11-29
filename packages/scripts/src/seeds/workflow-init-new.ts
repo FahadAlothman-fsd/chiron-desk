@@ -99,7 +99,7 @@ export async function seedWorkflowInitNew() {
 				description:
 					"Generate a concise project summary from conversation history",
 				usageGuidance:
-					"Call this tool after 2-3 exchanges with the user about their project. Wait until you understand: what problem they're solving, who the target users are, and key features or requirements. Do NOT call this tool in your first response - gather information first through conversation.",
+					"Call this tool when you have enough information to understand: (1) what problem the user is solving, (2) who the target users are, and (3) key features or requirements. If the user provides comprehensive details in their first message, call this tool immediately. If their message is vague or incomplete, ask 1-2 follow-up questions to gather missing information, then call the tool. Do not engage in unnecessary back-and-forth if you already have sufficient context.",
 				requiredVariables: [], // Can execute anytime based on conversation
 				requiresApproval: true,
 				axSignature: {
