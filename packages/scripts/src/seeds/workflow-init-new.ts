@@ -7,6 +7,7 @@ import type {
 	WorkflowTags,
 } from "@chiron/db";
 import { db, workflowSteps, workflows } from "@chiron/db";
+import { eq } from "drizzle-orm";
 
 /**
  * Seeds the workflow-init-new workflow metadata and steps 1-2
@@ -72,7 +73,7 @@ export async function seedWorkflowInitNew() {
 		return;
 	}
 
-	// Check if steps already exist
+	// Check if steps already exist - skip if they do (fresh DB only)
 	const existingSteps = await db.query.workflowSteps.findMany({
 		where: (steps, { eq }) => eq(steps.workflowId, workflow.id),
 	});
@@ -208,7 +209,7 @@ export async function seedWorkflowInitNew() {
 				description:
 					"Present available workflow paths filtered by complexity and field type, allowing user to select the methodology that best fits their project",
 				usageGuidance:
-					"Call this tool IMMEDIATELY after complexity_classification is approved. Fetch matching workflow paths from the database and recommend the most appropriate one based on the project's complexity and requirements. Present all options to the user for selection.",
+					"Call this tool IMMEDIATELY after complexity_classification is approved. Fetch matching workflow paths from the database and recommend the most appropriate one based on the project's complexity and requirements. Present all options to the user for selection. IMPORTANT: You MUST call this tool even if only ONE workflow path matches the filters - this formally registers the path selection and creates an approval gate for audit trail purposes. Do not skip this tool just because there's only one option.",
 				requiredVariables: ["complexity_classification"],
 				requiresApproval: true,
 				// Fetch available workflow paths from database

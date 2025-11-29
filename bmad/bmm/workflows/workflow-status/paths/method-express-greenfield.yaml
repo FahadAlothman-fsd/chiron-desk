@@ -1,0 +1,72 @@
+# BMad Method Express - Greenfield
+# Streamlined product planning for greenfield projects (5-30 stories typically)
+# Skips UX and some optional validation steps for faster time-to-implementation
+
+method_name: "BMad Method Express"
+track: "bmad-method"
+field_type: "greenfield"
+description: "Streamlined product and system design for greenfield projects - faster path with core artifacts only"
+recommended_for: "Small teams (1-3 devs), tight deadlines, well-understood domain, minimal UI complexity"
+
+phases:
+  - phase: 0
+    name: "Discovery (Optional)"
+    optional: true
+    note: "User-selected during workflow-init"
+    workflows:
+      - id: "brainstorm-project"
+        optional: true
+        agent: "analyst"
+        command: "brainstorm-project"
+        included_by: "user_choice"
+
+      - id: "product-brief"
+        optional: true
+        agent: "analyst"
+        command: "product-brief"
+        included_by: "user_choice"
+        note: "Lightweight brief instead of full research"
+
+  - phase: 1
+    name: "Planning"
+    required: true
+    workflows:
+      - id: "prd"
+        required: true
+        agent: "pm"
+        command: "prd"
+        output: "Product Requirements Document with FRs and NFRs"
+        note: "Focused PRD with essential requirements only"
+
+  - phase: 2
+    name: "Solutioning"
+    required: true
+    workflows:
+      - id: "create-architecture"
+        required: true
+        agent: "architect"
+        command: "create-architecture"
+        output: "System architecture document"
+        note: "Focused architecture - core patterns and tech stack"
+
+      - id: "create-epics-and-stories"
+        required: true
+        agent: "pm"
+        command: "create-epics-and-stories"
+        note: "Required: Break down PRD into implementable epics and stories (PRD + Architecture context)"
+
+      - id: "implementation-readiness"
+        required: true
+        agent: "architect"
+        command: "implementation-readiness"
+        note: "Lightweight gate check - validates PRD + Architecture + Epics cohesion"
+
+  - phase: 3
+    name: "Implementation"
+    required: true
+    workflows:
+      - id: "sprint-planning"
+        required: true
+        agent: "sm"
+        command: "sprint-planning"
+        note: "Creates sprint plan - subsequent work tracked there"
