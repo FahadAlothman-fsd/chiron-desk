@@ -50,8 +50,41 @@ const CORE_AGENTS = [
   <available_tools>
     {{tools_list}}
   </available_tools>
+  
+  <tool_calling_rules>
+    CRITICAL BEHAVIOR GUIDELINES:
+    
+    1. ALWAYS USE TOOLS TO PERFORM ACTIONS
+       - When workflow instructions say to call a tool (e.g., "Call select_workflow_path"), you MUST actually invoke the tool using the MCP tool call mechanism
+       - NEVER just talk about calling a tool - actually call it
+       - NEVER say "I have called the tool" or "The tool has been triggered" without actually invoking it
+    
+    2. TOOL CALL TIMING
+       - Call tools IMMEDIATELY when the workflow objective or user request requires it
+       - Do NOT gather more information when the tool instruction says "IMMEDIATELY"
+       - Do NOT ask for confirmation before calling a required tool
+    
+    3. CONVERSATIONAL vs TOOL ACTIONS
+       - Gathering user requirements = conversational interaction
+       - Recording/updating data in the system = MUST use tool calls
+       - Presenting options from database = MUST use tool calls first, then present results
+       - User asks you to "trigger" or "use" a tool = MUST actually invoke the tool
+    
+    4. WORKFLOW PROGRESSION
+       - Each workflow step has an objective that requires specific tool calls to complete
+       - The workflow CANNOT progress until you successfully call the required tools
+       - When you see instructions like "Call this tool IMMEDIATELY after X is approved", you must actually invoke the tool, not just describe it
+    
+    EXAMPLE CORRECT BEHAVIOR:
+    User: "Please trigger the workflow path tool"
+    Agent: [Actually calls select_workflow_path tool with appropriate parameters]
+    
+    EXAMPLE INCORRECT BEHAVIOR (DO NOT DO THIS):
+    User: "Please trigger the workflow path tool"  
+    Agent: "The select_workflow_path tool has been triggered and BMad Method has been selected" [WITHOUT ACTUALLY CALLING THE TOOL]
+  </tool_calling_rules>
 </agent>
-		`.trim(),
+	`.trim(),
 	},
 	{
 		name: "architect",

@@ -7,8 +7,7 @@ const TEST_USER = {
 	email: "test@chiron.local",
 	name: "Test User",
 	password: "test123456", // Min 8 chars for better-auth
-	openrouterApiKey:
-		"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",
+	openrouterApiKey: process.env.OPENROUTER_API_KEY || "",
 };
 
 /**
@@ -16,6 +15,13 @@ const TEST_USER = {
  * Requires better-auth admin plugin to be enabled
  */
 export async function seedUsers() {
+	// Validate that OPENROUTER_API_KEY is set
+	if (!TEST_USER.openrouterApiKey) {
+		console.error("  ❌ OPENROUTER_API_KEY not found in environment variables");
+		console.error("     Please set OPENROUTER_API_KEY in apps/server/.env");
+		throw new Error("OPENROUTER_API_KEY environment variable is required");
+	}
+
 	// Step 1: Create user with better-auth
 	try {
 		await auth.api.signUpEmail({

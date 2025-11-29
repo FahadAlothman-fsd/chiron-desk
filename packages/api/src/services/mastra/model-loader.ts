@@ -43,6 +43,54 @@ export interface ModelConfig {
  * });
  * ```
  */
+/**
+ * Custom fetch wrapper to fix malformed tool calling responses from some OpenRouter models
+ * Some models (like gpt-oss-120b) return empty strings for tool_calls.type instead of "function"
+ */
+function createOpenRouterFetchWithFix(apiKey: string): typeof fetch {
+	return async (url: RequestInfo | URL, init?: RequestInit) => {
+		const response = await fetch(url, init);
+
+		// Only intercept streaming responses
+		if (
+			!response.body ||
+			!response.headers.get("content-type")?.includes("text/event-stream")
+		) {
+			return response;
+		}
+
+		// Create a transform stream to fix malformed chunks
+		const reader = response.body.getReader();
+		const stream = new ReadableStream({
+			async start(controller) {
+				try {
+					while (true) {
+						const { done, value } = await reader.read();
+						if (done) break;
+
+						// Decode the chunk
+						const text = new TextDecoder().decode(value);
+
+						// Fix malformed tool_calls with empty type fields
+						const fixed = text.replace(/"type":""/g, '"type":"function"');
+
+						controller.enqueue(new TextEncoder().encode(fixed));
+					}
+					controller.close();
+				} catch (error) {
+					controller.error(error);
+				}
+			},
+		});
+
+		return new Response(stream, {
+			headers: response.headers,
+			status: response.status,
+			statusText: response.statusText,
+		});
+	};
+}
+
 export function loadModel(config: ModelConfig): any {
 	switch (config.provider) {
 		case "openrouter": {
@@ -51,7 +99,10 @@ export function loadModel(config: ModelConfig): any {
 					"OpenRouter API key is required. Please configure it in Settings.",
 				);
 			}
-			const provider = createOpenRouter({ apiKey: config.apiKey });
+			const provider = createOpenRouter({
+				apiKey: config.apiKey,
+				fetch: createOpenRouterFetchWithFix(config.apiKey),
+			});
 			return provider(config.modelId);
 		}
 
