@@ -92,41 +92,21 @@ export async function seedWorkflowInitNew() {
 			"Let's set up your new project! Tell me about what you're building - what problem are you solving for your users?",
 
 		tools: [
-			// Tool 1: Generate Project Summary
+			// Tool 1: Set Project Description
 			{
-				name: "update_summary",
-				toolType: "ax-generation",
+				name: "update_description",
+				toolType: "update-variable",
+				targetVariable: "project_description",
 				description:
-					"Generate a concise project summary from conversation history",
+					"Set the project description based on your analysis of the conversation",
 				usageGuidance:
-					"Call this tool when you have enough information to understand: (1) what problem the user is solving, (2) who the target users are, and (3) key features or requirements. If the user provides comprehensive details in their first message, call this tool immediately. If their message is vague or incomplete, ask 1-2 follow-up questions to gather missing information, then call the tool. Do not engage in unnecessary back-and-forth if you already have sufficient context.",
+					"Call this tool when you have enough information to understand: (1) what problem the user is solving, (2) who the target users are, and (3) key features or requirements. Write a clear, comprehensive description that captures what the product is, who it's for, the core problem it solves, and key value proposition. Use specific details from the conversation - mention the product name if provided, target users, and main features. The description can be as detailed as the conversation warrants - don't artificially limit it to a specific length. If the user provides comprehensive details in their first message, call this tool immediately. If their message is vague, ask 1-2 follow-up questions first.",
 				requiredVariables: [], // Can execute anytime based on conversation
 				requiresApproval: true,
-				axSignature: {
-					input: [
-						{
-							name: "conversation_history",
-							type: "string",
-							source: "context",
-							description: "Full conversation history with the user",
-						},
-					],
-					output: [
-						{
-							name: "project_description",
-							type: "string",
-							description:
-								"A concise 2-3 sentence summary that captures: (1) what the product is and who it's for, (2) the core problem it solves, and (3) the key value it provides to users. Use specific details from the conversation - mention the product name if provided, the target users, and the main features or capabilities.",
-							internal: false,
-						},
-						{
-							name: "reasoning",
-							type: "string",
-							description: "Why this summary captures the project essence",
-							internal: true, // Hidden from approval UI
-						},
-					],
-					strategy: "ChainOfThought",
+				valueSchema: {
+					type: "string",
+					description:
+						"A clear, comprehensive project description focusing on: what it is, who it's for, problem it solves, and key value. Be as detailed as the conversation warrants.",
 				},
 			},
 
@@ -167,7 +147,7 @@ export async function seedWorkflowInitNew() {
 							type: "string",
 							source: "variable",
 							variableName: "project_description",
-							description: "Approved project summary",
+							description: "Approved project description",
 						},
 						{
 							name: "conversation_history",
@@ -282,7 +262,7 @@ export async function seedWorkflowInitNew() {
 							type: "string",
 							source: "variable",
 							variableName: "project_description",
-							description: "Project summary for context",
+							description: "Project description for context",
 						},
 						{
 							name: "conversation_history",
@@ -326,7 +306,7 @@ export async function seedWorkflowInitNew() {
 							type: "string",
 							source: "variable",
 							variableName: "project_description",
-							description: "Project summary",
+							description: "Project description",
 						},
 						{
 							name: "conversation_history",
@@ -359,7 +339,7 @@ export async function seedWorkflowInitNew() {
 		completionCondition: {
 			type: "all-tools-approved",
 			requiredTools: [
-				"update_summary",
+				"update_description",
 				"update_complexity",
 				"select_workflow_path",
 				"update_project_name",
@@ -368,7 +348,7 @@ export async function seedWorkflowInitNew() {
 
 		outputVariables: {
 			project_description:
-				"approval_states.update_summary.value.project_description",
+				"approval_states.update_description.value.project_description",
 			complexity_classification:
 				"approval_states.update_complexity.value.complexity_classification",
 			selected_workflow_path_id:

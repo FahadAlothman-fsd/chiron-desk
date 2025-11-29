@@ -32,7 +32,7 @@ interface ApprovalCardProps {
 	executionId: string;
 	agentId: string;
 	toolName: string;
-	generatedValue: Record<string, unknown>;
+	generatedValue: string | Record<string, unknown>;
 	reasoning?: string;
 	isApproved?: boolean;
 	isRejected?: boolean;
@@ -158,23 +158,31 @@ export function ApprovalCard({
 			<CardContent className="space-y-4">
 				{/* Generated Content */}
 				<div className="space-y-2">
-					{Object.entries(generatedValue).map(([key, value]) => {
-						// Skip internal fields
-						if (key === "reasoning") return null;
+					{typeof generatedValue === "string" ? (
+						// Simple string value (e.g., from update-variable tool)
+						<div className="rounded-md border bg-background p-3 whitespace-pre-wrap">
+							{generatedValue}
+						</div>
+					) : (
+						// Object with key-value pairs (e.g., from AX generation tool)
+						Object.entries(generatedValue).map(([key, value]) => {
+							// Skip internal fields
+							if (key === "reasoning") return null;
 
-						return (
-							<div key={key} className="space-y-1">
-								<div className="font-medium text-muted-foreground text-sm capitalize">
-									{key.replace(/_/g, " ")}
+							return (
+								<div key={key} className="space-y-1">
+									<div className="font-medium text-muted-foreground text-sm capitalize">
+										{key.replace(/_/g, " ")}
+									</div>
+									<div className="rounded-md border bg-background p-3">
+										{typeof value === "string"
+											? value
+											: JSON.stringify(value, null, 2)}
+									</div>
 								</div>
-								<div className="rounded-md border bg-background p-3">
-									{typeof value === "string"
-										? value
-										: JSON.stringify(value, null, 2)}
-								</div>
-							</div>
-						);
-					})}
+							);
+						})
+					)}
 				</div>
 
 				{/* Reasoning (Collapsible) */}

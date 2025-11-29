@@ -76,7 +76,11 @@ export function ToolStatusPanel({
 				(varName) =>
 					!(varName in executionVariables) &&
 					!Object.values(approvalStates).some(
-						(state) => state.value && varName in state.value,
+						(state) =>
+							state.value &&
+							typeof state.value === "object" &&
+							state.value !== null &&
+							varName in state.value,
 					),
 			);
 
@@ -152,7 +156,11 @@ export function ToolStatusPanel({
 			(varName) =>
 				!(varName in executionVariables) &&
 				!Object.values(approvalStates).some(
-					(state) => state.value && varName in state.value,
+					(state) =>
+						state.value &&
+						typeof state.value === "object" &&
+						state.value !== null &&
+						varName in state.value,
 				),
 		);
 	}

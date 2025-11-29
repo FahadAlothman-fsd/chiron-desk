@@ -460,36 +460,21 @@ async function resolveInputs(
 					conversationHistory.substring(0, 200),
 				);
 
-				// Include current user message if available (from toolContext)
+				// Include current user message from system variables
 				// This ensures the latest message is included even if not yet saved to thread
 				let finalConversationHistory = conversationHistory;
-				if (toolContext?.messages && toolContext.messages.length > 0) {
-					// Get the last user message from toolContext
-					const currentMessages = toolContext.messages
-						.filter((msg: any) => msg.role === "user")
-						.map((msg: any) => {
-							const text =
-								typeof msg.content === "string"
-									? msg.content
-									: Array.isArray(msg.content)
-										? msg.content
-												.filter((block: any) => block.type === "text")
-												.map((block: any) => block.text)
-												.join(" ")
-										: JSON.stringify(msg.content);
-							return `user: ${text}`;
-						})
-						.join("\n");
+				const currentUserMessage = context.systemVariables
+					.current_user_message as string | undefined;
 
-					if (currentMessages) {
-						console.log(
-							"[AxGenerationTool] Including current message from toolContext:",
-							currentMessages.substring(0, 200),
-						);
-						finalConversationHistory = conversationHistory
-							? `${conversationHistory}\n${currentMessages}`
-							: currentMessages;
-					}
+				if (currentUserMessage) {
+					console.log(
+						"[AxGenerationTool] Including current user message from systemVariables:",
+						currentUserMessage.substring(0, 200),
+					);
+					const userMessageLine = `user: ${currentUserMessage}`;
+					finalConversationHistory = conversationHistory
+						? `${conversationHistory}\n${userMessageLine}`
+						: userMessageLine;
 				}
 
 				inputs[inputConfig.name] = finalConversationHistory;

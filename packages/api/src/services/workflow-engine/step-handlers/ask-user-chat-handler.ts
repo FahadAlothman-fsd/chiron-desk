@@ -13,6 +13,7 @@ import { stateManager } from "../state-manager";
 import type { StepHandler, StepResult } from "../step-handler";
 import { buildAxGenerationTool } from "../tools/ax-generation-tool";
 import { buildDatabaseQueryTool } from "../tools/database-query-tool";
+import { buildUpdateVariableTool } from "../tools/update-variable-tool";
 
 /**
  * AskUserChatStepHandler - Conversational chat interface with AI agent
@@ -150,6 +151,10 @@ export class AskUserChatStepHandler implements StepHandler {
 					let baseTool: any;
 
 					switch (toolConfig.toolType) {
+						case "update-variable":
+							baseTool = await buildUpdateVariableTool(toolConfig, context);
+							break;
+
 						case "ax-generation":
 							baseTool = await buildAxGenerationTool(
 								toolConfig,
@@ -617,6 +622,10 @@ export class AskUserChatStepHandler implements StepHandler {
 			);
 		}
 
+		// Store current user input in context so AX tools can access it
+		// This ensures tools have access to the latest message even before it's saved to Mastra thread
+		context.systemVariables.current_user_message = effectiveUserInput;
+
 		const result = await agent.generate(effectiveUserInput, {
 			memory: {
 				thread: threadId,
@@ -698,15 +707,24 @@ export class AskUserChatStepHandler implements StepHandler {
 				);
 
 				// Check if tool requires approval
-				if (
+				// Support two formats:
+				// 1. Old format: { type: "approval_required", ... }
+				// 2. New format: { status: "awaiting_approval", ... }
+				const requiresApproval =
 					toolResult &&
 					typeof toolResult === "object" &&
-					"type" in toolResult &&
-					(toolResult.type === "approval_required" ||
-						toolResult.type === "approval_required_selector")
-				) {
+					(("type" in toolResult &&
+						(toolResult.type === "approval_required" ||
+							toolResult.type === "approval_required_selector")) ||
+						("status" in toolResult &&
+							toolResult.status === "awaiting_approval"));
+
+				if (requiresApproval) {
+					const approvalType =
+						"type" in toolResult ? toolResult.type : "approval_required";
+
 					console.log(
-						`[AskUserChatHandler] Tool ${toolName} requires approval (type: ${toolResult.type})`,
+						`[AskUserChatHandler] Tool ${toolName} requires approval (format: ${approvalType})`,
 					);
 
 					// Save to approval states
@@ -714,7 +732,7 @@ export class AskUserChatStepHandler implements StepHandler {
 						status: "pending",
 						value: toolResult.generated_value || toolResult.value || {},
 						reasoning: toolResult.reasoning,
-						...(toolResult.type === "approval_required_selector" && {
+						...(approvalType === "approval_required_selector" && {
 							available_options: toolResult.available_options || [],
 							display_config: toolResult.display_config, // How to render options in cards
 							require_feedback_on_override:
