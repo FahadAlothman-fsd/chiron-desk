@@ -373,8 +373,26 @@ export const workflowRouter = router({
 
 			// Extract output fields from approved value and merge into execution variables
 			// This allows subsequent tools to access these variables as prerequisites
-			if (input.approvedValue && typeof input.approvedValue === "object") {
-				// Merge all non-internal fields from approved value into execution.variables
+
+			// Check if this is an update-variable tool
+			const stepConfig = execution.currentStep?.config as any;
+			const tools = stepConfig?.tools || [];
+			const toolConfig = tools.find((t: any) => t.name === input.toolName);
+
+			if (
+				toolConfig?.toolType === "update-variable" &&
+				toolConfig?.targetVariable
+			) {
+				// For update-variable tools, save the value directly to targetVariable
+				execution.variables[toolConfig.targetVariable] = input.approvedValue;
+				console.log(
+					`[ApproveToolCall] Saved update-variable: ${toolConfig.targetVariable} = ${typeof input.approvedValue === "string" ? `${input.approvedValue.substring(0, 50)}...` : JSON.stringify(input.approvedValue)}`,
+				);
+			} else if (
+				input.approvedValue &&
+				typeof input.approvedValue === "object"
+			) {
+				// For other tools (AX generation, etc.), merge all non-internal fields from approved value
 				for (const [key, value] of Object.entries(input.approvedValue)) {
 					// Skip internal fields (reasoning, etc.) - only extract actual outputs
 					if (key !== "reasoning" && key !== "internal") {

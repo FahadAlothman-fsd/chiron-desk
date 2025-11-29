@@ -277,7 +277,11 @@ export class AskUserChatStepHandler implements StepHandler {
 
 					// Check if variable exists in any approved tool output
 					const hasInApprovals = Object.values(approvalStates).some(
-						(state: any) => state.value && varName in state.value,
+						(state: any) =>
+							state.value &&
+							typeof state.value === "object" &&
+							state.value !== null &&
+							varName in state.value,
 					);
 
 					return !hasInVars && !hasInApprovals;
