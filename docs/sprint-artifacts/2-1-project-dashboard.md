@@ -1,6 +1,6 @@
 # Story 2.1: Project Dashboard & Schema Foundation
 
-Status: in-progress
+Status: done
 
 ## Story
 
@@ -182,3 +182,11 @@ cd packages/db && bunx drizzle-kit push
 - **2025-11-28**: Task 1 (Schema Refactor) completed
 - **2025-11-28**: Task 2 (Seed Data) completed  
 - **2025-11-28**: Task 3 (Dashboard UI) completed - Dev Agent
+- **2025-11-29**: Story completed with enhancements:
+  - Added workflow path filtering (shows only workflows for selected path)
+  - Implemented workflow path badge in project header
+  - Enhanced phase progress to filter by workflow path
+  - Added functional Start button for each workflow
+  - Fixed duplicate key errors in ApprovalCardSelector
+  - All acceptance criteria met and tested
+  - Status changed to: done
