@@ -116,7 +116,7 @@ export async function seedWorkflowInitNew() {
 							name: "project_description",
 							type: "string",
 							description:
-								"Concise 2-3 sentence project summary focusing on user value",
+								"A concise 2-3 sentence summary that captures: (1) what the product is and who it's for, (2) the core problem it solves, and (3) the key value it provides to users. Use specific details from the conversation - mention the product name if provided, the target users, and the main features or capabilities.",
 							internal: false,
 						},
 						{

@@ -79,10 +79,12 @@ export async function buildAxGenerationTool(
 		outputSchema: z.object({}), // Output schema is dynamic based on Ax signature
 		execute: async ({ context: toolContext }) => {
 			// Resolve inputs from config
+			// Pass toolContext so resolveInputs can access current message
 			const resolvedInputs = await resolveInputs(
 				axConfig.input,
 				context,
 				agentId,
+				toolContext, // Include Mastra's tool context (has current message)
 			);
 
 			console.log(
@@ -267,7 +269,13 @@ function buildAxSignatureString(
 	config: ToolConfig,
 ): string {
 	const inputs = axConfig.input
-		.map((input) => `${input.name}:${input.type}`)
+		.map((input) => {
+			// Include description to guide AX on how to use the input
+			if (input.description) {
+				return `${input.name}:${input.type} "${input.description}"`;
+			}
+			return `${input.name}:${input.type}`;
+		})
 		.join(", ");
 
 	const outputs = axConfig.output
@@ -307,6 +315,10 @@ function buildAxSignatureString(
 			}
 
 			// Regular field (string, number, boolean, etc.)
+			// Include description to guide AX on what to generate
+			if (output.description) {
+				return `${output.name}:${output.type} "${output.description}"`;
+			}
 			return `${output.name}:${output.type}`;
 		})
 		.join(", ");
@@ -332,6 +344,7 @@ async function resolveInputs(
 	inputConfigs: NonNullable<ToolConfig["axSignature"]>["input"],
 	context: ExecutionContext,
 	agentId: string,
+	toolContext?: any, // Mastra tool context with current message
 ): Promise<Record<string, unknown>> {
 	const inputs: Record<string, unknown> = {};
 
@@ -447,7 +460,39 @@ async function resolveInputs(
 					conversationHistory.substring(0, 200),
 				);
 
-				inputs[inputConfig.name] = conversationHistory;
+				// Include current user message if available (from toolContext)
+				// This ensures the latest message is included even if not yet saved to thread
+				let finalConversationHistory = conversationHistory;
+				if (toolContext?.messages && toolContext.messages.length > 0) {
+					// Get the last user message from toolContext
+					const currentMessages = toolContext.messages
+						.filter((msg: any) => msg.role === "user")
+						.map((msg: any) => {
+							const text =
+								typeof msg.content === "string"
+									? msg.content
+									: Array.isArray(msg.content)
+										? msg.content
+												.filter((block: any) => block.type === "text")
+												.map((block: any) => block.text)
+												.join(" ")
+										: JSON.stringify(msg.content);
+							return `user: ${text}`;
+						})
+						.join("\n");
+
+					if (currentMessages) {
+						console.log(
+							"[AxGenerationTool] Including current message from toolContext:",
+							currentMessages.substring(0, 200),
+						);
+						finalConversationHistory = conversationHistory
+							? `${conversationHistory}\n${currentMessages}`
+							: currentMessages;
+					}
+				}
+
+				inputs[inputConfig.name] = finalConversationHistory;
 				break;
 			}
 
