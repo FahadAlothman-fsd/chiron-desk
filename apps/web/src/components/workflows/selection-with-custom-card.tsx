@@ -15,97 +15,128 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { trpc } from "@/utils/trpc";
 
 /**
- * ProjectNameSelectorCard - Custom approval UI for project name selection
+ * SelectionWithCustomCard - Generic approval UI for selecting from AI suggestions or providing custom value
  *
- * Story 1.6: Presents AI-generated project name suggestions with custom option.
- * User can select a suggested name or provide their own (with validation).
+ * Story 1.6: Presents AI-generated suggestions with option to provide custom value.
+ * User can select a suggested option or provide their own (with optional validation).
  *
  * Features:
- * - Radio buttons for suggested names
+ * - Radio buttons for AI suggestions
  * - Each suggestion shows reasoning/description
- * - "Use custom name" option with input field
- * - Real-time validation (kebab-case, 3-50 chars)
+ * - "Use custom value" option with input field
+ * - Configurable validation function
  * - Approve button after selection
+ *
+ * Use cases: project names, file names, API endpoints, class names, etc.
  */
 
-interface NameSuggestion {
-	name: string;
-	reasoning: string;
+interface Suggestion {
+	value: string;
+	label?: string;
+	reasoning?: string;
 	recommended?: boolean;
 }
 
-interface ProjectNameSelectorCardProps {
+interface ValidationConfig {
+	minLength?: number;
+	maxLength?: number;
+	pattern?: RegExp;
+	patternMessage?: string;
+	customValidator?: (value: string) => string | null; // Returns error message or null
+}
+
+interface SelectionWithCustomCardProps {
 	executionId: string;
 	agentId: string;
 	toolName: string;
-	suggestions: NameSuggestion[];
+	title: string;
+	suggestions: Suggestion[];
+	customInputLabel?: string;
+	customInputPlaceholder?: string;
+	valueField: string; // Field name to save (e.g., "project_name", "file_name")
+	validation?: ValidationConfig;
 	isApproved?: boolean;
 }
 
-export function ProjectNameSelectorCard({
+export function SelectionWithCustomCard({
 	executionId,
 	agentId,
 	toolName,
+	title,
 	suggestions,
+	customInputLabel = "Use custom value instead",
+	customInputPlaceholder = "my-custom-value",
+	valueField,
+	validation,
 	isApproved = false,
-}: ProjectNameSelectorCardProps) {
+}: SelectionWithCustomCardProps) {
 	const [selectedOption, setSelectedOption] = useState<string>(
-		suggestions.find((s) => s.recommended)?.name || suggestions[0]?.name || "",
+		suggestions.find((s) => s.recommended)?.value ||
+			suggestions[0]?.value ||
+			"",
 	);
-	const [customName, setCustomName] = useState("");
-	const [customNameError, setCustomNameError] = useState("");
+	const [customValue, setCustomValue] = useState("");
+	const [customValueError, setCustomValueError] = useState("");
 
 	// Approval mutation
 	const approveMutation = trpc.workflows.approveToolCall.useMutation({
 		onSuccess: () => {
-			toast.success("Project name selected!");
+			// Derive success message from title (remove emoji and "Suggestions" suffix)
+			const cleanTitle = title.replace(/[^\w\s-]/g, "").trim();
+			const successMsg = cleanTitle.endsWith("Suggestions")
+				? `${cleanTitle.replace("Suggestions", "").trim()} selected!`
+				: `${cleanTitle} confirmed!`;
+			toast.success(successMsg);
 		},
 		onError: (error) => {
 			toast.error(`Selection failed: ${error.message}`);
 		},
 	});
 
-	// Validate custom name
-	function validateCustomName(name: string): boolean {
-		if (name.length === 0) {
-			setCustomNameError("");
+	// Validate custom value
+	function validateCustomValue(value: string): boolean {
+		if (value.length === 0) {
+			setCustomValueError("");
 			return false;
 		}
 
-		if (name.length < 3) {
-			setCustomNameError("Name must be at least 3 characters");
-			return false;
+		// Apply configured validation
+		if (validation) {
+			if (validation.minLength && value.length < validation.minLength) {
+				setCustomValueError(
+					`Must be at least ${validation.minLength} characters`,
+				);
+				return false;
+			}
+
+			if (validation.maxLength && value.length > validation.maxLength) {
+				setCustomValueError(
+					`Must be at most ${validation.maxLength} characters`,
+				);
+				return false;
+			}
+
+			if (validation.pattern && !validation.pattern.test(value)) {
+				setCustomValueError(validation.patternMessage || "Invalid format");
+				return false;
+			}
+
+			if (validation.customValidator) {
+				const error = validation.customValidator(value);
+				if (error) {
+					setCustomValueError(error);
+					return false;
+				}
+			}
 		}
 
-		if (name.length > 50) {
-			setCustomNameError("Name must be at most 50 characters");
-			return false;
-		}
-
-		if (!/^[a-z0-9-]+$/.test(name)) {
-			setCustomNameError(
-				"Name must be kebab-case (lowercase, numbers, hyphens only)",
-			);
-			return false;
-		}
-
-		if (name.startsWith("-") || name.endsWith("-")) {
-			setCustomNameError("Name cannot start or end with a hyphen");
-			return false;
-		}
-
-		if (name.includes("--")) {
-			setCustomNameError("Name cannot contain consecutive hyphens");
-			return false;
-		}
-
-		setCustomNameError("");
+		setCustomValueError("");
 		return true;
 	}
 
-	function handleCustomNameChange(value: string) {
-		setCustomName(value);
-		validateCustomName(value);
+	function handleCustomValueChange(value: string) {
+		setCustomValue(value);
+		validateCustomValue(value);
 
 		// Auto-select custom option when user starts typing
 		if (value.length > 0) {
@@ -114,20 +145,20 @@ export function ProjectNameSelectorCard({
 	}
 
 	async function handleApprove() {
-		let finalName: string;
+		let finalValue: string;
 
 		if (selectedOption === "custom") {
-			if (!validateCustomName(customName)) {
-				toast.error("Please fix the custom name validation errors");
+			if (!validateCustomValue(customValue)) {
+				toast.error("Please fix the validation errors");
 				return;
 			}
-			finalName = customName;
+			finalValue = customValue;
 		} else {
-			finalName = selectedOption;
+			finalValue = selectedOption;
 		}
 
-		if (!finalName) {
-			toast.error("Please select a project name");
+		if (!finalValue) {
+			toast.error("Please make a selection");
 			return;
 		}
 
@@ -135,7 +166,7 @@ export function ProjectNameSelectorCard({
 			executionId,
 			toolName,
 			approvedValue: {
-				project_name: finalName,
+				[valueField]: finalValue,
 			},
 		});
 	}
@@ -143,7 +174,7 @@ export function ProjectNameSelectorCard({
 	const isLoading = approveMutation.isPending;
 	const canSubmit =
 		selectedOption === "custom"
-			? !customNameError && customName.length > 0
+			? !customValueError && customValue.length > 0
 			: !!selectedOption;
 
 	return (
@@ -158,7 +189,7 @@ export function ProjectNameSelectorCard({
 						{isApproved && (
 							<Check className="mr-2 inline h-5 w-5 text-green-600" />
 						)}
-						📝 Project Name Suggestions
+						{title}
 					</span>
 					{isApproved && (
 						<span className="font-normal text-green-600 text-sm">
@@ -183,36 +214,40 @@ export function ProjectNameSelectorCard({
 					{/* AI Suggestions */}
 					{suggestions.map((suggestion, _idx) => (
 						<div
-							key={suggestion.name}
-							className={`cursor-pointer rounded-lg border p-4 transition-all${selectedOption === suggestion.name ? "border-blue-500 bg-blue-50 dark:bg-blue-950" : "border-border"}
+							key={suggestion.value}
+							className={`cursor-pointer rounded-lg border p-4 transition-all${selectedOption === suggestion.value ? "border-blue-500 bg-blue-50 dark:bg-blue-950" : "border-border"}
 								${suggestion.recommended ? "border-yellow-500 shadow-sm" : ""}
 								${isApproved ? "opacity-60" : "hover:border-blue-300"}
 							`}
 							onClick={() => {
 								if (!isApproved && !isLoading) {
-									setSelectedOption(suggestion.name);
+									setSelectedOption(suggestion.value);
 								}
 							}}
 						>
 							<div className="flex items-start gap-3">
 								<RadioGroupItem
-									value={suggestion.name}
-									id={suggestion.name}
+									value={suggestion.value}
+									id={suggestion.value}
 									className="mt-1"
 								/>
 								<div className="min-w-0 flex-1">
 									<Label
-										htmlFor={suggestion.name}
+										htmlFor={suggestion.value}
 										className="flex cursor-pointer items-center gap-2 font-semibold text-base"
 									>
-										<code className="font-mono">{suggestion.name}</code>
+										<code className="font-mono">
+											{suggestion.label || suggestion.value}
+										</code>
 										{suggestion.recommended && (
 											<Sparkles className="h-4 w-4 text-yellow-500" />
 										)}
 									</Label>
-									<p className="mt-1 text-muted-foreground text-sm">
-										{suggestion.reasoning}
-									</p>
+									{suggestion.reasoning && (
+										<p className="mt-1 text-muted-foreground text-sm">
+											{suggestion.reasoning}
+										</p>
+									)}
 								</div>
 							</div>
 						</div>
@@ -248,18 +283,18 @@ export function ProjectNameSelectorCard({
 									htmlFor="custom"
 									className="cursor-pointer font-semibold text-base"
 								>
-									Use custom name instead
+									{customInputLabel}
 								</Label>
 
 								{/* Custom Input Field */}
 								<div className="space-y-2">
 									<Input
-										value={customName}
-										onChange={(e) => handleCustomNameChange(e.target.value)}
-										placeholder="my-custom-project-name"
+										value={customValue}
+										onChange={(e) => handleCustomValueChange(e.target.value)}
+										placeholder={customInputPlaceholder}
 										disabled={isApproved || isLoading}
 										className={`font-mono ${
-											customNameError
+											customValueError
 												? "border-red-500 focus-visible:ring-red-500"
 												: ""
 										}`}
@@ -269,21 +304,16 @@ export function ProjectNameSelectorCard({
 									/>
 
 									{/* Validation Message */}
-									{customNameError ? (
-										<p className="text-red-600 text-sm">{customNameError}</p>
-									) : (
-										<p className="text-muted-foreground text-xs">
-											Must be kebab-case, 3-50 characters (lowercase, numbers,
-											hyphens only)
-										</p>
+									{customValueError && (
+										<p className="text-red-600 text-sm">{customValueError}</p>
 									)}
 
 									{/* Live Preview */}
-									{customName && !customNameError && (
+									{customValue && !customValueError && (
 										<div className="rounded-md border border-green-200 bg-green-50 p-2 dark:border-green-800 dark:bg-green-950">
 											<p className="flex items-center gap-2 text-green-700 text-sm dark:text-green-300">
 												<Check className="h-4 w-4" />
-												Valid project name: <code>{customName}</code>
+												Valid: <code>{customValue}</code>
 											</p>
 										</div>
 									)}

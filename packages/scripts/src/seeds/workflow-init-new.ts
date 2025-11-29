@@ -294,10 +294,10 @@ export async function seedWorkflowInitNew() {
 				name: "update_project_name",
 				toolType: "ax-generation",
 				description:
-					"Suggest a project name based on the description and selected workflow path, and allow user to approve or edit it",
+					"Generate 3-5 project name suggestions based on the description, and let user pick one or provide a custom name",
 				usageGuidance:
-					"Call this tool IMMEDIATELY after the workflow path is selected. Propose a project name that follows kebab-case conventions (lowercase, hyphens, no spaces). The user will have a chance to edit this name.",
-				requiredVariables: ["selected_workflow_path_id", "project_description"],
+					"Call this tool when the user asks about the project name OR after complexity/workflow path are set. Generate 3-5 diverse project name suggestions that follow kebab-case conventions (lowercase, hyphens, no spaces). Pick your recommended name from the suggestions. The user can select one of your suggestions or enter a custom name. ALWAYS call this tool - do NOT just say you've set the name without calling it.",
+				requiredVariables: ["project_description"],
 				requiresApproval: true,
 				axSignature: {
 					input: [
@@ -306,7 +306,7 @@ export async function seedWorkflowInitNew() {
 							type: "string",
 							source: "variable",
 							variableName: "project_description",
-							description: "Project description",
+							description: "Project description for generating name ideas",
 						},
 						{
 							name: "conversation_history",
@@ -318,16 +318,24 @@ export async function seedWorkflowInitNew() {
 					],
 					output: [
 						{
+							name: "project_name_suggestions",
+							type: "json",
+							description:
+								"3-5 diverse project name suggestions in kebab-case format. Include variations like: direct names, abbreviated names, metaphorical names, and action-oriented names. Return as JSON array of strings.",
+							internal: false,
+						},
+						{
 							name: "project_name",
 							type: "string",
 							description:
-								"Recommended project name (kebab-case, e.g. 'my-project-name')",
+								"Your recommended project name from the suggestions (kebab-case, e.g. 'my-project-name'). Pick the most memorable and descriptive option.",
 							internal: false,
 						},
 						{
 							name: "reasoning",
 							type: "string",
-							description: "Why this name was chosen",
+							description:
+								"Why you recommend this specific name over the other suggestions",
 							internal: true,
 						},
 					],

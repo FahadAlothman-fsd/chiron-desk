@@ -45,7 +45,7 @@ import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/utils/trpc";
 import { ApprovalCard } from "../approval-card";
 import { ApprovalCardSelector } from "../approval-card-selector";
-import { ProjectNameSelectorCard } from "../project-name-selector-card";
+import { SelectionWithCustomCard } from "../selection-with-custom-card";
 import { ToolStatusSidebar } from "../tool-status-sidebar";
 
 /**
@@ -543,32 +543,66 @@ export function AskUserChatStep({
 
 										if (toolName === "update_project_name") {
 											const nameData = state.value as {
-												suggestions?: any[];
+												project_name_suggestions?: string[];
 												project_name?: string;
 												reasoning?: string;
 											};
 
-											// Construct suggestions from single output if suggestions array is missing
-											const suggestions =
-												nameData.suggestions ||
-												(nameData.project_name
+											// Transform array of name strings into suggestion objects
+											const nameSuggestions = Array.isArray(
+												nameData.project_name_suggestions,
+											)
+												? nameData.project_name_suggestions.map((name) => ({
+														value: name,
+														label: name,
+														reasoning:
+															name === nameData.project_name
+																? nameData.reasoning
+																: undefined,
+														recommended: name === nameData.project_name,
+													}))
+												: nameData.project_name
 													? [
 															{
-																name: nameData.project_name,
+																value: nameData.project_name,
+																label: nameData.project_name,
 																reasoning:
 																	nameData.reasoning || "AI suggested name",
 																recommended: true,
 															},
 														]
-													: []);
+													: [];
 
 											return (
 												<div key={`approval-${toolName}`} className="my-4">
-													<ProjectNameSelectorCard
+													<SelectionWithCustomCard
 														executionId={executionId}
 														agentId={stepConfig.agentId}
 														toolName={toolName}
-														suggestions={suggestions}
+														title="📝 Project Name Suggestions"
+														suggestions={nameSuggestions}
+														customInputLabel="Use custom name instead"
+														customInputPlaceholder="my-custom-project-name"
+														valueField="project_name"
+														validation={{
+															minLength: 3,
+															maxLength: 50,
+															pattern: /^[a-z0-9-]+$/,
+															patternMessage:
+																"Must be kebab-case (lowercase, numbers, hyphens only)",
+															customValidator: (value) => {
+																if (
+																	value.startsWith("-") ||
+																	value.endsWith("-")
+																) {
+																	return "Cannot start or end with a hyphen";
+																}
+																if (value.includes("--")) {
+																	return "Cannot contain consecutive hyphens";
+																}
+																return null;
+															},
+														}}
 														isApproved={state.status === "approved"}
 													/>
 												</div>
