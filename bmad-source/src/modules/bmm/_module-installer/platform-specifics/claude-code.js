@@ -1,4 +1,4 @@
-const chalk = require('chalk');
+const chalk = require("chalk");
 
 /**
  * BMM Platform-specific installer for Claude Code
@@ -11,25 +11,27 @@ const chalk = require('chalk');
  * @returns {Promise<boolean>} - Success status
  */
 async function install(options) {
-  const { logger, platformInfo } = options;
-  // projectRoot and config available for future use
+	const { logger, platformInfo } = options;
+	// projectRoot and config available for future use
 
-  try {
-    const platformName = platformInfo ? platformInfo.name : 'Claude Code';
-    logger.log(chalk.cyan(`  BMM-${platformName} Specifics installed`));
+	try {
+		const platformName = platformInfo ? platformInfo.name : "Claude Code";
+		logger.log(chalk.cyan(`  BMM-${platformName} Specifics installed`));
 
-    // Add Claude Code specific BMM configurations here
-    // For example:
-    // - Custom command configurations
-    // - Agent party configurations
-    // - Workflow integrations
-    // - Template mappings
+		// Add Claude Code specific BMM configurations here
+		// For example:
+		// - Custom command configurations
+		// - Agent party configurations
+		// - Workflow integrations
+		// - Template mappings
 
-    return true;
-  } catch (error) {
-    logger.error(chalk.red(`Error installing BMM Claude Code specifics: ${error.message}`));
-    return false;
-  }
+		return true;
+	} catch (error) {
+		logger.error(
+			chalk.red(`Error installing BMM Claude Code specifics: ${error.message}`),
+		);
+		return false;
+	}
 }
 
 module.exports = { install };

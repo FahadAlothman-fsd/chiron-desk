@@ -4,25 +4,35 @@
  * Uses the existing BMAD builder infrastructure for proper formatting
  */
 
-const yaml = require('yaml');
-const fs = require('node:fs');
-const path = require('node:path');
-const { processAgentYaml, extractInstallConfig, stripInstallConfig, getDefaultValues } = require('./template-engine');
+const yaml = require("yaml");
+const fs = require("node:fs");
+const path = require("node:path");
+const {
+	processAgentYaml,
+	extractInstallConfig,
+	stripInstallConfig,
+	getDefaultValues,
+} = require("./template-engine");
 
 // Use existing BMAD builder if available
 let YamlXmlBuilder;
 try {
-  YamlXmlBuilder = require('../../lib/yaml-xml-builder').YamlXmlBuilder;
+	YamlXmlBuilder = require("../../lib/yaml-xml-builder").YamlXmlBuilder;
 } catch {
-  YamlXmlBuilder = null;
+	YamlXmlBuilder = null;
 }
 
 /**
  * Escape XML special characters
  */
 function escapeXml(text) {
-  if (!text) return '';
-  return text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&apos;');
+	if (!text) return "";
+	return text
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;")
+		.replaceAll('"', "&quot;")
+		.replaceAll("'", "&apos;");
 }
 
 /**
@@ -32,10 +42,10 @@ function escapeXml(text) {
  * @returns {string} YAML frontmatter
  */
 function buildFrontmatter(metadata, agentName) {
-  const nameFromFile = agentName.replaceAll('-', ' ');
-  const description = metadata.title || 'BMAD Agent';
+	const nameFromFile = agentName.replaceAll("-", " ");
+	const description = metadata.title || "BMAD Agent";
 
-  return `---
+	return `---
 name: "${nameFromFile}"
 description: "${description}"
 ---
@@ -52,56 +62,56 @@ You must fully embody this agent's persona and follow all activation instruction
  * @returns {string} Activation XML
  */
 function buildSimpleActivation(criticalActions = [], menuItems = []) {
-  let activation = '<activation critical="MANDATORY">\n';
+	let activation = '<activation critical="MANDATORY">\n';
 
-  let stepNum = 1;
+	let stepNum = 1;
 
-  // Standard steps
-  activation += `  <step n="${stepNum++}">Load persona from this current agent file (already in context)</step>\n`;
-  activation += `  <step n="${stepNum++}">Load and read {project-root}/{bmad_folder}/core/config.yaml to get {user_name}, {communication_language}, {output_folder}</step>\n`;
-  activation += `  <step n="${stepNum++}">Remember: user's name is {user_name}</step>\n`;
+	// Standard steps
+	activation += `  <step n="${stepNum++}">Load persona from this current agent file (already in context)</step>\n`;
+	activation += `  <step n="${stepNum++}">Load and read {project-root}/{bmad_folder}/core/config.yaml to get {user_name}, {communication_language}, {output_folder}</step>\n`;
+	activation += `  <step n="${stepNum++}">Remember: user's name is {user_name}</step>\n`;
 
-  // Agent-specific steps from critical_actions
-  for (const action of criticalActions) {
-    activation += `  <step n="${stepNum++}">${action}</step>\n`;
-  }
+	// Agent-specific steps from critical_actions
+	for (const action of criticalActions) {
+		activation += `  <step n="${stepNum++}">${action}</step>\n`;
+	}
 
-  // Menu and interaction steps
-  activation += `  <step n="${stepNum++}">ALWAYS communicate in {communication_language}</step>\n`;
-  activation += `  <step n="${stepNum++}">Show greeting using {user_name} from config, communicate in {communication_language}, then display numbered list of
+	// Menu and interaction steps
+	activation += `  <step n="${stepNum++}">ALWAYS communicate in {communication_language}</step>\n`;
+	activation += `  <step n="${stepNum++}">Show greeting using {user_name} from config, communicate in {communication_language}, then display numbered list of
       ALL menu items from menu section</step>\n`;
-  activation += `  <step n="${stepNum++}">STOP and WAIT for user input - do NOT execute menu items automatically - accept number or cmd trigger or fuzzy command
+	activation += `  <step n="${stepNum++}">STOP and WAIT for user input - do NOT execute menu items automatically - accept number or cmd trigger or fuzzy command
       match</step>\n`;
-  activation += `  <step n="${stepNum++}">On user input: Number → execute menu item[n] | Text → case-insensitive substring match | Multiple matches → ask user
+	activation += `  <step n="${stepNum++}">On user input: Number → execute menu item[n] | Text → case-insensitive substring match | Multiple matches → ask user
       to clarify | No match → show "Not recognized"</step>\n`;
 
-  // Detect which handlers are actually used
-  const usedHandlers = new Set();
-  for (const item of menuItems) {
-    if (item.action) usedHandlers.add('action');
-    if (item.workflow) usedHandlers.add('workflow');
-    if (item.exec) usedHandlers.add('exec');
-    if (item.tmpl) usedHandlers.add('tmpl');
-  }
+	// Detect which handlers are actually used
+	const usedHandlers = new Set();
+	for (const item of menuItems) {
+		if (item.action) usedHandlers.add("action");
+		if (item.workflow) usedHandlers.add("workflow");
+		if (item.exec) usedHandlers.add("exec");
+		if (item.tmpl) usedHandlers.add("tmpl");
+	}
 
-  // Only include menu-handlers section if handlers are used
-  if (usedHandlers.size > 0) {
-    activation += `  <step n="${stepNum++}">When executing a menu item: Check menu-handlers section below - extract any attributes from the selected menu item and follow the corresponding handler instructions</step>\n`;
+	// Only include menu-handlers section if handlers are used
+	if (usedHandlers.size > 0) {
+		activation += `  <step n="${stepNum++}">When executing a menu item: Check menu-handlers section below - extract any attributes from the selected menu item and follow the corresponding handler instructions</step>\n`;
 
-    // Menu handlers - only include what's used
-    activation += `
+		// Menu handlers - only include what's used
+		activation += `
   <menu-handlers>
     <handlers>\n`;
 
-    if (usedHandlers.has('action')) {
-      activation += `      <handler type="action">
+		if (usedHandlers.has("action")) {
+			activation += `      <handler type="action">
         When menu item has: action="#id" → Find prompt with id="id" in current agent XML, execute its content
         When menu item has: action="text" → Execute the text directly as an inline instruction
       </handler>\n`;
-    }
+		}
 
-    if (usedHandlers.has('workflow')) {
-      activation += `      <handler type="workflow">
+		if (usedHandlers.has("workflow")) {
+			activation += `      <handler type="workflow">
         When menu item has: workflow="path/to/workflow.yaml"
         1. CRITICAL: Always LOAD {project-root}/{bmad_folder}/core/tasks/workflow.xml
         2. Read the complete file - this is the CORE OS for executing BMAD workflows
@@ -110,25 +120,25 @@ function buildSimpleActivation(criticalActions = [], menuItems = []) {
         5. Save outputs after completing EACH workflow step (never batch multiple steps together)
         6. If workflow.yaml path is "todo", inform user the workflow hasn't been implemented yet
       </handler>\n`;
-    }
+		}
 
-    if (usedHandlers.has('exec')) {
-      activation += `      <handler type="exec">
+		if (usedHandlers.has("exec")) {
+			activation += `      <handler type="exec">
         When menu item has: exec="command" → Execute the command directly
       </handler>\n`;
-    }
+		}
 
-    if (usedHandlers.has('tmpl')) {
-      activation += `      <handler type="tmpl">
+		if (usedHandlers.has("tmpl")) {
+			activation += `      <handler type="tmpl">
         When menu item has: tmpl="template-path" → Load and apply the template
       </handler>\n`;
-    }
+		}
 
-    activation += `    </handlers>
+		activation += `    </handlers>
   </menu-handlers>\n`;
-  }
+	}
 
-  activation += `
+	activation += `
   <rules>
     - ALWAYS communicate in {communication_language} UNLESS contradicted by communication_style
     - Stay in character until exit selected
@@ -139,7 +149,7 @@ function buildSimpleActivation(criticalActions = [], menuItems = []) {
   </rules>
 </activation>\n`;
 
-  return activation;
+	return activation;
 }
 
 /**
@@ -148,38 +158,47 @@ function buildSimpleActivation(criticalActions = [], menuItems = []) {
  * @returns {string} Persona XML
  */
 function buildPersonaXml(persona) {
-  if (!persona) return '';
+	if (!persona) return "";
 
-  let xml = '  <persona>\n';
+	let xml = "  <persona>\n";
 
-  if (persona.role) {
-    const roleText = persona.role.trim().replaceAll(/\n+/g, ' ').replaceAll(/\s+/g, ' ');
-    xml += `    <role>${escapeXml(roleText)}</role>\n`;
-  }
+	if (persona.role) {
+		const roleText = persona.role
+			.trim()
+			.replaceAll(/\n+/g, " ")
+			.replaceAll(/\s+/g, " ");
+		xml += `    <role>${escapeXml(roleText)}</role>\n`;
+	}
 
-  if (persona.identity) {
-    const identityText = persona.identity.trim().replaceAll(/\n+/g, ' ').replaceAll(/\s+/g, ' ');
-    xml += `    <identity>${escapeXml(identityText)}</identity>\n`;
-  }
+	if (persona.identity) {
+		const identityText = persona.identity
+			.trim()
+			.replaceAll(/\n+/g, " ")
+			.replaceAll(/\s+/g, " ");
+		xml += `    <identity>${escapeXml(identityText)}</identity>\n`;
+	}
 
-  if (persona.communication_style) {
-    const styleText = persona.communication_style.trim().replaceAll(/\n+/g, ' ').replaceAll(/\s+/g, ' ');
-    xml += `    <communication_style>${escapeXml(styleText)}</communication_style>\n`;
-  }
+	if (persona.communication_style) {
+		const styleText = persona.communication_style
+			.trim()
+			.replaceAll(/\n+/g, " ")
+			.replaceAll(/\s+/g, " ");
+		xml += `    <communication_style>${escapeXml(styleText)}</communication_style>\n`;
+	}
 
-  if (persona.principles) {
-    let principlesText;
-    if (Array.isArray(persona.principles)) {
-      principlesText = persona.principles.join(' ');
-    } else {
-      principlesText = persona.principles.trim().replaceAll(/\n+/g, ' ');
-    }
-    xml += `    <principles>${escapeXml(principlesText)}</principles>\n`;
-  }
+	if (persona.principles) {
+		let principlesText;
+		if (Array.isArray(persona.principles)) {
+			principlesText = persona.principles.join(" ");
+		} else {
+			principlesText = persona.principles.trim().replaceAll(/\n+/g, " ");
+		}
+		xml += `    <principles>${escapeXml(principlesText)}</principles>\n`;
+	}
 
-  xml += '  </persona>\n';
+	xml += "  </persona>\n";
 
-  return xml;
+	return xml;
 }
 
 /**
@@ -188,22 +207,22 @@ function buildPersonaXml(persona) {
  * @returns {string} Prompts XML
  */
 function buildPromptsXml(prompts) {
-  if (!prompts || prompts.length === 0) return '';
+	if (!prompts || prompts.length === 0) return "";
 
-  let xml = '  <prompts>\n';
+	let xml = "  <prompts>\n";
 
-  for (const prompt of prompts) {
-    xml += `    <prompt id="${prompt.id || ''}">\n`;
-    xml += `      <content>\n`;
-    // Don't escape prompt content - it's meant to be read as-is
-    xml += `${prompt.content || ''}\n`;
-    xml += `      </content>\n`;
-    xml += `    </prompt>\n`;
-  }
+	for (const prompt of prompts) {
+		xml += `    <prompt id="${prompt.id || ""}">\n`;
+		xml += "      <content>\n";
+		// Don't escape prompt content - it's meant to be read as-is
+		xml += `${prompt.content || ""}\n`;
+		xml += "      </content>\n";
+		xml += "    </prompt>\n";
+	}
 
-  xml += '  </prompts>\n';
+	xml += "  </prompts>\n";
 
-  return xml;
+	return xml;
 }
 
 /**
@@ -212,38 +231,38 @@ function buildPromptsXml(prompts) {
  * @returns {string} Menu XML
  */
 function buildMenuXml(menuItems) {
-  let xml = '  <menu>\n';
+	let xml = "  <menu>\n";
 
-  // Always inject *help first
-  xml += `    <item cmd="*help">Show numbered menu</item>\n`;
+	// Always inject *help first
+	xml += `    <item cmd="*help">Show numbered menu</item>\n`;
 
-  // Add user-defined menu items
-  if (menuItems && menuItems.length > 0) {
-    for (const item of menuItems) {
-      let trigger = item.trigger || '';
-      if (!trigger.startsWith('*')) {
-        trigger = '*' + trigger;
-      }
+	// Add user-defined menu items
+	if (menuItems && menuItems.length > 0) {
+		for (const item of menuItems) {
+			let trigger = item.trigger || "";
+			if (!trigger.startsWith("*")) {
+				trigger = "*" + trigger;
+			}
 
-      const attrs = [`cmd="${trigger}"`];
+			const attrs = [`cmd="${trigger}"`];
 
-      // Add handler attributes
-      if (item.workflow) attrs.push(`workflow="${item.workflow}"`);
-      if (item.exec) attrs.push(`exec="${item.exec}"`);
-      if (item.tmpl) attrs.push(`tmpl="${item.tmpl}"`);
-      if (item.data) attrs.push(`data="${item.data}"`);
-      if (item.action) attrs.push(`action="${item.action}"`);
+			// Add handler attributes
+			if (item.workflow) attrs.push(`workflow="${item.workflow}"`);
+			if (item.exec) attrs.push(`exec="${item.exec}"`);
+			if (item.tmpl) attrs.push(`tmpl="${item.tmpl}"`);
+			if (item.data) attrs.push(`data="${item.data}"`);
+			if (item.action) attrs.push(`action="${item.action}"`);
 
-      xml += `    <item ${attrs.join(' ')}>${escapeXml(item.description || '')}</item>\n`;
-    }
-  }
+			xml += `    <item ${attrs.join(" ")}>${escapeXml(item.description || "")}</item>\n`;
+		}
+	}
 
-  // Always inject *exit last
-  xml += `    <item cmd="*exit">Exit with confirmation</item>\n`;
+	// Always inject *exit last
+	xml += `    <item cmd="*exit">Exit with confirmation</item>\n`;
 
-  xml += '  </menu>\n';
+	xml += "  </menu>\n";
 
-  return xml;
+	return xml;
 }
 
 /**
@@ -253,49 +272,49 @@ function buildMenuXml(menuItems) {
  * @param {string} targetPath - Target path for agent ID
  * @returns {string} Compiled XML string with frontmatter
  */
-function compileToXml(agentYaml, agentName = '', targetPath = '') {
-  const agent = agentYaml.agent;
-  const meta = agent.metadata;
+function compileToXml(agentYaml, agentName = "", targetPath = "") {
+	const agent = agentYaml.agent;
+	const meta = agent.metadata;
 
-  let xml = '';
+	let xml = "";
 
-  // Build frontmatter
-  xml += buildFrontmatter(meta, agentName || meta.name || 'agent');
+	// Build frontmatter
+	xml += buildFrontmatter(meta, agentName || meta.name || "agent");
 
-  // Start code fence
-  xml += '```xml\n';
+	// Start code fence
+	xml += "```xml\n";
 
-  // Agent opening tag
-  const agentAttrs = [
-    `id="${targetPath || meta.id || ''}"`,
-    `name="${meta.name || ''}"`,
-    `title="${meta.title || ''}"`,
-    `icon="${meta.icon || '🤖'}"`,
-  ];
+	// Agent opening tag
+	const agentAttrs = [
+		`id="${targetPath || meta.id || ""}"`,
+		`name="${meta.name || ""}"`,
+		`title="${meta.title || ""}"`,
+		`icon="${meta.icon || "🤖"}"`,
+	];
 
-  xml += `<agent ${agentAttrs.join(' ')}>\n`;
+	xml += `<agent ${agentAttrs.join(" ")}>\n`;
 
-  // Activation block - pass menu items to determine which handlers to include
-  xml += buildSimpleActivation(agent.critical_actions || [], agent.menu || []);
+	// Activation block - pass menu items to determine which handlers to include
+	xml += buildSimpleActivation(agent.critical_actions || [], agent.menu || []);
 
-  // Persona section
-  xml += buildPersonaXml(agent.persona);
+	// Persona section
+	xml += buildPersonaXml(agent.persona);
 
-  // Prompts section (if present)
-  if (agent.prompts && agent.prompts.length > 0) {
-    xml += buildPromptsXml(agent.prompts);
-  }
+	// Prompts section (if present)
+	if (agent.prompts && agent.prompts.length > 0) {
+		xml += buildPromptsXml(agent.prompts);
+	}
 
-  // Menu section
-  xml += buildMenuXml(agent.menu || []);
+	// Menu section
+	xml += buildMenuXml(agent.menu || []);
 
-  // Closing agent tag
-  xml += '</agent>\n';
+	// Closing agent tag
+	xml += "</agent>\n";
 
-  // Close code fence
-  xml += '```\n';
+	// Close code fence
+	xml += "```\n";
 
-  return xml;
+	return xml;
 }
 
 /**
@@ -306,46 +325,51 @@ function compileToXml(agentYaml, agentName = '', targetPath = '') {
  * @param {string} targetPath - Optional target path for agent ID
  * @returns {Object} { xml: string, metadata: Object }
  */
-function compileAgent(yamlContent, answers = {}, agentName = '', targetPath = '') {
-  // Parse YAML
-  const agentYaml = yaml.parse(yamlContent);
+function compileAgent(
+	yamlContent,
+	answers = {},
+	agentName = "",
+	targetPath = "",
+) {
+	// Parse YAML
+	const agentYaml = yaml.parse(yamlContent);
 
-  // Inject custom agent name into metadata.name if provided
-  // This is the user's chosen persona name (e.g., "Fred" instead of "Inkwell Von Comitizen")
-  if (agentName && agentYaml.agent && agentYaml.agent.metadata) {
-    // Convert kebab-case to title case for the name field
-    // e.g., "fred-commit-poet" → "Fred Commit Poet"
-    const titleCaseName = agentName
-      .split('-')
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
-    agentYaml.agent.metadata.name = titleCaseName;
-  }
+	// Inject custom agent name into metadata.name if provided
+	// This is the user's chosen persona name (e.g., "Fred" instead of "Inkwell Von Comitizen")
+	if (agentName && agentYaml.agent && agentYaml.agent.metadata) {
+		// Convert kebab-case to title case for the name field
+		// e.g., "fred-commit-poet" → "Fred Commit Poet"
+		const titleCaseName = agentName
+			.split("-")
+			.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+			.join(" ");
+		agentYaml.agent.metadata.name = titleCaseName;
+	}
 
-  // Extract install_config
-  const installConfig = extractInstallConfig(agentYaml);
+	// Extract install_config
+	const installConfig = extractInstallConfig(agentYaml);
 
-  // Merge defaults with provided answers
-  let finalAnswers = answers;
-  if (installConfig) {
-    const defaults = getDefaultValues(installConfig);
-    finalAnswers = { ...defaults, ...answers };
-  }
+	// Merge defaults with provided answers
+	let finalAnswers = answers;
+	if (installConfig) {
+		const defaults = getDefaultValues(installConfig);
+		finalAnswers = { ...defaults, ...answers };
+	}
 
-  // Process templates with answers
-  const processedYaml = processAgentYaml(agentYaml, finalAnswers);
+	// Process templates with answers
+	const processedYaml = processAgentYaml(agentYaml, finalAnswers);
 
-  // Strip install_config from output
-  const cleanYaml = stripInstallConfig(processedYaml);
+	// Strip install_config from output
+	const cleanYaml = stripInstallConfig(processedYaml);
 
-  // Compile to XML
-  const xml = compileToXml(cleanYaml, agentName, targetPath);
+	// Compile to XML
+	const xml = compileToXml(cleanYaml, agentName, targetPath);
 
-  return {
-    xml,
-    metadata: cleanYaml.agent.metadata,
-    processedYaml: cleanYaml,
-  };
+	return {
+		xml,
+		metadata: cleanYaml.agent.metadata,
+		processedYaml: cleanYaml,
+	};
 }
 
 /**
@@ -355,36 +379,36 @@ function compileAgent(yamlContent, answers = {}, agentName = '', targetPath = ''
  * @returns {Object} Compilation result
  */
 function compileAgentFile(yamlPath, options = {}) {
-  const yamlContent = fs.readFileSync(yamlPath, 'utf8');
-  const result = compileAgent(yamlContent, options.answers || {});
+	const yamlContent = fs.readFileSync(yamlPath, "utf8");
+	const result = compileAgent(yamlContent, options.answers || {});
 
-  // Determine output path
-  let outputPath = options.outputPath;
-  if (!outputPath) {
-    // Default: same directory, same name, .md extension
-    const dir = path.dirname(yamlPath);
-    const basename = path.basename(yamlPath, '.agent.yaml');
-    outputPath = path.join(dir, `${basename}.md`);
-  }
+	// Determine output path
+	let outputPath = options.outputPath;
+	if (!outputPath) {
+		// Default: same directory, same name, .md extension
+		const dir = path.dirname(yamlPath);
+		const basename = path.basename(yamlPath, ".agent.yaml");
+		outputPath = path.join(dir, `${basename}.md`);
+	}
 
-  // Write compiled XML
-  fs.writeFileSync(outputPath, result.xml, 'utf8');
+	// Write compiled XML
+	fs.writeFileSync(outputPath, result.xml, "utf8");
 
-  return {
-    ...result,
-    outputPath,
-    sourcePath: yamlPath,
-  };
+	return {
+		...result,
+		outputPath,
+		sourcePath: yamlPath,
+	};
 }
 
 module.exports = {
-  compileToXml,
-  compileAgent,
-  compileAgentFile,
-  escapeXml,
-  buildFrontmatter,
-  buildSimpleActivation,
-  buildPersonaXml,
-  buildPromptsXml,
-  buildMenuXml,
+	compileToXml,
+	compileAgent,
+	compileAgentFile,
+	escapeXml,
+	buildFrontmatter,
+	buildSimpleActivation,
+	buildPersonaXml,
+	buildPromptsXml,
+	buildMenuXml,
 };
