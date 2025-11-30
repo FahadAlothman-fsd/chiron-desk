@@ -384,7 +384,7 @@ export async function seedWorkflowInitNew() {
 			selected_workflow_path_id:
 				"approval_states.select_workflow_path.value.selected_workflow_path_id",
 			selected_workflow_path_name:
-				"approval_states.select_workflow_path.value.selected_workflow_path_name",
+				"approval_states.select_workflow_path.derived_values.selected_workflow_path_name",
 			project_name: "approval_states.update_project_name.value.project_name",
 		},
 	};
@@ -515,12 +515,12 @@ export async function seedWorkflowInitNew() {
 		contentTemplate: `🎉 **Project Created Successfully!**
 
 Your project **{{project_name}}** has been initialized at:
-\`{{project_path}}/{{project_name}}\`
+\`{{project_path}}\`
 
 **What was set up:**
 - ✅ Git repository initialized
 - ✅ Project registered in Chiron
-- ✅ Workflow path selected: {{selected_workflow_path_id}}
+- ✅ Workflow path selected: {{selected_workflow_path_name}}
 
 **Next Steps:**
 1. Open your project in VS Code or your preferred IDE

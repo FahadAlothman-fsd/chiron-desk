@@ -633,7 +633,7 @@ async function resolveInputs(
  * @param resolvedInputs - Resolved input values (contains source data)
  * @returns Enriched result with extracted fields
  */
-function extractDeterministicFields(
+export function extractDeterministicFields(
 	result: Record<string, unknown>,
 	axConfig: NonNullable<ToolConfig["axSignature"]>,
 	resolvedInputs: Record<string, unknown>,

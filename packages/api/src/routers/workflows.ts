@@ -22,6 +22,7 @@ import {
 	executeWorkflow,
 } from "../services/workflow-engine/executor";
 import { stateManager } from "../services/workflow-engine/state-manager";
+import { extractDeterministicFields } from "../services/workflow-engine/tools/ax-generation-tool";
 
 /**
  * Workflow Router - tRPC endpoints for workflow execution
@@ -374,13 +375,81 @@ export const workflowRouter = router({
 			// Clear regenerationNeeded flag to prevent re-triggering rejection flow
 			toolState.regenerationNeeded = false;
 
-			// Extract output fields from approved value and merge into execution variables
-			// This allows subsequent tools to access these variables as prerequisites
-
-			// Check if this is an update-variable tool
+			// Compute derived values from extractFrom configs
+			// These are variables that depend on the approved value
 			const stepConfig = execution.currentStep?.config as any;
 			const tools = stepConfig?.tools || [];
 			const toolConfig = tools.find((t: any) => t.name === input.toolName);
+
+			if (toolConfig?.axSignature?.output) {
+				const derivedValues: Record<string, unknown> = {};
+
+				// Check each output for extractFrom config
+				for (const output of toolConfig.axSignature.output) {
+					const outputAny = output as any;
+					if (!outputAny.extractFrom) continue;
+
+					const { source, matchField, matchValue, selectField } =
+						outputAny.extractFrom;
+
+					// Get the match value from approved value
+					const matchValueData = input.approvedValue[matchValue];
+					if (!matchValueData) {
+						console.warn(
+							`[ApproveToolCall] extractFrom: matchValue field '${matchValue}' not found in approved value for '${output.name}'`,
+						);
+						continue;
+					}
+
+					// Get source data from execution variables
+					const sourceData = execution.variables[source];
+					if (!sourceData || !Array.isArray(sourceData)) {
+						console.warn(
+							`[ApproveToolCall] extractFrom: source '${source}' not found or not an array for '${output.name}'`,
+						);
+						continue;
+					}
+
+					// Find matching option
+					const matchedOption = sourceData.find(
+						(item: any) => item[matchField] === matchValueData,
+					);
+
+					if (!matchedOption) {
+						console.warn(
+							`[ApproveToolCall] extractFrom: no option found matching ${matchField}='${matchValueData}' in '${source}' for '${output.name}'`,
+						);
+						continue;
+					}
+
+					// Extract the desired field
+					const extractedValue = matchedOption[selectField];
+					if (extractedValue === undefined) {
+						console.warn(
+							`[ApproveToolCall] extractFrom: field '${selectField}' not found in matched option for '${output.name}'`,
+						);
+						continue;
+					}
+
+					// Store in derived values
+					derivedValues[output.name] = extractedValue;
+					console.log(
+						`[ApproveToolCall] extractFrom: Extracted '${output.name}' = '${extractedValue}' (matched ${matchField}='${matchValueData}' in ${source})`,
+					);
+				}
+
+				// Save derived values to approval state if any were extracted
+				if (Object.keys(derivedValues).length > 0) {
+					toolState.derived_values = derivedValues;
+					console.log(
+						`[ApproveToolCall] Stored derived values:`,
+						JSON.stringify(derivedValues, null, 2),
+					);
+				}
+			}
+
+			// Extract output fields from approved value and merge into execution variables
+			// This allows subsequent tools to access these variables as prerequisites
 
 			if (
 				toolConfig?.toolType === "update-variable" &&
@@ -402,6 +471,16 @@ export const workflowRouter = router({
 						execution.variables[key] = value;
 						console.log(
 							`[ApproveToolCall] Extracted output variable: ${key} = ${typeof value === "string" ? `${value.substring(0, 50)}...` : JSON.stringify(value)}`,
+						);
+					}
+				}
+
+				// Also merge derived values into execution variables
+				if (toolState.derived_values) {
+					for (const [key, value] of Object.entries(toolState.derived_values)) {
+						execution.variables[key] = value;
+						console.log(
+							`[ApproveToolCall] Extracted derived variable: ${key} = ${typeof value === "string" ? `${value.substring(0, 50)}...` : JSON.stringify(value)}`,
 						);
 					}
 				}
@@ -698,12 +777,86 @@ export const workflowRouter = router({
 			toolState.status = "approved";
 			toolState.approvedAt = new Date().toISOString();
 
+			// Compute derived values from extractFrom configs
+			// These are variables that depend on the approved value
+			const stepConfig = execution.currentStep?.config as any;
+			const tools = stepConfig?.tools || [];
+			const toolConfig = tools.find((t: any) => t.name === input.toolName);
+
+			if (toolConfig?.axSignature?.output) {
+				const derivedValues: Record<string, unknown> = {};
+
+				// Check each output for extractFrom config
+				for (const output of toolConfig.axSignature.output) {
+					const outputAny = output as any;
+					if (!outputAny.extractFrom) continue;
+
+					const { source, matchField, matchValue, selectField } =
+						outputAny.extractFrom;
+
+					// Get the match value from toolState.value
+					const matchValueData = toolState.value[matchValue];
+					if (!matchValueData) {
+						console.warn(
+							`[ApproveToolOutput] extractFrom: matchValue field '${matchValue}' not found in tool value for '${output.name}'`,
+						);
+						continue;
+					}
+
+					// Get source data from execution variables
+					const sourceData = execution.variables[source];
+					if (!sourceData || !Array.isArray(sourceData)) {
+						console.warn(
+							`[ApproveToolOutput] extractFrom: source '${source}' not found or not an array for '${output.name}'`,
+						);
+						continue;
+					}
+
+					// Find matching option
+					const matchedOption = sourceData.find(
+						(item: any) => item[matchField] === matchValueData,
+					);
+
+					if (!matchedOption) {
+						console.warn(
+							`[ApproveToolOutput] extractFrom: no option found matching ${matchField}='${matchValueData}' in '${source}' for '${output.name}'`,
+						);
+						continue;
+					}
+
+					// Extract the desired field
+					const extractedValue = matchedOption[selectField];
+					if (extractedValue === undefined) {
+						console.warn(
+							`[ApproveToolOutput] extractFrom: field '${selectField}' not found in matched option for '${output.name}'`,
+						);
+						continue;
+					}
+
+					// Store in derived values
+					derivedValues[output.name] = extractedValue;
+					console.log(
+						`[ApproveToolOutput] extractFrom: Extracted '${output.name}' = '${extractedValue}' (matched ${matchField}='${matchValueData}' in ${source})`,
+					);
+				}
+
+				// Save derived values to approval state if any were extracted
+				if (Object.keys(derivedValues).length > 0) {
+					toolState.derived_values = derivedValues;
+					console.log(
+						`[ApproveToolOutput] Stored derived values:`,
+						JSON.stringify(derivedValues, null, 2),
+					);
+				}
+			}
+
 			// Save approved value to execution variables
 			const approvedValue = toolState.value;
 			const updatedVariables = {
 				...execution.variables,
 				approval_states: approvalStates,
 				...approvedValue, // Merge approved fields into variables
+				...(toolState.derived_values || {}), // Also merge derived values
 			};
 
 			await stateManager.mergeExecutionVariables(
