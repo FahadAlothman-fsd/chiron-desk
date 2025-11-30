@@ -28,25 +28,38 @@ export class ExecuteActionStepHandler implements StepHandler {
 				console.log(
 					"[ExecuteActionHandler] First execution - requiring user confirmation",
 				);
+				console.log(
+					"[ExecuteActionHandler] Available variables:",
+					Object.keys(context.executionVariables),
+				);
+				console.log(
+					"[ExecuteActionHandler] project_path =",
+					context.executionVariables.project_path,
+				);
 
-				// Execute actions to prepare the output
+				// ONLY resolve variables for preview - DO NOT execute actions yet
 				const resolvedActions = await this.resolveActions(
 					config.actions,
 					context,
 				);
-				const output =
-					config.executionMode === "parallel"
-						? await this.executeParallel(resolvedActions, context)
-						: await this.executeSequential(resolvedActions, context);
 
+				// Return preview data showing what WILL be executed
 				return {
-					output, // Return the computed output for preview
+					output: {
+						preview: true,
+						actions: resolvedActions.map((action, index) => ({
+							index,
+							type: action.type,
+							config: (action as any).config,
+							description: this.getActionDescription(action),
+						})),
+					},
 					nextStepNumber: step.nextStepNumber ?? null,
 					requiresUserInput: true, // Wait for user to click Continue
 				};
 			}
 
-			console.log("[ExecuteActionHandler] User confirmed - completing step");
+			console.log("[ExecuteActionHandler] User confirmed - executing actions");
 		}
 
 		// Execute actions (either no confirmation needed, or user already confirmed)
@@ -63,6 +76,48 @@ export class ExecuteActionStepHandler implements StepHandler {
 			nextStepNumber: step.nextStepNumber ?? null,
 			requiresUserInput: false, // Complete the step
 		};
+	}
+
+	/**
+	 * Generate human-readable description for an action
+	 */
+	private getActionDescription(action: any): string {
+		switch (action.type) {
+			case "file": {
+				const op = action.config?.operation;
+				const path = action.config?.path;
+				if (op === "mkdir") {
+					return `Create directory: ${path}`;
+				}
+				if (op === "write") {
+					return `Create file: ${path}`;
+				}
+				return `File operation (${op}): ${path}`;
+			}
+			case "git": {
+				const op = action.config?.operation;
+				const path = action.config?.path;
+				if (op === "init") {
+					return `Initialize git repository in: ${path}`;
+				}
+				if (op === "commit") {
+					const message = action.config?.message;
+					return `Git commit: "${message}"`;
+				}
+				return `Git operation (${op}) in: ${path}`;
+			}
+			case "database": {
+				const table = action.config?.table;
+				const op = action.config?.operation;
+				return `Update database table: ${table} (${op})`;
+			}
+			case "set-variable": {
+				const name = action.config?.name;
+				return `Set variable: ${name}`;
+			}
+			default:
+				return `${action.type} action`;
+		}
 	}
 
 	/**
@@ -93,15 +148,34 @@ export class ExecuteActionStepHandler implements StepHandler {
 						value: resolvedValue,
 					},
 				});
+			} else if (action.type === "file") {
+				// Resolve variables in file action (path, content)
+				const fileAction = action as any;
+				const resolvedPath = resolveVariables(fileAction.config?.path, context);
+				const resolvedContent = fileAction.config?.content
+					? resolveVariables(fileAction.config.content, context)
+					: undefined;
+				resolved.push({
+					...action,
+					config: {
+						...fileAction.config,
+						path: resolvedPath,
+						content: resolvedContent,
+					},
+				});
 			} else if (action.type === "git") {
-				// Resolve directory path for git operations
+				// Resolve directory path and message for git operations
 				const gitAction = action as any;
 				const resolvedPath = resolveVariables(gitAction.config?.path, context);
+				const resolvedMessage = gitAction.config?.message
+					? resolveVariables(gitAction.config.message, context)
+					: undefined;
 				resolved.push({
 					...action,
 					config: {
 						...gitAction.config,
 						path: resolvedPath,
+						message: resolvedMessage,
 					},
 				});
 			} else if (action.type === "database") {
@@ -204,7 +278,7 @@ export class ExecuteActionStepHandler implements StepHandler {
 				return this.executeSetVariable(action as any, context);
 
 			case "file":
-				throw new Error("File actions not implemented yet (future story)");
+				return this.executeFileAction(action as any, context);
 
 			case "git":
 				return this.executeGitAction(action as any, context);
@@ -268,16 +342,71 @@ export class ExecuteActionStepHandler implements StepHandler {
 	}
 
 	/**
-	 * Story 1.8: Execute git action (git init)
+	 * Execute file action (write, read, delete)
+	 */
+	private async executeFileAction(
+		action: {
+			type: "file";
+			config: { operation: string; path: string; content?: string };
+		},
+		_context: ExecutionContext,
+	): Promise<Record<string, unknown>> {
+		const { operation, path: filePath, content } = action.config;
+
+		switch (operation) {
+			case "mkdir": {
+				// Create directory (recursive to handle parent directories)
+				await fs.promises.mkdir(filePath, { recursive: true });
+				console.log(`[ExecuteActionHandler] Created directory: ${filePath}`);
+
+				return {
+					directory_created: true,
+					directory_path: filePath,
+				};
+			}
+
+			case "write": {
+				if (!content) {
+					throw new Error("File write operation requires content");
+				}
+
+				// Ensure parent directory exists
+				const dirPath = filePath.substring(0, filePath.lastIndexOf("/"));
+				if (!fs.existsSync(dirPath)) {
+					await fs.promises.mkdir(dirPath, { recursive: true });
+				}
+
+				// Write file
+				await fs.promises.writeFile(filePath, content, "utf-8");
+				console.log(`[ExecuteActionHandler] Created file: ${filePath}`);
+
+				return {
+					file_created: true,
+					file_path: filePath,
+				};
+			}
+
+			default:
+				throw new Error(`Unknown file operation: ${operation}`);
+		}
+	}
+
+	/**
+	 * Story 1.8: Execute git action (git init, commit)
 	 */
 	private async executeGitAction(
 		action: {
 			type: "git";
-			config: { operation: string; path: string };
+			config: {
+				operation: string;
+				path: string;
+				message?: string;
+				files?: string[];
+			};
 		},
 		_context: ExecutionContext,
 	): Promise<Record<string, unknown>> {
-		const { operation, path: projectPath } = action.config;
+		const { operation, path: projectPath, message, files } = action.config;
 
 		// Pre-flight check: Verify git is installed
 		const gitInstalled = await this.isGitInstalled();
@@ -287,13 +416,24 @@ export class ExecuteActionStepHandler implements StepHandler {
 			);
 		}
 
+		console.log(
+			`[ExecuteActionHandler] Git ${operation} operation at path: ${projectPath}`,
+		);
+
 		switch (operation) {
 			case "init": {
 				// Create directory if it doesn't exist
 				if (!fs.existsSync(projectPath)) {
+					console.log(
+						`[ExecuteActionHandler] Directory doesn't exist, creating: ${projectPath}`,
+					);
 					await fs.promises.mkdir(projectPath, { recursive: true });
 					console.log(
 						`[ExecuteActionHandler] Created directory: ${projectPath}`,
+					);
+				} else {
+					console.log(
+						`[ExecuteActionHandler] Directory already exists: ${projectPath}`,
 					);
 				}
 
@@ -307,6 +447,31 @@ export class ExecuteActionStepHandler implements StepHandler {
 				return {
 					git_initialized: true,
 					git_path: projectPath,
+				};
+			}
+
+			case "commit": {
+				if (!message) {
+					throw new Error("Git commit operation requires a message");
+				}
+
+				const git = simpleGit(projectPath);
+
+				// Add files to staging
+				if (files && files.length > 0) {
+					await git.add(files);
+					console.log(
+						`[ExecuteActionHandler] Staged files: ${files.join(", ")}`,
+					);
+				}
+
+				// Commit
+				await git.commit(message);
+				console.log(`[ExecuteActionHandler] Committed: ${message}`);
+
+				return {
+					git_committed: true,
+					commit_message: message,
 				};
 			}
 

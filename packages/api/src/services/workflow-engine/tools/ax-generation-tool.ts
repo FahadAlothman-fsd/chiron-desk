@@ -159,8 +159,25 @@ export async function buildAxGenerationTool(
 
 				console.log("[AxGenerationTool] Generated result:", result);
 
+				// Extract fields with extractFrom (deterministic post-LLM extraction)
+				console.log("[AxGenerationTool] Calling extractDeterministicFields...");
+				console.log(
+					"[AxGenerationTool] resolvedInputs keys:",
+					Object.keys(resolvedInputs),
+				);
+				const enrichedResult = extractDeterministicFields(
+					result,
+					axConfig,
+					resolvedInputs,
+				);
+				console.log("[AxGenerationTool] Enriched result:", enrichedResult);
+
 				// Filter out internal fields
-				const publicResult = filterInternalFields(result, axConfig);
+				const publicResult = filterInternalFields(enrichedResult, axConfig);
+				console.log(
+					"[AxGenerationTool] publicResult after filtering:",
+					publicResult,
+				);
 
 				// Extract reasoning if ChainOfThought was used
 				const reasoning =
@@ -270,6 +287,25 @@ function buildAxSignatureString(
 ): string {
 	const inputs = axConfig.input
 		.map((input) => {
+			const inputAny = input as any;
+
+			// Handle json/json[] types with selectFields - generate inline schema
+			if (
+				(input.type === "json" || input.type === "json[]") &&
+				inputAny.selectFields &&
+				Array.isArray(inputAny.selectFields)
+			) {
+				const inlineSchema = `{${inputAny.selectFields.join(", ")}}`;
+				const typeWithSchema =
+					input.type === "json[]" ? `Array of ${inlineSchema}` : inlineSchema;
+
+				console.log(
+					`[AxGenerationTool] Building input '${input.name}' with selectFields: ${typeWithSchema}`,
+				);
+
+				return `${input.name}:${input.type} "${typeWithSchema}"`;
+			}
+
 			// Include description to guide AX on how to use the input
 			if (input.description) {
 				return `${input.name}:${input.type} "${input.description}"`;
@@ -279,26 +315,37 @@ function buildAxSignatureString(
 		.join(", ");
 
 	const outputs = axConfig.output
+		.filter((output) => {
+			// Skip fields with extractFrom - they're extracted post-LLM, not generated
+			const outputAny = output as any;
+			if (outputAny.extractFrom) {
+				console.log(
+					`[AxGenerationTool] Skipping output field '${output.name}' in signature (has extractFrom - will be extracted post-LLM)`,
+				);
+				return false;
+			}
+			return true;
+		})
 		.map((output) => {
-			// Check if this is a class type that needs dynamic options from database
-			if (output.type === "class" && config.optionsSource) {
-				// Get options from context (already fetched by fetchAndStoreOptions)
-				const optionsVariable = config.optionsSource.outputVariable;
-				const options = context.executionVariables[optionsVariable] as Array<{
-					value?: string;
-					id?: string;
-				}>;
+			const outputAny = output as any;
+
+			// Check if this is a class type with field-level classesFrom
+			if (output.type === "class" && outputAny.classesFrom) {
+				const { source, field } = outputAny.classesFrom;
+				const options = context.executionVariables[source] as Array<
+					Record<string, any>
+				>;
 
 				if (options && Array.isArray(options) && options.length > 0) {
-					// Extract values - support both { value: "..." } and { id: "..." } formats
+					// Extract values from specified field
 					const optionValues = options
-						.map((opt) => opt.value || opt.id)
+						.map((opt) => opt[field])
 						.filter((v) => v)
 						.join(", ");
 
 					if (optionValues) {
 						console.log(
-							`[AxGenerationTool] Building class field '${output.name}' with dynamic options: [${optionValues}]`,
+							`[AxGenerationTool] Building class field '${output.name}' with classesFrom (source: ${source}, field: ${field}): [${optionValues}]`,
 						);
 
 						// Build: fieldName:class "option1, option2, option3" "Description"
@@ -306,16 +353,41 @@ function buildAxSignatureString(
 					}
 				}
 
-				// Options not available yet - use string type as fallback
-				// This allows the tool to be registered before options are fetched
 				console.warn(
-					`[AxGenerationTool] Class field '${output.name}' has optionsSource but no options found in variable '${optionsVariable}' - using string type as fallback`,
+					`[AxGenerationTool] Class field '${output.name}' has classesFrom but no options found in variable '${source}' - using string type as fallback`,
+				);
+				return `${output.name}:string`;
+			}
+
+			// Legacy: Check if this is a class type with tool-level optionsSource (backwards compatibility)
+			if (output.type === "class" && config.optionsSource) {
+				const optionsVariable = config.optionsSource.outputVariable;
+				const options = context.executionVariables[optionsVariable] as Array<{
+					value?: string;
+					id?: string;
+				}>;
+
+				if (options && Array.isArray(options) && options.length > 0) {
+					const optionValues = options
+						.map((opt) => opt.value || opt.id)
+						.filter((v) => v)
+						.join(", ");
+
+					if (optionValues) {
+						console.log(
+							`[AxGenerationTool] Building class field '${output.name}' with legacy optionsSource: [${optionValues}]`,
+						);
+						return `${output.name}:class "${optionValues}" "${output.description || ""}"`;
+					}
+				}
+
+				console.warn(
+					`[AxGenerationTool] Class field '${output.name}' has optionsSource but no options found - using string type as fallback`,
 				);
 				return `${output.name}:string`;
 			}
 
 			// Regular field (string, number, boolean, etc.)
-			// Include description to guide AX on what to generate
 			if (output.description) {
 				return `${output.name}:${output.type} "${output.description}"`;
 			}
@@ -352,12 +424,48 @@ async function resolveInputs(
 		switch (inputConfig.source) {
 			case "variable": {
 				const variableName = inputConfig.variableName || inputConfig.name;
-				const value = context.executionVariables[variableName];
+				let value = context.executionVariables[variableName];
 
 				if (value === undefined) {
 					throw new Error(
 						`Required variable "${variableName}" not found in execution variables`,
 					);
+				}
+
+				// Filter fields if selectFields is specified for json/json[] types
+				const inputAny = inputConfig as any;
+				if (
+					(inputConfig.type === "json" || inputConfig.type === "json[]") &&
+					inputAny.selectFields &&
+					Array.isArray(inputAny.selectFields)
+				) {
+					if (Array.isArray(value)) {
+						// json[] - filter each object to only include selectFields
+						value = value.map((item: any) => {
+							const filtered: Record<string, any> = {};
+							for (const field of inputAny.selectFields) {
+								if (field in item) {
+									filtered[field] = item[field];
+								}
+							}
+							return filtered;
+						});
+						console.log(
+							`[AxGenerationTool] Filtered ${inputConfig.name} to selectFields: [${inputAny.selectFields.join(", ")}]`,
+						);
+					} else if (typeof value === "object" && value !== null) {
+						// json - filter single object
+						const filtered: Record<string, any> = {};
+						for (const field of inputAny.selectFields) {
+							if (field in value) {
+								filtered[field] = (value as any)[field];
+							}
+						}
+						value = filtered;
+						console.log(
+							`[AxGenerationTool] Filtered ${inputConfig.name} to selectFields: [${inputAny.selectFields.join(", ")}]`,
+						);
+					}
 				}
 
 				inputs[inputConfig.name] = value;
@@ -511,6 +619,85 @@ async function resolveInputs(
  * @param axConfig - Ax signature configuration
  * @returns Filtered result with only public fields
  */
+/**
+ * Extract fields with extractFrom metadata (deterministic post-LLM extraction)
+ *
+ * Fields with extractFrom are NOT generated by the LLM - they're extracted
+ * from source data based on other LLM-generated fields.
+ *
+ * Example: selected_workflow_path_name is extracted from workflow_path_options
+ * by looking up the id that matches selected_workflow_path_id.
+ *
+ * @param result - LLM-generated result
+ * @param axConfig - Ax signature configuration
+ * @param resolvedInputs - Resolved input values (contains source data)
+ * @returns Enriched result with extracted fields
+ */
+function extractDeterministicFields(
+	result: Record<string, unknown>,
+	axConfig: NonNullable<ToolConfig["axSignature"]>,
+	resolvedInputs: Record<string, unknown>,
+): Record<string, unknown> {
+	const enriched = { ...result };
+
+	for (const output of axConfig.output) {
+		const outputAny = output as any;
+
+		// Skip if no extractFrom metadata
+		if (!outputAny.extractFrom) continue;
+
+		const { source, matchField, matchValue, selectField } =
+			outputAny.extractFrom;
+
+		// Get the match value from the LLM result
+		const matchValueData = result[matchValue];
+		if (!matchValueData) {
+			console.warn(
+				`[AxGenerationTool] extractFrom: matchValue field '${matchValue}' not found in result for '${output.name}'`,
+			);
+			continue;
+		}
+
+		// Get the source data from resolved inputs
+		const sourceData = resolvedInputs[source];
+		if (!sourceData || !Array.isArray(sourceData)) {
+			console.warn(
+				`[AxGenerationTool] extractFrom: source '${source}' not found or not an array for '${output.name}'`,
+			);
+			continue;
+		}
+
+		// Find the matching option
+		const matchedOption = sourceData.find(
+			(item: any) => item[matchField] === matchValueData,
+		);
+
+		if (!matchedOption) {
+			console.warn(
+				`[AxGenerationTool] extractFrom: no option found matching ${matchField}='${matchValueData}' in '${source}' for '${output.name}'`,
+			);
+			continue;
+		}
+
+		// Extract the desired field
+		const extractedValue = matchedOption[selectField];
+		if (extractedValue === undefined) {
+			console.warn(
+				`[AxGenerationTool] extractFrom: field '${selectField}' not found in matched option for '${output.name}'`,
+			);
+			continue;
+		}
+
+		// Add to result
+		enriched[output.name] = extractedValue;
+		console.log(
+			`[AxGenerationTool] extractFrom: Extracted '${output.name}' = '${extractedValue}' (matched ${matchField}='${matchValueData}' in ${source})`,
+		);
+	}
+
+	return enriched;
+}
+
 export function filterInternalFields(
 	result: Record<string, unknown>,
 	axConfig: NonNullable<ToolConfig["axSignature"]>,

@@ -157,17 +157,22 @@ export async function seedWorkflowInitNew() {
 						},
 						{
 							name: "complexity_options",
-							type: "json", // Ax doesn't support "array" type - use "json" for structured data
+							type: "json[]", // Fixed: Array of complexity options
+							selectFields: ["value", "name", "description"], // Only pass these fields to LLM
 							source: "variable",
 							variableName: "complexity_options",
 							description:
-								"Available complexity levels with structured metadata (value, name, description)",
+								"Available complexity levels with structured metadata",
 						},
 					],
 					output: [
 						{
 							name: "complexity_classification",
-							type: "class", // ✅ Use class type to constrain LLM to valid options
+							type: "class",
+							classesFrom: {
+								source: "complexity_options", // Input variable containing options
+								field: "value", // Extract 'value' field as valid classes
+							},
 							description: "Selected complexity value from available options",
 							internal: false,
 						},
@@ -251,7 +256,8 @@ export async function seedWorkflowInitNew() {
 						},
 						{
 							name: "workflow_path_options",
-							type: "json",
+							type: "json[]", // Fixed: Array of objects
+							selectFields: ["id", "displayName", "description", "tags"], // Only pass these fields to LLM
 							source: "variable",
 							variableName: "workflow_path_options",
 							description:
@@ -274,8 +280,24 @@ export async function seedWorkflowInitNew() {
 					output: [
 						{
 							name: "selected_workflow_path_id",
-							type: "class", // Constrain to valid options
+							type: "class",
+							classesFrom: {
+								source: "workflow_path_options", // Input variable containing options
+								field: "id", // Extract 'id' field values as valid classes
+							},
 							description: "Selected workflow path UUID from available options",
+							internal: false,
+						},
+						{
+							name: "selected_workflow_path_name",
+							type: "string",
+							extractFrom: {
+								source: "workflow_path_options", // Input variable with options
+								matchField: "id", // Match on this field
+								matchValue: "selected_workflow_path_id", // Using this output field's value
+								selectField: "displayName", // Extract this field from matched option
+							},
+							description: "Display name of the selected workflow path",
 							internal: false,
 						},
 						{
@@ -361,6 +383,8 @@ export async function seedWorkflowInitNew() {
 				"approval_states.update_complexity.value.complexity_classification",
 			selected_workflow_path_id:
 				"approval_states.select_workflow_path.value.selected_workflow_path_id",
+			selected_workflow_path_name:
+				"approval_states.select_workflow_path.value.selected_workflow_path_name",
 			project_name: "approval_states.update_project_name.value.project_name",
 		},
 	};
@@ -385,12 +409,14 @@ export async function seedWorkflowInitNew() {
 		type: "ask-user",
 		message:
 			"Great! Now that we've defined your project, where should we create it?",
-		question: "Select your project directory",
+		question: "Enter the full path for your project directory",
+		helpText:
+			"Include the project folder name (e.g., /home/user/projects/my-project). This directory will be created if it doesn't exist.",
 		responseType: "path",
 		responseVariable: "project_path",
 		pathConfig: {
 			selectMode: "directory",
-			mustExist: false, // Will create project dir later in Step 9
+			mustExist: false, // Will create project dir in Step 3
 		},
 		validation: {
 			required: true,
@@ -409,18 +435,48 @@ export async function seedWorkflowInitNew() {
 	console.log("  ✓ Step 2: Get project directory location from user");
 
 	// Step 3: Execute-Action (Project Initialization)
-	// Story 1.8: Git init + Database update
+	// Story 1.8: Create directory + Git init + README creation + Database update
 	const step3Config: ExecuteActionStepConfig = {
 		actions: [
-			// Action 1: Initialize git repository
+			// Action 1: Create project directory
+			{
+				type: "file",
+				config: {
+					operation: "mkdir",
+					path: "{{project_path}}", // User provides full project path
+				},
+			},
+			// Action 2: Initialize git repository
 			{
 				type: "git",
 				config: {
 					operation: "init",
-					path: "{{project_path}}", // User provides full project path
+					path: "{{project_path}}",
 				},
 			},
-			// Action 2: Update project record in database
+			// Action 3: Create README.md from template with all project variables
+			{
+				type: "file",
+				config: {
+					operation: "write",
+					path: "{{project_path}}/README.md",
+					content: `# {{project_name}}
+
+{{project_description}}
+
+## Project Configuration
+
+- **Workflow Path**: {{selected_workflow_path_name}}
+- **Complexity**: {{complexity_classification}}
+- **Initialized**: ${new Date().toISOString().split("T")[0]}
+
+---
+
+*Project initialized with Chiron*
+`,
+				},
+			},
+			// Action 4: Update project record in database
 			{
 				type: "database",
 				config: {
@@ -428,7 +484,7 @@ export async function seedWorkflowInitNew() {
 					operation: "update",
 					columns: {
 						name: "{{project_name}}",
-						path: "{{project_path}}", // User provides full project path
+						path: "{{project_path}}",
 						workflowPathId: "{{selected_workflow_path_id}}",
 						status: "active", // Mark project as active after initialization
 					},
@@ -438,7 +494,8 @@ export async function seedWorkflowInitNew() {
 				},
 			},
 		],
-		executionMode: "sequential", // Git first, then DB update
+		executionMode: "sequential", // mkdir → git init → README → DB update
+		requiresUserConfirmation: true, // Show preview before executing
 	};
 
 	await db.insert(workflowSteps).values({

@@ -1,7 +1,16 @@
-import { CheckCircle2, Loader2 } from "lucide-react";
+import {
+	CheckCircle2,
+	FileText,
+	FolderPlus,
+	GitBranch,
+	Database,
+	Loader2,
+	ChevronRight,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 
 export interface ExecuteActionStepProps {
 	config: {
@@ -20,6 +29,44 @@ export interface ExecuteActionStepProps {
 	onContinue?: () => void; // New: User confirmation callback
 }
 
+interface ActionPreview {
+	index: number;
+	type: string;
+	config: Record<string, unknown>;
+	description: string;
+}
+
+interface PreviewResult {
+	preview: boolean;
+	actions: ActionPreview[];
+}
+
+function getActionIcon(type: string) {
+	switch (type) {
+		case "file":
+			return <FileText className="h-5 w-5" />;
+		case "git":
+			return <GitBranch className="h-5 w-5" />;
+		case "database":
+			return <Database className="h-5 w-5" />;
+		default:
+			return <ChevronRight className="h-5 w-5" />;
+	}
+}
+
+function getActionColor(type: string) {
+	switch (type) {
+		case "file":
+			return "text-blue-600 dark:text-blue-400";
+		case "git":
+			return "text-orange-600 dark:text-orange-400";
+		case "database":
+			return "text-purple-600 dark:text-purple-400";
+		default:
+			return "text-gray-600 dark:text-gray-400";
+	}
+}
+
 export function ExecuteActionStep({
 	config,
 	result,
@@ -31,12 +78,64 @@ export function ExecuteActionStep({
 }: ExecuteActionStepProps) {
 	const [showSuccess, setShowSuccess] = useState(false);
 
-	// Show success state when execution completes
+	// Show success state when execution completes (but not for preview)
 	useEffect(() => {
-		if (result && !error && !loading) {
+		const typedResult = result as PreviewResult | undefined;
+		if (result && !error && !loading && !typedResult?.preview) {
 			setShowSuccess(true);
 		}
 	}, [result, error, loading]);
+
+	// Preview state - show actions before execution
+	const typedResult = result as PreviewResult | undefined;
+	if (typedResult?.preview && typedResult.actions) {
+		return (
+			<div className="space-y-4">
+				<div className="rounded-lg border bg-card p-4">
+					<h3 className="font-semibold text-lg mb-4">
+						Ready to Initialize Project
+					</h3>
+					<p className="text-muted-foreground text-sm mb-4">
+						The following actions will be performed:
+					</p>
+					<div className="space-y-2">
+						{typedResult.actions.map((action) => (
+							<Card
+								key={action.index}
+								className="border-l-4 border-l-primary/20"
+							>
+								<CardContent className="p-4">
+									<div className="flex items-start gap-3">
+										<div className={`mt-0.5 ${getActionColor(action.type)}`}>
+											{getActionIcon(action.type)}
+										</div>
+										<div className="flex-1 min-w-0">
+											<div className="font-medium text-sm mb-1">
+												Step {action.index + 1}: {action.description}
+											</div>
+											{action.config &&
+												Object.keys(action.config).length > 0 && (
+													<div className="mt-2 rounded bg-muted/50 p-2">
+														<pre className="text-xs overflow-x-auto text-muted-foreground">
+															{JSON.stringify(action.config, null, 2)}
+														</pre>
+													</div>
+												)}
+										</div>
+									</div>
+								</CardContent>
+							</Card>
+						))}
+					</div>
+				</div>
+				<div className="flex justify-end">
+					<Button onClick={onContinue} size="lg" className="min-w-32">
+						Continue
+					</Button>
+				</div>
+			</div>
+		);
+	}
 
 	// Loading state
 	if (loading) {
