@@ -47,7 +47,12 @@ interface ApprovalState {
 	status: "pending" | "approved" | "rejected";
 	value: Record<string, unknown>;
 	reasoning?: string;
-	rejection_history?: Array<{ feedback: string; timestamp: string }>;
+	rejection_history?: Array<{
+		feedback: string;
+		rejectedAt: string;
+		timestamp?: string; // Legacy field
+		previousOutput?: unknown;
+	}>;
 	rejection_count?: number;
 	createdAt?: string;
 }
@@ -368,21 +373,68 @@ export function ToolStatusSidebar({
 												</div>
 											)}
 
-											{/* Rejection Feedback */}
-											{status === "rejected" &&
-												approvalState?.rejection_history &&
+											{/* Rejection History */}
+											{approvalState?.rejection_history &&
 												approvalState.rejection_history.length > 0 && (
-													<div className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-950">
-														<div className="mb-1 font-medium text-red-900 text-sm dark:text-red-100">
-															Last Rejection
+													<div className="mb-3 space-y-2">
+														<div className="font-medium text-muted-foreground text-xs uppercase tracking-wider">
+															Rejection History (
+															{approvalState.rejection_history.length})
 														</div>
-														<div className="text-red-700 text-xs italic dark:text-red-300">
-															{
-																approvalState.rejection_history[
-																	approvalState.rejection_history.length - 1
-																].feedback
-															}
-														</div>
+														{approvalState.rejection_history.map(
+															(rejection, idx) => {
+																const timestamp = new Date(
+																	rejection.rejectedAt || rejection.timestamp,
+																).toLocaleString([], {
+																	month: "short",
+																	day: "numeric",
+																	hour: "2-digit",
+																	minute: "2-digit",
+																});
+																const isLatest =
+																	idx ===
+																	approvalState.rejection_history!.length - 1;
+
+																return (
+																	<div
+																		key={idx}
+																		className={`rounded-md border p-2 ${
+																			isLatest
+																				? "border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950"
+																				: "border-muted bg-muted/30"
+																		}`}
+																	>
+																		<div className="mb-1 flex items-center justify-between">
+																			<span
+																				className={`text-[10px] font-medium uppercase tracking-wider ${
+																					isLatest
+																						? "text-red-900 dark:text-red-100"
+																						: "text-muted-foreground"
+																				}`}
+																			>
+																				Attempt {idx + 1}
+																				{isLatest && " (Latest)"}
+																			</span>
+																			<span className="text-[10px] text-muted-foreground">
+																				{timestamp}
+																			</span>
+																		</div>
+																		<div
+																			className={`text-xs ${
+																				isLatest
+																					? "text-red-700 dark:text-red-300"
+																					: "text-muted-foreground"
+																			}`}
+																		>
+																			{rejection.feedback.length > 100
+																				? rejection.feedback.substring(0, 100) +
+																					"..."
+																				: rejection.feedback}
+																		</div>
+																	</div>
+																);
+															},
+														)}
 													</div>
 												)}
 

@@ -591,44 +591,26 @@ export class AskUserChatStepHandler implements StepHandler {
 		// Wrap our tools in a toolset object
 		const toolsets = Object.keys(tools).length > 0 ? { stepTools: tools } : {};
 
-		// If there are rejected tools, prepend regeneration instructions to user input
-		let effectiveUserInput = userInput ? String(userInput) : "";
-
-		if (rejectedTools.length > 0) {
-			const regenerationInstructions = rejectedTools
-				.map((rt) => {
-					let instruction = `\n\n[SYSTEM: The user rejected the output from **${rt.toolName}**.`;
-
-					// Include previous output if available
-					if (rt.previousOutput !== undefined) {
-						const outputStr =
-							typeof rt.previousOutput === "string"
-								? rt.previousOutput
-								: JSON.stringify(rt.previousOutput, null, 2);
-						instruction += `\n\n**Previous Output (REJECTED):**\n${outputStr}`;
-					}
-
-					// Include user feedback
-					instruction += `\n\n**User Feedback:**\n"${rt.lastFeedback}"`;
-
-					// Add instructions
-					instruction += `\n\n**Instructions:**\nPlease regenerate the output for this tool, addressing the user's feedback. Learn from what was wrong in the previous output and improve upon it. Call the tool again with improved parameters.]`;
-
-					return instruction;
-				})
-				.join("\n");
-			effectiveUserInput =
-				regenerationInstructions +
-				(effectiveUserInput ? "\n\n" + effectiveUserInput : "");
-			console.log(
-				"[AskUserChatHandler] Injecting regeneration instructions with previous output for rejected tools:",
-				rejectedTools.map((rt) => rt.toolName),
-			);
-		}
+		// User input is used directly (rejection feedback already saved as message by workflows.ts)
+		const effectiveUserInput = userInput ? String(userInput) : "";
 
 		// Store current user input in context so AX tools can access it
 		// This ensures tools have access to the latest message even before it's saved to Mastra thread
 		context.systemVariables.current_user_message = effectiveUserInput;
+
+		// Force specific tool call if we have a rejected tool (ensure agent regenerates)
+		// toolChoice: "auto" | "none" | "required" | { type: "tool"; toolName: string }
+		let toolChoice: "auto" | { type: "tool"; toolName: string } = "auto";
+
+		if (rejectedTools.length > 0) {
+			// Force the first rejected tool to be called by name
+			const targetToolName = rejectedTools[0].toolName;
+			toolChoice = { type: "tool", toolName: targetToolName };
+
+			console.log(
+				`[AskUserChatHandler] Forcing regeneration of tool: ${targetToolName}`,
+			);
+		}
 
 		const result = await agent.generate(effectiveUserInput, {
 			memory: {
@@ -638,6 +620,7 @@ export class AskUserChatStepHandler implements StepHandler {
 			toolsets, // Pass step-specific tools wrapped in toolset
 			runtimeContext, // Triggers dynamic loading of instructions, model
 			maxSteps: 5,
+			toolChoice, // Force specific tool if regenerating, otherwise "auto"
 		});
 
 		console.log("[AskUserChatHandler] Agent response received:", result.text);

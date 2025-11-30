@@ -8,7 +8,10 @@ import { observable } from "@trpc/server/observable";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
-import { getThreadMessages } from "../services/mastra/mastra-service";
+import {
+	getMastraInstance,
+	getThreadMessages,
+} from "../services/mastra/mastra-service";
 import { MiProCollector } from "../services/mastra/mipro-collector";
 import {
 	type WorkflowEvent,
@@ -491,42 +494,84 @@ export const workflowRouter = router({
 				);
 			}
 
-			// Update approval state with rejection
-			// Save previous output before marking for regeneration
-			const previousOutput = toolState.output;
+			// Check for duplicate rejection (prevent double-clicking)
+			const lastRejection =
+				toolState.rejection_history?.[toolState.rejection_history.length - 1];
+			if (
+				lastRejection &&
+				lastRejection.feedback === input.feedback &&
+				Date.now() - new Date(lastRejection.rejectedAt).getTime() < 2000
+			) {
+				console.log("[RejectToolCall] Duplicate rejection detected, ignoring");
+				return { success: true, duplicate: true };
+			}
 
-			// Set status to "pending" to allow agent to regenerate
-			toolState.status = "pending";
-			toolState.regenerationNeeded = true;
-			toolState.rejection_count = (toolState.rejection_count || 0) + 1;
-			toolState.rejection_history = toolState.rejection_history || [];
-			toolState.rejection_history.push({
+			// Save previous output to rejection history
+			const rejectionEntry = {
 				feedback: input.feedback,
 				rejectedAt: new Date().toISOString(),
-				previousOutput: previousOutput,
-			});
+				previousOutput: toolState.value,
+			};
 
-			// Real ACE optimizer (Reflector → Curator loop) deferred to future story
-			// Rejection feedback is stored in rejection_history above
+			toolState.rejection_history = toolState.rejection_history || [];
+			toolState.rejection_history.push(rejectionEntry);
 
-			// Update execution variables
-			await db
-				.update(workflowExecutions)
-				.set({
-					variables: execution.variables,
-					status: "active",
-				})
-				.where(eq(workflowExecutions.id, input.executionId));
+			// Mark as rejected (final state for this card - timeline approach)
+			toolState.status = "rejected";
 
-			// Emit event
-			workflowEventBus.emitWorkflowResumed(input.executionId);
+			// Update approval states
+			const updatedVariables = {
+				...execution.variables,
+				approval_states: approvalStates,
+			};
+
+			await stateManager.mergeExecutionVariables(
+				input.executionId,
+				updatedVariables,
+			);
+
+			// Add rejection feedback as a user message with metadata
+			// This creates the timeline message: "🔄 Rejection feedback for {tool_name}"
+			const threadId = execution.variables.mastra_thread_id as
+				| string
+				| undefined;
+
+			if (!threadId) {
+				throw new Error("No thread ID found for execution");
+			}
+
+			const mastra = await getMastraInstance();
+			const storage = mastra.getStorage();
+
+			if (storage) {
+				await storage.saveMessages({
+					messages: [
+						{
+							id: crypto.randomUUID(),
+							role: "user",
+							content: input.feedback,
+							createdAt: new Date(),
+							threadId,
+							metadata: {
+								type: "rejection_feedback",
+								toolName: input.toolName,
+								rejectedAt: rejectionEntry.rejectedAt,
+							},
+						},
+					],
+				});
+			}
 
 			console.log(
 				`[WorkflowRouter] Rejected tool: ${input.toolName}, feedback: ${input.feedback}`,
 			);
 
-			// Resume workflow - agent will see rejection feedback via system message
-			await continueExecution(input.executionId, userId);
+			// Resume workflow for regeneration
+			// Handler will detect rejected tools from approval_states and process regeneration
+			await stateManager.resumeExecution(input.executionId);
+			await continueExecution(input.executionId, userId, input.feedback);
+
+			workflowEventBus.emitWorkflowResumed(input.executionId);
 
 			return { success: true };
 		}),
@@ -771,6 +816,20 @@ export const workflowRouter = router({
 				throw new Error(`No approval state found for tool: ${input.toolName}`);
 			}
 
+			// Check for duplicate rejection (prevent double-clicking)
+			const lastRejection =
+				toolState.rejection_history?.[toolState.rejection_history.length - 1];
+			if (
+				lastRejection &&
+				lastRejection.feedback === input.feedback &&
+				Date.now() - new Date(lastRejection.rejectedAt).getTime() < 2000
+			) {
+				console.log(
+					"[RejectToolOutput] Duplicate rejection detected, ignoring",
+				);
+				return { success: true, duplicate: true };
+			}
+
 			// Save previous output to rejection history
 			const rejectionEntry = {
 				feedback: input.feedback,
@@ -780,6 +839,8 @@ export const workflowRouter = router({
 
 			toolState.rejection_history = toolState.rejection_history || [];
 			toolState.rejection_history.push(rejectionEntry);
+
+			// Mark as rejected (final state for this card)
 			toolState.status = "rejected";
 
 			// Update approval states
@@ -793,22 +854,42 @@ export const workflowRouter = router({
 				updatedVariables,
 			);
 
-			// NOTE: Rejection feedback is stored in rejection_history above
-			// When agent regenerates, feedback is injected as system message (ask-user-chat-handler.ts:514-528)
-			// Real ACE optimizer (Reflector → Curator loop) deferred to future story
-			// Reset status to "pending" so agent can regenerate with rejection feedback
-			toolState.status = "pending";
-			toolState.regenerationNeeded = true;
+			// Add rejection feedback as a user message with metadata
+			// This creates the timeline message: "🔄 Rejection feedback for update_description"
+			const threadId = execution.variables.mastra_thread_id as
+				| string
+				| undefined;
 
-			await stateManager.mergeExecutionVariables(input.executionId, {
-				...updatedVariables,
-				approval_states: approvalStates,
-			});
+			if (!threadId) {
+				throw new Error("No thread ID found for execution");
+			}
+
+			const mastra = await getMastraInstance();
+			const storage = mastra.getStorage();
+
+			if (storage) {
+				await storage.saveMessages({
+					messages: [
+						{
+							id: crypto.randomUUID(),
+							role: "user",
+							content: input.feedback,
+							createdAt: new Date(),
+							threadId,
+							metadata: {
+								type: "rejection_feedback",
+								toolName: input.toolName,
+								rejectedAt: rejectionEntry.rejectedAt,
+							},
+						},
+					],
+				});
+			}
 
 			// Resume workflow for regeneration
 			// Handler will detect rejected tools from approval_states and process regeneration
 			await stateManager.resumeExecution(input.executionId);
-			await continueExecution(input.executionId, userId);
+			await continueExecution(input.executionId, userId, input.feedback);
 
 			workflowEventBus.emitWorkflowResumed(input.executionId);
 

@@ -63,6 +63,9 @@ interface ChatMessage {
 		agent_icon?: string;
 		model?: string;
 		tool_calls?: Array<{ name: string }>;
+		type?: "rejection_feedback"; // Indicates rejection feedback message
+		toolName?: string; // Tool being rejected
+		rejectedAt?: string; // Timestamp of rejection
 	};
 	created_at: string;
 }
@@ -458,6 +461,8 @@ export function AskUserChatStep({
 										const message = item.data;
 										const parsedContent = parseMessageContent(message.content);
 										const isUser = message.role === "user";
+										const isRejectionFeedback =
+											message.metadata?.type === "rejection_feedback";
 										const timestamp = new Date(
 											message.created_at,
 										).toLocaleTimeString([], {
@@ -467,6 +472,21 @@ export function AskUserChatStep({
 
 										return (
 											<Message from={message.role} key={message.id}>
+												{/* Rejection Feedback Indicator (for rejection messages) */}
+												{isUser &&
+													isRejectionFeedback &&
+													message.metadata?.toolName && (
+														<div className="mb-2 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-amber-900 text-xs dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+															<span className="text-sm">🔄</span>
+															<span className="font-medium">
+																Rejection feedback for{" "}
+																<code className="rounded bg-amber-100 px-1 py-0.5 dark:bg-amber-900">
+																	{message.metadata.toolName.replace(/_/g, " ")}
+																</code>
+															</span>
+														</div>
+													)}
+
 												{/* Agent Name, Timestamp & Tool Calls (for assistant) */}
 												{!isUser && (
 													<div className="mb-2 flex flex-wrap items-center gap-2 text-muted-foreground text-xs">
