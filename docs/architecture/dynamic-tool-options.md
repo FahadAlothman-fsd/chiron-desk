@@ -323,20 +323,487 @@ SELECT tags->'complexity'->>'value' FROM workflow_paths;
 WHERE tags->'fieldType'->>'value' = 'greenfield'
 ```
 
+---
+
+## Advanced Features (December 2025)
+
+### 1. `selectFields` - Token Optimization
+
+**Added:** Commit 90214768 (Dec 1, 2025)
+
+#### Problem
+
+When passing large JSON arrays to Ax signatures, sending all fields wastes tokens and increases latency. For example, `workflow_path_options` might have 50+ fields per option, but the LLM only needs 4-5 fields to make a decision.
+
+#### Solution
+
+The `selectFields` property filters JSON data **before** sending to the Ax signature:
+
+```typescript
+{
+  name: "workflow_paths",
+  type: "json",
+  source: "variable",
+  variableName: "workflow_path_options",
+  selectFields: ["id", "displayName", "description", "tags"]  // Only send these fields
+}
+```
+
+#### Implementation
+
+Located in `ax-generation-tool.ts`, the `resolveInputs()` function filters data:
+
+```typescript
+case "variable": {
+  let value = context.executionVariables[variableName];
+  
+  // Apply field selection for token optimization
+  if (inputConfig.selectFields && Array.isArray(value)) {
+    value = value.map((item: any) => {
+      const filtered: any = {};
+      for (const field of inputConfig.selectFields) {
+        if (field in item) {
+          filtered[field] = item[field];
+        }
+      }
+      return filtered;
+    });
+    console.log(`[AX Tool] Filtered input "${inputConfig.name}" to fields: ${inputConfig.selectFields.join(", ")}`);
+  }
+  
+  inputs[inputConfig.name] = value;
+  break;
+}
+```
+
+#### Results
+
+- **Without `selectFields`**: 50 fields × 10 options = 500+ fields to LLM
+- **With `selectFields`**: 4 fields × 10 options = 40 fields to LLM
+- **Token Reduction**: 50-80% depending on data structure
+
+#### Example Usage
+
+```typescript
+axSignature: {
+  input: [
+    {
+      name: "workflow_paths",
+      type: "json",
+      source: "variable",
+      variableName: "workflow_path_options",
+      selectFields: ["id", "displayName", "description", "tags"]  // Optimized!
+    }
+  ],
+  output: [
+    {
+      name: "selected_workflow_path_id",
+      type: "class",
+      classesFrom: {
+        source: "workflow_path_options",
+        field: "id"
+      }
+    }
+  ]
+}
+```
+
+---
+
+### 2. `classesFrom` - Field-Level Class Sources
+
+**Added:** Commit 90214768 (Dec 1, 2025)
+
+#### Problem
+
+**Old approach** required tool-level `classSource` configuration:
+
+```typescript
+{
+  toolType: "ax-generation",
+  classSource: "workflow_paths",  // Tool-level constraint
+  output: [
+    { name: "selected_path_id", type: "class" }  // Must use tool-level source
+  ]
+}
+```
+
+This was limiting when a tool needed multiple classification outputs from different sources.
+
+#### Solution
+
+The `classesFrom` property allows **per-field class source** configuration:
+
+```typescript
+output: [
+  { 
+    name: "selected_path_id", 
+    type: "class",
+    classesFrom: {
+      source: "workflow_path_options",  // Field-level source
+      field: "id"
+    }
+  },
+  { 
+    name: "selected_technique_id", 
+    type: "class",
+    classesFrom: {
+      source: "technique_options",  // Different source!
+      field: "id"
+    }
+  }
+]
+```
+
+#### Benefits
+
+- ✅ Multiple class outputs can have different sources in the same tool
+- ✅ More flexible than tool-level configuration
+- ✅ Clearer intent (source is next to the field that uses it)
+
+#### Example Usage
+
+```typescript
+{
+  toolName: "select_workflow_and_technique",
+  toolType: "ax-generation",
+  requiredVariables: ["workflow_path_options", "technique_options"],
+  
+  axSignature: {
+    input: [
+      {
+        name: "workflow_paths",
+        type: "json",
+        source: "variable",
+        variableName: "workflow_path_options",
+        selectFields: ["id", "displayName", "description"]
+      },
+      {
+        name: "techniques",
+        type: "json",
+        source: "variable",
+        variableName: "technique_options",
+        selectFields: ["id", "name", "description"]
+      }
+    ],
+    output: [
+      {
+        name: "selected_workflow_path_id",
+        type: "class",
+        classesFrom: {
+          source: "workflow_path_options",  // Uses first source
+          field: "id"
+        }
+      },
+      {
+        name: "selected_technique_id",
+        type: "class",
+        classesFrom: {
+          source: "technique_options",  // Uses second source
+          field: "id"
+        }
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 3. `extractFrom` - Derived Variables (THE BIG ONE)
+
+**Added:** Commits 90214768 + 6c864856 (Dec 1, 2025)
+
+#### Problem
+
+When a user selects an option by ID, we often need the human-readable name or other metadata:
+
+```typescript
+// User selects: selected_workflow_path_id = "uuid-123"
+// We also need: selected_workflow_path_name = "BMad Method"
+```
+
+**Before `extractFrom`**, we had two bad options:
+1. ❌ Make LLM generate the name (hallucination risk, wasteful)
+2. ❌ Manual lookup in subsequent steps (complex, error-prone)
+
+#### Solution
+
+The `extractFrom` property automatically extracts related fields from the source data **without Ax signature generation**:
+
+```typescript
+output: [
+  {
+    name: "selected_workflow_path_id",
+    type: "class",
+    classesFrom: {
+      source: "workflow_path_options",
+      field: "id"
+    }
+  },
+  {
+    name: "selected_workflow_path_name",
+    type: "string",
+    extractFrom: {
+      source: "workflow_path_options",      // Array to search
+      matchField: "id",                      // Field to match on
+      matchValue: "selected_workflow_path_id", // Variable with selected ID
+      selectField: "displayName"             // Field to extract
+    }
+  }
+]
+```
+
+#### Flow Diagram
+
+```
+1. User chats with agent
+2. Agent calls tool (e.g., select_workflow_path())
+3. Ax generates: { selected_workflow_path_id: "uuid-123" }
+4. Approval card appears
+5. User approves ✓
+   ↓
+6. Approval handler detects extractFrom configuration
+7. Looks up in workflow_path_options:
+   options.find(opt => opt.id === "uuid-123")
+8. Extracts: displayName = "BMad Method"
+9. Stores both values:
+   ┌─────────────────────────────────────────┐
+   │ approval_states.select_workflow_path    │
+   ├─────────────────────────────────────────┤
+   │ value: {                                │
+   │   selected_workflow_path_id: "uuid-123" │ ← Generated by Ax
+   │ }                                        │
+   │ derived_values: {                        │
+   │   selected_workflow_path_name: "BMad..."│ ← Extracted (no Ax)
+   │ }                                        │
+   └─────────────────────────────────────────┘
+10. Both merge into execution.variables
+11. Available in templates: {{selected_workflow_path_name}}
+```
+
+#### Implementation
+
+**Tool Configuration** (`ax-generation-tool.ts`):
+
+The `extractDeterministicFields()` function is exported for use by approval handlers:
+
+```typescript
+export function extractDeterministicFields(
+  outputs: AxSignatureOutput[],
+  approvedValues: Record<string, any>,
+  executionVariables: Record<string, any>
+): Record<string, any> {
+  const derived: Record<string, any> = {};
+
+  for (const output of outputs) {
+    if (!output.extractFrom) continue;
+
+    const { source, matchField, matchValue, selectField } = output.extractFrom;
+    
+    // Get the source array
+    const sourceArray = executionVariables[source];
+    if (!Array.isArray(sourceArray)) {
+      console.warn(`[extractFrom] Source "${source}" is not an array`);
+      continue;
+    }
+
+    // Get the value to match
+    const valueToMatch = approvedValues[matchValue];
+    if (valueToMatch === undefined) {
+      console.warn(`[extractFrom] Match value "${matchValue}" not found in approved values`);
+      continue;
+    }
+
+    // Find matching item
+    const matchedItem = sourceArray.find(
+      (item: any) => item[matchField] === valueToMatch
+    );
+
+    if (!matchedItem) {
+      console.warn(`[extractFrom] No match found for ${matchField}="${valueToMatch}"`);
+      continue;
+    }
+
+    // Extract the field
+    derived[output.name] = matchedItem[selectField];
+    console.log(
+      `[extractFrom] Extracted ${output.name} = "${derived[output.name]}" from ${source}`
+    );
+  }
+
+  return derived;
+}
+```
+
+**Approval Handlers** (`workflows.ts`):
+
+Both `approveToolCall` and `approveToolOutput` mutations compute derived values:
+
+```typescript
+// After user approves the tool output
+const derivedValues = extractDeterministicFields(
+  toolConfig.axSignature.output,
+  approvedValues,
+  execution.variables
+);
+
+// Store in approval states
+execution.variables.approval_states[toolName] = {
+  status: "approved",
+  value: approvedValues,
+  derived_values: derivedValues  // ← New!
+};
+
+// Merge both into execution variables
+Object.assign(execution.variables, approvedValues, derivedValues);
+```
+
+#### Storage Structure
+
+```json
+{
+  "execution": {
+    "variables": {
+      "selected_workflow_path_id": "uuid-123",
+      "selected_workflow_path_name": "BMad Method",
+      "approval_states": {
+        "select_workflow_path": {
+          "status": "approved",
+          "value": {
+            "selected_workflow_path_id": "uuid-123"
+          },
+          "derived_values": {
+            "selected_workflow_path_name": "BMad Method"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+#### Benefits
+
+- ✅ **No Ax signature calls** for deterministic lookups
+- ✅ **Zero hallucination risk** (direct data extraction)
+- ✅ **Human-readable values** in templates/display
+- ✅ **Automatic computation** at approval time
+- ✅ **Type-safe** (extracted from actual data)
+
+#### Example Usage: Workflow Path Selection
+
+```typescript
+{
+  toolName: "select_workflow_path",
+  toolType: "ax-generation",
+  description: "Recommend and select the best workflow path",
+  
+  requiredVariables: ["project_description", "workflow_path_options"],
+  
+  axSignature: {
+    signatureName: "SelectWorkflowPath",
+    input: [
+      {
+        name: "project_description",
+        type: "string",
+        source: "variable",
+        variableName: "project_description"
+      },
+      {
+        name: "workflow_paths",
+        type: "json",
+        source: "variable",
+        variableName: "workflow_path_options",
+        selectFields: ["id", "displayName", "description", "tags"]
+      }
+    ],
+    output: [
+      {
+        name: "selected_workflow_path_id",
+        type: "class",
+        classesFrom: {
+          source: "workflow_path_options",
+          field: "id"
+        }
+      },
+      {
+        name: "selected_workflow_path_name",
+        type: "string",
+        extractFrom: {
+          source: "workflow_path_options",
+          matchField: "id",
+          matchValue: "selected_workflow_path_id",
+          selectField: "displayName"
+        }
+      },
+      {
+        name: "selected_workflow_path_description",
+        type: "string",
+        extractFrom: {
+          source: "workflow_path_options",
+          matchField: "id",
+          matchValue: "selected_workflow_path_id",
+          selectField: "description"
+        }
+      }
+    ]
+  }
+}
+```
+
+**Result:**
+- Ax generates: `selected_workflow_path_id`
+- Extracted automatically: `selected_workflow_path_name`, `selected_workflow_path_description`
+- All three available in templates: `{{selected_workflow_path_name}}`
+
+#### Multiple Derived Variables
+
+You can extract multiple fields from the same selection:
+
+```typescript
+output: [
+  { name: "selected_id", type: "class", classesFrom: {...} },
+  { name: "selected_name", type: "string", extractFrom: {..., selectField: "name"} },
+  { name: "selected_description", type: "string", extractFrom: {..., selectField: "description"} },
+  { name: "selected_category", type: "string", extractFrom: {..., selectField: "category"} },
+  { name: "selected_metadata", type: "json", extractFrom: {..., selectField: "metadata"} }
+]
+```
+
+All derived fields are computed in a single pass during approval.
+
+---
+
 ### Future Enhancements
 
 1. **Caching**: Cache fetched options to avoid repeated database queries
 2. **Validation**: Validate tool output against fetched options
-3. **Multi-select**: Support selecting multiple options
+3. **Multi-select**: Support selecting multiple options with array extraction
 4. **Computed Options**: Support dynamic option computation
 5. **Option Dependencies**: Chain options based on previous selections
+6. **Nested extractFrom**: Extract from nested object paths (e.g., `tags.complexity.value`)
+7. **Array extractFrom**: Extract multiple items when matchValue is an array
 
 ## Files Modified
 
+### Original Implementation (optionsSource)
 1. `/packages/db/src/schema/step-configs.ts` - Added `optionsSource` to tool config schema
 2. `/packages/api/src/services/workflow-engine/tools/ax-generation-tool.ts` - Added `fetchToolOptions()` and integration
 3. `/packages/scripts/src/seeds/workflow-init-new.ts` - Updated `update_complexity` and `fetch_workflow_paths` tools
 4. `/packages/scripts/src/seeds/workflow-paths.ts` - Already had structured tag metadata (no changes needed)
+
+### December 2025 Enhancements
+1. `/packages/api/src/services/workflow-engine/tools/ax-generation-tool.ts`:
+   - Added `selectFields` filtering in `resolveInputs()` (Commit 90214768)
+   - Added `classesFrom` field-level support (Commit 90214768)
+   - Added `extractDeterministicFields()` exported function (Commit 6c864856)
+2. `/packages/api/src/routers/workflows.ts`:
+   - Updated `approveToolCall` mutation to compute derived values (Commit 6c864856)
+   - Updated `approveToolOutput` mutation to compute derived values (Commit 6c864856)
+3. `/packages/scripts/src/seeds/workflow-init-new.ts`:
+   - Added `selectFields` to workflow path selection tool (Commit 90214768)
+   - Added `extractFrom` for derived variables (Commit 6c864856)
 
 ## Testing
 
@@ -359,3 +826,11 @@ To test the implementation:
 - [Story 1.6 Architecture Summary](/docs/architecture/STORY-1-6-ARCHITECTURE-SUMMARY.md)
 - [Workflow Path Schema](/docs/architecture/database-schema-architecture.md)
 - [Structured Tags Implementation](/packages/scripts/src/seeds/workflow-paths.ts)
+- [Tool Types Reference](/docs/architecture/tool-types.md) - Complete tool type documentation
+- [Architecture Updates (Dec 2025)](/ARCHITECTURE-UPDATES-DEC-2025.md) - Context for recent changes
+
+---
+
+**Document Version:** 2.0  
+**Last Updated:** December 1, 2025  
+**Status:** Production Ready

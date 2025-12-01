@@ -864,12 +864,20 @@ type ApprovalCheckpointStep = {
 
 ### 5. ExecuteActionStep
 
-System operations (database, file, git).
+System operations (database, file, git). **UPDATED: Dec 2025** - Now supports multiple actions per step with preview mode.
 
 ```typescript
 type ExecuteActionStep = {
   type: "execute-action"
-  action: SystemAction
+  
+  // Multiple actions can be executed in sequence or parallel
+  actions: SystemAction[]
+  
+  // NEW: Preview mode - show actions before execution
+  requiresUserConfirmation?: boolean  // Default: false
+  
+  // NEW: Execution mode
+  executionMode?: "sequential" | "parallel"  // Default: "sequential"
 }
 
 type SystemAction =
@@ -881,59 +889,132 @@ type SystemAction =
 
 type DatabaseAction = {
   type: "database"
-  operation: "query" | "insert" | "update" | "delete"
-  table: string
-  values?: Record<string, any>
-  filter?: any
-  output?: string  // Variable to store result
-}
-
-type SetVariableAction = {
-  type: "set-variable"
-  variable: string
-  value: any
-}
-
-type ScanCodebaseAction = {
-  type: "scan-codebase"
-  path: string
-  checks: ("has_git" | "has_source" | "has_package_json")[]
-  output: string
+  config: {
+    operation: "query" | "insert" | "update" | "delete"
+    table: string
+    data?: Record<string, any>  // For insert/update
+    filter?: any
+    output?: string  // Variable to store result
+  }
 }
 
 type FileAction = {
   type: "file"
-  operation: "read" | "write" | "delete" | "exists"
-  path: string
-  content?: string
-  output?: string
+  config: {
+    operation: "mkdir" | "write" | "read" | "delete" | "exists"
+    path: string  // Supports {{variable}} resolution
+    content?: string  // For write - supports {{variable}} resolution
+    output?: string  // For read/exists operations
+  }
 }
 
 type GitAction = {
   type: "git"
-  operation: "init" | "status" | "commit" | "branch"
-  path: string
-  output?: string
+  config: {
+    operation: "init" | "commit" | "status" | "branch"
+    path: string  // Supports {{variable}} resolution
+    message?: string  // For commit - supports {{variable}} resolution
+    files?: string[]  // For commit - files to stage
+    output?: string
+  }
+}
+
+type SetVariableAction = {
+  type: "set-variable"
+  config: {
+    variable: string
+    value: any  // Supports {{variable}} resolution
+  }
+}
+
+type ScanCodebaseAction = {
+  type: "scan-codebase"
+  config: {
+    path: string
+    checks: ("has_git" | "has_source" | "has_package_json")[]
+    output: string
+  }
 }
 ```
 
 **UI Mapping:**
-- Background task indicator
-- Progress/completion status
-- Error messages if operation fails
+- Preview mode: Shows all actions with icons before execution (when `requiresUserConfirmation: true`)
+- Progress indicator during execution
+- Success/error status for each action
+- Variable resolution preview
 
-**Example:**
+**Example (Single Action - Legacy Pattern):**
 ```typescript
 {
   type: "execute-action",
-  action: {
-    type: "scan-codebase",
-    path: "{{project_path}}",
-    checks: ["has_git", "has_source"],
-    output: "codebase_scan_result"
-  }
+  actions: [
+    {
+      type: "scan-codebase",
+      config: {
+        path: "{{project_path}}",
+        checks: ["has_git", "has_source"],
+        output: "codebase_scan_result"
+      }
+    }
+  ]
 }
 ```
+
+**Example (Multiple Actions with Preview - Current Pattern):**
+```typescript
+{
+  type: "execute-action",
+  requiresUserConfirmation: true,  // Show preview before executing
+  executionMode: "sequential",
+  actions: [
+    {
+      type: "file",
+      config: {
+        operation: "mkdir",
+        path: "{{project_path}}"
+      }
+    },
+    {
+      type: "file",
+      config: {
+        operation: "write",
+        path: "{{project_path}}/README.md",
+        content: "# {{project_name}}\n\n{{project_description}}"
+      }
+    },
+    {
+      type: "git",
+      config: {
+        operation: "init",
+        path: "{{project_path}}"
+      }
+    },
+    {
+      type: "git",
+      config: {
+        operation: "commit",
+        path: "{{project_path}}",
+        message: "Initial commit: {{project_name}}",
+        files: ["README.md"]
+      }
+    },
+    {
+      type: "database",
+      config: {
+        operation: "update",
+        table: "projects",
+        data: {
+          workflow_path_id: "{{selected_workflow_path_id}}"
+        },
+        filter: { id: "{{project_id}}" }
+      }
+    }
+  ]
+}
+```
+
+**Variable Resolution:**
+All `path`, `content`, `message`, and `value` fields support `{{variable}}` syntax. Variables are resolved from `execution.variables` before action execution.
 
 ---
 
