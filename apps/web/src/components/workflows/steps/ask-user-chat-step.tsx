@@ -121,6 +121,9 @@ interface AskUserChatStepProps {
 		tools?: ToolConfig[];
 	};
 	stepGoal?: string;
+	stepNumber?: number; // For displaying "Step 1 Complete"
+	stepName?: string; // e.g., "Session Setup"
+	isStepComplete?: boolean; // Whether this step is finished
 	onComplete?: () => void;
 	readOnly?: boolean;
 }
@@ -318,6 +321,9 @@ export function AskUserChatStep({
 	executionId,
 	stepConfig,
 	stepGoal,
+	stepNumber,
+	stepName,
+	isStepComplete = false,
 	onComplete,
 	readOnly = false,
 }: AskUserChatStepProps) {
@@ -790,14 +796,41 @@ export function AskUserChatStep({
 										</MessageContent>
 									</Message>
 								)}
+
+								{/* Step Completion Separator */}
+								{isStepComplete && (
+									<div className="my-8 flex items-center justify-center">
+										<div className="flex max-w-md flex-col items-center gap-3 rounded-lg border border-green-500/50 bg-green-50 p-6 text-center dark:bg-green-950/30">
+											<div className="flex items-center gap-2">
+												<CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+												<span className="font-semibold text-green-900 dark:text-green-100">
+													{stepName
+														? `${stepName} Complete`
+														: stepNumber
+															? `Step ${stepNumber} Complete`
+															: "Step Complete"}
+												</span>
+											</div>
+											{stepGoal && (
+												<p className="text-green-800 text-sm dark:text-green-200">
+													{stepGoal}
+												</p>
+											)}
+											<div className="mt-2 flex items-center gap-2 text-green-700 text-xs dark:text-green-300">
+												<Sparkles className="h-4 w-4" />
+												<span>Ready for next phase</span>
+											</div>
+										</div>
+									</div>
+								)}
 							</>
 						)}
 					</ConversationContent>
 					<ConversationScrollButton />
 				</Conversation>
 
-				{/* Input Area - Hide when read-only */}
-				{!readOnly && (
+				{/* Input Area - Hide when read-only OR step complete */}
+				{!readOnly && !isStepComplete && (
 					<div className="border-t pt-4">
 						<PromptInput onSubmit={handleSubmit} className="max-w-full">
 							<PromptInputBody>

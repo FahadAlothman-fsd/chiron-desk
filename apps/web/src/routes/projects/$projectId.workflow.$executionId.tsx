@@ -144,6 +144,14 @@ function WorkbenchChatInterface({
 		);
 	}
 
+	// Check if step is complete (all tools approved)
+	const isStepComplete = currentStep.config?.tools?.every((tool: any) => {
+		const approvalStates = (execution?.variables as Record<string, any>)
+			?.approval_states;
+		const toolState = approvalStates?.[tool.name];
+		return toolState?.status === "approved";
+	});
+
 	// Render step based on type
 	switch (currentStep.stepType) {
 		case "ask-user-chat":
@@ -152,6 +160,9 @@ function WorkbenchChatInterface({
 					stepConfig={currentStep.config}
 					executionId={execution.id}
 					stepGoal={currentStep.goal}
+					stepNumber={currentStep.stepNumber}
+					stepName={currentStep.name}
+					isStepComplete={isStepComplete}
 				/>
 			);
 		// Future step types can be added here
