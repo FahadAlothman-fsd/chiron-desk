@@ -194,38 +194,52 @@ export async function buildAxGenerationTool(
 				if (config.requiresApproval) {
 					// Check if this tool has optionsSource (for card selector UI)
 					if (config.optionsSource) {
-						const availableOptions =
+						const rawOptions =
 							context.executionVariables[config.optionsSource.outputVariable];
 
-						// Auto-select optimization: If there's only ONE option, skip approval and auto-select it
+						// Deduplicate options by ID or value (defensive against database/query duplicates)
+						// Priority: id (for DB records) > value (for tags/enums) > full serialization
+						const availableOptions = Array.isArray(rawOptions)
+							? [
+									...new Map(
+										rawOptions.map((opt: any) => {
+											const key = opt.id || opt.value || JSON.stringify(opt);
+											return [key, opt];
+										}),
+									).values(),
+								]
+							: rawOptions;
+
+						console.log(`[AxGenerationTool] Tool ${config.name} options:`, {
+							rawCount: Array.isArray(rawOptions) ? rawOptions.length : 0,
+							deduplicatedCount: Array.isArray(availableOptions)
+								? availableOptions.length
+								: 0,
+						});
+
+						// Auto-select optimization: If there's only ONE option, still show approval card but auto-approve it
+						// This provides visibility into what was selected and why
 						if (
 							Array.isArray(availableOptions) &&
 							availableOptions.length === 1
 						) {
 							const singleOption = availableOptions[0];
 							console.log(
-								`[AxGenerationTool] Tool ${config.name} has only 1 option - auto-selecting without approval`,
+								`[AxGenerationTool] Tool ${config.name} has only 1 option - auto-approving with visible card`,
 								{ option: singleOption },
 							);
 
-							// Return the auto-selected value directly (no approval needed)
-							// Use the ID as the selected value (consistent with manual selection)
-							const autoSelectedValue =
-								singleOption.id || singleOption.value || singleOption;
-
-							// Build result matching the expected output field name
-							// For select_workflow_path: { selected_workflow_path_id: "uuid" }
-							const outputField = axConfig.output.find((o) => !o.internal);
-							if (outputField) {
-								return {
-									[outputField.name]: autoSelectedValue,
-									reasoning: `Auto-selected (only 1 option available): ${singleOption.displayName || singleOption.name || autoSelectedValue}`,
-								};
-							}
-
+							// Return approval structure with auto-approved flag
+							// This will create a visible approval card showing what was auto-selected
 							return {
-								...publicResult,
-								reasoning: `Auto-selected (only 1 option available): ${singleOption.displayName || singleOption.name || autoSelectedValue}`,
+								type: "approval_required_selector",
+								tool_name: config.name,
+								generated_value: publicResult,
+								available_options: availableOptions, // Show the single option
+								display_config: config.optionsSource.displayConfig,
+								require_feedback_on_override: false, // No override possible with 1 option
+								reasoning: `Auto-selected (only 1 option available): ${singleOption.displayName || singleOption.name || singleOption.id || singleOption.value}`,
+								auto_approved: true, // Flag to auto-approve this immediately
 							};
 						}
 

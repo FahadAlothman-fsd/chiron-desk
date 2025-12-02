@@ -716,9 +716,12 @@ export class AskUserChatStepHandler implements StepHandler {
 						`[AskUserChatHandler] Tool ${toolName} requires approval (format: ${approvalType})`,
 					);
 
+					// Check if this should be auto-approved (only 1 option available)
+					const shouldAutoApprove = toolResult.auto_approved === true;
+
 					// Save to approval states
 					approvalStates[toolName] = {
-						status: "pending",
+						status: shouldAutoApprove ? "approved" : "pending",
 						value: toolResult.generated_value || toolResult.value || {},
 						reasoning: toolResult.reasoning,
 						...(approvalType === "approval_required_selector" && {
@@ -730,7 +733,24 @@ export class AskUserChatStepHandler implements StepHandler {
 						rejection_history:
 							approvalStates[toolName]?.rejection_history || [],
 						createdAt: new Date().toISOString(),
+						...(shouldAutoApprove && {
+							approved_at: new Date().toISOString(),
+						}),
 					};
+
+					// If auto-approved, also save the value to execution variables immediately
+					if (shouldAutoApprove) {
+						console.log(
+							`[AskUserChatHandler] Tool ${toolName} auto-approved - saving value to execution variables`,
+						);
+						const approvalValue =
+							toolResult.generated_value || toolResult.value || {};
+						for (const [key, value] of Object.entries(approvalValue)) {
+							context.executionVariables[key] = value;
+							autoSelectedVariables[key] = value;
+							console.log(`[AskUserChatHandler] Auto-approved ${key}:`, value);
+						}
+					}
 				} else if (toolResult && typeof toolResult === "object") {
 					// Tool returned value directly (auto-selected, no approval needed)
 					// Save directly to execution variables

@@ -66,6 +66,37 @@ export function ApprovalCardSelector({
 	const [feedback, setFeedback] = useState("");
 	const queryClient = useQueryClient();
 
+	// Deduplicate available options by ID or value (defense against backend duplicates)
+	const uniqueOptions = availableOptions.reduce(
+		(acc: Record<string, unknown>[], option) => {
+			// Try multiple unique identifier fields in order of preference
+			const uniqueKey =
+				(option as any).id || // Database records have id
+				(displayConfig
+					? getValueByPath(option, displayConfig.fields.value)
+					: (option as any).value) || // Tags/options have value field
+				JSON.stringify(option); // Fallback to full object serialization
+
+			// Check if we already have an option with this key
+			const exists = acc.some((o) => {
+				const existingKey =
+					(o as any).id ||
+					(displayConfig
+						? getValueByPath(o, displayConfig.fields.value)
+						: (o as any).value) ||
+					JSON.stringify(o);
+				return existingKey === uniqueKey;
+			});
+
+			if (!exists) {
+				acc.push(option);
+			}
+
+			return acc;
+		},
+		[],
+	);
+
 	// Detect if this is a multi-select field (value is an array)
 	const isMultiSelect = Object.values(generatedValue).some((val) =>
 		Array.isArray(val),
@@ -85,7 +116,7 @@ export function ApprovalCardSelector({
 
 				const valueStr = value as string;
 				if (
-					availableOptions.some((opt) => {
+					uniqueOptions.some((opt) => {
 						const optValue = getValueByPath(opt, displayConfig.fields.value);
 						return optValue === valueStr;
 					})
@@ -101,9 +132,9 @@ export function ApprovalCardSelector({
 				}
 
 				const valueStr = value as string;
-				const optValue = (availableOptions[0] as any)?.value;
+				const optValue = (uniqueOptions[0] as any)?.value;
 				if (optValue !== undefined) {
-					if (availableOptions.some((opt: any) => opt.value === valueStr)) {
+					if (uniqueOptions.some((opt: any) => opt.value === valueStr)) {
 						return valueStr;
 					}
 				}
@@ -123,6 +154,10 @@ export function ApprovalCardSelector({
 		aiRecommendedValue,
 		displayConfig,
 		availableOptions,
+		availableOptionsCount: availableOptions?.length,
+		uniqueOptionsCount: uniqueOptions?.length,
+		availableOptionsIds: availableOptions?.map((opt: any) => opt.id),
+		uniqueOptionsIds: uniqueOptions?.map((opt: any) => opt.id),
 	});
 
 	// User's selected value(s) (initialized to AI's recommendation)
@@ -177,7 +212,7 @@ export function ApprovalCardSelector({
 			// For arrays (multi-select), check if any value matches
 			if (Array.isArray(fieldValue)) {
 				return fieldValue.some((val) =>
-					availableOptions.some((opt) => {
+					uniqueOptions.some((opt) => {
 						const optValue = displayConfig
 							? getValueByPath(opt, displayConfig.fields.value)
 							: (opt as any).value;
@@ -187,7 +222,7 @@ export function ApprovalCardSelector({
 			}
 
 			// For single values
-			return availableOptions.some((opt) => {
+			return uniqueOptions.some((opt) => {
 				const optValue = displayConfig
 					? getValueByPath(opt, displayConfig.fields.value)
 					: (opt as any).value;
@@ -236,7 +271,7 @@ export function ApprovalCardSelector({
 		.replace(/\b\w/g, (l) => l.toUpperCase());
 
 	// Find the selected option details
-	const selectedOption = availableOptions.find((opt) => {
+	const selectedOption = uniqueOptions.find((opt) => {
 		if (displayConfig) {
 			return getValueByPath(opt, displayConfig.fields.value) === selectedValue;
 		}
@@ -283,7 +318,7 @@ export function ApprovalCardSelector({
 				{displayConfig ? (
 					// Use generic OptionCard component with displayConfig
 					<div className="space-y-3">
-						{availableOptions.map((option, index) => {
+						{uniqueOptions.map((option, index) => {
 							const optionValue = getValueByPath<string>(
 								option,
 								displayConfig.fields.value,
@@ -341,7 +376,7 @@ export function ApprovalCardSelector({
 								<span className="text-primary">
 									{
 										(
-											availableOptions.find(
+											uniqueOptions.find(
 												(opt: any) => opt.value === aiRecommendedValue,
 											) as any
 										)?.name
@@ -351,7 +386,7 @@ export function ApprovalCardSelector({
 						)}
 
 						<div className="space-y-2">
-							{availableOptions.map((option: any) => (
+							{uniqueOptions.map((option: any) => (
 								<div
 									key={option.value}
 									onClick={

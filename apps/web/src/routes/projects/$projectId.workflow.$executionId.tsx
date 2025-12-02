@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { AskUserChatStep } from "@/components/workflows/steps/ask-user-chat-step";
@@ -6,7 +5,7 @@ import { WorkbenchLayout } from "@/components/workflows/workbench-layout";
 import { ArtifactPreview } from "@/components/workflows/artifact-preview";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { trpcClient } from "@/utils/trpc";
+import { trpc } from "@/utils/trpc";
 
 export const Route = createFileRoute(
 	"/projects/$projectId/workflow/$executionId",
@@ -32,22 +31,21 @@ function WorkflowExecutionPage() {
 	const { projectId, executionId } = Route.useParams();
 	const navigate = useNavigate();
 
-	// Fetch workflow execution state
+	// Fetch workflow execution state using tRPC hook for proper cache management
 	const {
 		data: executionData,
 		isLoading,
 		error,
-	} = useQuery({
-		queryKey: ["workflow-executions", executionId],
-		queryFn: async () => {
-			return trpcClient.workflows.getExecution.query({ executionId });
+	} = trpc.workflows.getExecution.useQuery(
+		{ executionId },
+		{
+			refetchInterval: (query) => {
+				// Poll every 2 seconds if workflow is running
+				const data = query.state.data;
+				return data?.execution?.status === "running" ? 2000 : false;
+			},
 		},
-		refetchInterval: (query) => {
-			// Poll every 2 seconds if workflow is running
-			const data = query.state.data;
-			return data?.execution?.status === "running" ? 2000 : false;
-		},
-	});
+	);
 
 	if (isLoading) {
 		return (
