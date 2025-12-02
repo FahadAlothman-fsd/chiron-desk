@@ -60,6 +60,10 @@ const AGENT_WORKFLOW_MAP: Record<string, string> = {
 	"innovation-strategy": "analyst",
 	"problem-solving": "analyst",
 	storytelling: "analyst",
+
+	// Core technique workflows
+	scamper: "analyst",
+	"five-whys": "analyst",
 };
 
 /**
@@ -129,6 +133,7 @@ function detectType(workflowName: string, _isStandalone?: boolean): string {
 	if (
 		name.includes("scamper") ||
 		name.includes("six-hats") ||
+		name.includes("five-whys") ||
 		name.includes("technique")
 	) {
 		return "technique";
@@ -148,7 +153,7 @@ function detectType(workflowName: string, _isStandalone?: boolean): string {
 }
 
 /**
- * Detect module origin (bmm, cis, custom)
+ * Detect module origin (bmm, cis, core, custom)
  */
 function detectModule(filePath: string): string {
 	if (filePath.includes("/cis/")) {
@@ -156,6 +161,9 @@ function detectModule(filePath: string): string {
 	}
 	if (filePath.includes("/bmm/")) {
 		return "bmm";
+	}
+	if (filePath.includes("/core/")) {
+		return "core";
 	}
 	return "custom";
 }
@@ -207,12 +215,14 @@ export async function seedWorkflows() {
 	const PROJECT_ROOT = join(process.cwd(), "../..");
 	const BMM_WORKFLOWS_DIR = join(PROJECT_ROOT, "bmad/bmm/workflows");
 	const CIS_WORKFLOWS_DIR = join(PROJECT_ROOT, "bmad/cis/workflows");
+	const CORE_WORKFLOWS_DIR = join(PROJECT_ROOT, "bmad/core/workflows");
 
 	// Find all workflow.yaml files
 	const bmmFiles = await findWorkflowFiles(BMM_WORKFLOWS_DIR);
 	const cisFiles = await findWorkflowFiles(CIS_WORKFLOWS_DIR);
+	const coreFiles = await findWorkflowFiles(CORE_WORKFLOWS_DIR);
 
-	const allFiles = [...bmmFiles, ...cisFiles];
+	const allFiles = [...bmmFiles, ...cisFiles, ...coreFiles];
 
 	console.log(`  📂 Found ${allFiles.length} workflow files`);
 

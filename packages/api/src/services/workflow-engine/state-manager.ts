@@ -1,4 +1,10 @@
-import { db, eq, workflowExecutions, workflowSteps } from "@chiron/db";
+import {
+	db,
+	eq,
+	workflows,
+	workflowExecutions,
+	workflowSteps,
+} from "@chiron/db";
 import deepmerge from "deepmerge";
 
 /**
@@ -239,6 +245,13 @@ export class StateManager {
 			return null;
 		}
 
+		// Fetch workflow details (Story 2.2: needed for workbench rendering)
+		const [workflow] = await db
+			.select()
+			.from(workflows)
+			.where(eq(workflows.id, execution.workflowId))
+			.limit(1);
+
 		// If there's a current step, fetch its details
 		let currentStep = null;
 		if (execution.currentStepId) {
@@ -252,7 +265,8 @@ export class StateManager {
 		}
 
 		return {
-			...execution,
+			execution,
+			workflow: workflow || null,
 			currentStep,
 		};
 	}

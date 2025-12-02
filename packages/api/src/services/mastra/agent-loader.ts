@@ -125,24 +125,32 @@ async function loadModelWithUserKey({
 	const selectedModel = variables?.selected_model as string | undefined;
 	const modelToUse = selectedModel || agentRecord.llmModel;
 
-	// Parse model string: "provider:modelId" -> extract modelId
+	// Parse model string: "provider:modelId" -> extract provider and modelId
 	// Frontend sends format like "openrouter:anthropic/claude-3.5-sonnet" or "openrouter:meta-llama/llama-3.3-70b-instruct:free"
-	// We need just "anthropic/claude-3.5-sonnet" or "meta-llama/llama-3.3-70b-instruct:free" for the provider
+	// We need provider="openrouter" and modelId="anthropic/claude-3.5-sonnet"
 	// Use indexOf to split only on FIRST colon (model IDs can contain colons like "model:free")
 	const firstColonIndex = modelToUse.indexOf(":");
-	const modelId =
-		firstColonIndex !== -1 ? modelToUse.slice(firstColonIndex + 1) : modelToUse;
+	let provider: string;
+	let modelId: string;
+
+	if (firstColonIndex !== -1) {
+		// Format: "provider:modelId"
+		provider = modelToUse.slice(0, firstColonIndex);
+		modelId = modelToUse.slice(firstColonIndex + 1);
+	} else {
+		// No colon - use agent's default provider
+		provider = agentRecord.llmProvider;
+		modelId = modelToUse;
+	}
 
 	console.log(`[Agent Loader] Model selection for ${agentRecord.name}:`, {
 		selectedModel,
 		agentDefault: agentRecord.llmModel,
 		usingModel: modelToUse,
+		extractedProvider: provider,
 		parsedModelId: modelId,
-		provider: agentRecord.llmProvider,
+		agentDefaultProvider: agentRecord.llmProvider,
 	});
-
-	// Use agent's configured provider (not derived from model string)
-	const provider = agentRecord.llmProvider;
 
 	// Load user's API key
 	const [userConfigRecord] = await db

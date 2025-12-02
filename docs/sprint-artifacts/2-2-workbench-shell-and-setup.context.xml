@@ -1,0 +1,423 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>2</epicId>
+    <storyId>2</storyId>
+    <title>Workbench Shell & Setup (Step 1)</title>
+    <status>drafted</status>
+    <generatedAt>2025-12-01</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/2-2-workbench-shell-and-setup.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>a User</asA>
+    <iWant>a split-pane interface where I can chat with the Brainstorming agent to define the topic and goals</iWant>
+    <soThat>the brainstorming session is properly scoped before I begin generating ideas</soThat>
+    <tasks>
+      <task id="1" ac="1">
+        <title>Configure Brainstorming Workflow Step 1 with Mastra Tools</title>
+        <subtasks>
+          <subtask id="1.1">Create new seed file packages/scripts/src/seeds/brainstorming.ts for brainstorming workflow Step 1 (follow workflow-init-new.ts pattern)</subtask>
+          <subtask id="1.2">Define step config with stepType: "ask-user-chat" and Mastra tools: update_topic, update_goals, select_techniques</subtask>
+          <subtask id="1.3">Enhance update-variable-tool.ts to support array valueSchema (add case "array": z.array(z.string())) for update_goals tool</subtask>
+          <subtask id="1.4">Configure Step 1 with Brainstorming Coach agent (from bmad/cis/agents/brainstorming-coach.md), completionCondition (all-variables-set), outputVariables mapping (topic, goals, techniques)</subtask>
+          <subtask id="1.5">Run seed script to populate database with Step 1 configuration</subtask>
+          <subtask id="1.6">Write integration test for Step 1 seed data validation</subtask>
+        </subtasks>
+      </task>
+      <task id="2" ac="2">
+        <title>Implement Split-Pane Workbench Layout</title>
+        <subtasks>
+          <subtask id="2.1">Create apps/web/src/routes/project/$projectId/workflow/$executionId.tsx route for universal workflow execution</subtask>
+          <subtask id="2.2">Install @shadcn/resizable via: bunx --bun shadcn@latest add resizable (do not overwrite existing components)</subtask>
+          <subtask id="2.3">Create LeftPane component wrapper that embeds existing AskUserChatStep component</subtask>
+          <subtask id="2.4">Create RightPane component for living artifact preview: renders template from bmad/cis/workflows/brainstorming/template.md with Handlebars variable substitution using execution.variables mapped via outputVariables</subtask>
+          <subtask id="2.5">Add resize handle with persistent sizing (localStorage)</subtask>
+          <subtask id="2.6">Write unit tests for split-pane layout component</subtask>
+        </subtasks>
+      </task>
+      <task id="3" ac="3">
+        <title>Implement Chat Timeline Interface</title>
+        <subtasks>
+          <subtask id="3.1">Create ChatTimeline component with message list rendering</subtask>
+          <subtask id="3.2">Create ChatMessage component with support for user/assistant/system messages</subtask>
+          <subtask id="3.3">Add collapsible sections for agent reasoning and tool calls</subtask>
+          <subtask id="3.4">Implement auto-scroll to latest message with smooth scrolling</subtask>
+          <subtask id="3.5">Add loading indicators for agent processing state</subtask>
+          <subtask id="3.6">Write unit tests for ChatTimeline component</subtask>
+        </subtasks>
+      </task>
+      <task id="4" ac="4">
+        <title>Implement Mastra Tool Execution</title>
+        <subtasks>
+          <subtask id="4.1">Extend existing ask-user-chat handler to support Mastra tools (same pattern as workflow-init)</subtask>
+          <subtask id="4.2">Implement tool definitions for update_topic, update_goals, select_techniques with Zod schemas</subtask>
+          <subtask id="4.3">Test conversational flow: Agent asks → User responds → Agent calls tool with structured data</subtask>
+          <subtask id="4.4">Display tool execution in chat timeline (🛠️ TOOL CALLS collapsible section - already implemented)</subtask>
+          <subtask id="4.5">Verify tool results stored in workflow_executions.variables JSONB</subtask>
+          <subtask id="4.6">Write unit tests for new Mastra tools</subtask>
+        </subtasks>
+      </task>
+      <task id="5" ac="1,4">
+        <title>Backend Tool Implementation</title>
+        <subtasks>
+          <subtask id="5.1">Extend packages/api/src/services/workflow-engine/mastra-tools.ts with new tools</subtask>
+          <subtask id="5.2">Implement update_topic tool config: toolType update-variable, targetVariable session_topic, valueSchema {type: string}, requiredVariables [], usageGuidance without number constraints</subtask>
+          <subtask id="5.3">Implement update_goals tool config: toolType update-variable, targetVariable stated_goals, valueSchema {type: array, items: {type: string}}, requiredVariables [session_topic], usageGuidance without number constraints</subtask>
+          <subtask id="5.4">Implement select_techniques tool config: toolType ax-generation, optionsSource (workflows table filtered by tags->>'type'='technique'), axSignature with type class[] output, requiredVariables [stated_goals], usageGuidance without number constraints</subtask>
+          <subtask id="5.5">Test tools execute when agent calls them during conversation (same as workflow-init pattern)</subtask>
+          <subtask id="5.6">Write integration tests for tool execution and variable storage</subtask>
+        </subtasks>
+      </task>
+      <task id="6" ac="5">
+        <title>Integration & Validation</title>
+        <subtasks>
+          <subtask id="6.1">Test full conversational flow: Agent asks for topic → User responds → Agent calls update_topic → Stored in variables</subtask>
+          <subtask id="6.2">Test goals collection: Agent asks for goals → User lists goals → Agent calls update_goals with array → Stored in variables</subtask>
+          <subtask id="6.3">Test technique selection: Agent presents options → User selects → Agent calls select_techniques → Stored in variables</subtask>
+          <subtask id="6.4">Verify split-pane workbench enhances existing ask-user-chat pattern (same conversation flow, better UI)</subtask>
+          <subtask id="6.5">Test error handling: Invalid technique ID, empty goals array, malformed inputs</subtask>
+          <subtask id="6.6">Verify this is first real test of Mastra tools with structured inputs (beyond simple string storage)</subtask>
+        </subtasks>
+      </task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="1">Seed Step 1: Configure brainstorming workflow Step 1 with update_topic, update_goals, select_techniques Mastra tools (first real tools with structured inputs)</criterion>
+    <criterion id="2">Workbench Layout: Implement resizable Split-Pane layout with Chat interface on left and Artifact preview on right</criterion>
+    <criterion id="3">Chat Interface: Render chat timeline with same ask-user-chat pattern currently used in workflow-init (message history, agent reasoning, tool call indicators)</criterion>
+    <criterion id="4">Tool Execution: Implement same conversational tool pattern as workflow-init - agent asks, user responds, agent calls tools with structured data</criterion>
+    <criterion id="5">Validation: Verify tools (update_topic, update_goals) work end-to-end with Mastra agent, test structured input handling</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/epics/epic-2-artifact-workbench.md</path>
+        <title>Epic 2: Artifact Workbench (Brainstorming Focus)</title>
+        <section>Story 2.2: Workbench Shell &amp; Setup</section>
+        <snippet>Goal: Implement Artifact Workbench with Phase 0 workflows. Split-pane layout (Chat Left, Artifact Preview Right) with living document updates. Configure brainstorming workflow Step 1 with update_topic, update_goals, select_techniques tools. Right pane renders workflow template from bmad/cis/workflows/brainstorming/template.md with variables filling as conversation progresses.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/architecture-decisions.md</path>
+        <title>Architecture Decisions</title>
+        <section>Decision #7: Mastra + Ax Integration Architecture</section>
+        <snippet>Mastra handles multi-turn conversational agents with tool execution. Ax (DSPy-based) handles optimization of prompts and signatures. Integration pattern: Mastra agents use RuntimeContext for dynamic configuration, tools execute with approval gates.</snippet>
+      </doc>
+      <doc>
+        <path>docs/PRD.md</path>
+        <title>Product Requirements Document</title>
+        <section>Pattern D: Focused Dialogs (Context-Preserving Deep-Dive)</section>
+        <snippet>Core Mechanic: Open focused dialog for complex actions while preserving main chat context. Visual: Modal/drawer with agent conversation, reasoning, tool calls, actions at bottom. Actions: Accept | Continue Discussion | Cancel. Use Cases: Answer/Clarify questions, code explanation, diff review, error investigation.</snippet>
+      </doc>
+      <doc>
+        <path>docs/sprint-artifacts/2-1-project-dashboard.md</path>
+        <title>Story 2.1: Project Dashboard &amp; Schema Foundation</title>
+        <section>Dev Agent Record - Learnings</section>
+        <snippet>Schema Refactor Success: JSONB tags and metadata pattern works well for flexible workflow configuration. Store tool schemas in config.tools array with name, description, toolType, usageGuidance, requiresApproval, requiredVariables, targetVariable, valueSchema, optionsSource (for ax-generation), axSignature. Seed data in packages/scripts/src/seeds/workflows.ts uses helper functions.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture/database-schema-architecture.md</path>
+        <title>Database Schema Architecture</title>
+        <section>Pattern 1: JSONB Step Configuration</section>
+        <snippet>workflow_steps.config JSONB stores type-specific configuration. For ask-user-chat: agentId, initialMessage, tools array, completionCondition (all-variables-set or all-tools-approved), outputVariables (maps execution vars to template vars). Each tool: name, description, toolType, usageGuidance, requiresApproval, requiredVariables, targetVariable, valueSchema, optionsSource, axSignature.</snippet>
+      </doc>
+      <doc>
+        <path>bmad/cis/agents/brainstorming-coach.md</path>
+        <title>Brainstorming Coach Agent Instructions</title>
+        <section>Agent Identity and Instructions</section>
+        <snippet>Brainstorming Coach agent guides users through ideation sessions. Uses conversational approach to gather session topic, goals, and technique selection. Dynamically adapts based on available tools (update_topic unlocked from start, update_goals unlocked after topic set, select_techniques unlocked after goals set). Sequential conversation flow enforced by tool requiredVariables dependencies.</snippet>
+      </doc>
+      <doc>
+        <path>bmad/cis/workflows/brainstorming/template.md</path>
+        <title>Brainstorming Session Artifact Template</title>
+        <section>Living Document Template</section>
+        <snippet>Markdown template with Handlebars variables: {{topic}}, {{goals}} (array), {{techniques}} (array). Template structure includes session metadata, goals list, selected techniques, ideas section (filled in Step 2), convergence section (Step 3), action plan (Step 5). Template renders in right pane and progressively fills as workflow executes. Variables map via outputVariables config.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>apps/web/src/components/workflows/steps/ask-user-chat-step.tsx</path>
+        <kind>component</kind>
+        <symbol>AskUserChatStep</symbol>
+        <lines>304-808</lines>
+        <reason>Existing chat component that renders ask-user-chat step type. REUSE this component in left pane of split-pane workbench. Already handles message timeline, reasoning collapsibles, tool execution, approval cards (ApprovalCard, ApprovalCardSelector, SelectionWithCustomCard), model selection, ToolStatusSidebar. No recreation needed - just embed in new layout.</reason>
+      </artifact>
+      <artifact>
+        <path>packages/api/src/services/workflow-engine/tools/update-variable-tool.ts</path>
+        <kind>tool</kind>
+        <symbol>buildUpdateVariableTool</symbol>
+        <lines>24-106</lines>
+        <reason>Universal update_variable tool builder. Currently supports string, number, boolean, enum types. NEEDS ENHANCEMENT: Add array type support (case "array": valueSchema = z.array(z.string())) for update_goals tool which stores string[] array. Dynamically builds Zod schema from valueSchema config. Supports approval gates via requiresApproval flag.</reason>
+      </artifact>
+      <artifact>
+        <path>packages/api/src/services/workflow-engine/tools/ax-generation-tool.ts</path>
+        <kind>tool</kind>
+        <symbol>buildAxGenerationTool</symbol>
+        <lines>entire file</lines>
+        <reason>Ax-based generation tool with database options fetching. Used for select_techniques tool. Supports optionsSource (table, filterBy, displayConfig), axSignature with class[] output type for multi-select. Reference implementation: select_workflow_path in workflow-init seed. Validates selected IDs against database-fetched options via classesFrom constraint.</reason>
+      </artifact>
+      <artifact>
+        <path>packages/api/src/services/workflow-engine/step-handlers/ask-user-chat-handler.ts</path>
+        <kind>handler</kind>
+        <symbol>AskUserChatStepHandler</symbol>
+        <lines>1-100</lines>
+        <reason>Handler that executes ask-user-chat steps. Uses Mastra agents with dynamic RuntimeContext configuration. Loads agent by agentId, builds tools dynamically (buildUpdateVariableTool, buildAxGenerationTool, buildDatabaseQueryTool) based on toolType, manages Mastra thread persistence, checks completionCondition (all-variables-set or all-tools-approved), applies outputVariables mapping to execution.variables.</reason>
+      </artifact>
+      <artifact>
+        <path>packages/scripts/src/seeds/workflow-init-new.ts</path>
+        <kind>seed</kind>
+        <symbol>seedWorkflowInitNew</symbol>
+        <lines>entire file</lines>
+        <reason>Reference example for seeding workflow with ask-user-chat step. Shows complete patterns: tool configurations (update-variable with valueSchema, ax-generation with optionsSource/axSignature), usageGuidance strings, requiredVariables for tool unlocking, optionsSource database queries, axSignature with class[] output for multi-select, completionCondition config, outputVariables mapping. Use as template for packages/scripts/src/seeds/brainstorming.ts.</reason>
+      </artifact>
+      <artifact>
+        <path>packages/db/src/schema/workflows.ts</path>
+        <kind>schema</kind>
+        <symbol>stepTypeEnum, workflowsTable</symbol>
+        <lines>74-84, workflow table definition</lines>
+        <reason>Database schema. stepTypeEnum includes ask-user-chat. workflows table has tags JSONB for filtering (tags-&gt;&gt;'type' = 'technique', tags-&gt;&gt;'module' = 'cis'). Use for select_techniques optionsSource query. AskUserChatStepConfig type defines config structure in step-configs.ts.</reason>
+      </artifact>
+      <artifact>
+        <path>packages/db/src/schema/step-configs.ts</path>
+        <kind>schema</kind>
+        <symbol>AskUserChatStepConfig interface</symbol>
+        <lines>entire file</lines>
+        <reason>TypeScript interface for ask-user-chat step config. Defines: agentId, initialMessage, tools array structure (ToolConfig[] with toolType discriminated union), completionCondition types (all-tools-approved, all-variables-set with requiredVariables or requiredTools), outputVariables mapping (template variable name → execution variable path).</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <node>
+        <package>@shadcn/resizable</package>
+        <version>latest</version>
+        <purpose>Split-pane layout component using react-resizable-panels. Add via shadcn CLI.</purpose>
+      </node>
+      <node>
+        <package>@mastra/core</package>
+        <version>current</version>
+        <purpose>Agent framework with generate() API for multi-turn conversations and tool execution</purpose>
+      </node>
+      <node>
+        <package>zod</package>
+        <version>current</version>
+        <purpose>Schema validation for update_variable tool inputs</purpose>
+      </node>
+      <node>
+        <package>@trpc/server</package>
+        <version>current</version>
+        <purpose>API communication for chat messages and tool execution</purpose>
+      </node>
+      <node>
+        <package>react-query</package>
+        <version>current</version>
+        <purpose>Frontend state management for chat message polling and mutations</purpose>
+      </node>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>
+      <category>Architecture</category>
+      <rule>Follow ask-user-chat pattern from Stories 1.6-1.8: agent asks questions, user responds in chat, agent calls tools with structured data</rule>
+    </constraint>
+    <constraint>
+      <category>Component Reuse</category>
+      <rule>REUSE existing AskUserChatStep component (apps/web/src/components/workflows/steps/ask-user-chat-step.tsx). Do not recreate chat rendering logic.</rule>
+    </constraint>
+    <constraint>
+      <category>Tool Pattern</category>
+      <rule>Use universal update_variable tool for all variable updates. Tool accepts {key: string, value: any} and stores in workflow_executions.variables JSONB.</rule>
+    </constraint>
+    <constraint>
+      <category>JSONB Updates</category>
+      <rule>Follow Story 2.1 pattern: store tool configs in workflow_steps.config.tools array with name, description, toolType, targetVariable, valueSchema</rule>
+    </constraint>
+    <constraint>
+      <category>Split-Pane Layout</category>
+      <rule>Use @shadcn/resizable component for horizontal split. Minimum pane width: 300px. Persist sizing in localStorage per user preference. Default: 50/50 split.</rule>
+    </constraint>
+    <constraint>
+      <category>Route Pattern</category>
+      <rule>Create universal route /project/$projectId/workflow/$executionId. This route handles ANY workflow execution within project context. User navigates here from Project Dashboard "Start Brainstorming" button which creates execution record and passes executionId.</rule>
+    </constraint>
+    <constraint>
+      <category>Seed Data</category>
+      <rule>Create new file packages/scripts/src/seeds/brainstorming.ts (do not mix with workflows.ts). Follow workflow-init-new.ts pattern. Progressive enhancement: add more steps in Stories 2.3-2.6. Import and call from packages/scripts/src/seeds/index.ts.</rule>
+    </constraint>
+    <constraint>
+      <category>Agent Configuration</category>
+      <rule>Step 1 uses Brainstorming Coach agent (from bmad/cis/agents/brainstorming-coach.md). Agent instructions guide conversational flow: ask for topic (update_topic unlocked from start) → ask for goals after topic approved (update_goals unlocked) → present techniques after goals approved (select_techniques unlocked). Sequential flow enforced by tool requiredVariables.</rule>
+    </constraint>
+    <constraint>
+      <category>Tool Configuration Specs</category>
+      <rule>Three tools: 1) update_topic (update-variable, targetVariable: session_topic, valueSchema: {type: string}, requiredVariables: []). 2) update_goals (update-variable, targetVariable: stated_goals, valueSchema: {type: array, items: {type: string}}, requiredVariables: [session_topic]). 3) select_techniques (ax-generation, optionsSource queries workflows table filtered by tags-&gt;&gt;'type'='technique' and tags-&gt;&gt;'module'='cis', axSignature output type: class[] for multi-select, requiredVariables: [stated_goals]). All tools have usageGuidance without number constraints - let agent/user decide quantity.</rule>
+    </constraint>
+    <constraint>
+      <category>Completion Condition</category>
+      <rule>Use completionCondition: {type: "all-variables-set", requiredVariables: ["session_topic", "stated_goals", "selected_techniques"]}. This allows future manual variable input to count toward completion. Checks if all required variables exist in execution.variables regardless of how they were set.</rule>
+    </constraint>
+    <constraint>
+      <category>Output Variable Mapping</category>
+      <rule>Use outputVariables to map execution variables to template variables: {topic: "approval_states.update_topic.value.session_topic", goals: "approval_states.update_goals.value.stated_goals", techniques: "approval_states.select_techniques.value.selected_techniques"}. Template uses shorter names ({{topic}}, {{goals}}, {{techniques}}) for reusability across workflows.</rule>
+    </constraint>
+    <constraint>
+      <category>Living Document Preview</category>
+      <rule>Right pane renders workflow template from bmad/cis/workflows/brainstorming/template.md. Template contains Handlebars variables that map to outputVariables. As tools execute and approve, template auto-updates with actual values showing living document filling progressively. Initial render shows template structure with empty variables.</rule>
+    </constraint>
+    <constraint>
+      <category>Shadcn Installation</category>
+      <rule>Install @shadcn/resizable via: bunx --bun shadcn@latest add resizable. Do not overwrite existing components. Use horizontal direction for split-pane (Chat | Artifact Preview).</rule>
+    </constraint>
+    <constraint>
+      <category>Future Enhancement Note</category>
+      <rule>When technique count exceeds 10, consider implementing searchable card UI pattern (search bar, grouped sections, favorites) similar to model selector. For Story 2.2, use existing ApprovalCardSelector with simple card layout. Document as future enhancement for Story 2.3+.</rule>
+    </constraint>
+  </constraints>
+  <toolConfigurations>
+    <tool name="update_topic">
+      <toolType>update-variable</toolType>
+      <targetVariable>session_topic</targetVariable>
+      <description>Set the brainstorming session topic</description>
+      <usageGuidance>Call this tool when the user clearly states what they want to brainstorm about. The topic should be specific enough to guide technique selection but broad enough to allow creative exploration. Examples: 'AI-powered task manager', 'Sustainable packaging solutions', 'Remote team engagement strategies'.</usageGuidance>
+      <requiredVariables>[]</requiredVariables>
+      <requiresApproval>true</requiresApproval>
+      <valueSchema>
+        <type>string</type>
+        <description>A clear, concise session topic (let agent decide appropriate length)</description>
+      </valueSchema>
+    </tool>
+    <tool name="update_goals">
+      <toolType>update-variable</toolType>
+      <targetVariable>stated_goals</targetVariable>
+      <description>Set the brainstorming session goals</description>
+      <usageGuidance>Call this tool after the topic is approved and the user has explained what they want to achieve. Extract concrete goals from the conversation. Each goal should be specific and measurable. If user only states vague goals, ask clarifying questions first. Let agent decide appropriate number of goals based on conversation depth.</usageGuidance>
+      <requiredVariables>["session_topic"]</requiredVariables>
+      <requiresApproval>true</requiresApproval>
+      <valueSchema>
+        <type>array</type>
+        <items>
+          <type>string</type>
+          <description>A specific, measurable goal</description>
+        </items>
+        <description>List of session goals (agent determines appropriate quantity)</description>
+      </valueSchema>
+    </tool>
+    <tool name="select_techniques">
+      <toolType>ax-generation</toolType>
+      <description>Select brainstorming techniques to use in this session</description>
+      <usageGuidance>After goals are approved, present available technique options from the database. Recommend techniques that best fit the session topic and goals. User can select multiple techniques that complement each other. Let agent/user decide appropriate number based on session scope.</usageGuidance>
+      <requiredVariables>["stated_goals"]</requiredVariables>
+      <requiresApproval>true</requiresApproval>
+      <optionsSource>
+        <table>workflows</table>
+        <selectFields>["id", "name", "displayName", "description", "tags"]</selectFields>
+        <filterBy>
+          <filter key="tags->>'type'">technique</filter>
+          <filter key="tags->>'module'">cis</filter>
+        </filterBy>
+        <orderBy>name</orderBy>
+        <outputVariable>technique_options</outputVariable>
+        <requireFeedbackOnOverride>false</requireFeedbackOnOverride>
+        <displayConfig>
+          <cardLayout>simple</cardLayout>
+          <fields>
+            <value>id</value>
+            <title>displayName</title>
+            <description>description</description>
+          </fields>
+        </displayConfig>
+      </optionsSource>
+      <axSignature>
+        <input>
+          <field name="session_topic" type="string" source="variable" variableName="session_topic" description="Session topic for context"/>
+          <field name="stated_goals" type="string[]" source="variable" variableName="stated_goals" description="User's stated goals"/>
+          <field name="technique_options" type="json[]" source="variable" variableName="technique_options" selectFields="[&quot;id&quot;, &quot;displayName&quot;, &quot;description&quot;]" description="Available brainstorming techniques"/>
+        </input>
+        <output>
+          <field name="selected_techniques" type="class[]" classesFrom_source="technique_options" classesFrom_field="id" description="Selected technique IDs (agent recommends appropriate number)" internal="false"/>
+          <field name="reasoning" type="string" description="Why these techniques fit the session goals" internal="false"/>
+        </output>
+        <strategy>ChainOfThought</strategy>
+      </axSignature>
+    </tool>
+  </toolConfigurations>
+
+  <interfaces>
+    <interface>
+      <name>update_variable</name>
+      <kind>Mastra Tool</kind>
+      <signature>buildUpdateVariableTool(config: ToolConfig, context: ExecutionContext): Promise&lt;MastraTool&gt;</signature>
+      <path>packages/api/src/services/workflow-engine/tools/update-variable-tool.ts</path>
+      <description>Universal variable update tool. Accepts any value type (string, array, object, nested). Config specifies targetVariable and valueSchema. Supports approval gates if requiresApproval: true.</description>
+    </interface>
+    <interface>
+      <name>AskUserChatStep</name>
+      <kind>React Component</kind>
+      <signature>function AskUserChatStep({ executionId, stepConfig, stepGoal, onComplete, readOnly }: AskUserChatStepProps)</signature>
+      <path>apps/web/src/components/workflows/steps/ask-user-chat-step.tsx</path>
+      <description>Existing chat interface component. Renders message timeline, reasoning blocks, tool calls, approval cards. Uses AI Elements design system. Supports model selection. Handles SSE polling for real-time updates.</description>
+    </interface>
+    <interface>
+      <name>workflow_executions.variables</name>
+      <kind>Database JSONB Field</kind>
+      <signature>variables: JSONB (Record&lt;string, any&gt;)</signature>
+      <path>packages/db/src/schema/workflows.ts</path>
+      <description>Stores workflow execution state including tool outputs. Structure: { session_topic: string, stated_goals: string[], selected_techniques: string[], approval_states: Record&lt;toolName, ApprovalState&gt; }</description>
+    </interface>
+    <interface>
+      <name>workflow_steps.config</name>
+      <kind>Database JSONB Field</kind>
+      <signature>config: JSONB (AskUserChatStepConfig for ask-user-chat type)</signature>
+      <path>packages/db/src/schema/step-configs.ts</path>
+      <description>Step-specific configuration. For ask-user-chat: { agentId, initialMessage, tools, completionCondition, outputVariables }. Tools array contains: { name, description, toolType (update-variable|ax-generation|database-query), usageGuidance, requiresApproval, requiredVariables, targetVariable (for update-variable), valueSchema (for update-variable), optionsSource (for ax-generation), axSignature (for ax-generation) }. CompletionCondition: { type: "all-variables-set"|"all-tools-approved", requiredVariables or requiredTools }. OutputVariables: maps template var names to execution variable paths.</description>
+    </interface>
+    <interface>
+      <name>trpc.workflows.sendChatMessage</name>
+      <kind>tRPC Mutation</kind>
+      <signature>sendChatMessage({ executionId, message, selectedModel }): Promise&lt;void&gt;</signature>
+      <path>packages/api/src/routers/workflows.ts</path>
+      <description>Sends user message to agent. Backend invokes Mastra agent.generate() with message, agent processes and calls tools, results stored in DB.</description>
+    </interface>
+  </interfaces>
+  <tests>
+    <standards>
+      Testing follows established patterns from Epic 1. Unit tests use Bun's built-in test runner with @chiron/db test utilities. Integration tests verify end-to-end flows (user message → agent response → tool execution → variable storage). Component tests use React Testing Library. Database operations tested with in-memory test database. Tool execution tested via step-handler test suites.
+    </standards>
+    <locations>
+      <location>packages/api/src/services/workflow-engine/tools/*.test.ts</location>
+      <location>packages/api/src/services/workflow-engine/step-handlers/*.test.ts</location>
+      <location>apps/web/src/components/workflows/**/*.test.tsx</location>
+      <location>packages/scripts/src/seeds/*.test.ts</location>
+    </locations>
+    <ideas>
+      <test ac="1">
+        <description>Verify brainstorming Step 1 seed data creates correct workflow_steps entry with ask-user-chat config and 3 tools: update_topic (update-variable, no requiredVariables), update_goals (update-variable with array valueSchema, requires session_topic), select_techniques (ax-generation with optionsSource and class[] axSignature, requires stated_goals). Check completionCondition type is all-variables-set with correct requiredVariables. Verify outputVariables mapping exists.</description>
+      </test>
+      <test ac="1">
+        <description>Test update_variable tool with different value types: string (topic), array (goals), array with validation (techniques against DB)</description>
+      </test>
+      <test ac="2">
+        <description>Test /workflow/$executionId route renders split-pane layout with AskUserChatStep in left pane and artifact preview in right pane</description>
+      </test>
+      <test ac="2">
+        <description>Verify resizable panels persist sizing to localStorage and restore on page load. Test minimum width constraint (300px).</description>
+      </test>
+      <test ac="3">
+        <description>Verify AskUserChatStep renders existing message history with reasoning blocks, tool calls, timestamps, agent metadata</description>
+      </test>
+      <test ac="4">
+        <description>Integration test: User sends "Topic: AI task manager" → Agent calls update_variable with {key: "session_topic", value: "AI task manager"} → Variable stored in workflow_executions.variables</description>
+      </test>
+      <test ac="4">
+        <description>Integration test: User provides goals "Increase productivity, Reduce context switching" → Agent calls update_variable with {key: "stated_goals", value: ["Increase productivity", "Reduce context switching"]} → Array stored correctly</description>
+      </test>
+      <test ac="5">
+        <description>End-to-end test: Complete Step 1 flow - agent asks for topic → user responds → topic stored → agent asks for goals → user responds → goals stored → agent asks for techniques → user selects → techniques stored → step marked complete</description>
+      </test>
+      <test ac="5">
+        <description>Test error handling: invalid technique ID (not in workflows table), empty goals array, malformed JSON in tool input</description>
+      </test>
+    </ideas>
+  </tests>
+</story-context>

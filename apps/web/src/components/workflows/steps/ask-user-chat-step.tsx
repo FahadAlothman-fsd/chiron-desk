@@ -1,6 +1,19 @@
 "use client";
 
-import { CheckIcon, MessageSquareIcon, Sparkles, Wrench } from "lucide-react";
+import {
+	AlertCircle,
+	CheckCircle2,
+	CheckIcon,
+	ChevronLeft,
+	ChevronRight,
+	Circle,
+	Clock,
+	Loader2,
+	MessageSquareIcon,
+	Sparkles,
+	Wrench,
+	XCircle,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -315,6 +328,16 @@ export function AskUserChatStep({
 	const [isLoading, setIsLoading] = useState(false);
 
 	const selectedModelData = models.find((m) => m.id === model);
+	const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+	// Fetch agent details
+	const { data: agentData } = trpc.agents.getById.useQuery(
+		{ id: stepConfig.agentId },
+		{ enabled: !!stepConfig.agentId },
+	);
+	const agent = agentData?.agent;
+	const agentName = agent?.displayName || agent?.name || "Agent";
+	const agentIcon = agent?.metadata?.icon || "🤖";
 
 	// Load message history
 	const { data: messageHistory } = trpc.workflows.getChatMessages.useQuery(
@@ -323,10 +346,11 @@ export function AskUserChatStep({
 	);
 
 	// Get execution state for approval gates
-	const { data: execution } = trpc.workflows.getExecution.useQuery(
+	const { data: executionData } = trpc.workflows.getExecution.useQuery(
 		{ executionId },
 		{ refetchInterval: 2000 },
 	);
+	const execution = executionData?.execution;
 
 	// Send message mutation
 	const sendMessage = trpc.workflows.sendChatMessage.useMutation({
@@ -353,8 +377,8 @@ export function AskUserChatStep({
 					role: "assistant",
 					content: stepConfig.initialMessage,
 					metadata: {
-						agent_name: "Athena",
-						agent_icon: "📋",
+						agent_name: agentName,
+						agent_icon: agentIcon,
 						model: "claude-sonnet-4-20250514",
 					},
 					created_at: new Date().toISOString(),
@@ -397,6 +421,76 @@ export function AskUserChatStep({
 	const approvalStates = (execution?.variables as Record<string, unknown>)
 		?.approval_states as Record<string, ApprovalState> | undefined;
 
+	// Helper function to determine tool status
+	type ToolStatus =
+		| "not_started"
+		| "executing"
+		| "awaiting_approval"
+		| "approved"
+		| "rejected"
+		| "blocked";
+
+	function getToolStatus(tool: ToolConfig): ToolStatus {
+		const approvalState = approvalStates?.[tool.name];
+		const executionVariables =
+			(execution?.variables as Record<string, unknown>) || {};
+
+		// Check if tool is blocked by missing prerequisites
+		if (tool.requiredVariables && tool.requiredVariables.length > 0) {
+			const missingVars = tool.requiredVariables.filter(
+				(varName) =>
+					!(varName in executionVariables) &&
+					!Object.values(approvalStates || {}).some(
+						(state) =>
+							state.value &&
+							typeof state.value === "object" &&
+							state.value !== null &&
+							varName in state.value,
+					),
+			);
+
+			if (missingVars.length > 0) {
+				return "blocked";
+			}
+		}
+
+		// Check approval state
+		if (!approvalState) {
+			return "not_started";
+		}
+
+		if (approvalState.status === "approved") {
+			return "approved";
+		}
+
+		if (approvalState.status === "rejected") {
+			return "rejected";
+		}
+
+		if (approvalState.status === "pending") {
+			return "awaiting_approval";
+		}
+
+		return "not_started";
+	}
+
+	function getStatusIcon(status: ToolStatus) {
+		switch (status) {
+			case "not_started":
+				return <Circle className="h-4 w-4 text-muted-foreground" />;
+			case "executing":
+				return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />;
+			case "awaiting_approval":
+				return <Clock className="h-4 w-4 text-yellow-500" />;
+			case "approved":
+				return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+			case "rejected":
+				return <XCircle className="h-4 w-4 text-red-500" />;
+			case "blocked":
+				return <AlertCircle className="h-4 w-4 text-orange-500" />;
+		}
+	}
+
 	// Show ALL approvals in chat (pending, approved, rejected) so users can see the history
 	// Sort by createdAt timestamp to maintain chronological order (oldest first)
 	const allApprovals = approvalStates
@@ -438,7 +532,11 @@ export function AskUserChatStep({
 	return (
 		<div className="flex h-[calc(100vh-12rem)] gap-6">
 			{/* Main Chat Area - Takes priority, full height like proper chat */}
-			<div className="flex min-h-0 min-w-0 flex-1 flex-col">
+			<div
+				className={`flex min-h-0 min-w-0 flex-1 flex-col transition-all duration-300 ${
+					sidebarCollapsed ? "mr-0" : ""
+				}`}
+			>
 				{/* Conversation Area */}
 				<Conversation className="flex-1">
 					<ConversationContent>
@@ -450,7 +548,7 @@ export function AskUserChatStep({
 								title="Start a conversation"
 								description={
 									stepConfig.initialMessage ||
-									"Send a message to begin chatting with Athena"
+									`Send a message to begin chatting with ${agentName}`
 								}
 							/>
 						) : (
@@ -686,7 +784,7 @@ export function AskUserChatStep({
 											<div className="flex items-center gap-2">
 												<Loader />
 												<span className="text-muted-foreground text-sm">
-													Athena is thinking...
+													{agentName} is thinking...
 												</span>
 											</div>
 										</MessageContent>
@@ -773,7 +871,7 @@ export function AskUserChatStep({
 									{/* Agent Info */}
 									<div className="ml-auto flex items-center gap-2 text-muted-foreground text-xs">
 										<Sparkles className="size-3" />
-										<span>Athena</span>
+										<span>{agentName}</span>
 									</div>
 								</PromptInputTools>
 								<PromptInputSubmit
@@ -786,20 +884,73 @@ export function AskUserChatStep({
 				)}
 			</div>
 
-			{/* Tool Status Sidebar with Accordion */}
+			{/* Tool Status Sidebar with Accordion - Collapsible */}
 			{stepConfig.tools && stepConfig.tools.length > 0 && (
-				<div className="w-96 flex-shrink-0">
-					<ToolStatusSidebar
-						tools={stepConfig.tools}
-						approvalStates={approvalStates}
-						executionVariables={
-							(execution?.variables as Record<string, unknown>) || {}
-						}
-						executionId={executionId}
-						agentId={stepConfig.agentId}
-						stepGoal={stepGoal}
-						className="h-full overflow-y-auto"
-					/>
+				<div
+					className={`relative flex-shrink-0 transition-all duration-300 ${
+						sidebarCollapsed ? "w-16" : "w-96"
+					}`}
+				>
+					{/* Collapse/Expand Button */}
+					<button
+						onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+						className="absolute top-4 -left-3 z-10 flex h-6 w-6 items-center justify-center rounded-full border bg-background shadow-md transition-colors hover:bg-muted"
+						title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+					>
+						{sidebarCollapsed ? (
+							<ChevronLeft className="h-3 w-3" />
+						) : (
+							<ChevronRight className="h-3 w-3" />
+						)}
+					</button>
+
+					{/* Sidebar Content */}
+					<div className={`h-full ${sidebarCollapsed ? "hidden" : "block"}`}>
+						<ToolStatusSidebar
+							tools={stepConfig.tools}
+							approvalStates={approvalStates}
+							executionVariables={
+								(execution?.variables as Record<string, unknown>) || {}
+							}
+							executionId={executionId}
+							agentId={stepConfig.agentId}
+							stepGoal={stepGoal}
+							className="h-full overflow-y-auto"
+						/>
+					</div>
+
+					{/* Collapsed State - Icon Stack */}
+					{sidebarCollapsed && (
+						<div className="flex h-full flex-col items-center gap-3 overflow-y-auto border-l bg-background py-4">
+							{/* Title Icon */}
+							<div
+								className="text-muted-foreground text-xs font-medium tracking-wider"
+								style={{
+									writingMode: "vertical-rl",
+									textOrientation: "mixed",
+								}}
+								title="Agent Status"
+							>
+								AGENT STATUS
+							</div>
+
+							<div className="my-2 h-px w-8 bg-border" />
+
+							{/* Tool Icons */}
+							{stepConfig.tools.map((tool) => {
+								const status = getToolStatus(tool);
+								return (
+									<div
+										key={tool.name}
+										className="group relative flex h-10 w-10 items-center justify-center rounded-md border transition-colors hover:bg-muted"
+										title={`${tool.name.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())} - ${status}`}
+									>
+										{getStatusIcon(status)}
+									</div>
+								);
+							})}
+						</div>
+					)}
 				</div>
 			)}
 		</div>

@@ -2,6 +2,7 @@ import {
 	db,
 	workflowExecutions,
 	workflowPathWorkflows,
+	workflowTemplates,
 	workflows,
 } from "@chiron/db";
 import { observable } from "@trpc/server/observable";
@@ -344,10 +345,12 @@ export const workflowRouter = router({
 		.mutation(async ({ input, ctx }) => {
 			const userId = ctx.session.user.id;
 			// Get execution
-			const execution = await stateManager.getExecution(input.executionId);
-			if (!execution) {
+			const executionData = await stateManager.getExecution(input.executionId);
+			if (!executionData || !executionData.execution) {
 				throw new Error(`Execution not found: ${input.executionId}`);
 			}
+
+			const { execution, currentStep } = executionData;
 
 			// Validate execution is paused
 			if (execution.status !== "paused") {
@@ -377,8 +380,17 @@ export const workflowRouter = router({
 
 			// Compute derived values from extractFrom configs
 			// These are variables that depend on the approved value
-			const stepConfig = execution.currentStep?.config as any;
+			const stepConfig = currentStep?.config as any;
 			const tools = stepConfig?.tools || [];
+
+			console.log("[ApproveToolCall] DEBUG - Looking for tool config:", {
+				hasStepConfig: !!stepConfig,
+				hasTools: !!tools,
+				toolsCount: tools.length,
+				toolNames: tools.map((t: any) => t.name),
+				lookingFor: input.toolName,
+			});
+
 			const toolConfig = tools.find((t: any) => t.name === input.toolName);
 
 			if (toolConfig?.axSignature?.output) {
@@ -451,6 +463,14 @@ export const workflowRouter = router({
 			// Extract output fields from approved value and merge into execution variables
 			// This allows subsequent tools to access these variables as prerequisites
 
+			console.log("[ApproveToolCall] Tool config check:", {
+				toolName: input.toolName,
+				toolType: toolConfig?.toolType,
+				hasTargetVariable: !!toolConfig?.targetVariable,
+				targetVariable: toolConfig?.targetVariable,
+				approvedValueType: typeof input.approvedValue,
+			});
+
 			if (
 				toolConfig?.toolType === "update-variable" &&
 				toolConfig?.targetVariable
@@ -490,8 +510,8 @@ export const workflowRouter = router({
 			let agentId: string | undefined;
 			if (execution.agentId) {
 				agentId = execution.agentId;
-			} else if (execution.currentStep?.config) {
-				const stepConfig = execution.currentStep.config as any;
+			} else if (currentStep?.config) {
+				const stepConfig = currentStep.config as any;
 				agentId = stepConfig.agentId;
 			}
 
@@ -550,10 +570,12 @@ export const workflowRouter = router({
 		.mutation(async ({ input, ctx }) => {
 			const userId = ctx.session.user.id;
 			// Get execution
-			const execution = await stateManager.getExecution(input.executionId);
-			if (!execution) {
+			const executionData = await stateManager.getExecution(input.executionId);
+			if (!executionData || !executionData.execution) {
 				throw new Error(`Execution not found: ${input.executionId}`);
 			}
+
+			const { execution } = executionData;
 
 			// Validate execution is paused
 			if (execution.status !== "paused") {
@@ -666,10 +688,12 @@ export const workflowRouter = router({
 		)
 		.query(async ({ input }) => {
 			// Get execution to find thread ID
-			const execution = await stateManager.getExecution(input.executionId);
-			if (!execution) {
+			const executionData = await stateManager.getExecution(input.executionId);
+			if (!executionData || !executionData.execution) {
 				throw new Error(`Execution not found: ${input.executionId}`);
 			}
+
+			const { execution } = executionData;
 
 			const threadId = execution.variables.mastra_thread_id as
 				| string
@@ -755,10 +779,12 @@ export const workflowRouter = router({
 			const userId = ctx.session.user.id;
 
 			// Get execution to access approval states
-			const execution = await stateManager.getExecution(input.executionId);
-			if (!execution) {
+			const executionData = await stateManager.getExecution(input.executionId);
+			if (!executionData || !executionData.execution) {
 				throw new Error(`Execution not found: ${input.executionId}`);
 			}
+
+			const { execution } = executionData;
 
 			const approvalStates = (execution.variables.approval_states ||
 				{}) as Record<string, any>;
@@ -852,10 +878,37 @@ export const workflowRouter = router({
 
 			// Save approved value to execution variables
 			const approvedValue = toolState.value;
+
+			// For update-variable tools, save value directly to targetVariable
+			// For other tools (AX generation, etc.), merge all fields from approved value
+			const variablesToMerge: Record<string, unknown> = {};
+
+			if (
+				toolConfig?.toolType === "update-variable" &&
+				toolConfig?.targetVariable
+			) {
+				// For update-variable tools, save the value directly to targetVariable
+				variablesToMerge[toolConfig.targetVariable] = approvedValue;
+				console.log(
+					`[ApproveToolOutput] Saved update-variable: ${toolConfig.targetVariable} = ${typeof approvedValue === "string" ? `${approvedValue.substring(0, 50)}...` : JSON.stringify(approvedValue)}`,
+				);
+			} else if (approvedValue && typeof approvedValue === "object") {
+				// For other tools (AX generation, etc.), merge all non-internal fields from approved value
+				for (const [key, value] of Object.entries(approvedValue)) {
+					// Skip internal fields (reasoning, etc.) - only extract actual outputs
+					if (key !== "reasoning" && key !== "internal") {
+						variablesToMerge[key] = value;
+						console.log(
+							`[ApproveToolOutput] Extracted output variable: ${key} = ${typeof value === "string" ? `${value.substring(0, 50)}...` : JSON.stringify(value)}`,
+						);
+					}
+				}
+			}
+
 			const updatedVariables = {
 				...execution.variables,
 				approval_states: approvalStates,
-				...approvedValue, // Merge approved fields into variables
+				...variablesToMerge, // Merge extracted/target variables
 				...(toolState.derived_values || {}), // Also merge derived values
 			};
 
@@ -956,10 +1009,12 @@ export const workflowRouter = router({
 			const userId = ctx.session.user.id;
 
 			// Get execution to access approval states
-			const execution = await stateManager.getExecution(input.executionId);
-			if (!execution) {
+			const executionData = await stateManager.getExecution(input.executionId);
+			if (!executionData || !executionData.execution) {
 				throw new Error(`Execution not found: ${input.executionId}`);
 			}
+
+			const { execution } = executionData;
 
 			const approvalStates = (execution.variables.approval_states ||
 				{}) as Record<string, any>;
@@ -1047,5 +1102,26 @@ export const workflowRouter = router({
 			workflowEventBus.emitWorkflowResumed(input.executionId);
 
 			return { success: true, regenerationTriggered: true };
+		}),
+
+	/**
+	 * Get workflow template by ID
+	 */
+	getTemplate: protectedProcedure
+		.input(
+			z.object({
+				templateId: z.string().uuid(),
+			}),
+		)
+		.query(async ({ input }) => {
+			const template = await db.query.workflowTemplates.findFirst({
+				where: (templates, { eq }) => eq(templates.id, input.templateId),
+			});
+
+			if (!template) {
+				throw new Error(`Template not found: ${input.templateId}`);
+			}
+
+			return template;
 		}),
 }) as ReturnType<typeof router>;

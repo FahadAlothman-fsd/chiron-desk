@@ -49,14 +49,14 @@ function InitializePage() {
 	useEffect(() => {
 		if (
 			project?.status === "active" &&
-			executionsData?.status === "completed"
+			executionsData?.execution?.status === "completed"
 		) {
 			navigate({
 				to: "/projects/$projectId",
 				params: { projectId },
 			});
 		}
-	}, [project?.status, executionsData?.status, navigate, projectId]);
+	}, [project?.status, executionsData?.execution?.status, navigate, projectId]);
 
 	// Get workflow details
 	const { data: workflowData } = useQuery({
@@ -121,12 +121,11 @@ function InitializePage() {
 			return;
 		}
 
-		const execution = executionsData;
-		const currentStepData = execution.currentStep;
+		const { execution, currentStep } = executionsData;
 
 		// Only auto-execute if step is execute-action and status is idle
 		if (
-			currentStepData?.stepType === "execute-action" &&
+			currentStep?.stepType === "execute-action" &&
 			execution.status === "idle"
 		) {
 			continueWorkflow.mutate({
@@ -152,11 +151,10 @@ function InitializePage() {
 		);
 	}
 
-	const execution = executionsData;
+	const { execution, currentStep: currentStepData } = executionsData;
 	const _workflow = workflowData;
 	const allWorkflowSteps = workflowStepsData.steps;
-	const currentStepNumber = execution.currentStep?.stepNumber || 1;
-	const currentStepData = execution.currentStep;
+	const currentStepNumber = currentStepData?.stepNumber || 1;
 
 	// Build steps for stepper from actual workflow steps
 	const steps: WorkflowStepDefinition[] = allWorkflowSteps.map((step) => ({

@@ -130,6 +130,8 @@ export class AskUserChatStepHandler implements StepHandler {
 						{
 							missing: missingVars,
 							required: requiredVars,
+							availableVars: Object.keys(context.executionVariables),
+							approvalStates: Object.keys(approvalStates),
 						},
 					);
 					continue; // Skip building this tool - it will be built on next executeStep call when prerequisites are met
@@ -921,195 +923,200 @@ export class AskUserChatStepHandler implements StepHandler {
 			if (table === "workflow_paths") {
 				// Query workflow_paths table
 				query = db.select().from(workflowPaths).$dynamic();
-
-				// Apply filters if provided
-				if (filterBy) {
-					const { and } = await import("drizzle-orm");
-					const conditions: any[] = [];
-
-					for (const [filterField, filterValue] of Object.entries(filterBy)) {
-						// Handle JSONB path queries (e.g., "tags->'fieldType'->>'value'")
-						if (filterField.includes("->")) {
-							// Resolve template variables in filter value (e.g., {{detected_field_type}})
-							let resolvedValue = String(filterValue);
-							const templateMatch = resolvedValue.match(/\{\{([^}]+)\}\}/);
-							if (templateMatch) {
-								const varName = templateMatch[1];
-								const varValue = context.executionVariables[varName];
-								if (varValue) {
-									resolvedValue = String(varValue);
-									console.log(
-										`[OptionsSource] Resolved {{${varName}}} → "${resolvedValue}"`,
-									);
-								}
-							}
-
-							// Build JSONB filter using raw SQL
-							conditions.push(sql`${sql.raw(filterField)} = ${resolvedValue}`);
-							console.log(
-								`[OptionsSource] Added JSONB filter: ${filterField} = ${resolvedValue}`,
-							);
-						} else {
-							// Regular field filter
-							conditions.push(sql`${sql.raw(filterField)} = ${filterValue}`);
-						}
-					}
-
-					// Apply all conditions with AND
-					if (conditions.length > 0) {
-						query = query.where(and(...conditions));
-						console.log(
-							`[OptionsSource] Applied ${conditions.length} filter conditions with AND`,
-						);
-					}
-				}
-
-				// Apply ordering if provided
-				if (orderBy) {
-					query = query.orderBy(sql.raw(orderBy));
-				}
-
-				// Execute query
-				const results = await query;
-
-				console.log(`[OptionsSource] Query returned ${results.length} results`);
-
-				// If selectFields includes "phases", we need to fetch and attach phases data
-				if (selectFields && selectFields.includes("phases")) {
-					console.log(
-						`[OptionsSource] Fetching phases data for ${results.length} workflow paths`,
-					);
-
-					// Fetch phases data for each workflow path
-					for (const result of results) {
-						// Query workflow_path_workflows join table to get phases
-						const pathWorkflows = await db
-							.select({
-								phase: workflowPathWorkflows.phase,
-								sequenceOrder: workflowPathWorkflows.sequenceOrder,
-								isOptional: workflowPathWorkflows.isOptional,
-								isRecommended: workflowPathWorkflows.isRecommended,
-								workflowId: workflowPathWorkflows.workflowId,
-								workflowName: workflows.name,
-								workflowDisplayName: workflows.displayName,
-							})
-							.from(workflowPathWorkflows)
-							.leftJoin(
-								workflows,
-								eq(workflowPathWorkflows.workflowId, workflows.id),
-							)
-							.where(eq(workflowPathWorkflows.workflowPathId, result.id))
-							.orderBy(
-								workflowPathWorkflows.phase,
-								workflowPathWorkflows.sequenceOrder,
-							);
-
-						// Group workflows by phase
-						const phaseMap = new Map<number, any>();
-
-						for (const pw of pathWorkflows) {
-							const phaseNum = pw.phase ?? 0;
-
-							if (!phaseMap.has(phaseNum)) {
-								phaseMap.set(phaseNum, {
-									phase: phaseNum,
-									name: `Phase ${phaseNum}`,
-									workflows: [],
-								});
-							}
-
-							phaseMap.get(phaseNum).workflows.push({
-								id: pw.workflowId,
-								name: pw.workflowName,
-								displayName: pw.workflowDisplayName,
-								isOptional: pw.isOptional,
-								isRecommended: pw.isRecommended,
-								sequenceOrder: pw.sequenceOrder,
-							});
-						}
-
-						// Convert map to array and attach to result
-						result.phases = Array.from(phaseMap.values()).sort(
-							(a, b) => a.phase - b.phase,
-						);
-
-						console.log(
-							`[OptionsSource] Attached ${result.phases.length} phases to workflow path "${result.name}"`,
-						);
-					}
-				}
-
-				// Extract distinct values if distinctField specified
-				if (distinctField) {
-					// Handle JSONB path extraction (e.g., "tags->'complexity'")
-					const extractedValues = results
-						.map((row: any) => {
-							// Extract value from JSONB path
-							if (distinctField.includes("->")) {
-								// Parse the JSONB path (e.g., "tags->'complexity'")
-								// For simplicity, handle one level deep
-								const pathMatch = distinctField.match(/(\w+)->['"](\w+)['"]/);
-								if (pathMatch) {
-									const [, field, key] = pathMatch;
-									return row[field]?.[key];
-								}
-							}
-							return row[distinctField];
-						})
-						.filter((v: any) => v !== null && v !== undefined);
-
-					console.log(
-						`[OptionsSource] Extracted ${extractedValues.length} values BEFORE deduplication:`,
-						extractedValues.map((v: any) =>
-							typeof v === "object" && v.value ? v.value : v,
-						),
-					);
-
-					// Remove duplicates based on the 'value' property
-					// Tags structure: {name, value, description}
-					const uniqueValues = [
-						...new Map(
-							extractedValues.map((v: any) => {
-								// Deduplicate by the 'value' field if tag is an object
-								const key =
-									typeof v === "object" && v.value
-										? v.value
-										: JSON.stringify(v);
-								return [key, v];
-							}),
-						).values(),
-					];
-
-					context.executionVariables[outputVariable] = uniqueValues;
-
-					console.log(
-						`[OptionsSource] Extracted ${uniqueValues.length} unique values AFTER deduplication for ${outputVariable}:`,
-						uniqueValues.map((v: any) =>
-							typeof v === "object" && v.value ? v.value : v,
-						),
-					);
-				} else {
-					// Store full results
-					context.executionVariables[outputVariable] = results;
-					console.log(
-						`[OptionsSource] Stored ${results.length} results in ${outputVariable}`,
-					);
-				}
-
-				// Save to database
-				await stateManager.mergeExecutionVariables(
-					context.systemVariables.execution_id,
-					{
-						[outputVariable]: context.executionVariables[outputVariable],
-					},
-				);
-
-				console.log(
-					`[OptionsSource] ✓ Saved ${outputVariable} to execution variables`,
-				);
+			} else if (table === "workflows") {
+				// Query workflows table
+				query = db.select().from(workflows).$dynamic();
 			} else {
 				throw new Error(`Unsupported optionsSource table: ${table}`);
 			}
+
+			// Apply filters if provided (shared logic for both tables)
+			if (filterBy) {
+				const { and } = await import("drizzle-orm");
+				const conditions: any[] = [];
+
+				for (const [filterField, filterValue] of Object.entries(filterBy)) {
+					// Handle JSONB path queries (e.g., "tags->'fieldType'->>'value'")
+					if (filterField.includes("->")) {
+						// Resolve template variables in filter value (e.g., {{detected_field_type}})
+						let resolvedValue = String(filterValue);
+						const templateMatch = resolvedValue.match(/\{\{([^}]+)\}\}/);
+						if (templateMatch) {
+							const varName = templateMatch[1];
+							const varValue = context.executionVariables[varName];
+							if (varValue) {
+								resolvedValue = String(varValue);
+								console.log(
+									`[OptionsSource] Resolved {{${varName}}} → "${resolvedValue}"`,
+								);
+							}
+						}
+
+						// Build JSONB filter using raw SQL
+						conditions.push(sql`${sql.raw(filterField)} = ${resolvedValue}`);
+						console.log(
+							`[OptionsSource] Added JSONB filter: ${filterField} = ${resolvedValue}`,
+						);
+					} else {
+						// Regular field filter
+						conditions.push(sql`${sql.raw(filterField)} = ${filterValue}`);
+					}
+				}
+
+				// Apply all conditions with AND
+				if (conditions.length > 0) {
+					query = query.where(and(...conditions));
+					console.log(
+						`[OptionsSource] Applied ${conditions.length} filter conditions with AND`,
+					);
+				}
+			}
+
+			// Apply ordering if provided
+			if (orderBy) {
+				query = query.orderBy(sql.raw(orderBy));
+			}
+
+			// Execute query
+			const results = await query;
+
+			console.log(`[OptionsSource] Query returned ${results.length} results`);
+
+			// If querying workflow_paths and selectFields includes "phases", fetch phase data
+			if (
+				table === "workflow_paths" &&
+				selectFields &&
+				selectFields.includes("phases")
+			) {
+				console.log(
+					`[OptionsSource] Fetching phases data for ${results.length} workflow paths`,
+				);
+
+				// Fetch phases data for each workflow path
+				for (const result of results) {
+					// Query workflow_path_workflows join table to get phases
+					const pathWorkflows = await db
+						.select({
+							phase: workflowPathWorkflows.phase,
+							sequenceOrder: workflowPathWorkflows.sequenceOrder,
+							isOptional: workflowPathWorkflows.isOptional,
+							isRecommended: workflowPathWorkflows.isRecommended,
+							workflowId: workflowPathWorkflows.workflowId,
+							workflowName: workflows.name,
+							workflowDisplayName: workflows.displayName,
+						})
+						.from(workflowPathWorkflows)
+						.leftJoin(
+							workflows,
+							eq(workflowPathWorkflows.workflowId, workflows.id),
+						)
+						.where(eq(workflowPathWorkflows.workflowPathId, result.id))
+						.orderBy(
+							workflowPathWorkflows.phase,
+							workflowPathWorkflows.sequenceOrder,
+						);
+
+					// Group workflows by phase
+					const phaseMap = new Map<number, any>();
+
+					for (const pw of pathWorkflows) {
+						const phaseNum = pw.phase ?? 0;
+
+						if (!phaseMap.has(phaseNum)) {
+							phaseMap.set(phaseNum, {
+								phase: phaseNum,
+								name: `Phase ${phaseNum}`,
+								workflows: [],
+							});
+						}
+
+						phaseMap.get(phaseNum).workflows.push({
+							id: pw.workflowId,
+							name: pw.workflowName,
+							displayName: pw.workflowDisplayName,
+							isOptional: pw.isOptional,
+							isRecommended: pw.isRecommended,
+							sequenceOrder: pw.sequenceOrder,
+						});
+					}
+
+					// Convert map to array and attach to result
+					result.phases = Array.from(phaseMap.values()).sort(
+						(a, b) => a.phase - b.phase,
+					);
+
+					console.log(
+						`[OptionsSource] Attached ${result.phases.length} phases to workflow path "${result.name}"`,
+					);
+				}
+			}
+
+			// Extract distinct values if distinctField specified
+			if (distinctField) {
+				// Handle JSONB path extraction (e.g., "tags->'complexity'")
+				const extractedValues = results
+					.map((row: any) => {
+						// Extract value from JSONB path
+						if (distinctField.includes("->")) {
+							// Parse the JSONB path (e.g., "tags->'complexity'")
+							// For simplicity, handle one level deep
+							const pathMatch = distinctField.match(/(\w+)->['"](\w+)['"]/);
+							if (pathMatch) {
+								const [, field, key] = pathMatch;
+								return row[field]?.[key];
+							}
+						}
+						return row[distinctField];
+					})
+					.filter((v: any) => v !== null && v !== undefined);
+
+				console.log(
+					`[OptionsSource] Extracted ${extractedValues.length} values BEFORE deduplication:`,
+					extractedValues.map((v: any) =>
+						typeof v === "object" && v.value ? v.value : v,
+					),
+				);
+
+				// Remove duplicates based on the 'value' property
+				// Tags structure: {name, value, description}
+				const uniqueValues = [
+					...new Map(
+						extractedValues.map((v: any) => {
+							// Deduplicate by the 'value' field if tag is an object
+							const key =
+								typeof v === "object" && v.value ? v.value : JSON.stringify(v);
+							return [key, v];
+						}),
+					).values(),
+				];
+
+				context.executionVariables[outputVariable] = uniqueValues;
+
+				console.log(
+					`[OptionsSource] Extracted ${uniqueValues.length} unique values AFTER deduplication for ${outputVariable}:`,
+					uniqueValues.map((v: any) =>
+						typeof v === "object" && v.value ? v.value : v,
+					),
+				);
+			} else {
+				// Store full results
+				context.executionVariables[outputVariable] = results;
+				console.log(
+					`[OptionsSource] Stored ${results.length} results in ${outputVariable}`,
+				);
+			}
+
+			// Save to database
+			await stateManager.mergeExecutionVariables(
+				context.systemVariables.execution_id,
+				{
+					[outputVariable]: context.executionVariables[outputVariable],
+				},
+			);
+
+			console.log(
+				`[OptionsSource] ✓ Saved ${outputVariable} to execution variables`,
+			);
 		} catch (error) {
 			console.error("[OptionsSource] ✗ Failed to fetch options:", error);
 			throw error;
@@ -1151,6 +1158,23 @@ export class AskUserChatStepHandler implements StepHandler {
 				return requiredTools.every((toolName) => {
 					const state = approvalStates[toolName];
 					return state && state.status === "approved";
+				});
+			}
+
+			case "all-variables-set": {
+				// Story 2.2: Check if all required variables have been set
+				const requiredVariables = condition.requiredVariables || [];
+
+				// If no variables required, never complete automatically
+				if (requiredVariables.length === 0) {
+					return false;
+				}
+
+				// Check execution variables for required values
+				return requiredVariables.every((varName) => {
+					const value = context.executionVariables[varName];
+					// Variable is "set" if it exists and is not null/undefined
+					return value !== null && value !== undefined;
 				});
 			}
 

@@ -58,6 +58,11 @@ export async function buildAxGenerationTool(
 	// Build Ax signature string from config (with dynamic class options support)
 	const signatureString = buildAxSignatureString(axConfig, context, config);
 
+	console.log(
+		`[AxGenerationTool] Built signature for ${config.name}:`,
+		signatureString,
+	);
+
 	// Create Ax program with strategy
 	const program = ax(signatureString);
 
@@ -329,8 +334,9 @@ function buildAxSignatureString(
 		.map((output) => {
 			const outputAny = output as any;
 
-			// Check if this is a class type with field-level classesFrom
-			if (output.type === "class" && outputAny.classesFrom) {
+			// Check if this is a class or class[] type with field-level classesFrom
+			const isClassType = output.type === "class" || output.type === "class[]";
+			if (isClassType && outputAny.classesFrom) {
 				const { source, field } = outputAny.classesFrom;
 				const options = context.executionVariables[source] as Array<
 					Record<string, any>
@@ -345,18 +351,19 @@ function buildAxSignatureString(
 
 					if (optionValues) {
 						console.log(
-							`[AxGenerationTool] Building class field '${output.name}' with classesFrom (source: ${source}, field: ${field}): [${optionValues}]`,
+							`[AxGenerationTool] Building ${output.type} field '${output.name}' with classesFrom (source: ${source}, field: ${field}): [${optionValues}]`,
 						);
 
-						// Build: fieldName:class "option1, option2, option3" "Description"
-						return `${output.name}:class "${optionValues}" "${output.description || ""}"`;
+						// Build: fieldName:class or fieldName:class[] "option1, option2, option3" "Description"
+						const typeStr = output.type === "class[]" ? "class[]" : "class";
+						return `${output.name}:${typeStr} "${optionValues}" "${output.description || ""}"`;
 					}
 				}
 
 				console.warn(
-					`[AxGenerationTool] Class field '${output.name}' has classesFrom but no options found in variable '${source}' - using string type as fallback`,
+					`[AxGenerationTool] ${output.type} field '${output.name}' has classesFrom but no options found in variable '${source}' - using string type as fallback`,
 				);
-				return `${output.name}:string`;
+				return `${output.name}:${output.type === "class[]" ? "string[]" : "string"}`;
 			}
 
 			// Legacy: Check if this is a class type with tool-level optionsSource (backwards compatibility)

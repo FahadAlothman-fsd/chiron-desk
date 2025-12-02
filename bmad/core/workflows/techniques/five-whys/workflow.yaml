@@ -1,0 +1,28 @@
+# Five Whys Technique Workflow Configuration
+name: "five-whys"
+display_name: "Five Whys Root Cause Analysis"
+description: "Drill down through layers of causation to uncover root causes by asking why five times - essential for solving problems at their source rather than treating symptoms"
+author: "BMad"
+standalone: false  # This is a child workflow, not standalone
+
+# Tags for filtering
+tags:
+  type: "technique"
+  module: "core"
+  category: "deep"
+  energy_level: "moderate"
+  typical_duration: "10-15"
+  best_for: "problem_solving"
+
+# Metadata
+metadata:
+  facilitation_prompts:
+    - "Why did this happen?"
+    - "Why is that?"
+    - "And why is that true?"
+    - "What's behind that?"
+    - "Why ultimately?"
+  source: "bmad/core/workflows/brainstorming/brain-methods.csv, bmad/cis/workflows/problem-solving/solving-methods.csv"
+  
+# No config_source needed for child workflows
+# Parent workflow provides context via inputs

@@ -82,9 +82,20 @@ function ProjectLayoutWrapper() {
  * Renders the dashboard at /projects/$projectId or child routes via Outlet
  */
 function ProjectDashboardOrOutlet() {
-	// Check for any nested child routes (future routes like /workflows, /artifacts, etc.)
-	// For now, just render the dashboard
-	return <ProjectDashboard />;
+	// Story 2.2: Render child routes if they exist, otherwise show dashboard
+	// Check if we're at the exact /projects/$projectId route or a child route
+	const params = Route.useParams();
+	const location = window.location.pathname;
+	const projectPath = `/projects/${params.projectId}`;
+
+	// If the current path is exactly the project path, show dashboard
+	// Otherwise, a child route is active and should be rendered via Outlet
+	if (location === projectPath) {
+		return <ProjectDashboard />;
+	}
+
+	// Render child route (like /workflow/$executionId)
+	return <Outlet />;
 }
 
 // Phase definitions for the workflow
@@ -118,6 +129,22 @@ function ProjectDashboard() {
 	const project = projectData?.project;
 	const workflowPath = projectData?.workflowPath;
 
+	// Check for active brainstorming execution specifically
+	const { data: executionData } = useQuery({
+		queryKey: ["workflows", "execution", "project", projectId],
+		queryFn: async () => {
+			const result = await trpcClient.workflows.getExecutionByProject.query({
+				projectId,
+			});
+			// Only return execution if it's for the brainstorming workflow
+			if (result?.execution && result?.workflow?.name === "brainstorming") {
+				return result;
+			}
+			return null;
+		},
+		enabled: !!projectId,
+	});
+
 	// Get Phase 0 workflows (Discovery)
 	const { data: phaseWorkflows, isLoading: workflowsLoading } = useQuery({
 		queryKey: ["workflows", "phase", "0"],
@@ -133,10 +160,10 @@ function ProjectDashboard() {
 		},
 		onSuccess: (data) => {
 			toast.success("Workflow started!");
-			// Navigate to workflow execution page
+			// Navigate to universal workflow execution page (Story 2.2)
 			navigate({
-				to: "/projects/$projectId/initialize",
-				params: { projectId },
+				to: "/projects/$projectId/workflow/$executionId",
+				params: { projectId, executionId: data.executionId },
 			});
 		},
 		onError: (error: any) => {
@@ -147,6 +174,16 @@ function ProjectDashboard() {
 	});
 
 	const handleStartBrainstorming = () => {
+		// Check if there's already an active execution
+		if (executionData?.execution) {
+			// Navigate to existing execution
+			navigate({
+				to: "/projects/$projectId/workflow/$executionId",
+				params: { projectId, executionId: executionData.execution.id },
+			});
+			return;
+		}
+
 		// Find the brainstorming workflow from Phase 0
 		const brainstormingWorkflow = phaseWorkflows?.workflows.find(
 			(w) =>
@@ -251,6 +288,11 @@ function ProjectDashboard() {
 							<>
 								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
 								Starting...
+							</>
+						) : executionData?.execution ? (
+							<>
+								<Play className="mr-2 h-4 w-4" />
+								Continue Brainstorming
 							</>
 						) : (
 							<>
@@ -402,11 +444,11 @@ function PhaseItem({
 				projectId,
 			});
 		},
-		onSuccess: () => {
+		onSuccess: (data) => {
 			toast.success("Workflow started!");
 			navigate({
-				to: "/projects/$projectId/initialize",
-				params: { projectId },
+				to: "/projects/$projectId/workflow/$executionId",
+				params: { projectId, executionId: data.executionId },
 			});
 		},
 		onError: (error: any) => {

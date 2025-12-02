@@ -51,11 +51,6 @@ export const agentsRouter = router({
 				throw new Error(`Agent not found: ${input.agentId}`);
 			}
 
-			// If no instructions, return empty
-			if (!agent.instructions) {
-				return { instructions: "" };
-			}
-
 			// Load execution to get context variables
 			// We need to replicate the AskUserChatHandler logic here
 			const { workflowExecutions, workflowSteps } = await import("@chiron/db");
@@ -151,6 +146,21 @@ export const agentsRouter = router({
 				tools_list: toolsListStr,
 				workflow_specific_instructions: "", // Empty by default as per handler
 			};
+
+			// If agent has no base instructions, build minimal instructions from step context
+			if (!agent.instructions) {
+				const minimalInstructions = `## Workflow Context
+
+**Workflow ID**: ${variables.workflow_id}
+**Current Step**: ${variables.step_number}
+**Objective**: ${variables.step_objective}
+
+## Available Tools
+
+${variables.tools_list}`;
+
+				return { instructions: minimalInstructions };
+			}
 
 			// Use Handlebars to compile and execute the template
 			// This replicates the agent's internal behavior

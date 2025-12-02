@@ -19,6 +19,7 @@ import { Route as AuthenticatedNewProjectRouteImport } from './routes/_authentic
 import { Route as AuthenticatedModelsRouteImport } from './routes/_authenticated.models'
 import { Route as ProjectsProjectIdSelectInitializerRouteImport } from './routes/projects/$projectId.select-initializer'
 import { Route as ProjectsProjectIdInitializeRouteImport } from './routes/projects/$projectId.initialize'
+import { Route as ProjectsProjectIdWorkflowExecutionIdRouteImport } from './routes/projects/$projectId.workflow.$executionId'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -71,6 +72,12 @@ const ProjectsProjectIdInitializeRoute =
     path: '/initialize',
     getParentRoute: () => ProjectsProjectIdRoute,
   } as any)
+const ProjectsProjectIdWorkflowExecutionIdRoute =
+  ProjectsProjectIdWorkflowExecutionIdRouteImport.update({
+    id: '/workflow/$executionId',
+    path: '/workflow/$executionId',
+    getParentRoute: () => ProjectsProjectIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
@@ -82,6 +89,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/projects/$projectId/initialize': typeof ProjectsProjectIdInitializeRoute
   '/projects/$projectId/select-initializer': typeof ProjectsProjectIdSelectInitializerRoute
+  '/projects/$projectId/workflow/$executionId': typeof ProjectsProjectIdWorkflowExecutionIdRoute
 }
 export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
@@ -93,6 +101,7 @@ export interface FileRoutesByTo {
   '/': typeof AuthenticatedIndexRoute
   '/projects/$projectId/initialize': typeof ProjectsProjectIdInitializeRoute
   '/projects/$projectId/select-initializer': typeof ProjectsProjectIdSelectInitializerRoute
+  '/projects/$projectId/workflow/$executionId': typeof ProjectsProjectIdWorkflowExecutionIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -106,6 +115,7 @@ export interface FileRoutesById {
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/projects/$projectId/initialize': typeof ProjectsProjectIdInitializeRoute
   '/projects/$projectId/select-initializer': typeof ProjectsProjectIdSelectInitializerRoute
+  '/projects/$projectId/workflow/$executionId': typeof ProjectsProjectIdWorkflowExecutionIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -119,6 +129,7 @@ export interface FileRouteTypes {
     | '/'
     | '/projects/$projectId/initialize'
     | '/projects/$projectId/select-initializer'
+    | '/projects/$projectId/workflow/$executionId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/dashboard'
@@ -130,6 +141,7 @@ export interface FileRouteTypes {
     | '/'
     | '/projects/$projectId/initialize'
     | '/projects/$projectId/select-initializer'
+    | '/projects/$projectId/workflow/$executionId'
   id:
     | '__root__'
     | '/_authenticated'
@@ -142,6 +154,7 @@ export interface FileRouteTypes {
     | '/_authenticated/'
     | '/projects/$projectId/initialize'
     | '/projects/$projectId/select-initializer'
+    | '/projects/$projectId/workflow/$executionId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -223,6 +236,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsProjectIdInitializeRouteImport
       parentRoute: typeof ProjectsProjectIdRoute
     }
+    '/projects/$projectId/workflow/$executionId': {
+      id: '/projects/$projectId/workflow/$executionId'
+      path: '/workflow/$executionId'
+      fullPath: '/projects/$projectId/workflow/$executionId'
+      preLoaderRoute: typeof ProjectsProjectIdWorkflowExecutionIdRouteImport
+      parentRoute: typeof ProjectsProjectIdRoute
+    }
   }
 }
 
@@ -247,12 +267,15 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 interface ProjectsProjectIdRouteChildren {
   ProjectsProjectIdInitializeRoute: typeof ProjectsProjectIdInitializeRoute
   ProjectsProjectIdSelectInitializerRoute: typeof ProjectsProjectIdSelectInitializerRoute
+  ProjectsProjectIdWorkflowExecutionIdRoute: typeof ProjectsProjectIdWorkflowExecutionIdRoute
 }
 
 const ProjectsProjectIdRouteChildren: ProjectsProjectIdRouteChildren = {
   ProjectsProjectIdInitializeRoute: ProjectsProjectIdInitializeRoute,
   ProjectsProjectIdSelectInitializerRoute:
     ProjectsProjectIdSelectInitializerRoute,
+  ProjectsProjectIdWorkflowExecutionIdRoute:
+    ProjectsProjectIdWorkflowExecutionIdRoute,
 }
 
 const ProjectsProjectIdRouteWithChildren =

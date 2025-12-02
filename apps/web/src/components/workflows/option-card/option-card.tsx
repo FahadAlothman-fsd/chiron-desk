@@ -13,6 +13,7 @@ export function OptionCard({
 	onSelect,
 	className,
 	disabled = false,
+	isMultiSelect = false,
 }: OptionCardProps) {
 	return (
 		<Card
@@ -44,27 +45,56 @@ export function OptionCard({
 							}
 						}
 			}
-			role="radio"
+			role={isMultiSelect ? "checkbox" : "radio"}
 			aria-checked={isSelected}
 			aria-disabled={disabled}
 			tabIndex={disabled ? -1 : 0}
 		>
 			<CardContent className="space-y-3 p-4">
-				{/* Radio button indicator */}
+				{/* Radio button or checkbox indicator */}
 				<div className="flex items-start gap-3">
 					<div className="mt-0.5 shrink-0">
-						<div
-							className={cn(
-								"flex h-4 w-4 items-center justify-center rounded-full border-2 transition-colors",
-								isSelected
-									? "border-primary bg-primary"
-									: "border-muted-foreground/30 bg-background",
-							)}
-						>
-							{isSelected && (
-								<div className="h-1.5 w-1.5 rounded-full bg-primary-foreground" />
-							)}
-						</div>
+						{isMultiSelect ? (
+							// Checkbox for multi-select
+							<div
+								className={cn(
+									"flex h-4 w-4 items-center justify-center rounded border-2 transition-colors",
+									isSelected
+										? "border-primary bg-primary"
+										: "border-muted-foreground/30 bg-background",
+								)}
+							>
+								{isSelected && (
+									<svg
+										className="h-3 w-3 text-primary-foreground"
+										viewBox="0 0 12 12"
+										fill="none"
+									>
+										<path
+											d="M2 6L5 9L10 3"
+											stroke="currentColor"
+											strokeWidth="2"
+											strokeLinecap="round"
+											strokeLinejoin="round"
+										/>
+									</svg>
+								)}
+							</div>
+						) : (
+							// Radio button for single select
+							<div
+								className={cn(
+									"flex h-4 w-4 items-center justify-center rounded-full border-2 transition-colors",
+									isSelected
+										? "border-primary bg-primary"
+										: "border-muted-foreground/30 bg-background",
+								)}
+							>
+								{isSelected && (
+									<div className="h-1.5 w-1.5 rounded-full bg-primary-foreground" />
+								)}
+							</div>
+						)}
 					</div>
 
 					{/* Card Content */}

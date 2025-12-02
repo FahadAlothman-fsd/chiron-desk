@@ -457,22 +457,30 @@ export function ToolStatusSidebar({
 														✓ Approved
 													</div>
 													<div className="space-y-2">
-														{Object.entries(approvalState.value).map(
-															([key, value]) => {
-																if (key === "reasoning") return null;
-																return (
-																	<div key={key} className="space-y-1">
-																		<div className="font-medium text-green-900 text-xs capitalize dark:text-green-100">
-																			{key.replace(/_/g, " ")}
+														{typeof approvalState.value === "string" ? (
+															// For update-variable tools, value is a plain string
+															<div className="rounded bg-green-100 p-2 text-green-700 text-xs dark:bg-green-900 dark:text-green-300">
+																{approvalState.value}
+															</div>
+														) : (
+															// For ax-generation tools, value is an object
+															Object.entries(approvalState.value).map(
+																([key, value]) => {
+																	if (key === "reasoning") return null;
+																	return (
+																		<div key={key} className="space-y-1">
+																			<div className="font-medium text-green-900 text-xs capitalize dark:text-green-100">
+																				{key.replace(/_/g, " ")}
+																			</div>
+																			<div className="rounded bg-green-100 p-2 text-green-700 text-xs dark:bg-green-900 dark:text-green-300">
+																				{typeof value === "string"
+																					? value
+																					: JSON.stringify(value, null, 2)}
+																			</div>
 																		</div>
-																		<div className="rounded bg-green-100 p-2 text-green-700 text-xs dark:bg-green-900 dark:text-green-300">
-																			{typeof value === "string"
-																				? value
-																				: JSON.stringify(value, null, 2)}
-																		</div>
-																	</div>
-																);
-															},
+																	);
+																},
+															)
 														)}
 													</div>
 												</div>

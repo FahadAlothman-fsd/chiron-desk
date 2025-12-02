@@ -66,13 +66,23 @@ export function ApprovalCardSelector({
 	const [feedback, setFeedback] = useState("");
 	const queryClient = useQueryClient();
 
-	// Extract AI's recommended value from generatedValue
+	// Detect if this is a multi-select field (value is an array)
+	const isMultiSelect = Object.values(generatedValue).some((val) =>
+		Array.isArray(val),
+	);
+
+	// Extract AI's recommended value(s) from generatedValue
 	// Use displayConfig to know which field contains the value to match
 	const aiRecommendedValue = (() => {
 		if (displayConfig) {
 			// Try to find a value in generatedValue that matches an available option
 			// by extracting the value field from each option using displayConfig
 			for (const value of Object.values(generatedValue)) {
+				// Handle arrays (multi-select)
+				if (Array.isArray(value)) {
+					return value as string[];
+				}
+
 				const valueStr = value as string;
 				if (
 					availableOptions.some((opt) => {
@@ -86,6 +96,10 @@ export function ApprovalCardSelector({
 		} else {
 			// Legacy: Try to match old Option interface (value, name, description)
 			for (const value of Object.values(generatedValue)) {
+				if (Array.isArray(value)) {
+					return value as string[];
+				}
+
 				const valueStr = value as string;
 				const optValue = (availableOptions[0] as any)?.value;
 				if (optValue !== undefined) {
@@ -96,7 +110,10 @@ export function ApprovalCardSelector({
 			}
 		}
 		// Fallback: use first value
-		return Object.values(generatedValue)[0] as string;
+		const firstVal = Object.values(generatedValue)[0];
+		return Array.isArray(firstVal)
+			? (firstVal as string[])
+			: (firstVal as string);
 	})();
 
 	// Debug logging
@@ -108,9 +125,10 @@ export function ApprovalCardSelector({
 		availableOptions,
 	});
 
-	// User's selected value (initialized to AI's recommendation)
-	const [selectedValue, setSelectedValue] =
-		useState<string>(aiRecommendedValue);
+	// User's selected value(s) (initialized to AI's recommendation)
+	const [selectedValue, setSelectedValue] = useState<string | string[]>(
+		aiRecommendedValue,
+	);
 
 	// Debug: Log when selectedValue changes
 	console.log("[ApprovalCardSelector] selectedValue:", selectedValue);
@@ -151,18 +169,32 @@ export function ApprovalCardSelector({
 	async function handleApprove() {
 		// Submit the user's selected value (which might differ from AI's recommendation)
 		// Find the key in generatedValue that matches an available option value
-		// This ensures we use the correct output field (e.g., complexity_classification)
+		// This ensures we use the correct output field (e.g., complexity_classification, selected_techniques)
 		// and not internal fields like "reasoning"
-		const outputFieldKey = Object.keys(generatedValue).find((key) =>
-			availableOptions.some((opt) => {
-				// Use displayConfig to get the option's value field if configured
+		const outputFieldKey = Object.keys(generatedValue).find((key) => {
+			const fieldValue = generatedValue[key];
+
+			// For arrays (multi-select), check if any value matches
+			if (Array.isArray(fieldValue)) {
+				return fieldValue.some((val) =>
+					availableOptions.some((opt) => {
+						const optValue = displayConfig
+							? getValueByPath(opt, displayConfig.fields.value)
+							: (opt as any).value;
+						return optValue === val;
+					}),
+				);
+			}
+
+			// For single values
+			return availableOptions.some((opt) => {
 				const optValue = displayConfig
 					? getValueByPath(opt, displayConfig.fields.value)
 					: (opt as any).value;
 
-				return optValue === (generatedValue[key] as string);
-			}),
-		);
+				return optValue === (fieldValue as string);
+			});
+		});
 
 		if (!outputFieldKey) {
 			throw new Error(
@@ -256,8 +288,17 @@ export function ApprovalCardSelector({
 								option,
 								displayConfig.fields.value,
 							);
-							const isAiRecommendation = optionValue === aiRecommendedValue;
-							const isSelected = optionValue === selectedValue;
+
+							// Handle multi-select vs single-select
+							const isAiRecommendation = isMultiSelect
+								? Array.isArray(aiRecommendedValue) &&
+									aiRecommendedValue.includes(optionValue)
+								: optionValue === aiRecommendedValue;
+
+							const isSelected = isMultiSelect
+								? Array.isArray(selectedValue) &&
+									selectedValue.includes(optionValue)
+								: optionValue === selectedValue;
 
 							// Use option.id if available, otherwise fall back to index
 							const uniqueKey = (option as any).id || `option-${index}`;
@@ -269,8 +310,24 @@ export function ApprovalCardSelector({
 									displayConfig={displayConfig}
 									isSelected={isSelected}
 									isRecommended={isAiRecommendation}
-									onSelect={() => setSelectedValue(optionValue || "")}
+									onSelect={() => {
+										if (isMultiSelect) {
+											// Toggle selection in array
+											setSelectedValue((prev) => {
+												const arr = Array.isArray(prev) ? prev : [];
+												if (arr.includes(optionValue)) {
+													return arr.filter((v) => v !== optionValue);
+												} else {
+													return [...arr, optionValue];
+												}
+											});
+										} else {
+											// Single select
+											setSelectedValue(optionValue || "");
+										}
+									}}
 									disabled={isReadOnly}
+									isMultiSelect={isMultiSelect}
 								/>
 							);
 						})}

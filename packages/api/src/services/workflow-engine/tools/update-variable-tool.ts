@@ -37,7 +37,7 @@ export async function buildUpdateVariableTool(
 	let valueSchema: z.ZodType<any> = z.string(); // Default to string
 
 	if (config.valueSchema) {
-		// Support common types: string, number, boolean, enum
+		// Support common types: string, number, boolean, enum, array
 		switch (config.valueSchema.type) {
 			case "string":
 				valueSchema = z.string();
@@ -54,6 +54,11 @@ export async function buildUpdateVariableTool(
 						config.valueSchema.values as [string, ...string[]],
 					);
 				}
+				break;
+			case "array":
+				// Support array of strings (most common case)
+				// Can be extended to support items.type for other array types
+				valueSchema = z.array(z.string());
 				break;
 		}
 

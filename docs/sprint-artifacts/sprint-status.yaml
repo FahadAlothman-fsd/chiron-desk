@@ -71,8 +71,8 @@ development_status:
 
   # Epic 2: Artifact Workbench (2 weeks)
   epic-2: contexted
-  2-1-project-dashboard: in-progress
-  2-2-workbench-shell-and-setup: backlog
+  2-1-project-dashboard: done
+  2-2-workbench-shell-and-setup: in-progress
   2-3-execution-loop-and-child-workflows: backlog
   2-4-convergence-and-kanban: backlog
   2-5-planning-and-forms: backlog

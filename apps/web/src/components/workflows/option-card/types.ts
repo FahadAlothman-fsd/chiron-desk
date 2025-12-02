@@ -40,6 +40,7 @@ export interface OptionCardProps {
 	onSelect: () => void;
 	className?: string;
 	disabled?: boolean; // When true, card is non-interactive (read-only view)
+	isMultiSelect?: boolean; // When true, shows checkbox instead of radio button
 }
 
 export interface CardHeaderProps {
