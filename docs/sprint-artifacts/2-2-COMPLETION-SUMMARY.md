@@ -2,8 +2,8 @@
 
 **Date:** 2025-12-02  
 **Developer:** AI Assistant (Claude)  
-**Status:** ✅ COMPLETE - All ACs Met + Critical Bugs Fixed  
-**Final Commit:** `1a8cff35`
+**Status:** ✅ COMPLETE - All ACs Met + 9 Critical Bugs Fixed  
+**Final Commits:** `1a8cff35` (initial 6 bugs), `221852ef` (final 3 bugs + live updates)
 
 ---
 
@@ -230,6 +230,144 @@ const effectiveProvider = extractedProvider || agent.provider;
 
 **File Modified:**  
 `packages/api/src/services/mastra/agent-loader.ts` (lines 124-145)
+
+---
+
+### Bug 7: "Duplicate Options Rendering 8x in Approval Cards"
+
+**Problem:**  
+Approval card selectors were showing the same options multiple times (8x for complexity, 5x for techniques). Database had duplicate entries because multiple workflow_paths shared the same complexity tag value.
+
+**Impact:**  
+- Workflow-init complexity selector showed 24 options instead of 3
+- Brainstorming technique selector showed duplicates
+- Confusing UX with repeated identical options
+
+**Root Cause:**  
+1. Backend: `distinctField` query extracted one entry per workflow_path row, not per unique value
+2. Frontend: Deduplication logic only checked `option.id`, but tags don't have `id` field (only `value`)
+
+**Fix Applied:**
+
+Backend (`ax-generation-tool.ts`):
+```typescript
+// Deduplicate options by ID or value before returning
+const availableOptions = Array.isArray(rawOptions)
+  ? [...new Map(
+      rawOptions.map((opt: any) => {
+        const key = opt.id || opt.value || JSON.stringify(opt);
+        return [key, opt];
+      }),
+    ).values()]
+  : rawOptions;
+```
+
+Frontend (`approval-card-selector.tsx`):
+```typescript
+// Deduplicate using id/value, not just id
+const uniqueKey = 
+  (option as any).id || 
+  (displayConfig ? getValueByPath(option, displayConfig.fields.value) : (option as any).value) || 
+  JSON.stringify(option);
+```
+
+**Files Modified:**  
+- `packages/api/src/services/workflow-engine/tools/ax-generation-tool.ts`
+- `apps/web/src/components/workflows/approval-card-selector.tsx`
+
+---
+
+### Bug 8: "Auto-Select Single Option Not Visible in UI"
+
+**Problem:**  
+When a tool had only 1 available option (e.g., `select_workflow_path` with only 1 matching workflow path), the backend auto-selected it but returned a direct value instead of an approval card. Users never saw what was selected or why.
+
+**Impact:**  
+- No visibility into auto-selected workflow paths
+- No audit trail for single-option selections
+- Confusing when tool sidebar showed "Not Started" but value was already selected
+
+**Root Cause:**  
+`ax-generation-tool.ts` line 221 returned direct value `{ selected_workflow_path_id: "uuid", reasoning: "..." }` instead of approval structure when `availableOptions.length === 1`.
+
+**Fix Applied:**
+
+Backend (`ax-generation-tool.ts`):
+```typescript
+// Return approval structure with auto_approved flag instead of direct value
+return {
+  type: "approval_required_selector",
+  tool_name: config.name,
+  generated_value: publicResult,
+  available_options: availableOptions, // Show the single option
+  display_config: config.optionsSource.displayConfig,
+  require_feedback_on_override: false,
+  reasoning: `Auto-selected (only 1 option available): ${singleOption.displayName}`,
+  auto_approved: true, // Flag for immediate approval
+};
+```
+
+Backend (`ask-user-chat-handler.ts`):
+```typescript
+// Handle auto_approved flag
+const shouldAutoApprove = toolResult.auto_approved === true;
+approvalStates[toolName] = {
+  status: shouldAutoApprove ? "approved" : "pending",
+  ...(shouldAutoApprove && { approved_at: new Date().toISOString() }),
+  // ... rest of approval state
+};
+
+// Save value to execution variables immediately
+if (shouldAutoApprove) {
+  for (const [key, value] of Object.entries(approvalValue)) {
+    context.executionVariables[key] = value;
+  }
+}
+```
+
+**Result:**  
+Users now see green "Approved ✓" card with the selected option and reasoning like "Auto-selected (only 1 option available): Enterprise BMad Method"
+
+**Files Modified:**  
+- `packages/api/src/services/workflow-engine/tools/ax-generation-tool.ts`
+- `packages/api/src/services/workflow-engine/step-handlers/ask-user-chat-handler.ts`
+
+---
+
+### Bug 9: "Artifact Preview Not Updating After Approval"
+
+**Problem:**  
+When users approved a tool, the artifact preview on the right side didn't update to show the new variable values. Users had to manually refresh the page to see changes.
+
+**Impact:**  
+- Poor UX - approvals felt disconnected from artifact updates
+- Users thought their approvals didn't work
+- Broke the live workbench experience
+
+**Root Cause:**  
+The universal workflow route (`$projectId.workflow.$executionId.tsx`) used a custom `useQuery` with query key `["workflow-executions", executionId]`, but the approval card invalidated with tRPC's key format `[["workflows", "getExecution"], { input: { executionId } }]`. Keys didn't match, so invalidation didn't trigger refetch.
+
+**Fix Applied:**
+
+```typescript
+// Before: Custom useQuery with mismatched key
+const { data: executionData } = useQuery({
+  queryKey: ["workflow-executions", executionId],
+  queryFn: async () => trpcClient.workflows.getExecution.query({ executionId }),
+});
+
+// After: Use tRPC hook with standardized key
+const { data: executionData } = trpc.workflows.getExecution.useQuery(
+  { executionId },
+  { refetchInterval: (query) => ... }
+);
+```
+
+**Result:**  
+Artifact preview now updates live when tools are approved - variables highlight in green and template fills immediately without page refresh.
+
+**File Modified:**  
+`apps/web/src/routes/projects/$projectId.workflow.$executionId.tsx`
 
 ---
 
