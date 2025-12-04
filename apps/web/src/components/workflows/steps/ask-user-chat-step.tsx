@@ -536,7 +536,7 @@ export function AskUserChatStep({
 	});
 
 	return (
-		<div className="flex h-[calc(100vh-12rem)] gap-6">
+		<div className="flex h-full gap-6">
 			{/* Main Chat Area - Takes priority, full height like proper chat */}
 			<div
 				className={`flex min-h-0 min-w-0 flex-1 flex-col transition-all duration-300 ${
@@ -544,7 +544,7 @@ export function AskUserChatStep({
 				}`}
 			>
 				{/* Conversation Area */}
-				<Conversation className="flex-1">
+				<Conversation className="flex-1 overflow-y-auto">
 					<ConversationContent>
 						{timeline.length === 0 ? (
 							<ConversationEmptyState

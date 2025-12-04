@@ -7,26 +7,27 @@ import { db, workflowSteps, workflows } from "@chiron/db";
  * Five Whys is a root cause analysis technique that drills down through
  * layers of symptoms by asking "why" five times to uncover the true root cause.
  *
- * Pattern: 11 tools total
- * - 5 question generation tools (ax-generation)
- * - 5 answer capture tools (update-variable)
- * - 1 root cause synthesis tool (update-variable)
+ * Pattern: 5 sequential update-variable tools with object type
+ * Each tool captures both the question asked and the answer received as a Q&A pair.
+ * The agent generates the next question based on the previous answer in natural conversation.
  *
- * Each question is generated based on the previous answer, creating a contextual
- * chain of inquiry. Multi-turn conversation happens between tool calls.
+ * Key Feature: Uses NEW object type validation from Story 2.3 Task 1
+ * - Each tool has valueSchema: { type: "object", properties: { question, answer } }
+ * - Validates both question and answer are captured together
+ * - Sequential unlocking ensures proper causal chain
  *
  * Source: bmad/core/workflows/brainstorming/brain-methods.csv (line 13)
  *         bmad/cis/workflows/problem-solving/solving-methods.csv (line 2)
  */
 export async function seedFiveWhysTechnique() {
-	// Query analyst agent ID
-	const analystAgent = await db.query.agents.findFirst({
-		where: (agents, { eq }) => eq(agents.name, "analyst"),
+	// Query brainstorming-coach agent ID (Carson - Elite Brainstorming Specialist)
+	const coachAgent = await db.query.agents.findFirst({
+		where: (agents, { eq }) => eq(agents.name, "brainstorming-coach"),
 	});
 
-	if (!analystAgent) {
+	if (!coachAgent) {
 		console.error(
-			"  ❌ Analyst agent not found - cannot seed Five Whys technique",
+			"  ❌ Brainstorming Coach agent not found - cannot seed Five Whys technique",
 		);
 		return;
 	}
@@ -43,7 +44,7 @@ export async function seedFiveWhysTechnique() {
 		return;
 	}
 
-	console.log("  ✓ Five Whys workflow found (Analyst agent)");
+	console.log("  ✓ Five Whys workflow found (Brainstorming Coach agent)");
 
 	// Check if steps already exist
 	const existingSteps = await db.query.workflowSteps.findMany({
@@ -56,484 +57,276 @@ export async function seedFiveWhysTechnique() {
 	}
 
 	// Step 1: Interactive Five Whys Session
-	// 11 tools: 5 question generation + 5 answer capture + 1 root cause synthesis
+	// 5 sequential update-variable tools with object type for Q&A pairs
 	const step1Config: AskUserChatStepConfig = {
-		agentId: analystAgent.id,
-		initialMessage:
-			"Let's use the Five Whys technique to find the root cause! 🔍\n\nWe'll ask 'why' five times, drilling deeper with each question until we uncover the fundamental issue behind the surface problem.\n\nFirst, tell me: what's the problem or situation you want to analyze?",
+		agentId: coachAgent.id,
+		generateInitialMessage: true,
+		initialPrompt: `You are Carson, an elite brainstorming facilitator who loves helping people drill down to root causes through the Five Whys technique!
+
+**Session Context:**
+Topic: {{parent.session_topic}}
+Goals: {{parent.stated_goals}}
+
+**Your Mission:**
+Use the Five Whys technique to drill down from the surface problem to the ROOT CAUSE. This takes exactly 5 "Why?" questions.
+
+**The Process for EACH Why:**
+1. **Ask a specific WHY question** (not just "Why?", but tailored to the context)
+2. **Have a MULTI-TURN conversation** to truly understand:
+   - Probe deeper: "Tell me more about that..."
+   - Clarify: "What do you mean by...?"
+   - Challenge: "Is that always true?"
+   - Explore: "Can you give me an example?"
+3. **When you reach a clear answer**, call the tool to save BOTH:
+   - The specific question you asked
+   - The final clarified answer
+4. **Generate the NEXT question** based on that answer
+5. **Repeat until all 5 whys complete**
+
+**Your Style:**
+- Detective energy: "AHA!" moments when insights emerge
+- Sherlock Holmes mixed with playful scientist
+- Celebrate each discovery: "Interesting! Let's go deeper!"
+- Build suspense: "We're getting closer to the culprit..."
+- Final celebration: "EUREKA! We found the root cause! 🔬"
+
+**Current Progress:** 0 of 5 whys completed
+
+Start with energy: "🔬 Let's solve this mystery! We'll ask WHY five times to find the real culprit. Based on your topic '{{parent.session_topic}}', here's my first question..."
+
+Then ask a SPECIFIC first WHY question (not generic "Why?", but tailored to their topic).`,
 
 		tools: [
-			// ============================================
-			// WHY #1: Question + Answer
-			// ============================================
-
-			// Tool 1: Generate first why question
+			// WHY 1
 			{
-				name: "generate_why_1_question",
-				toolType: "ax-generation",
+				name: "save_why_1",
+				toolType: "update-variable",
+				targetVariable: "why_1",
 				description:
-					"Generate the first why question based on the problem statement",
-				usageGuidance:
-					"After understanding the problem from the user, call this tool to generate the first why question. The question should be tailored to their specific problem context.",
+					"Save Question 1 and Answer 1 as first link in causal chain",
+				usageGuidance: `
+					**When to call:** After multi-turn conversation reaches a clear answer to your first WHY question.
+					
+					**What to save:**
+					- question: The specific WHY question you asked (store exactly what you asked)
+					- answer: The final clarified answer from the conversation
+					
+					**After saving:**
+					Acknowledge: "Got it! That's our first why. 🔍"
+					Then generate the SECOND why question based on this answer.
+					Example: If answer was "Shipping costs too high" → Next question: "Why are shipping costs too high?"
+					
+					**Progress:** This is Why 1 of 5
+				`,
 				requiredVariables: [], // First tool, no prerequisites
 				requiresApproval: true,
-
-				axSignature: {
-					input: [
-						{
-							name: "conversation_history",
-							type: "string",
-							source: "context",
-							description:
-								"The conversation where the user explained the problem",
-						},
-					],
-					output: [
-						{
-							name: "why_question",
-							type: "string",
-							description:
-								"The first why question, tailored to the specific problem (e.g., 'Why did the deployment fail on Friday night?')",
-						},
-						{
-							name: "reasoning",
-							type: "string",
-							description:
-								"Why this question will help uncover the immediate cause",
-							internal: true,
-						},
-					],
-					strategy: "ChainOfThought",
-				},
-			},
-
-			// Tool 2: Capture first answer
-			{
-				name: "capture_why_1_answer",
-				toolType: "update-variable",
-				targetVariable: "why_1_answer",
-				description: "Capture the answer to the first why question",
-				usageGuidance:
-					"After the question is approved, ask it to the user. Have a multi-turn conversation - probe, clarify, dig deeper. When you have a satisfying answer that identifies the immediate cause, call this tool to capture it.",
-				requiredVariables: ["why_1_question"], // Blocked until question approved
-				requiresApproval: true,
-
-				valueSchema: {
-					type: "string",
-					description:
-						"The user's answer to the first why question after discussion",
-				},
-			},
-
-			// ============================================
-			// WHY #2: Question + Answer
-			// ============================================
-
-			// Tool 3: Generate second why question
-			{
-				name: "generate_why_2_question",
-				toolType: "ax-generation",
-				description:
-					"Generate the second why question based on the first answer",
-				usageGuidance:
-					"Now that you have the first answer, generate a contextual second question that digs deeper into what caused that first-level issue.",
-				requiredVariables: ["why_1_answer"], // Blocked until first answer approved
-				requiresApproval: true,
-
-				axSignature: {
-					input: [
-						{
-							name: "why_1_question",
-							type: "string",
-							source: "variable",
-							variableName: "why_1_question",
-							description: "The first why question that was asked",
-						},
-						{
-							name: "why_1_answer",
-							type: "string",
-							source: "variable",
-							variableName: "why_1_answer",
-							description:
-								"The answer to the first why - this is what we dig deeper into",
-						},
-					],
-					output: [
-						{
-							name: "why_question",
-							type: "string",
-							description:
-								"The second why question that explores the cause of the first answer",
-						},
-						{
-							name: "reasoning",
-							type: "string",
-							description:
-								"Why this question digs deeper into the first answer",
-							internal: true,
-						},
-					],
-					strategy: "ChainOfThought",
-				},
-			},
-
-			// Tool 4: Capture second answer
-			{
-				name: "capture_why_2_answer",
-				toolType: "update-variable",
-				targetVariable: "why_2_answer",
-				description: "Capture the answer to the second why question",
-				usageGuidance:
-					"Ask the approved second question and have a conversation. Probe for deeper causes. Capture the answer when you've identified what's causing the first-level issue.",
-				requiredVariables: ["why_2_question"],
-				requiresApproval: true,
-
-				valueSchema: {
-					type: "string",
-					description: "The user's answer to the second why question",
-				},
-			},
-
-			// ============================================
-			// WHY #3: Question + Answer
-			// ============================================
-
-			// Tool 5: Generate third why question
-			{
-				name: "generate_why_3_question",
-				toolType: "ax-generation",
-				description:
-					"Generate the third why question based on the second answer",
-				usageGuidance:
-					"Generate the third why question that explores the underlying cause behind the second answer. We're moving from immediate causes to systemic causes.",
-				requiredVariables: ["why_2_answer"],
-				requiresApproval: true,
-
-				axSignature: {
-					input: [
-						{
-							name: "why_1_question",
-							type: "string",
-							source: "variable",
-							variableName: "why_1_question",
-						},
-						{
-							name: "why_1_answer",
-							type: "string",
-							source: "variable",
-							variableName: "why_1_answer",
-						},
-						{
-							name: "why_2_question",
-							type: "string",
-							source: "variable",
-							variableName: "why_2_question",
-						},
-						{
-							name: "why_2_answer",
-							type: "string",
-							source: "variable",
-							variableName: "why_2_answer",
-							description: "The second answer - dig deeper into this",
-						},
-					],
-					output: [
-						{
-							name: "why_question",
-							type: "string",
-							description:
-								"The third why question exploring underlying systemic causes",
-						},
-						{
-							name: "reasoning",
-							type: "string",
-							internal: true,
-						},
-					],
-					strategy: "ChainOfThought",
-				},
-			},
-
-			// Tool 6: Capture third answer
-			{
-				name: "capture_why_3_answer",
-				toolType: "update-variable",
-				targetVariable: "why_3_answer",
-				description: "Capture the answer to the third why question",
-				usageGuidance:
-					"Ask the third question and explore systemic or structural causes. Look for organizational, process, or design-level issues.",
-				requiredVariables: ["why_3_question"],
-				requiresApproval: true,
-
-				valueSchema: {
-					type: "string",
-					description: "The user's answer to the third why question",
-				},
-			},
-
-			// ============================================
-			// WHY #4: Question + Answer
-			// ============================================
-
-			// Tool 7: Generate fourth why question
-			{
-				name: "generate_why_4_question",
-				toolType: "ax-generation",
-				description:
-					"Generate the fourth why question based on the third answer",
-				usageGuidance:
-					"Generate the fourth why question. We're getting close to the root cause - this question should explore fundamental organizational, cultural, or design decisions.",
-				requiredVariables: ["why_3_answer"],
-				requiresApproval: true,
-
-				axSignature: {
-					input: [
-						{
-							name: "previous_chain",
-							type: "json",
-							source: "computed",
-							description: "The chain so far for context",
-							value: {
-								why_1: {
-									question: "{{why_1_question}}",
-									answer: "{{why_1_answer}}",
-								},
-								why_2: {
-									question: "{{why_2_question}}",
-									answer: "{{why_2_answer}}",
-								},
-								why_3: {
-									question: "{{why_3_question}}",
-									answer: "{{why_3_answer}}",
-								},
-							},
-						},
-					],
-					output: [
-						{
-							name: "why_question",
-							type: "string",
-							description:
-								"The fourth why question exploring fundamental root causes",
-						},
-						{
-							name: "reasoning",
-							type: "string",
-							internal: true,
-						},
-					],
-					strategy: "ChainOfThought",
-				},
-			},
-
-			// Tool 8: Capture fourth answer
-			{
-				name: "capture_why_4_answer",
-				toolType: "update-variable",
-				targetVariable: "why_4_answer",
-				description: "Capture the answer to the fourth why question",
-				usageGuidance:
-					"Ask the fourth question and explore fundamental causes. Look for root decisions, constraints, or assumptions that created the conditions for the problem.",
-				requiredVariables: ["why_4_question"],
-				requiresApproval: true,
-
-				valueSchema: {
-					type: "string",
-					description: "The user's answer to the fourth why question",
-				},
-			},
-
-			// ============================================
-			// WHY #5: Question + Answer
-			// ============================================
-
-			// Tool 9: Generate fifth why question
-			{
-				name: "generate_why_5_question",
-				toolType: "ax-generation",
-				description: "Generate the fifth and final why question",
-				usageGuidance:
-					"Generate the final why question that should reveal the root cause. This question should help uncover the most fundamental issue that, if addressed, would prevent the original problem.",
-				requiredVariables: ["why_4_answer"],
-				requiresApproval: true,
-
-				axSignature: {
-					input: [
-						{
-							name: "full_chain",
-							type: "json",
-							source: "computed",
-							description: "The complete chain of 4 whys for context",
-							value: {
-								why_1: {
-									question: "{{why_1_question}}",
-									answer: "{{why_1_answer}}",
-								},
-								why_2: {
-									question: "{{why_2_question}}",
-									answer: "{{why_2_answer}}",
-								},
-								why_3: {
-									question: "{{why_3_question}}",
-									answer: "{{why_3_answer}}",
-								},
-								why_4: {
-									question: "{{why_4_question}}",
-									answer: "{{why_4_answer}}",
-								},
-							},
-						},
-					],
-					output: [
-						{
-							name: "why_question",
-							type: "string",
-							description:
-								"The final why question designed to reveal the root cause",
-						},
-						{
-							name: "reasoning",
-							type: "string",
-							description: "Why this question should reveal the root cause",
-							internal: true,
-						},
-					],
-					strategy: "ChainOfThought",
-				},
-			},
-
-			// Tool 10: Capture fifth answer
-			{
-				name: "capture_why_5_answer",
-				toolType: "update-variable",
-				targetVariable: "why_5_answer",
-				description: "Capture the answer to the fifth why question",
-				usageGuidance:
-					"Ask the fifth question and explore the most fundamental cause. This answer should reveal the root cause that, if addressed, would prevent the original problem from occurring.",
-				requiredVariables: ["why_5_question"],
-				requiresApproval: true,
-
-				valueSchema: {
-					type: "string",
-					description:
-						"The user's answer to the fifth why question - often the root cause itself",
-				},
-			},
-
-			// ============================================
-			// ROOT CAUSE SYNTHESIS
-			// ============================================
-
-			// Tool 11: Synthesize root cause analysis
-			{
-				name: "capture_root_cause",
-				toolType: "update-variable",
-				targetVariable: "root_cause",
-				description:
-					"Synthesize the root cause analysis based on the full Five Whys chain",
-				usageGuidance:
-					"You've completed the Five Whys chain. Now synthesize the findings: 1) Review the full chain (all 5 Q&A pairs), 2) Confirm with the user that the 5th answer reveals the true ROOT CAUSE, 3) State the root cause clearly and concisely, 4) Assess your confidence level, 5) Based on the FULL CHAIN, recommend 3-5 concrete actions that address the root cause at its source. Call this tool with your synthesis after confirming with the user.",
-				requiredVariables: ["why_5_answer"], // Blocked until fifth answer approved
-				requiresApproval: true,
-
 				valueSchema: {
 					type: "object",
+					required: ["question", "answer"],
 					properties: {
-						root_cause_statement: {
+						question: {
 							type: "string",
-							description:
-								"Clear, concise statement of the fundamental root cause (refined from the 5th answer if needed)",
+							description: "The specific WHY question you asked the user",
 						},
-						confidence_level: {
+						answer: {
 							type: "string",
-							enum: ["high", "medium", "low"],
-							description:
-								"Confidence that this is the true root cause based on the quality and depth of the analysis",
-						},
-						recommended_actions: {
-							type: "array",
-							items: { type: "string" },
-							description:
-								"3-5 concrete, actionable steps to address the root cause and prevent the original problem",
-						},
-						chain_summary: {
-							type: "string",
-							description:
-								"Brief summary of how the chain of whys led to this root cause (e.g., 'Deployment failure → Memory overflow → Batch jobs → Unoptimized report → System not designed for scale')",
+							description: "The final clarified answer from the conversation",
 						},
 					},
-					required: [
-						"root_cause_statement",
-						"confidence_level",
-						"recommended_actions",
-						"chain_summary",
-					],
+				},
+			},
+
+			// WHY 2
+			{
+				name: "save_why_2",
+				toolType: "update-variable",
+				targetVariable: "why_2",
+				description:
+					"Save Question 2 and Answer 2 as second link in causal chain",
+				usageGuidance: `
+					**When to call:** After multi-turn conversation about the second WHY question.
+					
+					**What to save:**
+					- question: Your second WHY question (based on why_1.answer)
+					- answer: The clarified answer from this conversation
+					
+					**After saving:**
+					Acknowledge: "Interesting! We're digging deeper. 🕵️"
+					Then generate the THIRD why question based on this answer.
+					
+					**Progress:** This is Why 2 of 5
+				`,
+				requiredVariables: ["why_1"], // Blocked until first why approved
+				requiresApproval: true,
+				valueSchema: {
+					type: "object",
+					required: ["question", "answer"],
+					properties: {
+						question: {
+							type: "string",
+							description:
+								"The specific WHY question based on the previous answer",
+						},
+						answer: {
+							type: "string",
+							description: "The final clarified answer from the conversation",
+						},
+					},
+				},
+			},
+
+			// WHY 3
+			{
+				name: "save_why_3",
+				toolType: "update-variable",
+				targetVariable: "why_3",
+				description:
+					"Save Question 3 and Answer 3 as third link in causal chain",
+				usageGuidance: `
+					**When to call:** After multi-turn conversation about the third WHY question.
+					
+					**What to save:**
+					- question: Your third WHY question (based on why_2.answer)
+					- answer: The clarified answer from this conversation
+					
+					**After saving:**
+					Acknowledge: "AHA! The plot thickens! 🔎"
+					Then generate the FOURTH why question based on this answer.
+					
+					**Progress:** This is Why 3 of 5 - past halfway!
+				`,
+				requiredVariables: ["why_2"],
+				requiresApproval: true,
+				valueSchema: {
+					type: "object",
+					required: ["question", "answer"],
+					properties: {
+						question: {
+							type: "string",
+							description:
+								"The specific WHY question based on the previous answer",
+						},
+						answer: {
+							type: "string",
+							description: "The final clarified answer from the conversation",
+						},
+					},
+				},
+			},
+
+			// WHY 4
+			{
+				name: "save_why_4",
+				toolType: "update-variable",
+				targetVariable: "why_4",
+				description:
+					"Save Question 4 and Answer 4 as fourth link in causal chain",
+				usageGuidance: `
+					**When to call:** After multi-turn conversation about the fourth WHY question.
+					
+					**What to save:**
+					- question: Your fourth WHY question (based on why_3.answer)
+					- answer: The clarified answer from this conversation
+					
+					**After saving:**
+					Acknowledge: "We're close now! One more why to go... 🎯"
+					Then generate the FIFTH and FINAL why question based on this answer.
+					This should lead us to the ROOT CAUSE!
+					
+					**Progress:** This is Why 4 of 5 - almost there!
+				`,
+				requiredVariables: ["why_3"],
+				requiresApproval: true,
+				valueSchema: {
+					type: "object",
+					required: ["question", "answer"],
+					properties: {
+						question: {
+							type: "string",
+							description:
+								"The specific WHY question based on the previous answer",
+						},
+						answer: {
+							type: "string",
+							description: "The final clarified answer from the conversation",
+						},
+					},
+				},
+			},
+
+			// WHY 5 - ROOT CAUSE
+			{
+				name: "save_why_5_root_cause",
+				toolType: "update-variable",
+				targetVariable: "why_5_root_cause",
+				description: "Save Question 5 and Answer 5 - THE ROOT CAUSE",
+				usageGuidance: `
+					**When to call:** After multi-turn conversation about the FIFTH and FINAL WHY question.
+					
+					**What to save:**
+					- question: Your fifth WHY question (based on why_4.answer)
+					- answer: The clarified answer - this is the ROOT CAUSE!
+					
+					**After saving:**
+					CELEBRATE BIG: "🎯 EUREKA! We found the ROOT CAUSE! Look at this beautiful causal chain we uncovered!"
+					
+					Then summarize the journey:
+					"We started with [why_1.question] and discovered the root cause is [why_5_root_cause.answer]!"
+					
+					Show the full chain:
+					1. Why 1: [why_1.question] → [why_1.answer]
+					2. Why 2: [why_2.question] → [why_2.answer]
+					3. Why 3: [why_3.question] → [why_3.answer]
+					4. Why 4: [why_4.question] → [why_4.answer]
+					5. Why 5 (ROOT): [why_5_root_cause.question] → [why_5_root_cause.answer]
+					
+					**Progress:** This is Why 5 of 5 - ROOT CAUSE REVEALED! 🎉
+				`,
+				requiredVariables: ["why_4"],
+				requiresApproval: true,
+				valueSchema: {
+					type: "object",
+					required: ["question", "answer"],
+					properties: {
+						question: {
+							type: "string",
+							description:
+								"The fifth and final WHY question based on the previous answer",
+						},
+						answer: {
+							type: "string",
+							description: "The ROOT CAUSE - the deepest underlying reason",
+						},
+					},
 				},
 			},
 		],
 
-		// Completion: All 11 variables must be set
 		completionCondition: {
-			type: "all-variables-set",
-			requiredVariables: [
-				"why_1_question",
-				"why_1_answer",
-				"why_2_question",
-				"why_2_answer",
-				"why_3_question",
-				"why_3_answer",
-				"why_4_question",
-				"why_4_answer",
-				"why_5_question",
-				"why_5_answer",
-				"root_cause",
+			type: "all-tools-approved",
+			requiredTools: [
+				"save_why_1",
+				"save_why_2",
+				"save_why_3",
+				"save_why_4",
+				"save_why_5_root_cause",
 			],
 		},
 
-		// Output variables for parent workflow
 		outputVariables: {
-			root_cause_analysis: {
-				why_1: {
-					question:
-						"approval_states.generate_why_1_question.value.why_question",
-					answer: "approval_states.capture_why_1_answer.value",
-				},
-				why_2: {
-					question:
-						"approval_states.generate_why_2_question.value.why_question",
-					answer: "approval_states.capture_why_2_answer.value",
-				},
-				why_3: {
-					question:
-						"approval_states.generate_why_3_question.value.why_question",
-					answer: "approval_states.capture_why_3_answer.value",
-				},
-				why_4: {
-					question:
-						"approval_states.generate_why_4_question.value.why_question",
-					answer: "approval_states.capture_why_4_answer.value",
-				},
-				why_5: {
-					question:
-						"approval_states.generate_why_5_question.value.why_question",
-					answer: "approval_states.capture_why_5_answer.value",
-				},
-				root_cause: "approval_states.capture_root_cause.value",
-			},
+			generated_ideas: "causal_chain", // Will extract: [why_1, why_2, why_3, why_4, why_5_root_cause]
 		},
 	};
 
-	// Insert Step 1
+	// Insert step
 	await db.insert(workflowSteps).values({
 		workflowId: workflow.id,
 		stepNumber: 1,
-		goal: "Drill down through 5 levels of causation to find root cause",
 		stepType: "ask-user-chat",
+		goal: "Discover root cause through 5 sequential whys",
 		config: step1Config,
-		nextStepNumber: null, // Single-step technique
+		nextStepNumber: null, // Final step
 	});
 
-	console.log(
-		"  ✓ Step 1: Five Whys Interactive Session (11 tools: 5 Q + 5 A + 1 synthesis)",
-	);
+	console.log("  ✓ Five Whys step 1 seeded (5 object-type tools)");
 }

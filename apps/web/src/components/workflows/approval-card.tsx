@@ -49,6 +49,7 @@ export function ApprovalCard({
 	isRejected = false,
 	createdAt,
 }: ApprovalCardProps) {
+	const [isContentExpanded, setIsContentExpanded] = useState(false);
 	const [isReasoningExpanded, setIsReasoningExpanded] = useState(false);
 	const [showFeedbackInput, setShowFeedbackInput] = useState(false);
 	const [feedback, setFeedback] = useState("");
@@ -156,110 +157,129 @@ export function ApprovalCard({
 			</CardHeader>
 
 			<CardContent className="space-y-4">
-				{/* Generated Content */}
-				<div className="space-y-2">
-					{typeof generatedValue === "string" ? (
-						// Simple string value (e.g., from update-variable tool)
-						<div className="rounded-md border bg-background p-3 whitespace-pre-wrap">
-							{generatedValue}
-						</div>
-					) : Array.isArray(generatedValue) ? (
-						// Direct array value (e.g., from update-variable with array)
-						<div className="space-y-2">
-							{generatedValue.map((item, idx) => (
-								<div
-									key={idx}
-									className="flex items-start gap-3 rounded-md border bg-background p-3"
-								>
-									<div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-semibold">
-										{idx + 1}
-									</div>
-									<div className="flex-1 pt-0.5">
-										{typeof item === "string"
-											? item
-											: JSON.stringify(item, null, 2)}
-									</div>
-								</div>
-							))}
-						</div>
-					) : (
-						// Object with key-value pairs (e.g., from AX generation tool)
-						(() => {
-							const entries = Object.entries(generatedValue);
-							// Check if object is array-like (keys are "0", "1", "2", etc.)
-							const isArrayLike = entries.every(([key]) => /^\d+$/.test(key));
+				{/* Generated Content - Accordion when approved */}
+				{isApproved && (
+					<div className={isContentExpanded ? "pb-3" : ""}>
+						<button
+							onClick={() => setIsContentExpanded(!isContentExpanded)}
+							className="flex w-full items-center gap-2 font-medium text-sm transition-colors hover:text-foreground"
+						>
+							{isContentExpanded ? (
+								<ChevronUp className="h-4 w-4" />
+							) : (
+								<ChevronDown className="h-4 w-4" />
+							)}
+							<span>Generated Output</span>
+						</button>
+					</div>
+				)}
 
-							if (isArrayLike) {
-								// Convert to array and render as list
-								const arrayValues = entries
-									.sort(([a], [b]) => Number(a) - Number(b))
-									.map(([_, value]) => value);
-
-								return (
-									<div className="space-y-2">
-										{arrayValues.map((item, idx) => (
-											<div
-												key={idx}
-												className="flex items-start gap-3 rounded-md border bg-background p-3"
-											>
-												<div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-semibold">
-													{idx + 1}
-												</div>
-												<div className="flex-1 pt-0.5">
-													{typeof item === "string"
-														? item
-														: JSON.stringify(item, null, 2)}
-												</div>
-											</div>
-										))}
-									</div>
-								);
-							}
-
-							// Normal object rendering
-							return entries.map(([key, value]) => {
-								// Skip internal fields
-								if (key === "reasoning") return null;
-
-								return (
-									<div key={key} className="space-y-2">
-										<div className="font-medium text-muted-foreground text-sm capitalize">
-											{key.replace(/_/g, " ")}
+				{/* Content - Hidden when approved and collapsed */}
+				{(!isApproved || isContentExpanded) && (
+					<div className="space-y-2">
+						{typeof generatedValue === "string" ? (
+							// Simple string value (e.g., from update-variable tool)
+							<div className="rounded-md border bg-background p-3 whitespace-pre-wrap">
+								{generatedValue}
+							</div>
+						) : Array.isArray(generatedValue) ? (
+							// Direct array value (e.g., from update-variable with array)
+							<div className="space-y-2">
+								{generatedValue.map((item, idx) => (
+									<div
+										key={idx}
+										className="flex items-start gap-3 rounded-md border bg-background p-3"
+									>
+										<div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-semibold">
+											{idx + 1}
 										</div>
+										<div className="flex-1 pt-0.5">
+											{typeof item === "string"
+												? item
+												: JSON.stringify(item, null, 2)}
+										</div>
+									</div>
+								))}
+							</div>
+						) : (
+							// Object with key-value pairs (e.g., from AX generation tool)
+							(() => {
+								const entries = Object.entries(generatedValue);
+								// Check if object is array-like (keys are "0", "1", "2", etc.)
+								const isArrayLike = entries.every(([key]) => /^\d+$/.test(key));
+
+								if (isArrayLike) {
+									// Convert to array and render as list
+									const arrayValues = entries
+										.sort(([a], [b]) => Number(a) - Number(b))
+										.map(([_, value]) => value);
+
+									return (
 										<div className="space-y-2">
-											{typeof value === "string" ? (
-												<div className="rounded-md border bg-background p-3">
-													{value}
-												</div>
-											) : Array.isArray(value) ? (
-												// Render arrays as a nice list
-												value.map((item, idx) => (
-													<div
-														key={idx}
-														className="flex items-start gap-3 rounded-md border bg-background p-3"
-													>
-														<div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-semibold">
-															{idx + 1}
-														</div>
-														<div className="flex-1 pt-0.5">
-															{typeof item === "string"
-																? item
-																: JSON.stringify(item, null, 2)}
-														</div>
+											{arrayValues.map((item, idx) => (
+												<div
+													key={idx}
+													className="flex items-start gap-3 rounded-md border bg-background p-3"
+												>
+													<div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-semibold">
+														{idx + 1}
 													</div>
-												))
-											) : (
-												<div className="rounded-md border bg-background p-3 font-mono text-xs">
-													{JSON.stringify(value, null, 2)}
+													<div className="flex-1 pt-0.5">
+														{typeof item === "string"
+															? item
+															: JSON.stringify(item, null, 2)}
+													</div>
 												</div>
-											)}
+											))}
 										</div>
-									</div>
-								);
-							});
-						})()
-					)}
-				</div>
+									);
+								}
+
+								// Normal object rendering
+								return entries.map(([key, value]) => {
+									// Skip internal fields
+									if (key === "reasoning") return null;
+
+									return (
+										<div key={key} className="space-y-2">
+											<div className="font-medium text-muted-foreground text-sm capitalize">
+												{key.replace(/_/g, " ")}
+											</div>
+											<div className="space-y-2">
+												{typeof value === "string" ? (
+													<div className="rounded-md border bg-background p-3">
+														{value}
+													</div>
+												) : Array.isArray(value) ? (
+													// Render arrays as a nice list
+													value.map((item, idx) => (
+														<div
+															key={idx}
+															className="flex items-start gap-3 rounded-md border bg-background p-3"
+														>
+															<div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-semibold">
+																{idx + 1}
+															</div>
+															<div className="flex-1 pt-0.5">
+																{typeof item === "string"
+																	? item
+																	: JSON.stringify(item, null, 2)}
+															</div>
+														</div>
+													))
+												) : (
+													<div className="rounded-md border bg-background p-3 font-mono text-xs">
+														{JSON.stringify(value, null, 2)}
+													</div>
+												)}
+											</div>
+										</div>
+									);
+								});
+							})()
+						)}
+					</div>
+				)}
 
 				{/* Reasoning (Collapsible) */}
 				{reasoning && (

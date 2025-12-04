@@ -181,8 +181,8 @@ function InitializePage() {
 		isViewingHistory && viewingStepNumber < currentStepNumber;
 
 	return (
-		<div className="flex min-h-screen flex-col p-6">
-			<div className="mx-auto flex w-full max-w-7xl flex-1 flex-col space-y-8">
+		<div className="flex h-screen flex-col overflow-hidden p-6">
+			<div className="mx-auto flex w-full max-w-7xl flex-1 flex-col space-y-8 overflow-hidden">
 				{/* Workflow Stepper */}
 				<WorkflowStepperWizard
 					currentStep={displayStepNumber}
@@ -210,8 +210,14 @@ function InitializePage() {
 					</div>
 				)}
 
-				{/* Step Content Container - Full height for chat */}
-				<div className="flex flex-1 flex-col rounded-lg border bg-card p-6 shadow-sm">
+				{/* Step Content Container - Full height for chat, width adapts to step type */}
+				<div
+					className={`flex min-h-0 flex-col rounded-lg border bg-card p-6 shadow-sm ${
+						displayStepData?.stepType === "ask-user"
+							? "mx-auto max-w-2xl"
+							: "flex-1"
+					}`}
+				>
 					{/* Read-only banner for completed steps */}
 					{isViewingCompletedStep && (
 						<div className="mb-4 rounded-md bg-muted p-3 text-center text-muted-foreground text-sm">
