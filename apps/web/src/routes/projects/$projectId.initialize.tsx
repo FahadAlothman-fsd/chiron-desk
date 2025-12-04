@@ -180,6 +180,22 @@ function InitializePage() {
 	const isViewingCompletedStep =
 		isViewingHistory && viewingStepNumber < currentStepNumber;
 
+	// Safety check: if displayStepData is null, show error
+	if (!displayStepData) {
+		return (
+			<div className="flex h-screen flex-col items-center justify-center p-6">
+				<div className="text-center">
+					<h2 className="text-lg font-semibold text-red-500">
+						Error: Step data not found
+					</h2>
+					<p className="mt-2 text-muted-foreground">
+						Could not find step data for step {displayStepNumber}
+					</p>
+				</div>
+			</div>
+		);
+	}
+
 	return (
 		<div className="flex h-screen flex-col overflow-hidden p-6">
 			<div className="mx-auto flex w-full max-w-7xl flex-1 flex-col space-y-8 overflow-hidden">
