@@ -583,37 +583,23 @@ export class AskUserChatStepHandler implements StepHandler {
 					Object.keys(context.executionVariables),
 				);
 
-				// Get agent instance from Mastra
-				const agentName = await this.getAgentName(config.agentId);
+				// Get agent from Mastra
 				const mastra = await getMastraInstance();
+				const agentName = await this.getAgentName(config.agentId);
 				const agent = mastra.getAgent(agentName);
 
 				if (!agent) {
-					throw new Error(
-						`Agent not registered with Mastra for initial message generation: ${agentName}`,
-					);
+					throw new Error(`Agent not registered with Mastra: ${agentName}`);
 				}
-
-				console.log(`[AskUserChatHandler] Using agent: ${agentName}`);
-
-				// Create RuntimeContext for agent (needed for model loading)
-				const runtimeContext = new RuntimeContext();
-				runtimeContext.set("userId", context.systemVariables.current_user_id);
-				runtimeContext.set("projectId", context.systemVariables.project_id);
-				runtimeContext.set("executionId", context.systemVariables.execution_id);
-				runtimeContext.set("variables", context.executionVariables);
 
 				// Resolve variables in initialPrompt (support {{parent.variable}} syntax)
 				const resolvedPrompt = this.resolvePromptVariables(
 					config.initialPrompt,
 					context,
 				);
-
-				// Resolve variables in initialPrompt - this becomes the user message
-				// The resolved prompt is what the user "says" to start the conversation
 				const userPromptContent = resolvedPrompt;
 
-				// Get resourceId from thread for saving messages
+				// Get resourceId from thread
 				const storage = mastra.getStorage();
 				const thread = await storage?.getThreadById({
 					threadId: agentContext.threadId,
@@ -622,82 +608,49 @@ export class AskUserChatStepHandler implements StepHandler {
 					thread?.resourceId ||
 					`user-${context.systemVariables.current_user_id}`;
 
-				// Save the resolved initialPrompt as a user message in the thread
-				// This is visible in the chat history as a user message
-				if (storage && agentContext.threadId) {
-					try {
-						await storage.saveMessages({
-							messages: [
-								{
-									id: crypto.randomUUID(),
-									role: "user",
-									content: userPromptContent,
-									createdAt: new Date(),
-									threadId: agentContext.threadId,
-									resourceId,
-									metadata: {
-										type: "initial_prompt",
-									},
-								},
-							],
-						});
-						console.log(
-							"[AskUserChatHandler] Saved initialPrompt as user message to thread",
-						);
-					} catch (saveError) {
-						console.error(
-							"[AskUserChatHandler] Failed to save initialPrompt message:",
-							saveError,
-						);
-					}
-				}
-
-				// Generate agent response to the initialPrompt (user message)
-				const generatedMessage = await agent.generate(
-					[{ role: "user", content: userPromptContent }],
-					{
-						runtimeContext, // Required for model loading
-						maxSteps: 1, // Only need one generation
-					},
+				// Build tools for initial message (agent might need them!)
+				const tools = await this.buildToolsForAgent(
+					config,
+					context,
+					config.agentId,
 				);
+
+				// Wrap tools in toolset
+				const toolsets =
+					Object.keys(tools).length > 0 ? { stepTools: tools } : {};
+
+				// Build RuntimeContext for agent (includes variables, model, etc.)
+				const runtimeContext = new RuntimeContext();
+				runtimeContext.set("userId", context.systemVariables.current_user_id);
+				runtimeContext.set("projectId", context.systemVariables.project_id);
+				runtimeContext.set("variables", {
+					...context.executionVariables,
+					step_number: step.stepNumber,
+					selected_model: context.executionVariables?.selected_model,
+				});
+				runtimeContext.set("executionId", context.systemVariables.execution_id);
+
+				console.log(
+					`[AskUserChatHandler] Generating initial message with ${Object.keys(tools).length} tools`,
+				);
+
+				// Generate agent response to the initialPrompt
+				// NOTE: When using memory: { thread, resource }, Mastra automatically saves
+				// both user input and assistant response to the thread - NO manual save needed!
+				const generatedMessage = await agent.generate(userPromptContent, {
+					memory: {
+						thread: agentContext.threadId,
+						resource: resourceId,
+					},
+					toolsets, // Pass tools so agent can use them if needed
+					runtimeContext, // Required for model loading + dynamic instructions
+					maxSteps: 5, // Allow multiple steps for tool usage
+				});
 
 				console.log(
 					"[AskUserChatHandler] Generated initial message:",
 					generatedMessage.text,
 				);
-
-				// Save generated assistant message to Mastra thread
-				if (storage && agentContext.threadId) {
-					try {
-						await storage.saveMessages({
-							messages: [
-								{
-									id: crypto.randomUUID(),
-									role: "assistant",
-									content: generatedMessage.text,
-									createdAt: new Date(),
-									threadId: agentContext.threadId,
-									resourceId, // Required by Mastra
-									metadata: {
-										type: "initial_message",
-										agent_id: config.agentId,
-									},
-								},
-							],
-						});
-						console.log(
-							"[AskUserChatHandler] Saved generated initial message to thread:",
-							agentContext.threadId,
-						);
-					} catch (saveError) {
-						console.error(
-							"[AskUserChatHandler] Failed to save initial message to thread:",
-							saveError,
-						);
-						// Don't throw - we can still continue without initial message in history
-						// The message is saved in execution variables for fallback
-					}
-				}
 
 				return {
 					output: {

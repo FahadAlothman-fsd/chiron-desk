@@ -55,6 +55,22 @@ export class InvokeWorkflowStepHandler implements StepHandler {
 				createdAt: string;
 			}>) || [];
 
+		// BUGFIX: If no children have been created yet, wait for user to execute them
+		// (Empty array would pass .every() check, incorrectly marking step as complete)
+		if (childExecutions.length === 0) {
+			console.log(
+				"[InvokeWorkflowHandler] No children created yet, waiting for user to execute workflows",
+			);
+			return {
+				output: {
+					child_executions: [],
+					_child_metadata: [],
+				},
+				nextStepNumber: step.nextStepNumber ?? null,
+				requiresUserInput: true, // Wait for user to click Execute buttons
+			};
+		}
+
 		// Check completion condition (all children completed?)
 		const allComplete = await this.checkCompletionCondition(
 			childExecutions,
@@ -130,6 +146,11 @@ export class InvokeWorkflowStepHandler implements StepHandler {
 			throw new Error(
 				`Unsupported completion condition: ${config.completionCondition.type}`,
 			);
+		}
+
+		// DEFENSIVE: Empty array check (should be caught earlier, but just in case)
+		if (childExecutionIds.length === 0) {
+			return false; // No children = not complete
 		}
 
 		// Query all child executions

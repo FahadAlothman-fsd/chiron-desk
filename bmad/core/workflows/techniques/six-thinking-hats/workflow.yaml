@@ -1,0 +1,29 @@
+# Six Thinking Hats Technique Workflow Configuration
+name: "six-thinking-hats"
+display_name: "Six Thinking Hats"
+description: "Explore problems through six distinct perspectives: facts (White), emotions (Red), benefits (Yellow), risks (Black), creativity (Green), and process (Blue) - perfect for balanced decision-making"
+author: "BMad"
+standalone: false  # This is a child workflow, not standalone
+
+# Tags for filtering
+tags:
+  type: "technique"
+  module: "core"
+  category: "structured"
+  energy_level: "moderate"
+  typical_duration: "25-30"
+  best_for: "balanced_analysis"
+
+# Metadata
+metadata:
+  facilitation_prompts:
+    - "🤍 White Hat - What facts do we know?"
+    - "❤️ Red Hat - How do you feel about this?"
+    - "🌟 Yellow Hat - What are the benefits?"
+    - "🖤 Black Hat - What could go wrong?"
+    - "💚 Green Hat - What creative alternatives exist?"
+    - "💙 Blue Hat - What's the big picture?"
+  source: "bmad/core/workflows/brainstorming/brain-methods.csv"
+  
+# No config_source needed for child workflows
+# Parent workflow provides context via inputs

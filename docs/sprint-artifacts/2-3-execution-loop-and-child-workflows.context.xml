@@ -1,0 +1,652 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>2</epicId>
+    <storyId>3</storyId>
+    <title>Execution Loop & Child Workflows (Step 2)</title>
+    <status>drafted</status>
+    <generatedAt>2025-12-03</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/2-3-execution-loop-and-child-workflows.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>User</asA>
+    <iWant>execute specific brainstorming techniques (like SCAMPER) via the chat interface</iWant>
+    <soThat>I can generate structured ideas using proven creative thinking methods</soThat>
+    <tasks>- [ ] Task 1: Add Object Type Support to update-variable-tool (NEW PRIMITIVE)
+- [ ] Task 2: Implement generateInitialMessage Feature for ask-user-chat (NEW PRIMITIVE)
+- [ ] Task 3: Seed 5 Brainstorming Technique Workflows (AC: 1)
+- [ ] Task 4: Configure Brainstorming Step 2 with Invoke-Workflow Logic (AC: 2)
+- [ ] Task 5: Implement Invoke-Workflow Step Type Handler (AC: 2, 4)
+- [ ] Task 6: Build Action List UI Component (AC: 3)
+- [ ] Task 7: Build Dialog Layout & Timeline UI Components (AC: 4)
+- [ ] Task 8: Data Aggregation & State Management (AC: 5)
+- [ ] Task 9: Integration & End-to-End Testing (AC: All)</tasks>
+  </story>
+
+  <acceptanceCriteria>1. **Seed Techniques:** Insert 10 technique workflows (e.g., SCAMPER, Six Hats, Tree of Thoughts) into `workflows` table with `tags->>'type' = 'technique'` for filtering
+2. **Seed Step 2:** Configure `brainstorming` workflow Step 2 with invoke-workflow logic to execute selected techniques
+3. **Action List UI:** Render the list of selected techniques in the chat as an interactive action list (parallel independence pattern)
+4. **Child Workflow UI:** Implement Modal/Dialog for running technique workflows with nested conversation interface
+5. **Data Aggregation:** Collect outputs from all technique executions into `captured_ideas` variable for next step</acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <!-- PRD: Chat Interface Patterns -->
+      <doc>
+        <path>docs/PRD.md</path>
+        <title>Product Requirements Document</title>
+        <section>Chat Interface Patterns - Pattern B: Parallel Independence</section>
+        <snippet>Independent items handled in any order with completion state tracking. Visual: REQUIRE ACTION (N) | COMPLETED (N) sections. Use for action lists where user can execute techniques in any order. State tracking allows ignore optional items with feedback.</snippet>
+      </doc>
+      
+      <doc>
+        <path>docs/PRD.md</path>
+        <title>Product Requirements Document</title>
+        <section>Chat Interface Patterns - Pattern D: Focused Dialogs</section>
+        <snippet>Open focused dialog for complex actions while preserving main chat context. Modal/drawer with agent conversation, reasoning, tool calls. Use for technique execution in isolated context. All dialog interactions sync back to main chat timeline.</snippet>
+      </doc>
+      
+      <doc>
+        <path>docs/PRD.md</path>
+        <title>Product Requirements Document</title>
+        <section>UX Design Principles</section>
+        <snippet>Guided Not Automated - UI provides structure and clarity while preserving human decision-making at every step. Dialog-Focused Actions - Complex interactions happen in focused dialogs that maintain context while keeping main chat clean.</snippet>
+      </doc>
+      
+      <!-- Epic 2: Artifact Workbench Context -->
+      <doc>
+        <path>docs/epics/epic-2-artifact-workbench.md</path>
+        <title>Epic 2: Artifact Workbench</title>
+        <section>Story 2.3: Execution Loop & Child Workflows</section>
+        <snippet>Implement invoke-workflow step type for child workflow execution. Seed 5 brainstorming techniques (SCAMPER, Six Hats, Five Whys, Mind Mapping, What If Scenarios). Action List UI for parallel technique execution. Dialog layout for focused technique workflow execution.</snippet>
+        <note>⚠️ Epic doc mentions "10 techniques" but story corrected to 5 techniques with TypeScript configs in docs/sprint-artifacts/story-2-3-technique-workflows/</note>
+      </doc>
+      
+      <!-- Architecture Decisions -->
+      <doc>
+        <path>docs/architecture/architecture-decisions.md</path>
+        <title>Architecture Decisions</title>
+        <section>Decision #7: AI Agent Framework (Mastra + Ax)</section>
+        <snippet>Mastra for agent orchestration with ask-user-chat steps. Technique workflows use Mastra agents with generateInitialMessage for dynamic first questions. ACE playbooks for online learning from user feedback. Tools registered with agent for variable updates.</snippet>
+      </doc>
+      
+      <doc>
+        <path>docs/architecture/architecture-decisions.md</path>
+        <title>Architecture Decisions</title>
+        <section>Decision #4: State Management (React Query + Zustand)</section>
+        <snippet>React Query for server state caching with SSE invalidation. Zustand for global UI state and event distribution. Child workflow execution states managed via React Query with real-time updates from invoke-workflow step handler.</snippet>
+      </doc>
+      
+      <!-- UX Design Specification -->
+      <doc>
+        <path>docs/design/ux-design-specification.md</path>
+        <title>UX Design Specification</title>
+        <section>Pattern 4: Focused Dialogs</section>
+        <snippet>Modal overlay for complex interactions. Dialog shows agent conversation while parent workflow visible behind with dimmed overlay. Return button closes dialog. Dialog renders step type component (e.g., AskUserChatInterface for ask-user-chat steps).</snippet>
+      </doc>
+      
+      <doc>
+        <path>docs/design/ux-design-specification.md</path>
+        <title>UX Design Specification</title>
+        <section>Pattern 8: Grid Select + List Select Duality</section>
+        <snippet>3-column icon grid for visual options, vertical list for text-heavy options. Action list pattern for technique execution uses list format with status indicators and execute buttons.</snippet>
+      </doc>
+      
+      <!-- Tech Spec Epic 1: Database Schema Reference -->
+      <doc>
+        <path>docs/epics/tech-spec-epic-1.md</path>
+        <title>Epic 1 Technical Specification</title>
+        <section>Database Tables: workflow_executions</section>
+        <snippet>workflow_executions table tracks execution state with variables (JSONB), executedSteps (JSONB), status enum. Story 2.3 adds parentExecutionId column (nullable UUID FK to self) for child workflow linkage. Timestamps (startedAt, completedAt) track step execution duration.</snippet>
+      </doc>
+      
+      <doc>
+        <path>docs/epics/tech-spec-epic-1.md</path>
+        <title>Epic 1 Technical Specification</title>
+        <section>Step Config Types: JSONB Architecture</section>
+        <snippet>All step-specific configuration stored in workflow_steps.config JSONB field. No new tables needed for new step types. Story 2.3 introduces InvokeWorkflowStepConfig and updates AskUserChatStepConfig with generateInitialMessage support.</snippet>
+      </doc>
+      
+      <!-- Technique Workflow Configurations -->
+      <doc>
+        <path>docs/sprint-artifacts/story-2-3-technique-workflows/README.md</path>
+        <title>Technique Workflows Pattern Documentation</title>
+        <section>Pattern A vs Pattern B</section>
+        <snippet>Pattern A (Single-Step Sequential): SCAMPER, Six Hats, Five Whys use 1 step with sequential tool unlocking. Pattern B (Multi-Step Phases): Mind Mapping (4 steps), What If Scenarios (3 steps) require different cognitive modes per phase. All techniques use generateInitialMessage: true and access parent variables via {{parent.session_topic}}.</snippet>
+      </doc>
+    </docs>
+    
+    <code>
+      <!-- Existing Step Config Schema -->
+      <artifact>
+        <path>packages/db/src/schema/step-configs.ts</path>
+        <kind>schema</kind>
+        <symbol>askUserChatStepConfigSchema</symbol>
+        <lines>115-237</lines>
+        <reason>Story 2.3 Task 2 extends this schema with generateInitialMessage and initialPrompt fields for technique workflows</reason>
+      </artifact>
+      
+      <!-- Existing Workflow Execution Schema -->
+      <artifact>
+        <path>packages/db/src/schema/workflows.ts</path>
+        <kind>schema</kind>
+        <symbol>workflowExecutions table, executedSteps JSONB, WorkflowMetadata interface</symbol>
+        <lines>1-100</lines>
+        <reason>Task 5 adds parentExecutionId column and Task 5 Subtask 5.2 adds timestamp recording (startedAt, completedAt) to executedSteps JSONB. Task 3 Subtask 3.1 updates WorkflowMetadata interface to add layoutType field: "wizard" | "artifact-workbench" | "dialog"</reason>
+      </artifact>
+      
+      <!-- Update Variable Tool (To be extended) -->
+      <artifact>
+        <path>packages/api/src/services/workflow-engine/tools/update-variable-tool.ts</path>
+        <kind>tool</kind>
+        <symbol>buildUpdateVariableTool</symbol>
+        <lines>38-69</lines>
+        <reason>Task 1 adds case "object" to switch statement. Currently supports string, number, boolean, enum, array. Need to add object type with valueSchema.properties validation using Zod</reason>
+      </artifact>
+      
+      <!-- Ask-User-Chat Handler (To be extended) -->
+      <artifact>
+        <path>packages/api/src/services/workflow-engine/step-handlers/ask-user-chat-handler.ts</path>
+        <kind>handler</kind>
+        <symbol>AskUserChatStepHandler class</symbol>
+        <lines>1-100</lines>
+        <reason>Task 2 extends executeStep() to detect generateInitialMessage: true flag and call agent.generate([], { system: resolvedPrompt }) before starting conversation. Need to resolve {{parent.variable}} syntax in initialPrompt</reason>
+      </artifact>
+      
+      <!-- Existing Seeding Pattern (Reference) -->
+      <artifact>
+        <path>packages/scripts/src/seeds/workflow-init-new.ts</path>
+        <kind>seed</kind>
+        <symbol>workflow-init-new seed file</symbol>
+        <lines>entire file</lines>
+        <reason>Task 3 follows this pattern to create technique seed files. Same structure: workflow metadata + steps array with step configs. Use for reference when creating scamper.ts, six-thinking-hats.ts, etc.</reason>
+      </artifact>
+      
+      <!-- Existing Workbench Layout (To be renamed/refactored) -->
+      <artifact>
+        <path>apps/web/src/components/workflows/workbench-layout.tsx</path>
+        <kind>component</kind>
+        <symbol>WorkbenchLayout component</symbol>
+        <lines>entire file</lines>
+        <reason>Task 7 refactors this into ArtifactWorkbenchLayout (one of three layout types). Current implementation has split-pane logic that will be reused. Need to add Timeline container on left pane and make artifact preview self-contained on right pane.</reason>
+      </artifact>
+      
+      <!-- Step Type Enum -->
+      <artifact>
+        <path>packages/db/src/schema/workflows.ts</path>
+        <kind>enum</kind>
+        <symbol>stepTypeEnum</symbol>
+        <lines>75-84</lines>
+        <reason>Already includes "invoke-workflow" as option (line 81). No schema change needed, just implement handler in Task 5</reason>
+      </artifact>
+      
+      <!-- Step Handler Registry -->
+      <artifact>
+        <path>packages/api/src/services/workflow-engine/step-registry.ts</path>
+        <kind>service</kind>
+        <symbol>Step handler registry</symbol>
+        <lines>entire file</lines>
+        <reason>Task 5 Subtask 5.10 registers invoke-workflow-handler in this registry. Follow pattern of existing handlers (ask-user-chat-handler, execute-action-handler)</reason>
+      </artifact>
+    </code>
+    
+    <dependencies>
+      <ecosystem name="Node.js">
+        <package name="@mastra/core" version="^0.1.x" reason="Agent framework for ask-user-chat steps in technique workflows (Task 3)" />
+        <package name="@mastra/pg" version="latest" reason="PostgreSQL storage adapter for Mastra (existing)" />
+        <package name="@mastra/memory" version="latest" reason="Memory management for agents (existing)" />
+        <package name="zod" version="^4.1.11" reason="Runtime validation for object type schemas in update-variable-tool (Task 1)" />
+        <package name="drizzle-orm" version="0.44.2" reason="Database ORM for parentExecutionId column migration (Task 5)" />
+      </ecosystem>
+      
+      <ecosystem name="React">
+        <package name="react" version="19.1.0" reason="UI framework for dialog layout and action list components (Task 6, 7)" />
+        <package name="@tanstack/react-query" version="^5.85.5" reason="Server state management for child workflow execution states (Task 6, 7)" />
+        <package name="lucide-react" version="^0.473.0" reason="Icons for action list status indicators and dialog close button" />
+        <package name="shadcn/ui" version="registry" reason="Dialog primitives for modal overlay (Task 7 Subtask 7.4)" />
+      </ecosystem>
+      
+      <ecosystem name="Testing">
+        <package name="bun" version="runtime" reason="Test framework for unit tests (Task 1.6, 2.7, 5.12, etc.)" />
+      </ecosystem>
+      
+      <framework name="Chiron Workflow Engine">
+        <component name="Step Type Handlers" reason="Task 5 introduces invoke-workflow-handler as new step type" />
+        <component name="Mastra Agent Tools" reason="Task 1 extends update-variable-tool, Task 2 extends ask-user-chat-handler" />
+        <component name="Technique Workflows" reason="Task 3 seeds 5 technique workflows using existing seeding infrastructure" />
+      </framework>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <!-- Scope Limitations -->
+    <constraint category="scope">Object validation limited to shallow objects (1 level deep with primitive properties: string, number, boolean, array). Deep nesting, union types, Map/Set types, and schema versioning deferred. Add TODO comments in code marking extension points.</constraint>
+    
+    <constraint category="scope">Skip button for action list deferred to future story. Story 2.3 implements [Execute] button only. Completion condition is rigid all-complete (no partial completion or user-confirmed options in this story).</constraint>
+    
+    <!-- Architecture Constraints -->
+    <constraint category="architecture">Step 2 is invoke-workflow step type (declarative config), NOT ask-user-chat with tools. No tool called invoke_technique exists. Step handler reads config and creates child executions automatically.</constraint>
+    
+    <constraint category="architecture">Variable mapping enables selective parent-to-child variable exposure. ONLY variables defined in variableMapping are passed to child executions (no global inheritance). variableMapping provides name translation layer, mapping parent outputVariable names (e.g., "topic") to child expected names (e.g., "session_topic"). Child workflows access mapped variables via {{parent.variable_name}} syntax (e.g., {{parent.session_topic}}).</constraint>
+    
+    <constraint category="architecture">Dialog layout is intentional cognitive isolation (feature, not bug). Provides zen focus on one technique without parent workflow distraction. User can close dialog and reopen to resume paused child execution.</constraint>
+    
+    <constraint category="ux">Parallel execution is optional user behavior, not forced. User can execute techniques sequentially (complete SCAMPER → execute Six Hats) or in parallel (open both dialogs). Progressive disclosure ensures no overwhelming context.</constraint>
+    
+    <!-- Database Constraints -->
+    <constraint category="database">JSONB step config storage pattern continues from Epic 1. No new tables for invoke-workflow step type - uses existing workflow_steps.config JSONB field with InvokeWorkflowStepConfig schema.</constraint>
+    
+    <constraint category="database">Child workflow executions linked via parentExecutionId (new column in workflow_executions table). Nullable UUID FK to workflow_executions.id enables parent-child tree tracking.</constraint>
+    
+    <!-- Seeding Constraints -->
+    <constraint category="seeding">5 technique workflows seeded from TypeScript configs in docs/sprint-artifacts/story-2-3-technique-workflows/ (NOT 10 as Epic 2 doc states). Configs follow Chiron seed pattern established in Epic 1 (workflow-init-new, brainstorming).</constraint>
+    
+    <constraint category="seeding">All technique workflows must have metadata.layoutType = "dialog" to ensure dialog overlay rendering. Tags must include { type: "technique", category: "structured|creative|deep" } for filtering.</constraint>
+    
+    <!-- UI Constraints -->
+    <constraint category="ui">Action list renders invoke-workflow step state (child execution status), not tool calls. [Execute] button opens dialog for child workflow execution via UI navigation, not tool invocation.</constraint>
+    
+    <constraint category="ui">Layout system uses WorkflowLayoutRenderer to route workflows to correct layout (wizard, artifact-workbench, dialog) based on metadata.layoutType. StepRenderer returns pure step content with no layout concerns. Timeline is specific to artifact-workbench layout only - wizard and dialog layouts render step content directly.</constraint>
+    
+    <constraint category="ui">ArtifactWorkbenchLayout is self-contained: receives execution and stepContent, internally renders ArtifactPreview on right pane. No artifactContent prop needed - layout handles artifact rendering from execution state.</constraint>
+    
+    <constraint category="ui">Timeline manages focused/browse mode switching. Focused mode renders step content (passed as children) at 100% height with other steps hidden. Browse mode shows accordion of all steps for navigation - clicking accordion item switches to focused mode for that step.</constraint>
+    
+    <!-- Testing Constraints -->
+    <constraint category="testing">Comprehensive unit tests required for object validation (required fields, type validation, shallow structures). Integration tests for invoke-workflow handler with mocked child executions. End-to-end test: Step 1 (select techniques) → Step 2 (execute 2+ techniques) → verify captured_ideas aggregation.</constraint>
+  </constraints>
+  
+  <interfaces>
+    <!-- Invoke-Workflow Step Type -->
+    <interface>
+      <name>InvokeWorkflowStepConfig</name>
+      <kind>Step configuration schema (JSONB in workflow_steps.config)</kind>
+      <signature>
+{
+  stepType: "invoke-workflow",
+  config: {
+    workflowsToInvoke: string,        // Variable reference e.g. "{{techniques}}"
+    variableMapping: {                 // Map parent variables to child variable names (ONLY mapped vars passed)
+      [childVarName: string]: string   // e.g., session_topic: "{{topic}}" (child uses {{parent.session_topic}}, gets from parent's {{topic}})
+    },
+    expectedOutputVariable: string,    // Variable name to read from each child (e.g., "generated_ideas")
+    aggregateInto: string,             // Parent variable to append child outputs (e.g., "captured_ideas")
+    completionCondition: {
+      type: "all-complete"             // Wait for all children to reach status = completed
+    }
+  }
+}
+      </signature>
+      <path>packages/db/src/schema/step-configs.ts</path>
+      <note>Implemented in Task 4 (config) and Task 5 (schema + handler). Added variableMapping after initial planning - maps parent outputVariable names to child expected names. Key = child variable name (what child accesses via {{parent.X}}), Value = parent variable reference (e.g., "{{topic}}").</note>
+      <example>
+// Brainstorming Step 2 Configuration (Task 4)
+{
+  stepType: "invoke-workflow",
+  config: {
+    workflowsToInvoke: "{{techniques}}",  // From Step 1's outputVariables.techniques
+    variableMapping: {
+      session_topic: "{{topic}}",    // Child uses {{parent.session_topic}}, gets from parent's {{topic}}
+      stated_goals: "{{goals}}"      // Child uses {{parent.stated_goals}}, gets from parent's {{goals}}
+    },
+    expectedOutputVariable: "generated_ideas",
+    aggregateInto: "captured_ideas",
+    completionCondition: { type: "all-complete" }
+  }
+}
+
+// How it works:
+// 1. Parent Step 1 outputVariables: { topic: "...", goals: "...", techniques: [...] }
+// 2. Parent Step 2 reads techniques array, creates child executions
+// 3. For each child: variableMapping creates parent.session_topic = parent.topic, parent.stated_goals = parent.goals
+// 4. Child workflow initialPrompt: "Topic: {{parent.session_topic}}, Goals: {{parent.stated_goals}}"
+// 5. Child completes, parent reads child.variables.generated_ideas and appends to parent.variables.captured_ideas
+      </example>
+    </interface>
+    
+    <!-- Parent-Child Execution Linkage -->
+    <interface>
+      <name>workflow_executions.parentExecutionId</name>
+      <kind>Database column (UUID FK)</kind>
+      <signature>
+parentExecutionId: uuid | null,  // FK to workflow_executions.id (self-referencing)
+// When null: top-level workflow
+// When set: child workflow execution
+      </signature>
+      <path>packages/db/src/schema/workflows.ts</path>
+      <note>Added in Task 5 Subtask 5.1. Enables parent-child workflow tree tracking.</note>
+    </interface>
+    
+    <!-- Step Execution Timestamps -->
+    <interface>
+      <name>executedSteps JSONB Schema</name>
+      <kind>JSONB field in workflow_executions table</kind>
+      <signature>
+executedSteps: {
+  [stepNumber: string]: {
+    status: "completed" | "in-progress" | "failed",
+    startedAt: string,      // ISO 8601 timestamp (NEW in Story 2.3)
+    completedAt: string | null,  // ISO 8601 timestamp (NEW in Story 2.3)
+    output: any
+  }
+}
+      </signature>
+      <path>packages/db/src/schema/workflows.ts</path>
+      <note>Subtask 5.2 adds timestamp recording for timeline browse mode display.</note>
+    </interface>
+    
+    <!-- Update-Variable Tool: Object Type Support -->
+    <interface>
+      <name>UpdateVariableToolConfig (Object Type)</name>
+      <kind>Tool configuration for Mastra agents</kind>
+      <signature>
+{
+  variableName: string,
+  valueType: "object",  // NEW in Story 2.3 (was only string, number, boolean, array)
+  valueSchema: {
+    type: "object",
+    required?: string[],              // Required property names
+    properties: {
+      [key: string]: {
+        type: "string" | "number" | "boolean" | "array"  // Shallow only
+      }
+    },
+    additionalProperties?: {          // For dynamic keys (e.g., mind mapping branches)
+      type: "array",
+      items: { type: "string" }
+    }
+  }
+}
+      </signature>
+      <path>packages/api/src/services/workflow-engine/tools/update-variable-tool.ts</path>
+      <note>Task 1 adds object type support. Subtask 1.6 adds TODOs for nested objects, union types, Map/Set.</note>
+    </interface>
+    
+    <!-- Ask-User-Chat: GenerateInitialMessage -->
+    <interface>
+      <name>AskUserChatStepConfig (with generateInitialMessage)</name>
+      <kind>Step configuration schema (JSONB)</kind>
+      <signature>
+{
+  stepType: "ask-user-chat",
+  config: {
+    generateInitialMessage: boolean,  // NEW in Story 2.3
+    initialPrompt: string,            // NEW in Story 2.3 - system prompt for generation
+    systemPrompt: string,             // Existing - agent instructions
+    tools: [...],                     // Mastra tools
+    completionCondition: {...}        // Existing
+  }
+}
+// When generateInitialMessage = true:
+// 1. Agent calls generate([], { system: resolvedInitialPrompt })
+// 2. Resolves {{parent.variable}} references in initialPrompt
+// 3. Returns generated message as first assistant message
+// 4. User sees dynamic first question tailored to their topic
+      </signature>
+      <path>packages/db/src/schema/step-configs.ts</path>
+      <note>Task 2 implements this primitive. All 5 techniques use generateInitialMessage: true.</note>
+    </interface>
+    
+    <!-- Workflow Metadata: Layout Type -->
+    <interface>
+      <name>workflows.metadata.layoutType</name>
+      <kind>JSONB field in workflows table</kind>
+      <signature>
+metadata: {
+  layoutType: "wizard" | "artifact-workbench" | "dialog",  // "dialog" is NEW in Story 2.3
+  icon?: string,
+  color?: string,
+  recommendedFor?: string[],
+  estimatedDuration?: string,
+  // ... other metadata
+}
+
+// Layout Types:
+// - "wizard": Linear flow with stepper, no split view, step content rendered directly
+// - "artifact-workbench": Split view with Timeline on left + ArtifactPreview on right
+// - "dialog": Modal overlay on top of parent workflow, step content in dialog body
+
+// layoutType = "dialog":
+// - Renders as modal overlay on top of parent workflow
+// - Parent workflow visible behind with dimmed overlay
+// - Dialog body renders current step's step type component
+// - Used by all technique workflows (SCAMPER, Six Hats, etc.)
+      </signature>
+      <path>packages/db/src/schema/workflows.ts</path>
+      <note>Subtask 3.8 sets layoutType = "dialog" for all technique workflows. Update WorkflowMetadata interface to add layoutType field.</note>
+    </interface>
+    
+    <!-- Step Renderer Component -->
+    <interface>
+      <name>StepRenderer</name>
+      <kind>React component interface</kind>
+      <signature>
+// StepRenderer: Returns pure step content based on stepType (no layout concerns)
+interface StepRendererProps {
+  step: WorkflowStep,
+  execution: WorkflowExecution
+}
+
+// Returns step component based on stepType:
+// - "ask-user-chat" → AskUserChatInterface
+// - "invoke-workflow" → ActionList (child workflow execution list)
+// - "ask-user" → AskUserForm
+// - "display-output" → DisplayOutput
+// - "execute-action" → ExecuteActionStatus
+// Does NOT wrap in Timeline or any layout component
+// Does NOT handle navigation or mode switching
+      </signature>
+      <path>apps/web/src/components/workflows/step-renderer.tsx</path>
+      <note>Pure step content rendering. Layout wrapper applied by WorkflowLayoutRenderer based on metadata.layoutType.</note>
+    </interface>
+    
+    <!-- Workflow Layout Architecture -->
+    <interface>
+      <name>Workflow Layout System</name>
+      <kind>React component architecture</kind>
+      <signature>
+// Component Hierarchy:
+// WorkflowLayoutRenderer (routes to correct layout based on metadata.layoutType)
+//   ├─ WizardLayout (linear steps, stepper at top, no split view)
+//   ├─ ArtifactWorkbenchLayout (split view: Timeline left + ArtifactPreview right)
+//   └─ DialogLayout (modal overlay)
+
+// WorkflowLayoutRenderer: Top-level router
+interface WorkflowLayoutRendererProps {
+  workflow: Workflow,
+  execution: WorkflowExecution
+}
+// 1. Renders StepRenderer once to get step content
+// 2. Passes step content to appropriate layout based on metadata.layoutType
+// 3. Layout decides how to present step (Timeline wrapper or direct)
+
+// ArtifactWorkbenchLayout: Self-contained split view
+interface ArtifactWorkbenchLayoutProps {
+  execution: WorkflowExecution,
+  stepContent: React.ReactNode  // Step component passed from renderer
+}
+// Renders:
+// - Left: Timeline (manages focused/browse modes, wraps stepContent)
+// - Right: ArtifactPreview (internally created from execution)
+// NO artifactContent prop - layout handles it internally!
+
+// Timeline: Specific to artifact-workbench layout only
+interface TimelineProps {
+  mode: "focused" | "browse",
+  steps: WorkflowStep[],
+  currentStep: number,
+  onModeChange: (mode: "focused" | "browse") =&gt; void,
+  children: React.ReactNode  // Step content from layout
+}
+// Focused mode: Renders children (step content) at 100% height
+// Browse mode: Shows accordion of all steps, clicking switches to focused
+
+// WizardLayout: Linear flow (no Timeline)
+interface WizardLayoutProps {
+  execution: WorkflowExecution,
+  stepContent: React.ReactNode
+}
+// Renders: Stepper at top + step content directly (no Timeline wrapper)
+
+// DialogLayout: Modal overlay (no Timeline)
+interface DialogLayoutProps {
+  execution: WorkflowExecution,
+  stepContent: React.ReactNode,
+  onClose: () =&gt; void
+}
+// Renders: Step content in modal dialog with Return to Parent button
+      </signature>
+      <path>apps/web/src/components/workflows/workflow-layout-renderer.tsx</path>
+      <note>Task 7 implements layout system. Timeline is specific to artifact-workbench only. Other layouts render step content directly.</note>
+    </interface>
+    
+    <!-- Action List UI Component -->
+    <interface>
+      <name>ActionListProps</name>
+      <kind>React component interface</kind>
+      <signature>
+interface ActionListProps {
+  childExecutions: Array&lt;{
+    id: string,
+    workflowId: string,
+    workflowName: string,
+    status: "pending" | "running" | "completed" | "failed",
+    capturedIdeasCount?: number
+  }&gt;,
+  onExecute: (executionId: string) =&gt; void,  // Opens dialog for child workflow
+  loading: boolean
+}
+      </signature>
+      <path>apps/web/src/components/workflows/action-list.tsx</path>
+      <note>Task 6 implements action list. onExecute opens dialog, does NOT call a tool.</note>
+    </interface>
+    
+    <!-- Dialog Layout Component -->
+    <interface>
+      <name>DialogLayoutProps</name>
+      <kind>React component interface</kind>
+      <signature>
+interface DialogLayoutProps {
+  execution: WorkflowExecution,  // Child workflow execution
+  stepContent: React.ReactNode,  // Step component from StepRenderer
+  onClose: () =&gt; void            // Close dialog (pauses child execution)
+}
+// Dialog renders:
+// 1. Optional stepper at top (for multi-step techniques like Mind Mapping 4 steps)
+// 2. stepContent passed as children (e.g., AskUserChatInterface, ActionList)
+// 3. Return to Parent button in footer
+// 4. Parent workflow visible behind with dimmed overlay
+// 5. NO Timeline wrapper - step content rendered directly in dialog
+      </signature>
+      <path>apps/web/src/components/workflows/layouts/dialog-layout.tsx</path>
+      <note>Task 7 Subtask 7.4 creates dialog-layout. Receives step content from WorkflowLayoutRenderer, does not fetch execution internally.</note>
+    </interface>
+    
+    <!-- Timeline Component (Artifact Workbench Only) -->
+    <interface>
+      <name>Timeline Component</name>
+      <kind>React component interface</kind>
+      <signature>
+// Timeline: Container for step navigation (ONLY used in artifact-workbench layout)
+interface TimelineProps {
+  mode: "focused" | "browse",
+  steps: WorkflowStep[],
+  currentStep: number,
+  onModeChange: (mode: "focused" | "browse") =&gt; void,
+  children: React.ReactNode  // Step content passed from ArtifactWorkbenchLayout
+}
+// Behavior:
+// - Focused mode: Renders children (step content) at 100% height, other steps hidden
+// - Browse mode: Shows accordion of all steps, clicking step switches to focused mode
+// - Toggle button in header switches between modes
+// - NOT used by wizard or dialog layouts - specific to artifact-workbench only
+
+// Browse Mode Component (Accordion for Navigation)
+interface TimelineBrowseViewProps {
+  steps: WorkflowStep[],
+  executedSteps: Record&lt;string, ExecutedStepInfo&gt;,
+  currentStep: number,
+  onStepClick: (stepNumber: number) =&gt; void  // Switches to focused mode
+}
+// Renders accordion with all steps showing timestamps
+// Clicking AccordionTrigger calls onStepClick which switches to focused mode
+// Accordion is for navigation, not just expanding/collapsing in place
+
+type ExecutedStepInfo = {
+  status: "completed" | "in-progress" | "failed" | "pending",
+  startedAt?: string,      // ISO 8601 timestamp
+  completedAt?: string,    // ISO 8601 timestamp
+  duration?: string        // Calculated from startedAt/completedAt
+}
+      </signature>
+      <path>apps/web/src/components/workflows/timeline.tsx</path>
+      <note>Task 7 Subtasks 7.1-7.3. Timeline wraps step content in focused mode. Browse mode uses accordion for navigation (shadcn accordion component).</note>
+    </interface>
+  </interfaces>
+  <tests>
+    <standards>Chiron uses Bun test framework for all testing. Follow existing patterns in packages/api/src/services/workflow-engine/step-handlers/*.test.ts and packages/db/src/schema/*.test.ts. Unit tests validate Zod schemas, handler logic, and tool execution. Integration tests use Docker PostgreSQL (not in-memory SQLite). Component tests use React Testing Library. End-to-end tests validate full workflow execution from Step 1 (select techniques) through Step 2 (execute techniques) to verify captured_ideas aggregation.</standards>
+    
+    <locations>
+      <location>packages/api/src/services/workflow-engine/tools/update-variable-tool.test.ts</location>
+      <location>packages/db/src/schema/step-configs.test.ts</location>
+      <location>packages/api/src/services/workflow-engine/step-handlers/ask-user-chat-handler.test.ts</location>
+      <location>packages/api/src/services/workflow-engine/step-handlers/invoke-workflow-handler.test.ts</location>
+      <location>packages/scripts/src/seeds/techniques.test.ts</location>
+      <location>apps/web/src/components/workflows/action-list.test.tsx</location>
+      <location>apps/web/src/components/workflows/dialog-layout.test.tsx</location>
+    </locations>
+    
+    <ideas>
+      <!-- AC 1: Seed Techniques -->
+      <test ac="1" priority="high">
+        Verify 5 technique workflows seeded with correct tags (type: "technique") and metadata (layoutType: "dialog"). Query database after seed script runs and assert count = 5 with SCAMPER, Six Hats, Five Whys, Mind Mapping, What If Scenarios present.
+      </test>
+      
+      <!-- AC 2: Seed Step 2 -->
+      <test ac="2" priority="high">
+        Verify brainstorming workflow Step 2 has stepType = "invoke-workflow" with config containing workflowsToInvoke, inheritParentVariables, expectedOutputVariable, aggregateInto, completionCondition fields. Assert no tools array exists in config.
+      </test>
+      
+      <!-- AC 3: Action List UI -->
+      <test ac="3" priority="high">
+        Render ActionList component with mock child executions (2 pending, 1 running, 1 completed). Assert [Execute] buttons present for pending items, running indicator shows for in-progress, checkmark shows for completed. Test onExecute callback triggers on button click.
+      </test>
+      
+      <!-- AC 4: Child Workflow UI -->
+      <test ac="4" priority="high">
+        Render DialogLayout component with mock executionId. Assert modal overlay visible, parent workflow dimmed behind dialog, AskUserChatInterface component renders inside dialog. Test close button pauses child execution and closes dialog.
+      </test>
+      
+      <!-- AC 5: Data Aggregation -->
+      <test ac="5" priority="high">
+        Integration test: Execute Step 2 with 2 child workflows. Mock child workflow completion with generated_ideas outputs. Verify invoke-workflow handler reads expectedOutputVariable from each child and appends to parent's captured_ideas array. Assert final captured_ideas length = 2 with technique IDs present.
+      </test>
+      
+      <!-- Task 1: Object Type Support -->
+      <test task="1" priority="high">
+        Unit test: buildUpdateVariableTool with valueType: "object" and valueSchema.properties. Test validation of required fields, type checking (string, number, boolean, array properties), and additionalProperties for dynamic keys. Test Five Whys Q&A pair structure and Mind Mapping dynamic branches.
+      </test>
+      
+      <!-- Task 2: GenerateInitialMessage -->
+      <test task="2" priority="high">
+        Unit test: AskUserChatHandler.executeStep() with generateInitialMessage: true. Mock agent.generate() call. Assert initialPrompt resolves {{parent.session_topic}} correctly. Verify generated message returned as generated_initial_message in step output.
+      </test>
+      
+      <!-- Task 5: Invoke-Workflow Handler -->
+      <test task="5" priority="high">
+        Unit test: invoke-workflow-handler creates child workflow_executions with parentExecutionId set. Test global state inheritance (entire parent variables JSONB copied to child). Test completion condition checking (all-complete waits for all children). Test output aggregation from children.
+      </test>
+      
+      <!-- Task 7: Timeline Modes -->
+      <test task="7" priority="medium">
+        Component test: TimelineFocusedView shows only active step at 100% space with child workflows listed. TimelineBrowseView shows all steps with timestamps (startedAt, completedAt) and duration calculation. Test toggle between modes.
+      </test>
+      
+      <!-- End-to-End Integration -->
+      <test ac="all" priority="critical">
+        E2E test: Complete brainstorming workflow from Step 1 (select SCAMPER + Six Hats) → Step 2 (execute both techniques in parallel) → verify captured_ideas contains ideas from both techniques. Test dialog opens for each technique, user completes SCAMPER, then Six Hats, action list shows both as completed, Step 2 advances after all-complete condition met.
+      </test>
+    </ideas>
+  </tests>
+</story-context>
