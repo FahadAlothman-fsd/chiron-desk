@@ -10,12 +10,12 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
-import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated.index'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated.settings'
 import { Route as AuthenticatedNewProjectRouteImport } from './routes/_authenticated.new-project'
 import { Route as AuthenticatedModelsRouteImport } from './routes/_authenticated.models'
+import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated.dashboard'
 import { Route as AuthenticatedProjectsProjectIdRouteImport } from './routes/_authenticated.projects/$projectId'
 import { Route as AuthenticatedProjectsProjectIdSelectInitializerRouteImport } from './routes/_authenticated.projects/$projectId.select-initializer'
 import { Route as AuthenticatedProjectsProjectIdInitializeRouteImport } from './routes/_authenticated.projects/$projectId.initialize'
@@ -25,11 +25,6 @@ import { Route as AuthenticatedProjectsProjectIdWorkflowExecutionIdRouteImport }
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DashboardRoute = DashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
@@ -54,6 +49,11 @@ const AuthenticatedNewProjectRoute = AuthenticatedNewProjectRouteImport.update({
 const AuthenticatedModelsRoute = AuthenticatedModelsRouteImport.update({
   id: '/models',
   path: '/models',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedProjectsProjectIdRoute =
@@ -88,8 +88,8 @@ const AuthenticatedProjectsProjectIdWorkflowExecutionIdRoute =
   } as any)
 
 export interface FileRoutesByFullPath {
-  '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
   '/models': typeof AuthenticatedModelsRoute
   '/new-project': typeof AuthenticatedNewProjectRoute
   '/settings': typeof AuthenticatedSettingsRoute
@@ -101,8 +101,8 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/workflow/$executionId': typeof AuthenticatedProjectsProjectIdWorkflowExecutionIdRoute
 }
 export interface FileRoutesByTo {
-  '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
   '/models': typeof AuthenticatedModelsRoute
   '/new-project': typeof AuthenticatedNewProjectRoute
   '/settings': typeof AuthenticatedSettingsRoute
@@ -116,8 +116,8 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteWithChildren
-  '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/models': typeof AuthenticatedModelsRoute
   '/_authenticated/new-project': typeof AuthenticatedNewProjectRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
@@ -131,8 +131,8 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | '/dashboard'
     | '/login'
+    | '/dashboard'
     | '/models'
     | '/new-project'
     | '/settings'
@@ -144,8 +144,8 @@ export interface FileRouteTypes {
     | '/projects/$projectId/workflow/$executionId'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/dashboard'
     | '/login'
+    | '/dashboard'
     | '/models'
     | '/new-project'
     | '/settings'
@@ -158,8 +158,8 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/_authenticated'
-    | '/dashboard'
     | '/login'
+    | '/_authenticated/dashboard'
     | '/_authenticated/models'
     | '/_authenticated/new-project'
     | '/_authenticated/settings'
@@ -173,7 +173,6 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
-  DashboardRoute: typeof DashboardRoute
   LoginRoute: typeof LoginRoute
 }
 
@@ -184,13 +183,6 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dashboard': {
-      id: '/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -226,6 +218,13 @@ declare module '@tanstack/react-router' {
       path: '/models'
       fullPath: '/models'
       preLoaderRoute: typeof AuthenticatedModelsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/dashboard': {
+      id: '/_authenticated/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/projects/$projectId': {
@@ -291,6 +290,7 @@ const AuthenticatedProjectsProjectIdRouteWithChildren =
   )
 
 interface AuthenticatedRouteChildren {
+  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedModelsRoute: typeof AuthenticatedModelsRoute
   AuthenticatedNewProjectRoute: typeof AuthenticatedNewProjectRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
@@ -299,6 +299,7 @@ interface AuthenticatedRouteChildren {
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedModelsRoute: AuthenticatedModelsRoute,
   AuthenticatedNewProjectRoute: AuthenticatedNewProjectRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
@@ -313,7 +314,6 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
-  DashboardRoute: DashboardRoute,
   LoginRoute: LoginRoute,
 }
 export const routeTree = rootRouteImport
