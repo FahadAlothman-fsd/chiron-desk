@@ -134,6 +134,55 @@ export const workflowRouter = router({
 		}),
 
 	/**
+	 * Get ALL executions for a project
+	 * Returns executions with workflow metadata, ordered by most recent first
+	 * Used by project dashboard and executions list page
+	 */
+	getExecutionsByProject: protectedProcedure
+		.input(
+			z.object({
+				projectId: z.string().uuid(),
+				includeChildren: z.boolean().optional().default(false), // Whether to include child workflow executions
+			}),
+		)
+		.query(async ({ input }) => {
+			// Query all executions for this project with workflow info
+			let query = db
+				.select({
+					execution: workflowExecutions,
+					workflow: workflows,
+				})
+				.from(workflowExecutions)
+				.innerJoin(workflows, eq(workflowExecutions.workflowId, workflows.id))
+				.where(eq(workflowExecutions.projectId, input.projectId))
+				.orderBy(sql`${workflowExecutions.startedAt} DESC`);
+
+			const results = await query;
+
+			// Filter out child executions if not requested
+			const filteredResults = input.includeChildren
+				? results
+				: results.filter((r) => !r.execution.parentExecutionId);
+
+			return {
+				executions: filteredResults.map((r) => ({
+					id: r.execution.id,
+					workflowId: r.execution.workflowId,
+					workflowName: r.workflow.displayName || r.workflow.name,
+					workflowDescription: r.workflow.description,
+					status: r.execution.status,
+					currentStep: r.execution.currentStepId,
+					startedAt: r.execution.startedAt?.toISOString(),
+					completedAt: r.execution.completedAt?.toISOString(),
+					parentExecutionId: r.execution.parentExecutionId,
+					// Include workflow metadata for phase info
+					workflowTags: r.workflow.tags,
+					workflowMetadata: r.workflow.metadata,
+				})),
+			};
+		}),
+
+	/**
 	 * Pause a running workflow
 	 */
 	pauseWorkflow: protectedProcedure
@@ -283,6 +332,127 @@ export const workflowRouter = router({
 					isOptional: r.isOptional,
 					isRecommended: r.isRecommended,
 				})),
+			};
+		}),
+
+	/**
+	 * Get next recommended workflow for a project based on workflow path
+	 * Returns the first workflow in the path that hasn't been completed
+	 * Also returns active/paused execution if one exists for the recommended workflow
+	 */
+	getNextRecommendedWorkflow: protectedProcedure
+		.input(
+			z.object({
+				projectId: z.string().uuid(),
+				workflowPathId: z.string().uuid(),
+			}),
+		)
+		.query(async ({ input }) => {
+			// 1. Get all workflows in the path, ordered by phase then sequence
+			const pathWorkflows = await db
+				.select({
+					workflow: workflows,
+					phase: workflowPathWorkflows.phase,
+					sequenceOrder: workflowPathWorkflows.sequenceOrder,
+					isOptional: workflowPathWorkflows.isOptional,
+					isRecommended: workflowPathWorkflows.isRecommended,
+				})
+				.from(workflowPathWorkflows)
+				.innerJoin(
+					workflows,
+					eq(workflowPathWorkflows.workflowId, workflows.id),
+				)
+				.where(eq(workflowPathWorkflows.workflowPathId, input.workflowPathId))
+				.orderBy(
+					workflowPathWorkflows.phase,
+					workflowPathWorkflows.sequenceOrder,
+				);
+
+			if (pathWorkflows.length === 0) {
+				return { nextWorkflow: null, activeExecution: null, currentPhase: 0 };
+			}
+
+			// 2. Get all executions for this project (excluding child executions)
+			const projectExecutions = await db
+				.select()
+				.from(workflowExecutions)
+				.where(
+					and(
+						eq(workflowExecutions.projectId, input.projectId),
+						sql`${workflowExecutions.parentExecutionId} IS NULL`,
+					),
+				);
+
+			// 3. Create a map of workflowId -> execution status
+			const executionsByWorkflow = new Map<
+				string,
+				{ status: string; id: string }
+			>();
+			for (const exec of projectExecutions) {
+				const existing = executionsByWorkflow.get(exec.workflowId);
+				// Prefer active/paused executions over completed ones
+				if (!existing || exec.status === "active" || exec.status === "paused") {
+					executionsByWorkflow.set(exec.workflowId, {
+						status: exec.status,
+						id: exec.id,
+					});
+				}
+			}
+
+			// 4. Find the first workflow that:
+			//    - Has no execution, OR
+			//    - Has an active/paused execution (user should continue it)
+			let nextWorkflow = null;
+			let activeExecution = null;
+			let currentPhase = 0;
+
+			for (const pw of pathWorkflows) {
+				const execution = executionsByWorkflow.get(pw.workflow.id);
+
+				if (!execution) {
+					// No execution exists - this is the next one to start
+					nextWorkflow = {
+						...pw.workflow,
+						phase: pw.phase,
+						sequenceOrder: pw.sequenceOrder,
+						isOptional: pw.isOptional,
+						isRecommended: pw.isRecommended,
+					};
+					currentPhase = pw.phase;
+					break;
+				}
+
+				if (execution.status === "active" || execution.status === "paused") {
+					// Active/paused execution - user should continue this
+					nextWorkflow = {
+						...pw.workflow,
+						phase: pw.phase,
+						sequenceOrder: pw.sequenceOrder,
+						isOptional: pw.isOptional,
+						isRecommended: pw.isRecommended,
+					};
+					activeExecution = { id: execution.id, status: execution.status };
+					currentPhase = pw.phase;
+					break;
+				}
+
+				// Execution is completed - update current phase and continue to next workflow
+				currentPhase = pw.phase;
+			}
+
+			// 5. If all workflows completed, return null with current phase
+			if (!nextWorkflow && pathWorkflows.length > 0) {
+				currentPhase = pathWorkflows[pathWorkflows.length - 1].phase;
+			}
+
+			return {
+				nextWorkflow,
+				activeExecution,
+				currentPhase,
+				totalWorkflowsInPath: pathWorkflows.length,
+				completedCount: projectExecutions.filter(
+					(e) => e.status === "completed",
+				).length,
 			};
 		}),
 

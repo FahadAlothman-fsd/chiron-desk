@@ -2,6 +2,7 @@ import { useParams } from "@tanstack/react-router";
 import {
 	Brain,
 	FileText,
+	History,
 	LayoutDashboard,
 	ListTodo,
 	Settings,
@@ -33,16 +34,12 @@ function getNavItems(projectId: string) {
 			icon: Sparkles,
 			items: [
 				{
-					title: "Brainstorming",
-					url: `/projects/${projectId}/workflows/brainstorming`,
+					title: "Executions",
+					url: `/projects/${projectId}/executions`,
 				},
 				{
-					title: "Research",
-					url: `/projects/${projectId}/workflows/research`,
-				},
-				{
-					title: "Planning",
-					url: `/projects/${projectId}/workflows/planning`,
+					title: "Browse All",
+					url: `/projects/${projectId}/workflows`,
 				},
 			],
 		},

@@ -19,6 +19,7 @@ import { Route as AuthenticatedNewProjectRouteImport } from './routes/_authentic
 import { Route as AuthenticatedModelsRouteImport } from './routes/_authenticated.models'
 import { Route as ProjectsProjectIdSelectInitializerRouteImport } from './routes/projects/$projectId.select-initializer'
 import { Route as ProjectsProjectIdInitializeRouteImport } from './routes/projects/$projectId.initialize'
+import { Route as ProjectsProjectIdExecutionsRouteImport } from './routes/projects/$projectId.executions'
 import { Route as ProjectsProjectIdWorkflowExecutionIdRouteImport } from './routes/projects/$projectId.workflow.$executionId'
 
 const LoginRoute = LoginRouteImport.update({
@@ -72,6 +73,12 @@ const ProjectsProjectIdInitializeRoute =
     path: '/initialize',
     getParentRoute: () => ProjectsProjectIdRoute,
   } as any)
+const ProjectsProjectIdExecutionsRoute =
+  ProjectsProjectIdExecutionsRouteImport.update({
+    id: '/executions',
+    path: '/executions',
+    getParentRoute: () => ProjectsProjectIdRoute,
+  } as any)
 const ProjectsProjectIdWorkflowExecutionIdRoute =
   ProjectsProjectIdWorkflowExecutionIdRouteImport.update({
     id: '/workflow/$executionId',
@@ -87,6 +94,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRoute
   '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
   '/': typeof AuthenticatedIndexRoute
+  '/projects/$projectId/executions': typeof ProjectsProjectIdExecutionsRoute
   '/projects/$projectId/initialize': typeof ProjectsProjectIdInitializeRoute
   '/projects/$projectId/select-initializer': typeof ProjectsProjectIdSelectInitializerRoute
   '/projects/$projectId/workflow/$executionId': typeof ProjectsProjectIdWorkflowExecutionIdRoute
@@ -99,6 +107,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsRoute
   '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
   '/': typeof AuthenticatedIndexRoute
+  '/projects/$projectId/executions': typeof ProjectsProjectIdExecutionsRoute
   '/projects/$projectId/initialize': typeof ProjectsProjectIdInitializeRoute
   '/projects/$projectId/select-initializer': typeof ProjectsProjectIdSelectInitializerRoute
   '/projects/$projectId/workflow/$executionId': typeof ProjectsProjectIdWorkflowExecutionIdRoute
@@ -113,6 +122,7 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/projects/$projectId/executions': typeof ProjectsProjectIdExecutionsRoute
   '/projects/$projectId/initialize': typeof ProjectsProjectIdInitializeRoute
   '/projects/$projectId/select-initializer': typeof ProjectsProjectIdSelectInitializerRoute
   '/projects/$projectId/workflow/$executionId': typeof ProjectsProjectIdWorkflowExecutionIdRoute
@@ -127,6 +137,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/projects/$projectId'
     | '/'
+    | '/projects/$projectId/executions'
     | '/projects/$projectId/initialize'
     | '/projects/$projectId/select-initializer'
     | '/projects/$projectId/workflow/$executionId'
@@ -139,6 +150,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/projects/$projectId'
     | '/'
+    | '/projects/$projectId/executions'
     | '/projects/$projectId/initialize'
     | '/projects/$projectId/select-initializer'
     | '/projects/$projectId/workflow/$executionId'
@@ -152,6 +164,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/projects/$projectId'
     | '/_authenticated/'
+    | '/projects/$projectId/executions'
     | '/projects/$projectId/initialize'
     | '/projects/$projectId/select-initializer'
     | '/projects/$projectId/workflow/$executionId'
@@ -236,6 +249,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsProjectIdInitializeRouteImport
       parentRoute: typeof ProjectsProjectIdRoute
     }
+    '/projects/$projectId/executions': {
+      id: '/projects/$projectId/executions'
+      path: '/executions'
+      fullPath: '/projects/$projectId/executions'
+      preLoaderRoute: typeof ProjectsProjectIdExecutionsRouteImport
+      parentRoute: typeof ProjectsProjectIdRoute
+    }
     '/projects/$projectId/workflow/$executionId': {
       id: '/projects/$projectId/workflow/$executionId'
       path: '/workflow/$executionId'
@@ -265,12 +285,14 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 )
 
 interface ProjectsProjectIdRouteChildren {
+  ProjectsProjectIdExecutionsRoute: typeof ProjectsProjectIdExecutionsRoute
   ProjectsProjectIdInitializeRoute: typeof ProjectsProjectIdInitializeRoute
   ProjectsProjectIdSelectInitializerRoute: typeof ProjectsProjectIdSelectInitializerRoute
   ProjectsProjectIdWorkflowExecutionIdRoute: typeof ProjectsProjectIdWorkflowExecutionIdRoute
 }
 
 const ProjectsProjectIdRouteChildren: ProjectsProjectIdRouteChildren = {
+  ProjectsProjectIdExecutionsRoute: ProjectsProjectIdExecutionsRoute,
   ProjectsProjectIdInitializeRoute: ProjectsProjectIdInitializeRoute,
   ProjectsProjectIdSelectInitializerRoute:
     ProjectsProjectIdSelectInitializerRoute,

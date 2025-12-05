@@ -7,9 +7,11 @@ import {
 } from "@tanstack/react-router";
 import {
 	Brain,
+	CheckCircle,
 	ChevronDown,
 	Loader2,
-	Map,
+	Map as MapIcon,
+	Pause,
 	Play,
 	Rocket,
 	Sparkles,
@@ -128,29 +130,35 @@ function ProjectDashboard() {
 	const project = projectData?.project;
 	const workflowPath = projectData?.workflowPath;
 
-	// Check for active brainstorming execution specifically
-	const { data: executionData } = useQuery({
-		queryKey: ["workflows", "execution", "project", projectId],
+	// Get next recommended workflow based on workflow path
+	const { data: recommendedData, isLoading: recommendedLoading } = useQuery({
+		queryKey: ["workflows", "nextRecommended", projectId, workflowPath?.id],
 		queryFn: async () => {
-			const result = await trpcClient.workflows.getExecutionByProject.query({
+			if (!workflowPath?.id) return null;
+			return trpcClient.workflows.getNextRecommendedWorkflow.query({
 				projectId,
+				workflowPathId: workflowPath.id,
 			});
-			// Only return execution if it's for the brainstorming workflow
-			if (result?.execution && result?.workflow?.name === "brainstorming") {
-				return result;
-			}
-			return null;
+		},
+		enabled: !!projectId && !!workflowPath?.id,
+	});
+
+	// Get all executions for this project (for phase progress display)
+	const { data: executionsData } = useQuery({
+		queryKey: ["workflows", "executions", "project", projectId],
+		queryFn: async () => {
+			return trpcClient.workflows.getExecutionsByProject.query({
+				projectId,
+				includeChildren: false,
+			});
 		},
 		enabled: !!projectId,
 	});
 
-	// Get Phase 0 workflows (Discovery)
-	const { data: phaseWorkflows, isLoading: workflowsLoading } = useQuery({
-		queryKey: ["workflows", "phase", "0"],
-		queryFn: async () => {
-			return trpcClient.workflows.getByPhase.query({ phase: "0" });
-		},
-	});
+	// Create a map of workflowId -> execution for quick lookup
+	const executionsByWorkflowId = new Map(
+		(executionsData?.executions ?? []).map((e) => [e.workflowId, e]),
+	);
 
 	// Execute workflow mutation
 	const executeWorkflow = useMutation({
@@ -159,47 +167,44 @@ function ProjectDashboard() {
 		},
 		onSuccess: (data) => {
 			toast.success("Workflow started!");
-			// Navigate to universal workflow execution page (Story 2.2)
 			navigate({
 				to: "/projects/$projectId/workflow/$executionId",
 				params: { projectId, executionId: data.executionId },
 			});
 		},
-		onError: (error: any) => {
+		onError: (error: unknown) => {
+			const errorMessage =
+				error instanceof Error ? error.message : "Unknown error";
 			toast.error("Failed to start workflow", {
-				description: error.message,
+				description: errorMessage,
 			});
 		},
 	});
 
-	const handleStartBrainstorming = () => {
-		// Check if there's already an active execution
-		if (executionData?.execution) {
-			// Navigate to existing execution
+	// Handler for starting/continuing the recommended workflow
+	const handleStartRecommendedWorkflow = () => {
+		// If there's an active execution, navigate to it
+		if (recommendedData?.activeExecution) {
 			navigate({
 				to: "/projects/$projectId/workflow/$executionId",
-				params: { projectId, executionId: executionData.execution.id },
+				params: {
+					projectId,
+					executionId: recommendedData.activeExecution.id,
+				},
 			});
 			return;
 		}
 
-		// Find the brainstorming workflow from Phase 0
-		const brainstormingWorkflow = phaseWorkflows?.workflows.find(
-			(w) =>
-				w.name === "brainstorming" || w.displayName?.includes("Brainstorm"),
-		);
-
-		if (brainstormingWorkflow) {
+		// Otherwise start a new execution
+		if (recommendedData?.nextWorkflow) {
 			executeWorkflow.mutate({
-				workflowId: brainstormingWorkflow.id,
+				workflowId: recommendedData.nextWorkflow.id,
 				projectId,
 			});
-		} else {
-			toast.error("Brainstorming workflow not found");
 		}
 	};
 
-	if (projectLoading || workflowsLoading) {
+	if (projectLoading || recommendedLoading) {
 		return (
 			<div className="flex min-h-screen items-center justify-center">
 				<div className="flex items-center gap-2">
@@ -226,11 +231,13 @@ function ProjectDashboard() {
 		);
 	}
 
-	// Determine current phase (for now, always Phase 0 for new projects)
-	const currentPhase = PHASES[0];
-	const brainstormingWorkflow = phaseWorkflows?.workflows.find(
-		(w) => w.name === "brainstorming" || w.displayName?.includes("Brainstorm"),
-	);
+	// Determine current phase from recommended data or default to 0
+	const currentPhaseNum = recommendedData?.currentPhase ?? 0;
+	const currentPhase = PHASES[currentPhaseNum] || PHASES[0];
+	const nextWorkflow = recommendedData?.nextWorkflow;
+	const hasActiveExecution = !!recommendedData?.activeExecution;
+	const allWorkflowsCompleted =
+		!nextWorkflow && (recommendedData?.completedCount ?? 0) > 0;
 
 	return (
 		<div className="mx-auto max-w-5xl space-y-6">
@@ -245,7 +252,7 @@ function ProjectDashboard() {
 				<div className="flex flex-col items-end gap-2">
 					{workflowPath && (
 						<Badge variant="outline" className="flex items-center gap-1.5">
-							<Map className="h-3.5 w-3.5" />
+							<MapIcon className="h-3.5 w-3.5" />
 							{workflowPath.displayName}
 						</Badge>
 					)}
@@ -257,51 +264,86 @@ function ProjectDashboard() {
 			</div>
 
 			{/* Next Recommended Action Card */}
-			<Card className="border-primary/20 bg-gradient-to-r from-primary/5 to-primary/10">
-				<CardHeader>
-					<div className="flex items-center gap-2">
-						<Rocket className="h-5 w-5 text-primary" />
-						<CardTitle>Next Recommended Action</CardTitle>
-					</div>
-				</CardHeader>
-				<CardContent className="space-y-4">
-					<div className="flex items-start gap-4">
-						<div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-							<Brain className="h-6 w-6 text-primary" />
+			{nextWorkflow ? (
+				<Card className="border-primary/20 bg-gradient-to-r from-primary/5 to-primary/10">
+					<CardHeader>
+						<div className="flex items-center gap-2">
+							<Rocket className="h-5 w-5 text-primary" />
+							<CardTitle>Next Recommended Action</CardTitle>
 						</div>
-						<div className="flex-1">
-							<h3 className="font-semibold text-lg">Brainstorming Session</h3>
-							<p className="text-muted-foreground">
-								Kick off your project by defining the core topic, goals, and
-								scope with AI assistance.
-							</p>
+					</CardHeader>
+					<CardContent className="space-y-4">
+						<div className="flex items-start gap-4">
+							<div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+								<Sparkles className="h-6 w-6 text-primary" />
+							</div>
+							<div className="flex-1">
+								<h3 className="font-semibold text-lg">
+									{nextWorkflow.displayName || nextWorkflow.name}
+								</h3>
+								<p className="text-muted-foreground">
+									{nextWorkflow.description ||
+										`Continue with Phase ${nextWorkflow.phase}: ${PHASES[nextWorkflow.phase]?.name || "Workflow"}`}
+								</p>
+							</div>
 						</div>
-					</div>
-					<Button
-						onClick={handleStartBrainstorming}
-						disabled={!brainstormingWorkflow || executeWorkflow.isPending}
-						size="lg"
-						className="w-full sm:w-auto"
-					>
-						{executeWorkflow.isPending ? (
-							<>
-								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-								Starting...
-							</>
-						) : executionData?.execution ? (
-							<>
-								<Play className="mr-2 h-4 w-4" />
-								Continue Brainstorming
-							</>
-						) : (
-							<>
-								<Play className="mr-2 h-4 w-4" />
-								Start Brainstorming
-							</>
-						)}
-					</Button>
-				</CardContent>
-			</Card>
+						<Button
+							onClick={handleStartRecommendedWorkflow}
+							disabled={executeWorkflow.isPending}
+							size="lg"
+							className="w-full sm:w-auto"
+						>
+							{executeWorkflow.isPending ? (
+								<>
+									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+									Starting...
+								</>
+							) : hasActiveExecution ? (
+								<>
+									<Play className="mr-2 h-4 w-4" />
+									Continue {nextWorkflow.displayName || nextWorkflow.name}
+								</>
+							) : (
+								<>
+									<Play className="mr-2 h-4 w-4" />
+									Start {nextWorkflow.displayName || nextWorkflow.name}
+								</>
+							)}
+						</Button>
+					</CardContent>
+				</Card>
+			) : allWorkflowsCompleted ? (
+				<Card className="border-green-500/20 bg-gradient-to-r from-green-500/5 to-green-500/10">
+					<CardHeader>
+						<div className="flex items-center gap-2">
+							<Target className="h-5 w-5 text-green-500" />
+							<CardTitle>All Workflows Completed!</CardTitle>
+						</div>
+					</CardHeader>
+					<CardContent>
+						<p className="text-muted-foreground">
+							You've completed all workflows in your workflow path.
+							Congratulations!
+						</p>
+					</CardContent>
+				</Card>
+			) : (
+				<Card className="border-muted bg-muted/20">
+					<CardHeader>
+						<div className="flex items-center gap-2">
+							<Rocket className="h-5 w-5 text-muted-foreground" />
+							<CardTitle className="text-muted-foreground">
+								No Workflows Available
+							</CardTitle>
+						</div>
+					</CardHeader>
+					<CardContent>
+						<p className="text-muted-foreground">
+							No workflows are configured for this workflow path yet.
+						</p>
+					</CardContent>
+				</Card>
+			)}
 
 			{/* Dashboard Grid */}
 			<div className="grid gap-6 md:grid-cols-2">
@@ -318,7 +360,7 @@ function ProjectDashboard() {
 							{workflowPath && (
 								<div className="space-y-1">
 									<div className="flex items-center gap-2">
-										<Map className="h-4 w-4 text-muted-foreground" />
+										<MapIcon className="h-4 w-4 text-muted-foreground" />
 										<span className="font-medium">
 											{workflowPath.displayName}
 										</span>
@@ -332,13 +374,21 @@ function ProjectDashboard() {
 							)}
 							<div className="space-y-1">
 								<div className="flex items-center gap-2">
-									<div className="h-2 w-2 rounded-full bg-amber-500" />
+									<div
+										className={`h-2 w-2 rounded-full ${allWorkflowsCompleted ? "bg-green-500" : "bg-amber-500"}`}
+									/>
 									<span className="font-medium">
 										Phase {currentPhase.id}: {currentPhase.name}
 									</span>
 								</div>
 								<p className="pl-4 text-muted-foreground text-sm">
-									Ready to start
+									{allWorkflowsCompleted
+										? "Completed"
+										: hasActiveExecution
+											? "In progress"
+											: recommendedData?.completedCount
+												? `${recommendedData.completedCount} workflow${recommendedData.completedCount !== 1 ? "s" : ""} completed`
+												: "Ready to start"}
 								</p>
 							</div>
 						</div>
@@ -389,6 +439,7 @@ function ProjectDashboard() {
 								currentPhaseId={currentPhase.id}
 								workflowPathId={project.workflowPathId}
 								projectId={projectId}
+								executionsByWorkflowId={executionsByWorkflowId}
 							/>
 						))}
 					</div>
@@ -397,6 +448,16 @@ function ProjectDashboard() {
 		</div>
 	);
 }
+
+// Type for execution data
+type WorkflowExecution = {
+	id: string;
+	workflowId: string;
+	workflowName: string;
+	status: string;
+	startedAt: string | undefined;
+	completedAt: string | undefined;
+};
 
 /**
  * Collapsible phase item that shows workflows when expanded
@@ -407,11 +468,13 @@ function PhaseItem({
 	currentPhaseId,
 	workflowPathId,
 	projectId,
+	executionsByWorkflowId,
 }: {
 	phase: (typeof PHASES)[number];
 	currentPhaseId: string;
 	workflowPathId: string | null | undefined;
 	projectId: string;
+	executionsByWorkflowId: Map<string, WorkflowExecution>;
 }) {
 	const navigate = useNavigate();
 	const isActive = phase.id === currentPhaseId;
@@ -460,6 +523,18 @@ function PhaseItem({
 
 	const workflows = workflowsData?.workflows ?? [];
 
+	// Calculate progress based on completed executions
+	const completedInPhase = workflows.filter((w) => {
+		const exec = executionsByWorkflowId.get(w.id);
+		return exec?.status === "completed";
+	}).length;
+	const totalInPhase = workflows.length;
+	const progressPercent =
+		totalInPhase > 0 ? Math.round((completedInPhase / totalInPhase) * 100) : 0;
+	const phaseFullyCompleted =
+		totalInPhase > 0 && completedInPhase === totalInPhase;
+	const phaseHasProgress = completedInPhase > 0;
+
 	return (
 		<Collapsible defaultOpen={isActive}>
 			<CollapsibleTrigger asChild>
@@ -472,14 +547,14 @@ function PhaseItem({
 					{/* Phase indicator */}
 					<div
 						className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-medium text-sm ${
-							isActive
-								? "bg-primary text-primary-foreground"
-								: isCompleted
-									? "bg-green-500 text-white"
+							phaseFullyCompleted
+								? "bg-green-500 text-white"
+								: isActive
+									? "bg-primary text-primary-foreground"
 									: "bg-muted text-muted-foreground"
 						}`}
 					>
-						{isCompleted ? "✓" : phase.id}
+						{phaseFullyCompleted ? "✓" : phase.id}
 					</div>
 
 					{/* Phase info */}
@@ -487,18 +562,21 @@ function PhaseItem({
 						<div className="flex items-center gap-2">
 							<span
 								className={`font-medium ${
-									isActive
-										? "text-primary"
-										: isPending
-											? "text-muted-foreground"
-											: ""
+									phaseFullyCompleted
+										? "text-green-600"
+										: isActive
+											? "text-primary"
+											: isPending
+												? "text-muted-foreground"
+												: ""
 								}`}
 							>
 								Phase {phase.id}: {phase.name}
 							</span>
 							{workflows.length > 0 && (
 								<Badge variant="secondary" className="text-xs">
-									{workflows.length} workflow{workflows.length !== 1 ? "s" : ""}
+									{completedInPhase}/{workflows.length} workflow
+									{workflows.length !== 1 ? "s" : ""}
 								</Badge>
 							)}
 						</div>
@@ -510,19 +588,19 @@ function PhaseItem({
 						<div className="h-2 overflow-hidden rounded-full bg-muted">
 							<div
 								className={`h-full transition-all ${
-									isCompleted
+									phaseFullyCompleted
 										? "bg-green-500"
-										: isActive
+										: phaseHasProgress
 											? "bg-primary"
 											: "bg-transparent"
 								}`}
 								style={{
-									width: isCompleted ? "100%" : isActive ? "0%" : "0%",
+									width: `${progressPercent}%`,
 								}}
 							/>
 						</div>
 						<p className="mt-1 text-right text-muted-foreground text-xs">
-							{isCompleted ? "100%" : "0%"}
+							{progressPercent}%
 						</p>
 					</div>
 
@@ -543,38 +621,98 @@ function PhaseItem({
 							No workflows available for this phase
 						</p>
 					) : (
-						workflows.map((workflow) => (
-							<div
-								key={workflow.id}
-								className="flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent"
-							>
-								<Sparkles className="h-4 w-4 text-muted-foreground" />
-								<div className="flex-1">
-									<p className="font-medium text-sm">
-										{workflow.displayName || workflow.name}
-									</p>
-									{workflow.description && (
-										<p className="line-clamp-1 text-muted-foreground text-xs">
-											{workflow.description}
+						workflows.map((workflow) => {
+							const execution = executionsByWorkflowId.get(workflow.id);
+							const hasExecution = !!execution;
+							const isExecCompleted = execution?.status === "completed";
+							const isExecActive =
+								execution?.status === "active" ||
+								execution?.status === "paused";
+
+							return (
+								<div
+									key={workflow.id}
+									className="flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent"
+								>
+									{/* Status icon */}
+									{isExecCompleted ? (
+										<CheckCircle className="h-4 w-4 text-green-500" />
+									) : isExecActive ? (
+										execution?.status === "paused" ? (
+											<Pause className="h-4 w-4 text-amber-500" />
+										) : (
+											<Play className="h-4 w-4 text-blue-500" />
+										)
+									) : (
+										<Sparkles className="h-4 w-4 text-muted-foreground" />
+									)}
+
+									<div className="flex-1">
+										<p className="font-medium text-sm">
+											{workflow.displayName || workflow.name}
 										</p>
+										{workflow.description && (
+											<p className="line-clamp-1 text-muted-foreground text-xs">
+												{workflow.description}
+											</p>
+										)}
+									</div>
+
+									{/* Action button */}
+									{isExecCompleted ? (
+										<Button
+											variant="ghost"
+											size="sm"
+											className="h-7 px-2"
+											onClick={() =>
+												navigate({
+													to: "/projects/$projectId/workflow/$executionId",
+													params: {
+														projectId,
+														executionId: execution.id,
+													},
+												})
+											}
+										>
+											View
+										</Button>
+									) : isExecActive ? (
+										<Button
+											variant="ghost"
+											size="sm"
+											className="h-7 px-2"
+											onClick={() =>
+												navigate({
+													to: "/projects/$projectId/workflow/$executionId",
+													params: {
+														projectId,
+														executionId: execution.id,
+													},
+												})
+											}
+										>
+											<Play className="mr-1 h-3 w-3" />
+											Continue
+										</Button>
+									) : (
+										<Button
+											variant="ghost"
+											size="sm"
+											className="h-7 px-2"
+											disabled={isPending || executeWorkflow.isPending}
+											onClick={() => executeWorkflow.mutate(workflow.id)}
+										>
+											{executeWorkflow.isPending ? (
+												<Loader2 className="mr-1 h-3 w-3 animate-spin" />
+											) : (
+												<Play className="mr-1 h-3 w-3" />
+											)}
+											Start
+										</Button>
 									)}
 								</div>
-								<Button
-									variant="ghost"
-									size="sm"
-									className="h-7 px-2"
-									disabled={isPending || executeWorkflow.isPending}
-									onClick={() => executeWorkflow.mutate(workflow.id)}
-								>
-									{executeWorkflow.isPending ? (
-										<Loader2 className="mr-1 h-3 w-3 animate-spin" />
-									) : (
-										<Play className="mr-1 h-3 w-3" />
-									)}
-									Start
-								</Button>
-							</div>
-						))
+							);
+						})
 					)}
 				</div>
 			</CollapsibleContent>
