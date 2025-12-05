@@ -15,7 +15,6 @@ import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated.
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated.settings'
 import { Route as AuthenticatedNewProjectRouteImport } from './routes/_authenticated.new-project'
 import { Route as AuthenticatedModelsRouteImport } from './routes/_authenticated.models'
-import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated.dashboard'
 import { Route as AuthenticatedProjectsProjectIdRouteImport } from './routes/_authenticated.projects/$projectId'
 import { Route as AuthenticatedProjectsProjectIdSelectInitializerRouteImport } from './routes/_authenticated.projects/$projectId.select-initializer'
 import { Route as AuthenticatedProjectsProjectIdInitializeRouteImport } from './routes/_authenticated.projects/$projectId.initialize'
@@ -51,11 +50,6 @@ const AuthenticatedModelsRoute = AuthenticatedModelsRouteImport.update({
   path: '/models',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
 const AuthenticatedProjectsProjectIdRoute =
   AuthenticatedProjectsProjectIdRouteImport.update({
     id: '/projects/$projectId',
@@ -89,7 +83,6 @@ const AuthenticatedProjectsProjectIdWorkflowExecutionIdRoute =
 
 export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
-  '/dashboard': typeof AuthenticatedDashboardRoute
   '/models': typeof AuthenticatedModelsRoute
   '/new-project': typeof AuthenticatedNewProjectRoute
   '/settings': typeof AuthenticatedSettingsRoute
@@ -102,7 +95,6 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
-  '/dashboard': typeof AuthenticatedDashboardRoute
   '/models': typeof AuthenticatedModelsRoute
   '/new-project': typeof AuthenticatedNewProjectRoute
   '/settings': typeof AuthenticatedSettingsRoute
@@ -117,7 +109,6 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
-  '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/models': typeof AuthenticatedModelsRoute
   '/_authenticated/new-project': typeof AuthenticatedNewProjectRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
@@ -132,7 +123,6 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/login'
-    | '/dashboard'
     | '/models'
     | '/new-project'
     | '/settings'
@@ -145,7 +135,6 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
-    | '/dashboard'
     | '/models'
     | '/new-project'
     | '/settings'
@@ -159,7 +148,6 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_authenticated'
     | '/login'
-    | '/_authenticated/dashboard'
     | '/_authenticated/models'
     | '/_authenticated/new-project'
     | '/_authenticated/settings'
@@ -218,13 +206,6 @@ declare module '@tanstack/react-router' {
       path: '/models'
       fullPath: '/models'
       preLoaderRoute: typeof AuthenticatedModelsRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/dashboard': {
-      id: '/_authenticated/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/projects/$projectId': {
@@ -290,7 +271,6 @@ const AuthenticatedProjectsProjectIdRouteWithChildren =
   )
 
 interface AuthenticatedRouteChildren {
-  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedModelsRoute: typeof AuthenticatedModelsRoute
   AuthenticatedNewProjectRoute: typeof AuthenticatedNewProjectRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
@@ -299,7 +279,6 @@ interface AuthenticatedRouteChildren {
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
-  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedModelsRoute: AuthenticatedModelsRoute,
   AuthenticatedNewProjectRoute: AuthenticatedNewProjectRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
