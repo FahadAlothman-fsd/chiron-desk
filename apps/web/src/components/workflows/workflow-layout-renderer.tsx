@@ -99,6 +99,7 @@ export function WorkflowLayoutRenderer({
 				execution={execution}
 				workflow={workflow}
 				steps={steps}
+				currentStep={currentStep}
 				stepContent={stepContent!}
 				open={dialogProps.open}
 				onClose={dialogProps.onClose}
