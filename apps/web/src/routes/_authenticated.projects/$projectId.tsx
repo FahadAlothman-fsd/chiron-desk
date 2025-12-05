@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/collapsible";
 import { trpcClient } from "@/utils/trpc";
 
-export const Route = createFileRoute("/projects/$projectId")({
+export const Route = createFileRoute("/_authenticated/projects/$projectId")({
 	component: ProjectLayoutWrapper,
 });
 
@@ -52,17 +52,17 @@ function ProjectLayoutWrapper() {
 		queryFn: async () => {
 			return trpcClient.projects.get.query({ id: projectId });
 		},
-	});
+	})
 
 	// Check if we're on a child route that should NOT have the sidebar
 	const initializeMatch = useMatch({
 		from: "/projects/$projectId/initialize",
 		shouldThrow: false,
-	});
+	})
 	const selectInitializerMatch = useMatch({
 		from: "/projects/$projectId/select-initializer",
 		shouldThrow: false,
-	});
+	})
 
 	const isInitializerRoute = initializeMatch || selectInitializerMatch;
 
@@ -76,7 +76,7 @@ function ProjectLayoutWrapper() {
 		<ProjectLayout projectName={projectData?.project?.name}>
 			<ProjectDashboardOrOutlet />
 		</ProjectLayout>
-	);
+	)
 }
 
 /**
@@ -126,7 +126,7 @@ function ProjectDashboard() {
 		queryFn: async () => {
 			return trpcClient.projects.get.query({ id: projectId });
 		},
-	});
+	})
 	const project = projectData?.project;
 	const workflowPath = projectData?.workflowPath;
 
@@ -138,10 +138,10 @@ function ProjectDashboard() {
 			return trpcClient.workflows.getNextRecommendedWorkflow.query({
 				projectId,
 				workflowPathId: workflowPath.id,
-			});
+			})
 		},
 		enabled: !!projectId && !!workflowPath?.id,
-	});
+	})
 
 	// Get all executions for this project (for phase progress display)
 	const { data: executionsData } = useQuery({
@@ -150,15 +150,15 @@ function ProjectDashboard() {
 			return trpcClient.workflows.getExecutionsByProject.query({
 				projectId,
 				includeChildren: false,
-			});
+			})
 		},
 		enabled: !!projectId,
-	});
+	})
 
 	// Create a map of workflowId -> execution for quick lookup
 	const executionsByWorkflowId = new Map(
 		(executionsData?.executions ?? []).map((e) => [e.workflowId, e]),
-	);
+	)
 
 	// Execute workflow mutation
 	const executeWorkflow = useMutation({
@@ -170,16 +170,16 @@ function ProjectDashboard() {
 			navigate({
 				to: "/projects/$projectId/workflow/$executionId",
 				params: { projectId, executionId: data.executionId },
-			});
+			})
 		},
 		onError: (error: unknown) => {
 			const errorMessage =
 				error instanceof Error ? error.message : "Unknown error";
 			toast.error("Failed to start workflow", {
 				description: errorMessage,
-			});
+			})
 		},
-	});
+	})
 
 	// Handler for starting/continuing the recommended workflow
 	const handleStartRecommendedWorkflow = () => {
@@ -191,8 +191,8 @@ function ProjectDashboard() {
 					projectId,
 					executionId: recommendedData.activeExecution.id,
 				},
-			});
-			return;
+			})
+			return
 		}
 
 		// Otherwise start a new execution
@@ -200,9 +200,9 @@ function ProjectDashboard() {
 			executeWorkflow.mutate({
 				workflowId: recommendedData.nextWorkflow.id,
 				projectId,
-			});
+			})
 		}
-	};
+	}
 
 	if (projectLoading || recommendedLoading) {
 		return (
@@ -212,7 +212,7 @@ function ProjectDashboard() {
 					<span>Loading project...</span>
 				</div>
 			</div>
-		);
+		)
 	}
 
 	if (!project) {
@@ -228,7 +228,7 @@ function ProjectDashboard() {
 					</Button>
 				</div>
 			</div>
-		);
+		)
 	}
 
 	// Determine current phase from recommended data or default to 0
@@ -446,7 +446,7 @@ function ProjectDashboard() {
 				</CardContent>
 			</Card>
 		</div>
-	);
+	)
 }
 
 // Type for execution data
@@ -492,12 +492,12 @@ function PhaseItem({
 				return trpcClient.workflows.getByPhaseAndPath.query({
 					phase: phase.id,
 					workflowPathId,
-				});
+				})
 			}
 			// Fallback to all workflows for this phase (no path selected)
 			return trpcClient.workflows.getByPhase.query({ phase: phase.id });
 		},
-	});
+	})
 
 	// Execute workflow mutation
 	const executeWorkflow = useMutation({
@@ -505,21 +505,21 @@ function PhaseItem({
 			return trpcClient.workflows.execute.mutate({
 				workflowId,
 				projectId,
-			});
+			})
 		},
 		onSuccess: (data) => {
 			toast.success("Workflow started!");
 			navigate({
 				to: "/projects/$projectId/workflow/$executionId",
 				params: { projectId, executionId: data.executionId },
-			});
+			})
 		},
 		onError: (error: any) => {
 			toast.error("Failed to start workflow", {
 				description: error.message,
-			});
+			})
 		},
-	});
+	})
 
 	const workflows = workflowsData?.workflows ?? [];
 
@@ -711,11 +711,11 @@ function PhaseItem({
 										</Button>
 									)}
 								</div>
-							);
+							)
 						})
 					)}
 				</div>
 			</CollapsibleContent>
 		</Collapsible>
-	);
+	)
 }

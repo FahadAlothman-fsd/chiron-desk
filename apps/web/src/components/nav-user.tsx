@@ -1,3 +1,4 @@
+import { useNavigate } from "@tanstack/react-router";
 import {
 	BadgeCheck,
 	Bell,
@@ -8,6 +9,7 @@ import {
 } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { authClient } from "@/lib/auth-client";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -34,6 +36,17 @@ export function NavUser({
 	};
 }) {
 	const { isMobile } = useSidebar();
+	const navigate = useNavigate();
+
+	const handleLogout = () => {
+		authClient.signOut({
+			fetchOptions: {
+				onSuccess: () => {
+					navigate({ to: "/login" });
+				},
+			},
+		});
+	};
 
 	return (
 		<SidebarMenu>
@@ -96,7 +109,10 @@ export function NavUser({
 							</DropdownMenuItem>
 						</DropdownMenuGroup>
 						<DropdownMenuSeparator />
-						<DropdownMenuItem>
+						<DropdownMenuItem
+							className="cursor-pointer hover:bg-destructive hover:text-destructive-foreground"
+							onClick={handleLogout}
+						>
 							<LogOut />
 							Log out
 						</DropdownMenuItem>

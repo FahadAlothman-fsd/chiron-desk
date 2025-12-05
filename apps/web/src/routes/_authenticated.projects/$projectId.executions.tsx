@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/card";
 import { trpcClient } from "@/utils/trpc";
 
-export const Route = createFileRoute("/projects/$projectId/executions")({
+export const Route = createFileRoute("/_authenticated/projects/$projectId/executions")({
 	component: ProjectExecutionsPage,
 });
 
@@ -45,10 +45,10 @@ function ProjectExecutionsPage() {
 			return trpcClient.workflows.getExecutionsByProject.query({
 				projectId,
 				includeChildren: false, // Only show parent executions
-			});
+			})
 		},
 		enabled: !!projectId,
-	});
+	})
 
 	const executions = data?.executions ?? [];
 
@@ -60,7 +60,7 @@ function ProjectExecutionsPage() {
 					<span>Loading executions...</span>
 				</div>
 			</div>
-		);
+		)
 	}
 
 	if (error) {
@@ -76,7 +76,7 @@ function ProjectExecutionsPage() {
 					</p>
 				</div>
 			</div>
-		);
+		)
 	}
 
 	return (
@@ -123,7 +123,7 @@ function ProjectExecutionsPage() {
 				</div>
 			)}
 		</div>
-	);
+	)
 }
 
 interface ExecutionCardProps {
@@ -137,7 +137,7 @@ interface ExecutionCardProps {
 		completedAt: string | undefined;
 		workflowTags: unknown;
 		workflowMetadata: unknown;
-	};
+	}
 	projectId: string;
 }
 
@@ -157,7 +157,7 @@ function ExecutionCard({ execution, projectId }: ExecutionCardProps) {
 			default:
 				return <Clock className="h-4 w-4 text-muted-foreground" />;
 		}
-	};
+	}
 
 	const getStatusBadgeVariant = (status: string) => {
 		switch (status) {
@@ -172,7 +172,7 @@ function ExecutionCard({ execution, projectId }: ExecutionCardProps) {
 			default:
 				return "outline" as const;
 		}
-	};
+	}
 
 	const formatDate = (dateStr: string | undefined) => {
 		if (!dateStr) return "—";
@@ -182,8 +182,8 @@ function ExecutionCard({ execution, projectId }: ExecutionCardProps) {
 			day: "numeric",
 			hour: "2-digit",
 			minute: "2-digit",
-		});
-	};
+		})
+	}
 
 	// Extract phase from workflow tags
 	const phase =
@@ -191,7 +191,7 @@ function ExecutionCard({ execution, projectId }: ExecutionCardProps) {
 		execution.workflowTags !== null &&
 		"phase" in execution.workflowTags
 			? (execution.workflowTags as { phase: string }).phase
-			: null;
+			: null
 
 	return (
 		<Card
@@ -245,5 +245,5 @@ function ExecutionCard({ execution, projectId }: ExecutionCardProps) {
 				</div>
 			</CardContent>
 		</Card>
-	);
+	)
 }

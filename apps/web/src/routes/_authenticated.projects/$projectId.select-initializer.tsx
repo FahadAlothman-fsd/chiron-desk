@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { trpcClient } from "@/utils/trpc";
 
-export const Route = createFileRoute("/projects/$projectId/select-initializer")(
+export const Route = createFileRoute("/_authenticated/projects/$projectId/select-initializer")(
 	{
 		component: SelectInitializerPage,
 	},
@@ -26,9 +26,9 @@ function SelectInitializerPage() {
 		queryFn: async () => {
 			return trpcClient.workflows.getInitializers.query({
 				type: "new-project",
-			});
+			})
 		},
-	});
+	})
 
 	// Set initializer mutation
 	const setInitializer = useMutation({
@@ -42,14 +42,14 @@ function SelectInitializerPage() {
 			navigate({
 				to: "/projects/$projectId/initialize",
 				params: { projectId },
-			});
+			})
 		},
 		onError: (error: any) => {
 			toast.error("Failed to set initializer", {
 				description: error.message,
-			});
+			})
 		},
-	});
+	})
 
 	// Auto-select if only one option
 	useEffect(() => {
@@ -66,7 +66,7 @@ function SelectInitializerPage() {
 					<span>Loading initializers...</span>
 				</div>
 			</div>
-		);
+		)
 	}
 
 	const workflows = initializers?.workflows || [];
@@ -94,7 +94,7 @@ function SelectInitializerPage() {
 					>
 						<RadioGroupItem
 							value={workflow.id}
-							id={`${id}-${index}`}
+							id={"${id}-${index}"}
 							className="order-1 size-5 after:absolute after:inset-0 [&_svg]:size-3"
 							aria-describedby={`${id}-${index}-description`}
 							aria-label={`workflow-radio-${workflow.name}`}
@@ -130,7 +130,7 @@ function SelectInitializerPage() {
 						setInitializer.mutate({
 							projectId,
 							initializerWorkflowId: selectedWorkflowId,
-						});
+						})
 					}
 				}}
 				disabled={!selectedWorkflowId || setInitializer.isPending}
@@ -147,5 +147,5 @@ function SelectInitializerPage() {
 				)}
 			</Button>
 		</div>
-	);
+	)
 }
