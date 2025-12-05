@@ -23,9 +23,13 @@ async function main() {
 	const { seedWorkflowInitNew } = await import("./seeds/workflow-init-new");
 	const { seedBrainstorming } = await import("./seeds/brainstorming");
 	const { seedUsers } = await import("./seeds/users");
-	const { seedScamperTechnique, seedFiveWhysTechnique } = await import(
-		"./seeds/techniques"
-	);
+	const {
+		seedScamperTechnique,
+		seedFiveWhysTechnique,
+		seedSixThinkingHatsTechnique,
+		seedMindMappingTechnique,
+		seedWhatIfScenariosTechnique,
+	} = await import("./seeds/techniques");
 
 	try {
 		if (shouldReset) {
@@ -58,10 +62,13 @@ async function main() {
 		await seedBrainstorming();
 		console.log("✅ Brainstorming Step 1 seeded");
 
-		// Story 2.2: Seed technique workflows (SCAMPER, Five Whys)
+		// Story 2.3: Seed technique workflows (5 techniques)
 		console.log("\n🎯 Seeding technique workflows...");
 		await seedScamperTechnique();
 		await seedFiveWhysTechnique();
+		await seedSixThinkingHatsTechnique();
+		await seedMindMappingTechnique();
+		await seedWhatIfScenariosTechnique();
 		console.log("✅ Technique workflows seeded");
 
 		// Seed workflow paths - MUST run after workflows are seeded!

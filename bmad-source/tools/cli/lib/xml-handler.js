@@ -68,7 +68,7 @@ class XmlHandler {
 	 * @param {Object} metadata - Metadata containing module and name
 	 * @returns {string} Modified content with activation block
 	 */
-	async injectActivation(agentContent, metadata = {}) {
+	async injectActivation(agentContent, _metadata = {}) {
 		try {
 			// Check if already has activation
 			if (agentContent.includes("<activation")) {
@@ -84,9 +84,9 @@ class XmlHandler {
 				/([\s\S]*?)```xml\n([\s\S]*?)\n```([\s\S]*)/,
 			);
 			if (xmlBlockMatch) {
-				beforeXml = xmlBlockMatch[1] + "```xml\n";
+				beforeXml = `${xmlBlockMatch[1]}\`\`\`xml\n`;
 				xmlContent = xmlBlockMatch[2];
-				afterXml = "\n```" + xmlBlockMatch[3];
+				afterXml = `\n\`\`\`${xmlBlockMatch[3]}`;
 			}
 
 			// Parse the agent XML
@@ -129,7 +129,7 @@ class XmlHandler {
 			const indentedLines = lines.map((line) => {
 				if (line.trim() === "") return line;
 				if (line.startsWith("<agent")) return line; // Keep agent at column 0
-				return "  " + line; // Indent everything else
+				return `  ${line}`; // Indent everything else
 			});
 			modifiedXml = indentedLines.join("\n");
 
@@ -165,7 +165,7 @@ class XmlHandler {
 			// Add 2 spaces of indentation for insertion into agent
 			let activationBlock = templateContent
 				.split("\n")
-				.map((line) => (line ? "  " + line : ""))
+				.map((line) => (line ? `  ${line}` : ""))
 				.join("\n");
 
 			// Replace {agent-filename} with actual filename if metadata provided
@@ -189,7 +189,7 @@ class XmlHandler {
 			const before = agentContent.slice(0, insertPos);
 			const after = agentContent.slice(insertPos);
 
-			return before + "\n" + activationBlock + after;
+			return `${before}\n${activationBlock}${after}`;
 		} catch (error) {
 			console.error("Error in simple injection:", error);
 			return agentContent;

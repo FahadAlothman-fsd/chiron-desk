@@ -103,7 +103,7 @@ class ManifestGenerator {
 	 * Collect all workflows from core and selected modules
 	 * Scans the INSTALLED bmad directory, not the source
 	 */
-	async collectWorkflows(selectedModules) {
+	async collectWorkflows(_selectedModules) {
 		this.workflows = [];
 
 		// Use updatedModules which already includes deduplicated 'core' + selectedModules
@@ -151,11 +151,7 @@ class ManifestGenerator {
 						const workflow = yaml.load(content);
 
 						// Skip template workflows (those with placeholder values)
-						if (
-							workflow.name &&
-							workflow.name.includes("{") &&
-							workflow.name.includes("}")
-						) {
+						if (workflow.name?.includes("{") && workflow.name.includes("}")) {
 							continue;
 						}
 
@@ -202,7 +198,7 @@ class ManifestGenerator {
 	 * Collect all agents from core and selected modules
 	 * Scans the INSTALLED bmad directory, not the source
 	 */
-	async collectAgents(selectedModules) {
+	async collectAgents(_selectedModules) {
 		this.agents = [];
 
 		// Use updatedModules which already includes deduplicated 'core' + selectedModules
@@ -328,7 +324,7 @@ class ManifestGenerator {
 	 * Collect all tasks from core and selected modules
 	 * Scans the INSTALLED bmad directory, not the source
 	 */
-	async collectTasks(selectedModules) {
+	async collectTasks(_selectedModules) {
 		this.tasks = [];
 
 		// Use updatedModules which already includes deduplicated 'core' + selectedModules
@@ -404,7 +400,7 @@ class ManifestGenerator {
 	 * Collect all tools from core and selected modules
 	 * Scans the INSTALLED bmad directory, not the source
 	 */
-	async collectTools(selectedModules) {
+	async collectTools(_selectedModules) {
 		this.tools = [];
 
 		// Use updatedModules which already includes deduplicated 'core' + selectedModules
@@ -501,7 +497,7 @@ class ManifestGenerator {
 		});
 
 		// Ensure POSIX-compliant final newline
-		const content = yamlStr.endsWith("\n") ? yamlStr : yamlStr + "\n";
+		const content = yamlStr.endsWith("\n") ? yamlStr : `${yamlStr}\n`;
 		await fs.writeFile(manifestPath, content);
 		return manifestPath;
 	}
@@ -710,8 +706,7 @@ class ManifestGenerator {
 		if (this.allInstalledFiles && this.allInstalledFiles.length > 0) {
 			// Process all installed files
 			for (const filePath of this.allInstalledFiles) {
-				const relativePath =
-					"bmad" + filePath.replace(this.bmadDir, "").replaceAll("\\", "/");
+				const relativePath = `bmad${filePath.replace(this.bmadDir, "").replaceAll("\\", "/")}`;
 				const ext = path.extname(filePath).toLowerCase();
 				const fileName = path.basename(filePath, ext);
 
@@ -735,7 +730,7 @@ class ManifestGenerator {
 			for (const file of this.files) {
 				const filePath = path.join(
 					this.bmadDir,
-					file.path.replace(this.bmadFolderName + "/", ""),
+					file.path.replace(`${this.bmadFolderName}/`, ""),
 				);
 				const hash = await this.calculateFileHash(filePath);
 				allFiles.push({

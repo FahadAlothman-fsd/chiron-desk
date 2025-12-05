@@ -176,27 +176,27 @@ const AgentPartyGenerator = {
 			);
 
 			// Apply overrides only if values are non-empty
-			if (nameMatch && nameMatch[1].trim()) {
+			if (nameMatch?.[1].trim()) {
 				details.name = nameMatch[1].trim();
 			}
 
-			if (titleMatch && titleMatch[1].trim()) {
+			if (titleMatch?.[1].trim()) {
 				details.title = titleMatch[1].trim();
 			}
 
-			if (roleMatch && roleMatch[1].trim()) {
+			if (roleMatch?.[1].trim()) {
 				details.role = roleMatch[1].trim();
 			}
 
-			if (identityMatch && identityMatch[1].trim()) {
+			if (identityMatch?.[1].trim()) {
 				details.identity = identityMatch[1].trim();
 			}
 
-			if (styleMatch && styleMatch[1].trim()) {
+			if (styleMatch?.[1].trim()) {
 				details.communicationStyle = styleMatch[1].trim();
 			}
 
-			if (principlesMatch && principlesMatch[1].trim()) {
+			if (principlesMatch?.[1].trim()) {
 				// Principles are now just copied as-is (narrative paragraph)
 				details.principles = principlesMatch[1].trim();
 			}

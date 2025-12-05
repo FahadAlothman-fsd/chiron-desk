@@ -10,7 +10,7 @@ function escapeXml(string_) {
 		.replaceAll("'", "&apos;");
 }
 
-function indentFileContent(content) {
+function _indentFileContent(content) {
 	if (typeof content !== "string") {
 		return String(content);
 	}

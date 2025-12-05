@@ -179,7 +179,7 @@ export function ApprovalCard({
 					<div className="space-y-2">
 						{typeof generatedValue === "string" ? (
 							// Simple string value (e.g., from update-variable tool)
-							<div className="rounded-md border bg-background p-3 whitespace-pre-wrap">
+							<div className="whitespace-pre-wrap rounded-md border bg-background p-3">
 								{generatedValue}
 							</div>
 						) : Array.isArray(generatedValue) ? (
@@ -190,7 +190,7 @@ export function ApprovalCard({
 										key={idx}
 										className="flex items-start gap-3 rounded-md border bg-background p-3"
 									>
-										<div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-semibold">
+										<div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary text-sm">
 											{idx + 1}
 										</div>
 										<div className="flex-1 pt-0.5">
@@ -221,7 +221,7 @@ export function ApprovalCard({
 													key={idx}
 													className="flex items-start gap-3 rounded-md border bg-background p-3"
 												>
-													<div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-semibold">
+													<div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary text-sm">
 														{idx + 1}
 													</div>
 													<div className="flex-1 pt-0.5">
@@ -257,7 +257,7 @@ export function ApprovalCard({
 															key={idx}
 															className="flex items-start gap-3 rounded-md border bg-background p-3"
 														>
-															<div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-semibold">
+															<div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary text-sm">
 																{idx + 1}
 															</div>
 															<div className="flex-1 pt-0.5">

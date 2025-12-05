@@ -1,5 +1,4 @@
 import * as fs from "node:fs";
-import * as path from "node:path";
 import type { ExecuteActionStepConfig, WorkflowStep } from "@chiron/db";
 import { db, eq, projects } from "@chiron/db";
 import simpleGit from "simple-git";

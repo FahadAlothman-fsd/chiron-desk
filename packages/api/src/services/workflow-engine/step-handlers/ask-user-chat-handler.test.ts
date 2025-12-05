@@ -278,4 +278,74 @@ Guide the user through project initialization.`,
 			expect(result.output.missing_value).toBeUndefined();
 		});
 	});
+
+	describe("Generate Initial Message Feature (Story 2.3 Task 2)", () => {
+		it.todo(
+			"should generate dynamic initial message when generateInitialMessage is true",
+			async () => {
+				// TODO: Requires real user API keys for LLM calls
+				// Integration test should be added when seeding technique workflows in Task 3
+			},
+		);
+
+		it("should fallback to static initialMessage when generateInitialMessage is false", async () => {
+			// Explicitly disable generateInitialMessage
+			testStep.config.generateInitialMessage = false;
+			testStep.config.initialMessage = "Static welcome message";
+
+			const result = await handler.executeStep(testStep, testContext);
+
+			// Should use static message
+			expect(result.output.initial_message).toBe("Static welcome message");
+			expect(result.output.generated_initial_message).toBeUndefined();
+		});
+	});
+
+	describe("Variable Resolution in Prompts (Story 2.3 Task 2)", () => {
+		it("should resolve simple variables in prompt strings", () => {
+			testContext.executionVariables.session_topic = "improve onboarding";
+			testContext.executionVariables.user_goal = "reduce friction";
+
+			// Access private method via type assertion
+			const result = (handler as any).resolvePromptVariables(
+				"Topic: {{session_topic}}, Goal: {{user_goal}}",
+				testContext,
+			);
+
+			expect(result).toBe("Topic: improve onboarding, Goal: reduce friction");
+		});
+
+		it("should resolve parent variables", () => {
+			testContext.executionVariables.session_topic = "checkout flow";
+
+			const result = (handler as any).resolvePromptVariables(
+				"Parent topic: {{parent.session_topic}}",
+				testContext,
+			);
+
+			expect(result).toBe("Parent topic: checkout flow");
+		});
+
+		it("should handle missing variables gracefully", () => {
+			const result = (handler as any).resolvePromptVariables(
+				"Value: {{nonexistent}}",
+				testContext,
+			);
+
+			// Should leave placeholder as-is
+			expect(result).toBe("Value: {{nonexistent}}");
+		});
+
+		it("should stringify object values", () => {
+			testContext.executionVariables.goals = ["goal1", "goal2"];
+
+			const result = (handler as any).resolvePromptVariables(
+				"Goals: {{goals}}",
+				testContext,
+			);
+
+			expect(result).toContain("goal1");
+			expect(result).toContain("goal2");
+		});
+	});
 });

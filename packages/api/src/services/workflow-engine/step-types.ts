@@ -8,6 +8,7 @@ import { AskUserChatStepHandler } from "./step-handlers/ask-user-chat-handler";
 import { AskUserStepHandler } from "./step-handlers/ask-user-handler";
 import { DisplayOutputStepHandler } from "./step-handlers/display-output-handler";
 import { ExecuteActionStepHandler } from "./step-handlers/execute-action-handler";
+import { InvokeWorkflowStepHandler } from "./step-handlers/invoke-workflow-handler";
 
 // Placeholder handlers for Story 1.4 (actual implementations in future stories)
 // These handlers will auto-advance using nextStepNumber
@@ -38,7 +39,7 @@ export const STEP_HANDLERS = {
 	branch: new PlaceholderStepHandler("branch"),
 	"approval-checkpoint": new PlaceholderStepHandler("approval-checkpoint"),
 	"execute-action": new ExecuteActionStepHandler(),
-	"invoke-workflow": new PlaceholderStepHandler("invoke-workflow"),
+	"invoke-workflow": new InvokeWorkflowStepHandler(), // Story 2.3: Real implementation
 	"display-output": new DisplayOutputStepHandler(),
 	"question-set": new PlaceholderStepHandler("question-set"),
 } as const;

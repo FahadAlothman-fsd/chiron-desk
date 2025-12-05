@@ -2,7 +2,6 @@ import {
 	db,
 	workflowExecutions,
 	workflowPathWorkflows,
-	workflowTemplates,
 	workflows,
 } from "@chiron/db";
 import { observable } from "@trpc/server/observable";
@@ -23,7 +22,6 @@ import {
 	executeWorkflow,
 } from "../services/workflow-engine/executor";
 import { stateManager } from "../services/workflow-engine/state-manager";
-import { extractDeterministicFields } from "../services/workflow-engine/tools/ax-generation-tool";
 
 /**
  * Workflow Router - tRPC endpoints for workflow execution
@@ -454,7 +452,7 @@ export const workflowRouter = router({
 				if (Object.keys(derivedValues).length > 0) {
 					toolState.derived_values = derivedValues;
 					console.log(
-						`[ApproveToolCall] Stored derived values:`,
+						"[ApproveToolCall] Stored derived values:",
 						JSON.stringify(derivedValues, null, 2),
 					);
 				}
@@ -870,7 +868,7 @@ export const workflowRouter = router({
 				if (Object.keys(derivedValues).length > 0) {
 					toolState.derived_values = derivedValues;
 					console.log(
-						`[ApproveToolOutput] Stored derived values:`,
+						"[ApproveToolOutput] Stored derived values:",
 						JSON.stringify(derivedValues, null, 2),
 					);
 				}
@@ -1105,6 +1103,65 @@ export const workflowRouter = router({
 		}),
 
 	/**
+	 * Get workflows by IDs
+	 * Used by invoke-workflow step to display workflow names
+	 */
+	getByIds: protectedProcedure
+		.input(
+			z.object({
+				workflowIds: z.array(z.string().uuid()),
+			}),
+		)
+		.query(async ({ input }) => {
+			const workflows = await db.query.workflows.findMany({
+				where: (workflows, { inArray }) =>
+					inArray(workflows.id, input.workflowIds),
+			});
+
+			return workflows.map((w) => ({
+				id: w.id,
+				name: w.name,
+				displayName: w.displayName,
+				description: w.description,
+				metadata: w.metadata,
+			}));
+		}),
+
+	/**
+	 * Get executions by IDs
+	 * Used by invoke-workflow step to poll child execution status
+	 */
+	getExecutionsByIds: protectedProcedure
+		.input(
+			z.object({
+				executionIds: z.array(z.string().uuid()),
+			}),
+		)
+		.query(async ({ input }) => {
+			if (input.executionIds.length === 0) {
+				return [];
+			}
+
+			const executions = await db.query.workflowExecutions.findMany({
+				where: (executions, { inArray }) =>
+					inArray(executions.id, input.executionIds),
+				with: {
+					workflow: true,
+				},
+			});
+
+			return executions.map((e) => ({
+				id: e.id,
+				status: e.status,
+				workflowId: e.workflowId,
+				workflowName: e.workflow?.displayName || e.workflow?.name || "Unknown",
+				variables: e.variables,
+				error: e.error,
+				completedAt: e.completedAt?.toISOString(),
+			}));
+		}),
+
+	/**
 	 * Get workflow template by ID
 	 */
 	getTemplate: protectedProcedure
@@ -1123,5 +1180,102 @@ export const workflowRouter = router({
 			}
 
 			return template;
+		}),
+
+	/**
+	 * Create and start a child workflow execution
+	 * Used by invoke-workflow steps to create child workflows on-demand
+	 */
+	createAndStartChild: protectedProcedure
+		.input(
+			z.object({
+				parentExecutionId: z.string().uuid(),
+				workflowId: z.string().uuid(),
+				projectId: z.string().uuid(),
+				mappedVariables: z.record(z.string(), z.any()).optional(), // Variables to pass from parent to child
+			}),
+		)
+		.mutation(async ({ input, ctx }) => {
+			const userId = ctx.session.user.id;
+
+			// Get parent execution to inherit model selection
+			const parentExecution = await stateManager.getExecution(
+				input.parentExecutionId,
+			);
+			if (!parentExecution) {
+				throw new Error(
+					`Parent execution not found: ${input.parentExecutionId}`,
+				);
+			}
+
+			// Inherit model selection from parent
+			const selectedModel = parentExecution.execution.variables
+				.selected_model as string | undefined;
+
+			// Combine model selection and mapped variables
+			const initialVariables: Record<string, unknown> = {
+				...(input.mappedVariables || {}),
+				...(selectedModel ? { selected_model: selectedModel } : {}),
+			};
+
+			// Create and start the child workflow execution with inherited model, mapped variables, and parent link
+			const childExecutionId = await executeWorkflow({
+				workflowId: input.workflowId,
+				userId,
+				projectId: input.projectId,
+				initialVariables,
+				parentExecutionId: input.parentExecutionId,
+			});
+
+			// Get child execution with workflow details
+			const childExecution = await db.query.workflowExecutions.findFirst({
+				where: eq(workflowExecutions.id, childExecutionId),
+				with: {
+					workflow: true,
+				},
+			});
+
+			if (!childExecution) {
+				throw new Error("Failed to create child execution");
+			}
+
+			// Update parent's _child_metadata to track this child
+			const currentChildMetadata = (parentExecution.execution.variables
+				._child_metadata || []) as Array<{
+				id: string;
+				workflowId: string;
+				workflowName: string;
+				status: string;
+				createdAt: string;
+			}>;
+
+			await stateManager.mergeExecutionVariables(input.parentExecutionId, {
+				_child_metadata: [
+					...currentChildMetadata,
+					{
+						id: childExecution.id,
+						workflowId: childExecution.workflowId,
+						workflowName:
+							childExecution.workflow.displayName ||
+							childExecution.workflow.name,
+						status: childExecution.status,
+						createdAt: childExecution.createdAt.toISOString(),
+					},
+				],
+			});
+
+			console.log(
+				`[CreateAndStartChild] Updated parent ${input.parentExecutionId} with child metadata for ${childExecution.id}`,
+			);
+
+			// Return child metadata
+			return {
+				id: childExecution.id,
+				workflowId: childExecution.workflowId,
+				workflowName:
+					childExecution.workflow.displayName || childExecution.workflow.name,
+				status: childExecution.status,
+				createdAt: childExecution.createdAt.toISOString(),
+			};
 		}),
 }) as ReturnType<typeof router>;

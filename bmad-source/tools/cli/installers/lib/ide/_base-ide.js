@@ -57,7 +57,7 @@ class BaseIdeSetup {
 	 * @param {string} bmadDir - BMAD installation directory
 	 * @param {Object} options - Setup options
 	 */
-	async setup(projectDir, bmadDir, options = {}) {
+	async setup(_projectDir, _bmadDir, _options = {}) {
 		throw new Error(`setup() must be implemented by ${this.name} handler`);
 	}
 
@@ -87,7 +87,12 @@ class BaseIdeSetup {
 	 * @param {Object} metadata - Agent metadata
 	 * @returns {Object|null} Info about created command, or null if not supported
 	 */
-	async installCustomAgentLauncher(projectDir, agentName, agentPath, metadata) {
+	async installCustomAgentLauncher(
+		_projectDir,
+		_agentName,
+		_agentPath,
+		_metadata,
+	) {
 		// Default implementation - subclasses can override
 		return null;
 	}
@@ -403,7 +408,7 @@ class BaseIdeSetup {
 					const content = await fs.readFile(fullPath, "utf8");
 					const workflowData = yaml.load(content);
 
-					if (workflowData && workflowData.name) {
+					if (workflowData?.name) {
 						workflows.push({
 							name: workflowData.name,
 							path: fullPath,

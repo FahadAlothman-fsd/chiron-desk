@@ -436,8 +436,8 @@ function buildAxSignatureString(
 async function resolveInputs(
 	inputConfigs: NonNullable<ToolConfig["axSignature"]>["input"],
 	context: ExecutionContext,
-	agentId: string,
-	toolContext?: any, // Mastra tool context with current message
+	_agentId: string,
+	_toolContext?: any, // Mastra tool context with current message
 ): Promise<Record<string, unknown>> {
 	const inputs: Record<string, unknown> = {};
 

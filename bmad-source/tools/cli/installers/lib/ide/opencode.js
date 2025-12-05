@@ -1,6 +1,6 @@
 const path = require("node:path");
 const fs = require("fs-extra");
-const os = require("node:os");
+const _os = require("node:os");
 const chalk = require("chalk");
 const yaml = require("js-yaml");
 const { BaseIdeSetup } = require("./_base-ide");

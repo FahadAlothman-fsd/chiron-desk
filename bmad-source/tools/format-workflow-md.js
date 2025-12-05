@@ -9,7 +9,7 @@
  */
 
 const fs = require("node:fs");
-const path = require("node:path");
+const _path = require("node:path");
 
 class WorkflowFormatter {
 	constructor(options = {}) {
@@ -108,7 +108,7 @@ class WorkflowFormatter {
 	/**
 	 * Format a single XML line with context awareness
 	 */
-	formatXMLLine(line, currentIndent, checkDepth, lineIndex, allLines) {
+	formatXMLLine(line, currentIndent, checkDepth, _lineIndex, _allLines) {
 		const trimmed = line.trim();
 		let indent = currentIndent;
 		let nextIndent = currentIndent;

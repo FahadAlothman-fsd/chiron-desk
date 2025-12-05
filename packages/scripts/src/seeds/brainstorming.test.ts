@@ -25,7 +25,7 @@ describe("Brainstorming Workflow Seed", () => {
 		// Verify Step 1 exists
 		const step1 = await db.query.workflowSteps.findFirst({
 			where: (steps, { eq, and }) =>
-				and(eq(steps.workflowId, workflow!.id), eq(steps.stepNumber, 1)),
+				and(eq(steps.workflowId, workflow?.id), eq(steps.stepNumber, 1)),
 		});
 
 		expect(step1).toBeDefined();

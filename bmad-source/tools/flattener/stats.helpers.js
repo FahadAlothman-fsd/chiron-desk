@@ -144,8 +144,8 @@ function computeDepthAndLongest(allFiles) {
 }
 
 function computeTemporal(allFiles, nowMs) {
-	let oldest = null,
-		newest = null;
+	let oldest = null;
+	let newest = null;
 	const ageBuckets = [
 		{
 			label: "> 1 year",
@@ -308,10 +308,10 @@ function computeGitInfo(allFiles, rootDir, largeThreshold) {
 			stdio: ["ignore", "pipe", "ignore"],
 		});
 		const tracked = new Set(out.toString().split("\0").filter(Boolean));
-		let trackedBytes = 0,
-			trackedCount = 0,
-			untrackedBytes = 0,
-			untrackedCount = 0;
+		let trackedBytes = 0;
+		let trackedCount = 0;
+		let untrackedBytes = 0;
+		let untrackedCount = 0;
 		const lfsCandidates = [];
 		for (const f of allFiles) {
 			const isTracked = tracked.has(f.path);

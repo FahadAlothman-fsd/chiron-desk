@@ -37,7 +37,7 @@ async function testWebBundler() {
 
 	// Test 3: Bundle analyst agent
 	try {
-		const result = await bundler.bundleAgent("bmm", "analyst.md");
+		const _result = await bundler.bundleAgent("bmm", "analyst.md");
 
 		// Check if bundle was created
 		const bundlePath = path.join(
@@ -103,7 +103,7 @@ async function testWebBundler() {
 
 	// Test 4: Bundle a different agent (architect which exists)
 	try {
-		const result = await bundler.bundleAgent("bmm", "architect.md");
+		const _result = await bundler.bundleAgent("bmm", "architect.md");
 		const bundlePath = path.join(
 			bundler.outputDir,
 			"bmm",

@@ -9,7 +9,7 @@ class Manifest {
 	 * @param {Object} data - Manifest data
 	 * @param {Array} installedFiles - List of installed files (no longer used, files tracked in files-manifest.csv)
 	 */
-	async create(bmadDir, data, installedFiles = []) {
+	async create(bmadDir, data, _installedFiles = []) {
 		const manifestPath = path.join(bmadDir, "_cfg", "manifest.yaml");
 		const yaml = require("js-yaml");
 
@@ -40,7 +40,7 @@ class Manifest {
 		// Ensure POSIX-compliant final newline
 		const content = yamlContent.endsWith("\n")
 			? yamlContent
-			: yamlContent + "\n";
+			: `${yamlContent}\n`;
 		await fs.writeFile(manifestPath, content, "utf8");
 		return { success: true, path: manifestPath, filesTracked: 0 };
 	}
@@ -81,7 +81,7 @@ class Manifest {
 	 * @param {Object} updates - Fields to update
 	 * @param {Array} installedFiles - Updated list of installed files
 	 */
-	async update(bmadDir, updates, installedFiles = null) {
+	async update(bmadDir, updates, _installedFiles = null) {
 		const yaml = require("js-yaml");
 		const manifest = (await this.read(bmadDir)) || {};
 
@@ -113,7 +113,7 @@ class Manifest {
 		// Ensure POSIX-compliant final newline
 		const content = yamlContent.endsWith("\n")
 			? yamlContent
-			: yamlContent + "\n";
+			: `${yamlContent}\n`;
 		await fs.writeFile(manifestPath, content, "utf8");
 
 		return manifest;
@@ -205,8 +205,7 @@ class Manifest {
 		for (const filePath of installedFiles) {
 			const fileExt = path.extname(filePath).toLowerCase();
 			// Make path relative to parent of bmad directory, starting with 'bmad/'
-			const relativePath =
-				"bmad" + filePath.replace(bmadDir, "").replaceAll("\\", "/");
+			const relativePath = `bmad${filePath.replace(bmadDir, "").replaceAll("\\", "/")}`;
 
 			// Calculate file hash
 			const hash = await this.calculateFileHash(filePath);
@@ -263,7 +262,7 @@ class Manifest {
 	 * @param {string} relativePath - Relative path starting with 'bmad/'
 	 * @returns {Object|null} Extracted metadata or null
 	 */
-	extractXmlNodeAttributes(content, filePath, relativePath) {
+	extractXmlNodeAttributes(content, _filePath, relativePath) {
 		// Look for XML blocks in code fences
 		const xmlBlockMatch = content.match(/```xml\s*([\s\S]*?)```/);
 		if (!xmlBlockMatch) {
@@ -300,7 +299,7 @@ class Manifest {
 	 * @param {Object} moduleConfigs - Module configuration data
 	 * @returns {string} CSV content
 	 */
-	generateManifestCsv(data, fileMetadata, moduleConfigs = {}) {
+	generateManifestCsv(data, _fileMetadata, moduleConfigs = {}) {
 		const timestamp = new Date().toISOString();
 		const csv = [];
 
@@ -502,7 +501,7 @@ class Manifest {
 
 		// If contains comma, newline, or quote, wrap in quotes and escape quotes
 		if (str.includes(",") || str.includes("\n") || str.includes('"')) {
-			return '"' + str.replaceAll('"', '""') + '"';
+			return `"${str.replaceAll('"', '""')}"`;
 		}
 
 		return str;

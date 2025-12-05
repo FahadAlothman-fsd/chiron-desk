@@ -59,7 +59,7 @@ I want a split-pane interface where I can chat with the Brainstorming agent to d
 I want to execute specific brainstorming techniques (like SCAMPER) via the chat, so that I can generate structured ideas.
 
 **Acceptance Criteria:**
-- [ ] **Seed Techniques:** Insert 10 technique workflows (e.g., SCAMPER, Six Hats) into `workflows` table (tagged `type: technique`).
+- [ ] **Seed Techniques:** Insert 5 technique workflows (SCAMPER, Six Thinking Hats, Five Whys, Mind Mapping, What If Scenarios) into `workflows` table (tagged `type: technique`). TypeScript seed configs in `docs/sprint-artifacts/story-2-3-technique-workflows/`.
 - [ ] **Seed Step 2:** Configure `brainstorming` workflow Step 2 with `invoke-workflow` logic.
 - [ ] **Action List UI:** Render the list of selected techniques in the chat.
 - [ ] **Child Workflow UI:** Implement Modal/Dialog for running technique workflows.

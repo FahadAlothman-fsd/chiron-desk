@@ -1,5 +1,9 @@
 # BMAD Step Separation & Chiron Artifact Workbench Design
 
+> **📌 Status: Conceptual Analysis Document**  
+> This document contains early design thinking from November 2025.  
+> **Actual Implementation:** See `docs/architecture/layout-routing-system.md` for the implemented architecture using `WorkflowLayoutRenderer`, layout types (wizard/artifact-workbench/dialog), and timeline container patterns.
+
 **Date:** November 23, 2025  
 **Analyst:** Mary (Business Analyst)  
 **Focus:** Why BMAD separates steps and how this maps to Chiron's artifact workbench concept  

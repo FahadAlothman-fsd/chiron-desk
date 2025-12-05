@@ -47,7 +47,7 @@ export interface ModelConfig {
  * Custom fetch wrapper to fix malformed tool calling responses from some OpenRouter models
  * Some models (like gpt-oss-120b) return empty strings for tool_calls.type instead of "function"
  */
-function createOpenRouterFetchWithFix(apiKey: string): typeof fetch {
+function createOpenRouterFetchWithFix(_apiKey: string): typeof fetch {
 	return async (url: RequestInfo | URL, init?: RequestInit) => {
 		const response = await fetch(url, init);
 

@@ -130,7 +130,7 @@ class WorkflowCommandGenerator {
 	/**
 	 * Generate command content for a workflow
 	 */
-	async generateCommandContent(workflow, bmadDir) {
+	async generateCommandContent(workflow, _bmadDir) {
 		// Load the template
 		const template = await fs.readFile(this.templatePath, "utf8");
 

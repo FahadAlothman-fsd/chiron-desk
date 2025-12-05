@@ -410,7 +410,12 @@ alwaysApply: false
 	 * @param {Object} metadata - Agent metadata
 	 * @returns {Object|null} Info about created command
 	 */
-	async installCustomAgentLauncher(projectDir, agentName, agentPath, metadata) {
+	async installCustomAgentLauncher(
+		projectDir,
+		agentName,
+		agentPath,
+		_metadata,
+	) {
 		const customAgentsDir = path.join(
 			projectDir,
 			this.configDir,

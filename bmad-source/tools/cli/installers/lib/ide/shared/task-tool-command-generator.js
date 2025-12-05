@@ -1,7 +1,7 @@
 const path = require("node:path");
 const fs = require("fs-extra");
 const csv = require("csv-parse/sync");
-const chalk = require("chalk");
+const _chalk = require("chalk");
 
 /**
  * Generates command files for standalone tasks and tools

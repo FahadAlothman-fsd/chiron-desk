@@ -95,7 +95,7 @@ class YamlXmlBuilder {
 				}
 
 				// Merge metadata (only non-empty values)
-				if (customizeYaml.agent && customizeYaml.agent.metadata) {
+				if (customizeYaml.agent?.metadata) {
 					const nonEmptyMetadata = {};
 					for (const [key, value] of Object.entries(
 						customizeYaml.agent.metadata,
@@ -227,7 +227,7 @@ class YamlXmlBuilder {
 
 		// Activation block (only if not skipped)
 		if (activationBlock) {
-			xml += activationBlock + "\n";
+			xml += `${activationBlock}\n`;
 		}
 
 		// Persona section
@@ -395,7 +395,7 @@ class YamlXmlBuilder {
 				// Build command attributes - add * prefix if not present
 				let trigger = item.trigger || "";
 				if (!trigger.startsWith("*")) {
-					trigger = "*" + trigger;
+					trigger = `*${trigger}`;
 				}
 
 				const attrs = [`cmd="${trigger}"`];

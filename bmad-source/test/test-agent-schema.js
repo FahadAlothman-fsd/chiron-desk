@@ -107,7 +107,7 @@ function parsePathString(pathString) {
 		.split(".")
 		.map((part) => {
 			const num = Number.parseInt(part, 10);
-			return isNaN(num) ? part : num;
+			return Number.isNaN(num) ? part : num;
 		});
 }
 

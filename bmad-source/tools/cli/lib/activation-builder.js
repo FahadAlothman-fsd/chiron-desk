@@ -55,7 +55,7 @@ class ActivationBuilder {
 			agentSpecificActions,
 			forWebBundle,
 		);
-		activation += this.indent(steps, 2) + "\n";
+		activation += `${this.indent(steps, 2)}\n`;
 
 		// 2. Build menu handlers section with dynamic handlers
 		const menuHandlers = await this.loadFragment("menu-handlers.xml");
@@ -70,12 +70,12 @@ class ActivationBuilder {
 			.replace("<extract>{DYNAMIC_EXTRACT_LIST}</extract>\n", "") // Remove the entire extract line
 			.replace("{DYNAMIC_HANDLERS}", handlers);
 
-		activation += "\n" + this.indent(processedHandlers, 2) + "\n";
+		activation += `\n${this.indent(processedHandlers, 2)}\n`;
 
 		// 3. Include rules (skip for web bundles as they're in web-bundle-activation-steps.xml)
 		if (!forWebBundle) {
 			const rules = await this.loadFragment("activation-rules.xml");
-			activation += this.indent(rules, 2) + "\n";
+			activation += `${this.indent(rules, 2)}\n`;
 		}
 
 		activation += "</activation>";

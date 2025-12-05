@@ -7,7 +7,6 @@ import type {
 	WorkflowTags,
 } from "@chiron/db";
 import { db, workflowSteps, workflows } from "@chiron/db";
-import { eq } from "drizzle-orm";
 
 /**
  * Seeds the workflow-init-new workflow metadata and steps 1-2

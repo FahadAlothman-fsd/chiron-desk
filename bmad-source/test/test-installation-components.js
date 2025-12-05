@@ -175,13 +175,13 @@ async function runTests() {
 	);
 
 	try {
-		const builder = new YamlXmlBuilder();
+		const _builder = new YamlXmlBuilder();
 
 		// Test path resolution logic (if exposed)
 		// This would test {project-root}, {installed_path}, {config_source} resolution
 
-		const testPath = "{project-root}/bmad/bmm/config.yaml";
-		const expectedPattern = /\/bmad\/bmm\/config\.yaml$/;
+		const _testPath = "{project-root}/bmad/bmm/config.yaml";
+		const _expectedPattern = /\/bmad\/bmm\/config\.yaml$/;
 
 		assert(
 			true, // Placeholder - would test actual resolution
@@ -210,7 +210,7 @@ async function runTests() {
 		const tempOutput = path.join(__dirname, "temp-tea-agent.md");
 
 		try {
-			const result = await builder.buildAgent(teaAgentPath, null, tempOutput, {
+			const _result = await builder.buildAgent(teaAgentPath, null, tempOutput, {
 				includeMetadata: true,
 			});
 			const compiled = await fs.readFile(tempOutput, "utf8");

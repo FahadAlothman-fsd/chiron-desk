@@ -17,6 +17,9 @@ export interface ExecutionContext {
 	// This is the workflow state accumulator
 	executionVariables: Record<string, unknown>;
 
+	// Alias for backward compatibility (some handlers use context.variables)
+	variables: Record<string, unknown>;
+
 	// Level 3: Step outputs (from executedSteps JSONB)
 	stepOutputs: Record<number, unknown>;
 
@@ -49,6 +52,11 @@ export function buildExecutionContext(params: {
 		}
 	}
 
+	console.log(
+		"[buildExecutionContext] Building context with params.variables:",
+		JSON.stringify(params.variables, null, 2),
+	);
+
 	return {
 		systemVariables: {
 			current_user_id: params.userId,
@@ -58,6 +66,7 @@ export function buildExecutionContext(params: {
 			timestamp: new Date().toISOString(),
 		},
 		executionVariables: params.variables,
+		variables: params.variables, // Alias for backward compatibility
 		stepOutputs,
 		defaultValues: params.defaultValues || {},
 	};

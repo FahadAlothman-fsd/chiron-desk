@@ -168,7 +168,7 @@ function BrainstormingPreview({
 
 				{/* Goals Section */}
 				<div>
-					<h4 className="mb-3 font-semibold text-sm text-muted-foreground">
+					<h4 className="mb-3 font-semibold text-muted-foreground text-sm">
 						Session Goals
 					</h4>
 					{goals && goals.length > 0 ? (
@@ -178,10 +178,10 @@ function BrainstormingPreview({
 									key={idx}
 									className="flex items-start gap-3 rounded-lg border border-green-200 bg-green-50/50 p-3 text-sm dark:border-green-800/50 dark:bg-green-900/10"
 								>
-									<div className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-green-100 text-green-700 text-xs font-semibold dark:bg-green-900/40 dark:text-green-400">
+									<div className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-green-100 font-semibold text-green-700 text-xs dark:bg-green-900/40 dark:text-green-400">
 										{idx + 1}
 									</div>
-									<p className="flex-1 leading-relaxed text-green-900 dark:text-green-100">
+									<p className="flex-1 text-green-900 leading-relaxed dark:text-green-100">
 										{goal}
 									</p>
 								</div>
@@ -189,7 +189,7 @@ function BrainstormingPreview({
 						</div>
 					) : (
 						<div className="space-y-2">
-							<div className="animate-pulse rounded-md border border-dashed border-yellow-300 bg-yellow-50/50 p-3 text-yellow-700 text-sm dark:border-yellow-700 dark:bg-yellow-500/5 dark:text-yellow-400">
+							<div className="animate-pulse rounded-md border border-yellow-300 border-dashed bg-yellow-50/50 p-3 text-sm text-yellow-700 dark:border-yellow-700 dark:bg-yellow-500/5 dark:text-yellow-400">
 								Goals will appear here once you discuss them with the agent
 							</div>
 							<p className="text-muted-foreground text-xs italic">
@@ -201,7 +201,7 @@ function BrainstormingPreview({
 
 				{/* Techniques Section */}
 				<div>
-					<h4 className="mb-2 font-semibold text-sm text-muted-foreground">
+					<h4 className="mb-2 font-semibold text-muted-foreground text-sm">
 						Selected Techniques
 					</h4>
 					{techniques && techniques.length > 0 ? (
@@ -232,7 +232,7 @@ function BrainstormingPreview({
 						</div>
 					) : (
 						<div className="space-y-2">
-							<div className="animate-pulse rounded-md border border-dashed border-yellow-300 bg-yellow-50/50 p-3 text-yellow-700 text-sm dark:border-yellow-700 dark:bg-yellow-500/5 dark:text-yellow-400">
+							<div className="animate-pulse rounded-md border border-yellow-300 border-dashed bg-yellow-50/50 p-3 text-sm text-yellow-700 dark:border-yellow-700 dark:bg-yellow-500/5 dark:text-yellow-400">
 								Techniques will be recommended based on your goals
 							</div>
 							<p className="text-muted-foreground text-xs italic">
@@ -242,14 +242,136 @@ function BrainstormingPreview({
 					)}
 				</div>
 
+				{/* Captured Ideas Section - Story 2.3 Task 8 */}
+				<CapturedIdeasSection variables={variables} />
+
 				{/* Session Status Footer */}
-				<div className="mt-6 rounded-md border-l-4 border-blue-500 bg-blue-50/50 p-3 dark:bg-blue-500/5">
+				<div className="mt-6 rounded-md border-blue-500 border-l-4 bg-blue-50/50 p-3 dark:bg-blue-500/5">
 					<p className="text-blue-900 text-xs dark:text-blue-300">
 						💡 <strong>Tip:</strong> Chat with the agent to define your topic,
 						goals, and select brainstorming techniques. This preview will update
 						in real-time as you progress.
 					</p>
 				</div>
+			</div>
+		</div>
+	);
+}
+
+/**
+ * Captured Ideas Section - Story 2.3 Task 8
+ * Generic display of aggregated child workflow outputs
+ * Works for ANY invoke-workflow step, not just techniques
+ */
+interface CapturedIdeasSectionProps {
+	variables: Record<string, any>;
+}
+
+function CapturedIdeasSection({ variables }: CapturedIdeasSectionProps) {
+	const capturedIdeas = variables.captured_ideas as
+		| Record<string, any>
+		| undefined;
+
+	// If no captured ideas yet, show empty state
+	if (!capturedIdeas || Object.keys(capturedIdeas).length === 0) {
+		return (
+			<div>
+				<h4 className="mb-2 font-semibold text-muted-foreground text-sm">
+					Captured Ideas
+				</h4>
+				<div className="space-y-2">
+					<div className="animate-pulse rounded-md border border-yellow-300 border-dashed bg-yellow-50/50 p-3 text-sm text-yellow-700 dark:border-yellow-700 dark:bg-yellow-500/5 dark:text-yellow-400">
+						Results will appear here as workflows complete
+					</div>
+					<p className="text-muted-foreground text-xs italic">
+						Execute workflows in Step 2 to see aggregated outputs
+					</p>
+				</div>
+			</div>
+		);
+	}
+
+	// Display aggregated outputs grouped by child workflow
+	return (
+		<div>
+			<h4 className="mb-3 font-semibold text-muted-foreground text-sm">
+				Captured Ideas ({Object.keys(capturedIdeas).length} workflows completed)
+			</h4>
+			<div className="space-y-4">
+				{Object.entries(capturedIdeas).map(
+					([workflowId, data]: [string, any]) => {
+						const output = data.output || [];
+						const workflowName = data.workflowName || "Unknown Workflow";
+						const completedAt = data.completedAt
+							? new Date(data.completedAt).toLocaleTimeString("en-US", {
+									hour: "2-digit",
+									minute: "2-digit",
+								})
+							: null;
+
+						// Handle different output types (array, object, string)
+						const outputItems = Array.isArray(output) ? output : [output];
+
+						return (
+							<div
+								key={workflowId}
+								className="rounded-lg border border-blue-200 bg-blue-50/30 p-4 dark:border-blue-800/50 dark:bg-blue-900/10"
+							>
+								{/* Workflow Header with Badge */}
+								<div className="mb-3 flex items-center justify-between">
+									<div className="flex items-center gap-2">
+										<span className="inline-block rounded-full bg-blue-600 px-3 py-1 font-semibold text-sm text-white">
+											{workflowName}
+										</span>
+										<span className="text-muted-foreground text-xs">
+											{outputItems.length}{" "}
+											{outputItems.length === 1 ? "item" : "items"}
+										</span>
+									</div>
+									{completedAt && (
+										<span className="text-muted-foreground text-xs">
+											Completed {completedAt}
+										</span>
+									)}
+								</div>
+
+								{/* Output Display */}
+								{outputItems.length > 0 ? (
+									<div className="space-y-2">
+										{outputItems.map((item: any, idx: number) => {
+											// Handle different output formats (string, object, etc.)
+											const displayText =
+												typeof item === "string"
+													? item
+													: item.text ||
+														item.idea ||
+														item.value ||
+														JSON.stringify(item);
+
+											return (
+												<div
+													key={idx}
+													className="flex items-start gap-3 rounded-md bg-white p-3 text-sm shadow-sm dark:bg-gray-900/50"
+												>
+													<div className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 font-semibold text-blue-700 text-xs dark:bg-blue-900/40 dark:text-blue-400">
+														{idx + 1}
+													</div>
+													<p className="flex-1 text-gray-900 leading-relaxed dark:text-gray-100">
+														{displayText}
+													</p>
+												</div>
+											);
+										})}
+									</div>
+								) : (
+									<p className="text-muted-foreground text-sm italic">
+										No output from this workflow
+									</p>
+								)}
+							</div>
+						);
+					},
+				)}
 			</div>
 		</div>
 	);

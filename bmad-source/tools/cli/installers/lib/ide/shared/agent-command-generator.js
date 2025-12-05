@@ -1,6 +1,6 @@
 const path = require("node:path");
 const fs = require("fs-extra");
-const chalk = require("chalk");
+const _chalk = require("chalk");
 
 /**
  * Generates launcher command files for each agent

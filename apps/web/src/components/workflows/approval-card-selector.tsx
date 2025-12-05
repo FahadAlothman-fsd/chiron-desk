@@ -272,7 +272,7 @@ export function ApprovalCardSelector({
 		.replace(/\b\w/g, (l) => l.toUpperCase());
 
 	// Find the selected option details
-	const selectedOption = uniqueOptions.find((opt) => {
+	const _selectedOption = uniqueOptions.find((opt) => {
 		if (displayConfig) {
 			return getValueByPath(opt, displayConfig.fields.value) === selectedValue;
 		}
@@ -334,134 +334,130 @@ export function ApprovalCardSelector({
 				)}
 
 				{/* Card Selector - Hidden when approved and collapsed */}
-				{(!isApproved || isOptionsExpanded) && (
-					<>
-						{displayConfig ? (
-							// Use generic OptionCard component with displayConfig
-							<div className="space-y-3">
-								{uniqueOptions.map((option, index) => {
-									const optionValue = getValueByPath<string>(
-										option,
-										displayConfig.fields.value,
-									);
+				{(!isApproved || isOptionsExpanded) &&
+					(displayConfig ? (
+						// Use generic OptionCard component with displayConfig
+						<div className="space-y-3">
+							{uniqueOptions.map((option, index) => {
+								const optionValue = getValueByPath<string>(
+									option,
+									displayConfig.fields.value,
+								);
 
-									// Handle multi-select vs single-select
-									const isAiRecommendation = isMultiSelect
-										? Array.isArray(aiRecommendedValue) &&
-											aiRecommendedValue.includes(optionValue)
-										: optionValue === aiRecommendedValue;
+								// Handle multi-select vs single-select
+								const isAiRecommendation = isMultiSelect
+									? Array.isArray(aiRecommendedValue) &&
+										aiRecommendedValue.includes(optionValue)
+									: optionValue === aiRecommendedValue;
 
-									const isSelected = isMultiSelect
-										? Array.isArray(selectedValue) &&
-											selectedValue.includes(optionValue)
-										: optionValue === selectedValue;
+								const isSelected = isMultiSelect
+									? Array.isArray(selectedValue) &&
+										selectedValue.includes(optionValue)
+									: optionValue === selectedValue;
 
-									// Use option.id if available, otherwise fall back to index
-									const uniqueKey = (option as any).id || `option-${index}`;
+								// Use option.id if available, otherwise fall back to index
+								const uniqueKey = (option as any).id || `option-${index}`;
 
-									return (
-										<OptionCard
-											key={uniqueKey}
-											option={option}
-											displayConfig={displayConfig}
-											isSelected={isSelected}
-											isRecommended={isAiRecommendation}
-											onSelect={() => {
-												if (isMultiSelect) {
-													// Toggle selection in array
-													setSelectedValue((prev) => {
-														const arr = Array.isArray(prev) ? prev : [];
-														if (arr.includes(optionValue)) {
-															return arr.filter((v) => v !== optionValue);
-														} else {
-															return [...arr, optionValue];
-														}
-													});
-												} else {
-													// Single select
-													setSelectedValue(optionValue || "");
-												}
-											}}
-											disabled={isReadOnly}
-											isMultiSelect={isMultiSelect}
-										/>
-									);
-								})}
-							</div>
-						) : (
-							// LEGACY: Fallback for old Option interface (no displayConfig)
-							<div className="space-y-3">
-								{!isReadOnly && (
-									<div className="font-medium text-sm">
-										Athena recommends:{" "}
-										<span className="text-primary">
-											{
-												(
-													uniqueOptions.find(
-														(opt: any) => opt.value === aiRecommendedValue,
-													) as any
-												)?.name
+								return (
+									<OptionCard
+										key={uniqueKey}
+										option={option}
+										displayConfig={displayConfig}
+										isSelected={isSelected}
+										isRecommended={isAiRecommendation}
+										onSelect={() => {
+											if (isMultiSelect) {
+												// Toggle selection in array
+												setSelectedValue((prev) => {
+													const arr = Array.isArray(prev) ? prev : [];
+													if (arr.includes(optionValue)) {
+														return arr.filter((v) => v !== optionValue);
+													}
+													return [...arr, optionValue];
+												});
+											} else {
+												// Single select
+												setSelectedValue(optionValue || "");
 											}
-										</span>
-									</div>
-								)}
-
-								<div className="space-y-2">
-									{uniqueOptions.map((option: any) => (
-										<div
-											key={option.value}
-											onClick={
-												isReadOnly
-													? undefined
-													: () => setSelectedValue(option.value)
-											}
-											onKeyDown={
-												isReadOnly
-													? undefined
-													: (e) => {
-															if (e.key === "Enter" || e.key === " ") {
-																setSelectedValue(option.value);
-															}
-														}
-											}
-											role="radio"
-											aria-checked={option.value === selectedValue}
-											aria-disabled={isReadOnly}
-											tabIndex={isReadOnly ? -1 : 0}
-											className={cn(
-												"rounded-lg border-2 p-4 transition-all",
-												// Interactive styles only when not read-only
-												!isReadOnly && "cursor-pointer",
-												// Selected state
-												option.value === selectedValue &&
-													"border-primary bg-primary/5",
-												// Non-selected: different styles for read-only vs interactive
-												option.value !== selectedValue &&
-													isReadOnly &&
-													"opacity-60",
-												option.value !== selectedValue &&
-													!isReadOnly &&
-													"border-border hover:border-primary/50",
-											)}
-										>
-											<div className="font-semibold text-base">
-												{option.name}
-												{option.value === aiRecommendedValue && !isReadOnly && (
-													<span className="ml-2 text-primary text-xs">
-														⭐ AI Recommendation
-													</span>
-												)}
-											</div>
-											<div className="text-muted-foreground text-sm">
-												{option.description}
-											</div>
-										</div>
-									))}
+										}}
+										disabled={isReadOnly}
+										isMultiSelect={isMultiSelect}
+									/>
+								);
+							})}
+						</div>
+					) : (
+						// LEGACY: Fallback for old Option interface (no displayConfig)
+						<div className="space-y-3">
+							{!isReadOnly && (
+								<div className="font-medium text-sm">
+									Athena recommends:{" "}
+									<span className="text-primary">
+										{
+											(
+												uniqueOptions.find(
+													(opt: any) => opt.value === aiRecommendedValue,
+												) as any
+											)?.name
+										}
+									</span>
 								</div>
+							)}
+
+							<div className="space-y-2">
+								{uniqueOptions.map((option: any) => (
+									<div
+										key={option.value}
+										onClick={
+											isReadOnly
+												? undefined
+												: () => setSelectedValue(option.value)
+										}
+										onKeyDown={
+											isReadOnly
+												? undefined
+												: (e) => {
+														if (e.key === "Enter" || e.key === " ") {
+															setSelectedValue(option.value);
+														}
+													}
+										}
+										role="radio"
+										aria-checked={option.value === selectedValue}
+										aria-disabled={isReadOnly}
+										tabIndex={isReadOnly ? -1 : 0}
+										className={cn(
+											"rounded-lg border-2 p-4 transition-all",
+											// Interactive styles only when not read-only
+											!isReadOnly && "cursor-pointer",
+											// Selected state
+											option.value === selectedValue &&
+												"border-primary bg-primary/5",
+											// Non-selected: different styles for read-only vs interactive
+											option.value !== selectedValue &&
+												isReadOnly &&
+												"opacity-60",
+											option.value !== selectedValue &&
+												!isReadOnly &&
+												"border-border hover:border-primary/50",
+										)}
+									>
+										<div className="font-semibold text-base">
+											{option.name}
+											{option.value === aiRecommendedValue && !isReadOnly && (
+												<span className="ml-2 text-primary text-xs">
+													⭐ AI Recommendation
+												</span>
+											)}
+										</div>
+										<div className="text-muted-foreground text-sm">
+											{option.description}
+										</div>
+									</div>
+								))}
 							</div>
-						)}
-					</>
-				)}
+						</div>
+					))}
 
 				{/* Reasoning (Collapsible) */}
 				{reasoning && (

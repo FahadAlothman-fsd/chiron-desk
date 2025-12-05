@@ -37,7 +37,7 @@ function replacePlaceholdersInFile(
 				const docOutNoLeadingSlash = docOut.replace(/^\//, "");
 				const docOutWithTrailingSlash = docOutNoLeadingSlash.endsWith("/")
 					? docOutNoLeadingSlash
-					: docOutNoLeadingSlash + "/";
+					: `${docOutNoLeadingSlash}/`;
 				content = content.replaceAll(
 					"{project-root}{output_folder}/",
 					projectRoot + docOutWithTrailingSlash,
@@ -53,7 +53,7 @@ function replacePlaceholdersInFile(
 				// For standalone {output_folder}/, keep the leading slash and add trailing slash
 				const docOutWithTrailingSlash = docOut.endsWith("/")
 					? docOut
-					: docOut + "/";
+					: `${docOut}/`;
 				content = content.replaceAll(
 					"{output_folder}/",
 					docOutWithTrailingSlash,
@@ -253,7 +253,7 @@ function processInstallation(
 	// Ensure project root has trailing slash since usage is like {project-root}/bmad
 	const projectRootWithSlash = targetProjectRoot.endsWith("/")
 		? targetProjectRoot
-		: targetProjectRoot + "/";
+		: `${targetProjectRoot}/`;
 
 	// Ensure docs path has leading slash (for internal use) but will add trailing slash during replacement
 	const normalizedDocsPath = docsOutputPath.replaceAll(/^\/+|\/+$/g, "");

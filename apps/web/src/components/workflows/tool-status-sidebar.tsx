@@ -8,7 +8,7 @@ import {
 	User,
 	XCircle,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import {
 	Accordion,
 	AccordionContent,
@@ -202,7 +202,7 @@ export function ToolStatusSidebar({
 
 	// Calculate a hash or simple indicator of approval state to trigger refetches
 	// When approval count changes, we know the execution state has advanced
-	const approvalHash = `${approvedCount}-${Object.keys(approvalStates).length}`;
+	const _approvalHash = `${approvedCount}-${Object.keys(approvalStates).length}`;
 
 	// Fetch resolved instructions (for system prompt)
 	// Pass approvalHash as a dependency key to force React Query to refetch when it changes
@@ -227,7 +227,7 @@ export function ToolStatusSidebar({
 		if (agentId && executionId) {
 			utils.agents.getResolvedInstructions.invalidate({ agentId, executionId });
 		}
-	}, [approvalHash, agentId, executionId, utils]);
+	}, [agentId, executionId, utils]);
 
 	return (
 		<Card className={`${className} flex flex-col overflow-hidden`}>
@@ -393,7 +393,7 @@ export function ToolStatusSidebar({
 																});
 																const isLatest =
 																	idx ===
-																	approvalState.rejection_history!.length - 1;
+																	approvalState.rejection_history?.length - 1;
 
 																return (
 																	<div
@@ -406,7 +406,7 @@ export function ToolStatusSidebar({
 																	>
 																		<div className="mb-1 flex items-center justify-between">
 																			<span
-																				className={`text-[10px] font-medium uppercase tracking-wider ${
+																				className={`font-medium text-[10px] uppercase tracking-wider ${
 																					isLatest
 																						? "text-red-900 dark:text-red-100"
 																						: "text-muted-foreground"

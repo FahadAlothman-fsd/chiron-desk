@@ -185,7 +185,7 @@ function InitializePage() {
 		return (
 			<div className="flex h-screen flex-col items-center justify-center p-6">
 				<div className="text-center">
-					<h2 className="text-lg font-semibold text-red-500">
+					<h2 className="font-semibold text-lg text-red-500">
 						Error: Step data not found
 					</h2>
 					<p className="mt-2 text-muted-foreground">

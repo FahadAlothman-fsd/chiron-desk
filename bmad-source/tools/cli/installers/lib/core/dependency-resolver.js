@@ -584,7 +584,7 @@ class DependencyResolver {
 					depPath.endsWith(".yml")) &&
 				(await fs.pathExists(depPath))
 			) {
-				const content = await fs.readFile(depPath, "utf8");
+				const _content = await fs.readFile(depPath, "utf8");
 				const subDeps = await this.parseDependencies([
 					{
 						path: depPath,

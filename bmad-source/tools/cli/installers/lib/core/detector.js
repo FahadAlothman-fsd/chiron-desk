@@ -57,11 +57,7 @@ class Detector {
 		// Check for modules
 		// If manifest exists, use it as the source of truth for installed modules
 		// Otherwise fall back to directory scanning (legacy installations)
-		if (
-			manifestData &&
-			manifestData.modules &&
-			manifestData.modules.length > 0
-		) {
+		if (manifestData?.modules && manifestData.modules.length > 0) {
 			// Use manifest module list - these are officially installed modules
 			for (const moduleId of manifestData.modules) {
 				const modulePath = path.join(bmadDir, moduleId);
@@ -124,7 +120,7 @@ class Detector {
 		}
 
 		// Check for IDE configurations from manifest
-		if (result.manifest && result.manifest.ides) {
+		if (result.manifest?.ides) {
 			// Filter out any undefined/null values
 			result.ides = result.manifest.ides.filter(
 				(ide) => ide && typeof ide === "string",
@@ -222,7 +218,7 @@ class Detector {
 	 */
 	async detectLegacyV4(projectDir) {
 		// Helper: check existence of a nested path with case-sensitive segment matching
-		const existsCaseSensitive = async (baseDir, segments) => {
+		const _existsCaseSensitive = async (baseDir, segments) => {
 			let dir = baseDir;
 			for (let i = 0; i < segments.length; i++) {
 				const seg = segments[i];
@@ -252,9 +248,7 @@ class Detector {
 				const manifestContent = await fs.readFile(manifestPath, "utf8");
 				const manifest = yaml.load(manifestContent);
 				// V6+ manifest has installation.version
-				return (
-					manifest && manifest.installation && manifest.installation.version
-				);
+				return manifest?.installation?.version;
 			} catch {
 				return false;
 			}

@@ -23,9 +23,9 @@ async function install(options) {
 		logger.log(chalk.blue("🚀 Installing BMM Module..."));
 
 		// Check and create tech_docs directory if configured
-		if (config["tech_docs"]) {
+		if (config.tech_docs) {
 			// Strip {project-root}/ prefix if present
-			const techDocsConfig = config["tech_docs"].replace("{project-root}/", "");
+			const techDocsConfig = config.tech_docs.replace("{project-root}/", "");
 			const techDocsPath = path.join(projectRoot, techDocsConfig);
 
 			if (await fs.pathExists(techDocsPath)) {
@@ -76,12 +76,9 @@ async function install(options) {
 		}
 
 		// Create output directory if configured
-		if (config["output_folder"]) {
+		if (config.output_folder) {
 			// Strip {project-root}/ prefix if present
-			const outputConfig = config["output_folder"].replace(
-				"{project-root}/",
-				"",
-			);
+			const outputConfig = config.output_folder.replace("{project-root}/", "");
 			const outputPath = path.join(projectRoot, outputConfig);
 			if (!(await fs.pathExists(outputPath))) {
 				logger.log(chalk.yellow(`Creating output directory: ${outputConfig}`));
@@ -90,9 +87,9 @@ async function install(options) {
 		}
 
 		// Create dev story location if configured
-		if (config["sprint_artifacts"]) {
+		if (config.sprint_artifacts) {
 			// Strip {project-root}/ prefix if present
-			const storyConfig = config["sprint_artifacts"].replace(
+			const storyConfig = config.sprint_artifacts.replace(
 				"{project-root}/",
 				"",
 			);

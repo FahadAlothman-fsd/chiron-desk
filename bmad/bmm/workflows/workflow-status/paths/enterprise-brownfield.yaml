@@ -24,10 +24,11 @@ phases:
     required: true
     note: "Analysis phase required for enterprise projects"
     workflows:
-      - id: "brainstorm-project"
+      - id: "brainstorming"
         optional: true
         agent: "analyst"
-        command: "brainstorm-project"
+        command: "brainstorming"
+        note: "Uses core brainstorming workflow with project context template"
         included_by: "user_choice"
 
       - id: "research"

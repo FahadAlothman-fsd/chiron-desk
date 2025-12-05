@@ -599,14 +599,51 @@ if (userRejected && feedback) {
 
 ---
 
-## Next Steps
+### Decision #8: Workflow Layout Routing System ✅ DECIDED
 
-1. ✅ Complete AI framework decision (Decision #7)
-2. Update sprint status with architecture approval
-3. Create Story 1.6 context file and implementation plan
-4. Schema design: Add `agents.instructions` field, `ace_playbooks` table
-5. Install dependencies: `@mastra/core`, `@mastra/mcp`, `@ax-llm/ax`
+**Choice:** Metadata-driven layout routing with three layout types
+**Date Decided:** 2025-12-03
+**Implemented in:** Story 2.3
+
+**Layout Types:**
+- `wizard`: Linear flows with stepper navigation (workflow-init)
+- `artifact-workbench`: Split-pane with Timeline + ArtifactPreview (brainstorming, PRD)
+- `dialog`: Modal overlay for child workflows (techniques)
+
+**Rationale:**
+- Separation of concerns: Steps, layouts, and navigation cleanly separated
+- Flexibility: Easy to add new layout types without touching existing code
+- Reusability: Same step components work in any layout
+- Type safety: TypeScript ensures correct props at compile time
+
+**Implementation:**
+- `WorkflowLayoutRenderer`: Top-level router based on `metadata.layoutType`
+- `StepRenderer`: Pure step content, no layout concerns
+- Layout components: Self-contained, receive `execution` + `stepContent`
+- `Timeline`: Specific to artifact-workbench only (not universal)
+
+**Key Architectural Principles:**
+1. Layouts are self-contained (handle their own concerns)
+2. StepRenderer returns pure step content (no layout wrappers)
+3. Timeline is NOT universal (only for artifact-workbench)
+
+**Applies to:**
+- Epic 2: Artifact Workbench (Story 2.2, 2.3)
+- All future workflows requiring different UI presentations
+
+**Documentation:**
+- Detailed architecture: `docs/architecture/layout-routing-system.md`
+- Story context: `docs/sprint-artifacts/2-3-execution-loop-and-child-workflows.context.xml`
 
 ---
 
-_Last Updated: 2025-11-12_
+## Next Steps
+
+1. ✅ Complete AI framework decision (Decision #7)
+2. ✅ Complete layout routing system (Decision #8)
+3. Continue Epic 2 implementation (Story 2.3 → 2.6)
+4. Update sprint status with progress
+
+---
+
+_Last Updated: 2025-12-03_

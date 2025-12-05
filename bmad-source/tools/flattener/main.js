@@ -261,7 +261,7 @@ program
 				) {
 					console.log("\n🌳 Depth Distribution:");
 					const dd = stats.depthDistribution.slice(0, 2);
-					let line = "   " + dd.map((d) => `${d.depth}:${d.count}`).join("  ");
+					let line = `   ${dd.map((d) => `${d.depth}:${d.count}`).join("  ")}`;
 					if (stats.depthDistribution.length > 2) {
 						line += `  … +${stats.depthDistribution.length - 2} more`;
 					}
@@ -347,7 +347,7 @@ program
 					);
 				}
 
-				if (stats.git && stats.git.isRepo) {
+				if (stats.git?.isRepo) {
 					console.log("\n🔧 Git:");
 					console.log(
 						`   Tracked: ${stats.git.trackedCount} files, ${stats.git.trackedBytes.toLocaleString()} bytes`,
@@ -400,7 +400,7 @@ program
 				{
 					const mdPath = outputPath.endsWith(".xml")
 						? outputPath.replace(/\.xml$/i, ".stats.md")
-						: outputPath + ".stats.md";
+						: `${outputPath}.stats.md`;
 					try {
 						const pct = (num, den) => (den ? (num / den) * 100 : 0);
 						const md = [];
@@ -590,7 +590,7 @@ program
 						}
 
 						// Git
-						if (stats.git && stats.git.isRepo) {
+						if (stats.git?.isRepo) {
 							md.push(
 								"## 🔧 Git",
 								`- Tracked: ${stats.git.trackedCount} files, ${stats.git.trackedBytes.toLocaleString()} bytes`,

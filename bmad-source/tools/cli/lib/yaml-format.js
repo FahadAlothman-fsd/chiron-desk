@@ -70,7 +70,7 @@ async function formatYamlContent(content, filename) {
 			sortKeys: false, // Preserve key order
 		});
 		// Ensure POSIX-compliant final newline
-		return formatted.endsWith("\n") ? formatted : formatted + "\n";
+		return formatted.endsWith("\n") ? formatted : `${formatted}\n`;
 	} catch (error) {
 		console.error(
 			chalk.red(`❌ YAML syntax error in ${filename}:`),

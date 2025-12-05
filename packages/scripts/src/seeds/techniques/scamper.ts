@@ -1,5 +1,5 @@
 import type { AskUserChatStepConfig } from "@chiron/db";
-import { db, workflowSteps, workflows } from "@chiron/db";
+import { db, workflowSteps } from "@chiron/db";
 
 /**
  * SCAMPER Technique Workflow Seed

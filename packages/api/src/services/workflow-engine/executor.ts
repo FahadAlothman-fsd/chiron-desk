@@ -37,6 +37,8 @@ export async function executeWorkflow(params: {
 	workflowId: string;
 	userId: string;
 	projectId?: string;
+	initialVariables?: Record<string, unknown>;
+	parentExecutionId?: string;
 }): Promise<string> {
 	// Load workflow and steps
 	const { workflow, steps } = await loadWorkflow(params.workflowId);
@@ -45,15 +47,16 @@ export async function executeWorkflow(params: {
 	const metadata = workflow.metadata as { agentId?: string } | null;
 	const agentId = metadata?.agentId || null;
 
-	// Create execution record
+	// Create execution record with initial variables (for child workflows inheriting parent state)
 	const [execution] = await db
 		.insert(workflowExecutions)
 		.values({
 			workflowId: params.workflowId,
 			projectId: params.projectId || null,
 			agentId: agentId,
+			parentExecutionId: params.parentExecutionId || null,
 			status: "active",
-			variables: {},
+			variables: params.initialVariables || {},
 			executedSteps: {},
 			startedAt: new Date(),
 		})
@@ -184,13 +187,33 @@ export async function continueExecution(
 			return;
 		}
 
-		// Build execution context
+		// Reload execution to get fresh variables (in case previous step updated them)
+		const [freshExecution] = await db
+			.select()
+			.from(workflowExecutions)
+			.where(eq(workflowExecutions.id, executionId))
+			.limit(1);
+
+		if (!freshExecution) {
+			throw new WorkflowExecutionError(
+				"Execution not found during context build",
+				executionId,
+			);
+		}
+
+		console.log(`[Executor] Reloaded execution for step ${currentStepNumber}`);
+		console.log(
+			"[Executor] Fresh execution.variables:",
+			JSON.stringify(freshExecution.variables, null, 2),
+		);
+
+		// Build execution context with fresh variables
 		const context = buildExecutionContext({
 			executionId,
 			userId,
-			projectId: execution.projectId,
-			variables: execution.variables as Record<string, unknown>,
-			executedSteps: execution.executedSteps as any,
+			projectId: freshExecution.projectId,
+			variables: freshExecution.variables as Record<string, unknown>,
+			executedSteps: freshExecution.executedSteps as any,
 			defaultValues: {},
 		});
 
@@ -240,6 +263,10 @@ export async function continueExecution(
 			}
 
 			// Step completed without user input - save result
+			console.log(
+				`[Executor] Saving step ${currentStep.stepNumber} output:`,
+				JSON.stringify(result.output, null, 2),
+			);
 			await updateExecutedSteps(
 				executionId,
 				currentStep.stepNumber,
@@ -249,7 +276,13 @@ export async function continueExecution(
 			);
 
 			// Merge output into execution variables
+			console.log(
+				`[Executor] Merging output into execution variables for step ${currentStep.stepNumber}`,
+			);
 			await mergeExecutionVariables(executionId, result.output);
+			console.log(
+				`[Executor] ✓ Merge completed for step ${currentStep.stepNumber}`,
+			);
 
 			// Emit step_completed event
 			workflowEventBus.emitStepCompleted(executionId, currentStep.stepNumber);
@@ -391,6 +424,19 @@ async function mergeExecutionVariables(
 	const variables = (execution.variables as Record<string, unknown>) || {};
 	const merged = { ...variables, ...output };
 
+	console.log(
+		"[mergeExecutionVariables] Current variables:",
+		JSON.stringify(variables, null, 2),
+	);
+	console.log(
+		"[mergeExecutionVariables] Output to merge:",
+		JSON.stringify(output, null, 2),
+	);
+	console.log(
+		"[mergeExecutionVariables] Merged result:",
+		JSON.stringify(merged, null, 2),
+	);
+
 	await db
 		.update(workflowExecutions)
 		.set({
@@ -398,6 +444,10 @@ async function mergeExecutionVariables(
 			updatedAt: new Date(),
 		})
 		.where(eq(workflowExecutions.id, executionId));
+
+	console.log(
+		`[mergeExecutionVariables] ✓ Variables saved to database for execution ${executionId}`,
+	);
 }
 
 /**

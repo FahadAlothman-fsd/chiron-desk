@@ -1,8 +1,4 @@
-import type {
-	AskUserChatStepConfig,
-	WorkflowMetadata,
-	WorkflowTags,
-} from "@chiron/db";
+import type { AskUserChatStepConfig } from "@chiron/db";
 import { db, workflowSteps, workflows, workflowTemplates } from "@chiron/db";
 
 /**
@@ -272,8 +268,8 @@ export async function seedBrainstorming() {
 
 		// Output variables mapping (for template rendering in artifact preview)
 		outputVariables: {
-			topic: "approval_states.update_topic.value.session_topic",
-			goals: "approval_states.update_goals.value.stated_goals",
+			topic: "approval_states.update_topic.value",
+			goals: "approval_states.update_goals.value",
 			techniques: "approval_states.select_techniques.value.selected_techniques",
 		},
 	};
@@ -285,8 +281,36 @@ export async function seedBrainstorming() {
 		goal: "Define session topic, goals, and select brainstorming techniques",
 		stepType: "ask-user-chat",
 		config: step1Config,
-		nextStepNumber: null, // Story 2.3+ will add more steps
+		nextStepNumber: 2, // Story 2.3: Continue to Step 2
 	});
 
 	console.log("  ✓ Step 1: Setup (topic, goals, techniques)");
+
+	// Step 2: Execute Selected Techniques (Invoke-Workflow)
+	// Story 2.3: Configure Step 2 with invoke-workflow logic
+	const step2Config = {
+		workflowsToInvoke: "{{techniques}}", // Read from Step 1 outputVariables (techniques → approval_states.select_techniques.value.selected_techniques)
+		variableMapping: {
+			// Key = child workflow variable name, Value = parent execution variable reference
+			session_topic: "{{topic}}", // Child uses {{parent.session_topic}}, gets from parent's {{topic}} (Step 1 output)
+			stated_goals: "{{goals}}", // Child uses {{parent.stated_goals}}, gets from parent's {{goals}} (Step 1 output)
+		},
+		expectedOutputVariable: "generated_ideas", // Variable name to read from each child
+		aggregateInto: "captured_ideas", // Parent variable to append child outputs
+		completionCondition: {
+			type: "all-complete", // Wait for all children to reach status = completed
+		},
+	};
+
+	// Insert Step 2
+	await db.insert(workflowSteps).values({
+		workflowId: workflow.id,
+		stepNumber: 2,
+		goal: "Execute selected brainstorming techniques and collect ideas",
+		stepType: "invoke-workflow",
+		config: step2Config,
+		nextStepNumber: null, // Story 2.4+ will add convergence steps
+	});
+
+	console.log("  ✓ Step 2: Technique Execution (invoke-workflow)");
 }

@@ -1,7 +1,7 @@
 const chalk = require("chalk");
 const boxen = require("boxen");
 const wrapAnsi = require("wrap-ansi");
-const figlet = require("figlet");
+const _figlet = require("figlet");
 const path = require("node:path");
 
 const CLIUtils = {
@@ -53,12 +53,12 @@ const CLIUtils = {
 	 * @param {string} subtitle - Optional subtitle
 	 */
 	displaySection(title, subtitle = null) {
-		console.log("\n" + chalk.cyan("═".repeat(80)));
+		console.log(`\n${chalk.cyan("═".repeat(80))}`);
 		console.log(chalk.cyan.bold(` ${title}`));
 		if (subtitle) {
 			console.log(chalk.dim(` ${subtitle}`));
 		}
-		console.log(chalk.cyan("═".repeat(80)) + "\n");
+		console.log(`${chalk.cyan("═".repeat(80))}\n`);
 	},
 
 	/**
@@ -95,14 +95,14 @@ const CLIUtils = {
 	 */
 	displayModuleConfigHeader(moduleName, header = null, subheader = null) {
 		// Simple blue banner with custom header/subheader if provided
-		console.log("\n" + chalk.cyan("─".repeat(80)));
+		console.log(`\n${chalk.cyan("─".repeat(80))}`);
 		console.log(
 			chalk.cyan(header || `Configuring ${moduleName.toUpperCase()} Module`),
 		);
 		if (subheader) {
 			console.log(chalk.dim(`${subheader}`));
 		}
-		console.log(chalk.cyan("─".repeat(80)) + "\n");
+		console.log(`${chalk.cyan("─".repeat(80))}\n`);
 	},
 
 	/**
@@ -113,7 +113,7 @@ const CLIUtils = {
 	 */
 	displayModuleNoConfig(moduleName, header = null, subheader = null) {
 		// Show full banner with header/subheader, just like modules with config
-		console.log("\n" + chalk.cyan("─".repeat(80)));
+		console.log(`\n${chalk.cyan("─".repeat(80))}`);
 		console.log(
 			chalk.cyan(
 				header ||
@@ -123,7 +123,7 @@ const CLIUtils = {
 		if (subheader) {
 			console.log(chalk.dim(`${subheader}`));
 		}
-		console.log(chalk.cyan("─".repeat(80)) + "\n");
+		console.log(`${chalk.cyan("─".repeat(80))}\n`);
 	},
 
 	/**
@@ -134,8 +134,8 @@ const CLIUtils = {
 	 */
 	displayStep(current, total, description) {
 		const progress = `[${current}/${total}]`;
-		console.log("\n" + chalk.cyan(progress) + " " + chalk.bold(description));
-		console.log(chalk.dim("─".repeat(80 - progress.length - 1)) + "\n");
+		console.log(`\n${chalk.cyan(progress)} ${chalk.bold(description)}`);
+		console.log(`${chalk.dim("─".repeat(80 - progress.length - 1))}\n`);
 	},
 
 	/**
@@ -145,7 +145,7 @@ const CLIUtils = {
 	displayComplete(message) {
 		console.log(
 			"\n" +
-				boxen(chalk.green("✨ " + message), {
+				boxen(chalk.green(`✨ ${message}`), {
 					padding: 1,
 					margin: 1,
 					borderStyle: "round",
@@ -161,7 +161,7 @@ const CLIUtils = {
 	displayError(message) {
 		console.log(
 			"\n" +
-				boxen(chalk.red("✗ " + message), {
+				boxen(chalk.red(`✗ ${message}`), {
 					padding: 1,
 					margin: 1,
 					borderStyle: "round",
@@ -214,7 +214,7 @@ const CLIUtils = {
 	 * @param {string} moduleName - Name of the completed module
 	 * @param {boolean} clearScreen - Whether to clear the screen first (deprecated, always false now)
 	 */
-	displayModuleComplete(moduleName, clearScreen = false) {
+	displayModuleComplete(_moduleName, _clearScreen = false) {
 		// No longer clear screen or show boxes - just a simple completion message
 		// This is deprecated but kept for backwards compatibility
 	},

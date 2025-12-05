@@ -8,7 +8,6 @@ import {
 import {
 	Brain,
 	ChevronDown,
-	ChevronRight,
 	Loader2,
 	Map,
 	Play,
@@ -417,8 +416,9 @@ function PhaseItem({
 	const navigate = useNavigate();
 	const isActive = phase.id === currentPhaseId;
 	const isCompleted =
-		Number.parseInt(phase.id) < Number.parseInt(currentPhaseId);
-	const isPending = Number.parseInt(phase.id) > Number.parseInt(currentPhaseId);
+		Number.parseInt(phase.id, 10) < Number.parseInt(currentPhaseId, 10);
+	const isPending =
+		Number.parseInt(phase.id, 10) > Number.parseInt(currentPhaseId, 10);
 
 	// Fetch workflows for this phase, filtered by workflow path if available
 	const { data: workflowsData, isLoading } = useQuery({

@@ -36,14 +36,14 @@ function processConditionals(content, variables) {
 		/\{\{#if\s+(\w+)\s*==\s*\\?"([^"\\]+)\\?"\s*\}\}([\s\S]*?)\{\{\/if\}\}/g;
 	result = result.replaceAll(
 		ifEqualsPattern,
-		(match, varName, value, block) => {
+		(_match, varName, value, block) => {
 			return variables[varName] === value ? block : "";
 		},
 	);
 
 	// Process {{#if variable}} blocks (boolean or truthy check)
 	const ifBoolPattern = /\{\{#if\s+(\w+)\s*\}\}([\s\S]*?)\{\{\/if\}\}/g;
-	result = result.replaceAll(ifBoolPattern, (match, varName, block) => {
+	result = result.replaceAll(ifBoolPattern, (_match, varName, block) => {
 		const val = variables[varName];
 		// Treat as truthy: true, non-empty string, non-zero number
 		const isTruthy =
@@ -55,7 +55,7 @@ function processConditionals(content, variables) {
 
 	// Process {{#unless variable}} blocks (inverse of if)
 	const unlessPattern = /\{\{#unless\s+(\w+)\s*\}\}([\s\S]*?)\{\{\/unless\}\}/g;
-	result = result.replaceAll(unlessPattern, (match, varName, block) => {
+	result = result.replaceAll(unlessPattern, (_match, varName, block) => {
 		const val = variables[varName];
 		const isFalsy =
 			val === false ||

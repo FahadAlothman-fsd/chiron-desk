@@ -19,8 +19,8 @@ async function verifyBrainstormingSeed() {
 	console.log(`   Name: ${workflow.name}`);
 	console.log(`   Display Name: ${workflow.displayName}`);
 	console.log(`   Description: ${workflow.description}`);
-	console.log(`   Tags:`, JSON.stringify(workflow.tags, null, 2));
-	console.log(`   Metadata:`, JSON.stringify(workflow.metadata, null, 2));
+	console.log("   Tags:", JSON.stringify(workflow.tags, null, 2));
+	console.log("   Metadata:", JSON.stringify(workflow.metadata, null, 2));
 	console.log();
 
 	// Query workflow steps
@@ -70,7 +70,7 @@ async function verifyBrainstormingSeed() {
 				);
 			}
 
-			console.log(`   Output Variables:`, config.outputVariables);
+			console.log("   Output Variables:", config.outputVariables);
 		}
 
 		console.log();

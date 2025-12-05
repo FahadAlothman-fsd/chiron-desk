@@ -13,7 +13,7 @@ async function testAnalystBundle() {
 
 		// Bundle just the analyst agent from bmm module
 		// Only bundle the analyst for testing
-		const agentPath = path.join(
+		const _agentPath = path.join(
 			bundler.modulesPath,
 			"bmm",
 			"agents",

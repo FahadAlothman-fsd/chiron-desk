@@ -36,7 +36,7 @@ class Config {
 		// Ensure POSIX-compliant final newline
 		const content = yamlContent.endsWith("\n")
 			? yamlContent
-			: yamlContent + "\n";
+			: `${yamlContent}\n`;
 		await fs.writeFile(configPath, content, "utf8");
 	}
 

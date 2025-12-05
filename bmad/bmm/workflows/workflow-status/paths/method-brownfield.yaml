@@ -24,11 +24,12 @@ phases:
     optional: true
     note: "User-selected during workflow-init"
     workflows:
-      - id: "brainstorm-project"
+      - id: "brainstorming"
         optional: true
         agent: "analyst"
-        command: "brainstorm-project"
+        command: "brainstorming"
         included_by: "user_choice"
+        note: "Uses core brainstorming workflow with project context template"
 
       - id: "research"
         optional: true

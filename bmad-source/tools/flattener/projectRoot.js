@@ -165,7 +165,7 @@ async function findProjectRoot(startDir) {
 			try {
 				const raw = await fs.readFile(pkgPath, "utf8");
 				const pkg = JSON.parse(raw);
-				return Boolean(pkg && pkg.workspaces);
+				return Boolean(pkg?.workspaces);
 			} catch {
 				return false;
 			}

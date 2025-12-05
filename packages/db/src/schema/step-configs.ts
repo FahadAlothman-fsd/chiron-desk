@@ -115,6 +115,8 @@ export const askUserStepConfigSchema = z.object({
 export const askUserChatStepConfigSchema = z.object({
 	agentId: z.string().uuid(),
 	initialMessage: z.string().optional(),
+	generateInitialMessage: z.boolean().optional(), // NEW: Generate first message dynamically
+	initialPrompt: z.string().optional(), // NEW: System prompt for generation (supports {{parent.variable}} syntax)
 	tools: z
 		.array(
 			z.object({
@@ -327,6 +329,31 @@ export const displayOutputStepConfigSchema = z.object({
 });
 
 /**
+ * InvokeWorkflowStepConfig - Spawn child workflow executions
+ *
+ * @example
+ * {
+ *   workflowsToInvoke: "{{techniques}}",  // Variable reference resolving to array of workflow IDs
+ *   variableMapping: {
+ *     session_topic: "{{topic}}",  // Child uses {{parent.session_topic}}, gets from parent's {{topic}}
+ *     stated_goals: "{{goals}}"
+ *   },
+ *   expectedOutputVariable: "generated_ideas",  // Variable to read from each child
+ *   aggregateInto: "captured_ideas",  // Parent variable to append child outputs
+ *   completionCondition: { type: "all-complete" }
+ * }
+ */
+export const invokeWorkflowStepConfigSchema = z.object({
+	workflowsToInvoke: z.string(), // Variable reference e.g., "{{techniques}}"
+	variableMapping: z.record(z.string(), z.string()), // Map child var names to parent var references
+	expectedOutputVariable: z.string(), // Variable name to read from each child
+	aggregateInto: z.string(), // Parent variable to append child outputs
+	completionCondition: z.object({
+		type: z.literal("all-complete"), // Wait for all children to reach status = completed
+	}),
+});
+
+/**
  * Union schema for all step config types
  * Use this for runtime validation of any step config
  */
@@ -336,6 +363,7 @@ export const stepConfigSchema = z.union([
 	executeActionStepConfigSchema,
 	llmGenerateStepConfigSchema,
 	displayOutputStepConfigSchema,
+	invokeWorkflowStepConfigSchema,
 ]);
 
 // ============================================
@@ -350,5 +378,8 @@ export type ExecuteActionStepConfig = z.infer<
 export type LLMGenerateStepConfig = z.infer<typeof llmGenerateStepConfigSchema>;
 export type DisplayOutputStepConfig = z.infer<
 	typeof displayOutputStepConfigSchema
+>;
+export type InvokeWorkflowStepConfig = z.infer<
+	typeof invokeWorkflowStepConfigSchema
 >;
 export type StepConfig = z.infer<typeof stepConfigSchema>;

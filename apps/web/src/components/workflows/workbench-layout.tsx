@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { Card } from "@/components/ui/card";
 import {
 	ResizableHandle,
 	ResizablePanel,
 	ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import { Card } from "@/components/ui/card";
 
 /**
  * Workbench Layout - Split-Pane Interface for Artifact-Driven Workflows
@@ -61,8 +61,8 @@ export function WorkbenchLayout({
 				>
 					<div className="flex h-full flex-col">
 						<div className="border-b px-4 py-3">
-							<h2 className="text-lg font-semibold">Chat</h2>
-							<p className="text-sm text-muted-foreground">
+							<h2 className="font-semibold text-lg">Chat</h2>
+							<p className="text-muted-foreground text-sm">
 								Collaborate with the agent to define your session
 							</p>
 						</div>
@@ -79,8 +79,8 @@ export function WorkbenchLayout({
 						<ResizablePanel defaultSize={100 - chatPanelSize} minSize={30}>
 							<div className="flex h-full flex-col">
 								<div className="border-b px-4 py-3">
-									<h2 className="text-lg font-semibold">Artifact Preview</h2>
-									<p className="text-sm text-muted-foreground">
+									<h2 className="font-semibold text-lg">Artifact Preview</h2>
+									<p className="text-muted-foreground text-sm">
 										Live preview of your session results
 									</p>
 								</div>

@@ -26,7 +26,7 @@ async function cmdAvailable(cmd) {
 		return false;
 	}
 
-	async function testSvnMarker() {
+	async function _testSvnMarker() {
 		const root = await mkTmpDir("svn");
 		const nested = path.join(root, "proj", "code");
 		await fs.ensureDir(nested);
@@ -36,7 +36,7 @@ async function cmdAvailable(cmd) {
 		return { name: "svn-marker", ok: true };
 	}
 
-	async function testSymlinkStart() {
+	async function _testSymlinkStart() {
 		const root = await mkTmpDir("symlink-start");
 		const nested = path.join(root, "a", "b");
 		await fs.ensureDir(nested);
@@ -54,7 +54,7 @@ async function cmdAvailable(cmd) {
 		return { name: "symlink-start", ok: true };
 	}
 
-	async function testSubmoduleLikeInnerGitFile() {
+	async function _testSubmoduleLikeInnerGitFile() {
 		const root = await mkTmpDir("submodule-like");
 		const mid = path.join(root, "mid");
 		const leaf = path.join(mid, "leaf");
@@ -441,10 +441,7 @@ async function run() {
 			results.push({ ...r, ok: true });
 			console.log(`✔ ${r.name}${r.skipped ? " (skipped)" : ""}`);
 		} catch (error) {
-			console.error(
-				`✖ ${t.name}:`,
-				error && error.message ? error.message : error,
-			);
+			console.error(`✖ ${t.name}:`, error?.message ? error.message : error);
 			results.push({ name: t.name, ok: false, error: String(error) });
 		}
 	}

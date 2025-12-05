@@ -343,7 +343,7 @@ export function AskUserChatStep({
 	);
 	const agent = agentData?.agent;
 	const agentName = agent?.displayName || agent?.name || "Agent";
-	const agentIcon = agent?.metadata?.icon || "🤖";
+	const _agentIcon = agent?.metadata?.icon || "🤖";
 
 	// Load message history
 	const { data: messageHistory } = trpc.workflows.getChatMessages.useQuery(
@@ -373,25 +373,10 @@ export function AskUserChatStep({
 	useEffect(() => {
 		if (messageHistory?.messages && messageHistory.messages.length > 0) {
 			setMessages(messageHistory.messages as ChatMessage[]);
-		} else if (
-			messageHistory?.messages.length === 0 &&
-			stepConfig.initialMessage
-		) {
-			setMessages([
-				{
-					id: "initial",
-					role: "assistant",
-					content: stepConfig.initialMessage,
-					metadata: {
-						agent_name: agentName,
-						agent_icon: agentIcon,
-						model: "claude-sonnet-4-20250514",
-					},
-					created_at: new Date().toISOString(),
-				},
-			]);
 		}
-	}, [messageHistory, stepConfig.initialMessage]);
+		// Note: We no longer create a fake message from initialMessage
+		// initialMessage is now shown as a banner only (lines 550-566)
+	}, [messageHistory]);
 
 	async function handleSubmit(message: PromptInputMessage) {
 		if (!message.text?.trim() || isLoading || sendMessage.isPending) return;
@@ -546,16 +531,32 @@ export function AskUserChatStep({
 				{/* Conversation Area */}
 				<Conversation className="flex-1 overflow-y-auto">
 					<ConversationContent>
+						{/* Initial Message Banner - Always shown if present */}
+						{stepConfig.initialMessage && (
+							<div className="mb-4 rounded-lg border border-primary/20 bg-primary/5 p-4">
+								<div className="flex items-start gap-3">
+									<div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
+										<MessageSquareIcon className="size-4 text-primary" />
+									</div>
+									<div className="flex-1">
+										<h4 className="mb-1 font-medium text-foreground text-sm">
+											About this step
+										</h4>
+										<p className="text-muted-foreground text-sm leading-relaxed">
+											{stepConfig.initialMessage}
+										</p>
+									</div>
+								</div>
+							</div>
+						)}
+
 						{timeline.length === 0 ? (
 							<ConversationEmptyState
 								icon={
 									<MessageSquareIcon className="size-12 text-muted-foreground" />
 								}
 								title="Start a conversation"
-								description={
-									stepConfig.initialMessage ||
-									`Send a message to begin chatting with ${agentName}`
-								}
+								description={`Send a message to begin chatting with ${agentName}`}
 							/>
 						) : (
 							<>
@@ -927,7 +928,7 @@ export function AskUserChatStep({
 					{/* Collapse/Expand Button */}
 					<button
 						onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-						className="absolute top-4 -left-3 z-10 flex h-6 w-6 items-center justify-center rounded-full border bg-background shadow-md transition-colors hover:bg-muted"
+						className="-left-3 absolute top-4 z-10 flex h-6 w-6 items-center justify-center rounded-full border bg-background shadow-md transition-colors hover:bg-muted"
 						title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
 					>
 						{sidebarCollapsed ? (
@@ -957,7 +958,7 @@ export function AskUserChatStep({
 						<div className="flex h-full flex-col items-center gap-3 overflow-y-auto border-l bg-background py-4">
 							{/* Title Icon */}
 							<div
-								className="text-muted-foreground text-xs font-medium tracking-wider"
+								className="font-medium text-muted-foreground text-xs tracking-wider"
 								style={{
 									writingMode: "vertical-rl",
 									textOrientation: "mixed",

@@ -1,6 +1,5 @@
 import type { InvokeWorkflowStepConfig, WorkflowStep } from "@chiron/db";
-import { db, workflowExecutions, workflows } from "@chiron/db";
-import { eq } from "drizzle-orm";
+import { db } from "@chiron/db";
 import type { ExecutionContext } from "../execution-context";
 import type { StepHandler, StepResult } from "../step-handler";
 
@@ -18,7 +17,7 @@ export class InvokeWorkflowStepHandler implements StepHandler {
 	async executeStep(
 		step: WorkflowStep,
 		context: ExecutionContext,
-		userInput?: unknown,
+		_userInput?: unknown,
 	): Promise<StepResult> {
 		const config = step.config as InvokeWorkflowStepConfig;
 
@@ -47,48 +46,14 @@ export class InvokeWorkflowStepHandler implements StepHandler {
 		// Get current child_executions from variables (or initialize)
 		const childExecutions =
 			(context.variables.child_executions as string[]) || [];
-
-		// Check if we need to create children (first execution of this step)
-		if (childExecutions.length === 0) {
-			// Create child workflow executions
-			await this.createChildExecutions(workflowIds, config, context);
-
-			// Return "running" status (children are executing)
-			return {
-				output: {
-					child_executions: context.variables.child_executions, // Updated by createChildExecutions
-					_child_metadata: context.variables._child_metadata, // Include metadata for UI display
-				},
-				nextStepNumber: step.nextStepNumber ?? null,
-				requiresUserInput: true, // Pause here until children complete
-			};
-		}
-
-		// Check if user clicked "Execute" on a specific child (userInput is child workflow ID)
-		if (typeof userInput === "string" && workflowIds.includes(userInput)) {
-			// User triggered execution of a specific child workflow
-			// Create that child execution if it doesn't exist yet
-			const existingChildId = childExecutions.find(async (childId) => {
-				const child = await db.query.workflowExecutions.findFirst({
-					where: eq(workflowExecutions.id, childId),
-				});
-				return child?.workflowId === userInput;
-			});
-
-			if (!existingChildId) {
-				await this.createChildExecution(userInput, config, context);
-			}
-
-			// Return "running" status (child is now executing)
-			return {
-				output: {
-					child_executions: context.variables.child_executions,
-					_child_metadata: context.variables._child_metadata, // Include metadata for UI display
-				},
-				nextStepNumber: step.nextStepNumber ?? null,
-				requiresUserInput: true, // Still waiting for completion
-			};
-		}
+		const _childMetadata =
+			(context.variables._child_metadata as Array<{
+				id: string;
+				workflowId: string;
+				workflowName: string;
+				status: string;
+				createdAt: string;
+			}>) || [];
 
 		// Check completion condition (all children completed?)
 		const allComplete = await this.checkCompletionCondition(
@@ -150,114 +115,6 @@ export class InvokeWorkflowStepHandler implements StepHandler {
 			},
 			nextStepNumber: step.nextStepNumber ?? null,
 			requiresUserInput: false, // Complete!
-		};
-	}
-
-	/**
-	 * Create child workflow executions for all workflow IDs
-	 */
-	private async createChildExecutions(
-		workflowIds: string[],
-		config: InvokeWorkflowStepConfig,
-		context: ExecutionContext,
-	): Promise<void> {
-		const childIds: string[] = [];
-		const childMetadata: Array<{
-			id: string;
-			workflowId: string;
-			workflowName: string;
-			status: string;
-			createdAt: string;
-		}> = [];
-
-		for (const workflowId of workflowIds) {
-			const childData = await this.createChildExecution(
-				workflowId,
-				config,
-				context,
-			);
-			childIds.push(childData.id);
-			childMetadata.push(childData);
-		}
-
-		// Store child IDs in parent variables (quick access)
-		context.variables.child_executions = childIds;
-
-		// Store child metadata in executedSteps (history/time travel)
-		// Note: This will be updated when step completes (in workflow executor)
-		context.variables._child_metadata = childMetadata; // Temporary storage for executor
-	}
-
-	/**
-	 * Create a single child workflow execution
-	 */
-	private async createChildExecution(
-		workflowId: string,
-		config: InvokeWorkflowStepConfig,
-		context: ExecutionContext,
-	): Promise<{
-		id: string;
-		workflowId: string;
-		workflowName: string;
-		status: string;
-		createdAt: string;
-	}> {
-		// Fetch workflow details
-		const workflow = await db.query.workflows.findFirst({
-			where: eq(workflows.id, workflowId),
-		});
-
-		if (!workflow) {
-			throw new Error(`Workflow not found: ${workflowId}`);
-		}
-
-		// Apply variableMapping to create child variables
-		const childVariables: Record<string, unknown> = {};
-		for (const [childVarName, parentVarRef] of Object.entries(
-			config.variableMapping,
-		)) {
-			const resolvedValue = this.resolveVariable(parentVarRef, context);
-
-			// Story 2.3 Subtask 5.11: Validate variable mapping
-			if (resolvedValue === undefined) {
-				throw new Error(
-					`Variable mapping error for workflow "${workflow.displayName}": ` +
-						`Parent variable ${parentVarRef} is undefined. ` +
-						`Cannot map to child variable "${childVarName}".`,
-				);
-			}
-
-			childVariables[childVarName] = resolvedValue;
-		}
-
-		// Story 2.3 Subtask 5.11: Optional inputSchema validation (warn only)
-		if (workflow.metadata?.inputSchema) {
-			this.validateInputSchema(
-				childVariables,
-				workflow.metadata.inputSchema as any,
-				workflow.displayName,
-			);
-		}
-
-		// Create child workflow_executions record
-		const [childExecution] = await db
-			.insert(workflowExecutions)
-			.values({
-				workflowId: workflow.id,
-				projectId: context.projectId,
-				parentExecutionId: context.executionId, // Link to parent
-				status: "idle", // Not started yet (user must click "Execute")
-				variables: childVariables, // Mapped parent variables
-				executedSteps: {},
-			})
-			.returning();
-
-		return {
-			id: childExecution.id,
-			workflowId: workflow.id,
-			workflowName: workflow.displayName,
-			status: "idle",
-			createdAt: new Date().toISOString(),
 		};
 	}
 
@@ -369,47 +226,5 @@ export class InvokeWorkflowStepHandler implements StepHandler {
 
 		// Otherwise, return as literal
 		return variableRef;
-	}
-
-	/**
-	 * Validate child variables against workflow inputSchema (warn only, don't throw)
-	 * Story 2.3 Subtask 5.11: Lightweight validation for MVP
-	 */
-	private validateInputSchema(
-		childVariables: Record<string, unknown>,
-		inputSchema: Record<string, any>,
-		workflowName: string,
-	): void {
-		const warnings: string[] = [];
-
-		for (const [varName, varSchema] of Object.entries(inputSchema)) {
-			const value = childVariables[varName];
-
-			// Check required fields
-			if (varSchema.required && value === undefined) {
-				warnings.push(
-					`Required variable "${varName}" is missing (expected ${varSchema.type})`,
-				);
-				continue;
-			}
-
-			// Basic type checking
-			if (value !== undefined) {
-				const actualType = Array.isArray(value) ? "array" : typeof value;
-				if (actualType !== varSchema.type) {
-					warnings.push(
-						`Variable "${varName}" type mismatch: expected ${varSchema.type}, got ${actualType}`,
-					);
-				}
-			}
-		}
-
-		// Log warnings (don't throw - graceful degradation)
-		if (warnings.length > 0) {
-			console.warn(
-				`⚠️  Input validation warnings for workflow "${workflowName}":`,
-				warnings,
-			);
-		}
 	}
 }

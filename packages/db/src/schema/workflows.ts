@@ -1,3 +1,4 @@
+import { relations } from "drizzle-orm";
 import {
 	index,
 	integer,
@@ -38,6 +39,26 @@ export interface WorkflowTags {
 }
 
 /**
+ * WorkflowInputSchema - Defines expected input variables for workflow invocation
+ * Story 2.3: Used for validating variableMapping when invoking child workflows
+ *
+ * @example
+ * {
+ *   session_topic: { type: "string", required: true, description: "The brainstorming topic" },
+ *   stated_goals: { type: "array", items: { type: "string" }, required: false, description: "User goals" }
+ * }
+ */
+export interface WorkflowInputSchema {
+	[variableName: string]: {
+		type: "string" | "number" | "boolean" | "array" | "object";
+		required: boolean;
+		description?: string;
+		items?: { type: string }; // For array types
+		properties?: Record<string, unknown>; // For object types (shallow)
+	};
+}
+
+/**
  * WorkflowMetadata - JSONB type for UI configuration
  * Stores display-related settings that don't affect execution
  *
@@ -46,7 +67,11 @@ export interface WorkflowTags {
  *   icon: "brain",
  *   color: "#8B5CF6",
  *   recommendedFor: ["new-projects", "ideation"],
- *   estimatedDuration: "15-30 min"
+ *   estimatedDuration: "15-30 min",
+ *   inputSchema: {
+ *     session_topic: { type: "string", required: true },
+ *     stated_goals: { type: "array", items: { type: "string" }, required: true }
+ *   }
  * }
  */
 export interface WorkflowMetadata {
@@ -57,6 +82,8 @@ export interface WorkflowMetadata {
 	agentId?: string; // Associated agent UUID (migrated from column)
 	isStandalone?: boolean; // Can run without project context (migrated from column)
 	requiresProjectContext?: boolean; // Needs existing project (migrated from column)
+	layoutType?: "wizard" | "artifact-workbench" | "dialog"; // Story 2.3: UI layout pattern for child workflows
+	inputSchema?: WorkflowInputSchema; // Story 2.3: Expected input variables (for child workflows)
 	[key: string]: unknown; // Allow additional custom metadata
 }
 
@@ -182,6 +209,12 @@ export const workflowExecutions = pgTable(
 			onDelete: "cascade",
 		}),
 
+		// Story 2.3: Parent-child workflow tracking
+		parentExecutionId: uuid("parent_execution_id").references(
+			(): any => workflowExecutions.id,
+			{ onDelete: "cascade" },
+		), // Nullable - null = top-level workflow, set = child workflow
+
 		status: workflowStatusEnum("status").notNull().default("idle"),
 
 		// Current step being executed
@@ -228,6 +261,55 @@ export const workflowExecutions = pgTable(
 			table.projectId,
 			table.status,
 		),
+		parentExecutionIdIdx: index("idx_workflow_executions_parent_id").on(
+			table.parentExecutionId,
+		), // Story 2.3: Query children by parent
+	}),
+);
+
+// ============================================
+// DRIZZLE RELATIONS
+// ============================================
+
+export const workflowsRelations = relations(workflows, ({ many }) => ({
+	steps: many(workflowSteps),
+	executions: many(workflowExecutions),
+}));
+
+export const workflowStepsRelations = relations(workflowSteps, ({ one }) => ({
+	workflow: one(workflows, {
+		fields: [workflowSteps.workflowId],
+		references: [workflows.id],
+	}),
+}));
+
+export const workflowExecutionsRelations = relations(
+	workflowExecutions,
+	({ one, many }) => ({
+		workflow: one(workflows, {
+			fields: [workflowExecutions.workflowId],
+			references: [workflows.id],
+		}),
+		project: one(projects, {
+			fields: [workflowExecutions.projectId],
+			references: [projects.id],
+		}),
+		agent: one(agents, {
+			fields: [workflowExecutions.agentId],
+			references: [agents.id],
+		}),
+		currentStep: one(workflowSteps, {
+			fields: [workflowExecutions.currentStepId],
+			references: [workflowSteps.id],
+		}),
+		parent: one(workflowExecutions, {
+			fields: [workflowExecutions.parentExecutionId],
+			references: [workflowExecutions.id],
+			relationName: "parentChild",
+		}),
+		children: many(workflowExecutions, {
+			relationName: "parentChild",
+		}),
 	}),
 );
 

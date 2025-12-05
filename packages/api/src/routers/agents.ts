@@ -90,7 +90,7 @@ export const agentsRouter = router({
 
 				if (config.tools && Array.isArray(config.tools)) {
 					// Replicate AskUserChatHandler tool filtering logic
-					const registeredToolNames = config.tools.map((t: any) => t.name);
+					const _registeredToolNames = config.tools.map((t: any) => t.name);
 					const stepExecutionApprovalStates =
 						(execution.variables?.approval_states as Record<string, any>) || {};
 

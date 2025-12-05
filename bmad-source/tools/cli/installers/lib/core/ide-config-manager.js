@@ -7,8 +7,6 @@ const yaml = require("js-yaml");
  * Saves and loads IDE-specific configurations to/from bmad/_cfg/ides/
  */
 class IdeConfigManager {
-	constructor() {}
-
 	/**
 	 * Get path to IDE config directory
 	 * @param {string} bmadDir - BMAD installation directory
@@ -46,7 +44,7 @@ class IdeConfigManager {
 		if (await fs.pathExists(configPath)) {
 			try {
 				const existing = await this.loadIdeConfig(bmadDir, ideName);
-				if (existing && existing.configured_date) {
+				if (existing?.configured_date) {
 					configuredDate = existing.configured_date;
 				}
 			} catch {
@@ -71,7 +69,7 @@ class IdeConfigManager {
 		// Ensure POSIX-compliant final newline
 		const content = yamlContent.endsWith("\n")
 			? yamlContent
-			: yamlContent + "\n";
+			: `${yamlContent}\n`;
 		await fs.writeFile(configPath, content, "utf8");
 	}
 

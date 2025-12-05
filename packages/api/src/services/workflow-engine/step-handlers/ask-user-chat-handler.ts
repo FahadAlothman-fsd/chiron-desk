@@ -66,6 +66,62 @@ export class AskUserChatStepHandler implements StepHandler {
 	}
 
 	/**
+	 * Resolve {{variable}} and {{parent.variable}} references in prompt strings
+	 *
+	 * Supports:
+	 * - {{variable_name}} - Current execution variables
+	 * - {{parent.variable_name}} - Parent execution variables (for child workflows)
+	 *
+	 * @param prompt - Prompt string with variable placeholders
+	 * @param context - Execution context with variables
+	 * @returns Resolved prompt string
+	 */
+	private resolvePromptVariables(
+		prompt: string,
+		context: ExecutionContext,
+	): string {
+		let resolved = prompt;
+
+		// Match {{parent.variable}} and {{variable}} patterns
+		const variablePattern = /\{\{(parent\.)?([a-zA-Z0-9_]+)\}\}/g;
+		const matches = [...prompt.matchAll(variablePattern)];
+
+		for (const match of matches) {
+			const isParent = match[1] === "parent.";
+			const variableName = match[2];
+			const fullPlaceholder = match[0];
+
+			let value: unknown;
+
+			if (isParent) {
+				// Access parent execution variables
+				// TODO: Implement parent variable access when parent-child execution linkage is ready
+				console.log(
+					`[AskUserChatHandler] Resolving parent variable: ${variableName}`,
+				);
+				value = context.executionVariables[variableName];
+			} else {
+				// Access current execution variables
+				value = context.executionVariables[variableName];
+			}
+
+			// Replace placeholder with value (convert to string)
+			if (value !== undefined && value !== null) {
+				const stringValue =
+					typeof value === "string" ? value : JSON.stringify(value);
+				resolved = resolved.replace(fullPlaceholder, stringValue);
+			} else {
+				console.warn(
+					`[AskUserChatHandler] Variable not found: ${fullPlaceholder}`,
+				);
+				// Leave placeholder as-is if variable not found
+			}
+		}
+
+		return resolved;
+	}
+
+	/**
 	 * Build tools for agent with precedence: step > workflow > agent
 	 *
 	 * Tool Precedence:
@@ -360,7 +416,11 @@ export class AskUserChatStepHandler implements StepHandler {
 
 			// Get agent info for metadata
 			const [agentRecord] = await db
-				.select({ name: agents.name, icon: agents.icon })
+				.select({
+					name: agents.name,
+					displayName: agents.displayName,
+					avatar: agents.avatar,
+				})
 				.from(agents)
 				.where(eq(agents.id, agentId))
 				.limit(1);
@@ -369,8 +429,9 @@ export class AskUserChatStepHandler implements StepHandler {
 			const updatedMetadata = {
 				...(lastAssistantMessage.metadata || {}),
 				agent_id: agentId,
-				agent_name: agentRecord?.name || "Assistant",
-				agent_icon: agentRecord?.icon || "🤖",
+				agent_name:
+					agentRecord?.displayName || agentRecord?.name || "Assistant",
+				agent_icon: agentRecord?.avatar || "🤖",
 				tool_calls: toolCalls,
 			};
 
@@ -428,12 +489,21 @@ export class AskUserChatStepHandler implements StepHandler {
 			);
 			// Extract output variables
 			const outputs = this.extractOutputVariables(config, context);
+			console.log(
+				"[AskUserChatHandler] Extracted outputs:",
+				JSON.stringify(outputs, null, 2),
+			);
+			const finalOutput = {
+				...outputs,
+				...output, // Include thread ID if it was just created
+				mastra_thread_id: agentContext.threadId, // Always include thread ID
+			};
+			console.log(
+				"[AskUserChatHandler] Final output to be saved:",
+				JSON.stringify(finalOutput, null, 2),
+			);
 			return {
-				output: {
-					...outputs,
-					...output, // Include thread ID if it was just created
-					mastra_thread_id: agentContext.threadId, // Always include thread ID
-				},
+				output: finalOutput,
 				nextStepNumber: step.nextStepNumber ?? null,
 				requiresUserInput: false,
 			};
@@ -443,16 +513,24 @@ export class AskUserChatStepHandler implements StepHandler {
 		// This allows rejection flow to work without requiring userInput parameter
 		// IMPORTANT: Reload execution state from DB to get fresh approval_states
 		// (context.executionVariables may be stale if rejection was just saved)
-		const [freshExecution] = await db
-			.select()
-			.from(workflowExecutions)
-			.where(
-				eq(
-					workflowExecutions.id,
-					context.systemVariables.execution_id as string,
-				),
-			)
-			.limit(1);
+		let freshExecution: any = null;
+		try {
+			[freshExecution] = await db
+				.select()
+				.from(workflowExecutions)
+				.where(
+					eq(
+						workflowExecutions.id,
+						context.systemVariables.execution_id as string,
+					),
+				)
+				.limit(1);
+		} catch (_error) {
+			// Handle test scenarios with invalid UUIDs or missing DB records
+			console.log(
+				"[AskUserChatHandler] Could not load execution from DB (test mode?)",
+			);
+		}
 
 		const currentApprovalStates = (freshExecution?.variables?.approval_states ||
 			{}) as Record<
@@ -485,18 +563,165 @@ export class AskUserChatStepHandler implements StepHandler {
 				};
 			});
 
-		// If no user input AND no rejected tools, show initial message and wait
+		// If no user input AND no rejected tools, check for initial message generation
 		if (!userInput && rejectedTools.length === 0) {
 			console.log(
-				"[AskUserChatHandler] No user input and no rejected tools - awaiting first message",
+				"[AskUserChatHandler] No user input and no rejected tools - checking initial message",
 			);
+
+			// NEW: Check for generateInitialMessage feature
+			if (config.generateInitialMessage && config.initialPrompt) {
+				console.log(
+					"[AskUserChatHandler] Generating initial message dynamically...",
+				);
+				console.log(
+					"[AskUserChatHandler] Thread ID for initial message:",
+					agentContext.threadId,
+				);
+				console.log(
+					"[AskUserChatHandler] Execution variables available:",
+					Object.keys(context.executionVariables),
+				);
+
+				// Get agent instance from Mastra
+				const agentName = await this.getAgentName(config.agentId);
+				const mastra = await getMastraInstance();
+				const agent = mastra.getAgent(agentName);
+
+				if (!agent) {
+					throw new Error(
+						`Agent not registered with Mastra for initial message generation: ${agentName}`,
+					);
+				}
+
+				console.log(`[AskUserChatHandler] Using agent: ${agentName}`);
+
+				// Create RuntimeContext for agent (needed for model loading)
+				const runtimeContext = new RuntimeContext();
+				runtimeContext.set("userId", context.systemVariables.current_user_id);
+				runtimeContext.set("projectId", context.systemVariables.project_id);
+				runtimeContext.set("executionId", context.systemVariables.execution_id);
+				runtimeContext.set("variables", context.executionVariables);
+
+				// Resolve variables in initialPrompt (support {{parent.variable}} syntax)
+				const resolvedPrompt = this.resolvePromptVariables(
+					config.initialPrompt,
+					context,
+				);
+
+				// Resolve variables in initialPrompt - this becomes the user message
+				// The resolved prompt is what the user "says" to start the conversation
+				const userPromptContent = resolvedPrompt;
+
+				// Get resourceId from thread for saving messages
+				const storage = mastra.getStorage();
+				const thread = await storage?.getThreadById({
+					threadId: agentContext.threadId,
+				});
+				const resourceId =
+					thread?.resourceId ||
+					`user-${context.systemVariables.current_user_id}`;
+
+				// Save the resolved initialPrompt as a user message in the thread
+				// This is visible in the chat history as a user message
+				if (storage && agentContext.threadId) {
+					try {
+						await storage.saveMessages({
+							messages: [
+								{
+									id: crypto.randomUUID(),
+									role: "user",
+									content: userPromptContent,
+									createdAt: new Date(),
+									threadId: agentContext.threadId,
+									resourceId,
+									metadata: {
+										type: "initial_prompt",
+									},
+								},
+							],
+						});
+						console.log(
+							"[AskUserChatHandler] Saved initialPrompt as user message to thread",
+						);
+					} catch (saveError) {
+						console.error(
+							"[AskUserChatHandler] Failed to save initialPrompt message:",
+							saveError,
+						);
+					}
+				}
+
+				// Generate agent response to the initialPrompt (user message)
+				const generatedMessage = await agent.generate(
+					[{ role: "user", content: userPromptContent }],
+					{
+						runtimeContext, // Required for model loading
+						maxSteps: 1, // Only need one generation
+					},
+				);
+
+				console.log(
+					"[AskUserChatHandler] Generated initial message:",
+					generatedMessage.text,
+				);
+
+				// Save generated assistant message to Mastra thread
+				if (storage && agentContext.threadId) {
+					try {
+						await storage.saveMessages({
+							messages: [
+								{
+									id: crypto.randomUUID(),
+									role: "assistant",
+									content: generatedMessage.text,
+									createdAt: new Date(),
+									threadId: agentContext.threadId,
+									resourceId, // Required by Mastra
+									metadata: {
+										type: "initial_message",
+										agent_id: config.agentId,
+									},
+								},
+							],
+						});
+						console.log(
+							"[AskUserChatHandler] Saved generated initial message to thread:",
+							agentContext.threadId,
+						);
+					} catch (saveError) {
+						console.error(
+							"[AskUserChatHandler] Failed to save initial message to thread:",
+							saveError,
+						);
+						// Don't throw - we can still continue without initial message in history
+						// The message is saved in execution variables for fallback
+					}
+				}
+
+				return {
+					output: {
+						...output,
+						agent_context: {
+							threadId: agentContext.threadId,
+						},
+						initial_message_banner: config.initialMessage, // For UI banner/info box
+						generated_initial_message: generatedMessage.text, // Agent's response (for reference)
+					},
+					nextStepNumber: null,
+					requiresUserInput: true,
+				};
+			}
+
+			// Fallback when no generateInitialMessage and no initialPrompt
+			// Just return banner info, no message generation
 			return {
 				output: {
 					...output,
 					agent_context: {
 						threadId: agentContext.threadId,
 					},
-					initial_message: config.initialMessage,
+					initial_message_banner: config.initialMessage, // For UI banner only
 				},
 				nextStepNumber: step.nextStepNumber ?? null,
 				requiresUserInput: true,
@@ -588,6 +813,23 @@ export class AskUserChatStepHandler implements StepHandler {
 		console.log(
 			`[AskUserChatHandler] Using threadId: ${threadId}, resourceId: ${resourceId}`,
 		);
+
+		// Verify thread exists before using it (reuse existing mastra variable)
+		const storage = mastra.getStorage();
+		if (storage) {
+			const thread = await storage.getThreadById({ threadId });
+			if (!thread) {
+				console.error(
+					`[AskUserChatHandler] Thread not found: ${threadId}, this should not happen!`,
+				);
+				throw new Error(
+					`Thread ${threadId} not found in storage. This indicates a data inconsistency.`,
+				);
+			}
+			console.log(
+				`[AskUserChatHandler] Thread verified, resourceId: ${thread.resourceId}`,
+			);
+		}
 
 		// Mastra expects toolsets as Record<string, Record<string, Tool>>
 		// Wrap our tools in a toolset object

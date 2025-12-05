@@ -1,9 +1,10 @@
 import {
+	asc,
 	db,
 	eq,
-	workflows,
 	workflowExecutions,
 	workflowSteps,
+	workflows,
 } from "@chiron/db";
 import deepmerge from "deepmerge";
 
@@ -233,6 +234,7 @@ export class StateManager {
 
 	/**
 	 * Get execution state with current step details
+	 * Story 2.3 Task 7.7: Added steps array for layout rendering
 	 */
 	async getExecution(executionId: string) {
 		const [execution] = await db
@@ -252,6 +254,13 @@ export class StateManager {
 			.where(eq(workflows.id, execution.workflowId))
 			.limit(1);
 
+		// Fetch ALL workflow steps (Story 2.3: needed for Timeline and stepper)
+		const steps = await db
+			.select()
+			.from(workflowSteps)
+			.where(eq(workflowSteps.workflowId, execution.workflowId))
+			.orderBy(asc(workflowSteps.stepNumber));
+
 		// If there's a current step, fetch its details
 		let currentStep = null;
 		if (execution.currentStepId) {
@@ -268,6 +277,7 @@ export class StateManager {
 			execution,
 			workflow: workflow || null,
 			currentStep,
+			steps, // Story 2.3: All steps for layout rendering
 		};
 	}
 }

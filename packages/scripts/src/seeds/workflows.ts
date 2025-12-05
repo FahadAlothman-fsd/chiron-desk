@@ -64,6 +64,9 @@ const AGENT_WORKFLOW_MAP: Record<string, string> = {
 	// Core technique workflows
 	scamper: "analyst",
 	"five-whys": "analyst",
+	"six-thinking-hats": "analyst",
+	"mind-mapping": "analyst",
+	"what-if-scenarios": "analyst",
 };
 
 /**
@@ -133,7 +136,10 @@ function detectType(workflowName: string, _isStandalone?: boolean): string {
 	if (
 		name.includes("scamper") ||
 		name.includes("six-hats") ||
+		name.includes("six-thinking-hats") ||
 		name.includes("five-whys") ||
+		name.includes("mind-mapping") ||
+		name.includes("what-if") ||
 		name.includes("technique")
 	) {
 		return "technique";
@@ -282,6 +288,25 @@ export async function seedWorkflows() {
 				isStandalone: data.standalone ?? true, // Migrated from column
 				requiresProjectContext: !data.standalone, // Migrated from column
 			};
+
+			// Story 2.3: Add layoutType and inputSchema for technique workflows
+			if (tags.type === "technique") {
+				metadata.layoutType = "dialog"; // Techniques render as modal dialogs
+				metadata.inputSchema = {
+					// All brainstorming techniques expect these parent variables
+					session_topic: {
+						type: "string",
+						required: true,
+						description: "The brainstorming session topic",
+					},
+					stated_goals: {
+						type: "array",
+						items: { type: "string" },
+						required: true,
+						description: "User's stated session goals",
+					},
+				};
+			}
 
 			// Insert workflow with new schema
 			await db

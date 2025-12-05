@@ -403,8 +403,8 @@ class ModuleManager {
 					// Check if file path starts with or is within any game dev directory
 					return (
 						file === gamePath ||
-						file.startsWith(gamePath + "/") ||
-						file.startsWith(gamePath + "\\")
+						file.startsWith(`${gamePath}/`) ||
+						file.startsWith(`${gamePath}\\`)
 					);
 				});
 
@@ -550,7 +550,7 @@ class ModuleManager {
 	 * @param {string} modulePath - Path to installed module
 	 * @param {string} moduleName - Module name
 	 */
-	async processAgentFiles(modulePath, moduleName) {
+	async processAgentFiles(modulePath, _moduleName) {
 		const agentsPath = path.join(modulePath, "agents");
 
 		// Check if agents directory exists

@@ -162,7 +162,7 @@ export function AskUserStep({
 	};
 
 	return (
-		<div className="space-y-4">
+		<div className="w-full max-w-2xl space-y-4">
 			{config.message && (
 				<div className="text-muted-foreground text-sm">{config.message}</div>
 			)}

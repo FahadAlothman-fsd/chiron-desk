@@ -18,7 +18,7 @@ class AgentAnalyzer {
 		};
 
 		// Check if agent has prompts section
-		if (agentYaml.agent && agentYaml.agent.prompts) {
+		if (agentYaml.agent?.prompts) {
 			profile.hasPrompts = true;
 		}
 

@@ -1,11 +1,10 @@
 import {
 	CheckCircle2,
-	FileText,
-	FolderPlus,
-	GitBranch,
-	Database,
-	Loader2,
 	ChevronRight,
+	Database,
+	FileText,
+	GitBranch,
+	Loader2,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -92,10 +91,10 @@ export function ExecuteActionStep({
 		return (
 			<div className="space-y-4">
 				<div className="rounded-lg border bg-card p-4">
-					<h3 className="font-semibold text-lg mb-4">
+					<h3 className="mb-4 font-semibold text-lg">
 						Ready to Initialize Project
 					</h3>
-					<p className="text-muted-foreground text-sm mb-4">
+					<p className="mb-4 text-muted-foreground text-sm">
 						The following actions will be performed:
 					</p>
 					<div className="space-y-2">
@@ -109,14 +108,14 @@ export function ExecuteActionStep({
 										<div className={`mt-0.5 ${getActionColor(action.type)}`}>
 											{getActionIcon(action.type)}
 										</div>
-										<div className="flex-1 min-w-0">
-											<div className="font-medium text-sm mb-1">
+										<div className="min-w-0 flex-1">
+											<div className="mb-1 font-medium text-sm">
 												Step {action.index + 1}: {action.description}
 											</div>
 											{action.config &&
 												Object.keys(action.config).length > 0 && (
 													<div className="mt-2 rounded bg-muted/50 p-2">
-														<pre className="text-xs overflow-x-auto text-muted-foreground">
+														<pre className="overflow-x-auto text-muted-foreground text-xs">
 															{JSON.stringify(action.config, null, 2)}
 														</pre>
 													</div>

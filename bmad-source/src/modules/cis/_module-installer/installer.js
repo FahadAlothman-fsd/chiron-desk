@@ -20,12 +20,9 @@ async function install(options) {
 		logger.log(chalk.blue("🎨 Installing CIS Module..."));
 
 		// Create output directory if configured
-		if (config["output_folder"]) {
+		if (config.output_folder) {
 			// Strip {project-root}/ prefix if present
-			const outputConfig = config["output_folder"].replace(
-				"{project-root}/",
-				"",
-			);
+			const outputConfig = config.output_folder.replace("{project-root}/", "");
 			const outputPath = path.join(projectRoot, outputConfig);
 			if (!(await fs.pathExists(outputPath))) {
 				logger.log(
