@@ -1,5 +1,5 @@
 import type { AskUserChatStepConfig, WorkflowStep } from "@chiron/db";
-import { agents, db, workflowExecutions } from "@chiron/db";
+import { agents, db, workflowExecutions, workflows } from "@chiron/db";
 import { RuntimeContext } from "@mastra/core/runtime-context";
 import { eq } from "drizzle-orm";
 import {
@@ -470,8 +470,23 @@ export class AskUserChatStepHandler implements StepHandler {
 			userInput,
 		);
 
+		// Get workflow name for thread title (only need to query if creating new thread)
+		let workflowName: string | undefined;
+		if (!context.executionVariables.mastra_thread_id) {
+			const [workflow] = await db
+				.select({ displayName: workflows.displayName, name: workflows.name })
+				.from(workflows)
+				.where(eq(workflows.id, step.workflowId))
+				.limit(1);
+			workflowName = workflow?.displayName || workflow?.name;
+		}
+
 		// Initialize or load Mastra agent and thread
-		const agentContext = await this.initializeAgent(config, context);
+		const agentContext = await this.initializeAgent(
+			config,
+			context,
+			workflowName,
+		);
 
 		// Save thread ID to execution variables if new thread created
 		const output: Record<string, unknown> = {};
@@ -571,6 +586,27 @@ export class AskUserChatStepHandler implements StepHandler {
 
 			// NEW: Check for generateInitialMessage feature
 			if (config.generateInitialMessage && config.initialPrompt) {
+				// CRITICAL: Check if thread already has messages - if so, we've already generated
+				// the initial message and this is a continuation after tool approval, NOT a fresh start.
+				// Skip re-generating initial message in this case.
+				const existingMessages = await getThreadMessages(agentContext.threadId);
+				if (existingMessages.length > 0) {
+					console.log(
+						`[AskUserChatHandler] Thread already has ${existingMessages.length} messages - skipping initial message generation (continuation after approval)`,
+					);
+					// Return immediately, waiting for user input to continue conversation
+					return {
+						output: {
+							...output,
+							agent_context: {
+								threadId: agentContext.threadId,
+							},
+						},
+						nextStepNumber: null,
+						requiresUserInput: true,
+					};
+				}
+
 				console.log(
 					"[AskUserChatHandler] Generating initial message dynamically...",
 				);
@@ -1050,11 +1086,13 @@ export class AskUserChatStepHandler implements StepHandler {
 	 *
 	 * @param config - Step configuration
 	 * @param context - Execution context
+	 * @param workflowName - Optional workflow name for thread title
 	 * @returns Thread ID and needsSave flag
 	 */
 	private async initializeAgent(
 		_config: AskUserChatStepConfig,
 		context: ExecutionContext,
+		workflowName?: string,
 	): Promise<{
 		threadId: string;
 		needsSave: boolean;
@@ -1066,25 +1104,61 @@ export class AskUserChatStepHandler implements StepHandler {
 		let needsSave = false;
 
 		if (!threadId) {
+			// Build a descriptive thread title
+			// Format: "WorkflowName: Topic" or just "WorkflowName" if no topic
+			const sessionTopic = context.executionVariables.session_topic as
+				| string
+				| undefined;
+			let title = workflowName || "Workflow Conversation";
+			if (sessionTopic) {
+				// Truncate topic if too long
+				const truncatedTopic =
+					sessionTopic.length > 50
+						? `${sessionTopic.substring(0, 47)}...`
+						: sessionTopic;
+				title = `${title}: ${truncatedTopic}`;
+			}
+
 			const thread = await createThread(
 				`user-${context.systemVariables.current_user_id}`,
+				{ title },
 			);
 			threadId = thread.id;
 			needsSave = true; // Need to save thread ID to execution variables
-			console.log("[AskUserChatHandler] Created new thread:", threadId);
+			console.log(
+				"[AskUserChatHandler] Created new thread:",
+				threadId,
+				"title:",
+				title,
+			);
 		} else {
 			// Verify thread exists
 			const thread = await getThread(threadId);
 			if (!thread) {
 				// Thread not found, create new one
+				const sessionTopic = context.executionVariables.session_topic as
+					| string
+					| undefined;
+				let title = workflowName || "Workflow Conversation";
+				if (sessionTopic) {
+					const truncatedTopic =
+						sessionTopic.length > 50
+							? `${sessionTopic.substring(0, 47)}...`
+							: sessionTopic;
+					title = `${title}: ${truncatedTopic}`;
+				}
+
 				const newThread = await createThread(
 					`user-${context.systemVariables.current_user_id}`,
+					{ title },
 				);
 				threadId = newThread.id;
 				needsSave = true;
 				console.log(
 					"[AskUserChatHandler] Thread not found, created new:",
 					threadId,
+					"title:",
+					title,
 				);
 			}
 		}

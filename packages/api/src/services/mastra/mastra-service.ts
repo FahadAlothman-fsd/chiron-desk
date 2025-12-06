@@ -101,9 +101,18 @@ export async function getThreadMessages(threadId: string) {
  * Create a new Mastra thread for a workflow execution
  *
  * @param resourceId - Unique resource identifier (e.g., "user-{userId}")
+ * @param options - Optional thread configuration
+ * @param options.title - Thread title for display (e.g., "Five Whys: Improving onboarding")
+ * @param options.metadata - Additional metadata to store with thread
  * @returns Thread object with id
  */
-export async function createThread(resourceId: string) {
+export async function createThread(
+	resourceId: string,
+	options?: {
+		title?: string;
+		metadata?: Record<string, unknown>;
+	},
+) {
 	try {
 		const mastra = await getMastraInstance();
 		const storage = mastra.getStorage();
@@ -115,11 +124,15 @@ export async function createThread(resourceId: string) {
 		// PostgresStore uses saveThread instead of createThread
 		const threadId = `thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
+		const title = options?.title || "New Conversation";
+
 		console.log(
 			"[Mastra] Creating thread with ID:",
 			threadId,
 			"resourceId:",
 			resourceId,
+			"title:",
+			title,
 		);
 
 		// saveThread expects nested structure with 'thread' property
@@ -127,8 +140,8 @@ export async function createThread(resourceId: string) {
 			thread: {
 				id: threadId,
 				resourceId,
-				title: "New Conversation",
-				metadata: {},
+				title,
+				metadata: options?.metadata || {},
 				createdAt: new Date(),
 				updatedAt: new Date(),
 			},

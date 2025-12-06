@@ -41,7 +41,7 @@ function WorkflowExecutionPage() {
 	>(null);
 	const [pendingWorkflowId, setPendingWorkflowId] = useState<string | null>(
 		null,
-	)
+	);
 
 	// Fetch workflow execution state using tRPC hook for proper cache management
 	const {
@@ -58,7 +58,7 @@ function WorkflowExecutionPage() {
 				return data?.execution?.status === "running" ? 2000 : false;
 			},
 		},
-	)
+	);
 
 	// tRPC client for mutations
 	const trpcClient = trpc.useContext().client;
@@ -82,10 +82,10 @@ function WorkflowExecutionPage() {
 		onError: (error: Error) => {
 			toast.error("Failed to start workflow", {
 				description: error.message,
-			})
+			});
 			setPendingWorkflowId(null);
 		},
-	})
+	});
 
 	// Fetch child execution data if dialog is open
 	const { data: childExecutionData } = trpc.workflows.getExecution.useQuery(
@@ -94,7 +94,7 @@ function WorkflowExecutionPage() {
 			enabled: !!dialogChildExecutionId,
 			refetchInterval: 2000,
 		},
-	)
+	);
 
 	// Fetch workflow details for confirmation dialog
 	const { data: pendingWorkflowData } = trpc.workflows.getByIds.useQuery(
@@ -102,7 +102,7 @@ function WorkflowExecutionPage() {
 		{
 			enabled: !!pendingWorkflowId,
 		},
-	)
+	);
 
 	if (isLoading) {
 		return (
@@ -112,7 +112,7 @@ function WorkflowExecutionPage() {
 					<span>Loading workflow...</span>
 				</div>
 			</div>
-		)
+		);
 	}
 
 	if (error || !executionData) {
@@ -135,7 +135,7 @@ function WorkflowExecutionPage() {
 					</Button>
 				</div>
 			</div>
-		)
+		);
 	}
 
 	// Extract execution data - getExecution returns { execution, workflow, currentStep, steps }
@@ -161,7 +161,7 @@ function WorkflowExecutionPage() {
 					</Button>
 				</div>
 			</div>
-		)
+		);
 	}
 
 	// Handler for opening child workflow confirmation dialog
@@ -170,11 +170,11 @@ function WorkflowExecutionPage() {
 		const childMetadata = execution.variables._child_metadata as Array<{
 			id: string;
 			workflowId: string;
-		}>
+		}>;
 
 		const existingChild = childMetadata?.find(
 			(child) => child.workflowId === workflowId,
-		)
+		);
 
 		if (existingChild) {
 			// Child already exists, open it directly
@@ -183,7 +183,7 @@ function WorkflowExecutionPage() {
 			// No child exists, show confirmation dialog
 			setPendingWorkflowId(workflowId);
 		}
-	}
+	};
 
 	// Handler for confirming workflow start
 	const handleConfirmStart = () => {
@@ -204,8 +204,8 @@ function WorkflowExecutionPage() {
 			workflowId: pendingWorkflowId,
 			projectId: projectId,
 			mappedVariables,
-		})
-	}
+		});
+	};
 
 	// Render step content
 	const stepContent = (
@@ -215,12 +215,12 @@ function WorkflowExecutionPage() {
 			projectId={projectId}
 			onExecuteWorkflow={handleExecuteWorkflow}
 		/>
-	)
+	);
 
 	return (
-        <div className="h-screen w-full p-4">
-            {/* Parent workflow layout */}
-            <WorkflowLayoutRenderer
+		<div className="h-screen w-full p-4">
+			{/* Parent workflow layout */}
+			<WorkflowLayoutRenderer
 				workflow={workflow}
 				execution={execution}
 				steps={steps}
@@ -229,8 +229,8 @@ function WorkflowExecutionPage() {
 				stepContent={stepContent}
 				onExecuteWorkflow={handleExecuteWorkflow}
 			/>
-            {/* Child workflow dialog (if open) */}
-            {dialogChildExecutionId &&
+			{/* Child workflow dialog (if open) */}
+			{dialogChildExecutionId &&
 				childExecutionData &&
 				childExecutionData.currentStep && (
 					<WorkflowLayoutRenderer
@@ -252,8 +252,8 @@ function WorkflowExecutionPage() {
 						}}
 					/>
 				)}
-            {/* Confirmation dialog for starting child workflow */}
-            {pendingWorkflowId &&
+			{/* Confirmation dialog for starting child workflow */}
+			{pendingWorkflowId &&
 				(() => {
 					// Get workflow details
 					const currentStepConfig = currentStep.config as any;
@@ -266,7 +266,7 @@ function WorkflowExecutionPage() {
 					)) {
 						const varName = (parentVarRef as string)
 							.replace(/{{|}}/g, "")
-							.trim()
+							.trim();
 						mappedVariables[childVar] = execution.variables[varName];
 					}
 
@@ -323,7 +323,7 @@ function WorkflowExecutionPage() {
 													<p className="whitespace-pre-wrap text-muted-foreground text-sm">
 														{Array.isArray(value)
 															? value
-																	.map((item, i) => "${i + 1}. ${item}")
+																	.map((item, i) => `${i + 1}. ${item}`)
 																	.join("\n")
 															: String(value)}
 													</p>
@@ -357,8 +357,8 @@ function WorkflowExecutionPage() {
 								</DialogFooter>
 							</DialogContent>
 						</Dialog>
-					)
+					);
 				})()}
-        </div>
-    )
+		</div>
+	);
 }
