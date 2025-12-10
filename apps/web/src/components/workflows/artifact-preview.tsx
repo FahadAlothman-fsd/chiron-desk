@@ -325,7 +325,7 @@ function CapturedIdeasSection({ variables }: CapturedIdeasSectionProps) {
 										</span>
 										<span className="text-muted-foreground text-xs">
 											{outputItems.length}{" "}
-											{outputItems.length === 1 ? "item" : "items"}
+											{outputItems.length === 1 ? "insight" : "ideas"}
 										</span>
 									</div>
 									{completedAt && (
@@ -339,14 +339,56 @@ function CapturedIdeasSection({ variables }: CapturedIdeasSectionProps) {
 								{outputItems.length > 0 ? (
 									<div className="space-y-2">
 										{outputItems.map((item: any, idx: number) => {
-											// Handle different output formats (string, object, etc.)
+											// Handle different output formats
+											// 1. String → display directly
+											// 2. Q&A object (Five Whys) → show question and answer
+											// 3. Other objects → try common fields or stringify
+											if (typeof item === "string") {
+												return (
+													<div
+														key={idx}
+														className="flex items-start gap-3 rounded-md bg-white p-3 text-sm shadow-sm dark:bg-gray-900/50"
+													>
+														<div className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 font-semibold text-blue-700 text-xs dark:bg-blue-900/40 dark:text-blue-400">
+															{idx + 1}
+														</div>
+														<p className="flex-1 text-gray-900 leading-relaxed dark:text-gray-100">
+															{item}
+														</p>
+													</div>
+												);
+											}
+
+											// Q&A format (question + answer object)
+											// Display as insight with question context and answer
+											if (item.question && item.answer) {
+												return (
+													<div
+														key={idx}
+														className="rounded-md bg-white p-3 shadow-sm dark:bg-gray-900/50"
+													>
+														<div className="mb-2 flex items-start gap-3">
+															<div className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 font-semibold text-blue-700 text-xs dark:bg-blue-900/40 dark:text-blue-400">
+																{idx + 1}
+															</div>
+															<p className="flex-1 text-muted-foreground text-sm italic">
+																{item.question}
+															</p>
+														</div>
+														<div className="ml-8 font-medium text-gray-900 leading-relaxed dark:text-gray-100">
+															{item.answer}
+														</div>
+													</div>
+												);
+											}
+
+											// Fallback for other object types
 											const displayText =
-												typeof item === "string"
-													? item
-													: item.text ||
-														item.idea ||
-														item.value ||
-														JSON.stringify(item);
+												item.text ||
+												item.idea ||
+												item.value ||
+												item.name ||
+												JSON.stringify(item);
 
 											return (
 												<div

@@ -70,6 +70,8 @@ export interface ArtifactWorkbenchLayoutProps {
 	defaultTimelineMode?: "focused" | "browse";
 	/** Handler for execute workflow (invoke-workflow steps) */
 	onExecuteWorkflow?: (workflowId: string) => void;
+	/** Handler to navigate to a child execution (for viewing completed workflows) */
+	onViewExecution?: (executionId: string) => void;
 }
 
 export function ArtifactWorkbenchLayout({
@@ -81,6 +83,7 @@ export function ArtifactWorkbenchLayout({
 	defaultTimelineSize = 60,
 	defaultTimelineMode = "focused",
 	onExecuteWorkflow,
+	onViewExecution,
 }: ArtifactWorkbenchLayoutProps) {
 	const [timelineMode, setTimelineMode] = useState<"focused" | "browse">(
 		defaultTimelineMode,
@@ -154,6 +157,7 @@ export function ArtifactWorkbenchLayout({
 								execution={execution}
 								projectId={projectId}
 								onExecuteWorkflow={onExecuteWorkflow}
+								onViewExecution={onViewExecution}
 							/>
 						)}
 					</Timeline>

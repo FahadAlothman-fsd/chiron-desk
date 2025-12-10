@@ -16,21 +16,27 @@
 
 > **Note on Agent Behavior**: The agent may probe deeper on each "why" before saving the answer. This is **expected and good** - it ensures we capture well-understood root causes, not surface-level answers. Be prepared for 2-3 follow-up questions per "why" level.
 
-### Conversation Flow
+> **Output**: Five Whys produces a **single insight** (the root cause) as its `generated_ideas` output, NOT all 5 Q&A pairs. The journey (whys 1-4) is the process; the destination (why 5) is the output.
+
+### Verified Test Conversation (Actual Captured Data)
+
+The following Q&A pairs were captured in a real test session. Use these exact responses to replicate the test.
+
+---
 
 **Why 1 - Surface Problem**
-> Agent: "Let's solve this mystery! Based on your topic 'Improving TaskFlow onboarding', here's my first question: Why do new teams struggle to complete their first task within 30 minutes?"
+
+> Agent: "🔬 Let's solve this mystery! We'll ask WHY five times to find the real culprit. Based on your topic 'Improving the TaskFlow onboarding experience for new teams', here's my first question..."
+>
+> "Why do new teams currently spend about 30 minutes before they can complete their first task in TaskFlow?"
 
 **Your initial response**:
 ```
 Because they don't understand how TaskFlow's project structure works - they get confused about the relationship between workspaces, projects, and tasks.
 ```
 
-**Agent probes deeper** (multi-turn before saving):
-> Agent: "Let's dig a little deeper so we capture the full picture:
-> 1. What exactly about the workspace ↔ project ↔ task relationship trips people up? (terminology, navigation, hierarchy depth)
-> 2. Can you share a recent scenario where a new team got stuck?
-> 3. What guidance or resources are currently provided to explain the structure?"
+**Agent probes deeper**:
+> "What specific parts of the workspace → project → task hierarchy are most confusing? Are they unsure how to create a project inside a workspace? Any particular terminology or UI element that trips them up?"
 
 **Your clarifying response**:
 ```
@@ -40,49 +46,103 @@ The main issues are:
 3. We have a help article, but it's buried in the docs. Tooltips exist but only appear after they've already made a wrong choice.
 ```
 
-> Agent will now call `save_why_1` with the complete Q&A, then proceed to Why 2.
+**Captured in `save_why_1`**:
+- **Question**: Why do new teams currently spend about 30 minutes before they can complete their first task in TaskFlow?
+- **Answer**: Because they don't understand how TaskFlow's project structure works—terminology is confusing (e.g., what a "workspace" means), they don't realize they need to create a project before adding tasks, and guidance is hard to find (help article buried, tooltips appear too late).
 
 ---
 
 **Why 2 - Going Deeper**
-> Agent: "Interesting! So the workspace/project/task hierarchy is confusing AND users can't discover the right flow. Why don't new teams understand this structure?"
+
+> Agent: "Why does the terminology and hierarchy (workspace → project → task) feel confusing and arbitrary to new teams, and why is the guidance (help article, tooltips) not reaching them in time?"
 
 **Your response**:
 ```
-Because we show them everything at once during signup - they see empty workspaces, projects, and task lists, but there's no guidance on what to create first or why.
+Why the terminology and hierarchy feels confusing:
+- Mental model mismatch - New teams come with their own mental models from other tools (Trello, Asana, Notion, etc.). TaskFlow's "workspace → project → task" hierarchy doesn't map cleanly to what they already know. Is a "workspace" like a Trello board? A Notion workspace? A Slack workspace? Each tool uses these terms differently.
+- No immediate context - The hierarchy is presented as empty containers without explaining the purpose of each level. Users see structure but not meaning. "Why do I need a workspace if I just want to create a task?"
+- Premature abstraction - For small teams or simple use cases, three levels feels like overkill. They're forced to think about organizational structure before they've even done their first task.
+
+Why guidance isn't reaching them in time:
+- Reactive, not proactive - Help articles are buried in docs (users have to search). Tooltips appear after they've already clicked something wrong. By the time they find help, they're already frustrated.
+- Wrong moment of intervention - The critical moment is the first click after signup. If they click "New Task" but need to create a project first, they hit a wall. The tooltip explaining projects should appear before that wall, not after.
+- Information overload - With 15 clickable elements competing for attention on first load, even good tooltips get lost in the noise. Users are scanning for "where do I start?" not reading every tooltip.
 ```
 
-**Agent may probe** (optional multi-turn):
-> Agent: "What does 'everything at once' look like specifically? How many UI elements are visible on first load?"
+**Captured in `save_why_2`**:
+- **Question**: Why does the terminology and hierarchy (workspace → project → task) feel confusing and arbitrary to new teams, and why is the guidance (help article, tooltips) not reaching them in time?
+- **Answer**: 1. Mental model mismatch – new teams bring expectations from tools like Trello, Asana, Notion, etc., and TaskFlow's terms don't map cleanly. 2. No immediate context – the hierarchy is shown as empty containers without explaining the purpose of each level. 3. Premature abstraction – for small teams, three levels feel like overkill. 4. Reactive, not proactive guidance – help articles are buried; tooltips appear only after a wrong click. 5. Wrong moment of intervention – the critical moment is the first click after signup; the tooltip shows up after the user hits the wall. 6. Information overload – the initial screen has many clickable elements, so even good tooltips get lost.
 
-**Your clarifying response**:
-```
-On first load they see: sidebar with 5 sections (workspaces, projects, tasks, calendar, settings), a main area with an empty state message, and a top bar with 3 action buttons. It's about 15 clickable elements competing for attention with no clear starting point.
-```
+---
 
 **Why 3 - Uncovering Patterns**
-> Agent: "Aha! The blank canvas problem. Why do we show everything at once instead of guiding them step-by-step?"
+
+> Agent: "Why do we design the onboarding experience and terminology without first aligning to users' existing mental models and without delivering proactive, context‑aware guidance at the exact moment they need it?"
 
 **Your response**:
 ```
-Because our onboarding was designed for power users who already understood task management - we assumed people would figure it out like they do with other tools.
+Why we designed without aligning to existing mental models:
+1. Builder's curse - The team that built TaskFlow invented the workspace → project → task hierarchy. To them, it's intuitive because they designed it. They forgot that users don't have the months of context from building it.
+2. Power user bias in early feedback - Early adopters were productivity enthusiasts who enjoyed learning new systems. They gave feedback like "add more features" not "simplify the structure." The team optimized for the vocal minority, not the silent majority who churned.
+3. No user research during onboarding design - The hierarchy was designed for data organization, not user comprehension. Engineering decided the schema, then UX wrapped UI around it. Nobody asked "what do users already call these things?"
+4. Competitive differentiation trap - "We're different from Trello/Asana" became a point of pride. Different terminology felt like a feature, not a bug. But users don't want different - they want familiar + better.
+
+Why we don't deliver proactive, context-aware guidance:
+1. Static thinking in a dynamic problem - Help docs and tooltips were created once and placed statically. But user confusion is contextual - it depends on what they just clicked, what they're trying to do, and what they've already learned.
+2. No instrumentation of failure moments - We track feature usage but not "moments of confusion." We know users drop off at the Create Project screen but not why. Without this data, we can't know when to intervene.
+3. Engineering cost perception - Context-aware guidance requires tracking user state, predicting intent, and dynamically showing help. That felt like "a lot of work for onboarding" when there were features to ship.
+4. Org structure mismatch - Onboarding spans Product, Engineering, Design, and Customer Success. No single team owns "the first 5 minutes." So everyone assumes someone else is handling it.
 ```
+
+**Captured in `save_why_3`**: (Full answer as above)
+
+---
 
 **Why 4 - Root Cause Emerging**
-> Agent: "We designed for the wrong user! Why did we assume new users would be like power users?"
+
+> Agent: "Why does our organization lack a dedicated process, ownership, or cross‑functional framework for onboarding research and experience design, leading to builder's‑curse thinking, power‑user bias, static help, and missed 'moments of confusion'?"
 
 **Your response**:
 ```
-Because our early customers were all productivity enthusiasts who specifically sought out TaskFlow - they had high motivation and existing mental models. Now we're targeting mainstream teams who just want to get work done.
+Why we lack dedicated onboarding ownership and process:
+1. Startup survival mode became permanent culture - In the early days, "just ship it" was the right call. Get the product out, find product-market fit, iterate fast. Onboarding was a "nice to have" that would be fixed "later." But "later" never came because there was always another urgent feature. The urgency mindset calcified into culture.
+2. Success metrics blind spot - We measure what we monetize: MRR, feature adoption, retention at 30/60/90 days. But we don't measure time-to-value or first-session completion. Leadership sees "40% activation" as a conversion problem for Marketing, not an experience problem for Product. What isn't measured isn't prioritized.
+3. Onboarding falls between org chart cracks - Product owns features. Engineering owns infrastructure. Design owns UI. Marketing owns acquisition. Customer Success owns retention. But who owns the first 5 minutes? Everyone touches it, no one owns it. Shared ownership = no ownership.
+4. No feedback loop from churned users - Users who fail onboarding leave silently. They don't file support tickets saying "your hierarchy confused me." They just... don't come back. We interview power users (survivors), not the users we lost. Survivorship bias compounds the power-user bias.
+5. Cross-functional work is hard and unrewarded - Fixing onboarding requires PM + Engineering + Design + Content + Analytics to collaborate intensely for weeks. But performance reviews reward shipping your team's OKRs, not cross-functional initiatives that don't clearly belong to anyone.
+6. The "smart user" assumption - Deep down, there's a belief: "Our target users are smart. If they can't figure out our product, maybe they're not our target user." This lets us blame users instead of ourselves. It's comfortable but deadly.
 ```
 
-**Why 5 - The Root**
-> Agent: "EUREKA! We've shifted markets but not our onboarding! Why haven't we updated our onboarding for mainstream teams?"
+**Captured in `save_why_4`**: (Full answer as above)
+
+---
+
+**Why 5 - The ROOT CAUSE**
+
+> Agent: "Why does our organization continue to accept a culture where onboarding is deprioritized and ownership is ambiguous, even though it directly hurts activation and time‑to‑value for new teams?"
 
 **Your response**:
 ```
-Because we've been focused on adding features that power users requested, and onboarding improvements kept getting deprioritized since our retention metrics looked okay (but those were skewed by our self-selecting early adopter audience).
+Because leadership hasn't quantified the cost of poor onboarding in terms of delayed revenue, increased churn, and engineering time wasted on repeated handholding - so it never gets prioritized against feature work that has visible short-term metrics.
 ```
+
+**Captured in `save_why_5_root_cause`**:
+- **Question**: Why does our organization continue to accept a culture where onboarding is deprioritized and ownership is ambiguous, even though it directly hurts activation and time-to-value for new teams?
+- **Answer**: Because leadership hasn't quantified the cost of poor onboarding in terms of delayed revenue, increased churn, and engineering time wasted on repeated handholding - so it never gets prioritized against feature work that has visible short-term metrics.
+
+---
+
+### Final Output
+
+**`generated_ideas`** (what parent workflow receives):
+```json
+{
+  "question": "Why does our organization continue to accept a culture where onboarding is deprioritized and ownership is ambiguous, even though it directly hurts activation and time-to-value for new teams?",
+  "answer": "Because leadership hasn't quantified the cost of poor onboarding in terms of delayed revenue, increased churn, and engineering time wasted on repeated handholding - so it never gets prioritized against feature work that has visible short-term metrics."
+}
+```
+
+This single root cause insight is what gets aggregated into the parent brainstorming workflow's `captured_ideas`.
 
 ---
 

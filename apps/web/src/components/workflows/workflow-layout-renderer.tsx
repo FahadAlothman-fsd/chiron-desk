@@ -74,6 +74,8 @@ export interface WorkflowLayoutRendererProps {
 	stepContent?: React.ReactNode;
 	/** Handler for execute workflow (invoke-workflow steps) */
 	onExecuteWorkflow?: (workflowId: string) => void;
+	/** Handler to navigate to a child execution (for viewing completed workflows) */
+	onViewExecution?: (executionId: string) => void;
 	/** Dialog props (only for dialog layout) */
 	dialogProps?: {
 		open: boolean;
@@ -89,6 +91,7 @@ export function WorkflowLayoutRenderer({
 	projectId,
 	stepContent,
 	onExecuteWorkflow,
+	onViewExecution,
 	dialogProps,
 }: WorkflowLayoutRendererProps) {
 	// PRIORITY: If dialogProps provided, this is a child workflow - use DialogLayout
@@ -129,6 +132,7 @@ export function WorkflowLayoutRenderer({
 					steps={steps}
 					projectId={projectId}
 					onExecuteWorkflow={onExecuteWorkflow}
+					onViewExecution={onViewExecution}
 				/>
 			);
 

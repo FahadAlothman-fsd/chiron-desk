@@ -314,7 +314,9 @@ Then ask a SPECIFIC first WHY question (not generic "Why?", but tailored to thei
 		},
 
 		outputVariables: {
-			generated_ideas: "causal_chain", // Will extract: [why_1, why_2, why_3, why_4, why_5_root_cause]
+			// The root cause is the key output - the final insight from drilling down 5 times
+			// We output just the root cause answer as a single idea/insight
+			generated_ideas: "why_5_root_cause",
 		},
 	};
 

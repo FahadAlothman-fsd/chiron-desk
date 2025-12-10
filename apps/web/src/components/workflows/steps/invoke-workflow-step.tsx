@@ -23,6 +23,7 @@ interface InvokeWorkflowStepProps {
 	config: InvokeWorkflowStepConfig;
 	variables: Record<string, unknown>;
 	onExecuteWorkflow?: (workflowId: string) => void;
+	onViewExecution?: (executionId: string) => void;
 }
 
 interface ChildExecutionMetadata {
@@ -40,6 +41,7 @@ export function InvokeWorkflowStep({
 	config,
 	variables,
 	onExecuteWorkflow,
+	onViewExecution,
 }: InvokeWorkflowStepProps) {
 	// Get workflow IDs to invoke from config
 	const workflowIdsToInvoke = variables[
@@ -188,6 +190,11 @@ export function InvokeWorkflowStep({
 								onExecute={() => handleExecute(workflow.id)}
 								onResume={() => handleExecute(workflow.id)}
 								onRetry={() => handleExecute(workflow.id)}
+								onView={
+									execution?.id && onViewExecution
+										? () => onViewExecution(execution.id)
+										: undefined
+								}
 								showTimestamps={true}
 							/>
 						))}

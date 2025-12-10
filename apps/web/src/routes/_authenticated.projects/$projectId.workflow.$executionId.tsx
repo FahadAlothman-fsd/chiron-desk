@@ -185,6 +185,11 @@ function WorkflowExecutionPage() {
 		}
 	};
 
+	// Handler for viewing a child execution (completed workflows)
+	const handleViewExecution = (executionId: string) => {
+		setDialogChildExecutionId(executionId);
+	};
+
 	// Handler for confirming workflow start
 	const handleConfirmStart = () => {
 		if (!pendingWorkflowId) return;
@@ -214,6 +219,7 @@ function WorkflowExecutionPage() {
 			execution={execution}
 			projectId={projectId}
 			onExecuteWorkflow={handleExecuteWorkflow}
+			onViewExecution={handleViewExecution}
 		/>
 	);
 
@@ -228,6 +234,7 @@ function WorkflowExecutionPage() {
 				projectId={projectId}
 				stepContent={stepContent}
 				onExecuteWorkflow={handleExecuteWorkflow}
+				onViewExecution={handleViewExecution}
 			/>
 			{/* Child workflow dialog (if open) */}
 			{dialogChildExecutionId &&

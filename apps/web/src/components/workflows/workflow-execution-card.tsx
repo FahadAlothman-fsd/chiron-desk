@@ -405,25 +405,31 @@ function ActionButton({
 			);
 
 		case "completed":
-			return canExpand ? (
-				<Button
-					onClick={handleClick(onToggleExpand)}
-					size="sm"
-					variant="ghost"
-					className="gap-1"
-				>
-					Details
-					{isExpanded ? (
-						<ChevronUp className="h-3.5 w-3.5" />
-					) : (
-						<ChevronDown className="h-3.5 w-3.5" />
+			return (
+				<div className="flex items-center gap-2">
+					{canExpand && (
+						<Button
+							onClick={handleClick(onToggleExpand)}
+							size="sm"
+							variant="ghost"
+							className="gap-1"
+						>
+							Details
+							{isExpanded ? (
+								<ChevronUp className="h-3.5 w-3.5" />
+							) : (
+								<ChevronDown className="h-3.5 w-3.5" />
+							)}
+						</Button>
 					)}
-				</Button>
-			) : onView ? (
-				<Button onClick={handleClick(onView)} size="sm" variant="ghost">
-					View
-				</Button>
-			) : null;
+					{onView && (
+						<Button onClick={handleClick(onView)} size="sm" variant="outline">
+							<Play className="mr-1.5 h-3.5 w-3.5" />
+							View
+						</Button>
+					)}
+				</div>
+			);
 
 		case "failed":
 			return (

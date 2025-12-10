@@ -1484,10 +1484,20 @@ export class AskUserChatStepHandler implements StepHandler {
 	}
 
 	/**
-	 * Extract output variables from approval states
+	 * Extract output variables from approval states or execution variables
 	 *
-	 * Maps output variable names to their values from approval_states
-	 * Example: { project_description: "approval_states.update_summary.value" }
+	 * Supported path formats:
+	 * 1. "approval_states.tool_name.value" - Extract value from a specific tool's approval state
+	 * 2. "approval_states.tool_name.value.field" - Extract nested field from tool's value
+	 * 3. "variables:var1,var2,var3" - Collect multiple execution variables into an array
+	 * 4. "variable_name" - Direct lookup of an execution variable (simple string without dots or colons)
+	 * 5. Object mapping - Each key maps to an approval_states path, building structured output
+	 *
+	 * Examples:
+	 *   { project_description: "approval_states.update_summary.value" }
+	 *   { generated_ideas: "variables:why_1,why_2,why_3,why_4,why_5_root_cause" }
+	 *   { six_hats_analysis: "six_hats_analysis" } // Direct variable lookup
+	 *   { captured_ideas: { substitute: "approval_states.scamper_substitute.value" } } // Object mapping
 	 */
 	private extractOutputVariables(
 		config: AskUserChatStepConfig,
@@ -1501,57 +1511,150 @@ export class AskUserChatStepHandler implements StepHandler {
 		const approvalStates = (context.executionVariables.approval_states ||
 			{}) as Record<string, { value: unknown }>;
 
-		for (const [outputName, path] of Object.entries(config.outputVariables)) {
-			// Parse path like "approval_states.update_summary.value" or "approval_states.update_summary.value.summary"
-			if (typeof path !== "string") {
+		for (const [outputName, pathOrMapping] of Object.entries(
+			config.outputVariables,
+		)) {
+			// Pattern 5: Object mapping - Build structured output from multiple approval_states paths
+			if (
+				typeof pathOrMapping === "object" &&
+				pathOrMapping !== null &&
+				!Array.isArray(pathOrMapping)
+			) {
+				const structuredOutput: Record<string, unknown> = {};
+				for (const [key, nestedPath] of Object.entries(
+					pathOrMapping as Record<string, string>,
+				)) {
+					if (typeof nestedPath !== "string") continue;
+
+					const value = this.extractValueFromPath(
+						nestedPath,
+						approvalStates,
+						context.executionVariables,
+					);
+					if (value !== undefined) {
+						structuredOutput[key] = value;
+					}
+				}
+				if (Object.keys(structuredOutput).length > 0) {
+					outputs[outputName] = structuredOutput;
+					console.log(
+						`[AskUserChatHandler] Built structured output for ${outputName}:`,
+						Object.keys(structuredOutput),
+					);
+				}
+				continue;
+			}
+
+			if (typeof pathOrMapping !== "string") {
 				console.warn(
-					`[AskUserChatHandler] Invalid output variable path type: ${typeof path}`,
+					`[AskUserChatHandler] Invalid output variable path type: ${typeof pathOrMapping}`,
 				);
 				continue;
 			}
 
-			const pathParts = path.split(".");
-			if (pathParts.length >= 3 && pathParts[0] === "approval_states") {
-				const toolName = pathParts[1];
-				if (!toolName) {
-					console.warn(
-						`[AskUserChatHandler] Missing tool name in path: ${path}`,
-					);
-					continue;
-				}
+			const path = pathOrMapping;
 
-				const state = approvalStates[toolName];
-				if (!state) {
-					console.warn(
-						`[AskUserChatHandler] Tool state not found: ${toolName}`,
-					);
-					continue;
-				}
+			// Pattern 1: "variables:var1,var2,var3" - Collect multiple execution variables into array
+			if (path.startsWith("variables:")) {
+				const varNames = path
+					.slice("variables:".length)
+					.split(",")
+					.map((v) => v.trim());
+				const collectedValues: unknown[] = [];
 
-				// Navigate the rest of the path starting from the tool state
-				// e.g., "value.summary" or just "value"
-				const remainingPath = pathParts.slice(2);
-				let value: any = state;
-
-				for (const part of remainingPath) {
-					if (value && typeof value === "object" && part in value) {
-						value = value[part];
+				for (const varName of varNames) {
+					const value = context.executionVariables[varName];
+					if (value !== undefined) {
+						collectedValues.push(value);
 					} else {
-						value = undefined;
-						break;
+						console.warn(
+							`[AskUserChatHandler] Variable not found for collection: ${varName}`,
+						);
 					}
 				}
 
-				if (value !== undefined) {
-					outputs[outputName] = value;
+				if (collectedValues.length > 0) {
+					outputs[outputName] = collectedValues;
+					console.log(
+						`[AskUserChatHandler] Collected ${collectedValues.length} variables into ${outputName}`,
+					);
 				}
-			} else {
-				console.warn(
-					`[AskUserChatHandler] Unsupported output variable path: ${path}`,
-				);
+				continue;
+			}
+
+			// Pattern 2 & 4: approval_states path or direct variable lookup
+			const value = this.extractValueFromPath(
+				path,
+				approvalStates,
+				context.executionVariables,
+			);
+			if (value !== undefined) {
+				outputs[outputName] = value;
 			}
 		}
 
 		return outputs;
+	}
+
+	/**
+	 * Extract a value from a path string
+	 * Handles both approval_states paths and direct variable lookups
+	 */
+	private extractValueFromPath(
+		path: string,
+		approvalStates: Record<string, { value: unknown }>,
+		executionVariables: Record<string, unknown>,
+	): unknown {
+		const pathParts = path.split(".");
+
+		// Pattern 2: "approval_states.tool_name.value" - Extract from approval state
+		if (pathParts.length >= 3 && pathParts[0] === "approval_states") {
+			const toolName = pathParts[1];
+			if (!toolName) {
+				console.warn(`[AskUserChatHandler] Missing tool name in path: ${path}`);
+				return undefined;
+			}
+
+			const state = approvalStates[toolName];
+			if (!state) {
+				console.warn(`[AskUserChatHandler] Tool state not found: ${toolName}`);
+				return undefined;
+			}
+
+			// Navigate the rest of the path starting from the tool state
+			// e.g., "value.summary" or just "value"
+			const remainingPath = pathParts.slice(2);
+			let value: any = state;
+
+			for (const part of remainingPath) {
+				if (value && typeof value === "object" && part in value) {
+					value = value[part];
+				} else {
+					return undefined;
+				}
+			}
+
+			return value;
+		}
+
+		// Pattern 4: Simple variable name (no dots, no colons) - Direct lookup
+		if (!path.includes(".") && !path.includes(":")) {
+			const value = executionVariables[path];
+			if (value !== undefined) {
+				console.log(
+					`[AskUserChatHandler] Direct variable lookup: ${path} → found`,
+				);
+				return value;
+			}
+			console.warn(`[AskUserChatHandler] Direct variable not found: ${path}`);
+			return undefined;
+		}
+
+		// Unsupported path format
+		console.warn(
+			`[AskUserChatHandler] Unsupported output variable path: ${path}. ` +
+				`Supported formats: "approval_states.tool_name.value", "variables:var1,var2", or "variable_name"`,
+		);
+		return undefined;
 	}
 }

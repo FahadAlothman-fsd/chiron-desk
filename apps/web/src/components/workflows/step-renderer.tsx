@@ -48,6 +48,8 @@ export interface StepRendererProps {
 	projectId: string;
 	/** Dialog handler for child workflow execution (invoke-workflow steps) */
 	onExecuteWorkflow?: (workflowId: string) => void;
+	/** Handler to navigate to a child execution (for viewing completed workflows) */
+	onViewExecution?: (executionId: string) => void;
 }
 
 export function StepRenderer({
@@ -55,6 +57,7 @@ export function StepRenderer({
 	execution,
 	projectId,
 	onExecuteWorkflow,
+	onViewExecution,
 }: StepRendererProps) {
 	// Check if step is complete (for ask-user-chat steps with tools)
 	const isStepComplete =
@@ -91,6 +94,7 @@ export function StepRenderer({
 					config={step.config}
 					variables={execution.variables}
 					onExecuteWorkflow={onExecuteWorkflow}
+					onViewExecution={onViewExecution}
 				/>
 			);
 
