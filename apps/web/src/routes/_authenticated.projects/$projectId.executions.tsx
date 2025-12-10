@@ -1,36 +1,31 @@
 /**
  * Project Executions Page
  *
- * Lists all workflow executions for a project with:
+ * Lists all workflow executions for a project using the
+ * reusable WorkflowExecutionCard component.
+ *
+ * Features:
  * - Status badges (active, paused, completed, failed)
- * - Workflow name and description
- * - Start/completion timestamps
+ * - Step progress dots and tool progress bar
+ * - Expandable details view with step/tool breakdown
  * - Click to navigate to execution view
  */
 
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import {
-	CheckCircle,
-	Clock,
-	ExternalLink,
-	Loader2,
-	Pause,
-	Play,
-	XCircle,
-} from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Clock, Loader2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
+	type ExecutionInfo,
+	WorkflowExecutionCard,
+	type WorkflowInfo,
+} from "@/components/workflows/workflow-execution-card";
 import { trpcClient } from "@/utils/trpc";
 
-export const Route = createFileRoute("/_authenticated/projects/$projectId/executions")({
+export const Route = createFileRoute(
+	"/_authenticated/projects/$projectId/executions",
+)({
 	component: ProjectExecutionsPage,
 });
 
@@ -45,10 +40,27 @@ function ProjectExecutionsPage() {
 			return trpcClient.workflows.getExecutionsByProject.query({
 				projectId,
 				includeChildren: false, // Only show parent executions
-			})
+			});
 		},
 		enabled: !!projectId,
-	})
+	});
+
+	// Fetch step/tool progress for active executions
+	const activeExecutionIds =
+		data?.executions
+			.filter((e) => e.status === "active" || e.status === "paused")
+			.map((e) => e.id) ?? [];
+
+	const { data: liveExecutions } = useQuery({
+		queryKey: ["workflows", "executions", "live", activeExecutionIds],
+		queryFn: async () => {
+			return trpcClient.workflows.getExecutionsByIds.query({
+				executionIds: activeExecutionIds,
+			});
+		},
+		enabled: activeExecutionIds.length > 0,
+		refetchInterval: 2000, // Poll every 2 seconds for active executions
+	});
 
 	const executions = data?.executions ?? [];
 
@@ -60,7 +72,7 @@ function ProjectExecutionsPage() {
 					<span>Loading executions...</span>
 				</div>
 			</div>
-		)
+		);
 	}
 
 	if (error) {
@@ -76,8 +88,32 @@ function ProjectExecutionsPage() {
 					</p>
 				</div>
 			</div>
-		)
+		);
 	}
+
+	// Map executions to WorkflowExecutionCard props
+	const executionItems = executions.map((execution) => {
+		// Get live data for active executions
+		const liveData = liveExecutions?.find((e) => e.id === execution.id);
+
+		const workflow: WorkflowInfo = {
+			id: execution.workflowId,
+			name: execution.workflowName,
+			displayName: execution.workflowName,
+			description: execution.workflowDescription ?? undefined,
+		};
+
+		const executionInfo: ExecutionInfo = {
+			id: execution.id,
+			status: execution.status as ExecutionInfo["status"],
+			startedAt: execution.startedAt,
+			completedAt: execution.completedAt,
+			stepProgress: liveData?.stepProgress ?? null,
+			toolProgress: liveData?.toolProgress ?? null,
+		};
+
+		return { workflow, execution: executionInfo };
+	});
 
 	return (
 		<div className="space-y-6 p-6">
@@ -112,138 +148,36 @@ function ProjectExecutionsPage() {
 					</CardContent>
 				</Card>
 			) : (
-				<div className="space-y-4">
-					{executions.map((execution) => (
-						<ExecutionCard
+				<div className="space-y-3">
+					{executionItems.map(({ workflow, execution }) => (
+						<WorkflowExecutionCard
 							key={execution.id}
+							workflow={workflow}
 							execution={execution}
-							projectId={projectId}
+							variant="card"
+							onClick={() =>
+								navigate({
+									to: "/projects/$projectId/workflow/$executionId",
+									params: { projectId, executionId: execution.id },
+								})
+							}
+							onResume={() =>
+								navigate({
+									to: "/projects/$projectId/workflow/$executionId",
+									params: { projectId, executionId: execution.id },
+								})
+							}
+							onView={() =>
+								navigate({
+									to: "/projects/$projectId/workflow/$executionId",
+									params: { projectId, executionId: execution.id },
+								})
+							}
+							showTimestamps={true}
 						/>
 					))}
 				</div>
 			)}
 		</div>
-	)
-}
-
-interface ExecutionCardProps {
-	execution: {
-		id: string;
-		workflowId: string;
-		workflowName: string;
-		workflowDescription: string | null;
-		status: string;
-		startedAt: string | undefined;
-		completedAt: string | undefined;
-		workflowTags: unknown;
-		workflowMetadata: unknown;
-	}
-	projectId: string;
-}
-
-function ExecutionCard({ execution, projectId }: ExecutionCardProps) {
-	const navigate = useNavigate();
-
-	const getStatusIcon = (status: string) => {
-		switch (status) {
-			case "active":
-				return <Play className="h-4 w-4 text-blue-500" />;
-			case "paused":
-				return <Pause className="h-4 w-4 text-amber-500" />;
-			case "completed":
-				return <CheckCircle className="h-4 w-4 text-green-500" />;
-			case "failed":
-				return <XCircle className="h-4 w-4 text-destructive" />;
-			default:
-				return <Clock className="h-4 w-4 text-muted-foreground" />;
-		}
-	}
-
-	const getStatusBadgeVariant = (status: string) => {
-		switch (status) {
-			case "active":
-				return "default" as const;
-			case "paused":
-				return "secondary" as const;
-			case "completed":
-				return "outline" as const;
-			case "failed":
-				return "destructive" as const;
-			default:
-				return "outline" as const;
-		}
-	}
-
-	const formatDate = (dateStr: string | undefined) => {
-		if (!dateStr) return "—";
-		const date = new Date(dateStr);
-		return date.toLocaleDateString(undefined, {
-			month: "short",
-			day: "numeric",
-			hour: "2-digit",
-			minute: "2-digit",
-		})
-	}
-
-	// Extract phase from workflow tags
-	const phase =
-		typeof execution.workflowTags === "object" &&
-		execution.workflowTags !== null &&
-		"phase" in execution.workflowTags
-			? (execution.workflowTags as { phase: string }).phase
-			: null
-
-	return (
-		<Card
-			className="cursor-pointer transition-colors hover:bg-accent/50"
-			onClick={() =>
-				navigate({
-					to: "/projects/$projectId/workflow/$executionId",
-					params: { projectId, executionId: execution.id },
-				})
-			}
-		>
-			<CardHeader className="pb-3">
-				<div className="flex items-start justify-between">
-					<div className="flex-1">
-						<CardTitle className="flex items-center gap-2 text-lg">
-							{execution.workflowName}
-							{phase && (
-								<Badge variant="outline" className="text-xs">
-									Phase {phase}
-								</Badge>
-							)}
-						</CardTitle>
-						{execution.workflowDescription && (
-							<CardDescription className="mt-1">
-								{execution.workflowDescription}
-							</CardDescription>
-						)}
-					</div>
-					<Badge
-						variant={getStatusBadgeVariant(execution.status)}
-						className="flex items-center gap-1.5"
-					>
-						{getStatusIcon(execution.status)}
-						{execution.status.charAt(0).toUpperCase() +
-							execution.status.slice(1)}
-					</Badge>
-				</div>
-			</CardHeader>
-			<CardContent>
-				<div className="flex items-center justify-between text-muted-foreground text-sm">
-					<div className="flex items-center gap-4">
-						<span>Started: {formatDate(execution.startedAt)}</span>
-						{execution.completedAt && (
-							<span>Completed: {formatDate(execution.completedAt)}</span>
-						)}
-					</div>
-					<Button variant="ghost" size="sm" className="gap-1">
-						<ExternalLink className="h-3.5 w-3.5" />
-						View
-					</Button>
-				</div>
-			</CardContent>
-		</Card>
-	)
+	);
 }

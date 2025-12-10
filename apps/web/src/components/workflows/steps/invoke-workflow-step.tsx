@@ -1,18 +1,21 @@
 import type { InvokeWorkflowStepConfig } from "@chiron/db";
-import { CheckCircle2, Circle, Loader2, XCircle } from "lucide-react";
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/utils/trpc";
+import {
+	type ExecutionInfo,
+	WorkflowExecutionCard,
+	type WorkflowInfo,
+} from "../workflow-execution-card";
 
 /**
  * InvokeWorkflowStep - Workflows List UI Component
  * Story 2.3 Task 6: Displays child workflows with execution status
  *
- * Shows list of workflows to invoke with:
+ * Uses the reusable WorkflowExecutionCard component to show:
  * - Status indicators (Pending, Running, Completed, Failed)
+ * - Step progress dots and tool progress bar
  * - [Execute] button to launch child workflow dialog
- * - Progress indicators (ideas count, etc.)
+ * - Expandable details view
  * - Support for parallel execution
  */
 
@@ -29,19 +32,15 @@ interface ChildExecutionMetadata {
 	status: "idle" | "active" | "paused" | "completed" | "failed";
 	createdAt: string;
 	generatedIdeasSnapshot?: unknown[];
+	stepProgress?: { current: number; total: number; completed: number } | null;
+	toolProgress?: { approved: number; total: number } | null;
 }
-
-type WorkflowStatus = "pending" | "running" | "completed" | "failed";
 
 export function InvokeWorkflowStep({
 	config,
 	variables,
 	onExecuteWorkflow,
 }: InvokeWorkflowStepProps) {
-	const [expandedWorkflowId, setExpandedWorkflowId] = useState<string | null>(
-		null,
-	);
-
 	// Get workflow IDs to invoke from config
 	const workflowIdsToInvoke = variables[
 		config.workflowsToInvoke.replace(/{{|}}/g, "").trim()
@@ -62,6 +61,7 @@ export function InvokeWorkflowStep({
 		[]) as ChildExecutionMetadata[];
 	const failedChildren = (variables._failed_children || []) as Array<{
 		id: string;
+		workflowId: string;
 		workflowName: string;
 		error: string;
 	}>;
@@ -81,13 +81,15 @@ export function InvokeWorkflowStep({
 	// Merge live status into child metadata
 	const updatedChildMetadata = childMetadata.map((child) => {
 		const liveData = liveChildExecutions?.find((e) => e.id === child.id);
-		return liveData
-			? {
-					...child,
-					status: liveData.status as ChildExecutionMetadata["status"],
-					error: liveData.error,
-				}
-			: child;
+		if (!liveData) return child;
+
+		return {
+			...child,
+			status: liveData.status as ChildExecutionMetadata["status"],
+			error: liveData.error,
+			stepProgress: liveData.stepProgress,
+			toolProgress: liveData.toolProgress,
+		};
 	});
 
 	if (!workflowIdsToInvoke || !Array.isArray(workflowIdsToInvoke)) {
@@ -102,7 +104,7 @@ export function InvokeWorkflowStep({
 		);
 	}
 
-	// Map workflow IDs to their display info and execution status
+	// Map workflow IDs to WorkflowExecutionCard props
 	const workflowItems = workflowIdsToInvoke.map((workflowId) => {
 		const childExecution = updatedChildMetadata.find(
 			(child) => child.workflowId === workflowId,
@@ -112,34 +114,45 @@ export function InvokeWorkflowStep({
 		);
 		const workflowInfo = workflowsData?.find((w) => w.id === workflowId);
 
-		// Determine status
-		let status: WorkflowStatus = "pending";
-		if (failed) {
-			status = "failed";
-		} else if (childExecution) {
-			if (childExecution.status === "completed") {
-				status = "completed";
-			} else if (
-				childExecution.status === "active" ||
-				childExecution.status === "paused"
-			) {
-				status = "running";
-			}
-		}
-
-		return {
-			workflowId,
-			workflowName:
+		// Build workflow info
+		const workflow: WorkflowInfo = {
+			id: workflowId,
+			name:
+				childExecution?.workflowName ||
+				failed?.workflowName ||
+				workflowInfo?.name ||
+				"Unknown Workflow",
+			displayName:
 				childExecution?.workflowName ||
 				failed?.workflowName ||
 				workflowInfo?.displayName ||
-				workflowInfo?.name ||
-				"Unknown Workflow",
-			workflowDescription: workflowInfo?.description,
-			status,
-			childExecution,
-			failedInfo: failed,
+				workflowInfo?.name,
+			description: workflowInfo?.description ?? undefined,
+			stepCount: workflowInfo?.stepCount,
 		};
+
+		// Build execution info (null if not started)
+		let execution: ExecutionInfo | null = null;
+
+		if (failed) {
+			// Failed execution
+			execution = {
+				id: failed.id,
+				status: "failed",
+				error: failed.error,
+			};
+		} else if (childExecution) {
+			// Has execution record
+			execution = {
+				id: childExecution.id,
+				status: childExecution.status,
+				startedAt: childExecution.createdAt,
+				stepProgress: childExecution.stepProgress,
+				toolProgress: childExecution.toolProgress,
+			};
+		}
+
+		return { workflow, execution };
 	});
 
 	const handleExecute = (workflowId: string) => {
@@ -148,11 +161,11 @@ export function InvokeWorkflowStep({
 		}
 	};
 
-	const toggleExpanded = (workflowId: string) => {
-		setExpandedWorkflowId(
-			expandedWorkflowId === workflowId ? null : workflowId,
-		);
-	};
+	// Calculate summary stats
+	const completedCount = workflowItems.filter(
+		(item) => item.execution?.status === "completed",
+	).length;
+	const failedCount = failedChildren.length;
 
 	return (
 		<div className="mx-auto flex w-full max-w-4xl flex-col space-y-4">
@@ -166,13 +179,16 @@ export function InvokeWorkflowStep({
 				</CardHeader>
 				<CardContent>
 					<div className="space-y-3">
-						{workflowItems.map((item) => (
-							<WorkflowListItem
-								key={item.workflowId}
-								item={item}
-								isExpanded={expandedWorkflowId === item.workflowId}
-								onExecute={() => handleExecute(item.workflowId)}
-								onToggleExpand={() => toggleExpanded(item.workflowId)}
+						{workflowItems.map(({ workflow, execution }) => (
+							<WorkflowExecutionCard
+								key={workflow.id}
+								workflow={workflow}
+								execution={execution}
+								variant="compact"
+								onExecute={() => handleExecute(workflow.id)}
+								onResume={() => handleExecute(workflow.id)}
+								onRetry={() => handleExecute(workflow.id)}
+								showTimestamps={true}
 							/>
 						))}
 					</div>
@@ -184,169 +200,13 @@ export function InvokeWorkflowStep({
 				<div className="text-sm">
 					<span className="text-muted-foreground">Progress: </span>
 					<span className="font-medium text-foreground">
-						{workflowItems.filter((item) => item.status === "completed").length}{" "}
-						/ {workflowItems.length} completed
+						{completedCount} / {workflowItems.length} completed
 					</span>
 				</div>
-				{failedChildren.length > 0 && (
-					<div className="text-destructive text-sm">
-						{failedChildren.length} failed
-					</div>
+				{failedCount > 0 && (
+					<div className="text-destructive text-sm">{failedCount} failed</div>
 				)}
 			</div>
-		</div>
-	);
-}
-
-/**
- * Individual workflow list item
- */
-interface WorkflowListItemProps {
-	item: {
-		workflowId: string;
-		workflowName: string;
-		status: WorkflowStatus;
-		childExecution?: ChildExecutionMetadata;
-		failedInfo?: { error: string };
-	};
-	isExpanded: boolean;
-	onExecute: () => void;
-	onToggleExpand: () => void;
-}
-
-function WorkflowListItem({
-	item,
-	isExpanded,
-	onExecute,
-	onToggleExpand,
-}: WorkflowListItemProps) {
-	const { status, workflowName, childExecution, failedInfo } = item;
-
-	// Status icon and color (using CSS variables for dark theme support)
-	const statusConfig = {
-		pending: {
-			icon: Circle,
-			color: "text-muted-foreground",
-			label: "Not started",
-			bgColor: "bg-muted/30",
-			borderColor: "border-border",
-		},
-		running: {
-			icon: Loader2,
-			color: "text-primary",
-			label: "Running",
-			bgColor: "bg-primary/10",
-			borderColor: "border-primary/30",
-			animate: true,
-		},
-		completed: {
-			icon: CheckCircle2,
-			color: "text-accent-foreground",
-			label: "Completed",
-			bgColor: "bg-accent",
-			borderColor: "border-accent-foreground/20",
-		},
-		failed: {
-			icon: XCircle,
-			color: "text-destructive",
-			label: "Failed",
-			bgColor: "bg-destructive/10",
-			borderColor: "border-destructive/30",
-		},
-	};
-
-	const config = statusConfig[status];
-	const StatusIcon = config.icon;
-
-	// Ideas count (if available)
-	const ideasCount = childExecution?.generatedIdeasSnapshot?.length;
-
-	return (
-		<div
-			className={`rounded-lg border ${config.borderColor} ${config.bgColor} transition-all hover:bg-accent/50`}
-		>
-			<div className="flex items-center justify-between p-4">
-				{/* Left: Status Icon + Name */}
-				<div className="flex items-center gap-3">
-					<StatusIcon
-						className={`h-5 w-5 ${config.color} ${config.animate ? "animate-spin" : ""}`}
-					/>
-					<div>
-						<h3 className="font-medium text-foreground">{workflowName}</h3>
-						<p className="text-muted-foreground text-xs">{config.label}</p>
-					</div>
-				</div>
-
-				{/* Right: Stats + Actions */}
-				<div className="flex items-center gap-4">
-					{/* Ideas count (if completed) */}
-					{status === "completed" && ideasCount !== undefined && (
-						<div className="text-accent-foreground text-sm">
-							<span className="font-medium">{ideasCount}</span> ideas
-						</div>
-					)}
-
-					{/* Execute button (if pending or failed) */}
-					{(status === "pending" || status === "failed") && (
-						<Button onClick={onExecute} size="sm" variant="default">
-							{status === "failed" ? "Retry" : "Execute"}
-						</Button>
-					)}
-
-					{/* Resume button (if running/paused) */}
-					{status === "running" && (
-						<Button onClick={onExecute} size="sm" variant="outline">
-							Resume
-						</Button>
-					)}
-
-					{/* View details (if completed/failed) */}
-					{(status === "completed" || status === "failed") && (
-						<Button
-							onClick={onToggleExpand}
-							size="sm"
-							variant="ghost"
-							className="text-xs"
-						>
-							{isExpanded ? "Hide" : "Details"}
-						</Button>
-					)}
-				</div>
-			</div>
-
-			{/* Expanded details */}
-			{isExpanded && (
-				<div className="border-border border-t bg-background p-4">
-					{status === "failed" && failedInfo && (
-						<div className="space-y-2">
-							<h4 className="font-medium text-destructive text-sm">Error</h4>
-							<p className="text-muted-foreground text-sm">
-								{failedInfo.error}
-							</p>
-						</div>
-					)}
-
-					{status === "completed" && childExecution && (
-						<div className="space-y-2">
-							<h4 className="font-medium text-foreground text-sm">
-								Generated Ideas
-							</h4>
-							{childExecution.generatedIdeasSnapshot &&
-							childExecution.generatedIdeasSnapshot.length > 0 ? (
-								<ul className="list-inside list-disc space-y-1 text-muted-foreground text-sm">
-									{childExecution.generatedIdeasSnapshot.map((idea, idx) => (
-										<li key={idx}>{String(idea)}</li>
-									))}
-								</ul>
-							) : (
-								<p className="text-muted-foreground text-sm">
-									No ideas generated
-								</p>
-							)}
-						</div>
-					)}
-				</div>
-			)}
 		</div>
 	);
 }

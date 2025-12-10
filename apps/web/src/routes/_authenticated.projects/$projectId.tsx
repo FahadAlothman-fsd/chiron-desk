@@ -7,11 +7,9 @@ import {
 } from "@tanstack/react-router";
 import {
 	Brain,
-	CheckCircle,
 	ChevronDown,
 	Loader2,
 	Map as MapIcon,
-	Pause,
 	Play,
 	Rocket,
 	Sparkles,
@@ -33,6 +31,11 @@ import {
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+	WorkflowExecutionCard,
+	type ExecutionInfo,
+	type WorkflowInfo,
+} from "@/components/workflows/workflow-execution-card";
 import { trpcClient } from "@/utils/trpc";
 
 export const Route = createFileRoute("/_authenticated/projects/$projectId")({
@@ -52,17 +55,17 @@ function ProjectLayoutWrapper() {
 		queryFn: async () => {
 			return trpcClient.projects.get.query({ id: projectId });
 		},
-	})
+	});
 
 	// Check if we're on a child route that should NOT have the sidebar
 	const initializeMatch = useMatch({
 		from: "/projects/$projectId/initialize",
 		shouldThrow: false,
-	})
+	});
 	const selectInitializerMatch = useMatch({
 		from: "/projects/$projectId/select-initializer",
 		shouldThrow: false,
-	})
+	});
 
 	const isInitializerRoute = initializeMatch || selectInitializerMatch;
 
@@ -76,7 +79,7 @@ function ProjectLayoutWrapper() {
 		<ProjectLayout projectName={projectData?.project?.name}>
 			<ProjectDashboardOrOutlet />
 		</ProjectLayout>
-	)
+	);
 }
 
 /**
@@ -126,7 +129,7 @@ function ProjectDashboard() {
 		queryFn: async () => {
 			return trpcClient.projects.get.query({ id: projectId });
 		},
-	})
+	});
 	const project = projectData?.project;
 	const workflowPath = projectData?.workflowPath;
 
@@ -138,10 +141,10 @@ function ProjectDashboard() {
 			return trpcClient.workflows.getNextRecommendedWorkflow.query({
 				projectId,
 				workflowPathId: workflowPath.id,
-			})
+			});
 		},
 		enabled: !!projectId && !!workflowPath?.id,
-	})
+	});
 
 	// Get all executions for this project (for phase progress display)
 	const { data: executionsData } = useQuery({
@@ -150,15 +153,15 @@ function ProjectDashboard() {
 			return trpcClient.workflows.getExecutionsByProject.query({
 				projectId,
 				includeChildren: false,
-			})
+			});
 		},
 		enabled: !!projectId,
-	})
+	});
 
 	// Create a map of workflowId -> execution for quick lookup
 	const executionsByWorkflowId = new Map(
 		(executionsData?.executions ?? []).map((e) => [e.workflowId, e]),
-	)
+	);
 
 	// Execute workflow mutation
 	const executeWorkflow = useMutation({
@@ -170,16 +173,16 @@ function ProjectDashboard() {
 			navigate({
 				to: "/projects/$projectId/workflow/$executionId",
 				params: { projectId, executionId: data.executionId },
-			})
+			});
 		},
 		onError: (error: unknown) => {
 			const errorMessage =
 				error instanceof Error ? error.message : "Unknown error";
 			toast.error("Failed to start workflow", {
 				description: errorMessage,
-			})
+			});
 		},
-	})
+	});
 
 	// Handler for starting/continuing the recommended workflow
 	const handleStartRecommendedWorkflow = () => {
@@ -191,8 +194,8 @@ function ProjectDashboard() {
 					projectId,
 					executionId: recommendedData.activeExecution.id,
 				},
-			})
-			return
+			});
+			return;
 		}
 
 		// Otherwise start a new execution
@@ -200,9 +203,9 @@ function ProjectDashboard() {
 			executeWorkflow.mutate({
 				workflowId: recommendedData.nextWorkflow.id,
 				projectId,
-			})
+			});
 		}
-	}
+	};
 
 	if (projectLoading || recommendedLoading) {
 		return (
@@ -212,7 +215,7 @@ function ProjectDashboard() {
 					<span>Loading project...</span>
 				</div>
 			</div>
-		)
+		);
 	}
 
 	if (!project) {
@@ -228,7 +231,7 @@ function ProjectDashboard() {
 					</Button>
 				</div>
 			</div>
-		)
+		);
 	}
 
 	// Determine current phase from recommended data or default to 0
@@ -446,7 +449,7 @@ function ProjectDashboard() {
 				</CardContent>
 			</Card>
 		</div>
-	)
+	);
 }
 
 // Type for execution data
@@ -492,12 +495,12 @@ function PhaseItem({
 				return trpcClient.workflows.getByPhaseAndPath.query({
 					phase: phase.id,
 					workflowPathId,
-				})
+				});
 			}
 			// Fallback to all workflows for this phase (no path selected)
 			return trpcClient.workflows.getByPhase.query({ phase: phase.id });
 		},
-	})
+	});
 
 	// Execute workflow mutation
 	const executeWorkflow = useMutation({
@@ -505,23 +508,41 @@ function PhaseItem({
 			return trpcClient.workflows.execute.mutate({
 				workflowId,
 				projectId,
-			})
+			});
 		},
 		onSuccess: (data) => {
 			toast.success("Workflow started!");
 			navigate({
 				to: "/projects/$projectId/workflow/$executionId",
 				params: { projectId, executionId: data.executionId },
-			})
+			});
 		},
 		onError: (error: any) => {
 			toast.error("Failed to start workflow", {
 				description: error.message,
-			})
+			});
 		},
-	})
+	});
 
 	const workflows = workflowsData?.workflows ?? [];
+
+	// Get active execution IDs for live progress polling
+	const activeExecutionIds = workflows
+		.map((w) => executionsByWorkflowId.get(w.id))
+		.filter((e) => e && (e.status === "active" || e.status === "paused"))
+		.map((e) => e!.id);
+
+	// Poll for live progress on active executions
+	const { data: liveExecutions } = useQuery({
+		queryKey: ["workflows", "executions", "live", phase.id, activeExecutionIds],
+		queryFn: async () => {
+			return trpcClient.workflows.getExecutionsByIds.query({
+				executionIds: activeExecutionIds,
+			});
+		},
+		enabled: activeExecutionIds.length > 0,
+		refetchInterval: 2000, // Poll every 2 seconds
+	});
 
 	// Calculate progress based on completed executions
 	const completedInPhase = workflows.filter((w) => {
@@ -610,7 +631,7 @@ function PhaseItem({
 			</CollapsibleTrigger>
 
 			<CollapsibleContent>
-				<div className="ml-12 space-y-1 border-muted border-l-2 py-2 pl-4">
+				<div className="ml-12 space-y-2 border-muted border-l-2 py-2 pl-4">
 					{isLoading ? (
 						<div className="flex items-center gap-2 py-2 text-muted-foreground text-sm">
 							<Loader2 className="h-3 w-3 animate-spin" />
@@ -622,100 +643,67 @@ function PhaseItem({
 						</p>
 					) : (
 						workflows.map((workflow) => {
-							const execution = executionsByWorkflowId.get(workflow.id);
-							const hasExecution = !!execution;
-							const isExecCompleted = execution?.status === "completed";
-							const isExecActive =
-								execution?.status === "active" ||
-								execution?.status === "paused";
+							const baseExecution = executionsByWorkflowId.get(workflow.id);
+							// Get live progress data if available
+							const liveData = liveExecutions?.find(
+								(e) => e.id === baseExecution?.id,
+							);
+
+							// Build workflow info
+							const workflowInfo: WorkflowInfo = {
+								id: workflow.id,
+								name: workflow.name,
+								displayName: workflow.displayName ?? undefined,
+								description: workflow.description ?? undefined,
+							};
+
+							// Build execution info (null if not started)
+							let executionInfo: ExecutionInfo | null = null;
+							if (baseExecution) {
+								executionInfo = {
+									id: baseExecution.id,
+									status: baseExecution.status as ExecutionInfo["status"],
+									startedAt: baseExecution.startedAt,
+									completedAt: baseExecution.completedAt,
+									stepProgress: liveData?.stepProgress ?? null,
+									toolProgress: liveData?.toolProgress ?? null,
+								};
+							}
 
 							return (
-								<div
+								<WorkflowExecutionCard
 									key={workflow.id}
-									className="flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent"
-								>
-									{/* Status icon */}
-									{isExecCompleted ? (
-										<CheckCircle className="h-4 w-4 text-green-500" />
-									) : isExecActive ? (
-										execution?.status === "paused" ? (
-											<Pause className="h-4 w-4 text-amber-500" />
-										) : (
-											<Play className="h-4 w-4 text-blue-500" />
-										)
-									) : (
-										<Sparkles className="h-4 w-4 text-muted-foreground" />
-									)}
-
-									<div className="flex-1">
-										<p className="font-medium text-sm">
-											{workflow.displayName || workflow.name}
-										</p>
-										{workflow.description && (
-											<p className="line-clamp-1 text-muted-foreground text-xs">
-												{workflow.description}
-											</p>
-										)}
-									</div>
-
-									{/* Action button */}
-									{isExecCompleted ? (
-										<Button
-											variant="ghost"
-											size="sm"
-											className="h-7 px-2"
-											onClick={() =>
-												navigate({
-													to: "/projects/$projectId/workflow/$executionId",
-													params: {
-														projectId,
-														executionId: execution.id,
-													},
-												})
-											}
-										>
-											View
-										</Button>
-									) : isExecActive ? (
-										<Button
-											variant="ghost"
-											size="sm"
-											className="h-7 px-2"
-											onClick={() =>
-												navigate({
-													to: "/projects/$projectId/workflow/$executionId",
-													params: {
-														projectId,
-														executionId: execution.id,
-													},
-												})
-											}
-										>
-											<Play className="mr-1 h-3 w-3" />
-											Continue
-										</Button>
-									) : (
-										<Button
-											variant="ghost"
-											size="sm"
-											className="h-7 px-2"
-											disabled={isPending || executeWorkflow.isPending}
-											onClick={() => executeWorkflow.mutate(workflow.id)}
-										>
-											{executeWorkflow.isPending ? (
-												<Loader2 className="mr-1 h-3 w-3 animate-spin" />
-											) : (
-												<Play className="mr-1 h-3 w-3" />
-											)}
-											Start
-										</Button>
-									)}
-								</div>
-							)
+									workflow={workflowInfo}
+									execution={executionInfo}
+									variant="compact"
+									onExecute={() => executeWorkflow.mutate(workflow.id)}
+									onResume={() =>
+										baseExecution &&
+										navigate({
+											to: "/projects/$projectId/workflow/$executionId",
+											params: {
+												projectId,
+												executionId: baseExecution.id,
+											},
+										})
+									}
+									onView={() =>
+										baseExecution &&
+										navigate({
+											to: "/projects/$projectId/workflow/$executionId",
+											params: {
+												projectId,
+												executionId: baseExecution.id,
+											},
+										})
+									}
+									showTimestamps={false}
+								/>
+							);
 						})
 					)}
 				</div>
 			</CollapsibleContent>
 		</Collapsible>
-	)
+	);
 }

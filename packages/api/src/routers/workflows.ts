@@ -147,7 +147,7 @@ export const workflowRouter = router({
 		)
 		.query(async ({ input }) => {
 			// Query all executions for this project with workflow info
-			let query = db
+			const query = db
 				.select({
 					execution: workflowExecutions,
 					workflow: workflows,
@@ -1275,6 +1275,7 @@ export const workflowRouter = router({
 	/**
 	 * Get workflows by IDs
 	 * Used by invoke-workflow step to display workflow names
+	 * Includes step count for progress visualization
 	 */
 	getByIds: protectedProcedure
 		.input(
@@ -1286,6 +1287,9 @@ export const workflowRouter = router({
 			const workflows = await db.query.workflows.findMany({
 				where: (workflows, { inArray }) =>
 					inArray(workflows.id, input.workflowIds),
+				with: {
+					steps: true, // Include steps for count
+				},
 			});
 
 			return workflows.map((w) => ({
@@ -1294,12 +1298,14 @@ export const workflowRouter = router({
 				displayName: w.displayName,
 				description: w.description,
 				metadata: w.metadata,
+				stepCount: w.steps?.length ?? 0,
 			}));
 		}),
 
 	/**
 	 * Get executions by IDs
 	 * Used by invoke-workflow step to poll child execution status
+	 * Returns step progress and tool progress for running workflows
 	 */
 	getExecutionsByIds: protectedProcedure
 		.input(
@@ -1316,19 +1322,171 @@ export const workflowRouter = router({
 				where: (executions, { inArray }) =>
 					inArray(executions.id, input.executionIds),
 				with: {
-					workflow: true,
+					workflow: {
+						with: {
+							steps: true, // Include steps to get total count
+						},
+					},
 				},
 			});
 
-			return executions.map((e) => ({
-				id: e.id,
-				status: e.status,
-				workflowId: e.workflowId,
-				workflowName: e.workflow?.displayName || e.workflow?.name || "Unknown",
-				variables: e.variables,
-				error: e.error,
-				completedAt: e.completedAt?.toISOString(),
-			}));
+			return executions.map((e) => {
+				// Calculate step progress
+				const steps = e.workflow?.steps || [];
+				const totalSteps = steps.length;
+				const executedSteps =
+					(e.executedSteps as Record<string, { status: string }>) || {};
+				const completedStepCount = Object.values(executedSteps).filter(
+					(s) => s.status === "completed",
+				).length;
+
+				// Find current step number from executedSteps (the one that's "waiting")
+				const waitingStepNum = Object.entries(executedSteps).find(
+					([_, s]) => s.status === "waiting",
+				)?.[0];
+				const currentStepNumber = waitingStepNum
+					? Number.parseInt(waitingStepNum, 10)
+					: completedStepCount + 1;
+
+				// Get current step config to find total tools
+				const currentStep = steps.find(
+					(s) => s.stepNumber === currentStepNumber,
+				);
+				const stepConfig = currentStep?.config as {
+					tools?: Array<{ name: string; requiresApproval?: boolean }>;
+				} | null;
+
+				// Count tools that require approval (these are the ones shown in approval_states)
+				const configuredTools =
+					stepConfig?.tools?.filter((t) => t.requiresApproval !== false) || [];
+				const totalTools = configuredTools.length;
+
+				// Calculate approved tools from approval_states
+				const variables = (e.variables as Record<string, unknown>) || {};
+				const approvalStates = (variables.approval_states || {}) as Record<
+					string,
+					{ status: string }
+				>;
+				const approvedToolCount = Object.values(approvalStates).filter(
+					(s) => s.status === "approved",
+				).length;
+
+				return {
+					id: e.id,
+					status: e.status,
+					workflowId: e.workflowId,
+					workflowName:
+						e.workflow?.displayName || e.workflow?.name || "Unknown",
+					variables: e.variables,
+					error: e.error,
+					completedAt: e.completedAt?.toISOString(),
+					// Step progress
+					stepProgress: {
+						current: currentStepNumber,
+						total: totalSteps,
+						completed: completedStepCount,
+					},
+					// Tool progress within current step
+					toolProgress:
+						totalTools > 0
+							? {
+									approved: approvedToolCount,
+									total: totalTools,
+								}
+							: null,
+				};
+			});
+		}),
+
+	/**
+	 * Get detailed execution info for expanded card view
+	 * Returns step details with tool statuses for the WorkflowExecutionCard component
+	 */
+	getExecutionDetails: protectedProcedure
+		.input(
+			z.object({
+				executionId: z.string().uuid(),
+			}),
+		)
+		.query(async ({ input }) => {
+			// Get execution with workflow and steps
+			const execution = await db.query.workflowExecutions.findFirst({
+				where: (executions, { eq }) => eq(executions.id, input.executionId),
+				with: {
+					workflow: {
+						with: {
+							steps: {
+								orderBy: (steps, { asc }) => [asc(steps.stepNumber)],
+							},
+						},
+					},
+				},
+			});
+
+			if (!execution) {
+				throw new Error(`Execution not found: ${input.executionId}`);
+			}
+
+			const workflowSteps = execution.workflow?.steps ?? [];
+			const executedSteps =
+				(execution.executedSteps as Record<
+					string,
+					{ status: string; error?: string }
+				>) || {};
+			const variables = (execution.variables as Record<string, unknown>) || {};
+			const approvalStates = (variables.approval_states || {}) as Record<
+				string,
+				{ status: string }
+			>;
+
+			// Build step details
+			const steps = workflowSteps.map((step) => {
+				const executedStep = executedSteps[step.stepNumber.toString()];
+				const stepConfig = step.config as {
+					tools?: Array<{ name: string; requiresApproval?: boolean }>;
+				} | null;
+
+				// Determine step status
+				let stepStatus: "completed" | "waiting" | "failed" | "pending" =
+					"pending";
+				if (executedStep) {
+					if (executedStep.status === "completed") stepStatus = "completed";
+					else if (executedStep.status === "waiting") stepStatus = "waiting";
+					else if (executedStep.status === "failed") stepStatus = "failed";
+				}
+
+				// Get tools with their approval status
+				const configuredTools = stepConfig?.tools ?? [];
+				const tools = configuredTools.map((tool) => {
+					const approval = approvalStates[tool.name];
+					let toolStatus: "approved" | "rejected" | "pending" = "pending";
+					if (approval) {
+						if (approval.status === "approved") toolStatus = "approved";
+						else if (approval.status === "rejected") toolStatus = "rejected";
+					}
+					return {
+						name: tool.name,
+						status: toolStatus,
+					};
+				});
+
+				return {
+					stepNumber: step.stepNumber,
+					stepId: step.id,
+					name: step.goal, // Use goal as the step name/title
+					status: stepStatus,
+					tools,
+				};
+			});
+
+			return {
+				id: execution.id,
+				status: execution.status,
+				startedAt: execution.startedAt?.toISOString(),
+				completedAt: execution.completedAt?.toISOString(),
+				error: execution.error,
+				steps,
+			};
 		}),
 
 	/**
