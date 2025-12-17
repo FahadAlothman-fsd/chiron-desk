@@ -847,11 +847,13 @@ export const workflowRouter = router({
 
 	/**
 	 * Story 1.6: Get chat message history from Mastra thread
+	 * Updated: Now supports per-step threads with optional stepNumber parameter
 	 */
 	getChatMessages: protectedProcedure
 		.input(
 			z.object({
 				executionId: z.string().uuid(),
+				stepNumber: z.number().optional(), // Per-step thread lookup
 			}),
 		)
 		.query(async ({ input }) => {
@@ -862,10 +864,28 @@ export const workflowRouter = router({
 			}
 
 			const { execution } = executionData;
+			const variables = execution.variables as Record<string, unknown>;
 
-			const threadId = execution.variables.mastra_thread_id as
-				| string
-				| undefined;
+			// Per-step thread ID lookup (falls back to legacy mastra_thread_id)
+			let threadId: string | undefined;
+
+			if (input.stepNumber) {
+				// First try step-specific thread
+				const stepThreadKey = `mastra_thread_id_step_${input.stepNumber}`;
+				threadId = variables[stepThreadKey] as string | undefined;
+				console.log(
+					`[getChatMessages] Looking for ${stepThreadKey}: ${threadId}`,
+				);
+			}
+
+			// Fallback to legacy mastra_thread_id if no step-specific thread found
+			if (!threadId) {
+				threadId = variables.mastra_thread_id as string | undefined;
+				console.log(
+					`[getChatMessages] Falling back to mastra_thread_id: ${threadId}`,
+				);
+			}
+
 			if (!threadId) {
 				// No thread yet, return empty
 				return { messages: [] };

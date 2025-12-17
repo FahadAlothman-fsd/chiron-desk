@@ -466,13 +466,18 @@ export class AskUserChatStepHandler implements StepHandler {
 
 		console.log(
 			"[AskUserChatHandler] executeStep called",
+			"stepNumber:",
+			step.stepNumber,
 			"userInput:",
 			userInput,
 		);
 
+		// Per-step thread ID key (each step gets its own conversation thread)
+		const threadIdKey = `mastra_thread_id_step_${step.stepNumber}`;
+
 		// Get workflow name for thread title (only need to query if creating new thread)
 		let workflowName: string | undefined;
-		if (!context.executionVariables.mastra_thread_id) {
+		if (!context.executionVariables[threadIdKey]) {
 			const [workflow] = await db
 				.select({ displayName: workflows.displayName, name: workflows.name })
 				.from(workflows)
@@ -481,16 +486,20 @@ export class AskUserChatStepHandler implements StepHandler {
 			workflowName = workflow?.displayName || workflow?.name;
 		}
 
-		// Initialize or load Mastra agent and thread
+		// Initialize or load Mastra agent and thread (per-step)
 		const agentContext = await this.initializeAgent(
 			config,
 			context,
 			workflowName,
+			step.stepNumber, // Pass step number for per-step thread lookup
 		);
 
 		// Save thread ID to execution variables if new thread created
 		const output: Record<string, unknown> = {};
 		if (agentContext.needsSave) {
+			// Use per-step thread ID key
+			output[threadIdKey] = agentContext.threadId;
+			// Also save current step's thread as the "active" thread for backward compatibility
 			output.mastra_thread_id = agentContext.threadId;
 		}
 
@@ -511,7 +520,8 @@ export class AskUserChatStepHandler implements StepHandler {
 			const finalOutput = {
 				...outputs,
 				...output, // Include thread ID if it was just created
-				mastra_thread_id: agentContext.threadId, // Always include thread ID
+				[threadIdKey]: agentContext.threadId, // Per-step thread ID
+				mastra_thread_id: agentContext.threadId, // Also save as active thread for backward compatibility
 			};
 			console.log(
 				"[AskUserChatHandler] Final output to be saved:",
@@ -598,6 +608,8 @@ export class AskUserChatStepHandler implements StepHandler {
 					return {
 						output: {
 							...output,
+							[threadIdKey]: agentContext.threadId, // Per-step thread ID
+							mastra_thread_id: agentContext.threadId, // Backward compatibility
 							agent_context: {
 								threadId: agentContext.threadId,
 							},
@@ -691,6 +703,8 @@ export class AskUserChatStepHandler implements StepHandler {
 				return {
 					output: {
 						...output,
+						[threadIdKey]: agentContext.threadId, // Per-step thread ID
+						mastra_thread_id: agentContext.threadId, // Backward compatibility
 						agent_context: {
 							threadId: agentContext.threadId,
 						},
@@ -707,6 +721,8 @@ export class AskUserChatStepHandler implements StepHandler {
 			return {
 				output: {
 					...output,
+					[threadIdKey]: agentContext.threadId, // Per-step thread ID
+					mastra_thread_id: agentContext.threadId, // Backward compatibility
 					agent_context: {
 						threadId: agentContext.threadId,
 					},
@@ -1060,7 +1076,8 @@ export class AskUserChatStepHandler implements StepHandler {
 				output: {
 					...outputs,
 					...output, // Include thread ID if it was just created
-					mastra_thread_id: agentContext.threadId, // Always include thread ID
+					[threadIdKey]: agentContext.threadId, // Per-step thread ID
+					mastra_thread_id: agentContext.threadId, // Also save as active thread for backward compatibility
 				},
 				nextStepNumber: step.nextStepNumber ?? null,
 				requiresUserInput: false,
@@ -1071,7 +1088,8 @@ export class AskUserChatStepHandler implements StepHandler {
 		return {
 			output: {
 				...output, // Include thread ID if it was just created
-				mastra_thread_id: agentContext.threadId, // Always include thread ID for message retrieval
+				[threadIdKey]: agentContext.threadId, // Per-step thread ID
+				mastra_thread_id: agentContext.threadId, // Also save as active thread for backward compatibility
 			},
 			nextStepNumber: step.nextStepNumber ?? null,
 			requiresUserInput: true,
@@ -1093,23 +1111,37 @@ export class AskUserChatStepHandler implements StepHandler {
 		_config: AskUserChatStepConfig,
 		context: ExecutionContext,
 		workflowName?: string,
+		stepNumber?: number,
 	): Promise<{
 		threadId: string;
 		needsSave: boolean;
 	}> {
-		// Get or create Mastra thread
-		let threadId = context.executionVariables.mastra_thread_id as
+		// Per-step thread ID key - each step gets its own conversation thread
+		// This ensures multi-step workflows have separate chat histories per step
+		const threadIdKey = stepNumber
+			? `mastra_thread_id_step_${stepNumber}`
+			: "mastra_thread_id";
+
+		// Get or create Mastra thread (per-step)
+		let threadId = context.executionVariables[threadIdKey] as
 			| string
 			| undefined;
 		let needsSave = false;
 
+		console.log(
+			`[AskUserChatHandler] initializeAgent - stepNumber: ${stepNumber}, threadIdKey: ${threadIdKey}, existingThreadId: ${threadId}`,
+		);
+
 		if (!threadId) {
 			// Build a descriptive thread title
-			// Format: "WorkflowName: Topic" or just "WorkflowName" if no topic
+			// Format: "WorkflowName - Step N: Topic" or "WorkflowName - Step N"
 			const sessionTopic = context.executionVariables.session_topic as
 				| string
 				| undefined;
 			let title = workflowName || "Workflow Conversation";
+			if (stepNumber) {
+				title = `${title} - Step ${stepNumber}`;
+			}
 			if (sessionTopic) {
 				// Truncate topic if too long
 				const truncatedTopic =
@@ -1130,6 +1162,8 @@ export class AskUserChatStepHandler implements StepHandler {
 				threadId,
 				"title:",
 				title,
+				"for step:",
+				stepNumber,
 			);
 		} else {
 			// Verify thread exists
@@ -1140,6 +1174,9 @@ export class AskUserChatStepHandler implements StepHandler {
 					| string
 					| undefined;
 				let title = workflowName || "Workflow Conversation";
+				if (stepNumber) {
+					title = `${title} - Step ${stepNumber}`;
+				}
 				if (sessionTopic) {
 					const truncatedTopic =
 						sessionTopic.length > 50
@@ -1159,6 +1196,8 @@ export class AskUserChatStepHandler implements StepHandler {
 					threadId,
 					"title:",
 					title,
+					"for step:",
+					stepNumber,
 				);
 			}
 		}
