@@ -30,6 +30,77 @@
 
 ## Story Breakdown
 
+### Migration Stories (Effect + AI-SDK)
+
+These stories were added via Sprint Change Proposal (2026-01-10) to unblock Story 2.3.
+See: `tech-spec-effect-workflow-engine.md` for full implementation details.
+
+#### Story 2-M1: Effect Foundation (~4-5 days)
+**Goal:** Establish Effect as the core runtime shell for the workflow engine.
+
+**Substories:**
+- **2-M1a:** Effect Runtime + Core Services (1-2 days)
+  - Install effect, @effect/platform, @effect/schema
+  - Configure Effect runtime in server
+  - Create DatabaseService Layer (wraps Drizzle)
+  - Create ConfigService Layer
+- **2-M1b:** Effect Error Types + Patterns (1 day)
+  - Define tagged errors (WorkflowError, StepError, VariableError, AgentError)
+  - Create error recovery utilities (withRetry, withTimeout)
+- **2-M1c:** Effect Workflow Primitives (2 days)
+  - ExecutionContext as Effect Service
+  - WorkflowEventBus as PubSub
+  - StepHandlerRegistry as Effect Service
+  - Executor loop as Effect.gen with Scope
+
+#### Story 2-M2: Variable System (~3-4 days)
+**Goal:** Typed variables with history tracking, fixing parent-child propagation bug.
+
+**Acceptance Criteria:**
+- [ ] Create `variables` table (typed, with schema)
+- [ ] Create `variable_history` table (audit trail)
+- [ ] Implement VariableService (Effect CRUD)
+- [ ] Implement `resolveTemplate` with Handlebars
+- [ ] Implement `propagateToParent` (THE BUG FIX for Story 2-3!)
+- [ ] Migration script from JSONB to typed tables
+
+#### Story 2-M3: AI-SDK Integration (~4-5 days)
+**Goal:** Replace Mastra LLM integration with AI-SDK for streaming support.
+
+**Acceptance Criteria:**
+- [ ] Install ai, @ai-sdk/anthropic, @openrouter/ai-sdk-provider
+- [ ] Create AIProviderService (model abstraction)
+- [ ] Create ChatService (own message storage, not Mastra)
+- [ ] Implement AI-SDK tool builder from tool configs
+- [ ] Implement streaming with Effect Stream integration
+- [ ] Implement approval handling with feedback capture
+
+#### Story 2-M4: Step Handler Migration (~4-5 days)
+**Goal:** Migrate step handlers to Effect services with new naming.
+
+**Acceptance Criteria:**
+- [ ] Rename `ask-user` → `user-form` + Effect wrap
+- [ ] Rename `ask-user-chat` → `sandboxed-agent` + AI-SDK rewrite
+- [ ] Effect wrap: `execute-action`, `invoke-workflow`, `display-output`
+- [ ] Implement: `branch` handler
+- [ ] Remove placeholders: `llm-generate`, `approval-checkpoint`, `question-set`
+- [ ] Update `step-types.ts` enum and `step-registry.ts`
+
+#### Story 2-M5: Mastra Removal (~2 days)
+**Goal:** Remove all Mastra dependencies - it's now dead code.
+
+**Acceptance Criteria:**
+- [ ] Remove `@mastra/*` packages from package.json
+- [ ] Delete mastra service files
+- [ ] Drop `dialog_sessions` table (Mastra threads)
+- [ ] Remove any mastra.* schema references
+- [ ] Verify no Mastra imports remain in codebase (`grep -r "mastra"`)
+- [ ] Update AGENTS.md with new architecture patterns
+
+---
+
+### Original Stories (Resume After Migration)
+
 ### Story 2.1: Project Dashboard & Schema Foundation (2 days)
 **As a User,**
 I want a dashboard that shows my project's current phase and next recommended workflow, supported by a flexible database schema, so that I can start the right workflow with the right context.
@@ -161,6 +232,9 @@ Epic 3 will build on Epic 2's Artifact Workbench foundation, implementing the re
 
 ---
 
-**Status:** 🟢 Ready for Implementation  
-**Document Version:** 2.1 (Explicit Seeding Specs)  
-**Last Updated:** 2025-11-23
+**Status:** 🟢 In Progress (Migration Stories Added)  
+**Document Version:** 3.0 (Migration Stories Added per Sprint Change Proposal)  
+**Last Updated:** 2026-01-10
+**Related Documents:**
+- Sprint Change Proposal: `sprint-change-proposal-2026-01-10.md`
+- Tech Spec: `tech-spec-effect-workflow-engine.md`

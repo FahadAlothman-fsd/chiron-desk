@@ -69,36 +69,58 @@ development_status:
   1-8-project-creation-and-confirmation: done
   epic-1-retrospective: completed
 
-  # Epic 2: Artifact Workbench (2 weeks)
+  # Epic 2: Artifact Workbench + Migration Foundation (~3-4 weeks)
+  # UPDATED 2026-01-10: Added migration stories (2-M1 through 2-M4) per Sprint Change Proposal
+  # See: _bmad-output/planning-artifacts/sprint-change-proposal-2026-01-10.md
+  # Tech Spec: _bmad-output/planning-artifacts/tech-spec-effect-workflow-engine.md
   epic-2: contexted
   2-1-project-dashboard: done
   2-2-workbench-shell-and-setup: done
-  2-3-execution-loop-and-child-workflows: review
+  
+  # MIGRATION STORIES (Effect + AI-SDK) - Inserted to unblock 2-3
+  2-M1-effect-foundation: backlog
+  2-M2-variable-system: backlog
+  2-M3-ai-sdk-integration: backlog
+  2-M4-step-handler-migration: backlog
+  2-M5-mastra-removal: backlog
+  
+  # Original stories (resume after migration)
+  2-3-execution-loop-and-child-workflows: blocked
   2-4-convergence-and-kanban: backlog
   2-5-planning-and-forms: backlog
   2-6-artifact-rendering-and-persistence: backlog
   epic-2-retrospective: optional
 
-  # Epic 3: Artifact Workbench Part 2 - Phase 0 Completion (2 weeks)
+  # Epic 3: Core Platform Migration (~2 weeks)
+  # REPLACED 2026-01-10: Was "Artifact Workbench Part 2", now "Core Platform Migration"
+  # Covers: Chat Services, Artifact System, Streaming Unification, system-agent foundation
   epic-3: backlog
+  3-1-chat-services: backlog             # Effect-based chat sessions, messages, tangents
+  3-2-artifact-system: backlog           # Versioning, snapshots, diffs
+  3-3-streaming-unification: backlog     # AI-SDK + Effect PubSub + tRPC subscriptions
+  3-4-system-agent-foundation: backlog
   epic-3-retrospective: optional
 
-  # Epic 4: Phase 1 - Planning Workflows Complete (3-3.5 weeks)
+  # Epic 4: Phase 1 - Planning Workflows Complete (~2 weeks)
+  # Absorbs Phase 0 workflows from old Epic 3
   epic-4: backlog
   epic-4-retrospective: optional
 
-  # Epic 5: Git Worktree & Multi-Agent Foundation (2-2.5 weeks)
+  # Epic 5: Git Worktree & OpenCode Integration (~2 weeks)
+  # UPDATED: Added OpenCode integration (was just Git Worktree)
   epic-5: backlog
   epic-5-retrospective: optional
 
-  # Epic 6: Phase 3 - Solutioning Workflows Complete (2.5-3 weeks)
+  # Epic 6: Phase 3 - Solutioning Workflows Complete (~2 weeks)
   epic-6: backlog
   epic-6-retrospective: optional
 
-  # Epic 7: Phase 4 - Implementation Workflows Complete (3-3.5 weeks)
+  # Epic 7: Phase 4 - Implementation Workflows (DEFERRED to post-10-week)
+  # Includes: Kanban (stories only), dev-story workflow, Executions table
   epic-7: backlog
   epic-7-retrospective: optional
 
-  # Epic 8: Polish & Extensibility (2-2.5 weeks)
+  # Epic 8: Polish & Extensibility (DEFERRED to post-10-week)
+  # Includes: AX optimization UI, Mastra cleanup, Memory features, Hotkey system, Chiron Agent
   epic-8: backlog
   epic-8-retrospective: optional
