@@ -32,8 +32,8 @@ import {
 	CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
-	WorkflowExecutionCard,
 	type ExecutionInfo,
+	WorkflowExecutionCard,
 	type WorkflowInfo,
 } from "@/components/workflows/workflow-execution-card";
 import { trpcClient } from "@/utils/trpc";

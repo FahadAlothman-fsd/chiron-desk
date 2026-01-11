@@ -24,10 +24,12 @@
 	"dependencies": {
 		"@chiron/auth": "workspace:*",
 		"@chiron/db": "workspace:*",
+		"@effect/platform": "^0.82.0",
 		"@trpc/client": "catalog:",
 		"@trpc/server": "catalog:",
 		"dotenv": "catalog:",
 		"drizzle-orm": "^0.44.7",
+		"effect": "^3.14.0",
 		"hono": "catalog:",
 		"simple-git": "^3.30.0",
 		"zod": "catalog:"

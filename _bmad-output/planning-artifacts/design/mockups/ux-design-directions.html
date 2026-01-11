@@ -1994,7 +1994,7 @@
 
         document.querySelectorAll('.thumbnail').forEach(thumb => {
             thumb.addEventListener('click', () => {
-                const direction = parseInt(thumb.dataset.direction);
+                const direction = Number.parseInt(thumb.dataset.direction);
                 showDirection(direction);
             });
         });

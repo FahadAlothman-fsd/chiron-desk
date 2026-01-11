@@ -12,7 +12,9 @@ import { ExecuteActionStep } from "@/components/workflows/steps/execute-action-s
 import type { WorkflowStepDefinition } from "@/components/workflows/types";
 import { trpcClient } from "@/utils/trpc";
 
-export const Route = createFileRoute("/_authenticated/projects/$projectId/initialize")({
+export const Route = createFileRoute(
+	"/_authenticated/projects/$projectId/initialize",
+)({
 	component: InitializePage,
 });
 
@@ -21,7 +23,7 @@ function InitializePage() {
 	const navigate = useNavigate();
 	const [viewingStepNumber, setViewingStepNumber] = useState<number | null>(
 		null,
-	)
+	);
 
 	// Get project
 	const { data: projectData } = useQuery({
@@ -29,7 +31,7 @@ function InitializePage() {
 		queryFn: async () => {
 			return trpcClient.projects.get.query({ id: projectId });
 		},
-	})
+	});
 	const project = projectData?.project;
 
 	// Get workflow execution for this project (Story 2.1: query by projectId instead of executionId)
@@ -38,11 +40,11 @@ function InitializePage() {
 		queryFn: async () => {
 			return trpcClient.workflows.getExecutionByProject.query({
 				projectId,
-			})
+			});
 		},
 		enabled: !!projectId,
 		refetchInterval: 2000, // Poll for step transitions
-	})
+	});
 
 	// Redirect if project is already active AND workflow is completed
 	// Don't redirect if there's still a workflow execution in progress (e.g., display-output step)
@@ -54,7 +56,7 @@ function InitializePage() {
 			navigate({
 				to: "/projects/$projectId",
 				params: { projectId },
-			})
+			});
 		}
 	}, [project?.status, executionsData?.execution?.status, navigate, projectId]);
 
@@ -64,10 +66,10 @@ function InitializePage() {
 		queryFn: async () => {
 			return trpcClient.workflows.getById.query({
 				id: project?.initializerWorkflowId!,
-			})
+			});
 		},
 		enabled: !!project?.initializerWorkflowId,
-	})
+	});
 
 	// Get all workflow steps for step count and history
 	const { data: workflowStepsData } = useQuery({
@@ -75,10 +77,10 @@ function InitializePage() {
 		queryFn: async () => {
 			return trpcClient.workflows.getSteps.query({
 				workflowId: project?.initializerWorkflowId!,
-			})
+			});
 		},
 		enabled: !!project?.initializerWorkflowId,
-	})
+	});
 
 	// Submit step mutation
 	const submitStep = useMutation({
@@ -91,9 +93,9 @@ function InitializePage() {
 		onError: (error: any) => {
 			toast.error("Step submission failed", {
 				description: error.message,
-			})
+			});
 		},
-	})
+	});
 
 	// Continue workflow mutation (for auto-executing execute-action steps)
 	const continueWorkflow = useMutation({
@@ -106,9 +108,9 @@ function InitializePage() {
 		onError: (error: any) => {
 			toast.error("Workflow execution failed", {
 				description: error.message,
-			})
+			});
 		},
-	})
+	});
 
 	// Auto-execute execute-action steps on mount
 	useEffect(() => {
@@ -118,7 +120,7 @@ function InitializePage() {
 			!workflowData ||
 			continueWorkflow.isPending
 		) {
-			return
+			return;
 		}
 
 		const { execution, currentStep } = executionsData;
@@ -130,7 +132,7 @@ function InitializePage() {
 		) {
 			continueWorkflow.mutate({
 				executionId: execution.id,
-			})
+			});
 		}
 	}, [
 		project,
@@ -138,7 +140,7 @@ function InitializePage() {
 		workflowData,
 		continueWorkflow.isPending,
 		continueWorkflow.mutate,
-	])
+	]);
 
 	if (!project || !executionsData || !workflowData || !workflowStepsData) {
 		return (
@@ -148,7 +150,7 @@ function InitializePage() {
 					<span>Loading workflow...</span>
 				</div>
 			</div>
-		)
+		);
 	}
 
 	const { execution, currentStep: currentStepData } = executionsData;
@@ -193,7 +195,7 @@ function InitializePage() {
 					</p>
 				</div>
 			</div>
-		)
+		);
 	}
 
 	return (
@@ -262,7 +264,7 @@ function InitializePage() {
 									? () => {
 											continueWorkflow.mutate({
 												executionId: execution.id,
-											})
+											});
 										}
 									: undefined
 							}
@@ -272,14 +274,14 @@ function InitializePage() {
 											submitStep.mutate({
 												executionId: execution.id,
 												userInput: {},
-											})
+											});
 										}
 									: undefined
 							}
 							onComplete={
 								!isViewingHistory
 									? () => {
-											refetchExecution()
+											refetchExecution();
 										}
 									: undefined
 							}
@@ -295,7 +297,7 @@ function InitializePage() {
 								submitStep.mutate({
 									executionId: execution.id,
 									userInput: value,
-								})
+								});
 							}}
 						/>
 					)}
@@ -308,7 +310,7 @@ function InitializePage() {
 							readOnly={isViewingCompletedStep}
 							onComplete={() => {
 								// Refresh execution to get next step
-								refetchExecution()
+								refetchExecution();
 							}}
 						/>
 					)}
@@ -348,7 +350,7 @@ function InitializePage() {
 											submitStep.mutate({
 												executionId: execution.id,
 												userInput: "continue",
-											})
+											});
 										}
 									: undefined
 							}
@@ -363,5 +365,5 @@ function InitializePage() {
 				</div>
 			</div>
 		</div>
-	)
+	);
 }

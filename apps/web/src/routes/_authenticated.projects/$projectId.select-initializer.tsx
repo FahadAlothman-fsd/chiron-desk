@@ -8,11 +8,11 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { trpcClient } from "@/utils/trpc";
 
-export const Route = createFileRoute("/_authenticated/projects/$projectId/select-initializer")(
-	{
-		component: SelectInitializerPage,
-	},
-);
+export const Route = createFileRoute(
+	"/_authenticated/projects/$projectId/select-initializer",
+)({
+	component: SelectInitializerPage,
+});
 
 function SelectInitializerPage() {
 	const { projectId } = Route.useParams();
@@ -26,9 +26,9 @@ function SelectInitializerPage() {
 		queryFn: async () => {
 			return trpcClient.workflows.getInitializers.query({
 				type: "new-project",
-			})
+			});
 		},
-	})
+	});
 
 	// Set initializer mutation
 	const setInitializer = useMutation({
@@ -42,14 +42,14 @@ function SelectInitializerPage() {
 			navigate({
 				to: "/projects/$projectId/initialize",
 				params: { projectId },
-			})
+			});
 		},
 		onError: (error: any) => {
 			toast.error("Failed to set initializer", {
 				description: error.message,
-			})
+			});
 		},
-	})
+	});
 
 	// Auto-select if only one option
 	useEffect(() => {
@@ -66,7 +66,7 @@ function SelectInitializerPage() {
 					<span>Loading initializers...</span>
 				</div>
 			</div>
-		)
+		);
 	}
 
 	const workflows = initializers?.workflows || [];
@@ -130,7 +130,7 @@ function SelectInitializerPage() {
 						setInitializer.mutate({
 							projectId,
 							initializerWorkflowId: selectedWorkflowId,
-						})
+						});
 					}
 				}}
 				disabled={!selectedWorkflowId || setInitializer.isPending}
@@ -147,5 +147,5 @@ function SelectInitializerPage() {
 				)}
 			</Button>
 		</div>
-	)
+	);
 }
