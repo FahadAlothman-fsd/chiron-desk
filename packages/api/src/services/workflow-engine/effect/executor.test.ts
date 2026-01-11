@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { Chunk, Effect, Fiber, Layer, Stream } from "effect";
 import { ConfigServiceLive } from "./config-service";
-import { MaxStepsExceededError } from "./errors";
+
 import { WorkflowEventBus, WorkflowEventBusLive } from "./event-bus";
 import { ExecutionContextLive, type ExecutionState } from "./execution-context";
 import { executeWorkflow, type WorkflowDefinition } from "./executor";

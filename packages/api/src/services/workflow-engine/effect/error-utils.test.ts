@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { Effect, Exit } from "effect";
 import { withRetry, withTimeout } from "./error-utils";
-import { StepTimeoutError } from "./errors";
 
 describe("error-utils", () => {
 	describe("withRetry", () => {

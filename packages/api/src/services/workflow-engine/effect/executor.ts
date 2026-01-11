@@ -2,7 +2,7 @@ import { Effect, Ref } from "effect";
 import { ConfigService } from "./config-service";
 import { withRetry, withTimeout } from "./error-utils";
 import { MaxStepsExceededError, type StepError } from "./errors";
-import { type WorkflowEvent, WorkflowEventBus } from "./event-bus";
+import { WorkflowEventBus } from "./event-bus";
 import { ExecutionContext, type ExecutionState } from "./execution-context";
 import { StepHandlerRegistry } from "./step-registry";
 
