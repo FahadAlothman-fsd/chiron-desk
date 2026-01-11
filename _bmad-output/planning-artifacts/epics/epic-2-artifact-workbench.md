@@ -97,6 +97,42 @@ See: `tech-spec-effect-workflow-engine.md` for full implementation details.
 - [ ] Verify no Mastra imports remain in codebase (`grep -r "mastra"`)
 - [ ] Update AGENTS.md with new architecture patterns
 
+#### Story 2-M6: Biome to OXC Migration (~1-2 days)
+**Goal:** Replace Biome with OXC toolchain (oxlint + oxfmt) for faster linting/formatting.
+
+**Background:**
+OXC is VoidZero's (Evan You) Rust-based JavaScript toolchain. Oxfmt (Dec 2025 alpha) is 3x faster than Biome for formatting. Oxlint matches Biome speed with ESLint-compatible config format.
+
+**Acceptance Criteria:**
+- [ ] Install `oxlint` and `oxc` packages (oxfmt included in oxc)
+- [ ] Create `.oxlintrc.json` config matching current Biome rules:
+  - Categories: correctness (recommended), style rules
+  - Plugins: typescript, react, jsx-a11y
+  - Same ignores (.next, dist, routeTree.gen.ts, src-tauri, docs, bmad)
+- [ ] Configure oxfmt settings matching Biome:
+  - TAB indent, double quotes, Tailwind class sorting
+- [ ] Update package.json scripts:
+  - `"check": "oxlint && oxfmt --write ."`
+  - `"lint": "oxlint"`
+  - `"format": "oxfmt --write ."`
+- [ ] Update lint-staged/husky hooks for oxlint + oxfmt
+- [ ] Remove `@biomejs/biome` dependency and `biome.json`
+- [ ] Install VS Code OXC extension (oxc_language_server)
+- [ ] Update AGENTS.md with new tooling conventions
+- [ ] Verify all existing files pass oxlint + oxfmt
+
+**Technical Notes:**
+- Oxfmt is Alpha - test thoroughly before committing
+- Config: `.oxlintrc.json` uses ESLint v8 format (categories, plugins, rules)
+- Oxfmt CLI: `oxfmt --write .` or `oxfmt --check .`
+- If Tailwind sorting not ready in oxfmt, can use prettier-plugin-tailwindcss temporarily
+- Fallback: Keep Biome if oxfmt has breaking issues
+
+**References:**
+- Oxlint config: https://oxc.rs/docs/guide/usage/linter/config
+- Oxfmt announcement: https://voidzero.dev/posts/announcing-oxfmt-alpha
+- OXC GitHub: https://github.com/oxc-project/oxc
+
 ---
 
 ### Original Stories (Resume After Migration)

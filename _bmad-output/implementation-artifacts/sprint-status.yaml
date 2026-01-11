@@ -77,12 +77,13 @@ development_status:
   2-1-project-dashboard: done
   2-2-workbench-shell-and-setup: done
   
-  # MIGRATION STORIES (Effect + AI-SDK) - Inserted to unblock 2-3
-  2-M1-effect-foundation: in-progress
+  # MIGRATION STORIES (Effect + AI-SDK + OXC) - Inserted to unblock 2-3
+  2-M1-effect-foundation: review
   2-M2-variable-system: backlog
   2-M3-ai-sdk-integration: backlog
   2-M4-step-handler-migration: backlog
   2-M5-mastra-removal: backlog
+  2-M6-biome-to-oxc: backlog  # Last migration - oxlint + oxfmt (3x faster than Biome)
   
   # Original stories (resume after migration)
   2-3-execution-loop-and-child-workflows: blocked
