@@ -1,0 +1,23 @@
+_bmad-output/planning-artifacts/tech-spec-effect-workflow-engine.md
+  881d0dea70650a4d 1691-1845,1847
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.31",
+  "base_commit_sha": "fe312cd5e9be971c1be2283786c20fc78c388c85",
+  "prompts": {
+    "881d0dea70650a4d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_452ca22aaffewTs6S0dLpz6Yxk-0ed3c103-5f33-43fb-9241-bd6b2f2a47e5",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 156,
+      "total_deletions": 0,
+      "accepted_lines": 156,
+      "overriden_lines": 0
+    }
+  }
+}
