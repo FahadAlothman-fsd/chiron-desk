@@ -79,7 +79,7 @@ development_status:
   
   # MIGRATION STORIES (Effect + AI-SDK + OXC) - Inserted to unblock 2-3
   2-M1-effect-foundation: done
-  2-M2-variable-system: backlog
+  2-M2-variable-system: done
   2-M3-ai-sdk-integration: backlog
   2-M4-step-handler-migration: backlog
   2-M5-mastra-removal: backlog
