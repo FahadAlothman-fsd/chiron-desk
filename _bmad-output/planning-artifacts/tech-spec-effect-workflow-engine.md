@@ -1688,6 +1688,162 @@ Separate view for tracking all workflow executions.
 
 ---
 
+## Appendix C: FileSystem, Git & Tauri Integration
+
+> **Added:** 2026-01-12 (Code Review Session for Story 2-M2)
+
+### C.1 Effect FileSystem for Artifact I/O
+
+Use `@effect/platform` (already installed) for all file operations. This keeps the server portable (local, Daytona, cloud).
+
+```typescript
+import { FileSystem } from "@effect/platform";
+import { NodeFileSystem } from "@effect/platform-node";
+
+const writeArtifact = Effect.gen(function* () {
+  const fs = yield* FileSystem.FileSystem;
+  
+  yield* fs.makeDirectory("./artifacts", { recursive: true });
+  yield* fs.writeFileString("./artifacts/session.md", content);
+  
+  const exists = yield* fs.exists("./artifacts/session.md");
+  const stat = yield* fs.stat("./artifacts/session.md");
+});
+
+// Provide Node implementation
+const runnable = program.pipe(Effect.provide(NodeFileSystem.layer));
+```
+
+**Available Operations:**
+- `readFile`, `readFileString`, `readDirectory`
+- `writeFile`, `writeFileString`, `makeDirectory`
+- `copy`, `rename`, `remove`
+- `stat`, `exists`, `access`
+- `watch` → returns Effect Stream
+
+### C.2 GitService (simple-git + Effect)
+
+Wrap `simple-git` (already installed) in Effect Service for Story 2.6:
+
+```typescript
+// packages/api/src/services/workflow-engine/effect/git-service.ts
+
+export class GitService extends Context.Tag("GitService")<GitService, {
+  init(path: string): Effect.Effect<void, GitError>;
+  add(path: string, files: string[]): Effect.Effect<void, GitError>;
+  commit(path: string, message: string): Effect.Effect<string, GitError>;
+  status(path: string): Effect.Effect<GitStatus, GitError>;
+  push(path: string, remote?: string): Effect.Effect<void, GitError>;
+}>() {}
+
+export const GitServiceLive = Layer.effect(
+  GitService,
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    
+    return {
+      commit: (path, message) => Effect.tryPromise({
+        try: async () => {
+          const result = await simpleGit(path).commit(message);
+          return result.commit;
+        },
+        catch: (e) => new GitError({ operation: "commit", cause: e })
+      }),
+      // ... other methods
+    };
+  })
+);
+```
+
+### C.3 Tauri Integration Strategy
+
+**Architecture:**
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     CHIRON SERVER                                │
+│  (portable - local, Daytona, cloud)                             │
+├─────────────────────────────────────────────────────────────────┤
+│  @effect/platform-node (FileSystem)                             │
+│  simple-git + Effect wrapper (GitService)                       │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │ tRPC/WebSocket
+            ┌───────────────┴───────────────┐
+            ▼                               ▼
+┌───────────────────────────┐   ┌───────────────────────────────┐
+│      WEB VERSION          │   │       TAURI DESKTOP           │
+│  (localhost:3001)         │   │                               │
+│                           │   │  Rust Core:                   │
+│  • Development mode       │   │  ├── tauri-plugin-notification│
+│  • Playwright MCP access  │   │  ├── System tray              │
+│  • CI/CD testing          │   │  └── Native dialogs           │
+│                           │   │                               │
+│                           │   │  tauri-plugin-mcp (optional): │
+│                           │   │  └── AI agent interaction     │
+└───────────────────────────┘   └───────────────────────────────┘
+```
+
+**Tauri Rust core for desktop-specific features only:**
+- Notifications (`tauri-plugin-notification`)
+- System tray integration
+- Native file dialogs
+- Auto-updates
+
+**NOT for file I/O** - keeps server portable for remote deployment scenarios.
+
+### C.4 AI Agent Interaction with Tauri (tauri-plugin-mcp)
+
+For AI agents to interact with Tauri desktop app, use `tauri-plugin-mcp`:
+
+**GitHub:** https://github.com/p3gleg/tauri-plugin-mcp
+
+**Capabilities:**
+| Feature | Description |
+|---------|-------------|
+| Screenshots | Capture any Tauri window |
+| Input simulation | Mouse clicks, keyboard, scrolling |
+| DOM access | Get HTML from webview |
+| Window control | Position, size, focus |
+| JS execution | Run arbitrary JS in app context |
+| LocalStorage | Get/set/remove entries |
+
+**Rust setup (debug builds only):**
+```rust
+#[cfg(debug_assertions)]
+tauri::Builder::default()
+    .plugin(tauri_mcp::init_with_config(
+        tauri_mcp::PluginConfig::new("Chiron".to_string())
+            .tcp("127.0.0.1".to_string(), 4000)
+    ));
+```
+
+**MCP config for OpenCode/Cursor:**
+```json
+{
+  "mcpServers": {
+    "chiron-tauri": {
+      "command": "node",
+      "args": ["./tauri-plugin-mcp/mcp-server-ts/build/index.js"],
+      "env": {
+        "TAURI_MCP_CONNECTION_TYPE": "tcp",
+        "TAURI_MCP_TCP_PORT": "4000"
+      }
+    }
+  }
+}
+```
+
+### C.5 Development vs Production
+
+| Mode | UI Access | File I/O | Git |
+|------|-----------|----------|-----|
+| **Development** | Web + Playwright MCP | Effect FileSystem | simple-git |
+| **Tauri Testing** | tauri-plugin-mcp | Effect FileSystem | simple-git |
+| **Remote Server** | Web only | Effect FileSystem | simple-git |
+| **Desktop User** | Tauri app | Effect FileSystem | simple-git |
+
+---
+
 **Document Generated:** 2026-01-10
+**Updated:** 2026-01-12 (Appendix C added)
 **Status:** Ready for implementation
 **Next:** Update Sprint Change Proposal with these details

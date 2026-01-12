@@ -42,6 +42,18 @@ export type WorkflowEvent =
 			readonly _tag: "WorkflowError";
 			readonly executionId: string;
 			readonly error: string;
+	  }
+	| {
+			readonly _tag: "VariableChanged";
+			readonly executionId: string;
+			readonly name: string;
+			readonly source: string;
+	  }
+	| {
+			readonly _tag: "VariablesPropagated";
+			readonly childId: string;
+			readonly parentId: string;
+			readonly names: string[];
 	  };
 
 export class WorkflowEventBus extends Context.Tag("WorkflowEventBus")<

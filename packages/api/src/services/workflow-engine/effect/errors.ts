@@ -61,7 +61,25 @@ export class VariableValidationError extends Data.TaggedError(
 	readonly message: string;
 }> {}
 
-export type VariableError = VariableNotFoundError | VariableValidationError;
+export class VariableDatabaseError extends Data.TaggedError(
+	"VariableDatabaseError",
+)<{
+	readonly operation: string;
+	readonly cause: unknown;
+}> {}
+
+export class VariableResolutionError extends Data.TaggedError(
+	"VariableResolutionError",
+)<{
+	readonly template: string;
+	readonly missingVariables: string[];
+}> {}
+
+export type VariableError =
+	| VariableNotFoundError
+	| VariableValidationError
+	| VariableDatabaseError
+	| VariableResolutionError;
 
 export class AgentStreamError extends Data.TaggedError("AgentStreamError")<{
 	readonly message: string;

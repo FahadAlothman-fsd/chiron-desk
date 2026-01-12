@@ -4,7 +4,8 @@
 	"scripts": {
 		"seed": "bun run src/seed.ts",
 		"db:seed": "bun run src/seed.ts",
-		"db:reset": "bash src/reset-db.sh"
+		"db:reset": "bash src/reset-db.sh",
+		"migrate:variables": "bun run src/migrations/migrate-variables.ts"
 	},
 	"dependencies": {
 		"@chiron/auth": "workspace:*",

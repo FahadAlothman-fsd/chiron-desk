@@ -19,6 +19,8 @@ export * from "./optimization";
 export * from "./project-management";
 // Step config Zod schemas and types
 export * from "./step-configs";
+// Variable system with history tracking
+export * from "./variables";
 // Workflow templates (Handlebars templates for artifacts)
 export * from "./workflow-templates";
 // Workflow definitions and execution
