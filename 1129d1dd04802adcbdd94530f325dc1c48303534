@@ -1,0 +1,37 @@
+_bmad-output/implementation-artifacts/2-M3-ai-sdk-integration.md
+  12e853154a60fa13 1637-1639,1642-1650,1653-1660,1663-1672,1675-1680
+  d7f1f9d1a9c2bff4 1681-1682,1685-1694,1697-1703,1706-1714,1717-1721
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.31",
+  "base_commit_sha": "1129d1dd04802adcbdd94530f325dc1c48303534",
+  "prompts": {
+    "12e853154a60fa13": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_4490a8edfffeeVrz2ntS29Qazv-7f8bcb03-f7ea-403a-8cfb-1910f776a530",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 36,
+      "total_deletions": 36,
+      "accepted_lines": 36,
+      "overriden_lines": 0
+    },
+    "d7f1f9d1a9c2bff4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_4490a8edfffeeVrz2ntS29Qazv-b7b5042c-47fe-46c6-a90f-d62a961bf0d1",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 33,
+      "total_deletions": 33,
+      "accepted_lines": 33,
+      "overriden_lines": 0
+    }
+  }
+}
