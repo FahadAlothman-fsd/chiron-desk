@@ -1,7 +1,6 @@
 import "../../../test-setup";
 import { beforeEach, describe, expect, it } from "bun:test";
-import { db } from "@chiron/db";
-import { agents } from "@chiron/db/schema";
+import { agents, db } from "@chiron/db";
 import { MiProCollector } from "./mipro-collector";
 
 describe("MiPRO Collector", () => {
