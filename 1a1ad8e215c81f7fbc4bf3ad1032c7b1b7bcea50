@@ -1,0 +1,37 @@
+packages/db/src/schema/chat-sessions.ts
+  bae881580e8cca3f 13-14
+  a93dfbe98124e4a3 68,71-74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.31",
+  "base_commit_sha": "1a1ad8e215c81f7fbc4bf3ad1032c7b1b7bcea50",
+  "prompts": {
+    "a93dfbe98124e4a3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_4490a8edfffeeVrz2ntS29Qazv-5721ae9b-0e51-4d1c-851b-9a6a0a3efc23",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 10,
+      "total_deletions": 5,
+      "accepted_lines": 5,
+      "overriden_lines": 0
+    },
+    "bae881580e8cca3f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_4490a8edfffeeVrz2ntS29Qazv-e189d2cc-3742-43a4-8123-531674e9e0cc",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 0,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}
