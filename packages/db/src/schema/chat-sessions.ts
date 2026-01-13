@@ -10,6 +10,8 @@ import {
 	uuid,
 } from "drizzle-orm/pg-core";
 import { workflowExecutions } from "./workflows";
+import { chatMessages } from "./chat-messages";
+import { streamCheckpoints } from "./stream-checkpoints";
 
 export const chatSessionStatusEnum = pgEnum("chat_session_status", [
 	"active",
@@ -61,12 +63,17 @@ export const chatSessions = pgTable(
 	}),
 );
 
-export const chatSessionsRelations = relations(chatSessions, ({ one }) => ({
-	execution: one(workflowExecutions, {
-		fields: [chatSessions.executionId],
-		references: [workflowExecutions.id],
+export const chatSessionsRelations = relations(
+	chatSessions,
+	({ one, many }) => ({
+		execution: one(workflowExecutions, {
+			fields: [chatSessions.executionId],
+			references: [workflowExecutions.id],
+		}),
+		messages: many(chatMessages),
+		checkpoints: many(streamCheckpoints),
 	}),
-}));
+);
 
 export type ChatSession = typeof chatSessions.$inferSelect;
 export type NewChatSession = typeof chatSessions.$inferInsert;
