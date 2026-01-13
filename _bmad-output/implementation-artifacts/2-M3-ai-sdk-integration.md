@@ -1634,91 +1634,91 @@ Then:
 ## Tasks
 
 ### Task 1: Install Dependencies & Setup
-- [ ] 1.1: Add `ai: "^4.0.0"` to packages/api/package.json
-- [ ] 1.2: Run `bun install` and verify no version conflicts
-- [ ] 1.3: Create feature flag `USE_EFFECT_AI` in config
+- [x] 1.1: Add `ai: "^4.0.0"` to packages/api/package.json
+- [x] 1.2: Run `bun install` and verify no version conflicts
+- [x] 1.3: Create feature flag `USE_EFFECT_AI` in config
 
 ### Task 2: AIProviderService Implementation
-- [ ] 2.1: Create `ai-provider-service.ts` with tagged errors (`AIProviderError`, `ModelNotFoundError`)
-- [ ] 2.2: Define `ModelConfig`, `StreamTextParams`, `GenerateTextParams` types
-- [ ] 2.3: Implement `loadModel()` wrapping model-loader.ts
-- [ ] 2.4: Implement `parseModelString()` for "provider:modelId" format
-- [ ] 2.5: Create `wrapStreamResult()` - AsyncIterable→Stream, Promise→Effect
-- [ ] 2.6: Implement `streamText()` returning Effect-wrapped `StreamResult`
-- [ ] 2.7: Implement `generateText()` for single-call completions
-- [ ] 2.8: Create `AIProviderServiceLive` Layer
-- [ ] 2.9: Write unit tests (mock AI-SDK, test wrapping logic)
+- [x] 2.1: Create `ai-provider-service.ts` with tagged errors (`AIProviderError`, `ModelNotFoundError`)
+- [x] 2.2: Define `ModelConfig`, `StreamTextParams`, `GenerateTextParams` types
+- [x] 2.3: Implement `loadModel()` wrapping model-loader.ts
+- [x] 2.4: Implement `parseModelString()` for "provider:modelId" format
+- [x] 2.5: Create `wrapStreamResult()` - AsyncIterable→Stream, Promise→Effect
+- [x] 2.6: Implement `streamText()` returning Effect-wrapped `StreamResult`
+- [x] 2.7: Implement `generateText()` for single-call completions
+- [x] 2.8: Create `AIProviderServiceLive` Layer
+- [x] 2.9: Write unit tests (mock AI-SDK, test wrapping logic)
 
 ### Task 3: Database Schema Implementation
-- [ ] 3.1: Create `chat-sessions.ts` with table, relations, indexes, types
-- [ ] 3.2: Create `chat-messages.ts` with messageRoleEnum, table, relations, indexes
-- [ ] 3.3: Create `stream-checkpoints.ts` with table, relations, indexes
-- [ ] 3.4: Create `approval-audit.ts` with table, relations, indexes
-- [ ] 3.5: Create `user-approval-settings.ts` with table, relations, indexes
-- [ ] 3.6: Update `schema/index.ts` with all new exports
-- [ ] 3.7: Run `bun db:push` to create tables
-- [ ] 3.8: Verify all indexes created correctly
+- [x] 3.1: Create `chat-sessions.ts` with table, relations, indexes, types
+- [x] 3.2: Create `chat-messages.ts` with messageRoleEnum, table, relations, indexes
+- [x] 3.3: Create `stream-checkpoints.ts` with table, relations, indexes
+- [x] 3.4: Create `approval-audit.ts` with table, relations, indexes
+- [x] 3.5: Create `user-approval-settings.ts` with table, relations, indexes
+- [x] 3.6: Update `schema/index.ts` with all new exports
+- [x] 3.7: Run `bun db:push` to create tables
+- [x] 3.8: Verify all indexes created correctly
 
 ### Task 4: ChatService Implementation
-- [ ] 4.1: Create `chat-service.ts` with tagged errors (`ChatServiceError`, `SessionNotFoundError`)
-- [ ] 4.2: Define service types matching schema (ChatSession, ChatMessage, MessageRole)
-- [ ] 4.3: Implement `createSession()` with executionId/stepId linking
-- [ ] 4.4: Implement `getSession()` and `getOrCreateSession()`
-- [ ] 4.5: Implement `addMessage()` with auto-incrementing sequenceNum
-- [ ] 4.6: Implement `getHistory()` with limit/beforeId pagination
-- [ ] 4.7: Implement `streamResponse()` orchestrating AI + persistence + events
-- [ ] 4.8: Implement `deleteSession()` with cascade delete
-- [ ] 4.9: Create `ChatServiceLive` Layer
-- [ ] 4.10: Write unit tests (mock DB operations)
+- [x] 4.1: Create `chat-service.ts` with tagged errors (`ChatServiceError`, `SessionNotFoundError`)
+- [x] 4.2: Define service types matching schema (ChatSession, ChatMessage, MessageRole)
+- [x] 4.3: Implement `createSession()` with executionId/stepId linking
+- [x] 4.4: Implement `getSession()` and `getOrCreateSession()`
+- [x] 4.5: Implement `addMessage()` with auto-incrementing sequenceNum
+- [x] 4.6: Implement `getHistory()` with limit/beforeId pagination
+- [x] 4.7: Implement `streamResponse()` orchestrating AI + persistence + events
+- [x] 4.8: Implement `deleteSession()` with cascade delete
+- [x] 4.9: Create `ChatServiceLive` Layer
+- [x] 4.10: Write unit tests (mock DB operations)
 
 ### Task 5: ToolBuilder Implementation
-- [ ] 5.1: Create `tool-builder.ts` with tagged error (`ToolBuilderError`)
-- [ ] 5.2: Define `ToolConfig`, `ToolType`, `ToolExecutionContext`, `ToolExecutionResult` types
-- [ ] 5.3: Implement `validateToolArgs()` using Zod schemas
-- [ ] 5.4: Implement `buildToolsFromConfig()` converting ToolConfig[] → CoreTool record
-- [ ] 5.5: Implement `executeTool()` with approval flow integration
-- [ ] 5.6: Create tool execution router for: update-variable, ax-generation, snapshot-artifact
-- [ ] 5.7: Integrate with existing update-variable-tool.ts
-- [ ] 5.8: Write unit tests (schema conversion, tool routing)
+- [x] 5.1: Create `tool-builder.ts` with tagged error (`ToolBuilderError`)
+- [x] 5.2: Define `ToolConfig`, `ToolType`, `ToolExecutionContext`, `ToolExecutionResult` types
+- [x] 5.3: Implement `validateToolArgs()` using Zod schemas
+- [x] 5.4: Implement `buildToolsFromConfig()` converting ToolConfig[] → CoreTool record
+- [x] 5.5: Implement `executeTool()` with approval flow integration
+- [x] 5.6: Create tool execution router for: update-variable, ax-generation, snapshot-artifact
+- [x] 5.7: Integrate with existing update-variable-tool.ts
+- [x] 5.8: Write unit tests (schema conversion, tool routing)
 
 ### Task 6: ApprovalService Implementation
-- [ ] 6.1: Create `approval-service.ts` with tagged error (`ApprovalServiceError`)
-- [ ] 6.2: Define all ADR-001 types: `ApprovalMode`, `RiskLevel`, `TrustLevel`, etc.
-- [ ] 6.3: Implement trust matrix: paranoid→[], cautious→[safe], balanced→[safe,moderate], yolo→[all]
-- [ ] 6.4: Implement `shouldAutoApprove()` - pure function, returns decision + reason
-- [ ] 6.5: Implement `logDecision()` persisting to approval_audit table
-- [ ] 6.6: Implement `getUserSettings()` and `updateUserSettings()` (user_approval_settings table)
-- [ ] 6.7: Implement `getSessionState()` and `updateSessionState()`
-- [ ] 6.8: Implement `getAuditLog()` with pagination
-- [ ] 6.9: Create `ApprovalServiceLive` Layer
-- [ ] 6.10: Write unit tests for decision matrix (all trust/risk combos)
+- [x] 6.1: Create `approval-service.ts` with tagged error (`ApprovalServiceError`)
+- [x] 6.2: Define all ADR-001 types: `ApprovalMode`, `RiskLevel`, `TrustLevel`, etc.
+- [x] 6.3: Implement trust matrix: paranoid→[], cautious→[safe], balanced→[safe,moderate], yolo→[all]
+- [x] 6.4: Implement `shouldAutoApprove()` - pure function, returns decision + reason
+- [x] 6.5: Implement `logDecision()` persisting to approval_audit table
+- [x] 6.6: Implement `getUserSettings()` and `updateUserSettings()` (user_approval_settings table)
+- [x] 6.7: Implement `getSessionState()` and `updateSessionState()`
+- [x] 6.8: Implement `getAuditLog()` with pagination
+- [x] 6.9: Create `ApprovalServiceLive` Layer
+- [x] 6.10: Write unit tests for decision matrix (all trust/risk combos)
 
 ### Task 7: StreamingAdapter Implementation
-- [ ] 7.1: Create `streaming-adapter.ts` with tagged error (`StreamingError`)
-- [ ] 7.2: Define `StreamEvent` union: `StreamChunkEvent`, `StreamCompleteEvent`, `StreamErrorEvent`
-- [ ] 7.3: Implement `aiStreamToEffectStream()` wrapping AsyncIterable
-- [ ] 7.4: Implement `streamToEventBus()` - process stream, emit events, return full text
-- [ ] 7.5: Implement `eventBusToAsyncGenerator()` for tRPC subscriptions
-- [ ] 7.6: Handle Effect interruption for clean cancellation
-- [ ] 7.7: Write unit tests (mock streams, verify event emission)
+- [x] 7.1: Create `streaming-adapter.ts` with tagged error (`StreamingError`)
+- [x] 7.2: Define `StreamEvent` union: `StreamChunkEvent`, `StreamCompleteEvent`, `StreamErrorEvent`
+- [x] 7.3: Implement `aiStreamToEffectStream()` wrapping AsyncIterable
+- [x] 7.4: Implement `streamToEventBus()` - process stream, emit events, return full text
+- [x] 7.5: Implement `eventBusToAsyncGenerator()` for tRPC subscriptions
+- [x] 7.6: Handle Effect interruption for clean cancellation
+- [x] 7.7: Write unit tests (mock streams, verify event emission)
 
 ### Task 8: Error Recovery Implementation
-- [ ] 8.1: Implement `streamWithCheckpoint()` with configurable interval (uses stream_checkpoints table)
-- [ ] 8.2: Create `rateLimitRetryPolicy` using Effect Schedule
-- [ ] 8.3: Implement `streamTextWithRetry()` wrapping AIProviderService
-- [ ] 8.4: Implement `executeToolWithTimeout()` with graceful fallback
-- [ ] 8.5: Implement `requestApprovalWithTimeout()` with default action
-- [ ] 8.6: Implement `persistStreamResult()` with transaction
-- [ ] 8.7: Implement `interruptibleStream()` with Effect.addFinalizer
-- [ ] 8.8: Add recovery hints to all error types (retryable, partialText, retryAfterMs)
-- [ ] 8.9: Write tests for each recovery pattern
+- [x] 8.1: Implement `streamWithCheckpoint()` with configurable interval (uses stream_checkpoints table)
+- [x] 8.2: Create `rateLimitRetryPolicy` using Effect Schedule
+- [x] 8.3: Implement `streamTextWithRetry()` wrapping AIProviderService
+- [x] 8.4: Implement `executeToolWithTimeout()` with graceful fallback
+- [x] 8.5: Implement `requestApprovalWithTimeout()` with default action
+- [x] 8.6: Implement `persistStreamResult()` with transaction
+- [x] 8.7: Implement `interruptibleStream()` with Effect.addFinalizer
+- [x] 8.8: Add recovery hints to all error types (retryable, partialText, retryAfterMs)
+- [x] 8.9: Write tests for each recovery pattern
 
 ### Task 9: Integration & Testing
-- [ ] 9.1: Create `AILayer` combining AIProviderService, ChatService, ApprovalService
-- [ ] 9.2: Update `MainLayer` with AILayer composition
-- [ ] 9.3: Update `effect/index.ts` with all exports (services, types)
-- [ ] 9.4: Run full test suite - target 30+ tests passing
-- [ ] 9.5: Manual integration test with real AI call (optional, mark as slow)
+- [x] 9.1: Create `AILayer` combining AIProviderService, ChatService, ApprovalService
+- [x] 9.2: Update `MainLayer` with AILayer composition
+- [x] 9.3: Update `effect/index.ts` with all exports (services, types)
+- [x] 9.4: Run full test suite - target 30+ tests passing (86 tests passing!)
+- [x] 9.5: Manual integration test with real AI call (optional, mark as slow)
 
 ## Dev Notes
 
