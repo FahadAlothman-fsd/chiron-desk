@@ -1,7 +1,7 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-01-06
-**Commit:** 7591e0cae
+**Generated:** 2026-01-15
+**Commit:** e9bfdf319
 **Branch:** main
 
 ## OVERVIEW
@@ -26,19 +26,19 @@ chiron/
 
 ## WHERE TO LOOK
 
-| Task | Location | Notes |
-|------|----------|-------|
-| Add workflow step type | `packages/api/src/services/workflow-engine/step-handlers/` | Create handler + register in step-registry.ts |
-| Add tRPC endpoint | `packages/api/src/routers/` | Add to sub-router, auto-merged via index.ts |
-| Add DB table | `packages/db/src/schema/` | Export from index.ts, run `bun db:push` |
-| Add UI component | `apps/web/src/components/` | shadcn/ui base in `ui/`, workflows in `workflows/` |
-| Add route | `apps/web/src/routes/` | TanStack Router file-based, auto-generates routeTree.gen.ts |
-| Seed data | `packages/scripts/src/seeds/` | Export from seed.ts, run `bun db:seed` |
-| Configure AI model | `packages/api/src/services/workflow-engine/effect/` | ai-provider-service.ts (4 providers: OpenRouter, OpenCode, Anthropic, OpenAI) |
+| Task                   | Location                                                   | Notes                                                                         |
+| ---------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Add workflow step type | `packages/api/src/services/workflow-engine/step-handlers/` | Create handler + register in step-registry.ts                                 |
+| Add tRPC endpoint      | `packages/api/src/routers/`                                | Add to sub-router, auto-merged via index.ts                                   |
+| Add DB table           | `packages/db/src/schema/`                                  | Export from index.ts, run `bun db:push`                                       |
+| Add UI component       | `apps/web/src/components/`                                 | shadcn/ui base in `ui/`, workflows in `workflows/`                            |
+| Add route              | `apps/web/src/routes/`                                     | TanStack Router file-based, auto-generates routeTree.gen.ts                   |
+| Seed data              | `packages/scripts/src/seeds/`                              | Export from seed.ts, run `bun db:seed`                                        |
+| Configure AI model     | `packages/api/src/services/workflow-engine/effect/`        | ai-provider-service.ts (4 providers: OpenRouter, OpenCode, Anthropic, OpenAI) |
 
 ## CONVENTIONS
 
-- **Formatter**: Biome (NOT ESLint/Prettier) - TAB indent, double quotes
+- **Formatter**: OXC (oxlint + oxfmt) - TAB indent, double quotes
 - **Style**: shadcn/ui 'new-york' style, custom registries (@kibo-ui, @aceternity, @animate-ui)
 - **DB**: Drizzle `db:push` for dev (NOT migrations), PostgreSQL port 5434
 - **Testing**: Bun Test, co-located `*.test.ts` files, happy-dom for React
@@ -47,7 +47,7 @@ chiron/
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
-- **ESLint/Prettier**: Use Biome only - `bun check` for lint+format
+- **ESLint/Prettier/Biome**: Use OXC only - `bun check` for lint+format
 - **Direct DB migrations**: Use `bun db:push` during development
 - **Manual route tree**: Never edit routeTree.gen.ts - auto-generated
 - **Port 5432**: PostgreSQL runs on 5434 to avoid conflicts
@@ -66,7 +66,7 @@ chiron/
 # Development
 bun dev              # All services (web:3001, server:3000)
 bun dev:native       # Tauri desktop app
-bun check            # Biome lint + format
+bun check            # OXC lint + format check
 
 # Database
 bun db:start         # Start PostgreSQL container (port 5434)
