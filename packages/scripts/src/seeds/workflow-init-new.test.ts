@@ -6,80 +6,74 @@ import { seedAgents } from "./agents";
 import { seedWorkflowInitNew } from "./workflow-init-new";
 
 describe("Workflow-Init-New Seeding", () => {
-	beforeAll(async () => {
-		// Ensure agents are seeded (FK dependency)
-		await seedAgents();
-	});
+  beforeAll(async () => {
+    // Ensure agents are seeded (FK dependency)
+    await seedAgents();
+  });
 
-	test("seedWorkflowInitNew() creates workflow", async () => {
-		await seedWorkflowInitNew();
+  test("seedWorkflowInitNew() creates workflow", async () => {
+    await seedWorkflowInitNew();
 
-		const workflow = await db.query.workflows.findFirst({
-			where: eq(workflows.name, "workflow-init-new"),
-		});
+    const workflow = await db.query.workflows.findFirst({
+      where: eq(workflows.name, "workflow-init-new"),
+    });
 
-		expect(workflow).toBeTruthy();
-		expect(workflow?.displayName).toBe("Initialize New Project (Guided)");
-	});
+    expect(workflow).toBeTruthy();
+    expect(workflow?.displayName).toBe("Initialize New Project (Guided)");
+  });
 
-	test("Workflow has PM agent assigned", async () => {
-		const workflow = await db.query.workflows.findFirst({
-			where: eq(workflows.name, "workflow-init-new"),
-		});
+  test("Workflow has PM agent assigned", async () => {
+    const workflow = await db.query.workflows.findFirst({
+      where: eq(workflows.name, "workflow-init-new"),
+    });
 
-		expect(workflow?.agentId).toBeTruthy();
+    expect(workflow?.agentId).toBeTruthy();
 
-		// Verify the agent is PM
-		const pmAgent = await db.query.agents.findFirst({
-			where: eq(agents.name, "pm"),
-		});
+    // Verify the agent is PM
+    const pmAgent = await db.query.agents.findFirst({
+      where: eq(agents.name, "pm"),
+    });
 
-		expect(workflow?.agentId).toBe(pmAgent?.id);
-	});
+    expect(workflow?.agentId).toBe(pmAgent?.id);
+  });
 
-	test("initializerType = 'new-project'", async () => {
-		const workflow = await db.query.workflows.findFirst({
-			where: eq(workflows.name, "workflow-init-new"),
-		});
+  test("initializerType = 'new-project'", async () => {
+    const workflow = await db.query.workflows.findFirst({
+      where: eq(workflows.name, "workflow-init-new"),
+    });
 
-		expect(workflow?.initializerType).toBe("new-project");
-	});
+    expect(workflow?.initializerType).toBe("new-project");
+  });
 
-	test("isStandalone = true", async () => {
-		const workflow = await db.query.workflows.findFirst({
-			where: eq(workflows.name, "workflow-init-new"),
-		});
+  test("isStandalone = true", async () => {
+    const workflow = await db.query.workflows.findFirst({
+      where: eq(workflows.name, "workflow-init-new"),
+    });
 
-		expect(workflow?.isStandalone).toBe(true);
-	});
+    expect(workflow?.isStandalone).toBe(true);
+  });
 
-	test("requiresProjectContext = false", async () => {
-		const workflow = await db.query.workflows.findFirst({
-			where: eq(workflows.name, "workflow-init-new"),
-		});
+  test("requiresProjectContext = false", async () => {
+    const workflow = await db.query.workflows.findFirst({
+      where: eq(workflows.name, "workflow-init-new"),
+    });
 
-		expect(workflow?.requiresProjectContext).toBe(false);
-	});
+    expect(workflow?.requiresProjectContext).toBe(false);
+  });
 
-	test("Running twice doesn't create duplicates", async () => {
-		// Get workflows with this name before
-		const before = await db
-			.select()
-			.from(workflows)
-			.where(eq(workflows.name, "workflow-init-new"));
+  test("Running twice doesn't create duplicates", async () => {
+    // Get workflows with this name before
+    const before = await db.select().from(workflows).where(eq(workflows.name, "workflow-init-new"));
 
-		const countBefore = before.length;
+    const countBefore = before.length;
 
-		// Run seed again
-		await seedWorkflowInitNew();
+    // Run seed again
+    await seedWorkflowInitNew();
 
-		// Count should remain the same
-		const after = await db
-			.select()
-			.from(workflows)
-			.where(eq(workflows.name, "workflow-init-new"));
+    // Count should remain the same
+    const after = await db.select().from(workflows).where(eq(workflows.name, "workflow-init-new"));
 
-		expect(after.length).toBe(countBefore);
-		expect(after.length).toBe(1);
-	});
+    expect(after.length).toBe(countBefore);
+    expect(after.length).toBe(1);
+  });
 });

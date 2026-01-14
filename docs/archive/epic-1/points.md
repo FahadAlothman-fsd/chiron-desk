@@ -16,7 +16,7 @@ Affirm that we will develop chiron like a domain specific workflow engine (domai
   - ax generation (classification tasks for now?) (complexity, workflow path)
     - using optimizers (MiPRO, GEPA, ACE)
       - for the classification tasks i think MiPRO and ACE will work well
-      - for GEPA, maybe using already existing equations? in Project Management to optimize different objectives? but i do not see a use case for it yet. i want to though  
+      - for GEPA, maybe using already existing equations? in Project Management to optimize different objectives? but i do not see a use case for it yet. i want to though
   - default tool behavior (project description, project name)
 - using mastra
   - extending it to using mastra workflows for the artifact workbench (parallel, sequential, etc)

@@ -3,6 +3,7 @@
 ## ✅ TEST STATUS: SUCCESS (with minor agent hang issue)
 
 ### What We Tested
+
 Complete end-to-end test of the **Project Initialization & Confirmation** workflow (Story 1.8) using Playwright automation.
 
 ---
@@ -10,13 +11,16 @@ Complete end-to-end test of the **Project Initialization & Confirmation** workfl
 ## ✅ SUCCESSES
 
 ### 1. **OpenRouter API Key Integration** ✅
+
 - **Issue Found**: `OPENROUTER_API_KEY` was missing from `apps/server/.env`
 - **Solution**: Added key to environment file
 - **Result**: Seed script successfully encrypted and stored key in database
 - **Verification**: Agent successfully called OpenRouter API multiple times
 
 ### 2. **Step 1: Conversational Project Initialization** ✅
+
 **Tool 1: Update Summary** ✅
+
 - Agent (Athena) engaged in intelligent conversation
 - Asked clarifying questions about the project
 - Successfully generated project description
@@ -24,6 +28,7 @@ Complete end-to-end test of the **Project Initialization & Confirmation** workfl
 - User approved → Progress updated to 1/4 tools
 
 **Tool 2: Update Complexity** ✅
+
 - Agent automatically invoked `update_complexity` after approval
 - Fetched complexity options from database dynamically
 - AI recommended "Quick Flow Track" (correct choice)
@@ -31,6 +36,7 @@ Complete end-to-end test of the **Project Initialization & Confirmation** workfl
 - User approved → Progress updated to 2/4 tools
 
 ### 3. **UI/UX Components** ✅
+
 - Chat interface working perfectly
 - Real-time message display
 - Approval cards rendering correctly
@@ -39,6 +45,7 @@ Complete end-to-end test of the **Project Initialization & Confirmation** workfl
 - Markdown tables rendering in chat messages
 
 ### 4. **Backend Processing** ✅
+
 - tRPC API calls successful (200 status codes)
 - Database queries executing correctly
 - Variable resolution working (`project_description`, `complexity_classification`)
@@ -49,6 +56,7 @@ Complete end-to-end test of the **Project Initialization & Confirmation** workfl
 ## ⚠️ ISSUE FOUND
 
 ### Agent Hang After 2nd Approval
+
 **Symptom**: After approving "Update Complexity", the agent started typing a response but sent an empty message and got stuck.
 
 **Status**: "Select Workflow Path" remained in "Not Started" state
@@ -59,7 +67,8 @@ Complete end-to-end test of the **Project Initialization & Confirmation** workfl
 
 **Impact**: Minor - the workflow logic works, but the agent's conversation strategy needs tuning
 
-**Likely Cause**: 
+**Likely Cause**:
+
 - The `usageGuidance` says "Call this tool IMMEDIATELY after complexity_classification is approved"
 - But the agent may be prioritizing conversation over tool calling
 - OR the agent completed but failed to send a response message
@@ -68,22 +77,23 @@ Complete end-to-end test of the **Project Initialization & Confirmation** workfl
 
 ## 📊 TEST COVERAGE
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| User Login | ✅ | Authenticated successfully |
-| Project Creation Flow | ✅ | Reached Step 1 of workflow-init-new |
-| Chatbot (ask-user-chat) | ✅ | Intelligent conversation working |
-| Ax Generation Tools | ✅ | 2/4 tools invoked and approved |
-| Approval UI | ✅ | Cards, radio buttons, reasoning all working |
-| Database Updates | ✅ | Execution variables stored correctly |
-| OpenRouter API | ✅ | Multiple successful API calls |
-| Real-time Updates | ✅ | Frontend polling and updating |
+| Component               | Status | Notes                                       |
+| ----------------------- | ------ | ------------------------------------------- |
+| User Login              | ✅     | Authenticated successfully                  |
+| Project Creation Flow   | ✅     | Reached Step 1 of workflow-init-new         |
+| Chatbot (ask-user-chat) | ✅     | Intelligent conversation working            |
+| Ax Generation Tools     | ✅     | 2/4 tools invoked and approved              |
+| Approval UI             | ✅     | Cards, radio buttons, reasoning all working |
+| Database Updates        | ✅     | Execution variables stored correctly        |
+| OpenRouter API          | ✅     | Multiple successful API calls               |
+| Real-time Updates       | ✅     | Frontend polling and updating               |
 
 ---
 
 ## 🎯 ACCEPTANCE CRITERIA STATUS
 
 ### Story 1.8 ACs:
+
 1. ✅ **AC1**: Step 3 "Project Initialization" implemented (seeded in database)
 2. ⏸️ **AC2**: Pre-flight check for git (not tested - would execute in Step 3)
 3. ⏸️ **AC3**: Git init + Database update (not tested - would execute in Step 3)
@@ -133,11 +143,13 @@ Complete end-to-end test of the **Project Initialization & Confirmation** workfl
 ## 🛠️ RECOMMENDED FIXES
 
 ### Short-term (for this story):
+
 1. Review agent's `usageGuidance` text for `select_workflow_path` tool
 2. Consider making tool invocation more explicit/automatic
 3. Add timeout/fallback if agent doesn't invoke tool within N seconds
 
 ### Future Improvements:
+
 1. Add agent behavior monitoring/logging
 2. Implement "stuck detection" - if no tool called after X seconds, prompt user
 3. Consider stricter tool invocation rules (MUST call if dependencies met)
@@ -157,6 +169,7 @@ Complete end-to-end test of the **Project Initialization & Confirmation** workfl
 ## ✅ CONCLUSION
 
 **Story 1.8 is fundamentally WORKING.** The core implementation is solid:
+
 - ✅ OpenRouter integration
 - ✅ Chatbot UI
 - ✅ Approval workflow
@@ -165,7 +178,8 @@ Complete end-to-end test of the **Project Initialization & Confirmation** workfl
 
 The agent hang is a **tuning issue**, not a code defect. The workflow can be completed by adjusting the agent's tool-calling strategy or adding explicit triggers.
 
-**Recommendation**: 
+**Recommendation**:
+
 - Mark Story 1.8 as **"Done with Known Issue"**
 - Create a follow-up task to fix the agent hang (likely 1-2 hour fix)
 - The implementation has proven the architecture works end-to-end
@@ -175,6 +189,7 @@ The agent hang is a **tuning issue**, not a code defect. The workflow can be com
 ## 🎉 MAJOR WIN
 
 This test proves that **all the complex pieces work together**:
+
 - Frontend (React + tRPC + Tanstack Query)
 - Backend (Hono + tRPC + Drizzle ORM)
 - Database (PostgreSQL with complex JSON queries)

@@ -19,12 +19,14 @@
 ## Complete Table List (16 Tables)
 
 ### Core Tables
+
 1. `projects` - Project metadata
 2. `project_state` - Current workflow position
 3. `workflow_paths` - Workflow sequences for project types
 4. `workflow_path_workflows` - Junction table (paths ↔ workflows)
 
 ### Workflow Definition Tables
+
 5. `agents` - AI agents (Analyst, PM, Architect, etc.)
 6. `workflows` - Workflow definitions
 7. `workflow_steps` - Individual steps within workflows
@@ -32,17 +34,21 @@
 9. `workflow_step_actions` - Actions within steps (sequential/parallel)
 
 ### Execution Tables
+
 10. `workflow_executions` - Workflow execution state (runtime)
 11. `project_artifacts` - Generated files tracking
 
 ### System Configuration Tables
+
 12. `app_config` - Application-wide settings (LLM API keys, preferences)
 
 ### Optimization Tables (ax integration)
+
 13. `training_examples` - User corrections for optimization
 14. `optimization_runs` - GEPA optimizer results
 
 ### Future Tables (Epic 2+)
+
 15. `epic_state` - Epic progress tracking
 16. `story_state` - Story progress tracking
 
@@ -65,13 +71,14 @@ export const projects = pgTable("projects", {
   type: projectTypeEnum("type").notNull(),
   fieldType: fieldTypeEnum("field_type").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow()
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 ```
 
 **Indexes:**
+
 ```typescript
-index("projects_name_idx").on(table.name)
+index("projects_name_idx").on(table.name);
 ```
 
 ---
@@ -95,20 +102,17 @@ export const projectState = pgTable("project_state", {
 
   // Current position
   currentPhase: integer("current_phase").notNull().default(1), // 1=Analysis, 2=Planning, 3=Solutioning, 4=Implementation
-  currentWorkflowId: uuid("current_workflow_id")
-    .references(() => workflows.id),
+  currentWorkflowId: uuid("current_workflow_id").references(() => workflows.id),
 
   // Completed workflows (array of workflow IDs)
-  completedWorkflows: jsonb("completed_workflows")
-    .$type<string[]>()
-    .notNull()
-    .default([]),
+  completedWorkflows: jsonb("completed_workflows").$type<string[]>().notNull().default([]),
 
-  lastUpdated: timestamp("last_updated").notNull().defaultNow()
+  lastUpdated: timestamp("last_updated").notNull().defaultNow(),
 });
 ```
 
 **Key Points:**
+
 - One row per project
 - `completedWorkflows` tracks progress (e.g., `["brainstorm-project", "research"]`)
 - workflow-status reads/writes to this table (NO FILES!)
@@ -129,7 +133,7 @@ export const workflowPaths = pgTable("workflow_paths", {
   description: text("description").notNull(),
 
   createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow()
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 ```
 
@@ -159,11 +163,12 @@ export const workflowPathWorkflows = pgTable("workflow_path_workflows", {
   isOptional: boolean("is_optional").notNull().default(false),
   isRecommended: boolean("is_recommended").notNull().default(false),
 
-  createdAt: timestamp("created_at").notNull().defaultNow()
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 ```
 
 **Example Data (greenfield-level-3, Phase 1):**
+
 ```sql
 INSERT INTO workflow_path_workflows (workflow_path_id, workflow_id, phase, sequence_order, is_optional) VALUES
   ('greenfield-3-uuid', 'brainstorm-project-uuid', 1, 1, true),
@@ -201,7 +206,7 @@ export const agents = pgTable("agents", {
   active: boolean("active").notNull().default(true),
 
   createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow()
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 export type AgentTool = {
@@ -220,7 +225,7 @@ export const workflowPatternEnum = pgEnum("workflow_pattern", [
   "sequential-dependencies",
   "parallel-independence",
   "structured-exploration",
-  "focused-dialogs"
+  "focused-dialogs",
 ]);
 
 export const workflows = pgTable("workflows", {
@@ -238,7 +243,7 @@ export const workflows = pgTable("workflows", {
   outputArtifactTemplateId: uuid("output_artifact_template_id"), // Future: reference to templates table
 
   createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow()
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 ```
 
@@ -259,7 +264,7 @@ export const stepTypeEnum = pgEnum("step_type", [
   "execute-action",
   "invoke-workflow",
   "display-output",
-  "load-context" // NEW!
+  "load-context", // NEW!
 ]);
 
 export const workflowSteps = pgTable("workflow_steps", {
@@ -281,14 +286,15 @@ export const workflowSteps = pgTable("workflow_steps", {
   // Next step (null if routing via branches)
   nextStepId: uuid("next_step_id").references(() => workflowSteps.id),
 
-  createdAt: timestamp("created_at").notNull().defaultNow()
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 ```
 
 **Indexes:**
+
 ```typescript
-index("workflow_steps_workflow_id_idx").on(table.workflowId),
-index("workflow_steps_workflow_step_idx").on(table.workflowId, table.stepNumber)
+(index("workflow_steps_workflow_id_idx").on(table.workflowId),
+  index("workflow_steps_workflow_step_idx").on(table.workflowId, table.stepNumber));
 ```
 
 ---
@@ -403,13 +409,14 @@ export const workflowStepBranches = pgTable("workflow_step_branches", {
   // Ordering for select dropdowns
   displayOrder: integer("display_order"),
 
-  createdAt: timestamp("created_at").notNull().defaultNow()
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 ```
 
 **Example Data:**
 
 **Boolean Branch:**
+
 ```sql
 INSERT INTO workflow_step_branches (step_id, branch_key, next_step_id) VALUES
   ('check-status-step-uuid', 'true', 'continue-step-uuid'),
@@ -417,6 +424,7 @@ INSERT INTO workflow_step_branches (step_id, branch_key, next_step_id) VALUES
 ```
 
 **Select Branch (6-way):**
+
 ```sql
 INSERT INTO workflow_step_branches (step_id, branch_key, branch_label, next_step_id, display_order) VALUES
   ('route-research-uuid', '1', 'Market Research', 'market-research-uuid', 1),
@@ -437,7 +445,7 @@ INSERT INTO workflow_step_branches (step_id, branch_key, branch_label, next_step
 export const actionExecutionEnum = pgEnum("action_execution", [
   "sequential",
   "parallel",
-  "conditional"
+  "conditional",
 ]);
 
 export const workflowStepActions = pgTable("workflow_step_actions", {
@@ -457,13 +465,14 @@ export const workflowStepActions = pgTable("workflow_step_actions", {
   // Conditional execution (optional)
   condition: text("condition"),
 
-  createdAt: timestamp("created_at").notNull().defaultNow()
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 ```
 
 **Example Actions:**
 
 **Set Variable:**
+
 ```typescript
 {
   actionType: "set-variable",
@@ -475,6 +484,7 @@ export const workflowStepActions = pgTable("workflow_step_actions", {
 ```
 
 **Database Insert (save artifact):**
+
 ```typescript
 {
   actionType: "database-insert",
@@ -505,7 +515,7 @@ export const workflowStatusEnum = pgEnum("workflow_status", [
   "active",
   "paused",
   "completed",
-  "failed"
+  "failed",
 ]);
 
 export const workflowExecutions = pgTable("workflow_executions", {
@@ -523,32 +533,30 @@ export const workflowExecutions = pgTable("workflow_executions", {
   status: workflowStatusEnum("status").notNull().default("idle"),
 
   // Current step
-  currentStepId: uuid("current_step_id")
-    .references(() => workflowSteps.id),
+  currentStepId: uuid("current_step_id").references(() => workflowSteps.id),
 
   // ALL RUNTIME DATA STORED HERE!
-  variables: jsonb("variables")
-    .$type<Record<string, any>>()
-    .notNull()
-    .default({}),
+  variables: jsonb("variables").$type<Record<string, any>>().notNull().default({}),
   contextData: jsonb("context_data").$type<Record<string, any>>(),
 
   startedAt: timestamp("started_at"),
   completedAt: timestamp("completed_at"),
   pausedAt: timestamp("paused_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow()
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 ```
 
 **Indexes:**
+
 ```typescript
-index("workflow_executions_project_id_idx").on(table.projectId),
-index("workflow_executions_status_idx").on(table.status),
-index("workflow_executions_project_status_idx").on(table.projectId, table.status)
+(index("workflow_executions_project_id_idx").on(table.projectId),
+  index("workflow_executions_status_idx").on(table.status),
+  index("workflow_executions_project_status_idx").on(table.projectId, table.status));
 ```
 
 **Key Points:**
+
 - `variables` JSONB stores ALL step outputs (e.g., `{ status_exists: true, project_level: 3, brainstorming_results: "..." }`)
 - Steps read/write from `variables` using `storeAs` and `evaluateVariable` config fields
 - Workflow can pause/resume by storing `currentStepId`
@@ -569,8 +577,7 @@ export const projectArtifacts = pgTable("project_artifacts", {
   artifactType: text("artifact_type").notNull(), // "brainstorming-session", "product-brief", "prd"
   filePath: text("file_path").notNull(), // Path to actual file (e.g., /docs/brainstorming-2025-11-05.md)
 
-  workflowId: uuid("workflow_id")
-    .references(() => workflows.id),
+  workflowId: uuid("workflow_id").references(() => workflows.id),
 
   // FR034: Git commit hash tracking (type-safe column)
   gitCommitHash: text("git_commit_hash"), // Git hash of artifact version
@@ -578,18 +585,20 @@ export const projectArtifacts = pgTable("project_artifacts", {
   metadata: jsonb("metadata").$type<Record<string, any>>(), // Artifact-specific metadata
 
   createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow()
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 ```
 
 **Indexes:**
+
 ```typescript
-index("project_artifacts_project_id_idx").on(table.projectId),
-index("project_artifacts_type_idx").on(table.artifactType),
-index("project_artifacts_git_hash_idx").on(table.gitCommitHash)
+(index("project_artifacts_project_id_idx").on(table.projectId),
+  index("project_artifacts_type_idx").on(table.artifactType),
+  index("project_artifacts_git_hash_idx").on(table.gitCommitHash));
 ```
 
 **Example Data:**
+
 ```sql
 INSERT INTO project_artifacts (project_id, artifact_type, file_path, workflow_id, git_commit_hash, metadata) VALUES
   ('project-uuid', 'brainstorming-session', '/docs/brainstorming-session-2025-11-05.md', 'wf-brainstorm-uuid', 'abc123def456', '{"techniques": ["Mind Mapping", "SCAMPER"]}'),
@@ -610,20 +619,21 @@ export const appConfig = pgTable("app_config", {
 
   // LLM Provider API Keys (encrypted at rest!)
   openrouterApiKey: text("openrouter_api_key"), // PRIMARY - required for first-time setup
-  anthropicApiKey: text("anthropic_api_key"),   // Optional fallback
-  openaiApiKey: text("openai_api_key"),         // Optional fallback
+  anthropicApiKey: text("anthropic_api_key"), // Optional fallback
+  openaiApiKey: text("openai_api_key"), // Optional fallback
 
   // Default Provider Configuration
   defaultLlmProvider: text("default_llm_provider").default("openrouter"), // "openrouter", "anthropic", "openai"
 
   // Timestamps
   createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow()
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 ```
 
 **Single-Row Table:**
 This table should have exactly ONE row (singleton pattern). Enforce in application logic:
+
 ```typescript
 // On first launch
 if ((await db.select().from(appConfig)).length === 0) {
@@ -632,6 +642,7 @@ if ((await db.select().from(appConfig)).length === 0) {
 ```
 
 **Example Data:**
+
 ```sql
 -- First-time setup (user configures OpenRouter key)
 INSERT INTO app_config (openrouter_api_key, default_llm_provider) VALUES
@@ -645,6 +656,7 @@ WHERE id = (SELECT id FROM app_config LIMIT 1);
 ```
 
 **Security Notes:**
+
 1. **Encryption at Rest:** Use `@node-rs/bcrypt` to encrypt keys before storing
 2. **Never Log Keys:** Implement strict no-log policy for API keys
 3. **Key Rotation:** Allow user to update keys without re-entering all
@@ -652,6 +664,7 @@ WHERE id = (SELECT id FROM app_config LIMIT 1);
 5. **Validation:** Test API key with sample call before saving (prevent typos)
 
 **First-Time Setup Flow (Story 1.4):**
+
 1. User launches Chiron → Check if `app_config` table is empty
 2. If empty → Show "API Key Setup" screen
 3. User enters OpenRouter API key → Validate with test call
@@ -665,8 +678,7 @@ WHERE id = (SELECT id FROM app_config LIMIT 1);
 ```typescript
 export const trainingExamples = pgTable("training_examples", {
   id: uuid("id").primaryKey().defaultRandom(),
-  projectId: uuid("project_id")
-    .references(() => projects.id, { onDelete: "cascade" }),
+  projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }),
 
   workflowId: text("workflow_id").notNull(), // e.g., "workflow-init"
   stepId: text("step_id").notNull(), // e.g., "classify-level"
@@ -676,7 +688,7 @@ export const trainingExamples = pgTable("training_examples", {
   originalPrediction: jsonb("original_prediction"), // Wrong LLM prediction
 
   createdAt: timestamp("created_at").notNull().defaultNow(),
-  usedInOptimizationAt: timestamp("used_in_optimization_at")
+  usedInOptimizationAt: timestamp("used_in_optimization_at"),
 });
 ```
 
@@ -701,7 +713,7 @@ export const optimizationRuns = pgTable("optimization_runs", {
   optimizationFilePath: text("optimization_file_path").notNull(), // Path to JSON file
   appliedAt: timestamp("applied_at"),
 
-  createdAt: timestamp("created_at").notNull().defaultNow()
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 ```
 
@@ -718,7 +730,7 @@ export const epicState = pgTable("epic_state", {
   epicNumber: integer("epic_number").notNull(),
   status: text("status").notNull(), // "todo", "in-progress", "done"
   createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow()
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 export const storyState = pgTable("story_state", {
@@ -730,7 +742,7 @@ export const storyState = pgTable("story_state", {
   storyNumber: text("story_number").notNull(),
   status: text("status").notNull(), // "todo", "in-progress", "done"
   createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow()
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 ```
 
@@ -742,17 +754,18 @@ export const storyState = pgTable("story_state", {
 
 **All runtime data in `workflow_executions.variables` JSONB:**
 
-| Step Type | Reads Variables? | Writes Variables? | Config Fields |
-|-----------|------------------|-------------------|---------------|
-| `ask-user` | ❌ | ✅ | `storeAs` |
-| `llm-generate` | ✅ (for prompt) | ✅ | `storeAs`, `promptTemplate` |
-| `check-condition` | ✅ | ❌ | `evaluateVariable` |
-| `execute-action` | ✅ (for params) | ✅ (optional) | action config |
-| `invoke-workflow` | ✅ (for inputs) | ✅ | `inputParams`, `outputMapping` |
-| `load-context` | ❌ | ✅ | `storeAs`, `contextContent` |
-| `display-output` | ✅ (for template) | ❌ | `outputTemplate` |
+| Step Type         | Reads Variables?  | Writes Variables? | Config Fields                  |
+| ----------------- | ----------------- | ----------------- | ------------------------------ |
+| `ask-user`        | ❌                | ✅                | `storeAs`                      |
+| `llm-generate`    | ✅ (for prompt)   | ✅                | `storeAs`, `promptTemplate`    |
+| `check-condition` | ✅                | ❌                | `evaluateVariable`             |
+| `execute-action`  | ✅ (for params)   | ✅ (optional)     | action config                  |
+| `invoke-workflow` | ✅ (for inputs)   | ✅                | `inputParams`, `outputMapping` |
+| `load-context`    | ❌                | ✅                | `storeAs`, `contextContent`    |
+| `display-output`  | ✅ (for template) | ❌                | `outputTemplate`               |
 
 **Example Flow:**
+
 ```typescript
 // Step 1 outputs:
 { status_exists: true, project_id: "uuid-123", project_level: 3 }
@@ -804,13 +817,14 @@ evaluateVariable: "status_exists" → branches based on value
 
 **Three branching types:**
 
-| Type | User Input | Evaluation | Branches | Example |
-|------|-----------|------------|----------|---------|
-| **Boolean** | Yes/No | Concrete (JS eval) | 2 (true/false) | "Confirm Level 3?" |
-| **Select** | Choose from list | Concrete (key match) | N (one per option) | "Choose research type: 1-6" |
-| **Abstract** | Free-form text | LLM interpretation | 2 (true/false) | "Describe complexity" → LLM decides |
+| Type         | User Input       | Evaluation           | Branches           | Example                             |
+| ------------ | ---------------- | -------------------- | ------------------ | ----------------------------------- |
+| **Boolean**  | Yes/No           | Concrete (JS eval)   | 2 (true/false)     | "Confirm Level 3?"                  |
+| **Select**   | Choose from list | Concrete (key match) | N (one per option) | "Choose research type: 1-6"         |
+| **Abstract** | Free-form text   | LLM interpretation   | 2 (true/false)     | "Describe complexity" → LLM decides |
 
 **Execution:**
+
 1. `AskUserStep` captures input → stores in `variables[storeAs]`
 2. `CheckConditionStep` reads `variables[evaluateVariable]`
 3. Match against `workflow_step_branches.branchKey`
@@ -821,10 +835,12 @@ evaluateVariable: "status_exists" → branches based on value
 ### 4. Step Linking
 
 **Every step has `nextStepId`:**
+
 - If routing is **linear**: `nextStepId = "next-step-uuid"`
 - If routing is **conditional**: `nextStepId = null` → use `workflow_step_branches` table
 
 **Example:**
+
 ```
 Step 1 (validate) → nextStepId: step-2-uuid
 Step 2 (check-condition) → nextStepId: null → branches:
@@ -880,16 +896,19 @@ Step 4 (load-context) → nextStepId: step-5-uuid
 ## Next Session Context
 
 **What's Ready:**
+
 - Complete schema design (15 tables)
 - brainstorm-project workflow fully mapped
 - research workflow fully mapped (6-way select branching)
 
 **What's Pending:**
+
 - product-brief workflow mapping (interactive vs YOLO mode)
 - Seed data generation
 - Schema implementation in Drizzle ORM
 
 **Files to Reference:**
+
 - This file: `docs/architecture/database-schema-final.md`
 - Workflow mappings: Reference brainstorm-project and research examples
 - BMad paths: `bmad/bmm/workflows/workflow-status/paths/greenfield-level-3.yaml`

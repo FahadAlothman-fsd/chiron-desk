@@ -7,6 +7,7 @@
 ## Current Documentation (21 files: 19 markdown + 2 HTML)
 
 ### ✅ **Living Documents** (Active - Keep in Root)
+
 These are continuously updated and referenced during development:
 
 1. **bmm-workflow-status.md** - Master status file (updated every session)
@@ -19,6 +20,7 @@ These are continuously updated and referenced during development:
 ---
 
 ### 📚 **Core Reference Docs** (Keep in Root - Stable)
+
 Foundation documents that guide implementation but rarely change:
 
 5. **architecture-decisions.md** - Key architectural choices
@@ -32,12 +34,14 @@ Foundation documents that guide implementation but rarely change:
 ---
 
 ### 🎨 **Design Mockups (HTML)** - Keep Active, Archive When Superseded
+
 Interactive HTML visualizations for UX ideation and layout exploration:
 
 20. **ux-color-themes.html** - Color system visualizer (CARBON, CAMO palettes + agent colors)
 21. **ux-design-directions.html** - Layout exploration mockup
 
 **Purpose:**
+
 - Quick visual feedback during design ideation
 - Show stakeholders/thesis committee actual UX direction
 - Test color palettes, spacing, typography in browser
@@ -46,12 +50,14 @@ Interactive HTML visualizations for UX ideation and layout exploration:
 **Action:** Keep in `docs/design/mockups/` - These are valuable for ongoing UX work!
 
 **When to Archive:**
+
 - When feature is implemented in actual app → move to `docs/archive/design/mockups/`
 - When design direction changes → keep new version, archive old
 
 ---
 
 ### 🗃️ **Checkpoint/Session Docs** (Archive)
+
 One-time snapshots created during specific phases:
 
 10. **brainstorming-session-results-2025-01-24.md** - Brainstorming output
@@ -64,6 +70,7 @@ One-time snapshots created during specific phases:
 ---
 
 ### 🔬 **Research & Exploration** (Archive)
+
 Documents created during research/exploration that fed into final decisions:
 
 14. **framework-evaluation-effect-vs-mastra.md** - Tool research
@@ -76,12 +83,14 @@ Documents created during research/exploration that fed into final decisions:
 ---
 
 ### 🎨 **Design Exploration Docs** (Keep or Archive Based on Value)
+
 UI/UX exploration documents:
 
 18. **chiron-ui-wireframes-v1.md** - Early wireframes
 19. **ux-pattern-structured-exploration-lists.md** - Pattern exploration
 
 **Action:**
+
 - If still referenced → Keep in `docs/design/`
 - If superseded by ux-design-specification.md → Move to `docs/archive/design/`
 
@@ -140,6 +149,7 @@ docs/
 ### When to Create HTML Mockups
 
 **Good Use Cases:**
+
 - ✅ Color palette exploration (like ux-color-themes.html)
 - ✅ Layout direction testing (like ux-design-directions.html)
 - ✅ Component spacing/sizing visualization
@@ -149,6 +159,7 @@ docs/
 - ✅ Chat interface patterns
 
 **Example Scenarios:**
+
 ```
 Ideation Session → Create HTML mockup → Review in browser →
 Document decision in .md → Keep HTML in mockups/ →
@@ -174,16 +185,16 @@ Examples:
 ```html
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Chiron UX - [Feature Name]</title>
     <style>
-        /* Inline styles for portability */
-        /* Use CARBON/CAMO colors from ux-design-specification.md */
+      /* Inline styles for portability */
+      /* Use CARBON/CAMO colors from ux-design-specification.md */
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <!--
     Purpose: [What this mockup explores]
     Created: [Date]
@@ -192,7 +203,7 @@ Examples:
     -->
 
     <!-- Mockup content here -->
-</body>
+  </body>
 </html>
 ```
 
@@ -234,18 +245,21 @@ mv framework-evaluation-effect-vs-mastra.md tool-research-requirements.md workfl
 ## Rules Going Forward
 
 ### **Keep in Root:**
+
 - bmm-workflow-status.md (master status)
 - next-session-guide.md (quick start)
 - PRD.md (requirements reference)
 - epics.md (epic tracking)
 
 ### **Create in Subdirs:**
+
 - `architecture/` - Architecture decisions
 - `design/` - UX/UI specs and patterns
 - `design/mockups/` - HTML visualizations (keep active, archive when superseded)
 - `stories/` - Story files (JIT creation)
 
 ### **HTML Mockups:**
+
 - Create for ideation/exploration (color, layout, interaction)
 - Keep in `design/mockups/` while active
 - Add HTML comment with purpose, date, status
@@ -253,12 +267,14 @@ mv framework-evaluation-effect-vs-mastra.md tool-research-requirements.md workfl
 - Version if exploring multiple directions (v1, v2, etc.)
 
 ### **Archive When:**
+
 - Document is a one-time checkpoint (gate checks, session handoffs)
 - Document is superseded by newer version
 - Document is exploratory research that fed into final decision
 - HTML mockup is implemented in actual app
 
 ### **When in Doubt:**
+
 - If actively referenced during dev → keep in organized subdir
 - If historical reference only → archive with phase label
 - If research/exploration → archive in research/
@@ -281,6 +297,7 @@ mv framework-evaluation-effect-vs-mastra.md tool-research-requirements.md workfl
 ## HTML Mockup Benefits for Thesis
 
 **Why HTML mockups are valuable:**
+
 - Show visual evolution of UX design (not just wireframes)
 - Demonstrate iterative design process
 - Interactive examples for thesis presentation/defense
@@ -289,6 +306,7 @@ mv framework-evaluation-effect-vs-mastra.md tool-research-requirements.md workfl
 - Can embed in thesis appendix or host on portfolio site
 
 **Thesis Chapter Ideas:**
+
 - "Appendix A: UX Mockup Gallery" (archived HTML files)
 - "Chapter 4: Visual Design Process" (reference mockups/)
 - "Figure 4.2: Color System Evolution" (ux-color-themes.html screenshot)
@@ -298,12 +316,14 @@ mv framework-evaluation-effect-vs-mastra.md tool-research-requirements.md workfl
 ## Next Steps
 
 **Option A: Full Migration Now (Recommended)**
+
 ```bash
 # Run migration commands above
 # Takes 2 minutes, organized immediately
 ```
 
 **Option B: Minimal Cleanup (Quick)**
+
 ```bash
 # Just create mockups folder and archive obvious checkpoints
 mkdir -p docs/design/mockups docs/archive/phase-3-solutioning
@@ -312,6 +332,7 @@ mv docs/next-session-context.md docs/implementation-readiness-report-2025-11-03.
 ```
 
 **Option C: Defer to Story 1.6**
+
 ```bash
 # Epic 1 Story 1.6 is "Status Tracking"
 # Could expand to include documentation cleanup

@@ -1,117 +1,105 @@
 import { Context, Data, Effect, Layer } from "effect";
-import type {
-	StepHandlerInput,
-	StepHandlerOutput,
-} from "../effect/step-registry";
+import type { StepHandlerInput, StepHandlerOutput } from "../effect/step-registry";
 
 export class DisplayOutputError extends Data.TaggedError("DisplayOutputError")<{
-	readonly cause: unknown;
-	readonly message: string;
+  readonly cause: unknown;
+  readonly message: string;
 }> {}
 
 export interface DisplayOutputConfig {
-	readonly outputTemplate: string;
-	readonly outputType?: "info" | "warning" | "error" | "success";
-	readonly requiresAcknowledgment?: boolean;
+  readonly outputTemplate: string;
+  readonly outputType?: "info" | "warning" | "error" | "success";
+  readonly requiresAcknowledgment?: boolean;
 }
 
 export interface DisplayOutputHandlerOutput extends StepHandlerOutput {
-	readonly requiresUserInput: boolean;
-	readonly renderedOutput?: string;
-	readonly outputType?: string;
+  readonly requiresUserInput: boolean;
+  readonly renderedOutput?: string;
+  readonly outputType?: string;
 }
 
 export interface DisplayOutputHandler {
-	readonly _tag: "DisplayOutputHandler";
-	execute: (
-		input: StepHandlerInput,
-		userInput?: unknown,
-	) => Effect.Effect<DisplayOutputHandlerOutput, DisplayOutputError>;
+  readonly _tag: "DisplayOutputHandler";
+  execute: (
+    input: StepHandlerInput,
+    userInput?: unknown,
+  ) => Effect.Effect<DisplayOutputHandlerOutput, DisplayOutputError>;
 }
 
-export const DisplayOutputHandler = Context.GenericTag<DisplayOutputHandler>(
-	"DisplayOutputHandler",
-);
+export const DisplayOutputHandler =
+  Context.GenericTag<DisplayOutputHandler>("DisplayOutputHandler");
 
-function resolveTemplate(
-	template: string,
-	variables: Record<string, unknown>,
-): string {
-	return template.replace(/\{\{(\w+)\}\}/g, (_, varName) => {
-		const value = variables[varName];
-		if (value === undefined || value === null) return `{{${varName}}}`;
-		return String(value);
-	});
+function resolveTemplate(template: string, variables: Record<string, unknown>): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (_, varName) => {
+    const value = variables[varName];
+    if (value === undefined || value === null) return `{{${varName}}}`;
+    return String(value);
+  });
 }
 
 export const DisplayOutputHandlerLive = Layer.succeed(DisplayOutputHandler, {
-	_tag: "DisplayOutputHandler" as const,
+  _tag: "DisplayOutputHandler" as const,
 
-	execute: (input: StepHandlerInput, userInput?: unknown) =>
-		Effect.gen(function* () {
-			const config = input.stepConfig as unknown as DisplayOutputConfig;
+  execute: (input: StepHandlerInput, userInput?: unknown) =>
+    Effect.gen(function* () {
+      const config = input.stepConfig as unknown as DisplayOutputConfig;
 
-			if (!config.outputTemplate && typeof config.outputTemplate !== "string") {
-				return yield* Effect.fail(
-					new DisplayOutputError({
-						cause: new Error("Missing outputTemplate in config"),
-						message: "DisplayOutput step requires an outputTemplate",
-					}),
-				);
-			}
+      if (!config.outputTemplate && typeof config.outputTemplate !== "string") {
+        return yield* Effect.fail(
+          new DisplayOutputError({
+            cause: new Error("Missing outputTemplate in config"),
+            message: "DisplayOutput step requires an outputTemplate",
+          }),
+        );
+      }
 
-			const renderedOutput = resolveTemplate(
-				config.outputTemplate || "",
-				input.variables,
-			);
-			const outputType = config.outputType ?? "info";
-			const requiresAck = config.requiresAcknowledgment !== false;
+      const renderedOutput = resolveTemplate(config.outputTemplate || "", input.variables);
+      const outputType = config.outputType ?? "info";
+      const requiresAck = config.requiresAcknowledgment !== false;
 
-			if (requiresAck && !userInput) {
-				return {
-					result: { rendered: renderedOutput, type: outputType },
-					renderedOutput,
-					outputType,
-					requiresUserInput: true,
-				};
-			}
+      if (requiresAck && !userInput) {
+        return {
+          result: { rendered: renderedOutput, type: outputType },
+          renderedOutput,
+          outputType,
+          requiresUserInput: true,
+        };
+      }
 
-			return {
-				result: { rendered: renderedOutput, type: outputType },
-				renderedOutput,
-				outputType,
-				requiresUserInput: false,
-			};
-		}),
+      return {
+        result: { rendered: renderedOutput, type: outputType },
+        renderedOutput,
+        outputType,
+        requiresUserInput: false,
+      };
+    }),
 });
 
 export function createLegacyDisplayOutputHandler() {
-	return {
-		async executeStep(
-			step: { config: unknown; nextStepNumber: number | null },
-			_context: unknown,
-			userInput?: unknown,
-		) {
-			const input: StepHandlerInput = {
-				stepConfig: step.config as Record<string, unknown>,
-				variables: {},
-				executionId: "",
-			};
+  return {
+    async executeStep(
+      step: { config: unknown; nextStepNumber: number | null },
+      _context: unknown,
+      userInput?: unknown,
+    ) {
+      const input: StepHandlerInput = {
+        stepConfig: step.config as Record<string, unknown>,
+        variables: {},
+        executionId: "",
+      };
 
-			const program = Effect.provide(
-				Effect.flatMap(DisplayOutputHandler, (handler) =>
-					handler.execute(input, userInput),
-				),
-				DisplayOutputHandlerLive,
-			);
+      const program = Effect.provide(
+        Effect.flatMap(DisplayOutputHandler, (handler) => handler.execute(input, userInput)),
+        DisplayOutputHandlerLive,
+      );
 
-			const result = await Effect.runPromise(program);
+      const result = await Effect.runPromise(program);
 
-			return {
-				output: result.result,
-				nextStepNumber: step.nextStepNumber ?? null,
-				requiresUserInput: result.requiresUserInput,
-			};
-		},
-	};
+      return {
+        output: result.result,
+        nextStepNumber: step.nextStepNumber ?? null,
+        requiresUserInput: result.requiresUserInput,
+      };
+    },
+  };
 }

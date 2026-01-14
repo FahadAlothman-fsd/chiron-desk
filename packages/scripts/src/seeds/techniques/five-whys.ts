@@ -20,48 +20,44 @@ import { db, workflowSteps } from "@chiron/db";
  *         bmad/cis/workflows/problem-solving/solving-methods.csv (line 2)
  */
 export async function seedFiveWhysTechnique() {
-	// Query brainstorming-coach agent ID (Carson - Elite Brainstorming Specialist)
-	const coachAgent = await db.query.agents.findFirst({
-		where: (agents, { eq }) => eq(agents.name, "brainstorming-coach"),
-	});
+  // Query brainstorming-coach agent ID (Carson - Elite Brainstorming Specialist)
+  const coachAgent = await db.query.agents.findFirst({
+    where: (agents, { eq }) => eq(agents.name, "brainstorming-coach"),
+  });
 
-	if (!coachAgent) {
-		console.error(
-			"  ❌ Brainstorming Coach agent not found - cannot seed Five Whys technique",
-		);
-		return;
-	}
+  if (!coachAgent) {
+    console.error("  ❌ Brainstorming Coach agent not found - cannot seed Five Whys technique");
+    return;
+  }
 
-	// Query existing workflow
-	const workflow = await db.query.workflows.findFirst({
-		where: (workflows, { eq }) => eq(workflows.name, "five-whys"),
-	});
+  // Query existing workflow
+  const workflow = await db.query.workflows.findFirst({
+    where: (workflows, { eq }) => eq(workflows.name, "five-whys"),
+  });
 
-	if (!workflow) {
-		console.error(
-			"  ❌ Five Whys workflow not found - run workflow seeder first",
-		);
-		return;
-	}
+  if (!workflow) {
+    console.error("  ❌ Five Whys workflow not found - run workflow seeder first");
+    return;
+  }
 
-	console.log("  ✓ Five Whys workflow found (Brainstorming Coach agent)");
+  console.log("  ✓ Five Whys workflow found (Brainstorming Coach agent)");
 
-	// Check if steps already exist
-	const existingSteps = await db.query.workflowSteps.findMany({
-		where: (steps, { eq }) => eq(steps.workflowId, workflow.id),
-	});
+  // Check if steps already exist
+  const existingSteps = await db.query.workflowSteps.findMany({
+    where: (steps, { eq }) => eq(steps.workflowId, workflow.id),
+  });
 
-	if (existingSteps.length > 0) {
-		console.log("  ℹ️  Five Whys steps already exist, skipping step seeding");
-		return;
-	}
+  if (existingSteps.length > 0) {
+    console.log("  ℹ️  Five Whys steps already exist, skipping step seeding");
+    return;
+  }
 
-	// Step 1: Interactive Five Whys Session
-	// 5 sequential update-variable tools with object type for Q&A pairs
-	const step1Config: AskUserChatStepConfig = {
-		agentId: coachAgent.id,
-		generateInitialMessage: true,
-		initialPrompt: `You are Carson, an elite brainstorming facilitator who loves helping people drill down to root causes through the Five Whys technique!
+  // Step 1: Interactive Five Whys Session
+  // 5 sequential update-variable tools with object type for Q&A pairs
+  const step1Config: AskUserChatStepConfig = {
+    agentId: coachAgent.id,
+    generateInitialMessage: true,
+    initialPrompt: `You are Carson, an elite brainstorming facilitator who loves helping people drill down to root causes through the Five Whys technique!
 
 **Session Context:**
 Topic: {{parent.session_topic}}
@@ -96,15 +92,14 @@ Start with energy: "🔬 Let's solve this mystery! We'll ask WHY five times to f
 
 Then ask a SPECIFIC first WHY question (not generic "Why?", but tailored to their topic).`,
 
-		tools: [
-			// WHY 1
-			{
-				name: "save_why_1",
-				toolType: "update-variable",
-				targetVariable: "why_1",
-				description:
-					"Save Question 1 and Answer 1 as first link in causal chain",
-				usageGuidance: `
+    tools: [
+      // WHY 1
+      {
+        name: "save_why_1",
+        toolType: "update-variable",
+        targetVariable: "why_1",
+        description: "Save Question 1 and Answer 1 as first link in causal chain",
+        usageGuidance: `
 					**When to call:** After multi-turn conversation reaches a clear answer to your first WHY question.
 					
 					**What to save:**
@@ -118,32 +113,31 @@ Then ask a SPECIFIC first WHY question (not generic "Why?", but tailored to thei
 					
 					**Progress:** This is Why 1 of 5
 				`,
-				requiredVariables: [], // First tool, no prerequisites
-				requiresApproval: true,
-				valueSchema: {
-					type: "object",
-					required: ["question", "answer"],
-					properties: {
-						question: {
-							type: "string",
-							description: "The specific WHY question you asked the user",
-						},
-						answer: {
-							type: "string",
-							description: "The final clarified answer from the conversation",
-						},
-					},
-				},
-			},
+        requiredVariables: [], // First tool, no prerequisites
+        requiresApproval: true,
+        valueSchema: {
+          type: "object",
+          required: ["question", "answer"],
+          properties: {
+            question: {
+              type: "string",
+              description: "The specific WHY question you asked the user",
+            },
+            answer: {
+              type: "string",
+              description: "The final clarified answer from the conversation",
+            },
+          },
+        },
+      },
 
-			// WHY 2
-			{
-				name: "save_why_2",
-				toolType: "update-variable",
-				targetVariable: "why_2",
-				description:
-					"Save Question 2 and Answer 2 as second link in causal chain",
-				usageGuidance: `
+      // WHY 2
+      {
+        name: "save_why_2",
+        toolType: "update-variable",
+        targetVariable: "why_2",
+        description: "Save Question 2 and Answer 2 as second link in causal chain",
+        usageGuidance: `
 					**When to call:** After multi-turn conversation about the second WHY question.
 					
 					**What to save:**
@@ -156,33 +150,31 @@ Then ask a SPECIFIC first WHY question (not generic "Why?", but tailored to thei
 					
 					**Progress:** This is Why 2 of 5
 				`,
-				requiredVariables: ["why_1"], // Blocked until first why approved
-				requiresApproval: true,
-				valueSchema: {
-					type: "object",
-					required: ["question", "answer"],
-					properties: {
-						question: {
-							type: "string",
-							description:
-								"The specific WHY question based on the previous answer",
-						},
-						answer: {
-							type: "string",
-							description: "The final clarified answer from the conversation",
-						},
-					},
-				},
-			},
+        requiredVariables: ["why_1"], // Blocked until first why approved
+        requiresApproval: true,
+        valueSchema: {
+          type: "object",
+          required: ["question", "answer"],
+          properties: {
+            question: {
+              type: "string",
+              description: "The specific WHY question based on the previous answer",
+            },
+            answer: {
+              type: "string",
+              description: "The final clarified answer from the conversation",
+            },
+          },
+        },
+      },
 
-			// WHY 3
-			{
-				name: "save_why_3",
-				toolType: "update-variable",
-				targetVariable: "why_3",
-				description:
-					"Save Question 3 and Answer 3 as third link in causal chain",
-				usageGuidance: `
+      // WHY 3
+      {
+        name: "save_why_3",
+        toolType: "update-variable",
+        targetVariable: "why_3",
+        description: "Save Question 3 and Answer 3 as third link in causal chain",
+        usageGuidance: `
 					**When to call:** After multi-turn conversation about the third WHY question.
 					
 					**What to save:**
@@ -195,33 +187,31 @@ Then ask a SPECIFIC first WHY question (not generic "Why?", but tailored to thei
 					
 					**Progress:** This is Why 3 of 5 - past halfway!
 				`,
-				requiredVariables: ["why_2"],
-				requiresApproval: true,
-				valueSchema: {
-					type: "object",
-					required: ["question", "answer"],
-					properties: {
-						question: {
-							type: "string",
-							description:
-								"The specific WHY question based on the previous answer",
-						},
-						answer: {
-							type: "string",
-							description: "The final clarified answer from the conversation",
-						},
-					},
-				},
-			},
+        requiredVariables: ["why_2"],
+        requiresApproval: true,
+        valueSchema: {
+          type: "object",
+          required: ["question", "answer"],
+          properties: {
+            question: {
+              type: "string",
+              description: "The specific WHY question based on the previous answer",
+            },
+            answer: {
+              type: "string",
+              description: "The final clarified answer from the conversation",
+            },
+          },
+        },
+      },
 
-			// WHY 4
-			{
-				name: "save_why_4",
-				toolType: "update-variable",
-				targetVariable: "why_4",
-				description:
-					"Save Question 4 and Answer 4 as fourth link in causal chain",
-				usageGuidance: `
+      // WHY 4
+      {
+        name: "save_why_4",
+        toolType: "update-variable",
+        targetVariable: "why_4",
+        description: "Save Question 4 and Answer 4 as fourth link in causal chain",
+        usageGuidance: `
 					**When to call:** After multi-turn conversation about the fourth WHY question.
 					
 					**What to save:**
@@ -235,32 +225,31 @@ Then ask a SPECIFIC first WHY question (not generic "Why?", but tailored to thei
 					
 					**Progress:** This is Why 4 of 5 - almost there!
 				`,
-				requiredVariables: ["why_3"],
-				requiresApproval: true,
-				valueSchema: {
-					type: "object",
-					required: ["question", "answer"],
-					properties: {
-						question: {
-							type: "string",
-							description:
-								"The specific WHY question based on the previous answer",
-						},
-						answer: {
-							type: "string",
-							description: "The final clarified answer from the conversation",
-						},
-					},
-				},
-			},
+        requiredVariables: ["why_3"],
+        requiresApproval: true,
+        valueSchema: {
+          type: "object",
+          required: ["question", "answer"],
+          properties: {
+            question: {
+              type: "string",
+              description: "The specific WHY question based on the previous answer",
+            },
+            answer: {
+              type: "string",
+              description: "The final clarified answer from the conversation",
+            },
+          },
+        },
+      },
 
-			// WHY 5 - ROOT CAUSE
-			{
-				name: "save_why_5_root_cause",
-				toolType: "update-variable",
-				targetVariable: "why_5_root_cause",
-				description: "Save Question 5 and Answer 5 - THE ROOT CAUSE",
-				usageGuidance: `
+      // WHY 5 - ROOT CAUSE
+      {
+        name: "save_why_5_root_cause",
+        toolType: "update-variable",
+        targetVariable: "why_5_root_cause",
+        description: "Save Question 5 and Answer 5 - THE ROOT CAUSE",
+        usageGuidance: `
 					**When to call:** After multi-turn conversation about the FIFTH and FINAL WHY question.
 					
 					**What to save:**
@@ -282,53 +271,52 @@ Then ask a SPECIFIC first WHY question (not generic "Why?", but tailored to thei
 					
 					**Progress:** This is Why 5 of 5 - ROOT CAUSE REVEALED! 🎉
 				`,
-				requiredVariables: ["why_4"],
-				requiresApproval: true,
-				valueSchema: {
-					type: "object",
-					required: ["question", "answer"],
-					properties: {
-						question: {
-							type: "string",
-							description:
-								"The fifth and final WHY question based on the previous answer",
-						},
-						answer: {
-							type: "string",
-							description: "The ROOT CAUSE - the deepest underlying reason",
-						},
-					},
-				},
-			},
-		],
+        requiredVariables: ["why_4"],
+        requiresApproval: true,
+        valueSchema: {
+          type: "object",
+          required: ["question", "answer"],
+          properties: {
+            question: {
+              type: "string",
+              description: "The fifth and final WHY question based on the previous answer",
+            },
+            answer: {
+              type: "string",
+              description: "The ROOT CAUSE - the deepest underlying reason",
+            },
+          },
+        },
+      },
+    ],
 
-		completionCondition: {
-			type: "all-tools-approved",
-			requiredTools: [
-				"save_why_1",
-				"save_why_2",
-				"save_why_3",
-				"save_why_4",
-				"save_why_5_root_cause",
-			],
-		},
+    completionCondition: {
+      type: "all-tools-approved",
+      requiredTools: [
+        "save_why_1",
+        "save_why_2",
+        "save_why_3",
+        "save_why_4",
+        "save_why_5_root_cause",
+      ],
+    },
 
-		outputVariables: {
-			// The root cause is the key output - the final insight from drilling down 5 times
-			// We output just the root cause answer as a single idea/insight
-			generated_ideas: "why_5_root_cause",
-		},
-	};
+    outputVariables: {
+      // The root cause is the key output - the final insight from drilling down 5 times
+      // We output just the root cause answer as a single idea/insight
+      generated_ideas: "why_5_root_cause",
+    },
+  };
 
-	// Insert step
-	await db.insert(workflowSteps).values({
-		workflowId: workflow.id,
-		stepNumber: 1,
-		stepType: "ask-user-chat",
-		goal: "Discover root cause through 5 sequential whys",
-		config: step1Config,
-		nextStepNumber: null, // Final step
-	});
+  // Insert step
+  await db.insert(workflowSteps).values({
+    workflowId: workflow.id,
+    stepNumber: 1,
+    stepType: "ask-user-chat",
+    goal: "Discover root cause through 5 sequential whys",
+    config: step1Config,
+    nextStepNumber: null, // Final step
+  });
 
-	console.log("  ✓ Five Whys step 1 seeded (5 object-type tools)");
+  console.log("  ✓ Five Whys step 1 seeded (5 object-type tools)");
 }

@@ -22,41 +22,41 @@
  * @returns The extracted value or defaultValue
  */
 export function getValueByPath<T = unknown>(
-	obj: Record<string, unknown> | unknown,
-	path: string,
-	defaultValue?: T,
+  obj: Record<string, unknown> | unknown,
+  path: string,
+  defaultValue?: T,
 ): T | undefined {
-	// Handle null/undefined object
-	if (obj == null) {
-		return defaultValue;
-	}
+  // Handle null/undefined object
+  if (obj == null) {
+    return defaultValue;
+  }
 
-	// Handle empty path
-	if (!path || path.trim() === "") {
-		return defaultValue;
-	}
+  // Handle empty path
+  if (!path || path.trim() === "") {
+    return defaultValue;
+  }
 
-	// Split path by dots and reduce through the object
-	const keys = path.split(".");
-	let current: unknown = obj;
+  // Split path by dots and reduce through the object
+  const keys = path.split(".");
+  let current: unknown = obj;
 
-	for (const key of keys) {
-		// Handle null/undefined at any point in the chain
-		if (current == null) {
-			return defaultValue;
-		}
+  for (const key of keys) {
+    // Handle null/undefined at any point in the chain
+    if (current == null) {
+      return defaultValue;
+    }
 
-		// Type guard: ensure current is an object
-		if (typeof current !== "object") {
-			return defaultValue;
-		}
+    // Type guard: ensure current is an object
+    if (typeof current !== "object") {
+      return defaultValue;
+    }
 
-		// Access the key
-		current = (current as Record<string, unknown>)[key];
-	}
+    // Access the key
+    current = (current as Record<string, unknown>)[key];
+  }
 
-	// Return the final value, or defaultValue if undefined
-	return current !== undefined ? (current as T) : defaultValue;
+  // Return the final value, or defaultValue if undefined
+  return current !== undefined ? (current as T) : defaultValue;
 }
 
 /**
@@ -66,11 +66,8 @@ export function getValueByPath<T = unknown>(
  * @param path - Dot-separated path
  * @returns True if path exists and has a non-undefined value
  */
-export function hasPath(
-	obj: Record<string, unknown> | unknown,
-	path: string,
-): boolean {
-	return getValueByPath(obj, path) !== undefined;
+export function hasPath(obj: Record<string, unknown> | unknown, path: string): boolean {
+  return getValueByPath(obj, path) !== undefined;
 }
 
 /**
@@ -83,37 +80,37 @@ export function hasPath(
  * @returns New object with value set at path
  */
 export function setValueByPath<T = unknown>(
-	obj: Record<string, unknown>,
-	path: string,
-	value: T,
+  obj: Record<string, unknown>,
+  path: string,
+  value: T,
 ): Record<string, unknown> {
-	if (!path || path.trim() === "") {
-		return obj;
-	}
+  if (!path || path.trim() === "") {
+    return obj;
+  }
 
-	const keys = path.split(".");
-	const result = { ...obj };
-	let current: Record<string, unknown> = result;
+  const keys = path.split(".");
+  const result = { ...obj };
+  let current: Record<string, unknown> = result;
 
-	// Navigate to the parent of the target key
-	for (let i = 0; i < keys.length - 1; i++) {
-		const key = keys[i];
+  // Navigate to the parent of the target key
+  for (let i = 0; i < keys.length - 1; i++) {
+    const key = keys[i];
 
-		if (current[key] == null || typeof current[key] !== "object") {
-			current[key] = {};
-		} else {
-			// Clone nested object for immutability
-			current[key] = { ...(current[key] as Record<string, unknown>) };
-		}
+    if (current[key] == null || typeof current[key] !== "object") {
+      current[key] = {};
+    } else {
+      // Clone nested object for immutability
+      current[key] = { ...(current[key] as Record<string, unknown>) };
+    }
 
-		current = current[key] as Record<string, unknown>;
-	}
+    current = current[key] as Record<string, unknown>;
+  }
 
-	// Set the final value
-	const lastKey = keys[keys.length - 1];
-	current[lastKey] = value;
+  // Set the final value
+  const lastKey = keys[keys.length - 1];
+  current[lastKey] = value;
 
-	return result;
+  return result;
 }
 
 /**
@@ -137,14 +134,14 @@ export function setValueByPath<T = unknown>(
  * // Returns: { userName: "John", userEmail: "john@example.com", createdAt: "2024-01-01" }
  */
 export function extractValues(
-	obj: Record<string, unknown>,
-	paths: Record<string, string>,
+  obj: Record<string, unknown>,
+  paths: Record<string, string>,
 ): Record<string, unknown> {
-	const result: Record<string, unknown> = {};
+  const result: Record<string, unknown> = {};
 
-	for (const [outputKey, path] of Object.entries(paths)) {
-		result[outputKey] = getValueByPath(obj, path);
-	}
+  for (const [outputKey, path] of Object.entries(paths)) {
+    result[outputKey] = getValueByPath(obj, path);
+  }
 
-	return result;
+  return result;
 }

@@ -1,20 +1,20 @@
 {
-	"name": "@chiron/scripts",
-	"type": "module",
-	"scripts": {
-		"seed": "bun run src/seed.ts",
-		"db:seed": "bun run src/seed.ts",
-		"db:reset": "bash src/reset-db.sh",
-		"migrate:variables": "bun run src/migrations/migrate-variables.ts"
-	},
-	"dependencies": {
-		"@chiron/auth": "workspace:*",
-		"@chiron/db": "workspace:*",
-		"drizzle-orm": "^0.44.2",
-		"drizzle-seed": "^0.1.2",
-		"js-yaml": "^4.1.0"
-	},
-	"devDependencies": {
-		"@types/js-yaml": "^4.0.9"
-	}
+  "name": "@chiron/scripts",
+  "type": "module",
+  "scripts": {
+    "seed": "bun run src/seed.ts",
+    "db:seed": "bun run src/seed.ts",
+    "db:reset": "bash src/reset-db.sh",
+    "migrate:variables": "bun run src/migrations/migrate-variables.ts"
+  },
+  "dependencies": {
+    "@chiron/auth": "workspace:*",
+    "@chiron/db": "workspace:*",
+    "drizzle-orm": "^0.44.2",
+    "drizzle-seed": "^0.1.2",
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9"
+  }
 }

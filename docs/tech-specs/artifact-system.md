@@ -73,39 +73,39 @@ Artifacts are the **living documents** that Chiron workflows produce and consume
 
 The artifact instance belonging to a project.
 
-| Column | Type | Notes |
-|--------|------|-------|
-| id | UUID PK | |
-| projectId | UUID FK → projects | |
-| templateId | UUID FK → workflowTemplates | Which template to render |
-| executionId | UUID FK → workflowExecutions | Which execution created/owns this |
-| stepExecutionId | UUID FK → stepExecutions | Which step created this |
-| name | TEXT | "prd-v1", "architecture", "epic-1" |
-| artifactType | TEXT | "prd", "architecture", "epic", "story", "brainstorm" |
-| status | ENUM | draft, published, archived |
-| currentVersion | INTEGER | Latest published version (0 = never published) |
-| filePath | TEXT | Set when published: "docs/prd.md" |
-| gitCommitHash | TEXT | Latest publish commit |
-| metadata | JSONB | Additional data |
-| createdAt | TIMESTAMP | |
-| updatedAt | TIMESTAMP | |
+| Column          | Type                         | Notes                                                |
+| --------------- | ---------------------------- | ---------------------------------------------------- |
+| id              | UUID PK                      |                                                      |
+| projectId       | UUID FK → projects           |                                                      |
+| templateId      | UUID FK → workflowTemplates  | Which template to render                             |
+| executionId     | UUID FK → workflowExecutions | Which execution created/owns this                    |
+| stepExecutionId | UUID FK → stepExecutions     | Which step created this                              |
+| name            | TEXT                         | "prd-v1", "architecture", "epic-1"                   |
+| artifactType    | TEXT                         | "prd", "architecture", "epic", "story", "brainstorm" |
+| status          | ENUM                         | draft, published, archived                           |
+| currentVersion  | INTEGER                      | Latest published version (0 = never published)       |
+| filePath        | TEXT                         | Set when published: "docs/prd.md"                    |
+| gitCommitHash   | TEXT                         | Latest publish commit                                |
+| metadata        | JSONB                        | Additional data                                      |
+| createdAt       | TIMESTAMP                    |                                                      |
+| updatedAt       | TIMESTAMP                    |                                                      |
 
 ### artifactSnapshots
 
 Immutable published versions.
 
-| Column | Type | Notes |
-|--------|------|-------|
-| id | UUID PK | |
-| artifactId | UUID FK → projectArtifacts | |
-| version | INTEGER | 1, 2, 3... |
-| resolvedContent | TEXT | Full rendered markdown/content |
-| variableSnapshot | JSONB | Record<string, VariableValue> at publish time |
-| filePath | TEXT | Where written: "docs/prd.md" |
-| gitCommitHash | TEXT | Git commit for this version |
-| publishedBy | TEXT | User ID or "workflow" |
-| publishNote | TEXT | "Initial PRD", "Added Redis to tech stack" |
-| createdAt | TIMESTAMP | |
+| Column           | Type                       | Notes                                         |
+| ---------------- | -------------------------- | --------------------------------------------- |
+| id               | UUID PK                    |                                               |
+| artifactId       | UUID FK → projectArtifacts |                                               |
+| version          | INTEGER                    | 1, 2, 3...                                    |
+| resolvedContent  | TEXT                       | Full rendered markdown/content                |
+| variableSnapshot | JSONB                      | Record<string, VariableValue> at publish time |
+| filePath         | TEXT                       | Where written: "docs/prd.md"                  |
+| gitCommitHash    | TEXT                       | Git commit for this version                   |
+| publishedBy      | TEXT                       | User ID or "workflow"                         |
+| publishNote      | TEXT                       | "Initial PRD", "Added Redis to tech stack"    |
+| createdAt        | TIMESTAMP                  |                                               |
 
 **Unique constraint:** (artifactId, version)
 
@@ -113,16 +113,16 @@ Immutable published versions.
 
 The Handlebars templates that define artifact structure.
 
-| Column | Type | Notes |
-|--------|------|-------|
-| id | UUID PK | |
-| name | TEXT UNIQUE | "prd-template", "brainstorming-session" |
-| displayName | TEXT | |
-| artifactType | TEXT | "prd", "epic", etc. |
-| template | TEXT | Handlebars template content |
-| templateVariables | JSONB | TemplateVariable[] - expected inputs |
-| createdAt | TIMESTAMP | |
-| updatedAt | TIMESTAMP | |
+| Column            | Type        | Notes                                   |
+| ----------------- | ----------- | --------------------------------------- |
+| id                | UUID PK     |                                         |
+| name              | TEXT UNIQUE | "prd-template", "brainstorming-session" |
+| displayName       | TEXT        |                                         |
+| artifactType      | TEXT        | "prd", "epic", etc.                     |
+| template          | TEXT        | Handlebars template content             |
+| templateVariables | JSONB       | TemplateVariable[] - expected inputs    |
+| createdAt         | TIMESTAMP   |                                         |
+| updatedAt         | TIMESTAMP   |                                         |
 
 ---
 
@@ -138,48 +138,49 @@ async function resolveArtifact(artifactId: string): Promise<string> {
   const artifact = await getArtifact(artifactId);
   const template = await getTemplate(artifact.templateId);
   const variables = await getExecutionVariables(artifact.executionId);
-  
+
   // Handlebars resolution
   return Handlebars.compile(template.template)(variables);
 }
 
 // On artifact publish
-async function publishArtifact(
-  artifactId: string, 
-  publishNote: string
-): Promise<ArtifactSnapshot> {
+async function publishArtifact(artifactId: string, publishNote: string): Promise<ArtifactSnapshot> {
   const artifact = await getArtifact(artifactId);
   const variables = await getExecutionVariables(artifact.executionId);
   const resolvedContent = await resolveArtifact(artifactId);
-  
+
   // Create snapshot
   const version = artifact.currentVersion + 1;
   const snapshot = await db.insert(artifactSnapshots).values({
     artifactId,
     version,
     resolvedContent,
-    variableSnapshot: variables,  // Freeze variable state
+    variableSnapshot: variables, // Freeze variable state
     publishNote,
     publishedBy: getCurrentUser(),
   });
-  
+
   // Write to filesystem
   const filePath = `docs/${artifact.name}.md`;
   await writeFile(filePath, resolvedContent);
-  
+
   // Git commit
-  const commitHash = await gitCommit(filePath, `Publish ${artifact.name} v${version}: ${publishNote}`);
-  
+  const commitHash = await gitCommit(
+    filePath,
+    `Publish ${artifact.name} v${version}: ${publishNote}`,
+  );
+
   // Update artifact
-  await db.update(projectArtifacts)
-    .set({ 
-      status: 'published', 
+  await db
+    .update(projectArtifacts)
+    .set({
+      status: "published",
       currentVersion: version,
       filePath,
       gitCommitHash: commitHash,
     })
     .where(eq(projectArtifacts.id, artifactId));
-  
+
   return snapshot;
 }
 ```
@@ -221,12 +222,12 @@ async function findArtifactDependents(artifactId: string, version: number) {
       current_value->>'type' = 'artifact_ref' 
       AND current_value->>'artifactId' = ${artifactId}
       AND (current_value->>'snapshotVersion')::int = ${version}
-    `
+    `,
   });
-  
+
   // Get the executions those variables belong to
-  const executionIds = [...new Set(dependentVars.map(v => v.executionId))];
-  
+  const executionIds = [...new Set(dependentVars.map((v) => v.executionId))];
+
   return {
     variables: dependentVars,
     executions: await getExecutions(executionIds),
@@ -240,55 +241,55 @@ async function findArtifactDependents(artifactId: string, version: number) {
 
 ### Libraries
 
-| Library | Purpose | Install |
-|---------|---------|---------|
-| `diff` (jsdiff) | Generate text diffs, patches | `bun add diff` |
-| `@pierre/diffs` | Render diffs in UI | `bun add @pierre/diffs` |
+| Library          | Purpose                           | Install                  |
+| ---------------- | --------------------------------- | ------------------------ |
+| `diff` (jsdiff)  | Generate text diffs, patches      | `bun add diff`           |
+| `@pierre/diffs`  | Render diffs in UI                | `bun add @pierre/diffs`  |
 | `isomorphic-git` | Git operations (publish, history) | `bun add isomorphic-git` |
 
 ### Diff Generation
 
 ```typescript
-import { diffLines, createPatch } from 'diff';
+import { diffLines, createPatch } from "diff";
 
 // Compare two artifact versions
 function diffArtifactVersions(
-  oldContent: string, 
+  oldContent: string,
   newContent: string,
   oldVersion: number,
-  newVersion: number
+  newVersion: number,
 ): DiffResult {
   // Line-by-line diff
   const changes = diffLines(oldContent, newContent);
-  
+
   // Unified patch format
   const patch = createPatch(
-    'artifact.md',
+    "artifact.md",
     oldContent,
     newContent,
     `v${oldVersion}`,
-    `v${newVersion}`
+    `v${newVersion}`,
   );
-  
+
   return { changes, patch };
 }
 
 // Compare current draft to last published
 async function diffDraftToPublished(artifactId: string): Promise<DiffResult | null> {
   const artifact = await getArtifact(artifactId);
-  
+
   if (artifact.currentVersion === 0) {
     return null; // Never published, nothing to diff against
   }
-  
+
   const lastSnapshot = await getSnapshot(artifactId, artifact.currentVersion);
   const currentContent = await resolveArtifact(artifactId);
-  
+
   return diffArtifactVersions(
     lastSnapshot.resolvedContent,
     currentContent,
     artifact.currentVersion,
-    artifact.currentVersion + 1  // Draft version
+    artifact.currentVersion + 1, // Draft version
   );
 }
 ```
@@ -300,20 +301,20 @@ import { Differ, DiffViewer } from '@pierre/diffs';
 
 function ArtifactDiffView({ artifactId }: { artifactId: string }) {
   const { data: diff } = trpc.artifacts.getDiff.useQuery({ artifactId });
-  
+
   if (!diff) return <div>No changes to show</div>;
-  
+
   const differ = new Differ({
-    oldFile: { 
-      name: `v${diff.oldVersion}`, 
-      content: diff.oldContent 
+    oldFile: {
+      name: `v${diff.oldVersion}`,
+      content: diff.oldContent
     },
-    newFile: { 
-      name: `v${diff.newVersion} (draft)`, 
-      content: diff.newContent 
+    newFile: {
+      name: `v${diff.newVersion} (draft)`,
+      content: diff.newContent
     },
   });
-  
+
   return (
     <DiffViewer
       diff={differ}
@@ -334,9 +335,9 @@ function ArtifactDiffView({ artifactId }: { artifactId: string }) {
 ```typescript
 function CourseCorrectDiffView({ artifactId, onPublish }: Props) {
   const [selectedChanges, setSelectedChanges] = useState<Set<number>>(new Set());
-  
+
   // ... diff setup ...
-  
+
   return (
     <div>
       <DiffViewer
@@ -350,7 +351,7 @@ function CourseCorrectDiffView({ artifactId, onPublish }: Props) {
           setSelectedChanges(next);
         }}
       />
-      
+
       <div className="actions">
         <Button onClick={() => applySelectedChanges(selectedChanges)}>
           Apply Selected Changes
@@ -378,47 +379,48 @@ For the correct-course workflow to modify existing artifacts:
 ```typescript
 const updateArtifactTool = {
   name: "update_artifact",
-  description: "Modify an existing artifact's content by updating variables or applying direct edits",
+  description:
+    "Modify an existing artifact's content by updating variables or applying direct edits",
   toolType: "artifact-mutation",
   parameters: z.object({
     artifactId: z.string().describe("ID of the artifact to update"),
-    updates: z.array(z.object({
-      type: z.enum(["variable", "direct"]),
-      // For variable updates:
-      variableName: z.string().optional(),
-      variableValue: z.unknown().optional(),
-      // For direct edits:
-      section: z.string().optional(),  // Which part to edit
-      newContent: z.string().optional(),
-    })),
+    updates: z.array(
+      z.object({
+        type: z.enum(["variable", "direct"]),
+        // For variable updates:
+        variableName: z.string().optional(),
+        variableValue: z.unknown().optional(),
+        // For direct edits:
+        section: z.string().optional(), // Which part to edit
+        newContent: z.string().optional(),
+      }),
+    ),
     rationale: z.string().describe("Why this change is being made"),
   }),
-  requiresApproval: true,  // User must approve artifact changes
-  
+  requiresApproval: true, // User must approve artifact changes
+
   execute: async (params, context) => {
     const { artifactId, updates, rationale } = params;
-    
+
     // Apply variable updates
     for (const update of updates) {
       if (update.type === "variable" && update.variableName) {
-        await updateVariable(
-          context.executionId,
-          update.variableName,
-          update.variableValue,
-          { source: "agent_tool", rationale }
-        );
+        await updateVariable(context.executionId, update.variableName, update.variableValue, {
+          source: "agent_tool",
+          rationale,
+        });
       }
     }
-    
+
     // Get diff
     const diff = await diffDraftToPublished(artifactId);
-    
+
     return {
       success: true,
       diff: diff?.patch,
-      message: `Updated artifact. ${diff ? 'Changes ready for review.' : 'No previous version to compare.'}`,
+      message: `Updated artifact. ${diff ? "Changes ready for review." : "No previous version to compare."}`,
     };
-  }
+  },
 };
 ```
 
@@ -433,22 +435,22 @@ const findDependentsTool = {
     artifactId: z.string(),
     version: z.number().optional().describe("Specific version, or latest if omitted"),
   }),
-  
+
   execute: async (params) => {
     const version = params.version ?? (await getArtifact(params.artifactId)).currentVersion;
     const dependents = await findArtifactDependents(params.artifactId, version);
-    
+
     return {
       version,
       dependentCount: dependents.variables.length,
-      executions: dependents.executions.map(e => ({
+      executions: dependents.executions.map((e) => ({
         id: e.id,
         workflowName: e.workflow.name,
         status: e.status,
         createdAt: e.createdAt,
       })),
     };
-  }
+  },
 };
 ```
 
@@ -465,28 +467,29 @@ const markStaleTool = {
     newVersion: z.number(),
     reason: z.string(),
   }),
-  
+
   execute: async (params) => {
     const dependents = await findArtifactDependents(params.sourceArtifactId, params.sourceVersion);
-    
+
     // Mark dependent artifacts as needing review
     for (const variable of dependents.variables) {
-      await db.update(variables)
+      await db
+        .update(variables)
         .set({
           metadata: sql`jsonb_set(
             COALESCE(metadata, '{}'),
             '{staleReason}',
             ${JSON.stringify(`Source artifact updated: v${params.sourceVersion} → v${params.newVersion}. ${params.reason}`)}
-          )`
+          )`,
         })
         .where(eq(variables.id, variable.id));
     }
-    
+
     return {
       markedStale: dependents.variables.length,
-      executions: dependents.executions.map(e => e.id),
+      executions: dependents.executions.map((e) => e.id),
     };
-  }
+  },
 };
 ```
 
@@ -496,67 +499,75 @@ const markStaleTool = {
 
 ### Standard Artifact Types
 
-| Type | Template | Produced By | Key Variables |
-|------|----------|-------------|---------------|
-| `prd` | prd-template | create-prd workflow | project_name, goals, requirements, constraints |
-| `architecture` | architecture-template | create-architecture workflow | project_name, tech_stack, decisions, diagrams |
-| `epic` | epic-template | create-epics workflow | prd_ref, epic_number, title, stories |
-| `story` | story-template | create-story workflow | epic_ref, story_id, user_story, acceptance_criteria, gherkin |
-| `tech-spec` | tech-spec-template | create-tech-spec workflow | architecture_ref, component, implementation_details |
-| `brainstorm` | brainstorm-template | brainstorming workflow | session_topic, stated_goals, techniques, captured_ideas |
+| Type           | Template              | Produced By                  | Key Variables                                                |
+| -------------- | --------------------- | ---------------------------- | ------------------------------------------------------------ |
+| `prd`          | prd-template          | create-prd workflow          | project_name, goals, requirements, constraints               |
+| `architecture` | architecture-template | create-architecture workflow | project_name, tech_stack, decisions, diagrams                |
+| `epic`         | epic-template         | create-epics workflow        | prd_ref, epic_number, title, stories                         |
+| `story`        | story-template        | create-story workflow        | epic_ref, story_id, user_story, acceptance_criteria, gherkin |
+| `tech-spec`    | tech-spec-template    | create-tech-spec workflow    | architecture_ref, component, implementation_details          |
+| `brainstorm`   | brainstorm-template   | brainstorming workflow       | session_topic, stated_goals, techniques, captured_ideas      |
 
 ### Template Example: Brainstorming Session
 
 ```handlebars
-# Brainstorming Session: {{session_topic}}
+# Brainstorming Session:
+{{session_topic}}
 
-**Date:** {{_system.date}}
-**Techniques Used:** {{#each selected_techniques}}{{this.name}}{{#unless @last}}, {{/unless}}{{/each}}
+**Date:**
+{{_system.date}}
+**Techniques Used:**
+{{#each selected_techniques}}{{this.name}}{{#unless @last}}, {{/unless}}{{/each}}
 
 ## Goals
 
 {{#each stated_goals}}
-- {{this}}
+  -
+  {{this}}
 {{/each}}
 
 ## Ideas Captured
 
 {{#each captured_ideas}}
-### {{this.technique}}
+  ###
+  {{this.technique}}
 
-{{#if this.substitute}}
-#### Substitute
-{{#each this.substitute}}
-- {{this}}
-{{/each}}
-{{/if}}
+  {{#if this.substitute}}
+    #### Substitute
+    {{#each this.substitute}}
+      -
+      {{this}}
+    {{/each}}
+  {{/if}}
 
-{{#if this.combine}}
-#### Combine
-{{#each this.combine}}
-- {{this}}
-{{/each}}
-{{/if}}
+  {{#if this.combine}}
+    #### Combine
+    {{#each this.combine}}
+      -
+      {{this}}
+    {{/each}}
+  {{/if}}
 
-{{!-- ... other SCAMPER sections ... --}}
+  {{! ... other SCAMPER sections ... }}
 
-{{#if this.white_facts}}
-#### White Hat (Facts)
-{{#each this.white_facts}}
-- {{this}}
-{{/each}}
-{{/if}}
+  {{#if this.white_facts}}
+    #### White Hat (Facts)
+    {{#each this.white_facts}}
+      -
+      {{this}}
+    {{/each}}
+  {{/if}}
 
-{{!-- ... other Six Hats sections ... --}}
+  {{! ... other Six Hats sections ... }}
 
 {{/each}}
 
 ## Summary
 
 {{#if synthesis}}
-{{synthesis}}
+  {{synthesis}}
 {{else}}
-*Synthesis to be generated*
+  *Synthesis to be generated*
 {{/if}}
 ```
 
@@ -567,34 +578,34 @@ const markStaleTool = {
 ### On Publish
 
 ```typescript
-import git from 'isomorphic-git';
-import * as fs from 'fs';
+import git from "isomorphic-git";
+import * as fs from "fs";
 
 async function publishToGit(
   projectPath: string,
   filePath: string,
   content: string,
-  commitMessage: string
+  commitMessage: string,
 ): Promise<string> {
   // Write file
   const fullPath = path.join(projectPath, filePath);
   await fs.promises.mkdir(path.dirname(fullPath), { recursive: true });
-  await fs.promises.writeFile(fullPath, content, 'utf-8');
-  
+  await fs.promises.writeFile(fullPath, content, "utf-8");
+
   // Stage
   await git.add({ fs, dir: projectPath, filepath: filePath });
-  
+
   // Commit
   const sha = await git.commit({
     fs,
     dir: projectPath,
     message: commitMessage,
     author: {
-      name: 'Chiron',
-      email: 'chiron@local',
+      name: "Chiron",
+      email: "chiron@local",
     },
   });
-  
+
   return sha;
 }
 ```
@@ -602,17 +613,14 @@ async function publishToGit(
 ### Version History from Git
 
 ```typescript
-async function getArtifactHistory(
-  projectPath: string,
-  filePath: string
-): Promise<GitLogEntry[]> {
+async function getArtifactHistory(projectPath: string, filePath: string): Promise<GitLogEntry[]> {
   const commits = await git.log({
     fs,
     dir: projectPath,
     filepath: filePath,
   });
-  
-  return commits.map(c => ({
+
+  return commits.map((c) => ({
     sha: c.oid,
     message: c.commit.message,
     author: c.commit.author.name,
@@ -624,7 +632,7 @@ async function getArtifactHistory(
 async function getArtifactAtVersion(
   projectPath: string,
   filePath: string,
-  commitSha: string
+  commitSha: string,
 ): Promise<string> {
   const { blob } = await git.readBlob({
     fs,
@@ -632,7 +640,7 @@ async function getArtifactAtVersion(
     oid: commitSha,
     filepath: filePath,
   });
-  
+
   return new TextDecoder().decode(blob);
 }
 ```
@@ -646,37 +654,36 @@ async function getArtifactAtVersion(
 
 export const artifactsRouter = router({
   // Get artifact (resolved if draft)
-  get: publicProcedure
-    .input(z.object({ id: z.string() }))
-    .query(async ({ input }) => {
-      const artifact = await getArtifact(input.id);
-      const content = artifact.status === 'draft'
+  get: publicProcedure.input(z.object({ id: z.string() })).query(async ({ input }) => {
+    const artifact = await getArtifact(input.id);
+    const content =
+      artifact.status === "draft"
         ? await resolveArtifact(input.id)
         : (await getLatestSnapshot(input.id)).resolvedContent;
-      return { artifact, content };
-    }),
-  
+    return { artifact, content };
+  }),
+
   // Get specific version
   getVersion: publicProcedure
     .input(z.object({ id: z.string(), version: z.number() }))
     .query(async ({ input }) => {
       return getSnapshot(input.id, input.version);
     }),
-  
+
   // Get diff (draft vs published)
-  getDiff: publicProcedure
-    .input(z.object({ id: z.string() }))
-    .query(async ({ input }) => {
-      return diffDraftToPublished(input.id);
-    }),
-  
+  getDiff: publicProcedure.input(z.object({ id: z.string() })).query(async ({ input }) => {
+    return diffDraftToPublished(input.id);
+  }),
+
   // Compare two versions
   compareVersions: publicProcedure
-    .input(z.object({ 
-      id: z.string(), 
-      fromVersion: z.number(), 
-      toVersion: z.number() 
-    }))
+    .input(
+      z.object({
+        id: z.string(),
+        fromVersion: z.number(),
+        toVersion: z.number(),
+      }),
+    )
     .query(async ({ input }) => {
       const from = await getSnapshot(input.id, input.fromVersion);
       const to = await getSnapshot(input.id, input.toVersion);
@@ -684,40 +691,42 @@ export const artifactsRouter = router({
         from.resolvedContent,
         to.resolvedContent,
         input.fromVersion,
-        input.toVersion
+        input.toVersion,
       );
     }),
-  
+
   // Publish artifact
   publish: publicProcedure
-    .input(z.object({ 
-      id: z.string(), 
-      note: z.string() 
-    }))
+    .input(
+      z.object({
+        id: z.string(),
+        note: z.string(),
+      }),
+    )
     .mutation(async ({ input }) => {
       return publishArtifact(input.id, input.note);
     }),
-  
+
   // Find dependents
   findDependents: publicProcedure
-    .input(z.object({ 
-      id: z.string(), 
-      version: z.number().optional() 
-    }))
+    .input(
+      z.object({
+        id: z.string(),
+        version: z.number().optional(),
+      }),
+    )
     .query(async ({ input }) => {
       const version = input.version ?? (await getArtifact(input.id)).currentVersion;
       return findArtifactDependents(input.id, version);
     }),
-  
+
   // List versions
-  listVersions: publicProcedure
-    .input(z.object({ id: z.string() }))
-    .query(async ({ input }) => {
-      return db.query.artifactSnapshots.findMany({
-        where: eq(artifactSnapshots.artifactId, input.id),
-        orderBy: [desc(artifactSnapshots.version)],
-      });
-    }),
+  listVersions: publicProcedure.input(z.object({ id: z.string() })).query(async ({ input }) => {
+    return db.query.artifactSnapshots.findMany({
+      where: eq(artifactSnapshots.artifactId, input.id),
+      orderBy: [desc(artifactSnapshots.version)],
+    });
+  }),
 });
 ```
 

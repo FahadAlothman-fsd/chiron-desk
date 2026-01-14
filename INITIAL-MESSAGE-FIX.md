@@ -49,11 +49,9 @@ Start with energy: "🔬 Let's solve this mystery! We'll ask WHY five times to f
 ### File: `packages/api/src/services/workflow-engine/step-handlers/ask-user-chat-handler.ts`
 
 **Before** (lines 618-634):
+
 ```typescript
-console.log(
-  "[AskUserChatHandler] Generated initial message:",
-  generatedMessage.text,
-);
+console.log("[AskUserChatHandler] Generated initial message:", generatedMessage.text);
 
 return {
   output: {
@@ -68,11 +66,9 @@ return {
 ```
 
 **After** (added message saving):
+
 ```typescript
-console.log(
-  "[AskUserChatHandler] Generated initial message:",
-  generatedMessage.text,
-);
+console.log("[AskUserChatHandler] Generated initial message:", generatedMessage.text);
 
 // ✅ NEW: Save generated message to Mastra thread so it appears in chat history
 const storage = mastra.getStorage();
@@ -113,6 +109,7 @@ return {
 ## What This Fixes
 
 ### Before Fix
+
 ```
 Child Workflow Opens
 ┌─────────────────────────────────────────┐
@@ -128,11 +125,13 @@ Child Workflow Opens
 │  [Type your message...]                 │
 └─────────────────────────────────────────┘
 ```
+
 ❌ User doesn't know what to do
 ❌ No context about the technique
 ❌ Requires user to start conversation
 
 ### After Fix
+
 ```
 Child Workflow Opens
 ┌─────────────────────────────────────────┐
@@ -153,6 +152,7 @@ Child Workflow Opens
 │  [Type your message...]                 │
 └─────────────────────────────────────────┘
 ```
+
 ✅ Agent greets user with context
 ✅ Explains the technique
 ✅ Asks first question immediately
@@ -161,6 +161,7 @@ Child Workflow Opens
 ## Testing The Fix
 
 ### Prerequisites
+
 - Server running (already started in background)
 - Parent workflow executed through invoke-workflow step
 - Child workflow (e.g., "Five Whys") configured with `generateInitialMessage: true`
@@ -168,6 +169,7 @@ Child Workflow Opens
 ### Test Steps
 
 1. **Navigate to parent workflow**
+
    ```
    http://localhost:{port}/projects/{projectId}/workflow/{parentExecutionId}
    ```
@@ -191,6 +193,7 @@ Child Workflow Opens
 ### Expected Console Logs (Server)
 
 When child workflow starts, you should see:
+
 ```
 [AskUserChatHandler] No user input and no rejected tools - checking initial message
 [AskUserChatHandler] Generating initial message dynamically...
@@ -227,16 +230,18 @@ All technique workflows with `generateInitialMessage: true`:
 The `initialPrompt` supports variable interpolation:
 
 ### Parent Variables (via Child Execution)
+
 ```typescript
 initialPrompt: `
 Topic: {{parent.session_topic}}
 Goals: {{parent.stated_goals}}
-`
+`;
 ```
 
 These are resolved from the child execution's variables (which were passed from parent via `mappedVariables`).
 
 ### How It Works
+
 ```typescript
 // In ask-user-chat-handler.ts
 const resolvedPrompt = this.resolvePromptVariables(
@@ -246,6 +251,7 @@ const resolvedPrompt = this.resolvePromptVariables(
 ```
 
 The `resolvePromptVariables()` method:
+
 1. Finds all `{{variable_name}}` patterns
 2. Looks up values in `context.variables` (execution variables)
 3. Replaces placeholders with actual values
@@ -254,12 +260,14 @@ The `resolvePromptVariables()` method:
 ### Example Resolution
 
 **Initial Prompt Template:**
+
 ```
 Topic: {{parent.session_topic}}
 Goals: {{parent.stated_goals}}
 ```
 
 **Child Execution Variables:**
+
 ```json
 {
   "session_topic": "Improving UX design workflow",
@@ -269,6 +277,7 @@ Goals: {{parent.stated_goals}}
 ```
 
 **Resolved Prompt:**
+
 ```
 Topic: Improving UX design workflow
 Goals: ["Faster iterations", "Better user feedback"]
@@ -281,21 +290,25 @@ Agent then uses this resolved prompt to generate contextual greeting.
 ### If Initial Message Still Doesn't Show
 
 **Check 1: Server Logs**
+
 ```bash
 tail -f /home/gondilf/Desktop/projects/masters/chiron/server.log | grep "AskUserChatHandler"
 ```
 
 Look for:
+
 - `[AskUserChatHandler] Generating initial message dynamically...`
 - `[AskUserChatHandler] Generated initial message: ...`
 - `[AskUserChatHandler] Saved generated initial message to thread: ...`
 
 If missing, check:
+
 - Is `generateInitialMessage: true` in step config?
 - Is `initialPrompt` defined?
 - Did step execute (check for `executeStep` log)?
 
 **Check 2: Database (Mastra Messages)**
+
 ```bash
 bun run db:studio
 ```
@@ -303,6 +316,7 @@ bun run db:studio
 Navigate to `mastra.messages` table, filter by `thread_id` (from execution variables `mastra_thread_id`).
 
 Should see:
+
 - 1 row with `role = "assistant"`
 - `content` contains generated greeting
 - `metadata` has `type: "initial_message"`
@@ -311,6 +325,7 @@ Should see:
 Open DevTools → Network → Filter for `getChatMessages`
 
 Response should have:
+
 ```json
 {
   "messages": [
@@ -329,6 +344,7 @@ Response should have:
 ```
 
 If empty `[]`:
+
 - Message wasn't saved to thread
 - Check server logs for error during `storage.saveMessages()`
 
@@ -336,6 +352,7 @@ If empty `[]`:
 If message shows but doesn't have context (e.g., shows `{{parent.session_topic}}` literally):
 
 Check child execution variables:
+
 ```bash
 bun run db:studio
 # workflow_executions table
@@ -344,23 +361,28 @@ bun run db:studio
 ```
 
 Should contain:
+
 - `session_topic`: (inherited from parent)
 - `stated_goals`: (inherited from parent)
 
 If missing, check:
+
 - Parent's `variableMapping` in invoke-workflow step config
 - `createAndStartChild` mutation - did it pass `mappedVariables`?
 
 ## Related Files
 
 **Backend:**
+
 - `packages/api/src/services/workflow-engine/step-handlers/ask-user-chat-handler.ts` - Handler that generates and saves initial message
 - `packages/scripts/src/seeds/techniques/five-whys.ts` - Example workflow with `generateInitialMessage: true`
 
 **Frontend:**
+
 - `apps/web/src/components/workflows/steps/ask-user-chat-step.tsx` - Chat UI that loads messages via `getChatMessages`
 
 **Database:**
+
 - `mastra.messages` table - Stores all chat messages including initial message
 - `workflow_executions.variables` - Contains `mastra_thread_id` for linking
 

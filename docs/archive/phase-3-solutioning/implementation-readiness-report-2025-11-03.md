@@ -14,6 +14,7 @@
 Chiron project has completed Phase 1 (Analysis) and Phase 2 (Planning) with exceptional thoroughness. Phase 3 (Solutioning) architectural foundations are complete. **Epic 1 implementation can begin immediately** with zero blocking issues.
 
 **Key Findings:**
+
 - ✅ All foundation requirements documented and aligned
 - ✅ Monorepo infrastructure already configured (better-t3-stack)
 - ✅ 5 critical architectural decisions locked
@@ -22,6 +23,7 @@ Chiron project has completed Phase 1 (Analysis) and Phase 2 (Planning) with exce
 - ✅ No critical gaps, contradictions, or gold-plating detected
 
 **Minor Tracked Items (Non-Blocking):**
+
 - 📋 LLM framework research mid Epic 1 (ax/ai-sdk/Effect/Mastra)
 - 📋 Implementation details will emerge during execution (expected BMAD behavior)
 
@@ -32,6 +34,7 @@ Chiron project has completed Phase 1 (Analysis) and Phase 2 (Planning) with exce
 ## Project Context
 
 **Project Configuration:**
+
 - **Name:** Chiron
 - **Type:** Software (Greenfield)
 - **Level:** 3 (Complex System - subsystems, integrations, architectural decisions required)
@@ -39,6 +42,7 @@ Chiron project has completed Phase 1 (Analysis) and Phase 2 (Planning) with exce
 - **Workflow Path:** greenfield-level-3.yaml
 
 **Current Status:**
+
 - **Phase:** 3-Solutioning
 - **Current Workflow:** architecture (in progress)
 - **Phase 1 (Analysis):** ✅ Complete
@@ -51,6 +55,7 @@ Chiron is a Level 3 greenfield software project aimed at building a multi-agent 
 
 **Expected Artifacts for Level 3:**
 Based on the validation criteria for Level 3-4 projects, the following artifacts should exist:
+
 1. ✅ Product Requirements Document (PRD)
 2. ✅ Architecture Document (separate from tech spec)
 3. ✅ Epic and Story Breakdowns
@@ -59,6 +64,7 @@ Based on the validation criteria for Level 3-4 projects, the following artifacts
 
 **Validation Approach:**
 This assessment will validate:
+
 - PRD completeness and clarity
 - Architecture coverage and alignment with PRD
 - Epic/story implementation coverage
@@ -138,13 +144,13 @@ This assessment will validate:
 
 **Document Coverage Assessment:**
 
-| Expected Artifact | Status | Completeness | Notes |
-|-------------------|--------|--------------|-------|
-| PRD | ✅ Found | 100% | All 9 sections complete, 45 FRs documented |
-| Architecture | ✅ Found | 90% | Core decisions complete, Steps 5-8 deferred to implementation |
-| Epics/Stories | ✅ Found | 20% | Epic 1 fully detailed (6 stories), Epics 2-8 summaries only |
-| UX Artifacts | ✅ Found | 60% | Foundation complete (Steps 0-4), detailed design deferred |
-| Tech Spec | ⚠️ Missing | N/A | Acceptable - covered by architecture documents |
+| Expected Artifact | Status     | Completeness | Notes                                                         |
+| ----------------- | ---------- | ------------ | ------------------------------------------------------------- |
+| PRD               | ✅ Found   | 100%         | All 9 sections complete, 45 FRs documented                    |
+| Architecture      | ✅ Found   | 90%          | Core decisions complete, Steps 5-8 deferred to implementation |
+| Epics/Stories     | ✅ Found   | 20%          | Epic 1 fully detailed (6 stories), Epics 2-8 summaries only   |
+| UX Artifacts      | ✅ Found   | 60%          | Foundation complete (Steps 0-4), detailed design deferred     |
+| Tech Spec         | ⚠️ Missing | N/A          | Acceptable - covered by architecture documents                |
 
 **Overall Inventory Status:** ✅ **SUFFICIENT FOR LEVEL 3 PROJECT**
 
@@ -157,6 +163,7 @@ All required Level 3 artifacts exist with appropriate depth. Epic 1 is fully det
 **Scope and Requirements Coverage:**
 
 The PRD defines **45 Functional Requirements** organized into 13 logical categories:
+
 - BMAD Workflow Engine (FR001-FR005): 5 requirements for workflow execution
 - Multi-Agent Orchestration (FR006-FR010): 5 requirements for parallel agent coordination
 - Project and State Management (FR011-FR015): 5 requirements for project lifecycle
@@ -172,6 +179,7 @@ The PRD defines **45 Functional Requirements** organized into 13 logical categor
 - Cross-Agent Coordination (FR045): 1 requirement for conflict resolution
 
 **5 Non-Functional Requirements** covering:
+
 - NFR001: Performance (workflow execution timeframes)
 - NFR002: Reliability (99%+ success rate)
 - NFR003: Usability (dashboard comprehension within seconds)
@@ -179,11 +187,13 @@ The PRD defines **45 Functional Requirements** organized into 13 logical categor
 - NFR005: Maintainability (migration preservation)
 
 **Success Criteria:**
+
 - Measurable performance targets specified (product-brief <45min, PRD <2hrs, story <30min)
 - Clear scope boundaries with 15 MVP exclusions documented
 - 3 detailed user journeys covering setup, parallel execution, and error recovery
 
 **Key Architectural Decisions in PRD:**
+
 1. Git worktrees for agent isolation (FR027)
 2. Database stores metadata, git stores content (FR015, FR034)
 3. Cross-agent conflict resolution (3 strategies in Journey 2, decision deferred)
@@ -240,6 +250,7 @@ The PRD defines **45 Functional Requirements** organized into 13 logical categor
    - Implementation: Epic 1 (storage) + Epic 3 (orchestration)
 
 **Deferred Decisions Strategy:**
+
 - Epic 1: Testing baseline (Vitest, refine as needed)
 - Epic 2: Worktree cleanup (manual vs automatic), branch naming
 - Epic 3: **CRITICAL** - Effect vs Mastra vs Custom orchestration
@@ -248,6 +259,7 @@ The PRD defines **45 Functional Requirements** organized into 13 logical categor
 - Epic 4+: Error tracking, logging, analytics (post-MVP)
 
 **Project Structure Defined:**
+
 ```
 chiron/
 ├── apps/web/           # React frontend
@@ -264,6 +276,7 @@ chiron/
 **Epic 1: Core Infrastructure (6 stories, 2 weeks)**
 
 Complete story breakdown with:
+
 - Story 1.1: Database schema (3 days) - 11 tables defined
 - Story 1.2: BMAD workflow seeding (2 days) - Seed BMM/CIS workflows
 - Story 1.3: Project CRUD (2 days) - API endpoints
@@ -272,6 +285,7 @@ Complete story breakdown with:
 - Story 1.6: Git validation (1 day) - Pre-execution checks
 
 **Epic 1 Technical Specifications:**
+
 - All database tables defined with columns and relationships
 - Acceptance criteria per story (checkbox lists)
 - Technical notes with implementation guidance
@@ -288,6 +302,7 @@ Complete story breakdown with:
 ### UX Design Analysis
 
 **Foundation Complete (Steps 0-4):**
+
 - Design system selected: shadcn/ui with Tailwind
 - 21-color system defined (CARBON/CAMO palettes)
 - 9 novel UX patterns documented:
@@ -297,11 +312,13 @@ Complete story breakdown with:
 - Agent color identity system defined
 
 **Deferred by Design:**
+
 - Steps 5-10 intentionally deferred to implementation
 - Design-by-building strategy to avoid paralysis
 - UI/UX emerges story-by-story during epics
 
 **UX Principles:**
+
 1. Guided Not Automated
 2. Chat as Timeline
 3. Pattern-Driven Interactions
@@ -321,6 +338,7 @@ Complete story breakdown with:
 **Requirement Coverage Analysis:**
 
 ✅ **BMAD Workflow Engine (FR001-FR005) → Architecture:**
+
 - FR001 (workflows in DB): ✅ Story 1.2 seeds workflows, database schema includes `workflows` table
 - FR002 (workflow.xml rules): ✅ Story 1.5 implements execution engine, architecture-summary.md documents discovery-driven approach
 - FR003 (4 phases): ✅ PRD user journeys, architecture preserves phase structure
@@ -328,6 +346,7 @@ Complete story breakdown with:
 - FR005 (workflow state): ✅ `workflow_state` table in Story 1.1 schema
 
 ✅ **Multi-Agent Orchestration (FR006-FR010) → Architecture:**
+
 - FR006 (parallel agents + git worktrees): ✅ Architecture Decision #5 (simple-git), Novel Pattern #2 (worktree isolation)
 - FR007 (git-DB sync): ✅ Novel Pattern #1 (dual-tracking), Story 1.1 includes `project_artifacts.git_commit_hash`
 - FR008 (workflow handoffs): ⏳ Deferred to Epic 3 (orchestration framework decision)
@@ -335,6 +354,7 @@ Complete story breakdown with:
 - FR010 (OpenCode integration): ⏳ Deferred to Epic 6 (Phase 4 workflows)
 
 ✅ **Git Worktree Management (FR027-FR030, FR034, FR037-FR038) → Architecture:**
+
 - FR027 (worktree lifecycle): ✅ Architecture Decision #5 (simple-git), Novel Pattern #2
 - FR028 (divergence detection): ✅ Novel Pattern #1, User Journey 3 documents reconciliation
 - FR029 (conflict resolution UI): ⏳ Deferred to Epic 3, three strategies documented in PRD
@@ -344,15 +364,18 @@ Complete story breakdown with:
 - FR038 (orphaned cleanup): ⏳ Deferred to Epic 2, noted in architecture-summary.md
 
 ✅ **Real-Time System (FR031, FR042) → Architecture:**
+
 - FR031 (real-time updates): ✅ Architecture Decision #3 (SSE), applies to FR016, FR031, FR042
 - FR042 (throttling 2 updates/sec): ✅ Documented in Decision #3 rationale
 
 ✅ **Technology Stack Consistency:**
+
 - PRD specifies: TypeScript, Tauri, PostgreSQL, Bun, Hono, Drizzle, React, shadcn/ui
 - Architecture locks: ✅ All PRD technologies confirmed in architecture-summary.md
 - No contradictions found
 
 **Non-Functional Requirements → Architecture:**
+
 - NFR001 (Performance): ✅ SSE chosen for efficiency (Decision #3), Drizzle lightweight (Decision #1)
 - NFR002 (Reliability): ✅ Database snapshots (FR041), graceful recovery (FR030)
 - NFR003 (Usability): ✅ UX principles documented, dashboard patterns defined
@@ -360,6 +383,7 @@ Complete story breakdown with:
 - NFR005 (Maintainability): ✅ Drizzle migrations (Decision #1), versioning (`workflow_versions` table)
 
 **Deferred Decisions Alignment:**
+
 - PRD Journey 2 defers conflict resolution strategy → Architecture-summary.md defers to Epic 3 ✅
 - PRD excludes orchestration framework choice → Architecture evaluates Effect/Mastra in Epic 3 ✅
 - PRD specifies 4-month thesis timeline → Architecture pragmatic deferral strategy supports this ✅
@@ -368,16 +392,17 @@ Complete story breakdown with:
 
 **Epic 1 Story Mapping to PRD Requirements:**
 
-| Story | PRD Requirements Covered | Coverage Status |
-|-------|--------------------------|----------------|
-| 1.1: Database Schema | FR001, FR005, FR012, FR013, FR015, FR027, FR032, FR034, FR037 | ✅ Complete |
-| 1.2: Workflow Seeding | FR001, FR002, FR009, FR024 | ✅ Complete |
-| 1.3: Project CRUD | FR035, FR036 | ✅ Complete |
-| 1.4: Workflow-init | FR011, User Journey 1 | ✅ Complete |
-| 1.5: Workflow Engine | FR002, FR003, FR004, FR005 | ✅ Complete |
-| 1.6: Git Validation | FR036, FR028 (partial) | ✅ Complete |
+| Story                 | PRD Requirements Covered                                      | Coverage Status |
+| --------------------- | ------------------------------------------------------------- | --------------- |
+| 1.1: Database Schema  | FR001, FR005, FR012, FR013, FR015, FR027, FR032, FR034, FR037 | ✅ Complete     |
+| 1.2: Workflow Seeding | FR001, FR002, FR009, FR024                                    | ✅ Complete     |
+| 1.3: Project CRUD     | FR035, FR036                                                  | ✅ Complete     |
+| 1.4: Workflow-init    | FR011, User Journey 1                                         | ✅ Complete     |
+| 1.5: Workflow Engine  | FR002, FR003, FR004, FR005                                    | ✅ Complete     |
+| 1.6: Git Validation   | FR036, FR028 (partial)                                        | ✅ Complete     |
 
 **Requirements NOT Covered by Epic 1 (Expected):**
+
 - FR006-FR010 (Multi-agent): Epic 3+ (orchestration)
 - FR016-FR020 (UI): Epic 2+ (Tauri + UI implementation)
 - FR021-FR023 (MCP): Epic 3+ (agent execution)
@@ -389,6 +414,7 @@ Complete story breakdown with:
 - FR045 (Cross-agent conflicts): Epic 3 (orchestration + conflict strategy)
 
 **Epic 1 Scope Validation:** ✅ **CORRECT**
+
 - Epic 1 is foundation: Database + basic workflow engine + project setup
 - Multi-agent, UI, and git worktree operations intentionally deferred to later epics
 - Aligns with phase-by-phase strategy documented in workflow status
@@ -398,28 +424,33 @@ Complete story breakdown with:
 **Technology Stack → Story Acceptance Criteria:**
 
 ✅ **Story 1.1 (Database Schema)**
+
 - Uses Drizzle ORM ✅ (Architecture Decision #1)
 - 11 tables match architectural patterns (dual-tracking, worktree registry, workflow storage)
 - Acceptance criteria references Drizzle schema definition ✅
 
 ✅ **Story 1.5 (Workflow Engine)**
+
 - Variable resolution (4-level precedence) ✅ matches FR004 + Architecture-summary.md
 - Template rendering with Handlebars ✅
 - EventEmitter for real-time updates ✅ (prepares for SSE in Epic 4)
 - Workflow state persistence ✅ (`workflow_state` table)
 
 ✅ **Story 1.6 (Git Validation)**
+
 - Uses simple-git library ✅ (Architecture Decision #5)
 - Validates repository before execution ✅ (FR036)
 - Foundation for divergence detection ✅ (FR028 full implementation in Epic 2)
 
 **Architectural Constraints Respected:**
+
 - No premature orchestration framework choice ✅ (deferred to Epic 3)
 - No UI implementation in Epic 1 ✅ (starts Epic 2)
 - No worktree lifecycle yet ✅ (Epic 2)
 - Simplified workflow engine without agent coordination ✅
 
 **Novel Patterns Foundation:**
+
 1. **Dual-Tracking:** ✅ Story 1.1 includes `git_commit_hash` column, ready for Epic 2 divergence detection
 2. **Worktree Isolation:** ✅ Story 1.1 includes `git_worktrees` table, ready for Epic 2 lifecycle management
 3. **Workflow-as-Data:** ✅ Story 1.2 seeds workflows into DB, Story 1.5 executes from DB
@@ -442,11 +473,13 @@ Story 1.6 (Git validation) - Can run anytime after 1.1, placed last for focus
 ```
 
 ✅ **Sequencing Valid:** 1.1 → (1.2, 1.3) in parallel → 1.4 → 1.5 → 1.6
+
 - Story acceptance criteria specify dependencies explicitly
 - No circular dependencies
 - Foundation-first approach (DB schema before everything)
 
 **Cross-Epic Dependencies:**
+
 - Epic 1 → Epic 2: ✅ Epic 2 requires DB + workflow engine from Epic 1
 - Epic 2 → Epic 3: ✅ Epic 3 requires git worktrees (Epic 2) before multi-agent orchestration
 - Documented in epics.md: ✅ Epic 1 listed as "Dependencies: None (foundation)"
@@ -454,6 +487,7 @@ Story 1.6 (Git validation) - Can run anytime after 1.1, placed last for focus
 ### BMAD Workflow Flexibility Validation
 
 **Phase-by-Phase Implementation Strategy:**
+
 - Epic boundaries define when workflows are **IMPLEMENTED** (built into Chiron)
 - Workflows remain **AVAILABLE for cross-phase invocation** after implementation (BMAD's just-in-time principle)
 
@@ -505,6 +539,7 @@ Epic 7: Polish & Extensibility
 **✅ NO CRITICAL GAPS IDENTIFIED**
 
 All foundation requirements for Epic 1 implementation are documented and aligned:
+
 - Database schema completely defined (11 tables with columns and relationships)
 - Technology stack locked (5 critical decisions made)
 - Story acceptance criteria specific and testable
@@ -515,11 +550,13 @@ All foundation requirements for Epic 1 implementation are documented and aligned
 **✅ NO MAJOR SEQUENCING ISSUES**
 
 Epic 1 story sequence is logical and dependency-aware:
+
 - Foundation-first approach (DB schema before everything else)
 - Parallel work opportunities identified (Stories 1.2 and 1.3 after 1.1)
 - Critical path clear: 1.1 → 1.4 → 1.5
 
 **Minor Observation (Low Priority):**
+
 - Story 1.6 (Git Validation) could potentially run in parallel with 1.4 after 1.3 completes
 - Current sequence places it last, which is acceptable for focus reasons
 - No impact on timeline or implementation
@@ -529,11 +566,13 @@ Epic 1 story sequence is logical and dependency-aware:
 **✅ NO CONTRADICTIONS FOUND**
 
 **Technology Stack Consistency:**
+
 - PRD, Architecture, and Epic 1 stories all reference same technologies
 - No conflicting library choices
 - No competing architectural approaches
 
 **Architectural Approach Consistency:**
+
 - Deferred decisions strategy consistent across all documents
 - Just-in-time principle applied uniformly
 - Phase-by-phase epic strategy aligns with BMAD methodology
@@ -543,18 +582,21 @@ Epic 1 story sequence is logical and dependency-aware:
 **✅ NO GOLD-PLATING DETECTED**
 
 **Epic 1 Scope Discipline:**
+
 - No UI components in Epic 1 (correctly deferred to Epic 2)
 - No multi-agent orchestration (correctly deferred to Epic 3)
 - No git worktree lifecycle operations (correctly deferred to Epic 2)
 - Workflow engine is "simplified" - no premature optimization
 
 **Architecture Decisions:**
+
 - XState deferred (React Query + Zustand sufficient for MVP)
 - Effect/Mastra evaluation deferred to Epic 3 (when context exists)
 - Error tracking, logging, analytics all post-MVP
 - No over-engineering detected
 
 **Story Acceptance Criteria:**
+
 - Focused on MVP functionality
 - No "nice-to-have" features creeping into must-haves
 - Clear separation between P0 (critical) and P1 (important) priorities
@@ -564,6 +606,7 @@ Epic 1 story sequence is logical and dependency-aware:
 **✅ Monorepo Already Setup - NO GAP**
 
 **Status:**
+
 - Project initialized with better-t3-stack (Turborepo + Bun workspaces)
 - Monorepo configuration verified:
   - `turbo.json` present with pipeline configuration
@@ -572,6 +615,7 @@ Epic 1 story sequence is logical and dependency-aware:
   - Existing structure: apps/web, apps/server, packages/db, packages/api, packages/auth
 
 **Impact on Epic 1:**
+
 - ✅ Story 1.1 can leverage existing `packages/db` structure
 - ✅ Add Drizzle schemas to existing database package
 - ✅ No Story 1.0 needed - infrastructure ready
@@ -582,35 +626,41 @@ Epic 1 story sequence is logical and dependency-aware:
 **🟡 MEDIUM PRIORITY: Structured LLM Output Strategy Intentionally Deferred**
 
 **Finding:**
+
 - Product Brief and Architecture Foundations reference DSPy/ax as core component for structured LLM outputs
 - Epic 1 Story 1.5 (Workflow Engine) does NOT implement structured LLM outputs
 - No architecture decision exists for ax vs ai-sdk vs Mastra integration
 
 **Analysis:**
+
 - **INTENTIONAL DEFERRAL** - Correct BMAD just-in-time approach
 - Epic 1 focuses on foundational patterns (DB, workflow storage, basic execution)
 - Story 1.5 uses Handlebars for template rendering (static variable substitution)
 - LLM integration research deferred to mid/end Epic 1 when implementation context exists
 
 **Potential Framework Conflicts to Research (Mid/End Epic 1):**
+
 - ax (DSPy signatures) vs ai-sdk (Vercel structured outputs) - which provides better structured output guarantees?
 - Effect (structured concurrency) vs Mastra (agent framework) - do their patterns conflict?
 - Error handling philosophy across frameworks
 - Streaming approaches (SSE + Effect vs ai-sdk streaming)
 
 **Research Questions for Mid/End Epic 1:**
+
 1. Does Handlebars handle static templates while LLM fills dynamic content?
 2. Where exactly do LLM calls fit in workflow execution flow?
 3. Which framework combo provides best TypeScript DX and future optimization?
 4. Can ax and Effect coexist without architectural conflicts?
 
 **Recommendation:**
+
 - ✅ Proceed with Epic 1 as-is (simplified workflow engine, no LLM integration yet)
 - 📋 **ACTION ITEM:** Research ax/ai-sdk/Effect/Mastra intersection during/after Story 1.5 implementation
 - ✅ Create Architecture Decision #6 in Epic 2 with real implementation context
 - ✅ Update epics.md to add research task: "Epic 2 Prerequisite: LLM Framework Evaluation"
 
 **Timeline:**
+
 - Epic 1 Stories 1.1-1.5: Validate foundational patterns
 - Mid/End Epic 1: Research structured LLM frameworks (1-2 days)
 - Epic 2: Implement chosen approach for workflow execution with LLM decisions
@@ -622,12 +672,14 @@ Epic 1 story sequence is logical and dependency-aware:
 **🟢 Implementation Details Will Emerge During Epic 1 (Expected BMAD Behavior)**
 
 **This is Normal and Healthy:**
+
 - BMAD just-in-time approach expects discovery during implementation
 - Story acceptance criteria provide guardrails
 - Implementation reveals specific details and edge cases
 - Document as sub-tasks/stories as they emerge
 
 **Expected Emergent Requirements:**
+
 1. **GitHub Integration Patterns** - How to interact with remote repositories
 2. **Default Project Directory** - e.g., ~/chiron-projects or user-configurable
 3. **Edge Case Handling:**
@@ -638,6 +690,7 @@ Epic 1 story sequence is logical and dependency-aware:
 5. **Error Handling Patterns** - Consistent error messaging, logging strategy
 
 **Approach:**
+
 - ✅ Start Epic 1 with current story acceptance criteria
 - ✅ Document new requirements as they surface
 - ✅ Add stories/tasks to Epic 1 dynamically
@@ -663,11 +716,13 @@ Per validation criteria for greenfield projects, checking for:
 **✅ Security Appropriately Scoped for MVP**
 
 **Epic 1 Security:**
+
 - Local PostgreSQL database (no remote access concerns)
 - Desktop application (no web attack surface)
 - Git operations via simple-git (trusted library)
 
 **Deferred Security (Post-MVP):**
+
 - Agent capability permissions (FR009, FR044) - basic version in Epic 1, full validation later
 - No authentication needed (single-user desktop app)
 - No sensitive data encryption needed at MVP stage
@@ -675,11 +730,13 @@ Per validation criteria for greenfield projects, checking for:
 **✅ Performance Appropriately Considered**
 
 **NFR001 Compliance:**
+
 - Product-brief workflow <45min target - Epic 2 concern (when workflow is implemented with UI)
 - Database queries → Drizzle ORM with indexes (Story 1.1 acceptance criteria)
 - No N+1 query concerns in Epic 1 (simple CRUD operations)
 
 **Epic 1 Performance:**
+
 - Lightweight ORM chosen (Drizzle - Decision #1)
 - EventEmitter for real-time updates (non-blocking)
 - No complex computations in Epic 1
@@ -691,6 +748,7 @@ Per validation criteria for greenfield projects, checking for:
 ### UX Artifacts Review
 
 **UX Design Foundation (Steps 0-4 Complete):**
+
 - ✅ Design system selected: shadcn/ui with Tailwind CSS
 - ✅ Color system defined: 21-color palette (CARBON/CAMO)
 - ✅ 9 novel UX patterns documented
@@ -698,6 +756,7 @@ Per validation criteria for greenfield projects, checking for:
 - ✅ 7 UX principles defined
 
 **Epic 1 UX Scope:**
+
 - ❌ No UI implementation in Epic 1 (correctly scoped)
 - ❌ No UX validation required for database/backend stories
 - ✅ UX implementation begins Epic 2 (React + Artifact Workbench)
@@ -707,17 +766,20 @@ Per validation criteria for greenfield projects, checking for:
 **🟢 POSITIVE FINDING: Tauri Deferred to Post-MVP**
 
 **Original Plan (PRD/Product Brief):**
+
 - Platform: Tauri desktop application (Rust + React)
 - Deployment: Native desktop app for Linux, macOS, Windows
 - Epic 2 Story 2.1: "Set up Tauri desktop application"
 
 **Updated Approach:**
+
 - **Platform:** Web application (localhost during MVP)
 - **Tech Stack:** React frontend + Hono backend (Bun runtime)
 - **Deployment:** `bun dev` → access via browser (http://localhost:3000)
 - **Post-MVP:** Bundle as Tauri desktop app (same React frontend, zero refactoring)
 
 **Rationale:**
+
 - ✅ **Faster iteration** - No Rust compilation, no native build complexity
 - ✅ **Simpler dev setup** - Just Bun + PostgreSQL, no Tauri dependencies
 - ✅ **Focus on thesis core** - Multi-agent orchestration patterns, not desktop packaging
@@ -728,11 +790,13 @@ Per validation criteria for greenfield projects, checking for:
 **Impact on Architecture:**
 
 **Database Setup (Recommendation):**
+
 - Option 1: User installs PostgreSQL locally (original assumption)
 - Option 2: **Docker Compose** (recommended - consistent dev environment)
 - Option 3: Supabase local (PostgreSQL + built-in migrations)
 
 **Recommended:** Docker Compose with `docker-compose.yml`:
+
 ```yaml
 services:
   postgres:
@@ -752,6 +816,7 @@ services:
 **Original:** "Set up Tauri desktop application with React frontend"
 
 **Updated:** "Set up React + Vite web application with Hono backend"
+
 - Initialize Vite + React + TypeScript in `apps/web`
 - Set up Hono API server in `apps/api`
 - Configure CORS for localhost development
@@ -759,6 +824,7 @@ services:
 - No Tauri, no Rust setup required
 
 **Post-MVP Tauri Integration (Deferred):**
+
 - Epic 8 or post-thesis: Add Tauri wrapper
 - Frontend code unchanged (just bundle as desktop app)
 - Tauri handles native window, menu, system tray
@@ -769,11 +835,13 @@ services:
 ### Accessibility and Usability Coverage
 
 **Not Applicable to Epic 1:**
+
 - Epic 1 is pure backend/infrastructure
 - No user-facing interfaces
 - Accessibility validation deferred to Epic 2+
 
 **Future Consideration (Epic 2+):**
+
 - Shadcn/ui components are accessibility-ready (ARIA support built-in)
 - NFR003 (Usability): "Dashboard comprehension within 10 seconds" - Epic 2+ concern
 - Keyboard navigation for command palette - Epic 2+ concern
@@ -781,16 +849,19 @@ services:
 ### Greenfield-Specific Concerns
 
 **✅ Project Initialization Covered:**
+
 - Story 1.4 (Workflow-init) provides conversational setup
 - Matches User Journey 1 in PRD
 - LLM-based project analysis (level, type, field detection)
 
 **✅ Development Environment:**
+
 - Story 1.1 technical notes reference Drizzle setup
 - Bun workspace configuration
 - PostgreSQL initialization (recommend Docker Compose)
 
 **✅ Git Repository Initialization:**
+
 - Story 1.6 validates git repository
 - Story 1.4 includes git init if needed
 - Foundation for git worktree operations (Epic 2)
@@ -798,17 +869,20 @@ services:
 ### Special Technical Concerns
 
 **Database Management:**
+
 - ✅ Migration system (Story 1.1 with Drizzle Kit)
 - ✅ Seeding system (Story 1.2 with idempotency)
 - ✅ Backup/restore mentioned in FR033 (deferred to post-MVP)
 - **NEW:** Docker Compose recommended for consistent PostgreSQL setup
 
 **Workflow Compatibility:**
+
 - ✅ BMAD workflows seeded from bmad/ directory (Story 1.2)
 - ✅ BMM + CIS modules included
 - ✅ Workflow parsing logic defined (Story 1.5)
 
 **Cross-Platform Considerations:**
+
 - **Updated:** Web application (browser-based)
 - PostgreSQL via Docker Compose (cross-platform)
 - Git must be installed (Story 1.6 validates)
@@ -819,6 +893,7 @@ services:
 **Epic 1 Has No UX Concerns** - Correctly scoped as backend foundation.
 
 All UX validation deferred to Epic 2 when:
+
 - React web application created (no Tauri)
 - Hono backend integrated
 - Artifact Workbench built
@@ -918,6 +993,7 @@ _Minor items for consideration_
 **✅ NO SEQUENCING CHANGES NEEDED**
 
 Current Epic 1 story sequence is optimal:
+
 ```
 Story 1.1 (DB Schema) - 3 days
     ↓
@@ -934,6 +1010,7 @@ Story 1.6 (Git Validation) - 1 day
 **Total: ~16 days = 3.2 weeks (Epic 1 target: 2 weeks with parallel work)**
 
 **Parallelization Opportunities:**
+
 - Stories 1.2 and 1.3 can run simultaneously after 1.1 completes
 - Reduces timeline from 16 days sequential → ~13 days with parallel work
 
@@ -950,28 +1027,33 @@ Story 1.6 (Git Validation) - 1 day
 Chiron demonstrates exceptional planning quality across all dimensions:
 
 **Documentation Completeness: 10/10**
+
 - PRD: 100% complete, 45 FRs, 5 NFRs, 3 User Journeys
 - Architecture: 5 critical decisions locked, pragmatic deferral strategy
 - Epic 1: 6 stories fully detailed with testable acceptance criteria
 
 **Architectural Quality: 9.5/10**
+
 - Novel patterns well-defined (dual-tracking, worktree isolation, workflow-as-data)
 - Technology stack locked with clear rationale
 - Just-in-time deferral strategy reduces risk
 - Platform simplified (web app first) accelerates development
 
 **Alignment & Traceability: 10/10**
+
 - Zero contradictions between PRD, Architecture, and Stories
 - All Epic 1 requirements traced to architectural decisions
 - Cross-phase workflow flexibility validated
 
 **Risk Management: 10/10**
+
 - Critical decisions made upfront (Drizzle, tRPC, SSE, simple-git)
 - Complex decisions deferred appropriately (ax/Effect/Mastra to Epic 2-3)
 - Platform risk eliminated (Tauri deferred)
 - Monorepo already configured (better-t3-stack)
 
 **Implementation Readiness: 10/10**
+
 - All 6 Epic 1 stories have clear acceptance criteria
 - Dependencies explicitly mapped
 - Technology choices support all stories
@@ -984,16 +1066,19 @@ Chiron demonstrates exceptional planning quality across all dimensions:
 **ZERO BLOCKING CONDITIONS**
 
 The project can proceed to Epic 1 implementation immediately with:
+
 - ✅ Current documentation (no updates required)
 - ✅ Existing monorepo infrastructure (better-t3-stack)
 - ✅ Defined story acceptance criteria
 
 **Optional Documentation Updates (Non-Blocking):**
+
 1. Add Architecture Decision #7 (Platform: Web app first)
 2. Update Epic 2 Story 2.1 (Remove Tauri references)
 3. Add Docker Compose for PostgreSQL (recommended setup)
 
 **Expected Behavior During Epic 1:**
+
 - Implementation details will emerge (GitHub integration, default dirs, edge cases)
 - Document as sub-tasks/stories dynamically
 - Research LLM frameworks mid/end Epic 1
@@ -1060,6 +1145,7 @@ The project can proceed to Epic 1 implementation immediately with:
 **Status File:** `docs/bmm-workflow-status.md`
 
 **Current Status (Before Update):**
+
 - Phase: 3-Solutioning
 - Current Workflow: architecture (in progress)
 - Next Step: solutioning-gate-check (this workflow)
@@ -1067,6 +1153,7 @@ The project can proceed to Epic 1 implementation immediately with:
 **Solutioning-Gate-Check Result:** ✅ **PASSED**
 
 **Assessment Summary:**
+
 - Overall Readiness: ✅ READY FOR IMPLEMENTATION (9.9/10)
 - Critical Gaps: None identified
 - Blocking Issues: Zero
@@ -1085,6 +1172,7 @@ assessment_result: PASSED - Ready for implementation with zero blockers
 ```
 
 **Key Findings to Document:**
+
 1. ✅ Solutioning-gate-check passed with 9.9/10 readiness score
 2. ✅ Platform simplified (web app first, Tauri deferred) - reduces risk
 3. ✅ Monorepo infrastructure verified (better-t3-stack configured)
@@ -1104,12 +1192,14 @@ assessment_result: PASSED - Ready for implementation with zero blockers
 **Level 3-4 Project Validation Criteria (from validation-criteria.yaml):**
 
 ✅ **PRD Completeness**
+
 - User requirements fully documented (45 FRs across 13 categories)
 - Success criteria are measurable (NFR001-NFR005 with specific targets)
 - Scope boundaries clearly defined (15 MVP exclusions + 5 deferrals)
 - Priorities are assigned (P0 Critical, P1 Important)
 
 ✅ **Architecture Coverage**
+
 - All PRD requirements have architectural support (5 critical decisions + deferred strategy)
 - System design is complete for Epic 1 scope
 - Integration points defined (tRPC, SSE, simple-git)
@@ -1118,17 +1208,20 @@ assessment_result: PASSED - Ready for implementation with zero blockers
 - Novel patterns documented with implementation roadmap
 
 ✅ **PRD-Architecture Alignment**
+
 - No architecture gold-plating beyond PRD requirements
 - NFRs from PRD reflected in architecture (performance, reliability, usability)
 - Technology choices support all requirements
 - Scalability matches expected growth (4 concurrent agents - NFR004)
 
 ✅ **Story Implementation Coverage**
+
 - All Epic 1 architectural components have stories (DB schema, workflow engine, git validation)
 - Infrastructure setup stories exist (monorepo already configured)
 - No missing critical stories for Epic 1 scope
 
 ✅ **Comprehensive Sequencing**
+
 - Infrastructure before features (Story 1.1 database before everything)
 - Core features before enhancements (foundation → execution → validation)
 - Dependencies properly ordered (1.1 → 1.2/1.3 → 1.4 → 1.5 → 1.6)
@@ -1147,32 +1240,32 @@ assessment_result: PASSED - Ready for implementation with zero blockers
 
 **Epic 1 Requirements → Architecture → Stories:**
 
-| PRD Requirement | Architecture Decision | Epic 1 Story | Status |
-|-----------------|----------------------|--------------|--------|
-| FR001: Workflows in DB | Workflow-as-Data pattern | 1.2 (Seeding) | ✅ Covered |
-| FR002: Workflow.xml rules | Discovery-driven approach | 1.5 (Engine) | ✅ Covered |
-| FR003: 4-phase support | Phase preservation | 1.5 (Engine) | ✅ Covered |
-| FR004: 4-level variables | Variable resolution | 1.5 (Engine) | ✅ Covered |
-| FR005: Workflow state | workflow_state table | 1.1 (Schema), 1.5 (Engine) | ✅ Covered |
-| FR012: Track project state | project_state table | 1.1 (Schema) | ✅ Covered |
-| FR013: Epic/story state machine | epic_state, story_state tables | 1.1 (Schema) | ✅ Covered |
-| FR015: BMAD in DB, artifacts in repo | Dual-tracking pattern | 1.1 (Schema), 1.2 (Seeding) | ✅ Covered |
-| FR027: Git worktree registry | git_worktrees table | 1.1 (Schema) | ✅ Foundation |
-| FR032: Initialize DB | Drizzle migrations | 1.1 (Schema) | ✅ Covered |
-| FR034: Git commit hash tracking | project_artifacts.git_commit_hash | 1.1 (Schema) | ✅ Covered |
-| FR035: Create/import projects | Project CRUD endpoints | 1.3 (CRUD) | ✅ Covered |
-| FR036: Validate project structure | Git validation | 1.6 (Validation) | ✅ Covered |
-| FR037: Worktree registry | git_worktrees table | 1.1 (Schema) | ✅ Foundation |
+| PRD Requirement                      | Architecture Decision             | Epic 1 Story                | Status        |
+| ------------------------------------ | --------------------------------- | --------------------------- | ------------- |
+| FR001: Workflows in DB               | Workflow-as-Data pattern          | 1.2 (Seeding)               | ✅ Covered    |
+| FR002: Workflow.xml rules            | Discovery-driven approach         | 1.5 (Engine)                | ✅ Covered    |
+| FR003: 4-phase support               | Phase preservation                | 1.5 (Engine)                | ✅ Covered    |
+| FR004: 4-level variables             | Variable resolution               | 1.5 (Engine)                | ✅ Covered    |
+| FR005: Workflow state                | workflow_state table              | 1.1 (Schema), 1.5 (Engine)  | ✅ Covered    |
+| FR012: Track project state           | project_state table               | 1.1 (Schema)                | ✅ Covered    |
+| FR013: Epic/story state machine      | epic_state, story_state tables    | 1.1 (Schema)                | ✅ Covered    |
+| FR015: BMAD in DB, artifacts in repo | Dual-tracking pattern             | 1.1 (Schema), 1.2 (Seeding) | ✅ Covered    |
+| FR027: Git worktree registry         | git_worktrees table               | 1.1 (Schema)                | ✅ Foundation |
+| FR032: Initialize DB                 | Drizzle migrations                | 1.1 (Schema)                | ✅ Covered    |
+| FR034: Git commit hash tracking      | project_artifacts.git_commit_hash | 1.1 (Schema)                | ✅ Covered    |
+| FR035: Create/import projects        | Project CRUD endpoints            | 1.3 (CRUD)                  | ✅ Covered    |
+| FR036: Validate project structure    | Git validation                    | 1.6 (Validation)            | ✅ Covered    |
+| FR037: Worktree registry             | git_worktrees table               | 1.1 (Schema)                | ✅ Foundation |
 
 **Deferred Requirements (Correctly Scoped to Later Epics):**
 
-| PRD Requirement | Epic | Rationale |
-|-----------------|------|-----------|
-| FR006-FR010: Multi-agent | Epic 3+ | Requires orchestration framework |
-| FR016-FR020: UI/Visualization | Epic 2+ | Requires React app + UI components |
-| FR021-FR023: MCP Management | Epic 3+ | Requires agent execution context |
-| FR027-FR030: Worktree lifecycle | Epic 2 | Requires simple-git integration |
-| FR031, FR042: Real-time updates | Epic 4 | Requires SSE implementation |
+| PRD Requirement                 | Epic    | Rationale                          |
+| ------------------------------- | ------- | ---------------------------------- |
+| FR006-FR010: Multi-agent        | Epic 3+ | Requires orchestration framework   |
+| FR016-FR020: UI/Visualization   | Epic 2+ | Requires React app + UI components |
+| FR021-FR023: MCP Management     | Epic 3+ | Requires agent execution context   |
+| FR027-FR030: Worktree lifecycle | Epic 2  | Requires simple-git integration    |
+| FR031, FR042: Real-time updates | Epic 4  | Requires SSE implementation        |
 
 **Conclusion: Epic 1 coverage is precise - no missing foundations, no premature implementation**
 
@@ -1181,26 +1274,31 @@ assessment_result: PASSED - Ready for implementation with zero blockers
 **Original Risks from Product Brief:**
 
 **Risk #1: DSPy/ax TypeScript port not mature enough**
+
 - **Mitigation:** Deferred to mid Epic 1 for research with real implementation context
 - **Fallback:** Use ai-sdk + Zod validation if ax proves unstable
 - **Status:** ✅ Mitigated through deferral strategy
 
 **Risk #2: Tauri adds desktop complexity**
+
 - **Mitigation:** ✅ **ELIMINATED** - Tauri deferred to post-MVP, web app first
 - **Benefit:** Faster iteration, simpler setup, zero refactoring later
 - **Status:** ✅ Risk removed through architecture simplification
 
 **Risk #3: Effect/Mastra framework conflicts**
+
 - **Mitigation:** Deferred to Epic 3 when multi-agent orchestration is needed
 - **Research:** Evaluate conflicts with real use case, not speculation
 - **Status:** ✅ Mitigated through just-in-time decision making
 
 **Risk #4: Multi-agent coordination complexity**
+
 - **Mitigation:** Epic 1 validates foundations before adding orchestration
 - **Approach:** Test dual-tracking and workflow storage without agents first
 - **Status:** ✅ Mitigated through incremental complexity (Epic 1 → 2 → 3)
 
 **Risk #5: 4-month thesis timeline pressure**
+
 - **Mitigation:** Platform simplified (web app), deferred decisions reduce scope
 - **Strategy:** Phase-by-phase validation (Epic 2 validates thesis Week 5-6)
 - **Status:** ✅ Mitigated through risk reduction decisions
@@ -1208,6 +1306,7 @@ assessment_result: PASSED - Ready for implementation with zero blockers
 **New Risks Identified During Assessment:**
 
 **None.** All potential risks have been addressed through:
+
 - Architecture simplification (Tauri deferred)
 - Just-in-time decisions (ax/Effect/Mastra deferred)
 - Existing infrastructure (better-t3-stack configured)

@@ -29,13 +29,13 @@ workflow-engine/
 
 ## WHERE TO LOOK
 
-| Task | File | Notes |
-|------|------|-------|
-| Add step handler | `step-handlers/*.ts` + `step-types.ts` | Implement StepHandler, register in STEP_HANDLERS |
-| Configure AI provider | `effect/ai-provider-service.ts` | 4 providers: openrouter, opencode, anthropic, openai |
-| Debug variable resolution | `variable-resolver.ts` | Handlebars + 4-level precedence |
-| Trace execution flow | `executor.ts` | executeWorkflow → continueExecution loop |
-| Subscribe to events | `event-bus.ts` | workflowEventBus.subscribeToExecution() |
+| Task                      | File                                   | Notes                                                |
+| ------------------------- | -------------------------------------- | ---------------------------------------------------- |
+| Add step handler          | `step-handlers/*.ts` + `step-types.ts` | Implement StepHandler, register in STEP_HANDLERS     |
+| Configure AI provider     | `effect/ai-provider-service.ts`        | 4 providers: openrouter, opencode, anthropic, openai |
+| Debug variable resolution | `variable-resolver.ts`                 | Handlebars + 4-level precedence                      |
+| Trace execution flow      | `executor.ts`                          | executeWorkflow → continueExecution loop             |
+| Subscribe to events       | `event-bus.ts`                         | workflowEventBus.subscribeToExecution()              |
 
 ## PATTERNS
 
@@ -44,11 +44,15 @@ workflow-engine/
 ```typescript
 // 1. step-handlers/my-handler.ts
 export class MyStepHandler implements StepHandler {
-  async executeStep(step: WorkflowStep, context: ExecutionContext, userInput?: unknown): Promise<StepResult> {
+  async executeStep(
+    step: WorkflowStep,
+    context: ExecutionContext,
+    userInput?: unknown,
+  ): Promise<StepResult> {
     return {
-      output: { key: "value" },           // Merged into execution variables
+      output: { key: "value" }, // Merged into execution variables
       nextStepNumber: step.nextStepNumber, // null = workflow ends
-      requiresUserInput: false,            // true = pause execution
+      requiresUserInput: false, // true = pause execution
     };
   }
 }
@@ -64,15 +68,19 @@ export const STEP_HANDLERS = {
 
 ```typescript
 // Use AIProviderService from Effect layer
-const model = yield* aiProvider.loadModel({
-  provider: "openrouter",  // or "opencode", "anthropic", "openai"
-  modelId: "anthropic/claude-sonnet-4-20250514",
-});
+const model =
+  yield *
+  aiProvider.loadModel({
+    provider: "openrouter", // or "opencode", "anthropic", "openai"
+    modelId: "anthropic/claude-sonnet-4-20250514",
+  });
 
-const result = yield* aiProvider.generateText({
-  model,
-  messages: [{ role: "user", content: "Hello" }],
-});
+const result =
+  yield *
+  aiProvider.generateText({
+    model,
+    messages: [{ role: "user", content: "Hello" }],
+  });
 ```
 
 ### Variable Resolution
@@ -80,7 +88,7 @@ const result = yield* aiProvider.generateText({
 ```typescript
 // Template: "Hello {{project_name}}"
 // Precedence: System > Execution > StepOutputs > Defaults
-resolveVariables(template, context);  // → "Hello MyProject"
+resolveVariables(template, context); // → "Hello MyProject"
 ```
 
 ## ANTI-PATTERNS

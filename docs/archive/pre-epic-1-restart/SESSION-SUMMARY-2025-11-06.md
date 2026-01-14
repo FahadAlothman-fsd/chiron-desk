@@ -19,6 +19,7 @@ Fahad returned after completing Story 1.1 and 1.2 on Nov 5, with a critical arch
 ## Actions Taken
 
 ### Phase 1: Workflow Status Migration
+
 - Archived old v6-alpha markdown status file (`bmm-workflow-status.md`)
 - Created new `workflow-status.yaml` with v6-main format
 - Changed workflow path from `greenfield-level-3` to `method-greenfield`
@@ -27,6 +28,7 @@ Fahad returned after completing Story 1.1 and 1.2 on Nov 5, with a critical arch
 ### Phase 2: Schema Refactoring (Option A)
 
 **Commit 1:** `07aa5b2` - Migrate to v6-main workflow tracking
+
 - Added workflow-schema-snapshot.md (complete architectural design)
 - Added workflow-init-complete-example.md (11-step workflow mapping)
 - Created Story 1.3: Project CRUD Operations
@@ -41,12 +43,13 @@ Fahad returned after completing Story 1.1 and 1.2 on Nov 5, with a critical arch
    - ✅ Reason: Enables runtime extensibility without migrations
 
 2. **Projects Table:**
+
    ```typescript
    // BEFORE
    level: projectLevelEnum("level").notNull(),
    type: projectTypeEnum("type").notNull(),
    fieldType: fieldTypeEnum("field_type").notNull(),
-   
+
    // AFTER
    workflowPathId: uuid("workflow_path_id").notNull().references(() => workflowPaths.id),
    initializedByExecutionId: uuid("initialized_by_execution_id").references(() => workflowExecutions.id),
@@ -54,12 +57,13 @@ Fahad returned after completing Story 1.1 and 1.2 on Nov 5, with a critical arch
    ```
 
 3. **Workflow Paths Table:**
+
    ```typescript
    // BEFORE
    projectType: projectTypeEnum("project_type").notNull(),
    projectLevel: projectLevelEnum("project_level").notNull(),
    fieldType: fieldTypeEnum("field_type").notNull(),
-   
+
    // AFTER
    displayName: text("display_name").notNull(),
    educationText: text("education_text"),
@@ -71,6 +75,7 @@ Fahad returned after completing Story 1.1 and 1.2 on Nov 5, with a critical arch
    ```
 
 4. **Workflows Table:**
+
    ```typescript
    // ADDED
    isProjectInitializer: boolean("is_project_initializer").default(false),
@@ -80,6 +85,7 @@ Fahad returned after completing Story 1.1 and 1.2 on Nov 5, with a critical arch
    ```
 
 5. **Workflow Executions Table:**
+
    ```typescript
    // ADDED
    executedSteps: jsonb("executed_steps").$type<{
@@ -92,12 +98,13 @@ Fahad returned after completing Story 1.1 and 1.2 on Nov 5, with a critical arch
        branchTaken?: string
      }
    }>().default({}),
-   
+
    // CHANGED
    projectId: uuid("project_id").references(...) // Now nullable for workflow-init
    ```
 
 6. **Workflow Steps Table:**
+
    ```typescript
    // RENAMED
    goal: text("goal").notNull(), // Was: title
@@ -105,6 +112,7 @@ Fahad returned after completing Story 1.1 and 1.2 on Nov 5, with a critical arch
    ```
 
 7. **Step Type Enum:**
+
    ```typescript
    // UPDATED
    "branch", // Was: "check-condition"
@@ -124,11 +132,13 @@ The schema changes are BREAKING - existing database must be migrated or recreate
 ### Migration Strategy Options:
 
 **Option 1: Fresh Start (Recommended for now)**
+
 - Drop existing database
 - Run `db:push` with new schema
 - Re-run seed scripts (need updates!)
 
 **Option 2: Write Migration (Production-ready)**
+
 - Create Drizzle migration script
 - Convert enum values to JSONB tags
 - Migrate project references to workflow paths
@@ -136,11 +146,13 @@ The schema changes are BREAKING - existing database must be migrated or recreate
 ## Impact on Existing Work
 
 ### ✅ Still Valid:
+
 - Story 1.1: Database schema implementation (updated)
 - Story 1.2: BMAD Workflow Seeding (seed scripts need updates!)
 - Story 1.3: Project CRUD Operations (needs schema updates!)
 
 ### ⚠️ Needs Updates:
+
 1. **Seed Scripts** (`packages/scripts/src/seeds/`)
    - `workflow-paths.ts` - Remove enum references, add JSONB tags
    - All seed files - Update to use new schema fields
@@ -193,21 +205,25 @@ The schema changes are BREAKING - existing database must be migrated or recreate
 ## Key Architectural Decisions Locked In
 
 ### #38: No Hardcoded Enums for Methodology Concepts
+
 - All project metadata stored as JSONB in `workflow_paths.tags`
 - Enables runtime extensibility without schema migrations
 - workflow-init can filter paths dynamically
 
 ### #39: Dual Progress Tracking
+
 - **Project-level**: `projects.executedVsPath` tracks workflow completion vs path
 - **Execution-level**: `workflow_executions.executedSteps` tracks step-by-step progress
 - Provides complete visibility into workflow state
 
 ### #40: workflow-init as First-Class Workflow
+
 - Stored in `workflows` table with `isProjectInitializer = true`
 - Uses standard step types (no special-case code)
 - Pure workflow execution pattern
 
 ### #41: N-Way Branching with Concrete + Abstract
+
 - Branch steps support multiple outcomes (not binary)
 - Concrete evaluation: Fast, deterministic (engine-evaluated)
 - Abstract evaluation: Flexible, context-aware (LLM-evaluated via ax)
@@ -215,6 +231,7 @@ The schema changes are BREAKING - existing database must be migrated or recreate
 ## Files Modified
 
 ### Documentation:
+
 - `docs/workflow-status.yaml` (NEW)
 - `docs/sprint-status.yaml` (UPDATED)
 - `docs/architecture/workflow-schema-snapshot.md` (NEW)
@@ -222,6 +239,7 @@ The schema changes are BREAKING - existing database must be migrated or recreate
 - `docs/archive/bmm-workflow-status-v6-alpha.md` (ARCHIVED)
 
 ### Schema:
+
 - `packages/db/src/schema/core.ts` (BREAKING CHANGES)
 - `packages/db/src/schema/workflows.ts` (BREAKING CHANGES)
 - `packages/db/src/schema/workflow-templates.ts` (NEW)
@@ -229,6 +247,7 @@ The schema changes are BREAKING - existing database must be migrated or recreate
 - `packages/db/src/schema/index.ts` (UPDATED)
 
 ### API (partial - Story 1.3 in progress):
+
 - `packages/api/src/routers/projects.ts` (NEW - needs schema updates)
 - `packages/api/src/routers/index.ts` (UPDATED)
 

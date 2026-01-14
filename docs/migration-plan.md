@@ -11,15 +11,15 @@
 
 This document outlines the migration from Chiron's current Mastra-based architecture to the new stack:
 
-| Layer | Current | Target |
-|-------|---------|--------|
-| **Core Shell** | Ad-hoc TypeScript | **Effect** (errors, streaming, concurrency, DI) |
-| **Sandboxed Agent** | Mastra agents | **AI-SDK** (generateText, tools, approval) |
-| **System Agent** | N/A | **OpenCode** (full computer access) |
-| **Optimization** | Mastra ACE | **AX** (ACE, MiPRO, GEPA) |
-| **Chat Storage** | Mastra threads | **Own schema** (messages, tangents, branches) |
-| **Variables** | JSONB blob | **Typed tables** (variables, variableHistory) |
-| **Artifacts** | Basic tracking | **Versioned system** (snapshots, diffs, git) |
+| Layer               | Current           | Target                                          |
+| ------------------- | ----------------- | ----------------------------------------------- |
+| **Core Shell**      | Ad-hoc TypeScript | **Effect** (errors, streaming, concurrency, DI) |
+| **Sandboxed Agent** | Mastra agents     | **AI-SDK** (generateText, tools, approval)      |
+| **System Agent**    | N/A               | **OpenCode** (full computer access)             |
+| **Optimization**    | Mastra ACE        | **AX** (ACE, MiPRO, GEPA)                       |
+| **Chat Storage**    | Mastra threads    | **Own schema** (messages, tangents, branches)   |
+| **Variables**       | JSONB blob        | **Typed tables** (variables, variableHistory)   |
+| **Artifacts**       | Basic tracking    | **Versioned system** (snapshots, diffs, git)    |
 
 ---
 
@@ -83,6 +83,7 @@ This document outlines the migration from Chiron's current Mastra-based architec
 ## Phase 1: Foundation (Effect Setup)
 
 ### Goal
+
 Establish Effect as the core runtime shell. All new code uses Effect patterns.
 
 ### Epic 1.1: Effect Infrastructure
@@ -156,6 +157,7 @@ Establish Effect as the core runtime shell. All new code uses Effect patterns.
 ## Phase 2: Chat System
 
 ### Goal
+
 Unified chat interface for both sandboxed and system agents.
 
 ### Epic 2.1: Chat Core Services
@@ -294,6 +296,7 @@ Unified chat interface for both sandboxed and system agents.
 ## Phase 3: Variable System
 
 ### Goal
+
 Typed variables with history tracking, replacing JSONB blobs.
 
 ### Epic 3.1: Variable Services
@@ -377,6 +380,7 @@ Typed variables with history tracking, replacing JSONB blobs.
 ## Phase 4: Workflow Engine
 
 ### Goal
+
 Effect-based workflow execution with unified streaming.
 
 ### Epic 4.1: Step Handlers as Effect Services
@@ -384,12 +388,16 @@ Effect-based workflow execution with unified streaming.
 **Stories:**
 
 1. **Create StepHandler service pattern**
+
    ```typescript
    interface StepHandler {
-     execute: (step: WorkflowStep, context: ExecutionContext) 
-       => Effect.Effect<StepResult, StepError, Requirements>
+     execute: (
+       step: WorkflowStep,
+       context: ExecutionContext,
+     ) => Effect.Effect<StepResult, StepError, Requirements>;
    }
    ```
+
    - Document pattern
    - Acceptance: Pattern defined and documented
 
@@ -497,6 +505,7 @@ Effect-based workflow execution with unified streaming.
 ## Phase 5: Artifact System
 
 ### Goal
+
 Versioned artifacts with diffs and git integration.
 
 ### Epic 5.1: Artifact Services
@@ -590,6 +599,7 @@ Versioned artifacts with diffs and git integration.
 ## Phase 6: Optimization (AX)
 
 ### Goal
+
 Integrate AX for prompt optimization and online learning.
 
 ### Epic 6.1: AX Setup
@@ -648,6 +658,7 @@ Integrate AX for prompt optimization and online learning.
 ## Phase 7: Cleanup
 
 ### Goal
+
 Remove Mastra, clean up deprecated code.
 
 ### Epic 7.1: Remove Mastra
@@ -661,7 +672,7 @@ Remove Mastra, clean up deprecated code.
 
 2. **Drop Mastra tables**
    - Drop `dialogSessions` table
-   - Drop any mastra.* schema tables
+   - Drop any mastra.\* schema tables
    - Acceptance: Mastra tables gone
 
 3. **Remove deprecated columns**
@@ -714,28 +725,28 @@ Phase 1 (Foundation)
 
 ## Estimated Effort
 
-| Phase | Epics | Stories | Estimate |
-|-------|-------|---------|----------|
-| Phase 1: Foundation | 2 | 9 | 1-2 weeks |
-| Phase 2: Chat System | 4 | 18 | 2-3 weeks |
-| Phase 3: Variable System | 3 | 10 | 1-2 weeks |
-| Phase 4: Workflow Engine | 3 | 14 | 2-3 weeks |
-| Phase 5: Artifact System | 4 | 11 | 1-2 weeks |
-| Phase 6: Optimization | 3 | 6 | 1 week |
-| Phase 7: Cleanup | 2 | 6 | 1 week |
-| **TOTAL** | **21** | **74** | **9-14 weeks** |
+| Phase                    | Epics  | Stories | Estimate       |
+| ------------------------ | ------ | ------- | -------------- |
+| Phase 1: Foundation      | 2      | 9       | 1-2 weeks      |
+| Phase 2: Chat System     | 4      | 18      | 2-3 weeks      |
+| Phase 3: Variable System | 3      | 10      | 1-2 weeks      |
+| Phase 4: Workflow Engine | 3      | 14      | 2-3 weeks      |
+| Phase 5: Artifact System | 4      | 11      | 1-2 weeks      |
+| Phase 6: Optimization    | 3      | 6       | 1 week         |
+| Phase 7: Cleanup         | 2      | 6       | 1 week         |
+| **TOTAL**                | **21** | **74**  | **9-14 weeks** |
 
 ---
 
 ## Risk Mitigation
 
-| Risk | Mitigation |
-|------|------------|
-| Effect learning curve | Start with simple services, pair programming |
-| OpenCode integration unknowns | Research spike in Phase 2 |
-| Breaking existing workflows | Keep old code running during migration |
-| Schema migration data loss | Backup before migration, test thoroughly |
-| Scope creep | Strict story acceptance criteria |
+| Risk                          | Mitigation                                   |
+| ----------------------------- | -------------------------------------------- |
+| Effect learning curve         | Start with simple services, pair programming |
+| OpenCode integration unknowns | Research spike in Phase 2                    |
+| Breaking existing workflows   | Keep old code running during migration       |
+| Schema migration data loss    | Backup before migration, test thoroughly     |
+| Scope creep                   | Strict story acceptance criteria             |
 
 ---
 

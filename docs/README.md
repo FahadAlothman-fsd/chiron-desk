@@ -16,21 +16,25 @@ This directory contains all project documentation organized by purpose.
 **All agents and developers MUST reference these documents:**
 
 ### Product Definition
+
 - **`PRD.md`** - Product Requirements Document (FR001-FR045)
 - **`epics.md`** - Epic breakdown with story details
 
 ### Architecture
+
 - **`architecture/CANONICAL-WORKFLOW-SCHEMA.md`** - Database schema (SINGLE SOURCE OF TRUTH)
 - **`architecture/architecture-decisions.md`** - Architectural Decision Records (ADR log)
 - **`architecture/workflow-init-complete-example.md`** - Complete workflow-init example
 
 ### Implementation Status
+
 - **`workflow-status.yaml`** - Current workflow state (v6-main format)
 - **`sprint-status.yaml`** - Sprint tracking with story states
 - **`stories/*.md`** - Individual story definitions
 - **`stories/*.context.xml`** - Story context for agents
 
 ### Design
+
 - **`design/ux-design-specification.md`** - UX design patterns and principles
 - **`design/chiron-ui-wireframes-v1.md`** - UI wireframes
 - **`design/ux-pattern-structured-exploration-lists.md`** - Pattern exploration
@@ -38,6 +42,7 @@ This directory contains all project documentation organized by purpose.
 - **`design/mockups/ux-color-themes.html`** - Color palette visualizer
 
 ### Research & Exploration
+
 - **`research/framework-evaluation-effect-vs-mastra.md`** - Tool evaluation
 - **`research/tool-research-requirements.md`** - Research requirements
 - **`research/tool-stack-decision.md`** - Final tool stack decision
@@ -45,6 +50,7 @@ This directory contains all project documentation organized by purpose.
 - **`research/workflow-engine-structure.md`** - Workflow design patterns and step types
 
 ### Session Context
+
 - Check `archive/pre-epic-1-restart/` for historical session summaries
 - Current session context is maintained in `workflow-status.yaml` and git commit messages
 
@@ -73,6 +79,7 @@ This directory contains all project documentation organized by purpose.
 **ONLY use:** `architecture/CANONICAL-WORKFLOW-SCHEMA.md`
 
 **Key Schema Features:**
+
 - ✅ NO PostgreSQL enums for project level/type/field
 - ✅ JSONB `tags` in `workflow_paths` for dynamic filtering
 - ✅ `executedVsPath` in `projects` table (project-level progress)
@@ -80,6 +87,7 @@ This directory contains all project documentation organized by purpose.
 - ✅ 16 tables total (including `workflow_templates`, `dialog_sessions`)
 
 **Contradictions Resolved:**
+
 - `database-schema-final.md` archived (outdated, had enums)
 - `architecture-foundations.md` archived (redundant)
 - `architecture-summary.md` archived (redundant)
@@ -87,6 +95,7 @@ This directory contains all project documentation organized by purpose.
 ### For Story Context
 
 **Story context files (`.context.xml`) reference:**
+
 - `architecture/CANONICAL-WORKFLOW-SCHEMA.md` for schema
 - `PRD.md` for requirements
 - `architecture/architecture-decisions.md` for ADRs
@@ -124,11 +133,13 @@ CANONICAL-WORKFLOW-SCHEMA.md (schema reference)
 ## 🆘 Getting Help
 
 **If you see contradictory information:**
+
 1. Check if you're reading an archived document
 2. Always prefer canonical documents (listed above)
 3. If canonical docs conflict, flag to Fahad immediately
 
 **If a document is missing:**
+
 1. Check `archive/` folders
 2. Check git history: `git log --all --full-history -- path/to/file`
 3. Ask Fahad if document should be restored or recreated

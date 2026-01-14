@@ -15,6 +15,7 @@ Chiron is a desktop application that transforms the [BMAD Method](https://github
 ## Tech Stack
 
 ### Frontend
+
 - **React 19** with TypeScript
 - **Tauri v2** - Native desktop application
 - **TanStack Router** - Type-safe file-based routing
@@ -23,15 +24,18 @@ Chiron is a desktop application that transforms the [BMAD Method](https://github
 - **Framer Motion** - Animations
 
 ### Backend
+
 - **Hono** - Lightweight HTTP server
 - **tRPC** - End-to-end type-safe APIs
 - **Bun** - JavaScript runtime
 
 ### Database
+
 - **PostgreSQL** (via Docker)
 - **Drizzle ORM** - TypeScript-first database toolkit
 
 ### AI/LLM Integration
+
 - **Vercel AI SDK** (`ai`) - Core LLM abstractions
 - **@ai-sdk/anthropic** + **@ai-sdk/openai** - Model providers
 - **@mastra/core** - Agent framework with memory and evals
@@ -39,6 +43,7 @@ Chiron is a desktop application that transforms the [BMAD Method](https://github
 - **OpenRouter** - Multi-provider routing
 
 ### Build & Development
+
 - **Turborepo** - Monorepo build orchestration
 - **Bun Workspaces** - Package management
 - **tsdown** - TypeScript bundling
@@ -46,6 +51,7 @@ Chiron is a desktop application that transforms the [BMAD Method](https://github
 - **Husky** - Git hooks
 
 ### Project Management
+
 - **BMAD Method** - AI-driven agile development methodology stored in `bmad/` directory
 
 ## Project Structure
@@ -85,6 +91,7 @@ chiron/
 ### Installation
 
 1. **Clone and install dependencies:**
+
    ```bash
    git clone <repo-url>
    cd chiron
@@ -92,17 +99,20 @@ chiron/
    ```
 
 2. **Start the database:**
+
    ```bash
    bun db:start
    ```
 
 3. **Configure environment:**
+
    ```bash
    cp apps/server/.env.example apps/server/.env
    # Edit .env with your database connection and API keys
    ```
 
 4. **Push database schema:**
+
    ```bash
    bun db:push
    ```
@@ -115,11 +125,13 @@ chiron/
 ### Development
 
 **Start all services (web + server):**
+
 ```bash
 bun dev
 ```
 
 **Start as native desktop app:**
+
 ```bash
 bun dev:native
 ```
@@ -128,25 +140,25 @@ The web app runs at [http://localhost:3001](http://localhost:3001) and the API a
 
 ## Available Scripts
 
-| Command | Description |
-|---------|-------------|
-| `bun dev` | Start all applications in development mode |
-| `bun dev:web` | Start only the web application |
-| `bun dev:server` | Start only the server |
-| `bun dev:native` | Start Tauri desktop app |
-| `bun build` | Build all applications |
-| `bun check-types` | TypeScript type checking |
-| `bun check` | Run Biome linting and formatting |
-| `bun test` | Run all tests |
-| `bun db:start` | Start PostgreSQL container |
-| `bun db:stop` | Stop PostgreSQL container |
-| `bun db:push` | Push schema changes to database |
-| `bun db:studio` | Open Drizzle Studio UI |
-| `bun db:generate` | Generate migrations |
-| `bun db:migrate` | Run migrations |
-| `bun db:seed` | Seed database with BMAD data |
-| `bun db:seed:reset` | Reset and reseed database |
-| `bun db:reset` | Full database reset |
+| Command             | Description                                |
+| ------------------- | ------------------------------------------ |
+| `bun dev`           | Start all applications in development mode |
+| `bun dev:web`       | Start only the web application             |
+| `bun dev:server`    | Start only the server                      |
+| `bun dev:native`    | Start Tauri desktop app                    |
+| `bun build`         | Build all applications                     |
+| `bun check-types`   | TypeScript type checking                   |
+| `bun check`         | Run Biome linting and formatting           |
+| `bun test`          | Run all tests                              |
+| `bun db:start`      | Start PostgreSQL container                 |
+| `bun db:stop`       | Stop PostgreSQL container                  |
+| `bun db:push`       | Push schema changes to database            |
+| `bun db:studio`     | Open Drizzle Studio UI                     |
+| `bun db:generate`   | Generate migrations                        |
+| `bun db:migrate`    | Run migrations                             |
+| `bun db:seed`       | Seed database with BMAD data               |
+| `bun db:seed:reset` | Reset and reseed database                  |
+| `bun db:reset`      | Full database reset                        |
 
 ## Documentation
 

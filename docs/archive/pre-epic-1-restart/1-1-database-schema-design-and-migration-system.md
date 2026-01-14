@@ -18,7 +18,7 @@ so that all application data can be persisted, queried efficiently, and evolved 
 
   **Core Tables (5):**
   - `projects` - Project metadata (name, path, level, type, field_type)
-  - `project_state` - Current workflow position (current_phase, phase_*_complete flags)
+  - `project_state` - Current workflow position (current*phase, phase*\*\_complete flags)
   - `workflow_paths` - Workflow sequences for project types (greenfield-level-0 through 4, brownfield variants)
   - `workflow_path_workflows` - Junction table linking paths to workflows with phase/order
   - `app_config` - Application settings (openrouter_api_key, anthropic_api_key, openai_api_key, default_llm_provider)
@@ -50,6 +50,7 @@ so that all application data can be persisted, queried efficiently, and evolved 
 ## Tasks / Subtasks
 
 ### Implementation
+
 - [x] Configure Drizzle ORM with PostgreSQL (AC: 1)
   - [x] Install drizzle-orm and drizzle-kit packages
   - [x] Create drizzle.config.ts with connection settings
@@ -73,6 +74,7 @@ so that all application data can be persisted, queried efficiently, and evolved 
   - [x] Create empty seed script (implementation in Story 1.2)
 
 ### Testing
+
 - [x] Verify all tables created successfully
 - [x] Verify foreign key constraints working
 - [x] Verify indexes created
@@ -81,18 +83,21 @@ so that all application data can be persisted, queried efficiently, and evolved 
 ## Dev Notes
 
 **Schema Evolution Context:**
+
 - Original estimate: 11 tables (Phase 2)
 - Final schema: 16 tables (Phase 3 architectural decisions #33-#37)
 - Added tables: workflow_steps, workflow_step_branches, workflow_step_actions, workflow_paths, workflow_path_workflows, training_examples, optimization_runs, app_config
 - Deferred: git_worktrees (Epic 4), workflow_versions (Epic 7)
 
 **Technical Approach:**
+
 - Use Drizzle ORM for type-safe schema definition
 - PostgreSQL enums for status fields (better than string columns)
 - JSONB columns for flexible metadata storage (tools, mcp_servers, context_data)
 - Cascade deletes for data integrity
 
 **Testing Standards:**
+
 - Verify table creation
 - Test foreign key relationships
 - Validate index performance
@@ -134,6 +139,7 @@ claude-sonnet-4-20250514
 - Commit: `6015596`
 
 **Key Deliverables:**
+
 - Core tables (5): projects, project_state, workflow_paths, workflow_path_workflows, app_config
 - Workflow definition tables (5): agents, workflows, workflow_steps, workflow_step_branches, workflow_step_actions
 - Execution tables (2): workflow_executions, project_artifacts
@@ -143,6 +149,7 @@ claude-sonnet-4-20250514
 ### File List
 
 **Created:**
+
 - `packages/db/src/schema/core.ts`
 - `packages/db/src/schema/agents.ts`
 - `packages/db/src/schema/workflows.ts`

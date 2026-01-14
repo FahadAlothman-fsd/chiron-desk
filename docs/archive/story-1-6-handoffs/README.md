@@ -22,9 +22,11 @@ This folder contains **detailed session-by-session handoff documents** created d
 ## Documents in This Archive
 
 ### `SESSION-HANDOFF-STORY-1-6.md` (Nov 16, 2025)
+
 **Focus:** Tool Usage Guidance Implementation (Session 5)
 
 **Key Topics:**
+
 - Per-tool `usageGuidance` field implementation
 - Handlebars template injection for dynamic instructions
 - Tool calling validation with Playwright testing
@@ -33,12 +35,15 @@ This folder contains **detailed session-by-session handoff documents** created d
 - Auto-resume fix recommendation (2-3 hours)
 
 **Key Insight:**
+
 > "The thesis is validated! Agents CAN orchestrate workflows intelligently when given clear, imperative usage guidance."
 
 ### `SESSION-HANDOFF-FINAL.md` (Nov 18, 2025)
+
 **Focus:** Generic Option Cards & Dynamic Tool Unlocking (Session 8) - COMPLETION
 
 **Key Achievements:**
+
 - ✅ Generic `OptionCard` component (data-driven approval system)
 - ✅ Dynamic tool unlocking (prerequisite-based tool registration)
 - ✅ Phases data integration (nested workflow paths)
@@ -46,6 +51,7 @@ This folder contains **detailed session-by-session handoff documents** created d
 - ✅ Full 3-tool flow verified end-to-end
 
 **Architectural Win:**
+
 > "Future approval flows = JSONB config only, zero code changes needed!"
 
 ---
@@ -53,6 +59,7 @@ This folder contains **detailed session-by-session handoff documents** created d
 ## When to Reference These Documents
 
 **Use the Canonical Story File** (`docs/sprint-artifacts/1-6-workflow-init-steps-3-4-description-complexity.md`) for:
+
 - ✅ What was delivered (features, ACs, scope)
 - ✅ Architectural decisions and patterns
 - ✅ Final implementation summary
@@ -60,6 +67,7 @@ This folder contains **detailed session-by-session handoff documents** created d
 - ✅ Quick reference for future stories
 
 **Use These Archived Handoffs** for:
+
 - 🔍 Deep dive into specific sessions (Nov 16, Nov 18)
 - 🔍 Debugging approaches and problem-solving process
 - 🔍 Implementation details and code snippets
@@ -75,12 +83,14 @@ This folder contains **detailed session-by-session handoff documents** created d
 **Optional:** 1 AC (Anthropic config - not needed for MVP)
 
 **Major Achievements:**
+
 1. **Generic Option Cards** - Revolutionary data-driven approval system
 2. **Dynamic Tool Unlocking** - Elegant prerequisite-based tool registration
 3. **Thesis Validation** - Proved AI agents CAN orchestrate workflows
 4. **Production-Ready** - All core features working with documented workarounds
 
 **Known Issues:**
+
 - Auto-resume after approval (workaround: send "continue" message)
 - Unit tests need mocking (low priority, doesn't affect production)
 

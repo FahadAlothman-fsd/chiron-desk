@@ -3,6 +3,7 @@
 ## Error
 
 When starting a child workflow, got error:
+
 ```
 Failed to start workflow
 Expected to find a resource for messageId, but could not find expected error has occurred.
@@ -19,33 +20,39 @@ Mastra requires messages to have a `resourceId` that matches the thread's resour
 **File**: `packages/api/src/services/workflow-engine/step-handlers/ask-user-chat-handler.ts`
 
 **Before**:
+
 ```typescript
 await storage.saveMessages({
-  messages: [{
-    id: crypto.randomUUID(),
-    role: "assistant",
-    content: generatedMessage.text,
-    threadId: agentContext.threadId,
-    metadata: { type: "initial_message", agent_id: config.agentId },
-  }],
+  messages: [
+    {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: generatedMessage.text,
+      threadId: agentContext.threadId,
+      metadata: { type: "initial_message", agent_id: config.agentId },
+    },
+  ],
 });
 ```
 
 **After**:
+
 ```typescript
 // Get resourceId from thread
 const thread = await storage.getThreadById({ threadId: agentContext.threadId });
 const resourceId = thread?.resourceId || `user-${context.systemVariables.current_user_id}`;
 
 await storage.saveMessages({
-  messages: [{
-    id: crypto.randomUUID(),
-    role: "assistant",
-    content: generatedMessage.text,
-    threadId: agentContext.threadId,
-    resourceId, // ✅ Required by Mastra
-    metadata: { type: "initial_message", agent_id: config.agentId },
-  }],
+  messages: [
+    {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: generatedMessage.text,
+      threadId: agentContext.threadId,
+      resourceId, // ✅ Required by Mastra
+      metadata: { type: "initial_message", agent_id: config.agentId },
+    },
+  ],
 });
 ```
 
@@ -56,7 +63,10 @@ Wrapped the message save in try-catch to gracefully handle failures:
 ```typescript
 try {
   // Save message...
-  console.log("[AskUserChatHandler] Saved generated initial message to thread:", agentContext.threadId);
+  console.log(
+    "[AskUserChatHandler] Saved generated initial message to thread:",
+    agentContext.threadId,
+  );
 } catch (saveError) {
   console.error("[AskUserChatHandler] Failed to save initial message to thread:", saveError);
   // Don't throw - we can still continue without initial message in history
@@ -87,7 +97,10 @@ Added more detailed logging for debugging:
 
 ```typescript
 console.log("[AskUserChatHandler] Thread ID for initial message:", agentContext.threadId);
-console.log("[AskUserChatHandler] Execution variables available:", Object.keys(context.executionVariables));
+console.log(
+  "[AskUserChatHandler] Execution variables available:",
+  Object.keys(context.executionVariables),
+);
 console.log(`[AskUserChatHandler] Using agent: ${agentName}`);
 ```
 
@@ -96,6 +109,7 @@ console.log(`[AskUserChatHandler] Using agent: ${agentName}`);
 ### Thread Creation & Resource ID
 
 1. **Thread is created** (`initializeAgent()`)
+
    ```typescript
    const thread = await createThread(`user-${context.systemVariables.current_user_id}`);
    // resourceId: "user-123e4567-e89b-12d3-a456-426614174000"
@@ -106,19 +120,23 @@ console.log(`[AskUserChatHandler] Using agent: ${agentName}`);
    - `resource_id`: "user-123e4567-e89b-12d3-a456-426614174000"
 
 3. **Initial message is generated** (`generateInitialMessage: true`)
+
    ```typescript
    const generatedMessage = await agent.generate([...], { system: resolvedPrompt });
    ```
 
 4. **Initial message is saved to thread** with matching resourceId
+
    ```typescript
    await storage.saveMessages({
-     messages: [{
-       threadId: "thread-1733456789-abc123def",
-       resourceId: "user-123e4567-e89b-12d3-a456-426614174000", // ✅ Matches thread
-       role: "assistant",
-       content: "🔬 Let's solve this mystery!...",
-     }],
+     messages: [
+       {
+         threadId: "thread-1733456789-abc123def",
+         resourceId: "user-123e4567-e89b-12d3-a456-426614174000", // ✅ Matches thread
+         role: "assistant",
+         content: "🔬 Let's solve this mystery!...",
+       },
+     ],
    });
    ```
 
@@ -131,6 +149,7 @@ console.log(`[AskUserChatHandler] Using agent: ${agentName}`);
 ## Mastra Resource ID Requirements
 
 Mastra uses `resourceId` to:
+
 - Link messages to specific user contexts
 - Enable multi-tenancy (different users, different threads)
 - Enforce data isolation
@@ -140,6 +159,7 @@ Mastra uses `resourceId` to:
 **Format**: `user-{userId}` where userId is a UUID
 
 **Example**:
+
 ```
 Thread: thread-1733456789-abc123def
   resourceId: user-550e8400-e29b-41d4-a716-446655440000
@@ -152,22 +172,26 @@ Message: msg-1733456800-xyz789
 ## Testing
 
 ### 1. Start a Child Workflow
+
 1. Navigate to parent workflow with invoke-workflow step
 2. Click "Execute" on a technique (e.g., "Five Whys")
 3. Click "Start Workflow" in confirmation dialog
 
 ### 2. Expected Behavior
+
 ✅ Child dialog opens
 ✅ Chat shows agent's greeting message immediately
 ✅ Message references inherited variables (topic, goals)
 ✅ No "Expected to find a resource" error
 
 ### 3. Check Server Logs
+
 ```bash
 tail -f /home/gondilf/Desktop/projects/masters/chiron/server.log | grep "AskUserChatHandler"
 ```
 
 Should see:
+
 ```
 [AskUserChatHandler] Generating initial message dynamically...
 [AskUserChatHandler] Thread ID for initial message: thread-...
@@ -177,11 +201,13 @@ Should see:
 ```
 
 ### 4. Verify in Database
+
 ```bash
 bun run db:studio
 ```
 
 **Check `mastra.messages` table**:
+
 - Filter by `thread_id` (from execution variables `mastra_thread_id`)
 - Should have 1 row:
   - `role = "assistant"`
@@ -190,6 +216,7 @@ bun run db:studio
   - `metadata` has `type: "initial_message"`
 
 **Check `mastra.threads` table**:
+
 - Find thread by ID
 - `resource_id` should be `user-{uuid}`
 
@@ -200,18 +227,21 @@ bun run db:studio
 **Debug Steps**:
 
 1. **Check thread exists**:
+
    ```bash
    # In db:studio, find thread in mastra.threads
    # Verify resource_id is set
    ```
 
 2. **Check message resourceId**:
+
    ```bash
    # In db:studio, find message in mastra.messages
    # Verify resource_id matches thread's resource_id
    ```
 
 3. **Check server logs**:
+
    ```bash
    tail -f server.log | grep -i "resource\|thread"
    ```
@@ -229,6 +259,7 @@ bun run db:studio
 ### Issue: Initial message doesn't show in chat
 
 **Possible Causes**:
+
 1. Message save failed (check try-catch logs)
 2. Frontend not polling `getChatMessages` (check Network tab)
 3. Thread ID mismatch (check execution variables vs Mastra thread)
@@ -236,19 +267,23 @@ bun run db:studio
 ## Related Files
 
 **Backend**:
+
 - `packages/api/src/services/workflow-engine/step-handlers/ask-user-chat-handler.ts` - Generates and saves initial message
 - `packages/api/src/services/mastra/mastra-service.ts` - Creates threads with resourceId
 
 **Frontend**:
+
 - `apps/web/src/components/workflows/steps/ask-user-chat-step.tsx` - Loads messages via `getChatMessages`
 
 **Database**:
+
 - `mastra.threads` - Stores thread with resource_id
 - `mastra.messages` - Stores messages with resource_id matching thread
 
 ## Summary
 
 The fix ensures that:
+
 1. ✅ Initial message is generated with correct context
 2. ✅ Message is saved to Mastra thread with matching `resourceId`
 3. ✅ Thread exists before trying to use it

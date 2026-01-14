@@ -15,6 +15,7 @@
 **Why**: Not all tool outputs need LLM generation - some are simple user inputs
 
 **Schema**:
+
 ```typescript
 {
   toolType: "update-variable",
@@ -26,6 +27,7 @@
 ```
 
 **Example**: `update_description` tool (replaces old `update_summary`)
+
 - User provides project description in chat
 - Agent stores it directly in `project_description` variable
 - No LLM generation, no approval gates
@@ -44,6 +46,7 @@
 **Pattern**: "Select from AI suggestions OR provide custom value"
 
 **Use Cases**:
+
 - Project names (current)
 - File paths
 - API endpoint names
@@ -51,6 +54,7 @@
 - Any scenario where AI suggests options but user can override
 
 **Props**:
+
 ```typescript
 {
   title: string;
@@ -83,11 +87,13 @@
 **What**: Complete rework of how rejections work
 
 **Old Approach** (removed):
+
 - Update approval card in-place
 - Complex system instruction injection
 - Messy state management
 
 **New Approach** (current):
+
 - **Timeline Pattern**: Rejected cards become final read-only state (red border)
 - **New card appears** when agent regenerates
 - **Rejection history** stored in `approval_states.{tool}.rejection_history[]`
@@ -95,6 +101,7 @@
 - **Forced regeneration** using `toolChoice: { type: 'tool', toolName: 'specific_tool' }`
 
 **Data Structure**:
+
 ```typescript
 approval_states: {
   [toolName]: {
@@ -111,6 +118,7 @@ approval_states: {
 ```
 
 **UI Patterns**:
+
 - ✅ Green border = approved
 - 🔵 Blue border = regenerating (with spinner)
 - 🔴 Red border = rejected (final, read-only)
@@ -128,6 +136,7 @@ approval_states: {
 **Step Type**: `execute-action`
 
 **Actions Supported**:
+
 ```typescript
 {
   type: "file/mkdir",
@@ -162,12 +171,14 @@ approval_states: {
 ```
 
 **Preview Mode**:
+
 - Set `requiresUserConfirmation: true` in step config
 - Shows all actions with icons before execution
 - User clicks "Continue" to execute
 - Prevents accidental file/git operations
 
 **Variable Resolution**:
+
 - All paths, content, messages support `{{variable}}` syntax
 - Resolved from `execution.variables` before execution
 
@@ -184,6 +195,7 @@ approval_states: {
 **Why**: Large objects waste tokens; LLM only needs specific fields
 
 **Example**:
+
 ```typescript
 {
   name: "workflow_paths",
@@ -194,6 +206,7 @@ approval_states: {
 ```
 
 **Runtime**:
+
 - Handler filters data: `data.map(item => pick(item, selectFields))`
 - Generates inline schema: `"Array of {id, displayName, description, tags}"`
 - LLM sees clean, focused data
@@ -207,6 +220,7 @@ approval_states: {
 **What**: Configure class source at field level instead of tool level
 
 **Old Way**:
+
 ```typescript
 {
   toolType: "ax-generation",
@@ -218,12 +232,13 @@ approval_states: {
 ```
 
 **New Way**:
+
 ```typescript
 {
   toolType: "ax-generation",
   output: [
-    { 
-      name: "selected_path_id", 
+    {
+      name: "selected_path_id",
       type: "class",
       classesFrom: {
         source: "workflow_path_options",  // Field-level
@@ -243,11 +258,13 @@ approval_states: {
 **What**: Automatically extract related fields from selected options without LLM generation
 
 **Problem**:
+
 - User selects workflow path by ID: `"uuid-123"`
 - We also need the human-readable name: `"BMad Method"`
 - LLM shouldn't generate this - it's deterministic lookup
 
 **Solution**:
+
 ```typescript
 {
   name: "selected_workflow_path_name",
@@ -262,6 +279,7 @@ approval_states: {
 ```
 
 **Flow**:
+
 1. User selects option → `selected_workflow_path_id = "uuid-123"`
 2. Approval handler detects `extractFrom` config
 3. Looks up in `workflow_path_options.find(opt => opt.id === "uuid-123")`
@@ -271,6 +289,7 @@ approval_states: {
 7. Available for template resolution: `{{selected_workflow_path_name}}`
 
 **Storage Structure**:
+
 ```json
 {
   "approval_states": {
@@ -287,12 +306,14 @@ approval_states: {
 ```
 
 **Benefits**:
+
 - ✅ No LLM generation needed for deterministic data
 - ✅ Human-readable values in templates/display
 - ✅ Reduces hallucination risk
 - ✅ Automatic - no manual mapping
 
 **Implementation**:
+
 - `ax-generation-tool.ts`: `extractDeterministicFields()` function (exported)
 - `workflows.ts`: `approveToolCall()` and `approveToolOutput()` mutations
 - Both approval handlers compute and store derived values
@@ -303,16 +324,16 @@ approval_states: {
 
 ## Files Changed Summary
 
-| File | New Concepts |
-|------|-------------|
-| `packages/api/src/routers/workflows.ts` | update-variable detection, derived values computation, rejection system |
-| `packages/api/src/services/workflow-engine/tools/ax-generation-tool.ts` | selectFields, classesFrom, extractFrom, exportable extractor |
-| `packages/api/src/services/workflow-engine/step-handlers/execute-action-handler.ts` | file ops, git ops, variable resolution, preview mode |
-| `packages/api/src/services/workflow-engine/step-handlers/ask-user-chat-handler.ts` | update-variable handling, rejection forcing |
-| `apps/web/src/components/workflows/selection-with-custom-card.tsx` | Generic selection component |
-| `apps/web/src/components/workflows/steps/execute-action-step.tsx` | Action preview UI |
-| `apps/web/src/components/workflows/approval-card.tsx` | Timeline rejection UI, regenerating state |
-| `packages/scripts/src/seeds/workflow-init-new.ts` | All new features in use |
+| File                                                                                | New Concepts                                                            |
+| ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `packages/api/src/routers/workflows.ts`                                             | update-variable detection, derived values computation, rejection system |
+| `packages/api/src/services/workflow-engine/tools/ax-generation-tool.ts`             | selectFields, classesFrom, extractFrom, exportable extractor            |
+| `packages/api/src/services/workflow-engine/step-handlers/execute-action-handler.ts` | file ops, git ops, variable resolution, preview mode                    |
+| `packages/api/src/services/workflow-engine/step-handlers/ask-user-chat-handler.ts`  | update-variable handling, rejection forcing                             |
+| `apps/web/src/components/workflows/selection-with-custom-card.tsx`                  | Generic selection component                                             |
+| `apps/web/src/components/workflows/steps/execute-action-step.tsx`                   | Action preview UI                                                       |
+| `apps/web/src/components/workflows/approval-card.tsx`                               | Timeline rejection UI, regenerating state                               |
+| `packages/scripts/src/seeds/workflow-init-new.ts`                                   | All new features in use                                                 |
 
 ---
 
@@ -353,6 +374,7 @@ approval_states: {
 ### Brainstorm Workflow (Epic 2):
 
 **What We Can Reuse**:
+
 1. ✅ **update-variable** - For user inputs (brainstorm topic, technique selection)
 2. ✅ **execute-action** - For file operations (save artifacts)
 3. ✅ **extractFrom** - For technique metadata extraction
@@ -360,6 +382,7 @@ approval_states: {
 5. ✅ **Generic selection** - For technique picker
 
 **Example Workflow**:
+
 ```typescript
 // Step 1: Get brainstorm topic (update-variable)
 {
@@ -376,7 +399,7 @@ approval_states: {
   tools: [{
     toolType: "ax-generation",
     output: [
-      { 
+      {
         name: "selected_technique_id",
         type: "class",
         classesFrom: { source: "techniques", field: "id" }
@@ -441,6 +464,7 @@ approval_states: {
 ### Execute-Action Step Structure
 
 **Schema Doc Says:**
+
 ```typescript
 {
   type: "execute-action",
@@ -453,6 +477,7 @@ approval_states: {
 ```
 
 **Actual Implementation:**
+
 ```typescript
 {
   stepType: "execute-action",
@@ -468,6 +493,7 @@ approval_states: {
 ```
 
 **Key Differences:**
+
 1. ✅ **Multiple actions per step** (not single action)
 2. ✅ **Preview mode** via `requiresUserConfirmation`
 3. ✅ **Execution modes**: sequential or parallel
@@ -475,12 +501,14 @@ approval_states: {
 5. ✅ **Variable resolution** in all fields (paths, content, messages)
 
 **Action Types Implemented:**
+
 - `file` with operations: `mkdir`, `write` (read/delete not yet)
 - `git` with operations: `init`, `commit` (status/branch not yet)
 - `database` with operation: `update` (query/insert/delete not yet)
 - `set-variable` (as documented)
 
 **Not Yet Implemented from Schema:**
+
 - `scan-codebase` action
 - File operations: `read`, `delete`, `exists`
 - Git operations: `status`, `branch`
@@ -493,42 +521,48 @@ approval_states: {
 ### Current State:
 
 **ax-generation tools:**
+
 ```typescript
-inputSchema: z.object({})  // NO agent inputs
+inputSchema: z.object({}); // NO agent inputs
 ```
+
 - Agent calls tool with no parameters
 - Tool resolves ALL inputs from execution context
 - Inputs configured via `axSignature.input` with `source` field
 
 **update-variable tools:**
+
 ```typescript
 inputSchema: z.object({
-  value: valueSchema,              // Agent provides value
-  reasoning: z.string().optional() // Agent can explain
-})
+  value: valueSchema, // Agent provides value
+  reasoning: z.string().optional(), // Agent can explain
+});
 ```
+
 - Agent extracts value from conversation
 - Agent passes value when calling tool
 
 ### Future Enhancement:
 
 **ax-generation with agent inputs:**
+
 ```typescript
 inputSchema: z.object({
-  additional_context: z.string().optional(),  // Agent provides dynamic context
-  user_preferences: z.string().optional()     // Agent extracts from latest message
-})
+  additional_context: z.string().optional(), // Agent provides dynamic context
+  user_preferences: z.string().optional(), // Agent extracts from latest message
+});
 ```
 
 This would allow agents to pass dynamic, message-specific context to Ax signatures beyond pre-stored variables.
 
 **Use Case Example:**
+
 ```typescript
 // User: "I want a healthcare app but focusing on scheduling"
-// Agent calls: generate_summary({ 
+// Agent calls: generate_summary({
 //   additional_context: "User emphasized scheduling functionality"
 // })
-// Ax signature gets both project_description (from variables) 
+// Ax signature gets both project_description (from variables)
 // AND additional_context (from agent's current understanding)
 ```
 
@@ -567,7 +601,6 @@ This would allow agents to pass dynamic, message-specific context to Ax signatur
    - State management
    - Forced regeneration with toolChoice
 
-
 ---
 
 ## PRD & Epic Alignment Analysis
@@ -577,10 +610,12 @@ This would allow agents to pass dynamic, message-specific context to Ax signatur
 #### Workflow Execution (FR001-FR005)
 
 **PRD Says:**
+
 - FR002: "Execute workflows following BMAD's workflow.xml engine rules (steps, actions, templates, elicitation)"
 - FR004: "Resolve variables using 4-level precedence (config_source, system-generated, user input, defaults)"
 
 **What We Built:**
+
 - ✅ Steps execute from database (not XML)
 - ✅ Variable resolution with `{{variable}}` syntax
 - ⚠️ **DIFFERENT**: Only 2-level precedence (execution variables, system variables) - not 4-level
@@ -588,6 +623,7 @@ This would allow agents to pass dynamic, message-specific context to Ax signatur
 - ⚠️ **NEW**: Added approval_states for human-in-the-loop (not explicitly in PRD)
 
 **Recommendation**: Update PRD FR004 to reflect actual 3-level precedence:
+
 1. Execution variables (includes approved values)
 2. Derived values (from extractFrom)
 3. System variables (user_id, current_user_id)
@@ -597,10 +633,12 @@ This would allow agents to pass dynamic, message-specific context to Ax signatur
 #### LLM Integration
 
 **PRD/Epic 1 Says:**
+
 - "LLM integration (OpenRouter) with models selection page"
 - FR009: "Agent-capability mappings stored in database"
 
 **What We Built:**
+
 - ✅ OpenRouter integration
 - ✅ User API key management
 - ✅ Model selection per execution
@@ -609,6 +647,7 @@ This would allow agents to pass dynamic, message-specific context to Ax signatur
 - ✅ **MATCHES**: Approval gates with rejection/regeneration
 
 **Gap**: "5 step type handlers" mentioned in Epic 1
+
 - ✅ ask-user-chat (implemented)
 - ✅ execute-action (implemented)
 - ✅ display-output (implemented)
@@ -616,6 +655,7 @@ This would allow agents to pass dynamic, message-specific context to Ax signatur
 - ❌ llm-generate (replaced by ax-generation tools)
 
 **Recommendation**: Update Epic 1 deliverables to reflect:
+
 - "4 step types: ask-user-chat, execute-action, display-input, display-output"
 - "2 tool types: ax-generation (Ax signatures), update-variable (direct updates)"
 
@@ -624,6 +664,7 @@ This would allow agents to pass dynamic, message-specific context to Ax signatur
 #### Epic 2: Artifact Workbench
 
 **Epic 2 Says (Story 2.1):**
+
 ```
 Schema Refactor: Update workflows table:
 - ADD: tags (JSONB), metadata (JSONB)
@@ -631,6 +672,7 @@ Schema Refactor: Update workflows table:
 ```
 
 **Current Schema:**
+
 ```typescript
 workflows {
   id, name, displayName,
@@ -644,11 +686,13 @@ workflows {
 ```
 
 **Gap Analysis:**
+
 - ⚠️ `metadata` column not added yet
 - ⚠️ `module`, `agentId`, `initializerType` still exist (should they be removed?)
 - ✅ `tags` exists (used for workflow path filtering)
 
 **Recommendation for Epic 2**:
+
 - Keep `module` and `agentId` for now (used in workflow-init-new)
 - Add `metadata` JSONB column
 - OR: Decide to keep current schema and update Epic 2 doc
@@ -658,12 +702,14 @@ workflows {
 #### Epic 2: Brainstorming Workflow
 
 **Epic 2 Says:**
+
 - Story 2.2: "set_session_topic, set_stated_goals, select_techniques tools"
 - Story 2.3: "invoke-workflow logic" for technique execution
 - Story 2.4: "Kanban UI for ax-generator pattern"
 - Story 2.5: "Editable Form component for ax-generator pattern"
 
 **What We Can Reuse from Epic 1**:
+
 - ✅ `update-variable` tool → perfect for `set_session_topic`, `set_stated_goals`
 - ✅ `ax-generation` tool → can be used for `select_techniques` (classification)
 - ✅ `execute-action` step → can save artifacts (Story 2.6)
@@ -672,6 +718,7 @@ workflows {
 - ⚠️ Editable Form pattern → NEW (needs implementation)
 
 **Epic 2 Readiness**:
+
 - ✅ Foundation ready (database, workflow engine, Mastra)
 - ✅ Tool types ready (update-variable, ax-generation)
 - ✅ Step types ready (ask-user-chat, execute-action, display-output)
@@ -687,6 +734,7 @@ workflows {
 #### 1. Missing Step Type: `invoke-workflow`
 
 **Epic 2 Needs (Story 2.3)**:
+
 ```typescript
 {
   stepType: "invoke-workflow",
@@ -708,6 +756,7 @@ workflows {
 #### 2. Missing UI Patterns
 
 **Needed for Epic 2**:
+
 - **Kanban Board** (Story 2.4) - organize ideas
 - **Editable Forms** (Story 2.5) - refine action plan
 - **Split-Pane Workbench** (Story 2.2) - chat + artifact preview
@@ -720,10 +769,12 @@ workflows {
 #### 3. Artifact Template System
 
 **Epic 2 Says**:
+
 - "Live Preview: Right pane renders Markdown from template.md + session_variables"
 - "artifactTemplate referenced in workflow config"
 
 **Current Implementation**:
+
 - ✅ Variable resolution in templates (`{{variable}}`)
 - ✅ Handlebars-based rendering
 - ❌ Artifact template storage/loading system
@@ -790,4 +841,3 @@ workflows {
 **Critical Blocker**: `invoke-workflow` must be implemented before Story 2.3
 
 **Risk**: Epic 2 timeline (2 weeks) doesn't account for missing foundation pieces
-

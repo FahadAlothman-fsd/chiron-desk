@@ -9,20 +9,13 @@
   "orm": "drizzle",
   "backend": "hono",
   "runtime": "bun",
-  "frontend": [
-    "tanstack-router"
-  ],
-  "addons": [
-    "biome",
-    "husky",
-    "tauri",
-    "turborepo"
-  ],
+  "frontend": ["tanstack-router"],
+  "addons": ["biome", "husky", "tauri", "turborepo"],
   "examples": [],
   "auth": "better-auth",
   "packageManager": "bun",
   "dbSetup": "docker",
   "api": "trpc",
   "webDeploy": "none",
-  "serverDeploy": "none"
+  "serverDeploy": "none",
 }

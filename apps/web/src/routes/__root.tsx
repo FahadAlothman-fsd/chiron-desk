@@ -1,10 +1,10 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import {
-	createRootRouteWithContext,
-	HeadContent,
-	Outlet,
-	useRouterState,
+  createRootRouteWithContext,
+  HeadContent,
+  Outlet,
+  useRouterState,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import Loader from "@/components/loader";
@@ -14,50 +14,50 @@ import type { trpc } from "@/utils/trpc";
 import "../index.css";
 
 export interface RouterAppContext {
-	trpc: typeof trpc;
-	queryClient: QueryClient;
+  trpc: typeof trpc;
+  queryClient: QueryClient;
 }
 
 export const Route = createRootRouteWithContext<RouterAppContext>()({
-	component: RootComponent,
-	head: () => ({
-		meta: [
-			{
-				title: "chiron",
-			},
-			{
-				name: "description",
-				content: "chiron is a web application",
-			},
-		],
-		links: [
-			{
-				rel: "icon",
-				href: "/favicon.ico",
-			},
-		],
-	}),
+  component: RootComponent,
+  head: () => ({
+    meta: [
+      {
+        title: "chiron",
+      },
+      {
+        name: "description",
+        content: "chiron is a web application",
+      },
+    ],
+    links: [
+      {
+        rel: "icon",
+        href: "/favicon.ico",
+      },
+    ],
+  }),
 });
 
 function RootComponent() {
-	const isFetching = useRouterState({
-		select: (s) => s.isLoading,
-	});
+  const isFetching = useRouterState({
+    select: (s) => s.isLoading,
+  });
 
-	return (
-		<>
-			<HeadContent />
-			<ThemeProvider
-				attribute="class"
-				defaultTheme="dark"
-				disableTransitionOnChange
-				storageKey="vite-ui-theme"
-			>
-				<div className="h-screen">{isFetching ? <Loader /> : <Outlet />}</div>
-				<Toaster richColors />
-			</ThemeProvider>
-			<TanStackRouterDevtools position="top-right" />
-			<ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />
-		</>
-	);
+  return (
+    <>
+      <HeadContent />
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="dark"
+        disableTransitionOnChange
+        storageKey="vite-ui-theme"
+      >
+        <div className="h-screen">{isFetching ? <Loader /> : <Outlet />}</div>
+        <Toaster richColors />
+      </ThemeProvider>
+      <TanStackRouterDevtools position="top-right" />
+      <ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />
+    </>
+  );
 }

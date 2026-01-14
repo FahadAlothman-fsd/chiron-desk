@@ -24,15 +24,11 @@ export * from "./streaming-adapter";
 export * from "./tool-builder";
 export * from "./variable-service";
 
-export const AILayer = Layer.mergeAll(
-	AIProviderServiceLive,
-	ChatServiceLive,
-	ApprovalServiceLive,
-);
+export const AILayer = Layer.mergeAll(AIProviderServiceLive, ChatServiceLive, ApprovalServiceLive);
 
 export const MainLayer = Layer.mergeAll(
-	DatabaseServiceLive,
-	ConfigServiceLive,
-	WorkflowEventBusLive,
-	StepHandlerRegistryLive,
+  DatabaseServiceLive,
+  ConfigServiceLive,
+  WorkflowEventBusLive,
+  StepHandlerRegistryLive,
 ).pipe(Layer.provideMerge(VariableServiceLive), Layer.provideMerge(AILayer));

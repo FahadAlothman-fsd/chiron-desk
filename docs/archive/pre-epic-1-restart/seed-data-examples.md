@@ -27,21 +27,24 @@ import { db } from "./db";
 import { agents } from "./schema";
 
 export async function seedAgents() {
-  const analystAgent = await db.insert(agents).values({
-    id: "agent-analyst-uuid", // Use consistent UUID
-    name: "analyst",
-    displayName: "Business Analyst",
-    description: "Strategic Business Analyst + Requirements Expert",
-    role: "Strategic Business Analyst + Requirements Expert",
-    llmProvider: "anthropic",
-    llmModel: "claude-sonnet-4-20250514",
-    llmTemperature: "0.7",
-    tools: [],
-    mcpServers: [],
-    color: "#3B82F6",
-    avatar: "📊",
-    active: true
-  }).returning();
+  const analystAgent = await db
+    .insert(agents)
+    .values({
+      id: "agent-analyst-uuid", // Use consistent UUID
+      name: "analyst",
+      displayName: "Business Analyst",
+      description: "Strategic Business Analyst + Requirements Expert",
+      role: "Strategic Business Analyst + Requirements Expert",
+      llmProvider: "anthropic",
+      llmModel: "claude-sonnet-4-20250514",
+      llmTemperature: "0.7",
+      tools: [],
+      mcpServers: [],
+      color: "#3B82F6",
+      avatar: "📊",
+      active: true,
+    })
+    .returning();
 
   console.log("✅ Seeded analyst agent");
   return { analystAgent: analystAgent[0] };
@@ -57,14 +60,17 @@ import { db } from "./db";
 import { workflowPaths } from "./schema";
 
 export async function seedWorkflowPaths() {
-  const greenfield3 = await db.insert(workflowPaths).values({
-    id: "path-greenfield-3-uuid",
-    name: "greenfield-level-3",
-    projectType: "software",
-    projectLevel: "3",
-    fieldType: "greenfield",
-    description: "Complex system - subsystems, integrations, architectural decisions"
-  }).returning();
+  const greenfield3 = await db
+    .insert(workflowPaths)
+    .values({
+      id: "path-greenfield-3-uuid",
+      name: "greenfield-level-3",
+      projectType: "software",
+      projectLevel: "3",
+      fieldType: "greenfield",
+      description: "Complex system - subsystems, integrations, architectural decisions",
+    })
+    .returning();
 
   console.log("✅ Seeded greenfield-level-3 path");
   return { greenfield3: greenfield3[0] };
@@ -81,33 +87,39 @@ import { workflows } from "./schema";
 
 export async function seedWorkflows(analystAgentId: string) {
   // brainstorm-project workflow
-  const brainstormWorkflow = await db.insert(workflows).values({
-    id: "wf-brainstorm-project-uuid",
-    name: "brainstorm-project",
-    displayName: "Brainstorm Project",
-    agentId: analystAgentId,
-    pattern: "sequential-dependencies",
-    outputArtifactType: "markdown",
-    outputArtifactTemplateId: null
-  }).returning();
+  const brainstormWorkflow = await db
+    .insert(workflows)
+    .values({
+      id: "wf-brainstorm-project-uuid",
+      name: "brainstorm-project",
+      displayName: "Brainstorm Project",
+      agentId: analystAgentId,
+      pattern: "sequential-dependencies",
+      outputArtifactType: "markdown",
+      outputArtifactTemplateId: null,
+    })
+    .returning();
 
   // research workflow
-  const researchWorkflow = await db.insert(workflows).values({
-    id: "wf-research-uuid",
-    name: "research",
-    displayName: "Research Workflow",
-    agentId: analystAgentId,
-    pattern: "structured-exploration",
-    outputArtifactType: "markdown",
-    outputArtifactTemplateId: null
-  }).returning();
+  const researchWorkflow = await db
+    .insert(workflows)
+    .values({
+      id: "wf-research-uuid",
+      name: "research",
+      displayName: "Research Workflow",
+      agentId: analystAgentId,
+      pattern: "structured-exploration",
+      outputArtifactType: "markdown",
+      outputArtifactTemplateId: null,
+    })
+    .returning();
 
   console.log("✅ Seeded brainstorm-project workflow");
   console.log("✅ Seeded research workflow");
 
   return {
     brainstormWorkflow: brainstormWorkflow[0],
-    researchWorkflow: researchWorkflow[0]
+    researchWorkflow: researchWorkflow[0],
   };
 }
 ```
@@ -121,75 +133,77 @@ import { db } from "./db";
 import { workflowSteps } from "./schema";
 
 export async function seedBrainstormProjectSteps(workflowId: string) {
-  const steps = await db.insert(workflowSteps).values([
-    // Step 1: Validate Workflow Readiness
-    {
-      id: "step-1-validate-uuid",
-      workflowId: workflowId,
-      stepNumber: 1,
-      stepType: "invoke-workflow",
-      stepId: "validate-readiness",
-      title: "Validate Workflow Readiness",
-      description: "Check project status and load configuration",
-      config: {
-        invokedWorkflowName: "workflow-status",
-        inputParams: {
-          mode: "data",
-          data_request: "project_config"
+  const steps = await db
+    .insert(workflowSteps)
+    .values([
+      // Step 1: Validate Workflow Readiness
+      {
+        id: "step-1-validate-uuid",
+        workflowId: workflowId,
+        stepNumber: 1,
+        stepType: "invoke-workflow",
+        stepId: "validate-readiness",
+        title: "Validate Workflow Readiness",
+        description: "Check project status and load configuration",
+        config: {
+          invokedWorkflowName: "workflow-status",
+          inputParams: {
+            mode: "data",
+            data_request: "project_config",
+          },
+          outputMapping: {
+            status_exists: "status_exists",
+            project_id: "project_id",
+            project_level: "project_level",
+            active_path: "active_path",
+          },
         },
-        outputMapping: {
-          status_exists: "status_exists",
-          project_id: "project_id",
-          project_level: "project_level",
-          active_path: "active_path"
-        }
+        nextStepId: "step-2-check-status-uuid",
       },
-      nextStepId: "step-2-check-status-uuid"
-    },
 
-    // Step 2: Check Status Exists
-    {
-      id: "step-2-check-status-uuid",
-      workflowId: workflowId,
-      stepNumber: 2,
-      stepType: "check-condition",
-      stepId: "check-status-exists",
-      title: "Check if Progress Tracking Exists",
-      description: "Determine if running in tracked or standalone mode",
-      config: {
-        conditionType: "boolean",
-        evaluateVariable: "status_exists"
+      // Step 2: Check Status Exists
+      {
+        id: "step-2-check-status-uuid",
+        workflowId: workflowId,
+        stepNumber: 2,
+        stepType: "check-condition",
+        stepId: "check-status-exists",
+        title: "Check if Progress Tracking Exists",
+        description: "Determine if running in tracked or standalone mode",
+        config: {
+          conditionType: "boolean",
+          evaluateVariable: "status_exists",
+        },
+        nextStepId: null, // Routing via branches
       },
-      nextStepId: null // Routing via branches
-    },
 
-    // Step 3: Set Standalone Mode
-    {
-      id: "step-3-set-standalone-uuid",
-      workflowId: workflowId,
-      stepNumber: 3,
-      stepType: "execute-action",
-      stepId: "set-standalone-mode",
-      title: "Enable Standalone Mode",
-      description: "Set standalone_mode = true",
-      config: {
-        description: "Enable standalone mode for workflows without progress tracking"
+      // Step 3: Set Standalone Mode
+      {
+        id: "step-3-set-standalone-uuid",
+        workflowId: workflowId,
+        stepNumber: 3,
+        stepType: "execute-action",
+        stepId: "set-standalone-mode",
+        title: "Enable Standalone Mode",
+        description: "Set standalone_mode = true",
+        config: {
+          description: "Enable standalone mode for workflows without progress tracking",
+        },
+        nextStepId: "step-4-load-context-uuid",
       },
-      nextStepId: "step-4-load-context-uuid"
-    },
 
-    // Step 4: Load Project Context (INLINE CONTEXT!)
-    {
-      id: "step-4-load-context-uuid",
-      workflowId: workflowId,
-      stepNumber: 4,
-      stepType: "load-context",
-      stepId: "load-project-context",
-      title: "Load Project Brainstorming Context",
-      description: "Load brainstorming guidance into workflow context",
-      config: {
-        contextSource: "inline",
-        contextContent: `# Project Brainstorming Context
+      // Step 4: Load Project Context (INLINE CONTEXT!)
+      {
+        id: "step-4-load-context-uuid",
+        workflowId: workflowId,
+        stepNumber: 4,
+        stepType: "load-context",
+        stepId: "load-project-context",
+        title: "Load Project Brainstorming Context",
+        description: "Load brainstorming guidance into workflow context",
+        config: {
+          contextSource: "inline",
+          contextContent: `# Project Brainstorming Context
 
 ## Focus Areas for Project Ideation
 - Product vision and strategic goals
@@ -221,102 +235,102 @@ Your brainstorming session should produce:
 - **Prioritized Concepts**: Which ideas have most potential
 - **Validation Needs**: What assumptions need testing
 - **Next Steps**: Recommended actions coming out of session`,
-        storeAs: "project_context"
-      },
-      nextStepId: "step-5-invoke-brainstorming-uuid"
-    },
-
-    // Step 5: Invoke Core Brainstorming
-    {
-      id: "step-5-invoke-brainstorming-uuid",
-      workflowId: workflowId,
-      stepNumber: 5,
-      stepType: "invoke-workflow",
-      stepId: "invoke-cis-brainstorming",
-      title: "Execute CIS Brainstorming with Context",
-      description: "Run interactive brainstorming session",
-      config: {
-        invokedWorkflowName: "cis-brainstorming",
-        inputParams: {
-          context: "{{project_context}}",
-          project_name: "{{project_name}}"
+          storeAs: "project_context",
         },
-        outputMapping: {
-          session_results: "brainstorming_results",
-          output_file_path: "brainstorming_artifact_path",
-          techniques_used: "brainstorming_techniques"
-        }
+        nextStepId: "step-5-invoke-brainstorming-uuid",
       },
-      nextStepId: "step-6-save-artifact-uuid"
-    },
 
-    // Step 6: Save Artifact to Database
-    {
-      id: "step-6-save-artifact-uuid",
-      workflowId: workflowId,
-      stepNumber: 6,
-      stepType: "execute-action",
-      stepId: "save-brainstorming-artifact",
-      title: "Track Generated Artifact",
-      description: "Save brainstorming artifact to project_artifacts table",
-      config: {
-        description: "Record brainstorming artifact in database for future reference"
-      },
-      nextStepId: "step-7-check-standalone-uuid"
-    },
-
-    // Step 7: Check Standalone Mode
-    {
-      id: "step-7-check-standalone-uuid",
-      workflowId: workflowId,
-      stepNumber: 7,
-      stepType: "check-condition",
-      stepId: "check-standalone-mode",
-      title: "Check Progress Tracking Mode",
-      description: "Determine completion message based on tracking mode",
-      config: {
-        conditionType: "boolean",
-        evaluateVariable: "standalone_mode"
-      },
-      nextStepId: null // Routing via branches
-    },
-
-    // Step 8: Update Workflow Status
-    {
-      id: "step-8-update-status-uuid",
-      workflowId: workflowId,
-      stepNumber: 8,
-      stepType: "invoke-workflow",
-      stepId: "update-workflow-status",
-      title: "Mark Workflow Complete",
-      description: "Update project_state to mark brainstorm-project as complete",
-      config: {
-        invokedWorkflowName: "workflow-status",
-        inputParams: {
-          mode: "update",
-          action: "complete_workflow",
-          workflow_name: "brainstorm-project"
+      // Step 5: Invoke Core Brainstorming
+      {
+        id: "step-5-invoke-brainstorming-uuid",
+        workflowId: workflowId,
+        stepNumber: 5,
+        stepType: "invoke-workflow",
+        stepId: "invoke-cis-brainstorming",
+        title: "Execute CIS Brainstorming with Context",
+        description: "Run interactive brainstorming session",
+        config: {
+          invokedWorkflowName: "cis-brainstorming",
+          inputParams: {
+            context: "{{project_context}}",
+            project_name: "{{project_name}}",
+          },
+          outputMapping: {
+            session_results: "brainstorming_results",
+            output_file_path: "brainstorming_artifact_path",
+            techniques_used: "brainstorming_techniques",
+          },
         },
-        outputMapping: {
-          success: "status_update_success",
-          next_workflow: "next_workflow",
-          next_agent: "next_agent"
-        }
+        nextStepId: "step-6-save-artifact-uuid",
       },
-      nextStepId: "step-9-display-tracked-uuid"
-    },
 
-    // Step 9a: Display Completion (Tracked Mode)
-    {
-      id: "step-9-display-tracked-uuid",
-      workflowId: workflowId,
-      stepNumber: 9,
-      stepType: "display-output",
-      stepId: "display-tracked-complete",
-      title: "Show Completion with Next Steps",
-      description: "Display success message with progress tracking info",
-      config: {
-        outputTemplate: `✅ **Brainstorming Session Complete!**
+      // Step 6: Save Artifact to Database
+      {
+        id: "step-6-save-artifact-uuid",
+        workflowId: workflowId,
+        stepNumber: 6,
+        stepType: "execute-action",
+        stepId: "save-brainstorming-artifact",
+        title: "Track Generated Artifact",
+        description: "Save brainstorming artifact to project_artifacts table",
+        config: {
+          description: "Record brainstorming artifact in database for future reference",
+        },
+        nextStepId: "step-7-check-standalone-uuid",
+      },
+
+      // Step 7: Check Standalone Mode
+      {
+        id: "step-7-check-standalone-uuid",
+        workflowId: workflowId,
+        stepNumber: 7,
+        stepType: "check-condition",
+        stepId: "check-standalone-mode",
+        title: "Check Progress Tracking Mode",
+        description: "Determine completion message based on tracking mode",
+        config: {
+          conditionType: "boolean",
+          evaluateVariable: "standalone_mode",
+        },
+        nextStepId: null, // Routing via branches
+      },
+
+      // Step 8: Update Workflow Status
+      {
+        id: "step-8-update-status-uuid",
+        workflowId: workflowId,
+        stepNumber: 8,
+        stepType: "invoke-workflow",
+        stepId: "update-workflow-status",
+        title: "Mark Workflow Complete",
+        description: "Update project_state to mark brainstorm-project as complete",
+        config: {
+          invokedWorkflowName: "workflow-status",
+          inputParams: {
+            mode: "update",
+            action: "complete_workflow",
+            workflow_name: "brainstorm-project",
+          },
+          outputMapping: {
+            success: "status_update_success",
+            next_workflow: "next_workflow",
+            next_agent: "next_agent",
+          },
+        },
+        nextStepId: "step-9-display-tracked-uuid",
+      },
+
+      // Step 9a: Display Completion (Tracked Mode)
+      {
+        id: "step-9-display-tracked-uuid",
+        workflowId: workflowId,
+        stepNumber: 9,
+        stepType: "display-output",
+        stepId: "display-tracked-complete",
+        title: "Show Completion with Next Steps",
+        description: "Display success message with progress tracking info",
+        config: {
+          outputTemplate: `✅ **Brainstorming Session Complete!**
 
 **Session Results:**
 - Brainstorming results saved to: {{brainstorming_artifact_path}}
@@ -331,22 +345,22 @@ Your brainstorming session should produce:
 - **Optional:** You can run other analysis workflows (research, product-brief) before proceeding
 
 Check status anytime with: \`workflow-status\``,
-        outputType: "success"
+          outputType: "success",
+        },
+        nextStepId: null, // END
       },
-      nextStepId: null // END
-    },
 
-    // Step 9b: Display Completion (Standalone Mode)
-    {
-      id: "step-9-display-standalone-uuid",
-      workflowId: workflowId,
-      stepNumber: 10,
-      stepType: "display-output",
-      stepId: "display-standalone-complete",
-      title: "Show Standalone Completion",
-      description: "Display success message for standalone mode",
-      config: {
-        outputTemplate: `✅ **Brainstorming Session Complete!**
+      // Step 9b: Display Completion (Standalone Mode)
+      {
+        id: "step-9-display-standalone-uuid",
+        workflowId: workflowId,
+        stepNumber: 10,
+        stepType: "display-output",
+        stepId: "display-standalone-complete",
+        title: "Show Standalone Completion",
+        description: "Display success message for standalone mode",
+        config: {
+          outputTemplate: `✅ **Brainstorming Session Complete!**
 
 **Session Results:**
 - Brainstorming results saved to: {{brainstorming_artifact_path}}
@@ -356,11 +370,12 @@ Check status anytime with: \`workflow-status\``,
 Since no workflow is in progress:
 - Refer to the BMM workflow guide if unsure what to do next
 - Or run \`workflow-init\` to create a workflow path and get guided next steps`,
-        outputType: "success"
+          outputType: "success",
+        },
+        nextStepId: null, // END
       },
-      nextStepId: null // END
-    }
-  ]).returning();
+    ])
+    .returning();
 
   console.log(`✅ Seeded ${steps.length} steps for brainstorm-project`);
   return steps;
@@ -376,39 +391,42 @@ import { db } from "./db";
 import { workflowStepBranches } from "./schema";
 
 export async function seedBrainstormProjectBranches() {
-  const branches = await db.insert(workflowStepBranches).values([
-    // Step 2: Check Status Exists (boolean)
-    {
-      stepId: "step-2-check-status-uuid",
-      branchKey: "false",
-      branchLabel: null,
-      nextStepId: "step-3-set-standalone-uuid",
-      displayOrder: null
-    },
-    {
-      stepId: "step-2-check-status-uuid",
-      branchKey: "true",
-      branchLabel: null,
-      nextStepId: "step-4-load-context-uuid",
-      displayOrder: null
-    },
+  const branches = await db
+    .insert(workflowStepBranches)
+    .values([
+      // Step 2: Check Status Exists (boolean)
+      {
+        stepId: "step-2-check-status-uuid",
+        branchKey: "false",
+        branchLabel: null,
+        nextStepId: "step-3-set-standalone-uuid",
+        displayOrder: null,
+      },
+      {
+        stepId: "step-2-check-status-uuid",
+        branchKey: "true",
+        branchLabel: null,
+        nextStepId: "step-4-load-context-uuid",
+        displayOrder: null,
+      },
 
-    // Step 7: Check Standalone Mode (boolean)
-    {
-      stepId: "step-7-check-standalone-uuid",
-      branchKey: "true",
-      branchLabel: null,
-      nextStepId: "step-9-display-standalone-uuid",
-      displayOrder: null
-    },
-    {
-      stepId: "step-7-check-standalone-uuid",
-      branchKey: "false",
-      branchLabel: null,
-      nextStepId: "step-8-update-status-uuid",
-      displayOrder: null
-    }
-  ]).returning();
+      // Step 7: Check Standalone Mode (boolean)
+      {
+        stepId: "step-7-check-standalone-uuid",
+        branchKey: "true",
+        branchLabel: null,
+        nextStepId: "step-9-display-standalone-uuid",
+        displayOrder: null,
+      },
+      {
+        stepId: "step-7-check-standalone-uuid",
+        branchKey: "false",
+        branchLabel: null,
+        nextStepId: "step-8-update-status-uuid",
+        displayOrder: null,
+      },
+    ])
+    .returning();
 
   console.log(`✅ Seeded ${branches.length} branches for brainstorm-project`);
   return branches;
@@ -424,42 +442,45 @@ import { db } from "./db";
 import { workflowStepActions } from "./schema";
 
 export async function seedBrainstormProjectActions() {
-  const actions = await db.insert(workflowStepActions).values([
-    // Step 3: Set Standalone Mode
-    {
-      stepId: "step-3-set-standalone-uuid",
-      actionType: "set-variable",
-      actionConfig: {
-        variableName: "standalone_mode",
-        value: true
+  const actions = await db
+    .insert(workflowStepActions)
+    .values([
+      // Step 3: Set Standalone Mode
+      {
+        stepId: "step-3-set-standalone-uuid",
+        actionType: "set-variable",
+        actionConfig: {
+          variableName: "standalone_mode",
+          value: true,
+        },
+        executionMode: "sequential",
+        sequenceOrder: 1,
+        condition: null,
       },
-      executionMode: "sequential",
-      sequenceOrder: 1,
-      condition: null
-    },
 
-    // Step 6: Save Artifact
-    {
-      stepId: "step-6-save-artifact-uuid",
-      actionType: "database-insert",
-      actionConfig: {
-        table: "project_artifacts",
-        data: {
-          project_id: "{{project_id}}",
-          artifact_type: "brainstorming-session",
-          file_path: "{{brainstorming_artifact_path}}",
-          workflow_id: "wf-brainstorm-project-uuid",
-          metadata: {
-            techniques_used: "{{brainstorming_techniques}}",
-            session_date: "{{current_date}}"
-          }
-        }
+      // Step 6: Save Artifact
+      {
+        stepId: "step-6-save-artifact-uuid",
+        actionType: "database-insert",
+        actionConfig: {
+          table: "project_artifacts",
+          data: {
+            project_id: "{{project_id}}",
+            artifact_type: "brainstorming-session",
+            file_path: "{{brainstorming_artifact_path}}",
+            workflow_id: "wf-brainstorm-project-uuid",
+            metadata: {
+              techniques_used: "{{brainstorming_techniques}}",
+              session_date: "{{current_date}}",
+            },
+          },
+        },
+        executionMode: "sequential",
+        sequenceOrder: 1,
+        condition: null,
       },
-      executionMode: "sequential",
-      sequenceOrder: 1,
-      condition: null
-    }
-  ]).returning();
+    ])
+    .returning();
 
   console.log(`✅ Seeded ${actions.length} actions for brainstorm-project`);
   return actions;
@@ -475,313 +496,315 @@ import { db } from "./db";
 import { workflowSteps } from "./schema";
 
 export async function seedResearchSteps(workflowId: string) {
-  const steps = await db.insert(workflowSteps).values([
-    // Step 1-3: Same validation pattern as brainstorm-project
-    {
-      id: "research-step-1-validate-uuid",
-      workflowId: workflowId,
-      stepNumber: 1,
-      stepType: "invoke-workflow",
-      stepId: "validate-readiness",
-      title: "Validate Workflow Readiness",
-      description: "Check project status and load configuration",
-      config: {
-        invokedWorkflowName: "workflow-status",
-        inputParams: {
-          mode: "data",
-          data_request: "project_config"
+  const steps = await db
+    .insert(workflowSteps)
+    .values([
+      // Step 1-3: Same validation pattern as brainstorm-project
+      {
+        id: "research-step-1-validate-uuid",
+        workflowId: workflowId,
+        stepNumber: 1,
+        stepType: "invoke-workflow",
+        stepId: "validate-readiness",
+        title: "Validate Workflow Readiness",
+        description: "Check project status and load configuration",
+        config: {
+          invokedWorkflowName: "workflow-status",
+          inputParams: {
+            mode: "data",
+            data_request: "project_config",
+          },
+          outputMapping: {
+            status_exists: "status_exists",
+            project_id: "project_id",
+            project_level: "project_level",
+          },
         },
-        outputMapping: {
-          status_exists: "status_exists",
-          project_id: "project_id",
-          project_level: "project_level"
-        }
+        nextStepId: "research-step-2-check-status-uuid",
       },
-      nextStepId: "research-step-2-check-status-uuid"
-    },
 
-    {
-      id: "research-step-2-check-status-uuid",
-      workflowId: workflowId,
-      stepNumber: 2,
-      stepType: "check-condition",
-      stepId: "check-status-exists",
-      title: "Check Progress Tracking",
-      description: "Determine if running in tracked or standalone mode",
-      config: {
-        conditionType: "boolean",
-        evaluateVariable: "status_exists"
+      {
+        id: "research-step-2-check-status-uuid",
+        workflowId: workflowId,
+        stepNumber: 2,
+        stepType: "check-condition",
+        stepId: "check-status-exists",
+        title: "Check Progress Tracking",
+        description: "Determine if running in tracked or standalone mode",
+        config: {
+          conditionType: "boolean",
+          evaluateVariable: "status_exists",
+        },
+        nextStepId: null,
       },
-      nextStepId: null
-    },
 
-    {
-      id: "research-step-3-set-standalone-uuid",
-      workflowId: workflowId,
-      stepNumber: 3,
-      stepType: "execute-action",
-      stepId: "set-standalone-mode",
-      title: "Enable Standalone Mode",
-      description: "Set standalone_mode = true",
-      config: {
-        description: "Enable standalone mode"
+      {
+        id: "research-step-3-set-standalone-uuid",
+        workflowId: workflowId,
+        stepNumber: 3,
+        stepType: "execute-action",
+        stepId: "set-standalone-mode",
+        title: "Enable Standalone Mode",
+        description: "Set standalone_mode = true",
+        config: {
+          description: "Enable standalone mode",
+        },
+        nextStepId: "research-step-4-welcome-uuid",
       },
-      nextStepId: "research-step-4-welcome-uuid"
-    },
 
-    // Step 4: Present Research Type Menu (SELECT INPUT!)
-    {
-      id: "research-step-4-welcome-uuid",
-      workflowId: workflowId,
-      stepNumber: 4,
-      stepType: "ask-user",
-      stepId: "select-research-type",
-      title: "Research Type Selection",
-      description: "Present user with research type options",
-      config: {
-        question: `**What type of research do you need?**
+      // Step 4: Present Research Type Menu (SELECT INPUT!)
+      {
+        id: "research-step-4-welcome-uuid",
+        workflowId: workflowId,
+        stepNumber: 4,
+        stepType: "ask-user",
+        stepId: "select-research-type",
+        title: "Research Type Selection",
+        description: "Present user with research type options",
+        config: {
+          question: `**What type of research do you need?**
 
 Select the research type that best fits your needs:`,
-        inputType: "select",
-        options: [
-          "1. Market Research - Comprehensive market analysis with TAM/SAM/SOM, competitive intelligence, and go-to-market strategy",
-          "2. Deep Research Prompt Generator - Create structured, multi-step research prompts optimized for AI platforms",
-          "3. Technical/Architecture Research - Evaluate technology stacks, architecture patterns, and technical approaches",
-          "4. Competitive Intelligence - Deep dive into competitors, their strategies, and market positioning",
-          "5. User Research - Customer insights, personas, jobs-to-be-done, and user behavior analysis",
-          "6. Domain/Industry Research - Deep dive into specific industries, domains, or subject matter areas"
-        ],
-        validation: null,
-        storeAs: "research_type"
-      },
-      nextStepId: "research-step-5-route-uuid"
-    },
-
-    // Step 5: Route to Research Type (6-WAY SELECT BRANCH!)
-    {
-      id: "research-step-5-route-uuid",
-      workflowId: workflowId,
-      stepNumber: 5,
-      stepType: "check-condition",
-      stepId: "route-research-type",
-      title: "Route to Appropriate Research Type",
-      description: "Branch to selected research workflow",
-      config: {
-        conditionType: "select",
-        evaluateVariable: "research_type"
-      },
-      nextStepId: null // Routing via branches (6-way!)
-    },
-
-    // Step 6a: Execute Market Research
-    {
-      id: "research-step-6a-market-uuid",
-      workflowId: workflowId,
-      stepNumber: 6,
-      stepType: "invoke-workflow",
-      stepId: "execute-market-research",
-      title: "Execute Market Research",
-      description: "Run comprehensive market research workflow",
-      config: {
-        invokedWorkflowName: "research-market",
-        inputParams: {
-          project_id: "{{project_id}}",
-          mode: "market",
-          context: "full-market-analysis"
+          inputType: "select",
+          options: [
+            "1. Market Research - Comprehensive market analysis with TAM/SAM/SOM, competitive intelligence, and go-to-market strategy",
+            "2. Deep Research Prompt Generator - Create structured, multi-step research prompts optimized for AI platforms",
+            "3. Technical/Architecture Research - Evaluate technology stacks, architecture patterns, and technical approaches",
+            "4. Competitive Intelligence - Deep dive into competitors, their strategies, and market positioning",
+            "5. User Research - Customer insights, personas, jobs-to-be-done, and user behavior analysis",
+            "6. Domain/Industry Research - Deep dive into specific industries, domains, or subject matter areas",
+          ],
+          validation: null,
+          storeAs: "research_type",
         },
-        outputMapping: {
-          research_results: "research_results",
-          output_file_path: "research_artifact_path",
-          research_type: "research_type_completed"
-        }
+        nextStepId: "research-step-5-route-uuid",
       },
-      nextStepId: "research-step-7-save-artifact-uuid"
-    },
 
-    // Step 6b: Execute Deep Prompt Generator
-    {
-      id: "research-step-6b-deep-prompt-uuid",
-      workflowId: workflowId,
-      stepNumber: 7,
-      stepType: "invoke-workflow",
-      stepId: "execute-deep-prompt",
-      title: "Execute Deep Research Prompt Generator",
-      description: "Generate structured research prompts",
-      config: {
-        invokedWorkflowName: "research-deep-prompt",
-        inputParams: {
-          project_id: "{{project_id}}",
-          mode: "deep-prompt"
+      // Step 5: Route to Research Type (6-WAY SELECT BRANCH!)
+      {
+        id: "research-step-5-route-uuid",
+        workflowId: workflowId,
+        stepNumber: 5,
+        stepType: "check-condition",
+        stepId: "route-research-type",
+        title: "Route to Appropriate Research Type",
+        description: "Branch to selected research workflow",
+        config: {
+          conditionType: "select",
+          evaluateVariable: "research_type",
         },
-        outputMapping: {
-          research_results: "research_results",
-          output_file_path: "research_artifact_path",
-          research_type: "research_type_completed"
-        }
+        nextStepId: null, // Routing via branches (6-way!)
       },
-      nextStepId: "research-step-7-save-artifact-uuid"
-    },
 
-    // Step 6c: Execute Technical Research
-    {
-      id: "research-step-6c-technical-uuid",
-      workflowId: workflowId,
-      stepNumber: 8,
-      stepType: "invoke-workflow",
-      stepId: "execute-technical-research",
-      title: "Execute Technical/Architecture Research",
-      description: "Evaluate technical approaches and architecture patterns",
-      config: {
-        invokedWorkflowName: "research-technical",
-        inputParams: {
-          project_id: "{{project_id}}",
-          mode: "technical"
+      // Step 6a: Execute Market Research
+      {
+        id: "research-step-6a-market-uuid",
+        workflowId: workflowId,
+        stepNumber: 6,
+        stepType: "invoke-workflow",
+        stepId: "execute-market-research",
+        title: "Execute Market Research",
+        description: "Run comprehensive market research workflow",
+        config: {
+          invokedWorkflowName: "research-market",
+          inputParams: {
+            project_id: "{{project_id}}",
+            mode: "market",
+            context: "full-market-analysis",
+          },
+          outputMapping: {
+            research_results: "research_results",
+            output_file_path: "research_artifact_path",
+            research_type: "research_type_completed",
+          },
         },
-        outputMapping: {
-          research_results: "research_results",
-          output_file_path: "research_artifact_path",
-          research_type: "research_type_completed"
-        }
+        nextStepId: "research-step-7-save-artifact-uuid",
       },
-      nextStepId: "research-step-7-save-artifact-uuid"
-    },
 
-    // Step 6d: Execute Competitive Intelligence
-    {
-      id: "research-step-6d-competitive-uuid",
-      workflowId: workflowId,
-      stepNumber: 9,
-      stepType: "invoke-workflow",
-      stepId: "execute-competitive-research",
-      title: "Execute Competitive Intelligence",
-      description: "Deep dive into competitor analysis",
-      config: {
-        invokedWorkflowName: "research-market",
-        inputParams: {
-          project_id: "{{project_id}}",
-          mode: "competitive"
+      // Step 6b: Execute Deep Prompt Generator
+      {
+        id: "research-step-6b-deep-prompt-uuid",
+        workflowId: workflowId,
+        stepNumber: 7,
+        stepType: "invoke-workflow",
+        stepId: "execute-deep-prompt",
+        title: "Execute Deep Research Prompt Generator",
+        description: "Generate structured research prompts",
+        config: {
+          invokedWorkflowName: "research-deep-prompt",
+          inputParams: {
+            project_id: "{{project_id}}",
+            mode: "deep-prompt",
+          },
+          outputMapping: {
+            research_results: "research_results",
+            output_file_path: "research_artifact_path",
+            research_type: "research_type_completed",
+          },
         },
-        outputMapping: {
-          research_results: "research_results",
-          output_file_path: "research_artifact_path",
-          research_type: "research_type_completed"
-        }
+        nextStepId: "research-step-7-save-artifact-uuid",
       },
-      nextStepId: "research-step-7-save-artifact-uuid"
-    },
 
-    // Step 6e: Execute User Research
-    {
-      id: "research-step-6e-user-uuid",
-      workflowId: workflowId,
-      stepNumber: 10,
-      stepType: "invoke-workflow",
-      stepId: "execute-user-research",
-      title: "Execute User Research",
-      description: "Customer insights and persona development",
-      config: {
-        invokedWorkflowName: "research-market",
-        inputParams: {
-          project_id: "{{project_id}}",
-          mode: "user"
+      // Step 6c: Execute Technical Research
+      {
+        id: "research-step-6c-technical-uuid",
+        workflowId: workflowId,
+        stepNumber: 8,
+        stepType: "invoke-workflow",
+        stepId: "execute-technical-research",
+        title: "Execute Technical/Architecture Research",
+        description: "Evaluate technical approaches and architecture patterns",
+        config: {
+          invokedWorkflowName: "research-technical",
+          inputParams: {
+            project_id: "{{project_id}}",
+            mode: "technical",
+          },
+          outputMapping: {
+            research_results: "research_results",
+            output_file_path: "research_artifact_path",
+            research_type: "research_type_completed",
+          },
         },
-        outputMapping: {
-          research_results: "research_results",
-          output_file_path: "research_artifact_path",
-          research_type: "research_type_completed"
-        }
+        nextStepId: "research-step-7-save-artifact-uuid",
       },
-      nextStepId: "research-step-7-save-artifact-uuid"
-    },
 
-    // Step 6f: Execute Domain Research
-    {
-      id: "research-step-6f-domain-uuid",
-      workflowId: workflowId,
-      stepNumber: 11,
-      stepType: "invoke-workflow",
-      stepId: "execute-domain-research",
-      title: "Execute Domain/Industry Research",
-      description: "Deep dive into industry analysis",
-      config: {
-        invokedWorkflowName: "research-market",
-        inputParams: {
-          project_id: "{{project_id}}",
-          mode: "domain"
+      // Step 6d: Execute Competitive Intelligence
+      {
+        id: "research-step-6d-competitive-uuid",
+        workflowId: workflowId,
+        stepNumber: 9,
+        stepType: "invoke-workflow",
+        stepId: "execute-competitive-research",
+        title: "Execute Competitive Intelligence",
+        description: "Deep dive into competitor analysis",
+        config: {
+          invokedWorkflowName: "research-market",
+          inputParams: {
+            project_id: "{{project_id}}",
+            mode: "competitive",
+          },
+          outputMapping: {
+            research_results: "research_results",
+            output_file_path: "research_artifact_path",
+            research_type: "research_type_completed",
+          },
         },
-        outputMapping: {
-          research_results: "research_results",
-          output_file_path: "research_artifact_path",
-          research_type: "research_type_completed"
-        }
+        nextStepId: "research-step-7-save-artifact-uuid",
       },
-      nextStepId: "research-step-7-save-artifact-uuid"
-    },
 
-    // Step 7: Save Research Artifact (ALL 6 BRANCHES CONVERGE HERE!)
-    {
-      id: "research-step-7-save-artifact-uuid",
-      workflowId: workflowId,
-      stepNumber: 12,
-      stepType: "execute-action",
-      stepId: "save-research-artifact",
-      title: "Track Generated Research Artifact",
-      description: "Save research artifact to project_artifacts table",
-      config: {
-        description: "Record research artifact in database"
-      },
-      nextStepId: "research-step-8-check-standalone-uuid"
-    },
-
-    // Step 8-10: Same completion pattern as brainstorm-project
-    {
-      id: "research-step-8-check-standalone-uuid",
-      workflowId: workflowId,
-      stepNumber: 13,
-      stepType: "check-condition",
-      stepId: "check-standalone-mode",
-      title: "Check Progress Tracking Mode",
-      description: "Determine completion message",
-      config: {
-        conditionType: "boolean",
-        evaluateVariable: "standalone_mode"
-      },
-      nextStepId: null
-    },
-
-    {
-      id: "research-step-9-update-status-uuid",
-      workflowId: workflowId,
-      stepNumber: 14,
-      stepType: "invoke-workflow",
-      stepId: "update-workflow-status",
-      title: "Mark Workflow Complete",
-      description: "Update project_state",
-      config: {
-        invokedWorkflowName: "workflow-status",
-        inputParams: {
-          mode: "update",
-          action: "complete_workflow",
-          workflow_name: "research"
+      // Step 6e: Execute User Research
+      {
+        id: "research-step-6e-user-uuid",
+        workflowId: workflowId,
+        stepNumber: 10,
+        stepType: "invoke-workflow",
+        stepId: "execute-user-research",
+        title: "Execute User Research",
+        description: "Customer insights and persona development",
+        config: {
+          invokedWorkflowName: "research-market",
+          inputParams: {
+            project_id: "{{project_id}}",
+            mode: "user",
+          },
+          outputMapping: {
+            research_results: "research_results",
+            output_file_path: "research_artifact_path",
+            research_type: "research_type_completed",
+          },
         },
-        outputMapping: {
-          next_workflow: "next_workflow",
-          next_agent: "next_agent"
-        }
+        nextStepId: "research-step-7-save-artifact-uuid",
       },
-      nextStepId: "research-step-10a-display-tracked-uuid"
-    },
 
-    {
-      id: "research-step-10a-display-tracked-uuid",
-      workflowId: workflowId,
-      stepNumber: 15,
-      stepType: "display-output",
-      stepId: "display-tracked-complete",
-      title: "Show Completion with Next Steps",
-      description: "Display success message",
-      config: {
-        outputTemplate: `✅ **Research Complete!**
+      // Step 6f: Execute Domain Research
+      {
+        id: "research-step-6f-domain-uuid",
+        workflowId: workflowId,
+        stepNumber: 11,
+        stepType: "invoke-workflow",
+        stepId: "execute-domain-research",
+        title: "Execute Domain/Industry Research",
+        description: "Deep dive into industry analysis",
+        config: {
+          invokedWorkflowName: "research-market",
+          inputParams: {
+            project_id: "{{project_id}}",
+            mode: "domain",
+          },
+          outputMapping: {
+            research_results: "research_results",
+            output_file_path: "research_artifact_path",
+            research_type: "research_type_completed",
+          },
+        },
+        nextStepId: "research-step-7-save-artifact-uuid",
+      },
+
+      // Step 7: Save Research Artifact (ALL 6 BRANCHES CONVERGE HERE!)
+      {
+        id: "research-step-7-save-artifact-uuid",
+        workflowId: workflowId,
+        stepNumber: 12,
+        stepType: "execute-action",
+        stepId: "save-research-artifact",
+        title: "Track Generated Research Artifact",
+        description: "Save research artifact to project_artifacts table",
+        config: {
+          description: "Record research artifact in database",
+        },
+        nextStepId: "research-step-8-check-standalone-uuid",
+      },
+
+      // Step 8-10: Same completion pattern as brainstorm-project
+      {
+        id: "research-step-8-check-standalone-uuid",
+        workflowId: workflowId,
+        stepNumber: 13,
+        stepType: "check-condition",
+        stepId: "check-standalone-mode",
+        title: "Check Progress Tracking Mode",
+        description: "Determine completion message",
+        config: {
+          conditionType: "boolean",
+          evaluateVariable: "standalone_mode",
+        },
+        nextStepId: null,
+      },
+
+      {
+        id: "research-step-9-update-status-uuid",
+        workflowId: workflowId,
+        stepNumber: 14,
+        stepType: "invoke-workflow",
+        stepId: "update-workflow-status",
+        title: "Mark Workflow Complete",
+        description: "Update project_state",
+        config: {
+          invokedWorkflowName: "workflow-status",
+          inputParams: {
+            mode: "update",
+            action: "complete_workflow",
+            workflow_name: "research",
+          },
+          outputMapping: {
+            next_workflow: "next_workflow",
+            next_agent: "next_agent",
+          },
+        },
+        nextStepId: "research-step-10a-display-tracked-uuid",
+      },
+
+      {
+        id: "research-step-10a-display-tracked-uuid",
+        workflowId: workflowId,
+        stepNumber: 15,
+        stepType: "display-output",
+        stepId: "display-tracked-complete",
+        title: "Show Completion with Next Steps",
+        description: "Display success message",
+        config: {
+          outputTemplate: `✅ **Research Complete!**
 
 **Research Type:** {{research_type_completed}}
 **Results saved to:** {{research_artifact_path}}
@@ -794,21 +817,21 @@ Select the research type that best fits your needs:`,
 - **Optional:** Run additional research types or other analysis workflows
 
 Check status: \`workflow-status\``,
-        outputType: "success"
+          outputType: "success",
+        },
+        nextStepId: null,
       },
-      nextStepId: null
-    },
 
-    {
-      id: "research-step-10b-display-standalone-uuid",
-      workflowId: workflowId,
-      stepNumber: 16,
-      stepType: "display-output",
-      stepId: "display-standalone-complete",
-      title: "Show Standalone Completion",
-      description: "Display success message for standalone mode",
-      config: {
-        outputTemplate: `✅ **Research Complete!**
+      {
+        id: "research-step-10b-display-standalone-uuid",
+        workflowId: workflowId,
+        stepNumber: 16,
+        stepType: "display-output",
+        stepId: "display-standalone-complete",
+        title: "Show Standalone Completion",
+        description: "Display success message for standalone mode",
+        config: {
+          outputTemplate: `✅ **Research Complete!**
 
 **Research Type:** {{research_type_completed}}
 **Results saved to:** {{research_artifact_path}}
@@ -816,11 +839,12 @@ Check status: \`workflow-status\``,
 **Next Steps:**
 - Run \`workflow-init\` to start progress tracking
 - Or refer to BMM workflow guide`,
-        outputType: "success"
+          outputType: "success",
+        },
+        nextStepId: null,
       },
-      nextStepId: null
-    }
-  ]).returning();
+    ])
+    .returning();
 
   console.log(`✅ Seeded ${steps.length} steps for research`);
   return steps;
@@ -836,83 +860,86 @@ import { db } from "./db";
 import { workflowStepBranches } from "./schema";
 
 export async function seedResearchBranches() {
-  const branches = await db.insert(workflowStepBranches).values([
-    // Step 2: Check Status Exists (boolean)
-    {
-      stepId: "research-step-2-check-status-uuid",
-      branchKey: "false",
-      branchLabel: null,
-      nextStepId: "research-step-3-set-standalone-uuid",
-      displayOrder: null
-    },
-    {
-      stepId: "research-step-2-check-status-uuid",
-      branchKey: "true",
-      branchLabel: null,
-      nextStepId: "research-step-4-welcome-uuid",
-      displayOrder: null
-    },
+  const branches = await db
+    .insert(workflowStepBranches)
+    .values([
+      // Step 2: Check Status Exists (boolean)
+      {
+        stepId: "research-step-2-check-status-uuid",
+        branchKey: "false",
+        branchLabel: null,
+        nextStepId: "research-step-3-set-standalone-uuid",
+        displayOrder: null,
+      },
+      {
+        stepId: "research-step-2-check-status-uuid",
+        branchKey: "true",
+        branchLabel: null,
+        nextStepId: "research-step-4-welcome-uuid",
+        displayOrder: null,
+      },
 
-    // Step 5: Route Research Type (6-WAY SELECT!)
-    {
-      stepId: "research-step-5-route-uuid",
-      branchKey: "1",
-      branchLabel: "Market Research",
-      nextStepId: "research-step-6a-market-uuid",
-      displayOrder: 1
-    },
-    {
-      stepId: "research-step-5-route-uuid",
-      branchKey: "2",
-      branchLabel: "Deep Research Prompt Generator",
-      nextStepId: "research-step-6b-deep-prompt-uuid",
-      displayOrder: 2
-    },
-    {
-      stepId: "research-step-5-route-uuid",
-      branchKey: "3",
-      branchLabel: "Technical/Architecture Research",
-      nextStepId: "research-step-6c-technical-uuid",
-      displayOrder: 3
-    },
-    {
-      stepId: "research-step-5-route-uuid",
-      branchKey: "4",
-      branchLabel: "Competitive Intelligence",
-      nextStepId: "research-step-6d-competitive-uuid",
-      displayOrder: 4
-    },
-    {
-      stepId: "research-step-5-route-uuid",
-      branchKey: "5",
-      branchLabel: "User Research",
-      nextStepId: "research-step-6e-user-uuid",
-      displayOrder: 5
-    },
-    {
-      stepId: "research-step-5-route-uuid",
-      branchKey: "6",
-      branchLabel: "Domain/Industry Research",
-      nextStepId: "research-step-6f-domain-uuid",
-      displayOrder: 6
-    },
+      // Step 5: Route Research Type (6-WAY SELECT!)
+      {
+        stepId: "research-step-5-route-uuid",
+        branchKey: "1",
+        branchLabel: "Market Research",
+        nextStepId: "research-step-6a-market-uuid",
+        displayOrder: 1,
+      },
+      {
+        stepId: "research-step-5-route-uuid",
+        branchKey: "2",
+        branchLabel: "Deep Research Prompt Generator",
+        nextStepId: "research-step-6b-deep-prompt-uuid",
+        displayOrder: 2,
+      },
+      {
+        stepId: "research-step-5-route-uuid",
+        branchKey: "3",
+        branchLabel: "Technical/Architecture Research",
+        nextStepId: "research-step-6c-technical-uuid",
+        displayOrder: 3,
+      },
+      {
+        stepId: "research-step-5-route-uuid",
+        branchKey: "4",
+        branchLabel: "Competitive Intelligence",
+        nextStepId: "research-step-6d-competitive-uuid",
+        displayOrder: 4,
+      },
+      {
+        stepId: "research-step-5-route-uuid",
+        branchKey: "5",
+        branchLabel: "User Research",
+        nextStepId: "research-step-6e-user-uuid",
+        displayOrder: 5,
+      },
+      {
+        stepId: "research-step-5-route-uuid",
+        branchKey: "6",
+        branchLabel: "Domain/Industry Research",
+        nextStepId: "research-step-6f-domain-uuid",
+        displayOrder: 6,
+      },
 
-    // Step 8: Check Standalone Mode (boolean)
-    {
-      stepId: "research-step-8-check-standalone-uuid",
-      branchKey: "true",
-      branchLabel: null,
-      nextStepId: "research-step-10b-display-standalone-uuid",
-      displayOrder: null
-    },
-    {
-      stepId: "research-step-8-check-standalone-uuid",
-      branchKey: "false",
-      branchLabel: null,
-      nextStepId: "research-step-9-update-status-uuid",
-      displayOrder: null
-    }
-  ]).returning();
+      // Step 8: Check Standalone Mode (boolean)
+      {
+        stepId: "research-step-8-check-standalone-uuid",
+        branchKey: "true",
+        branchLabel: null,
+        nextStepId: "research-step-10b-display-standalone-uuid",
+        displayOrder: null,
+      },
+      {
+        stepId: "research-step-8-check-standalone-uuid",
+        branchKey: "false",
+        branchLabel: null,
+        nextStepId: "research-step-9-update-status-uuid",
+        displayOrder: null,
+      },
+    ])
+    .returning();
 
   console.log(`✅ Seeded ${branches.length} branches for research (including 6-way!)`);
   return branches;
@@ -928,42 +955,45 @@ import { db } from "./db";
 import { workflowStepActions } from "./schema";
 
 export async function seedResearchActions() {
-  const actions = await db.insert(workflowStepActions).values([
-    // Step 3: Set Standalone Mode
-    {
-      stepId: "research-step-3-set-standalone-uuid",
-      actionType: "set-variable",
-      actionConfig: {
-        variableName: "standalone_mode",
-        value: true
+  const actions = await db
+    .insert(workflowStepActions)
+    .values([
+      // Step 3: Set Standalone Mode
+      {
+        stepId: "research-step-3-set-standalone-uuid",
+        actionType: "set-variable",
+        actionConfig: {
+          variableName: "standalone_mode",
+          value: true,
+        },
+        executionMode: "sequential",
+        sequenceOrder: 1,
+        condition: null,
       },
-      executionMode: "sequential",
-      sequenceOrder: 1,
-      condition: null
-    },
 
-    // Step 7: Save Artifact
-    {
-      stepId: "research-step-7-save-artifact-uuid",
-      actionType: "database-insert",
-      actionConfig: {
-        table: "project_artifacts",
-        data: {
-          project_id: "{{project_id}}",
-          artifact_type: "research-{{research_type_completed}}",
-          file_path: "{{research_artifact_path}}",
-          workflow_id: "wf-research-uuid",
-          metadata: {
-            research_type: "{{research_type_completed}}",
-            completed_date: "{{current_date}}"
-          }
-        }
+      // Step 7: Save Artifact
+      {
+        stepId: "research-step-7-save-artifact-uuid",
+        actionType: "database-insert",
+        actionConfig: {
+          table: "project_artifacts",
+          data: {
+            project_id: "{{project_id}}",
+            artifact_type: "research-{{research_type_completed}}",
+            file_path: "{{research_artifact_path}}",
+            workflow_id: "wf-research-uuid",
+            metadata: {
+              research_type: "{{research_type_completed}}",
+              completed_date: "{{current_date}}",
+            },
+          },
+        },
+        executionMode: "sequential",
+        sequenceOrder: 1,
+        condition: null,
       },
-      executionMode: "sequential",
-      sequenceOrder: 1,
-      condition: null
-    }
-  ]).returning();
+    ])
+    .returning();
 
   console.log(`✅ Seeded ${actions.length} actions for research`);
   return actions;
@@ -981,31 +1011,34 @@ import { workflowPathWorkflows } from "./schema";
 export async function seedWorkflowPathWorkflows(
   pathId: string,
   brainstormWorkflowId: string,
-  researchWorkflowId: string
+  researchWorkflowId: string,
 ) {
-  const junctions = await db.insert(workflowPathWorkflows).values([
-    // Phase 1: brainstorm-project
-    {
-      workflowPathId: pathId,
-      workflowId: brainstormWorkflowId,
-      phase: 1,
-      sequenceOrder: 1,
-      isOptional: true,
-      isRecommended: false
-    },
+  const junctions = await db
+    .insert(workflowPathWorkflows)
+    .values([
+      // Phase 1: brainstorm-project
+      {
+        workflowPathId: pathId,
+        workflowId: brainstormWorkflowId,
+        phase: 1,
+        sequenceOrder: 1,
+        isOptional: true,
+        isRecommended: false,
+      },
 
-    // Phase 1: research
-    {
-      workflowPathId: pathId,
-      workflowId: researchWorkflowId,
-      phase: 1,
-      sequenceOrder: 2,
-      isOptional: true,
-      isRecommended: false
-    }
+      // Phase 1: research
+      {
+        workflowPathId: pathId,
+        workflowId: researchWorkflowId,
+        phase: 1,
+        sequenceOrder: 2,
+        isOptional: true,
+        isRecommended: false,
+      },
 
-    // Note: product-brief will be added in next session
-  ]).returning();
+      // Note: product-brief will be added in next session
+    ])
+    .returning();
 
   console.log(`✅ Seeded ${junctions.length} workflow path relationships`);
   return junctions;
@@ -1028,7 +1061,7 @@ import {
   seedResearchSteps,
   seedResearchBranches,
   seedResearchActions,
-  seedWorkflowPathWorkflows
+  seedWorkflowPathWorkflows,
 } from "./seed-functions";
 
 export async function seedDatabase() {
@@ -1055,11 +1088,7 @@ export async function seedDatabase() {
     await seedResearchActions();
 
     // 6. Seed workflow path relationships
-    await seedWorkflowPathWorkflows(
-      greenfield3.id,
-      brainstormWorkflow.id,
-      researchWorkflow.id
-    );
+    await seedWorkflowPathWorkflows(greenfield3.id, brainstormWorkflow.id, researchWorkflow.id);
 
     console.log("\n✅ Database seeding complete!");
   } catch (error) {
@@ -1130,6 +1159,7 @@ console.log(`Branches: ${branchCount.length}`); // Should be 10 (4 + 6)
 ## Key Patterns Demonstrated
 
 ### 1. Inline Context (Step 4 of brainstorm-project)
+
 ```typescript
 config: {
   contextSource: "inline",
@@ -1139,6 +1169,7 @@ config: {
 ```
 
 ### 2. N-way Select Branching (Step 5 of research)
+
 ```typescript
 // Step config
 config: {
@@ -1153,6 +1184,7 @@ branchKey: "2" → nextStepId: deep-prompt
 ```
 
 ### 3. Variable Interpolation
+
 ```typescript
 inputParams: {
   context: "{{project_context}}", // ← Reads from workflow_executions.variables
@@ -1161,6 +1193,7 @@ inputParams: {
 ```
 
 ### 4. Artifact Tracking
+
 ```typescript
 actionConfig: {
   table: "project_artifacts",

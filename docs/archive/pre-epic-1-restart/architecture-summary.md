@@ -12,6 +12,7 @@
 **Approach:** Pragmatic, iterative architecture with deferred complexity.
 
 **Key Principles:**
+
 1. **Test patterns first, optimize later** - Validate core concepts (git-worktree, dual-tracking, chat primitives) before adding orchestration frameworks
 2. **Defer to relevant epics** - Make decisions when you have implementation context
 3. **Leverage existing decisions** - PRD already locked tech stack (TypeScript, React, Bun, PostgreSQL, Hono, Drizzle, shadcn/ui)
@@ -22,11 +23,13 @@
 ## Technology Stack (LOCKED)
 
 ### Runtime & Tooling
+
 - **Runtime:** Bun (package manager + JavaScript runtime)
 - **Monorepo:** Turborepo + Bun workspaces
 - **Package Manager:** Bun
 
 ### Backend
+
 - **Framework:** Hono (Bun-optimized HTTP framework)
 - **API Pattern:** tRPC (end-to-end type safety)
 - **Database:** PostgreSQL with Drizzle ORM
@@ -34,6 +37,7 @@
 - **Git Operations:** simple-git (worktree support)
 
 ### Frontend
+
 - **Framework:** React + TypeScript + Vite
 - **UI Library:** shadcn/ui + Tailwind CSS
 - **State Management:** React Query (server state) + Zustand (UI state)
@@ -41,6 +45,7 @@
 - **Client → Server:** tRPC mutations (HTTP)
 
 ### Project Structure
+
 ```
 chiron/
 ├── apps/
@@ -110,6 +115,7 @@ Lifecycle:
 **Pattern:** Three strategies documented, final choice deferred to implementation.
 
 **Options:**
+
 - **Interrupt-Based:** Pause agent when input artifact changes
 - **Dependency-Based:** Prevent parallel execution of dependent work
 - **Queue-Based:** Continue with snapshot, reconcile after
@@ -127,11 +133,13 @@ Lifecycle:
 **Reference Architecture:** BMAD repository (query during implementation)
 
 **What We Know:**
+
 - BMAD uses workflow.xml engine with steps, actions, templates, elicitation
 - Workflows defined in YAML with frontmatter + markdown instructions
 - 4-level variable resolution (config_source, system-generated, user input, defaults)
 
 **What We'll Discover:**
+
 - Exact workflow.xml parsing logic (query bmad repo via MCP)
 - Step execution patterns (conditional, optional, parallel)
 - Template rendering approach
@@ -186,28 +194,33 @@ SSE Event Types:
 ## Deferred Decisions (By Epic)
 
 ### Epic 1 (Foundation)
+
 - ✅ Database schema design
 - ✅ Drizzle ORM setup
 - ✅ Basic workflow engine (simplified, no orchestration)
 - ⏭️ Testing strategy (Vitest baseline, refine as needed)
 
 ### Epic 2 (Git Worktree)
+
 - ✅ simple-git integration
 - ⏭️ Worktree cleanup strategy (manual vs automatic)
 - ⏭️ Branch naming conventions
 
 ### Epic 3 (Multi-Agent Orchestration)
+
 - ⏭️ **CRITICAL:** Effect vs Mastra vs Custom (evaluate during Epic 3)
 - ⏭️ Process management (Bun.spawn vs worker threads)
 - ⏭️ Cross-agent conflict resolution strategy
 - ⏭️ Agent queue management
 
 ### Epic 4 (Real-Time UI)
+
 - ✅ SSE implementation
 - ⏭️ WebSocket fallback (if SSE proves insufficient)
 - ⏭️ UI update throttling approach
 
 ### Epic 5+ (Future)
+
 - ⏭️ Error tracking (Sentry, Axiom)
 - ⏭️ Structured logging (Pino, Winston)
 - ⏭️ Analytics (PostHog, Plausible)
@@ -217,15 +230,18 @@ SSE Event Types:
 ## Implementation Strategy
 
 ### Phase 1: Foundation (Epic 1-2) - Validate Core Patterns
+
 **Goal:** Prove git-worktree + dual-tracking works better than CLI.
 
 **Key Deliverables:**
+
 1. Database with workflow storage
 2. Git worktree creation/cleanup
 3. Divergence detection (DB hash vs git hash)
 4. Basic workflow execution (no multi-agent yet)
 
 **Success Criteria:**
+
 - Can create isolated worktree per agent
 - Can detect external git commits
 - Can store workflows in DB and execute them
@@ -234,19 +250,23 @@ SSE Event Types:
 ---
 
 ### Phase 2: Core Orchestration (Epic 3-4) - Multi-Agent + UI
+
 **Goal:** Coordinate 2+ agents with real-time dashboard.
 
 **Key Decision Point:** Evaluate Mastra/Effect during Epic 3 implementation.
 
 **If orchestration complexity high:**
+
 - Consider Mastra (agent framework)
 - Consider Effect (structured concurrency)
 
 **If orchestration complexity manageable:**
+
 - Continue with custom orchestration
 - Refactor later if needed
 
 **Success Criteria:**
+
 - 2+ agents run in parallel with isolated worktrees
 - Dashboard shows real-time agent status
 - User can approve/reject agent proposals
@@ -255,6 +275,7 @@ SSE Event Types:
 ---
 
 ### Phase 3: Intelligence Layer (Epic 5-6)
+
 **Goal:** MCP integration, workflow state management.
 
 **Deferred to implementation context.**
@@ -262,6 +283,7 @@ SSE Event Types:
 ---
 
 ### Phase 4: Polish (Epic 7-8)
+
 **Goal:** Chat primitives, extensibility.
 
 **Deferred to implementation context.**
@@ -273,6 +295,7 @@ SSE Event Types:
 **To be defined in Step 8 after core decisions finalized.**
 
 **Key principles:**
+
 1. One agent = one worktree
 2. Database as single source of truth for metadata
 3. Git as single source of truth for content
@@ -294,18 +317,21 @@ SSE Event Types:
 ## Key Architectural Insights
 
 **What Makes Chiron Novel:**
+
 1. Multi-agent git worktree orchestration (no existing solution)
 2. Git-database dual-tracking with hash-based divergence detection
 3. Visual UX for CLI methodology (BMAD → Chiron transformation)
 4. Workflow-as-data stored in database, executed dynamically
 
 **What Makes Chiron Practical:**
+
 - Leverages proven technologies (PostgreSQL, React, TypeScript)
 - Pragmatic deferred decisions (evaluate frameworks when needed)
 - Discovery-driven implementation (query BMAD repo during Epic 1+)
 - Test core patterns before optimizing orchestration
 
 **Thesis Contribution:**
+
 - Novel architecture patterns for multi-agent AI orchestration
 - Demonstration that visual UX + parallel agents improves productivity vs CLI
 - Reusable patterns for git-worktree isolation and dual-tracking

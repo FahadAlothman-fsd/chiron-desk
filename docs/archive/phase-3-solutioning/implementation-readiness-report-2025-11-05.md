@@ -21,24 +21,28 @@ The database schema design for Story 1.1 is **95% complete and architecturally s
 **🔴 BLOCKING ISSUE:** Missing `app_config` or `system_settings` table for OpenRouter API key storage (required for first-time setup flow).
 
 **🟠 HIGH PRIORITY (2 items):**
+
 1. Story 1.1 acceptance criteria needs update (11 tables → 16 tables)
 2. FR034 git commit hash needs type-safe column (not JSONB metadata)
 
 ### Key Strengths
 
 ✅ **Architecturally Excellent:**
+
 - 100% alignment with architectural decisions #33-#37
 - Chiron-native workflow model fully implemented
 - N-way branching pattern validated (6-way research router)
 - Optimization from Day 1 (ax GEPA support built-in)
 
 ✅ **Comprehensive Coverage:**
+
 - 15 tables defined with full TypeScript types
 - Seed examples demonstrate complex workflows (brainstorm-project, research)
 - All 4 chat patterns (A-D) fully supported
 - UX requirements for Epic 1-3 completely covered
 
 ✅ **Forward-Thinking:**
+
 - Epic 4+ tables defined but inactive (epic_state, story_state)
 - Optimization tables enable thesis validation
 - Schema evolution reflects BMAD methodology (Phase 3 insights)
@@ -60,6 +64,7 @@ The database schema design for Story 1.1 is **95% complete and architecturally s
 The schema design is fundamentally sound and ready for implementation. The identified issues are quick fixes that strengthen an already excellent design. With these corrections, the schema will provide a rock-solid foundation for Epic 1-3 implementation.
 
 **Next Steps:**
+
 1. Fix 3 schema issues (12-17 min)
 2. Update database-schema-final.md to reflect changes
 3. Call DEV agent with updated schema
@@ -83,6 +88,7 @@ Chiron is a thesis project that adds visual UX and multi-agent orchestration cap
 ### Workflow Path Context
 
 **Active Path:** greenfield-level-3 (4-phase methodology)
+
 - **Phase 1 (Analysis):** ✅ COMPLETE - Product Brief, BMAD deep-dive, architecture foundations
 - **Phase 2 (Planning):** ✅ COMPLETE - PRD (45 FRs, 5 NFRs, 3 User Journeys), Epic breakdown
 - **Phase 3 (Solutioning):** ✅ COMPLETE - Architecture decisions (#1-37), workflow engine structure, tool stack (AI SDK + Mastra + ax)
@@ -97,6 +103,7 @@ Chiron is a thesis project that adds visual UX and multi-agent orchestration cap
 ### Recent Session (2025-11-05)
 
 **What Happened:**
+
 - Completed database schema design through collaborative workflow mapping
 - Defined 15 tables with full TypeScript types (database-schema-final.md)
 - Mapped Phase 1 workflows (brainstorm-project, research) to database structure
@@ -105,6 +112,7 @@ Chiron is a thesis project that adds visual UX and multi-agent orchestration cap
 - Prepared implementation guide (NEXT-SESSION-2025-11-06.md)
 
 **Current Status:**
+
 - Schema design finalized and documented
 - Seed examples ready for Phase 1 workflows
 - Implementation guide specifies exact Drizzle ORM approach
@@ -114,6 +122,7 @@ Chiron is a thesis project that adds visual UX and multi-agent orchestration cap
 ### Assessment Scope
 
 This gate check validates:
+
 1. **Database schema** (15 tables) aligns with architectural decisions (#33-37)
 2. **Story 1.1 acceptance criteria** are fully met by finalized schema
 3. **Epic 1 dependencies** can proceed after Story 1.1 implementation
@@ -121,6 +130,7 @@ This gate check validates:
 5. **Implementation readiness** for DEV agent to begin coding
 
 **Expected Outcome:**
+
 - Identify any schema gaps or misalignments
 - Confirm Story 1.1 can be implemented without architectural blockers
 - Validate Epic 1 sequencing (Stories 1.1 → 1.2 → ... → 1.6)
@@ -196,8 +206,9 @@ This gate check validates:
 **ARCHIVED ARTIFACTS:**
 
 16. **✅ Previous Gate Check** - `docs/archive/phase-3-solutioning/implementation-readiness-report-2025-11-03.md`
-   - **Result:** PASSED with 9.9/10 readiness score
-   - **Scope:** PRD → Architecture alignment validation (pre-schema design)
+
+- **Result:** PASSED with 9.9/10 readiness score
+- **Scope:** PRD → Architecture alignment validation (pre-schema design)
 
 ### Document Analysis Summary
 
@@ -214,6 +225,7 @@ This gate check validates:
 ### 📊 Database Schema Analysis (database-schema-final.md)
 
 **Design Principles Identified:**
+
 1. **Relational over Document** - Leverages PostgreSQL strengths (foreign keys, typed columns, joins)
 2. **Actions as First-Class Entities** - Not buried in JSONB (workflow_step_actions table)
 3. **Type-Safe Conditionals** - N-way branching with explicit routing table (workflow_step_branches)
@@ -223,12 +235,14 @@ This gate check validates:
 **15 Tables Defined:**
 
 **Core Tables (4):**
+
 - `projects` - Project metadata (name, path, level, type, field_type)
 - `project_state` - Current workflow position (phase, current_workflow_id, completed_workflows JSONB array)
 - `workflow_paths` - Workflow sequences for project types (greenfield-level-3, etc.)
 - `workflow_path_workflows` - Junction table (which workflows in which phase/order)
 
 **Workflow Definition Tables (5):**
+
 - `agents` - AI agents (name, role, llm_provider, llm_model, tools JSONB, mcp_servers JSONB, color, avatar)
 - `workflows` - Workflow definitions (name, agent_id, pattern enum, output_artifact_type)
 - `workflow_steps` - Individual steps (step_number, step_type enum, config JSONB, next_step_id)
@@ -236,46 +250,55 @@ This gate check validates:
 - `workflow_step_actions` - Actions within steps (action_type, action_config JSONB, execution_mode enum, sequence_order)
 
 **Execution Tables (2):**
+
 - `workflow_executions` - Runtime state (project_id, workflow_id, agent_id, status enum, current_step_id, **variables JSONB**, context_data JSONB)
 - `project_artifacts` - Generated files tracking (project_id, artifact_type, file_path, workflow_id, metadata JSONB)
 
 **Future Tables (2):**
+
 - `epic_state` - Epic progress tracking (project_id, epic_number, status)
 - `story_state` - Story progress tracking (project_id, epic_number, story_number, status)
 
 **Optimization Tables (2):**
+
 - `training_examples` - User corrections for optimization (workflow_id, step_id, input JSONB, output JSONB, original_prediction JSONB)
 - `optimization_runs` - GEPA optimizer results (workflow_id, step_id, optimizer_type, best_score, optimization_file_path)
 
 **Key Architectural Patterns:**
 
 **Pattern 1: Variable Storage**
+
 - ALL runtime data in `workflow_executions.variables` JSONB
 - Steps read/write using `storeAs` and `evaluateVariable` config fields
 - Example flow: Step 1 outputs `{ status_exists: true, project_id: "uuid" }` → Step 2 reads `status_exists` → routes via branches
 
 **Pattern 2: Context Definition**
+
 - Context defined INLINE in workflow config (NOT file paths)
 - `load-context` step type with `contextContent` field containing actual content
 - **CRITICAL:** No `{installed_path}/context.md` file references
 
 **Pattern 3: N-way Branching**
+
 - `workflow_step_branches` table supports 2-way (boolean), N-way (select), or abstract (LLM-evaluated)
 - Example: research workflow has 6-way branch (market/deep-prompt/technical/competitive/user/domain)
 - Execution: Match `variables[evaluateVariable]` against `branch_key` → jump to `next_step_id`
 
 **Pattern 4: Artifact Tracking**
+
 - `project_artifacts` tracks actual generated files (e.g., `/docs/brainstorming-2025-11-05.md`)
 - Database row contains: file_path, artifact_type, workflow_id, metadata JSONB
 - **NO separate metadata files** - only database references
 
 **TypeScript Types Defined:**
+
 - 7 step config types: `AskUserStepConfig`, `LLMGenerateStepConfig`, `CheckConditionStepConfig`, `ApprovalCheckpointStepConfig`, `ExecuteActionStepConfig`, `InvokeWorkflowStepConfig`, `DisplayOutputStepConfig`, `LoadContextStepConfig`
 - Enums: `project_level` (0-4), `project_type` (software/game), `field_type` (greenfield/brownfield), `workflow_status` (idle/active/paused/completed/failed), `step_type` (8 types), `action_execution` (sequential/parallel/conditional)
 
 ### 🌱 Seed Data Examples Analysis (seed-data-examples.md)
 
 **Seeding Order (Respects Foreign Keys):**
+
 1. Agents (no dependencies)
 2. Workflow Paths (no dependencies)
 3. Workflows (depends on agents)
@@ -285,6 +308,7 @@ This gate check validates:
 7. Workflow Path Workflows (depends on paths and workflows)
 
 **brainstorm-project Workflow (10 steps):**
+
 - Step 1: validate-readiness (invoke-workflow)
 - Step 2: check-status-exists (check-condition) → **2-way boolean branch**
 - Step 3: set-standalone-mode (execute-action) - sets `standalone_mode = true`
@@ -296,14 +320,16 @@ This gate check validates:
 - Step 9a/9b: display-tracked-complete / display-standalone-complete (display-output)
 
 **research Workflow (16 steps with 6-way branching):**
+
 - Step 1-3: Same validation pattern
 - Step 4: select-research-type (**ask-user with select inputType, 6 options**) ← **KEY VALIDATION**
 - Step 5: route-research-type (**check-condition with select conditionType**) → **6-way branch!**
-- Step 6a-6f: execute-*-research (6 parallel branches for different research types)
+- Step 6a-6f: execute-\*-research (6 parallel branches for different research types)
 - Step 7: save-research-artifact (all branches converge here)
 - Step 8-10: Same completion pattern
 
 **Key Validations Demonstrated:**
+
 1. ✅ Inline context pattern (Step 4 of brainstorm-project has 223-line contextContent)
 2. ✅ N-way branching (Step 5 of research routes to 6 different next steps)
 3. ✅ Variable storage (standalone_mode, project_context, research_type stored in variables JSONB)
@@ -315,12 +341,14 @@ This gate check validates:
 **Task Breakdown:**
 
 **Task 1: Implement Schema in Drizzle (2-3 hours)**
+
 - Files to create: `core.ts`, `workflows.ts`, `executions.ts`, `agents.ts`, `optimization.ts`, `index.ts`
 - Copy table definitions EXACTLY from database-schema-final.md
 - Include all enums, indexes, TypeScript types
 - Test with `drizzle-kit generate` to create migrations
 
 **Task 2: Create Seed Data for Phase 1 (3-4 hours)**
+
 - Files to create: `seed-agents.ts`, `seed-workflow-paths.ts`, `seed-workflows.ts`, `seed-workflow-steps.ts`, `seed-workflow-branches.ts`, `seed-workflow-path-workflows.ts`, `index.ts`
 - Seed analyst agent only (other agents deferred)
 - Seed greenfield-level-3 path only (other levels deferred)
@@ -329,10 +357,12 @@ This gate check validates:
 - All branches seeded (including 6-way branch!)
 
 **Task 3: Test Workflow Execution (1-2 hours)**
+
 - Manual testing: Create test project, execute brainstorm-project, verify branching
 - Success criteria: Can create execution, navigate steps, variables update, branching works, artifact tracking works
 
 **Key Reminders (Critical for Validation):**
+
 1. ⚠️ **Context is INLINE, not file-based!** - `contextContent` field contains actual content
 2. ⚠️ **All Runtime Data in workflow_executions.variables** - No separate state files
 3. ⚠️ **Branching via Table Lookup** - workflow_step_branches table, not embedded logic
@@ -343,6 +373,7 @@ This gate check validates:
 **Database-Related Functional Requirements:**
 
 **Core Database (FR032-FR036):**
+
 - FR032: Initialize and migrate PostgreSQL database on first launch
 - FR033: Backup/restore functionality for Chiron database
 - FR034: Record git commit hash for every artifact in project_artifacts table
@@ -350,10 +381,12 @@ This gate check validates:
 - FR036: Validate project directory and git status before workflow execution
 
 **Git Worktree Management (FR037-FR038):**
+
 - FR037: Maintain worktree registry in git_worktrees table
 - FR038: Clean up orphaned worktrees on restart
 
 **Data Integrity (FR039-FR044):**
+
 - FR039: Manual reconciliation workflow when auto-sync fails
 - FR040: Optimistic locking for artifacts
 - FR041: Automatic snapshots before destructive operations
@@ -362,9 +395,11 @@ This gate check validates:
 - FR044: Validate agent-capability configs before save
 
 **Multi-Agent Coordination (FR045):**
+
 - FR045: Conflict resolution when artifacts modified during parallel execution (strategy TBD)
 
 **Story 1.1 Acceptance Criteria (from epics.md):**
+
 - ✅ Drizzle ORM configured with TypeScript
 - ✅ All 11 tables created (note: schema has 15, not 11 - **DISCREPANCY FOUND**)
 - ✅ Indexes on frequently queried columns
@@ -377,25 +412,30 @@ This gate check validates:
 **Relevant Decisions:**
 
 **#33: Chiron-Native Workflow Model**
+
 - Workflows are structured data (not markdown/YAML files)
 - Step types map directly to UI components
 - Chat patterns are first-class primitives
 
 **#34: Step Type System**
+
 - 7 step types defined: AskUserStep, LLMGenerateStep, CheckConditionStep, ApprovalCheckpointStep, ExecuteActionStep, InvokeWorkflowStep, DisplayOutputStep
 - Schema includes all 7 + LoadContextStep (8 total)
 
 **#35: Agent as First-Class Entity**
+
 - Agents are database models with full configuration
 - Per-agent LLM provider/model configuration
 - Agent-specific tools and MCP servers
 - **Schema alignment:** `agents` table has all required fields
 
 **#36: Tool-Compatible LLM Tasks**
+
 - StructuredGenerationTask, FreeformGenerationTask, ClassificationTask, ExtractionTask
 - **Schema support:** `training_examples` and `optimization_runs` tables enable ax optimization
 
 **#37: Tool Stack - AI SDK + Mastra + ax**
+
 - AI SDK for LLM interface
 - Mastra for workflow orchestration
 - ax for prompt optimization (GEPA multi-objective)
@@ -404,6 +444,7 @@ This gate check validates:
 ### Key Insights Summary
 
 **Strengths:**
+
 1. ✅ Comprehensive 15-table schema with clear design principles
 2. ✅ Seed examples demonstrate complex patterns (6-way branching)
 3. ✅ Implementation guide provides clear task breakdown
@@ -411,6 +452,7 @@ This gate check validates:
 5. ✅ Architecture decisions align with schema design
 
 **Critical Patterns Validated:**
+
 1. ✅ Inline context (not file-based)
 2. ✅ Variables in JSONB (not separate state files)
 3. ✅ N-way branching via table
@@ -418,6 +460,7 @@ This gate check validates:
 5. ✅ Optimization support (ax integration)
 
 **Discrepancies Found:**
+
 1. ⚠️ **Story 1.1 lists 11 tables, schema defines 15 tables** (4 table difference)
 2. ⚠️ **Story 1.1 lists specific 11 table names, schema has different names/structure**
 
@@ -428,6 +471,7 @@ This gate check validates:
 #### 1. Schema ↔ Story 1.1 Acceptance Criteria Alignment
 
 **Story 1.1 Expected Tables (11 from epics.md):**
+
 1. `projects` - ✅ **PRESENT** in schema
 2. `workflows` - ✅ **PRESENT** in schema (modified structure)
 3. `agents` - ✅ **PRESENT** in schema
@@ -440,17 +484,11 @@ This gate check validates:
 10. `epic_state` - ✅ **PRESENT** in schema (marked as "Future")
 11. `story_state` - ✅ **PRESENT** in schema (marked as "Future")
 
-**Schema Additional Tables (4 not in Story 1.1):**
-12. `workflow_paths` - **NEW** (replaces embedded path definitions)
-13. `workflow_path_workflows` - **NEW** (junction table for paths ↔ workflows)
-14. `workflow_steps` - **NEW** (Chiron-native workflow model)
-15. `workflow_step_branches` - **NEW** (N-way branching pattern)
-16. `workflow_step_actions` - **NEW** (action composition)
-17. `training_examples` - **NEW** (ax optimization support)
-18. `optimization_runs` - **NEW** (ax GEPA results)
+**Schema Additional Tables (4 not in Story 1.1):** 12. `workflow_paths` - **NEW** (replaces embedded path definitions) 13. `workflow_path_workflows` - **NEW** (junction table for paths ↔ workflows) 14. `workflow_steps` - **NEW** (Chiron-native workflow model) 15. `workflow_step_branches` - **NEW** (N-way branching pattern) 16. `workflow_step_actions` - **NEW** (action composition) 17. `training_examples` - **NEW** (ax optimization support) 18. `optimization_runs` - **NEW** (ax GEPA results)
 
 **CRITICAL FINDING:**
 The schema evolved significantly from Story 1.1 specification based on architectural decisions made in Phase 3 (Solutioning). The schema implements:
+
 - **Chiron-native workflow model** (Decision #33) → Added `workflow_steps`, `workflow_step_branches`, `workflow_step_actions`
 - **Workflow path abstraction** → Added `workflow_paths`, `workflow_path_workflows`
 - **Optimization from Day 1** (Decision #37) → Added `training_examples`, `optimization_runs`
@@ -462,52 +500,67 @@ The schema evolved significantly from Story 1.1 specification based on architect
 #### 2. Schema ↔ PRD Functional Requirements Alignment
 
 **FR032 (Database initialization):** ✅ **SUPPORTED**
+
 - Schema defines all tables, Drizzle migrations enable initialization
 
 **FR033 (Backup/restore):** ✅ **SUPPORTED**
+
 - PostgreSQL standard backup/restore compatible with schema
 
 **FR034 (Git commit hash tracking):** ⚠️ **PARTIAL**
+
 - `project_artifacts` table has `metadata` JSONB field
 - **Gap:** No explicit `git_commit_hash` column (can be stored in metadata, but not type-safe)
 - **Recommendation:** Add `gitCommitHash` TEXT column to `project_artifacts`
 
 **FR035 (Project CRUD):** ✅ **FULLY SUPPORTED**
+
 - `projects` table has all required fields: name, path, level, type, field_type
 
 **FR036 (Project validation):** ✅ **SUPPORTED**
+
 - `projects` table structure enables validation logic
 
 **FR037 (Worktree registry):** ❌ **NOT IN MVP SCHEMA**
+
 - `git_worktrees` table deferred to Epic 4
 - **Justification:** Epic 4 focuses on Git Worktree & Multi-Agent (per resequenced roadmap)
 - **Risk:** Low - Single-agent workflows (Epic 1-3) don't need worktrees
 
 **FR038 (Worktree cleanup):** ❌ **NOT IN MVP SCHEMA**
+
 - Depends on FR037, also deferred to Epic 4
 
 **FR039 (Manual reconciliation):** ✅ **SCHEMA READY**
+
 - `project_artifacts` + git integration can support reconciliation UI (Epic 2+)
 
 **FR040 (Optimistic locking):** ✅ **SCHEMA READY**
+
 - `project_artifacts.updatedAt` + `workflow_executions.updatedAt` enable optimistic locking
 
 **FR041 (Automatic snapshots):** ✅ **SCHEMA READY**
+
 - Database snapshot functionality external to schema (PostgreSQL feature)
 
 **FR042 (Throttle updates):** ✅ **SCHEMA READY**
+
 - Real-time updates logic independent of schema
 
 **FR043 (Disk space check):** ✅ **SCHEMA READY**
+
 - Application logic, not schema-dependent
 
 **FR044 (Validate agent configs):** ✅ **SUPPORTED**
+
 - `agents` table structure enables validation
 
 **FR045 (Conflict resolution):** ✅ **SCHEMA READY**
+
 - `workflow_executions`, `project_artifacts` support conflict detection
 
 **ALIGNMENT SCORE: 13/14 FRs supported (93%)**
+
 - 11 fully supported
 - 1 partial (FR034 - git commit hash)
 - 2 deferred to Epic 4 (FR037-FR038 - worktrees)
@@ -515,22 +568,27 @@ The schema evolved significantly from Story 1.1 specification based on architect
 #### 3. Schema ↔ Architecture Decisions Alignment
 
 **Decision #33 (Chiron-Native Workflow Model):** ✅ **FULLY IMPLEMENTED**
+
 - `workflows`, `workflow_steps`, `workflow_step_branches`, `workflow_step_actions` tables implement structured workflow model
 - Steps map to UI components via `step_type` enum
 
 **Decision #34 (Step Type System):** ✅ **FULLY IMPLEMENTED**
+
 - `workflow_steps.step_type` enum includes: ask-user, llm-generate, check-condition, approval-checkpoint, execute-action, invoke-workflow, display-output, load-context (8 types)
 - `workflow_steps.config` JSONB stores type-specific configuration (TypeScript types defined)
 
 **Decision #35 (Agent as First-Class Entity):** ✅ **FULLY IMPLEMENTED**
+
 - `agents` table has: name, displayName, role, llmProvider, llmModel, llmTemperature, tools (JSONB), mcpServers (JSONB), color, avatar, active
 - Per-agent LLM configuration supported
 
 **Decision #36 (Tool-Compatible LLM Tasks):** ✅ **SCHEMA READY**
+
 - `training_examples` table stores: workflowId, stepId, input (JSONB), output (JSONB), originalPrediction (JSONB)
 - `optimization_runs` table stores: workflowId, stepId, optimizerType, bestScore, paretoFrontSize, hypervolume, optimizationFilePath
 
 **Decision #37 (Tool Stack - AI SDK + Mastra + ax):** ✅ **FULLY ALIGNED**
+
 - Schema supports Mastra workflow orchestration (workflow_executions, workflow_steps)
 - Schema supports ax optimization (training_examples, optimization_runs)
 - Variables stored in `workflow_executions.variables` JSONB (Mastra state persistence pattern)
@@ -540,6 +598,7 @@ The schema evolved significantly from Story 1.1 specification based on architect
 #### 4. Schema ↔ Workflow Engine Structure Alignment
 
 **Step Types Mapping:**
+
 - `AskUserStep` → ✅ workflow_steps with step_type='ask-user', config has question/inputType/options/storeAs
 - `LLMGenerateStep` → ✅ workflow_steps with step_type='llm-generate', config has promptTemplate/outputSchema/storeAs
 - `CheckConditionStep` → ✅ workflow_steps with step_type='check-condition', config has conditionType/evaluateVariable, branches in workflow_step_branches
@@ -550,11 +609,13 @@ The schema evolved significantly from Story 1.1 specification based on architect
 - `LoadContextStep` → ✅ workflow_steps with step_type='load-context', config has contextSource/contextContent/storeAs
 
 **Variable Resolution:**
+
 - ✅ All runtime variables stored in `workflow_executions.variables` JSONB
 - ✅ Steps read variables via `config.evaluateVariable`
 - ✅ Steps write variables via `config.storeAs`
 
 **Branching Patterns:**
+
 - ✅ Boolean branches: 2 rows in workflow_step_branches (branchKey='true'/'false')
 - ✅ Select branches: N rows in workflow_step_branches (branchKey='1'/'2'/...'N')
 - ✅ Abstract branches: LLM evaluates condition, returns boolean, routes via branches table
@@ -564,6 +625,7 @@ The schema evolved significantly from Story 1.1 specification based on architect
 #### 5. Schema ↔ Seed Examples Validation
 
 **brainstorm-project Workflow (10 steps):**
+
 - ✅ Step 1 (validate-readiness): invoke-workflow type supported
 - ✅ Step 2 (check-status-exists): check-condition with boolean branches supported
 - ✅ Step 3 (set-standalone-mode): execute-action with set-variable action supported
@@ -575,6 +637,7 @@ The schema evolved significantly from Story 1.1 specification based on architect
 - ✅ Step 9a/9b (display outputs): display-output with outputTemplate/outputType supported
 
 **research Workflow (16 steps with 6-way branching):**
+
 - ✅ Step 4 (select-research-type): ask-user with inputType='select', 6 options supported
 - ✅ Step 5 (route-research-type): check-condition with conditionType='select', 6 branches in workflow_step_branches
 - ✅ All 6 branch paths converge to Step 7 (save-research-artifact)
@@ -583,13 +646,13 @@ The schema evolved significantly from Story 1.1 specification based on architect
 
 ### Alignment Summary
 
-| Validation Dimension | Score | Status |
-|---------------------|-------|--------|
-| Schema ↔ Story 1.1 | Evolved | ⚠️ Schema MORE comprehensive (architectural evolution) |
-| Schema ↔ PRD FRs | 93% (13/14) | ✅ Excellent (2 FRs deferred to Epic 4) |
-| Schema ↔ Architecture | 100% (5/5) | ✅ Perfect alignment |
-| Schema ↔ Workflow Engine | 100% | ✅ Perfect mapping |
-| Schema ↔ Seed Examples | 100% | ✅ Fully implementable |
+| Validation Dimension     | Score       | Status                                                 |
+| ------------------------ | ----------- | ------------------------------------------------------ |
+| Schema ↔ Story 1.1       | Evolved     | ⚠️ Schema MORE comprehensive (architectural evolution) |
+| Schema ↔ PRD FRs         | 93% (13/14) | ✅ Excellent (2 FRs deferred to Epic 4)                |
+| Schema ↔ Architecture    | 100% (5/5)  | ✅ Perfect alignment                                   |
+| Schema ↔ Workflow Engine | 100%        | ✅ Perfect mapping                                     |
+| Schema ↔ Seed Examples   | 100%        | ✅ Fully implementable                                 |
 
 **OVERALL ALIGNMENT: 98%** (Excellent - minor gap in git_commit_hash typing)
 
@@ -604,6 +667,7 @@ The schema evolved significantly from Story 1.1 specification based on architect
 **Issue:** Schema lacks table for storing system-wide configuration, specifically OpenRouter API key.
 
 **User Requirement (Clarified 2025-11-05):**
+
 - User launches Chiron → First-time setup → Enters OpenRouter API key → Stored in database
 - All workflows use this configured key for LLM calls
 - API key must be stored BEFORE user can start a project
@@ -620,15 +684,15 @@ export const appConfig = pgTable("app_config", {
 
   // LLM Provider API Keys (encrypted)
   openrouterApiKey: text("openrouter_api_key"), // PRIMARY - user must configure
-  anthropicApiKey: text("anthropic_api_key"),   // Optional fallback
-  openaiApiKey: text("openai_api_key"),         // Optional fallback
+  anthropicApiKey: text("anthropic_api_key"), // Optional fallback
+  openaiApiKey: text("openai_api_key"), // Optional fallback
 
   // Default Provider Configuration
   defaultLlmProvider: text("default_llm_provider").default("openrouter"),
 
   // Timestamps
   createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow()
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 ```
 
@@ -638,26 +702,29 @@ export const appConfig = pgTable("app_config", {
 export const systemSettings = pgTable("system_settings", {
   id: uuid("id").primaryKey().defaultRandom(),
   key: text("key").notNull().unique(), // "openrouter_api_key", "anthropic_api_key", etc.
-  value: text("value").notNull(),      // Encrypted value
+  value: text("value").notNull(), // Encrypted value
   encrypted: boolean("encrypted").notNull().default(true),
-  category: text("category"),          // "llm", "ui", "security"
+  category: text("category"), // "llm", "ui", "security"
   createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow()
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 ```
 
 **Impact:** 🔴 **BLOCKING**
+
 - Story 1.1 cannot be considered complete without this table
 - Story 1.4 (workflow-init) requires API key to be configured
 - Story 1.5 (workflow execution) requires API key to call LLMs
 - First-time setup flow cannot be implemented
 
 **Security Considerations:**
+
 - API keys MUST be encrypted at rest (use `@node-rs/bcrypt` or similar)
 - Never log API keys in plaintext
 - Consider using OS keychain integration (Tauri SecureStorage API)
 
 **Recommendation:**
+
 - **Option A (Preferred):** Add `app_config` table with explicit API key columns (simpler queries, type-safe)
 - **Option B:** Add `system_settings` key-value table (more flexible for future settings)
 
@@ -672,16 +739,19 @@ export const systemSettings = pgTable("system_settings", {
 **Issue:** Story 1.1 (epics.md lines 58-73) lists 11 tables, but schema defines 15 tables with different names/structure.
 
 **Root Cause:** Story 1.1 was written during Phase 2 (Planning), before Phase 3 (Solutioning) architectural decisions #33-#37 were finalized. Schema evolved based on:
+
 - Decision #33: Chiron-native workflow model → Added `workflow_steps`, `workflow_step_branches`, `workflow_step_actions`
 - Decision #37: Optimization from Day 1 → Added `training_examples`, `optimization_runs`
 - Simplified design → Merged `agent_capabilities` into `agents`, renamed `workflow_state` to `workflow_executions`
 
 **Impact:** 🟠 **Medium**
+
 - DEV agent will implement 15 tables (not 11)
 - Story acceptance criteria won't match deliverable
 - Could cause confusion during validation
 
 **Recommendation:**
+
 - **Option A (Preferred):** Update Story 1.1 acceptance criteria in epics.md to reflect final schema (15 tables)
 - **Option B:** Accept schema as architectural evolution, note discrepancy in session summary
 - **Option C:** Create Story 1.1A for additional 4 tables (unnecessary bureaucracy)
@@ -695,17 +765,20 @@ export const systemSettings = pgTable("system_settings", {
 **Issue:** FR034 requires git commit hash tracking in `project_artifacts` table. Current schema stores this in `metadata` JSONB field, not a dedicated column.
 
 **Current Schema:**
+
 ```typescript
-metadata: jsonb("metadata").$type<Record<string, any>>()
+metadata: jsonb("metadata").$type<Record<string, any>>();
 ```
 
 **Expected (Type-Safe):**
+
 ```typescript
 gitCommitHash: text("git_commit_hash"),
 metadata: jsonb("metadata").$type<Record<string, any>>()
 ```
 
 **Impact:** 🟠 **Medium**
+
 - Git hash can be stored in metadata, but not type-safe
 - Querying by git hash requires JSONB queries (slower, less elegant)
 - Foreign key relationships to git commits not possible
@@ -723,11 +796,13 @@ metadata: jsonb("metadata").$type<Record<string, any>>()
 **Observation:** Story 1.1 originally listed `git_worktrees` table, but schema defers this to Epic 4.
 
 **Rationale:**
+
 - Epic 1-3 focus on single-agent workflows (no worktrees needed)
 - Epic 4: "Git Worktree & Multi-Agent Foundation" is the appropriate place for worktree infrastructure
 - Resequenced epic roadmap (phase-by-phase approach) validates this deferral
 
 **Impact:** 🟡 **Low**
+
 - FR037 (worktree registry) and FR038 (worktree cleanup) deferred
 - No risk to Epic 1-3 implementation
 - Multi-agent workflows (Epic 6) still ~12-14 weeks away
@@ -741,11 +816,13 @@ metadata: jsonb("metadata").$type<Record<string, any>>()
 **Observation:** Story 1.1 originally listed `workflow_versions` table, but schema defers this to "Epic 2?"
 
 **Rationale:**
+
 - Epic 1 focuses on core foundation
 - Workflow versioning needed for admin interface (Epic 7: "Extensibility & Admin Interface")
 - Current schema supports workflow execution without version tracking
 
 **Impact:** 🟡 **Low**
+
 - Version control for user modifications deferred
 - No risk to Phase 1 workflows (brainstorm-project, research)
 - Can add table in Epic 7 without migration issues
@@ -761,6 +838,7 @@ metadata: jsonb("metadata").$type<Record<string, any>>()
 **Design Decision:** Simplified 1:1 relationship → embedded JSONB instead of join table
 
 **Impact:** 🟢 **Positive**
+
 - Simpler queries (no join required)
 - Agent configuration co-located
 - Still supports multiple tools/MCPs per agent (JSONB array)
@@ -778,12 +856,14 @@ metadata: jsonb("metadata").$type<Record<string, any>>()
 **Observation:** `epic_state` and `story_state` tables included in schema but marked as "Future" in documentation.
 
 **Clarification Needed:** When are these tables needed?
+
 - Epic 1: Core Foundation (current) - **Not needed**
 - Epic 2: Phase 1 workflows - **Not needed** (no epic/story tracking for analysis workflows)
 - Epic 3: Phase 2 workflows (PRD, epics) - **Likely needed here** for epic creation workflows
 - Epic 6: Phase 4 workflows (sprint, stories, Kanban) - **Definitely needed here**
 
 **Impact:** 🟢 **Minimal**
+
 - Tables defined, migrations ready
 - Not used in Epic 1 (won't cause issues)
 - Available when needed in Epic 3/6
@@ -795,6 +875,7 @@ metadata: jsonb("metadata").$type<Record<string, any>>()
 ### Sequencing Issues
 
 **NONE IDENTIFIED** - Epic 1 story sequencing is sound:
+
 1. Story 1.1: Database Schema ← **Current validation**
 2. Story 1.2: BMAD Workflow Seeding (depends on 1.1) ✅
 3. Story 1.3: Project CRUD Operations (depends on 1.1) ✅
@@ -809,6 +890,7 @@ All dependencies properly ordered.
 ### Potential Contradictions
 
 **NONE IDENTIFIED** - No conflicts between:
+
 - PRD requirements ↔ Architecture decisions ✅
 - Architecture decisions ↔ Schema design ✅
 - Schema design ↔ Seed examples ✅
@@ -827,6 +909,7 @@ All artifacts are internally consistent and aligned.
 **Analysis:**
 
 **Tables Required for Epic 1-3 (Single-Agent Workflows):**
+
 1. ✅ `projects` - Core functionality
 2. ✅ `project_state` - Phase tracking
 3. ✅ `workflow_paths` - Workflow sequencing
@@ -839,15 +922,12 @@ All artifacts are internally consistent and aligned.
 10. ✅ `workflow_executions` - Runtime state
 11. ✅ `project_artifacts` - Artifact tracking
 
-**Tables for Future Epics (But Included Now):**
-12. ⚠️ `epic_state` - Needed in Epic 3/6 (epic creation, Kanban)
-13. ⚠️ `story_state` - Needed in Epic 6 (story tracking, Kanban)
+**Tables for Future Epics (But Included Now):** 12. ⚠️ `epic_state` - Needed in Epic 3/6 (epic creation, Kanban) 13. ⚠️ `story_state` - Needed in Epic 6 (story tracking, Kanban)
 
-**Tables for Optimization (Epic 1+ Feature):**
-14. ✅ `training_examples` - User corrections captured from Day 1
-15. ✅ `optimization_runs` - ax optimizer results (Decision #37)
+**Tables for Optimization (Epic 1+ Feature):** 14. ✅ `training_examples` - User corrections captured from Day 1 15. ✅ `optimization_runs` - ax optimizer results (Decision #37)
 
 **Verdict:** ✅ **Not gold-plating**
+
 - 11/15 tables needed for Epic 1-3
 - 2/15 tables (epic_state, story_state) are "ready but inactive" (low cost, high future value)
 - 2/15 tables (optimization) support Decision #37 "Optimization from Day 1"
@@ -858,14 +938,14 @@ Schema is **appropriately comprehensive** for thesis goals (continuous improveme
 
 ### Risk Summary
 
-| Risk | Severity | Probability | Mitigation |
-|------|----------|-------------|------------|
+| Risk                                        | Severity     | Probability | Mitigation                                           |
+| ------------------------------------------- | ------------ | ----------- | ---------------------------------------------------- |
 | ❌ Missing app_config/system_settings table | **CRITICAL** | High (100%) | Add table to schema BEFORE implementation (5-10 min) |
-| Story 1.1 acceptance criteria mismatch | Medium | High (100%) | Update epics.md before DEV implementation (5 min) |
-| FR034 git hash not type-safe | Medium | Medium | Add gitCommitHash column to schema (2 min) |
-| Worktrees deferred to Epic 4 | Low | Low | Intentional deferral, revisit in Epic 4 |
-| Workflow versions deferred | Low | Low | Add in Epic 7 when needed |
-| Schema complexity | Low | Low | All tables justified, no bloat |
+| Story 1.1 acceptance criteria mismatch      | Medium       | High (100%) | Update epics.md before DEV implementation (5 min)    |
+| FR034 git hash not type-safe                | Medium       | Medium      | Add gitCommitHash column to schema (2 min)           |
+| Worktrees deferred to Epic 4                | Low          | Low         | Intentional deferral, revisit in Epic 4              |
+| Workflow versions deferred                  | Low          | Low         | Add in Epic 7 when needed                            |
+| Schema complexity                           | Low          | Low         | All tables justified, no bloat                       |
 
 **Overall Risk Level: MEDIUM-HIGH** - One critical blocking issue + two medium-severity issues, all easily resolved before implementation (12-17 minutes total)
 
@@ -876,6 +956,7 @@ Schema is **appropriately comprehensive** for thesis goals (continuous improveme
 ### UX Artifacts Integration Validation
 
 **UX Design Foundation Completed (Steps 0-4):**
+
 - ✅ Step 0: Workflow validation and project configuration
 - ✅ Step 1: Project understanding (PRD + Product Brief)
 - ✅ Step 2: Design system discovery (shadcn/ui selected)
@@ -887,6 +968,7 @@ Schema is **appropriately comprehensive** for thesis goals (continuous improveme
 #### 1. Agent Signature Colors (UX Design)
 
 **UX Requirement:** Each of 6 agents has unique signature color for visual identity
+
 - Analyst: TBD (mythological name)
 - PM: TBD
 - Architect: TBD
@@ -895,6 +977,7 @@ Schema is **appropriately comprehensive** for thesis goals (continuous improveme
 - UX Designer: TBD
 
 **Schema Support:** ✅ **FULLY SUPPORTED**
+
 ```typescript
 agents table:
   color: text("color"),
@@ -906,12 +989,14 @@ Agents can store hex color codes and avatar emoji/icons.
 #### 2. Multi-Agent Dashboard (Core Screen)
 
 **UX Requirements:**
+
 - Active agents panel with real-time progress bars
 - Project phase navigation (visual 4-phase timeline)
 - Quick actions panel
 - Recent artifacts list with timestamps
 
 **Schema Support:** ✅ **FULLY SUPPORTED**
+
 - `workflow_executions` table: status, currentStepId, startedAt, updatedAt enable progress tracking
 - `project_state` table: currentPhase, phase_1_complete, phase_2_complete, etc. enable phase navigation
 - `project_artifacts` table: createdAt, updatedAt enable recent artifacts list
@@ -919,12 +1004,14 @@ Agents can store hex color codes and avatar emoji/icons.
 #### 3. Story Kanban Board (Core Screen)
 
 **UX Requirements:**
+
 - Drag-and-drop columns: BACKLOG → TODO → IN PROGRESS → REVIEW → DONE
 - Epic organization
 - Agent assignment on story cards
 - Real-time progress indicators
 
 **Schema Support:** ✅ **FULLY SUPPORTED**
+
 - `story_state` table: status field supports state machine transitions
 - `epic_state` table: enables epic organization
 - `story_state.assigned_agent_id` foreign key to agents table
@@ -934,6 +1021,7 @@ Agents can store hex color codes and avatar emoji/icons.
 #### 4. Artifact Workbench (Core Screen - Epic 2)
 
 **UX Requirements:**
+
 - LEFT PANE: Artifact content (markdown with syntax highlighting)
 - RIGHT PANE: Chat interface with conversation timeline
 - Quote-to-Chat: Select text → quote into chat
@@ -941,6 +1029,7 @@ Agents can store hex color codes and avatar emoji/icons.
 - Version blocks inline with chat
 
 **Schema Support:** ✅ **FULLY SUPPORTED**
+
 - `project_artifacts` table: filePath, artifactType, metadata
 - `workflow_executions` table: variables JSONB stores conversation state
 - **Note:** Version tracking needs enhancement (workflow_versions table deferred to Epic 7)
@@ -950,27 +1039,32 @@ Agents can store hex color codes and avatar emoji/icons.
 #### 5. Chat Interface Patterns (4 Universal Primitives)
 
 **Pattern A: Sequential Dependencies (Wizard/Chain)**
+
 - Schema support: `workflow_steps` with `nextStepId` linear chain
 - Progress tracking: `workflow_executions.currentStepId`
 - ✅ **FULLY SUPPORTED**
 
 **Pattern B: Parallel Independence (Checklist/Queue)**
+
 - Schema support: `workflow_step_actions` with executionMode='parallel'
 - State tracking: `workflow_executions.variables` JSONB stores completion state
 - ✅ **FULLY SUPPORTED**
 
 **Pattern C: Structured Exploration (Curated Options)**
+
 - Schema support: `ask-user` step type with inputType='select', options array
 - Exploration: `check-condition` with multiple branches in `workflow_step_branches`
 - ✅ **FULLY SUPPORTED** (research workflow 6-way branching demonstrates this!)
 
 **Pattern D: Focused Dialogs (Context-Preserving Deep-Dive)**
+
 - Schema support: UI-level implementation, workflow_executions stores context
 - ✅ **SCHEMA READY**
 
 ### Accessibility and Usability Coverage
 
 **Design System:** shadcn/ui provides accessible React components by default
+
 - ARIA labels, keyboard navigation, screen reader support built-in
 
 **Schema Considerations:** ✅ **N/A** - Accessibility is UI/component-level, not database schema concern
@@ -980,6 +1074,7 @@ Agents can store hex color codes and avatar emoji/icons.
 **User Journey 1: First-Time Setup with workflow-init (PRD lines 117-147)**
 
 **Steps:**
+
 1. System detects first launch → initializes database (FR032)
    - Schema: ✅ All tables defined, migrations ready
 2. User launches Chiron → sees welcome screen
@@ -996,6 +1091,7 @@ Agents can store hex color codes and avatar emoji/icons.
 **User Journey 2: Parallel Agent Execution with Conflict Handling (PRD lines 149-170)**
 
 **Note:** This journey is Epic 4+ (multi-agent, git worktrees)
+
 - `git_worktrees` table deferred to Epic 4
 - `project_artifacts` table supports conflict detection (updatedAt timestamps)
 - ✅ **SCHEMA READY** for Epic 4 implementation
@@ -1003,22 +1099,23 @@ Agents can store hex color codes and avatar emoji/icons.
 **User Journey 3: Git Divergence Recovery (PRD lines 172-215)**
 
 **Note:** This journey is Epic 4+ (git worktree reconciliation)
+
 - Requires `git_worktrees` table (deferred)
 - `project_artifacts` table supports reconciliation (filePath, metadata)
 - ✅ **SCHEMA READY** for Epic 4 implementation
 
 ### UX Validation Summary
 
-| UX Requirement | Schema Support | Notes |
-|----------------|----------------|-------|
-| Agent signature colors | ✅ Fully supported | agents.color, agents.avatar |
-| Multi-agent dashboard | ✅ Fully supported | workflow_executions, project_state, project_artifacts |
-| Story Kanban board | ✅ Ready (Epic 6) | story_state, epic_state tables defined |
-| Artifact workbench | ✅ Fully supported | project_artifacts, workflow_executions |
-| Chat patterns (A-D) | ✅ Fully supported | workflow_steps, workflow_step_branches, workflow_executions.variables |
-| User Journey 1 (setup) | ✅ Fully supported | All required tables present |
-| User Journey 2 (parallel) | ✅ Ready (Epic 4) | git_worktrees deferred intentionally |
-| User Journey 3 (divergence) | ✅ Ready (Epic 4) | Reconciliation schema ready |
+| UX Requirement              | Schema Support     | Notes                                                                 |
+| --------------------------- | ------------------ | --------------------------------------------------------------------- |
+| Agent signature colors      | ✅ Fully supported | agents.color, agents.avatar                                           |
+| Multi-agent dashboard       | ✅ Fully supported | workflow_executions, project_state, project_artifacts                 |
+| Story Kanban board          | ✅ Ready (Epic 6)  | story_state, epic_state tables defined                                |
+| Artifact workbench          | ✅ Fully supported | project_artifacts, workflow_executions                                |
+| Chat patterns (A-D)         | ✅ Fully supported | workflow_steps, workflow_step_branches, workflow_executions.variables |
+| User Journey 1 (setup)      | ✅ Fully supported | All required tables present                                           |
+| User Journey 2 (parallel)   | ✅ Ready (Epic 4)  | git_worktrees deferred intentionally                                  |
+| User Journey 3 (divergence) | ✅ Ready (Epic 4)  | Reconciliation schema ready                                           |
 
 **CONCLUSION:** Schema design fully supports all UX requirements for Epic 1-3, with Epic 4+ requirements appropriately deferred.
 
@@ -1027,11 +1124,13 @@ Agents can store hex color codes and avatar emoji/icons.
 **Thesis Goal:** "Visual UX for BMAD enables better AI agent training data through continuous optimization"
 
 **Schema Support for Thesis:**
+
 - ✅ `training_examples` table: Captures user corrections (e.g., "No, this should be Level 3")
 - ✅ `optimization_runs` table: Stores ax GEPA multi-objective optimizer results
 - ✅ `workflow_executions.variables` JSONB: Stores input/output data for optimization
 
 **Optimization Loop (Decision #37):**
+
 1. User corrects agent output → stored in `training_examples`
 2. When threshold reached (5+ examples) → ax GEPA optimizer runs
 3. Results stored in `optimization_runs` → future LLM outputs improve automatically
@@ -1075,12 +1174,14 @@ _Should be addressed to reduce implementation risk_
 **Root Cause:** Story written in Phase 2, schema evolved in Phase 3 based on architectural decisions
 
 **Tables Added During Phase 3:**
+
 - `workflow_steps`, `workflow_step_branches`, `workflow_step_actions` (Decision #33 - Chiron-native model)
 - `workflow_paths`, `workflow_path_workflows` (Workflow path abstraction)
 - `training_examples`, `optimization_runs` (Decision #37 - Optimization from Day 1)
 - `app_config` (Discovered during gate check - API key storage)
 
 **Tables Removed/Merged:**
+
 - `agent_capabilities` → merged into `agents` table (JSONB fields)
 - `workflow_state` → renamed to `workflow_executions`
 - `git_worktrees` → deferred to Epic 4
@@ -1139,6 +1240,7 @@ _Minor items for consideration_
 **1. Architectural Decision Alignment (100%)**
 
 All 5 Phase 3 architectural decisions (#33-#37) are perfectly implemented in the schema:
+
 - Decision #33: Chiron-native workflow model → 5 workflow tables with structured steps
 - Decision #34: Step type system → 8 step types with TypeScript-typed JSONB configs
 - Decision #35: Agent as first-class entity → Full agent table with LLM config
@@ -1148,6 +1250,7 @@ All 5 Phase 3 architectural decisions (#33-#37) are perfectly implemented in the
 **2. N-way Branching Pattern Innovation**
 
 The `workflow_step_branches` table elegantly solves a complex problem:
+
 - Supports 2-way boolean branches (true/false)
 - Supports N-way select branches (research workflow's 6-way router demonstrated)
 - Supports abstract LLM-evaluated branches
@@ -1156,6 +1259,7 @@ The `workflow_step_branches` table elegantly solves a complex problem:
 **3. Inline Context Pattern (No File Dependencies)**
 
 The `load-context` step type with `contextContent` field eliminates file system dependencies:
+
 - Context defined directly in workflow config (223-line example in seed data)
 - No `{installed_path}/context.md` file references
 - Enables database-only workflow execution
@@ -1164,6 +1268,7 @@ The `load-context` step type with `contextContent` field eliminates file system 
 **4. Variables in JSONB (State Management Excellence)**
 
 `workflow_executions.variables` JSONB provides flexible state storage:
+
 - All runtime data in single column (no separate state files)
 - Steps read via `config.evaluateVariable`
 - Steps write via `config.storeAs`
@@ -1172,6 +1277,7 @@ The `load-context` step type with `contextContent` field eliminates file system 
 **5. Seed Examples Validate Complex Patterns**
 
 The seed data examples aren't just documentation - they're proof:
+
 - brainstorm-project: 10 steps with inline context demonstration
 - research: 16 steps with 6-way branching (validates N-way pattern)
 - Both workflows fully implementable with schema as designed
@@ -1179,6 +1285,7 @@ The seed data examples aren't just documentation - they're proof:
 **6. Optimization from Day 1**
 
 The `training_examples` and `optimization_runs` tables enable thesis validation from Epic 1:
+
 - User corrections captured immediately
 - ax GEPA multi-objective optimizer integration
 - Continuous improvement loop built into foundation
@@ -1186,6 +1293,7 @@ The `training_examples` and `optimization_runs` tables enable thesis validation 
 **7. Forward-Thinking Table Design**
 
 Epic 4+ tables (`epic_state`, `story_state`) included but inactive:
+
 - Low cost (just table definitions)
 - High future value (no migrations needed later)
 - Demonstrates thoughtful long-term planning
@@ -1208,15 +1316,15 @@ export const appConfig = pgTable("app_config", {
 
   // LLM Provider API Keys (encrypted at rest)
   openrouterApiKey: text("openrouter_api_key"), // PRIMARY - required for first-time setup
-  anthropicApiKey: text("anthropic_api_key"),   // Optional fallback
-  openaiApiKey: text("openai_api_key"),         // Optional fallback
+  anthropicApiKey: text("anthropic_api_key"), // Optional fallback
+  openaiApiKey: text("openai_api_key"), // Optional fallback
 
   // Default Configuration
   defaultLlmProvider: text("default_llm_provider").default("openrouter"),
 
   // Timestamps
   createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow()
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 ```
 
@@ -1229,9 +1337,11 @@ export const appConfig = pgTable("app_config", {
 Edit `epics.md` lines 58-73 to reflect final schema:
 
 **OLD (11 tables):**
+
 - projects, workflows, agents, project_artifacts, workflow_state, project_state, git_worktrees, agent_capabilities, workflow_versions, epic_state, story_state
 
 **NEW (16 tables):**
+
 - **Core (4):** projects, project_state, workflow_paths, workflow_path_workflows
 - **Workflow Definition (5):** agents, workflows, workflow_steps, workflow_step_branches, workflow_step_actions
 - **Execution (2):** workflow_executions, project_artifacts
@@ -1240,6 +1350,7 @@ Edit `epics.md` lines 58-73 to reflect final schema:
 - **System (1):** app_config
 
 **Note changes:**
+
 - `workflow_state` → renamed to `workflow_executions`
 - `agent_capabilities` → merged into `agents` table (JSONB)
 - `git_worktrees` → deferred to Epic 4
@@ -1253,13 +1364,15 @@ Edit `epics.md` lines 58-73 to reflect final schema:
 Edit `database-schema-final.md` project_artifacts table:
 
 **ADD:**
+
 ```typescript
 gitCommitHash: text("git_commit_hash"), // FR034 compliance - type-safe git tracking
 ```
 
 **BEFORE:**
+
 ```typescript
-metadata: jsonb("metadata").$type<Record<string, any>>()
+metadata: jsonb("metadata").$type<Record<string, any>>();
 ```
 
 This makes git hash queryable and type-safe (FR034 requirement).
@@ -1271,6 +1384,7 @@ This makes git hash queryable and type-safe (FR034 requirement).
 **1. Document App Config Security (Post-Implementation)**
 
 Create security guide for API key encryption:
+
 - Use `@node-rs/bcrypt` for encryption at rest
 - Never log API keys in plaintext
 - Consider OS keychain integration (Tauri SecureStorage)
@@ -1279,6 +1393,7 @@ Create security guide for API key encryption:
 **2. Add First-Time Setup Flow to Story 1.4**
 
 Update Story 1.4 (workflow-init) acceptance criteria to include:
+
 - "User prompted for OpenRouter API key on first launch"
 - "API key validated with test call before saving"
 - "User can update API key in settings later"
@@ -1286,6 +1401,7 @@ Update Story 1.4 (workflow-init) acceptance criteria to include:
 **3. Consider Future: Multi-Provider Support**
 
 Current design supports multiple LLM providers (OpenRouter, Anthropic, OpenAI):
+
 - `agents.llmProvider` enum can route to appropriate provider
 - `app_config` stores keys for all providers
 - Future enhancement: Per-agent provider override
@@ -1318,11 +1434,13 @@ The database schema design is **95% complete** and demonstrates excellent archit
 ### Rationale
 
 **Why NOT "Ready" (10/10)?**
+
 - Missing `app_config` table is a blocking gap (user cannot configure API key)
 - Story acceptance criteria misalignment will cause confusion during validation
 - Git commit hash should be type-safe column (performance + clarity)
 
 **Why NOT "Not Ready" (< 7/10)?**
+
 - All Phase 3 architectural decisions perfectly implemented
 - Seed examples prove schema works for complex workflows
 - UX requirements fully supported
@@ -1330,6 +1448,7 @@ The database schema design is **95% complete** and demonstrates excellent archit
 - All identified issues have quick fixes (12-17 minutes total)
 
 **Why "Ready with Conditions" (8.5/10)?**
+
 - Schema design is fundamentally sound
 - Issues are additions/corrections, not redesigns
 - Implementation can proceed immediately after fixes
@@ -1354,16 +1473,19 @@ The database schema design is **95% complete** and demonstrates excellent archit
 ### Immediate (Before Story 1.1 Implementation)
 
 **Step 1:** Fix 3 schema issues (12-17 minutes)
+
 - Update `docs/architecture/database-schema-final.md`
 - Update `docs/epics.md` Story 1.1 acceptance criteria
 - Update `docs/architecture/seed-data-examples.md` if needed (add app_config seed example)
 
 **Step 2:** Validate fixes (5 minutes)
+
 - Re-read schema to ensure consistency
 - Verify 16 tables all accounted for
 - Check that app_config table has security notes
 
 **Step 3:** Update NEXT-SESSION guide (2 minutes)
+
 - Add app_config table to implementation checklist
 - Add security reminder for API key encryption
 - Update total table count (15 → 16)
@@ -1371,6 +1493,7 @@ The database schema design is **95% complete** and demonstrates excellent archit
 ### Story 1.1 Implementation (2-3 hours)
 
 **Task 1:** Implement Schema in Drizzle (2-3 hours)
+
 - Create 6 schema files: `core.ts`, `workflows.ts`, `executions.ts`, `agents.ts`, `optimization.ts`, `config.ts`
 - Copy table definitions from `database-schema-final.md`
 - Generate migrations with `drizzle-kit generate`
@@ -1379,6 +1502,7 @@ The database schema design is **95% complete** and demonstrates excellent archit
 **Task 2:** Create Seed Data (deferred to Story 1.2)
 
 **Task 3:** Test Schema (1 hour)
+
 - Manual testing of table creation
 - Verify foreign key constraints
 - Test migrations rollback/forward
@@ -1443,47 +1567,48 @@ The Master will offer to update workflow status in Step 7.
 
 **PRD Requirements → Schema Tables:**
 
-| Functional Requirement | Schema Support | Tables Involved |
-|------------------------|----------------|-----------------|
-| FR032: Database initialization | ✅ Full | All 16 tables |
-| FR033: Backup/restore | ✅ Full | PostgreSQL native |
-| FR034: Git commit hash tracking | ⚠️ Partial | project_artifacts (needs column) |
-| FR035: Project CRUD | ✅ Full | projects |
-| FR036: Project validation | ✅ Full | projects |
-| FR037: Worktree registry | ⏭️ Epic 4 | git_worktrees (deferred) |
-| FR038: Worktree cleanup | ⏭️ Epic 4 | git_worktrees (deferred) |
-| FR039: Manual reconciliation | ✅ Ready | project_artifacts |
-| FR040: Optimistic locking | ✅ Ready | project_artifacts, workflow_executions |
-| FR041: Automatic snapshots | ✅ Ready | PostgreSQL native |
-| FR042: Throttle updates | ✅ Ready | Application logic |
-| FR043: Disk space check | ✅ Ready | Application logic |
-| FR044: Validate agent configs | ✅ Full | agents |
-| FR045: Conflict resolution | ✅ Ready | workflow_executions, project_artifacts |
+| Functional Requirement          | Schema Support | Tables Involved                        |
+| ------------------------------- | -------------- | -------------------------------------- |
+| FR032: Database initialization  | ✅ Full        | All 16 tables                          |
+| FR033: Backup/restore           | ✅ Full        | PostgreSQL native                      |
+| FR034: Git commit hash tracking | ⚠️ Partial     | project_artifacts (needs column)       |
+| FR035: Project CRUD             | ✅ Full        | projects                               |
+| FR036: Project validation       | ✅ Full        | projects                               |
+| FR037: Worktree registry        | ⏭️ Epic 4      | git_worktrees (deferred)               |
+| FR038: Worktree cleanup         | ⏭️ Epic 4      | git_worktrees (deferred)               |
+| FR039: Manual reconciliation    | ✅ Ready       | project_artifacts                      |
+| FR040: Optimistic locking       | ✅ Ready       | project_artifacts, workflow_executions |
+| FR041: Automatic snapshots      | ✅ Ready       | PostgreSQL native                      |
+| FR042: Throttle updates         | ✅ Ready       | Application logic                      |
+| FR043: Disk space check         | ✅ Ready       | Application logic                      |
+| FR044: Validate agent configs   | ✅ Full        | agents                                 |
+| FR045: Conflict resolution      | ✅ Ready       | workflow_executions, project_artifacts |
 
 **Architecture Decisions → Schema Implementation:**
 
-| Decision | Schema Tables | Implementation |
-|----------|---------------|----------------|
-| #33: Chiron-native workflow model | workflows, workflow_steps, workflow_step_branches, workflow_step_actions | ✅ 100% |
-| #34: Step type system | workflow_steps (step_type enum, config JSONB) | ✅ 100% |
-| #35: Agent as first-class entity | agents | ✅ 100% |
-| #36: Tool-compatible LLM tasks | training_examples, optimization_runs | ✅ 100% |
-| #37: Tool stack (AI SDK + Mastra + ax) | workflow_executions, training_examples, optimization_runs | ✅ 100% |
+| Decision                               | Schema Tables                                                            | Implementation |
+| -------------------------------------- | ------------------------------------------------------------------------ | -------------- |
+| #33: Chiron-native workflow model      | workflows, workflow_steps, workflow_step_branches, workflow_step_actions | ✅ 100%        |
+| #34: Step type system                  | workflow_steps (step_type enum, config JSONB)                            | ✅ 100%        |
+| #35: Agent as first-class entity       | agents                                                                   | ✅ 100%        |
+| #36: Tool-compatible LLM tasks         | training_examples, optimization_runs                                     | ✅ 100%        |
+| #37: Tool stack (AI SDK + Mastra + ax) | workflow_executions, training_examples, optimization_runs                | ✅ 100%        |
 
 **UX Patterns → Schema Support:**
 
-| UX Pattern | Schema Tables | Support Level |
-|------------|---------------|---------------|
-| Sequential Dependencies (A) | workflow_steps (nextStepId), workflow_executions | ✅ Full |
-| Parallel Independence (B) | workflow_step_actions (executionMode), workflow_executions | ✅ Full |
-| Structured Exploration (C) | workflow_step_branches (N-way), workflow_steps | ✅ Full |
-| Focused Dialogs (D) | workflow_executions (context storage) | ✅ Full |
+| UX Pattern                  | Schema Tables                                              | Support Level |
+| --------------------------- | ---------------------------------------------------------- | ------------- |
+| Sequential Dependencies (A) | workflow_steps (nextStepId), workflow_executions           | ✅ Full       |
+| Parallel Independence (B)   | workflow_step_actions (executionMode), workflow_executions | ✅ Full       |
+| Structured Exploration (C)  | workflow_step_branches (N-way), workflow_steps             | ✅ Full       |
+| Focused Dialogs (D)         | workflow_executions (context storage)                      | ✅ Full       |
 
 ### C. Risk Mitigation Strategies
 
 **Risk #1: Missing app_config Table (CRITICAL)**
 
 **Mitigation:**
+
 - Add table immediately before implementation (5-10 min)
 - Include security notes for API key encryption
 - Test with OpenRouter API key validation
@@ -1492,6 +1617,7 @@ The Master will offer to update workflow status in Step 7.
 **Risk #2: Story Acceptance Criteria Mismatch (HIGH)**
 
 **Mitigation:**
+
 - Update epics.md Story 1.1 before implementation (5 min)
 - Document rationale for table evolution in session summary
 - Link to architectural decisions that drove changes
@@ -1500,6 +1626,7 @@ The Master will offer to update workflow status in Step 7.
 **Risk #3: Git Commit Hash Not Type-Safe (MEDIUM)**
 
 **Mitigation:**
+
 - Add dedicated column to project_artifacts (2 min)
 - Migrate existing metadata.gitCommitHash to new column (if any data exists)
 - Update seed examples to use new column
@@ -1508,6 +1635,7 @@ The Master will offer to update workflow status in Step 7.
 **Risk #4: Worktrees Deferred to Epic 4 (LOW)**
 
 **Mitigation:**
+
 - Accept as intentional deferral (documented in Phase-by-Phase epic strategy)
 - Monitor Epic 1-3 for any unexpected multi-agent needs
 - Revisit in Epic 4 planning
@@ -1516,6 +1644,7 @@ The Master will offer to update workflow status in Step 7.
 **Risk #5: Schema Complexity (LOW)**
 
 **Mitigation:**
+
 - All 16 tables justified by requirements or architecture
 - Document table purposes in schema comments
 - Create ER diagram for developer onboarding (Epic 1.6)

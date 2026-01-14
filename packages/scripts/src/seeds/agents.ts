@@ -1,21 +1,21 @@
 import { agents, db } from "@chiron/db";
 
 const CORE_AGENTS = [
-	{
-		name: "analyst",
-		displayName: "Mimir",
-		description:
-			"Conducts analysis, research, and product brief development. Gathers requirements and defines project scope.",
-		role: "analyst",
-		llmProvider: "anthropic" as const,
-		llmModel: "claude-sonnet-4-20250514",
-		llmTemperature: "0.7",
-		tools: null,
-		mcpServers: null,
-		color: "#3B82F6", // Blue
-		avatar: null,
-		active: true,
-		instructions: `
+  {
+    name: "analyst",
+    displayName: "Mimir",
+    description:
+      "Conducts analysis, research, and product brief development. Gathers requirements and defines project scope.",
+    role: "analyst",
+    llmProvider: "anthropic" as const,
+    llmModel: "claude-sonnet-4-20250514",
+    llmTemperature: "0.7",
+    tools: null,
+    mcpServers: null,
+    color: "#3B82F6", // Blue
+    avatar: null,
+    active: true,
+    instructions: `
 <agent id="chiron/agents/mimir" name="Mimir" version="1.0">
   <persona>
     <role>Insightful Analyst & Brainstorming Facilitator</role>
@@ -69,22 +69,22 @@ const CORE_AGENTS = [
   </tool_calling_rules>
 </agent>
 	`.trim(),
-	},
-	{
-		name: "pm",
-		displayName: "Athena",
-		description:
-			"Product Manager - Guides project planning with strategic wisdom and investigative insight.",
-		role: "product-manager",
-		llmProvider: "openrouter" as const,
-		llmModel: "google/gemini-2.0-flash-exp:free",
-		llmTemperature: "0.7",
-		tools: null,
-		mcpServers: null,
-		color: "#8B5CF6", // Purple
-		avatar: null,
-		active: true,
-		instructions: `
+  },
+  {
+    name: "pm",
+    displayName: "Athena",
+    description:
+      "Product Manager - Guides project planning with strategic wisdom and investigative insight.",
+    role: "product-manager",
+    llmProvider: "openrouter" as const,
+    llmModel: "google/gemini-2.0-flash-exp:free",
+    llmTemperature: "0.7",
+    tools: null,
+    mcpServers: null,
+    color: "#8B5CF6", // Purple
+    avatar: null,
+    active: true,
+    instructions: `
 <agent id="chiron/agents/athena" name="Athena" version="1.0">
   <persona>
     <role>Investigative Product Strategist</role>
@@ -139,82 +139,82 @@ const CORE_AGENTS = [
   </tool_calling_rules>
 </agent>
 	`.trim(),
-	},
-	{
-		name: "architect",
-		displayName: "Daedalus",
-		description:
-			"Designs system architecture, makes technical decisions. Creates architecture documents and validates technical feasibility.",
-		role: "architect",
-		llmProvider: "anthropic" as const,
-		llmModel: "claude-sonnet-4-20250514",
-		llmTemperature: "0.7",
-		tools: null,
-		mcpServers: null,
-		color: "#10B981", // Green
-		avatar: null,
-		active: true,
-	},
-	{
-		name: "dev",
-		displayName: "Osiris",
-		description:
-			"Implements features, writes code and tests. Executes stories and technical implementation.",
-		role: "developer",
-		llmProvider: "anthropic" as const,
-		llmModel: "claude-sonnet-4-20250514",
-		llmTemperature: "0.5",
-		tools: null,
-		mcpServers: null,
-		color: "#F59E0B", // Amber
-		avatar: null,
-		active: true,
-	},
-	{
-		name: "sm",
-		displayName: "Chronos",
-		description:
-			"Manages sprint planning and retrospectives. Facilitates agile processes and team coordination.",
-		role: "scrum-master",
-		llmProvider: "anthropic" as const,
-		llmModel: "claude-sonnet-4-20250514",
-		llmTemperature: "0.7",
-		tools: null,
-		mcpServers: null,
-		color: "#EF4444", // Red
-		avatar: null,
-		active: true,
-	},
-	{
-		name: "ux-designer",
-		displayName: "Ariadne",
-		description:
-			"Creates user experience designs and interfaces. Defines UI/UX patterns and design systems.",
-		role: "ux-designer",
-		llmProvider: "anthropic" as const,
-		llmModel: "claude-sonnet-4-20250514",
-		llmTemperature: "0.8",
-		tools: null,
-		mcpServers: null,
-		color: "#EC4899", // Pink
-		avatar: null,
-		active: true,
-	},
-	{
-		name: "brainstorming-coach",
-		displayName: "Carson",
-		description:
-			"Elite Brainstorming Specialist - Master facilitator for creative sessions and systematic innovation.",
-		role: "facilitator",
-		llmProvider: "anthropic" as const,
-		llmModel: "claude-sonnet-4-20250514",
-		llmTemperature: "0.9",
-		tools: null,
-		mcpServers: null,
-		color: "#14B8A6", // Teal
-		avatar: "🧠",
-		active: true,
-		instructions: `
+  },
+  {
+    name: "architect",
+    displayName: "Daedalus",
+    description:
+      "Designs system architecture, makes technical decisions. Creates architecture documents and validates technical feasibility.",
+    role: "architect",
+    llmProvider: "anthropic" as const,
+    llmModel: "claude-sonnet-4-20250514",
+    llmTemperature: "0.7",
+    tools: null,
+    mcpServers: null,
+    color: "#10B981", // Green
+    avatar: null,
+    active: true,
+  },
+  {
+    name: "dev",
+    displayName: "Osiris",
+    description:
+      "Implements features, writes code and tests. Executes stories and technical implementation.",
+    role: "developer",
+    llmProvider: "anthropic" as const,
+    llmModel: "claude-sonnet-4-20250514",
+    llmTemperature: "0.5",
+    tools: null,
+    mcpServers: null,
+    color: "#F59E0B", // Amber
+    avatar: null,
+    active: true,
+  },
+  {
+    name: "sm",
+    displayName: "Chronos",
+    description:
+      "Manages sprint planning and retrospectives. Facilitates agile processes and team coordination.",
+    role: "scrum-master",
+    llmProvider: "anthropic" as const,
+    llmModel: "claude-sonnet-4-20250514",
+    llmTemperature: "0.7",
+    tools: null,
+    mcpServers: null,
+    color: "#EF4444", // Red
+    avatar: null,
+    active: true,
+  },
+  {
+    name: "ux-designer",
+    displayName: "Ariadne",
+    description:
+      "Creates user experience designs and interfaces. Defines UI/UX patterns and design systems.",
+    role: "ux-designer",
+    llmProvider: "anthropic" as const,
+    llmModel: "claude-sonnet-4-20250514",
+    llmTemperature: "0.8",
+    tools: null,
+    mcpServers: null,
+    color: "#EC4899", // Pink
+    avatar: null,
+    active: true,
+  },
+  {
+    name: "brainstorming-coach",
+    displayName: "Carson",
+    description:
+      "Elite Brainstorming Specialist - Master facilitator for creative sessions and systematic innovation.",
+    role: "facilitator",
+    llmProvider: "anthropic" as const,
+    llmModel: "claude-sonnet-4-20250514",
+    llmTemperature: "0.9",
+    tools: null,
+    mcpServers: null,
+    color: "#14B8A6", // Teal
+    avatar: "🧠",
+    active: true,
+    instructions: `
 <agent id="chiron/agents/carson" name="Carson" version="1.0">
   <persona>
     <role>Master Brainstorming Facilitator + Innovation Catalyst</role>
@@ -260,12 +260,12 @@ const CORE_AGENTS = [
   </tool_calling_rules>
 </agent>
 		`.trim(),
-	},
+  },
 ];
 
 export async function seedAgents() {
-	for (const agent of CORE_AGENTS) {
-		await db.insert(agents).values(agent).onConflictDoNothing();
-		console.log(`  ✓ ${agent.displayName} (${agent.name})`);
-	}
+  for (const agent of CORE_AGENTS) {
+    await db.insert(agents).values(agent).onConflictDoNothing();
+    console.log(`  ✓ ${agent.displayName} (${agent.name})`);
+  }
 }

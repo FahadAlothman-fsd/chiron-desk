@@ -9,22 +9,26 @@
 ## Core Principles
 
 ### 1. Guided Not Automated
+
 - Human makes strategic decisions at every workflow step
 - Workflows provide structure; AI agents execute; humans validate
 - Context visibility enables informed judgment, not blind acceptance
 
 ### 2. Multi-Agent Orchestration (Chiron's Core Innovation)
-- **BMAD limitation:** Sequential, single-agent execution only (manual handoffs: *analyst → *pm → *architect)
+
+- **BMAD limitation:** Sequential, single-agent execution only (manual handoffs: *analyst → *pm → \*architect)
 - **Chiron innovation:** Coordinate multiple agents simultaneously with isolated contexts
 - **Value proposition:** Parallel execution (DEV on Story 1 while Architect designs Epic 2)
 - **Architecture requirement:** Build orchestration layer on top of BMAD's single-agent model
 
 ### 3. Pattern-Driven UX
+
 - Specialized interfaces for common workflow behaviors
 - NOT generic workflow renderers or low-code builders
 - Dynamic content + opinionated presentation
 
 ### 4. Clean Artifact Separation
+
 - Database stores methodology; repository stores deliverables
 - Version control tracks what matters: project artifacts, not infrastructure
 
@@ -33,9 +37,11 @@
 ## Data Storage Strategy
 
 ### Database Storage
+
 **What:** BMAD metadata, project state, execution, user customizations
 
 **Includes:**
+
 - Workflows (ingested from YAML/MD files)
 - Agents and agent configurations
 - State machines and workflow paths
@@ -44,14 +50,17 @@
 - User customizations (custom elicitation methods, patterns)
 
 **Why:**
+
 - Enables dynamic updates as BMAD v6 evolves (alpha → stable)
 - Supports user extensibility without file pollution
 - Centralizes orchestration state
 
 ### Repository Storage
+
 **What:** Project artifacts ONLY
 
 **Includes:**
+
 - Product Requirements Documents (PRDs)
 - Architecture documentation
 - Technical specifications
@@ -59,6 +68,7 @@
 - All as **markdown with YAML frontmatter**
 
 **Why:**
+
 - Clean version control history
 - No methodology infrastructure pollution
 - Clear separation: "how we work" vs "what we produce"
@@ -70,12 +80,14 @@
 ### Default Modules (MVP)
 
 **BMM (Business Methodology Module)**
+
 - 4-phase software development lifecycle: Analysis → Planning → Solutioning → Implementation
 - 8+ specialized agents: PM, Analyst, Architect, SM, DEV, TEA, UX, Game roles
 - Scale-adaptive workflows (Levels 0-4)
 - Story state machine: BACKLOG → TODO → IN PROGRESS → DONE
 
 **CIS (Creative Intelligence System)**
+
 - 150+ creative/innovation techniques across 5 workflows
 - 5 specialized agents with unique personas
 - Integrates with BMM Phase 1 (Analysis) for brainstorming/ideation
@@ -83,6 +95,7 @@
 ### Out of Scope (MVP)
 
 **BMB (BMAD Method Builder)**
+
 - Meta-module for building BMAD components
 - Not end-user facing for MVP
 - Future consideration: Custom workflow creation
@@ -98,6 +111,7 @@ BMAD YAML/MD Files → Parser → Database Schema
 ```
 
 **Benefits:**
+
 - Adapts to BMAD updates automatically
 - User customizations preserved during BMAD syncs
 - Extensible without hardcoded logic
@@ -109,7 +123,8 @@ BMAD YAML/MD Files → Parser → Database Schema
 ### Core Patterns Identified
 
 **1. Multi-Agent Dashboard** (NEW - Core Innovation)
-- **Problem:** BMAD's sequential single-agent model requires manual switching (*analyst → *pm → *architect)
+
+- **Problem:** BMAD's sequential single-agent model requires manual switching (*analyst → *pm → \*architect)
 - **Solution:** Visual dashboard showing all active/queued/idle agents with real-time status
 - **Features:**
   - Active agents panel (shows running workflows, progress %)
@@ -119,26 +134,31 @@ BMAD YAML/MD Files → Parser → Database Schema
 - **Applies to:** All multi-workflow scenarios (Analysis → Planning → Solutioning → Implementation)
 
 **2. Structured Exploration Lists**
+
 - **Problem:** CLI Q&A pollutes context with long option lists
 - **Solution:** Visual cards with expand/collapse, "reshuffle" for new suggestions
 - **Applies to:** Elicitation methods, brainstorming techniques, design thinking phases
 
 **3. Artifact Refinement Workbench**
+
 - **Problem:** CLI text editing inadequate for complex documents; no version tracking
 - **Solution:** Side-by-side editor with version history, approval workflow
 - **Applies to:** PRD generation, architecture docs, tech specs
 
 **4. Story State Kanban**
+
 - **Problem:** CLI status files opaque; manual tracking tedious
 - **Solution:** Drag-and-drop Kanban board integrated with workflow execution
 - **Applies to:** Sprint planning, story progression, epic management
 
 **5. Embedded Agent Panels**
+
 - **Problem:** Context-switching between CLI windows, agents, PM tools
 - **Solution:** In-app agent conversations with real-time context visibility
 - **Applies to:** All agent interactions during workflow execution
 
 ### Design Philosophy
+
 - **Dynamic content:** Workflow data flexible and updatable
 - **Opinionated presentation:** UX patterns purposefully designed for efficiency
 - **NOT building:** Generic form builders or low-code workflow designers
@@ -150,6 +170,7 @@ BMAD YAML/MD Files → Parser → Database Schema
 ### User Customization Points
 
 **1. Elicitation Methods (Database Extension)**
+
 ```sql
 elicitation_methods:
   - BMAD defaults (from CSV): is_custom = false
@@ -158,16 +179,19 @@ elicitation_methods:
 ```
 
 **Example:** User adds "RICE Prioritization" to brainstorming techniques
+
 - Stored in DB alongside BMAD's 36 default techniques
 - Survives BMAD version updates
 - Shareable across team (future: export/import)
 
 **2. Reserved Workflow Tags**
+
 - Workflows support reserved tags: `<step>`, `<action>`, `<check>`, etc.
 - Tags stored in DB for parsing and execution
 - Enables BMAD workflow evolution without Chiron code changes
 
 ### What Users CANNOT Customize (MVP)
+
 - Workflow structure (no custom workflow builder)
 - Core UX patterns (opinionated by design)
 - Agent personas (BMAD defaults only)
@@ -177,14 +201,17 @@ elicitation_methods:
 ## CSV Schema Unification
 
 ### Type 1: Selection/Elicitation Methods
+
 **Common schema:** `category, method_name, description, [extra_guidance], [metadata]`
 
 **Examples:**
+
 - `adv-elicit-methods.csv` (39 elicitation techniques)
 - `brain-methods.csv` (36 brainstorming techniques)
 - `design-methods.csv` (31 design thinking methods)
 
 **Database mapping:**
+
 ```sql
 CREATE TABLE elicitation_methods (
   module VARCHAR,        -- 'bmm', 'cis', 'core'
@@ -204,9 +231,11 @@ CREATE TABLE elicitation_methods (
 ```
 
 ### Type 2: Manifest/Registry Files
+
 **Schema:** `name, description, module, path`
 
 **Examples:**
+
 - `workflow-manifest.csv`
 - `agent-manifest.csv`
 - `task-manifest.csv`
@@ -214,9 +243,11 @@ CREATE TABLE elicitation_methods (
 **Purpose:** System registries for BMAD components
 
 ### Type 3: Configuration/Taxonomy
+
 **Schema:** Domain-specific (varies)
 
 **Examples:**
+
 - `game-types.csv`
 - `pattern-categories.csv`
 - `documentation-requirements.csv`
@@ -228,11 +259,13 @@ CREATE TABLE elicitation_methods (
 ## Workflow Execution Model
 
 ### BMAD Core Integration
+
 - **Leverage:** BMAD's `workflow.xml` execution engine
 - **NOT reinventing:** Use proven methodology execution logic
 - **Integration point:** Chiron calls BMAD core with workflow context
 
 ### Execution Flow
+
 ```
 User Action (UI) → Chiron Orchestrator
                          ↓
@@ -244,6 +277,7 @@ User Action (UI) → Chiron Orchestrator
 ```
 
 ### State Management
+
 - Project state stored in Chiron DB
 - BMAD workflows read/write state via Chiron API
 - UI reflects state changes in real-time
@@ -253,19 +287,23 @@ User Action (UI) → Chiron Orchestrator
 ## Key Architectural Constraints
 
 ### MVP Scope
+
 ✅ **In Scope:**
+
 - BMM + CIS module support
 - Pattern-driven UX for core workflows
 - User extensibility of elicitation methods
 - Database-driven workflow ingestion
 
 ❌ **Out of Scope:**
+
 - BMB (custom workflow builder)
 - Multi-user collaboration (single user MVP)
 - External tool integrations beyond AI coding agents
 - Mobile applications (desktop/web only)
 
 ### BMAD Alpha Considerations
+
 - BMAD v6 is currently alpha → expect changes
 - Architecture must accommodate workflow updates
 - Database schema must be migration-friendly
@@ -276,15 +314,18 @@ User Action (UI) → Chiron Orchestrator
 ## Next Steps
 
 **Immediate (Product Brief completion):**
+
 - Continue BMAD deep-dive questions (Q3-Q10)
 - Complete remaining Product Brief sections
 
 **After Product Brief:**
+
 - Create PRD with detailed requirements
 - Design full architecture (database schema, API contracts, component structure)
 - Define technical specifications per epic
 
 **Deferred to Architecture Phase:**
+
 - Database schema design
 - API contract definitions
 - Component architecture
@@ -292,6 +333,7 @@ User Action (UI) → Chiron Orchestrator
 - Deployment strategy
 
 **Points to Investigate Further (Q3 Workflow System Insights):**
+
 - Workflow execution state management (nested workflows, call stacks, variable context with 4-level precedence)
 - Document versioning for template workflows (checkpoint tracking, approval workflow, rollback capability)
 - Project state management (replicate workflow-status.md functionality in DB)
@@ -299,6 +341,7 @@ User Action (UI) → Chiron Orchestrator
 - Workflow-to-DB API design (how workflows query/update Chiron state vs reading .md files)
 
 **Points to Investigate Further (Q4 Agent System - Multi-Agent Orchestration):**
+
 - **Competitive research:** Conductor.build (https://conductor.build/) already does parallel coding agent orchestration - research their approach, learn from their patterns, identify differentiation opportunities
 - **Agent session management:** How to maintain isolated contexts for concurrent agents (prevent context pollution)
 - **Agent handoff protocol:** Workflow output from Agent A becomes input context for Agent B
@@ -317,6 +360,7 @@ User Action (UI) → Chiron Orchestrator
   - Database schema: agent_mcp_mappings table (which MCPs for which agents/workflows)
 
 **Points to Investigate Further (Q5 4-Phase Methodology - Dashboard & Navigation):**
+
 - **Phase progression UI:** Visual representation of 4 phases (Analysis → Planning → Solutioning → Implementation) with completion status
 - **Project state schema:** Database structure to replace workflow-status.md (current_phase, current_workflow, next_command, next_agent, phase_X_complete flags)
 - **Level-based adaptation:** Dashboard adjusts to project level (0-4) - Level 1 hides Solutioning, Level 4 shows all phases
@@ -327,6 +371,7 @@ User Action (UI) → Chiron Orchestrator
 - **5 workflow-status modes:** How to implement validate/data/init-check/update modes in Chiron's orchestration layer
 
 **Points to Investigate Further (Q6 Project Types & Levels - Adaptive Workflows):**
+
 - **Project types (MVP scope):** Software only (greenfield + brownfield) - game workflows excluded from MVP
 - **5 Complexity levels (0-4):** Atomic change (0) → Small feature (1) → Medium project (2) → Complex system (3) → Enterprise (4)
 - **Phase skipping rules:** Level 0-1 skip Phase 3 (Solutioning) entirely - Dashboard must hide phases dynamically based on level
@@ -339,6 +384,7 @@ User Action (UI) → Chiron Orchestrator
 - **Brownfield vs Greenfield context:** Brownfield agents receive existing architecture docs as input context automatically
 
 **Points to Investigate Further (Q7 Status & Tracking - Database Schema Design):**
+
 - **Dual tracking system:** Two complementary tracking mechanisms
   - `project_state` table (replaces workflow-status.md) - Phase-level progress tracking
   - `sprint_tracking` table (replaces sprint-status.yaml) - Story-level implementation tracking
@@ -364,16 +410,19 @@ User Action (UI) → Chiron Orchestrator
 **Q9 User Journey Insights (Concrete Mechanics):**
 
 **1. Installation & Directory Structure:**
+
 - **BMAD approach:** Copies entire workflow library to `bmad/` directory in user's project
 - **Chiron decision:** Store workflows in database, only generate artifacts in user's `docs/` folder
 - **Rationale:** Avoid repo bloat, enable dynamic updates as BMAD evolves
 - **Implementation:** Workflow ingestion service loads BMAD files into DB on Chiron startup/update
 
 **2. Workflow Execution Pipeline (Critical Flow):**
+
 ```
 workflow.xml (engine) → workflow.yaml (config) → instructions.md (steps) →
   → template.md (output) → artifact files (docs/) → status update
 ```
+
 - **Chiron translation:**
   - `workflow.xml` = Workflow Engine Service (backend API)
   - `workflow.yaml` = `workflow_templates` table (DB)
@@ -382,6 +431,7 @@ workflow.xml (engine) → workflow.yaml (config) → instructions.md (steps) →
   - Status updates = `project_state` table writes
 
 **3. File READ/WRITE Patterns (Per Workflow Execution):**
+
 - **Files READ:**
   - `workflow.yaml` (workflow config)
   - `config.yaml` (user settings) → Chiron: project settings table
@@ -394,6 +444,7 @@ workflow.xml (engine) → workflow.yaml (config) → instructions.md (steps) →
 - **Chiron implementation:** File Generation Service API endpoint to write artifacts to user's repo
 
 **4. Artifact Dependency Chain (Cross-Phase Data Flow):**
+
 ```
 Phase 1: product-brief.md
     ↓
@@ -403,8 +454,10 @@ Phase 3: architecture.md (reads PRD.md + epics.md + optional ux-spec.md)
     ↓
 Phase 4: story-X.X.md (reads epics.md + PRD.md + architecture.md)
 ```
+
 - **Critical requirement:** Track artifact dependencies in DB
 - **New schema needed:**
+
 ```sql
 CREATE TABLE workflow_dependencies (
   workflow_id INT,
@@ -420,17 +473,20 @@ CREATE TABLE project_artifacts (
   created_at TIMESTAMP
 );
 ```
+
 - **Validation logic:** Before starting workflow, check if required artifacts exist. Block execution if missing required dependencies.
 
 **5. State Transition Mechanics (Status File Updates):**
+
 - **BMAD pattern:** Workflow completion triggers `invoke-workflow mode=update` → reads workflow path YAML → determines next workflow → updates status fields
 - **Chiron equivalent:**
+
 ```javascript
 // After workflow completion
 await chiron.api.updateProjectState({
   projectId,
-  action: 'complete_workflow',
-  workflowName: 'product-brief'
+  action: "complete_workflow",
+  workflowName: "product-brief",
 });
 // Backend logic:
 // 1. Mark workflow complete in completed_workflows[]
@@ -441,6 +497,7 @@ await chiron.api.updateProjectState({
 ```
 
 **6. Variable Resolution System (4-Level Precedence):**
+
 - **BMAD system:**
   1. Hardcoded in workflow.yaml
   2. From config.yaml via `{config_source}:field_name`
@@ -455,14 +512,14 @@ await chiron.api.updateProjectState({
 
 **7. New Architectural Components Identified:**
 
-| Component | Purpose | Replaces (BMAD) |
-|-----------|---------|-----------------|
-| **Workflow Engine Service** | Orchestrates step execution, variable resolution, state updates | `bmad/core/tasks/workflow.xml` |
-| **Artifact Dependency Checker** | Validates prerequisites before workflow starts | Implicit reads in instruction steps |
-| **File Generation Service** | Writes artifacts to user's repo via API | Direct file writes in workflows |
-| **Workflow Path Resolver** | Determines "what's next" based on project type/level | Reads `greenfield-level-3.yaml` |
-| **Template Variable Engine** | Resolves variables using 4-level precedence | BMAD's variable resolution logic |
-| **Workflow Ingestion Service** | Loads BMAD YAML/MD files into database | Manual installation to `bmad/` folder |
+| Component                       | Purpose                                                         | Replaces (BMAD)                       |
+| ------------------------------- | --------------------------------------------------------------- | ------------------------------------- |
+| **Workflow Engine Service**     | Orchestrates step execution, variable resolution, state updates | `bmad/core/tasks/workflow.xml`        |
+| **Artifact Dependency Checker** | Validates prerequisites before workflow starts                  | Implicit reads in instruction steps   |
+| **File Generation Service**     | Writes artifacts to user's repo via API                         | Direct file writes in workflows       |
+| **Workflow Path Resolver**      | Determines "what's next" based on project type/level            | Reads `greenfield-level-3.yaml`       |
+| **Template Variable Engine**    | Resolves variables using 4-level precedence                     | BMAD's variable resolution logic      |
+| **Workflow Ingestion Service**  | Loads BMAD YAML/MD files into database                          | Manual installation to `bmad/` folder |
 
 **8. Critical Design Decisions Confirmed:**
 
@@ -476,6 +533,7 @@ await chiron.api.updateProjectState({
 **Q10 Technical Architecture Insights (Integration, Execution & Version Control):**
 
 **1. Slash Command Bridge Mechanics:**
+
 - **BMAD's approach:** Auto-generates `.claude/commands/` files during installation
   - Command files are text prompts: "LOAD workflow.xml + pass workflow.yaml path as parameter"
   - Claude Code reads command → LLM loads workflow.xml → executes workflow
@@ -483,7 +541,9 @@ await chiron.api.updateProjectState({
   - Example command content:
     ```markdown
     # product-brief
+
     IT IS CRITICAL THAT YOU FOLLOW THESE STEPS:
+
     1. Always LOAD {project-root}/bmad/core/tasks/workflow.xml
     2. READ its entire contents
     3. Pass yaml path as 'workflow-config' parameter
@@ -497,11 +557,13 @@ await chiron.api.updateProjectState({
 **2. LLM Role in Workflow Execution (Critical Architectural Clarification):**
 
 **BMAD's approach:**
+
 - LLM interprets XML tags from freeform markdown instructions
 - Relies on prompt adherence (no output validation)
 - Works for single-agent, sequential execution with human in the loop
 
 **Chiron's approach (Hybrid: LLM Decisions + Structured Outputs):**
+
 ```
 Workflow Step Execution:
   ↓
@@ -531,14 +593,15 @@ Chiron executes next step based on LLM's validated decision
 
 **Role Separation (LLM + Chiron + User):**
 
-| Component | Responsibility | Examples |
-|-----------|----------------|----------|
-| **LLM (Agentic Brain)** | Make workflow decisions based on context | Which step next? What elicitation method? Is this section complete? What content to generate? |
-| **DSPy/ax (Structure Enforcer)** | Guarantee parseable outputs, enable optimization | Enforce JSON schema, future: GEPA/ACE optimizers for better decisions |
-| **Chiron (Execution Engine + Gatekeeper)** | Execute decisions, enforce rules, render UI, track state | Validate next_step, enforce approval gates, save artifacts, update project_state |
-| **User (Final Authority)** | Approve/reject LLM decisions (unless yolo mode) | Continue [c] or Edit [e]?, Approve generated content, Override decisions |
+| Component                                  | Responsibility                                           | Examples                                                                                      |
+| ------------------------------------------ | -------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| **LLM (Agentic Brain)**                    | Make workflow decisions based on context                 | Which step next? What elicitation method? Is this section complete? What content to generate? |
+| **DSPy/ax (Structure Enforcer)**           | Guarantee parseable outputs, enable optimization         | Enforce JSON schema, future: GEPA/ACE optimizers for better decisions                         |
+| **Chiron (Execution Engine + Gatekeeper)** | Execute decisions, enforce rules, render UI, track state | Validate next_step, enforce approval gates, save artifacts, update project_state              |
+| **User (Final Authority)**                 | Approve/reject LLM decisions (unless yolo mode)          | Continue [c] or Edit [e]?, Approve generated content, Override decisions                      |
 
 **Benefits over BMAD's freeform approach:**
+
 - ✅ Guaranteed parseable outputs (no regex hacks or hope-based parsing)
 - ✅ Validation of LLM decisions (reject invalid next_step, invalid actions)
 - ✅ Future optimization (DSPy optimizers like GEPA/ACE improve decision quality)
@@ -546,6 +609,7 @@ Chiron executes next step based on LLM's validated decision
 - ✅ Reliable UI rendering (action type determines which UI component to show)
 
 **3. Version Control Strategy:**
+
 - **BMAD's approach:**
   - No automatic commits (user manually commits via git)
   - Date-based artifact naming: `product-brief-{project}-{date}.md`
@@ -575,11 +639,12 @@ Chiron executes next step based on LLM's validated decision
   - Git integration via API (isomorphic-git or simple shell commands)
 
 **4. Workflow Parsing & Execution Mechanics:**
+
 - **BMAD's approach:**
   - **YAML parsing:** Uses `js-yaml` library (standard Node.js package)
   - **Variable resolution:** Regex-based string replacement
     ```javascript
-    const regex = new RegExp(placeholder, 'g');
+    const regex = new RegExp(placeholder, "g");
     content = content.replace(regex, value);
     ```
   - **XML tag processing:** LLM interprets tags directly from instructions.md (no explicit parser!)
@@ -591,10 +656,9 @@ Chiron executes next step based on LLM's validated decision
   - **Variable resolution:** Same regex pattern, but query DB for config values
     ```javascript
     // Resolve {config_source}:output_folder
-    const configValue = await db.query(
-      'SELECT value FROM project_settings WHERE key = ?',
-      ['output_folder']
-    );
+    const configValue = await db.query("SELECT value FROM project_settings WHERE key = ?", [
+      "output_folder",
+    ]);
     content = content.replace(/{config_source}:output_folder/g, configValue);
     ```
   - **Workflow execution:** Hybrid approach (LLM decisions + programmatic validation)
@@ -605,25 +669,25 @@ Chiron executes next step based on LLM's validated decision
   - **Tag interpretation:** LLM outputs action type, Chiron maps to execution logic
     ```typescript
     async function executeStepDecision(decision: WorkflowStepOutput) {
-      switch(decision.action) {
-        case 'template-output':
+      switch (decision.action) {
+        case "template-output":
           await saveArtifact(decision.content);
           await showEditorUI(decision.content);
           if (decision.requires_approval && !yoloMode) {
             await waitForUserApproval();
           }
           break;
-        case 'elicit':
+        case "elicit":
           const methods = await getElicitationMethods(decision.elicit_method);
           await showInteractiveCards(methods);
           break;
-        case 'ask':
+        case "ask":
           const answer = await promptUser(decision.content);
           context.userInputs[decision.variable_name] = answer;
           break;
-        case 'goto':
+        case "goto":
           return decision.next_step;
-        case 'invoke-workflow':
+        case "invoke-workflow":
           await executeWorkflow(decision.workflow_id, context);
           break;
       }
@@ -632,19 +696,17 @@ Chiron executes next step based on LLM's validated decision
 
 **5. Variable Resolution - 4-Level Precedence System:**
 
-| Level | BMAD Source | Chiron Source |
-|-------|-------------|---------------|
-| 1 (Highest) | User responses (runtime input) | UI form inputs, user prompts during workflow execution |
-| 2 | Workflow variables (hardcoded in workflow.yaml) | Workflow template defaults stored in DB (`workflow_templates` table) |
-| 3 | System variables (`{date}`, `{project-root}`) | System-generated values (timestamp, paths, user session data) |
-| 4 (Lowest) | Inherited variables (from parent workflows) | Project settings table queries (`project_settings` table) |
+| Level       | BMAD Source                                     | Chiron Source                                                        |
+| ----------- | ----------------------------------------------- | -------------------------------------------------------------------- |
+| 1 (Highest) | User responses (runtime input)                  | UI form inputs, user prompts during workflow execution               |
+| 2           | Workflow variables (hardcoded in workflow.yaml) | Workflow template defaults stored in DB (`workflow_templates` table) |
+| 3           | System variables (`{date}`, `{project-root}`)   | System-generated values (timestamp, paths, user session data)        |
+| 4 (Lowest)  | Inherited variables (from parent workflows)     | Project settings table queries (`project_settings` table)            |
 
 **Chiron implementation:**
+
 ```typescript
-async function resolveVariable(
-  variableName: string,
-  context: WorkflowContext
-): Promise<string> {
+async function resolveVariable(variableName: string, context: WorkflowContext): Promise<string> {
   // Level 1: Check user input (highest priority)
   if (context.userInputs[variableName]) {
     return context.userInputs[variableName];
@@ -656,18 +718,15 @@ async function resolveVariable(
   }
 
   // Level 3: Check system variables
-  if (variableName === 'date') {
-    return new Date().toISOString().split('T')[0];
+  if (variableName === "date") {
+    return new Date().toISOString().split("T")[0];
   }
-  if (variableName === 'project-root') {
+  if (variableName === "project-root") {
     return context.projectPath;
   }
 
   // Level 4: Query project settings (lowest priority)
-  const setting = await db.projectSettings.get(
-    context.projectId,
-    variableName
-  );
+  const setting = await db.projectSettings.get(context.projectId, variableName);
   if (setting) return setting.value;
 
   // Not found - prompt user (becomes Level 1 input)
@@ -677,16 +736,16 @@ async function resolveVariable(
 
 **6. New Architectural Components Identified:**
 
-| Component | Purpose | Implementation Notes |
-|-----------|---------|---------------------|
-| **YAML Parser** | Load workflow configs from DB | Use `js-yaml` or equivalent (TypeScript/Rust) |
-| **Variable Resolver** | Replace `{variables}` using 4-level precedence | Regex replacement + DB queries for settings |
-| **DSPy/ax Integration** | Enforce structured LLM outputs for workflow decisions | TypeScript port (`ax`), define schemas for each action type |
-| **Workflow Decision Validator** | Validate LLM decisions before execution | Check next_step bounds, validate action types, ensure required fields present |
-| **Action Executor** | Map LLM action decisions to concrete execution | switch/case logic for template-output, ask, elicit, goto, invoke-workflow |
-| **Artifact Versioning Service** | Track version history in DB with git context | Store content snapshots per generation with commit hash |
-| **Git Integration Service** | Commit artifacts to user's repo | isomorphic-git or shell commands, track commit hashes |
-| **Template Engine** | Resolve variables in templates before generation | Combine variable resolver + template content |
+| Component                       | Purpose                                               | Implementation Notes                                                          |
+| ------------------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------- |
+| **YAML Parser**                 | Load workflow configs from DB                         | Use `js-yaml` or equivalent (TypeScript/Rust)                                 |
+| **Variable Resolver**           | Replace `{variables}` using 4-level precedence        | Regex replacement + DB queries for settings                                   |
+| **DSPy/ax Integration**         | Enforce structured LLM outputs for workflow decisions | TypeScript port (`ax`), define schemas for each action type                   |
+| **Workflow Decision Validator** | Validate LLM decisions before execution               | Check next_step bounds, validate action types, ensure required fields present |
+| **Action Executor**             | Map LLM action decisions to concrete execution        | switch/case logic for template-output, ask, elicit, goto, invoke-workflow     |
+| **Artifact Versioning Service** | Track version history in DB with git context          | Store content snapshots per generation with commit hash                       |
+| **Git Integration Service**     | Commit artifacts to user's repo                       | isomorphic-git or shell commands, track commit hashes                         |
+| **Template Engine**             | Resolve variables in templates before generation      | Combine variable resolver + template content                                  |
 
 **7. Critical Design Decisions (Q10 Summary):**
 
@@ -712,12 +771,14 @@ async function resolveVariable(
 **Solution:** Store git commit hash in project state to detect drift
 
 **Benefits:**
+
 - Detect external changes (compare `last_known_commit_hash` vs current HEAD)
 - Workflow safety (warn if uncommitted changes exist before starting workflow)
 - Audit trail (track which commit each artifact was generated from)
 - Conflict prevention (alert user if repo state changed during workflow execution)
 
 **Implementation:**
+
 ```sql
 -- Schema additions
 ALTER TABLE project_state ADD COLUMN last_known_commit_hash VARCHAR(40);
@@ -732,6 +793,7 @@ if (currentHash !== storedHash) {
 ```
 
 **Workflows to add:**
+
 - `sync-repo-state` - Reconcile Chiron state with actual repo state
 - `detect-external-changes` - Background service to monitor git status
 
@@ -742,6 +804,7 @@ if (currentHash !== storedHash) {
 ### 2. Idea Capture System (Meta-Feature for Flow State)
 
 **Problem:** During deep workflow sessions, tangential ideas emerge that are:
+
 - Not relevant to current task (context-switching breaks flow)
 - Valuable for future consideration (forgetting them wastes insights)
 - Need lightweight capture now → structured review later
@@ -749,6 +812,7 @@ if (currentHash !== storedHash) {
 **Solution:** "Parking Lot" system for capturing ideas without breaking workflow flow
 
 **User Story:**
+
 ```
 During product-brief workflow:
 User: "What if we track commit hashes?"
@@ -761,6 +825,7 @@ PM agent: "You have 3 captured ideas from Analysis. Review now? [y/n]"
 ```
 
 **Implementation:**
+
 ```sql
 CREATE TABLE project_annotations (
   id SERIAL PRIMARY KEY,
@@ -777,11 +842,13 @@ CREATE TABLE project_annotations (
 ```
 
 **Workflows to add:**
+
 - `*capture-idea` - Quick capture during any workflow (minimal interruption)
 - `*review-ideas` - Structured review of captured ideas
 - Integration with PRD/Architecture workflows to prompt idea review at phase transitions
 
 **Benefits:**
+
 - Preserves flow state (no context-switching during creative work)
 - Creates audit trail of idea evolution (captured → addressed → how it was resolved)
 - Supports multiple annotation types (ideas, risks, questions, assumptions, tech debt)

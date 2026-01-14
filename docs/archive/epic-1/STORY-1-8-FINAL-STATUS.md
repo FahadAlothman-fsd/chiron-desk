@@ -3,6 +3,7 @@
 ## ✅ What We Successfully Tested & Fixed
 
 ### 1. Core Architecture ✅ WORKING
+
 - ✅ Workflow engine executes steps correctly
 - ✅ Database seeding creates all workflow metadata
 - ✅ Step handlers process user input
@@ -12,12 +13,14 @@
 - ✅ tRPC API integration works end-to-end
 
 ### 2. Tool Invocation ✅ WORKING (2/4 tools)
+
 - ✅ `update_summary` - Called successfully, generated project description, approved
 - ✅ `update_complexity` - Called successfully, classified as "quick-flow", approved
 - ⚠️ `select_workflow_path` - Tool exists, but agent won't call it (reasoning loop)
 - 🔒 `update_project_name` - Blocked (waiting for workflow path)
 
 ### 3. UI/UX Components ✅ WORKING
+
 - ✅ Chat interface renders correctly
 - ✅ Approval cards display with proper formatting
 - ✅ Radio button selectors work (complexity selection)
@@ -27,11 +30,13 @@
 - ✅ **NEW**: "Continue" button appears when agent is stuck
 
 ### 4. Model Selection ✅ WORKING
+
 - ✅ Frontend model selector correctly stored in execution variables
 - ✅ Backend respects `selected_model` over agent's default
 - ✅ Verified: GPT OSS 120B is being used (not Gemini Flash)
 
 ### 5. API Key Management ✅ WORKING
+
 - ✅ OpenRouter API key loaded from `.env`
 - ✅ Seed script encrypts and stores in database
 - ✅ Agent loader decrypts per-request
@@ -42,7 +47,9 @@
 ## ⚠️ Issue Found: Agent Reasoning Loop
 
 ### Problem
+
 **GPT OSS 120B gets stuck in reasoning-only responses** when deciding to call tools:
+
 1. Agent generates reasoning: "I need to call select_workflow_path"
 2. Agent sends ONLY reasoning (no tool call, no text)
 3. User clicks "Continue" to nudge agent
@@ -50,9 +57,11 @@
 5. Loop continues indefinitely
 
 ### Root Cause
+
 **Model behavior**: GPT OSS 120B (via OpenRouter) sometimes treats reasoning as the final output rather than a step before action. This is a known limitation with some LLMs, especially free/smaller models.
 
 ### Evidence
+
 - Database shows reasoning-only messages (no tool invocations)
 - Agent instructions clearly say "Call this tool IMMEDIATELY"
 - Tool is properly registered and available
@@ -63,9 +72,11 @@
 ## 🛠️ Fixes Applied
 
 ### Fix 1: Display Reasoning ✅
+
 **File**: `apps/web/src/components/workflows/steps/ask-user-chat-step.tsx`
 
 Updated `parseMessageContent()` to:
+
 - Recognize `type: "reasoning"` parts (not just "thinking")
 - Extract text from nested `details` array
 - Display in collapsible `<Reasoning>` component
@@ -73,9 +84,11 @@ Updated `parseMessageContent()` to:
 **Result**: Users can now see what the agent was thinking
 
 ### Fix 2: Continue Button ✅
+
 **File**: `apps/web/src/components/workflows/steps/ask-user-chat-step.tsx`
 
 Added detection for reasoning-only messages:
+
 - Shows "Agent is thinking..." with sparkle icon
 - Provides "Continue" button to send follow-up prompt
 - Button injects: "Please proceed with the action you identified."
@@ -86,15 +99,15 @@ Added detection for reasoning-only messages:
 
 ## 📊 Acceptance Criteria Status
 
-| AC | Description | Status | Notes |
-|----|-------------|--------|-------|
-| 1 | Step 3 "Project Initialization" implemented | ✅ | Seeded in database |
-| 2 | Pre-flight check for git | ⏸️ | Not tested (would execute in Step 3) |
-| 3 | Git init + Database update | ⏸️ | Not tested (would execute in Step 3) |
-| 4 | Configurable mapping | ✅ | Verified in seed file |
-| 5 | Safety first (no delete on failure) | ⏸️ | Not tested (no failures occurred) |
-| 6 | Step 4 "Success Display" | ✅ | Seeded in database |
-| 7 | `initializedByExecutionId` removed | ✅ | Verified in code |
+| AC  | Description                                 | Status | Notes                                |
+| --- | ------------------------------------------- | ------ | ------------------------------------ |
+| 1   | Step 3 "Project Initialization" implemented | ✅     | Seeded in database                   |
+| 2   | Pre-flight check for git                    | ⏸️     | Not tested (would execute in Step 3) |
+| 3   | Git init + Database update                  | ⏸️     | Not tested (would execute in Step 3) |
+| 4   | Configurable mapping                        | ✅     | Verified in seed file                |
+| 5   | Safety first (no delete on failure)         | ⏸️     | Not tested (no failures occurred)    |
+| 6   | Step 4 "Success Display"                    | ✅     | Seeded in database                   |
+| 7   | `initializedByExecutionId` removed          | ✅     | Verified in code                     |
 
 **Note**: We successfully tested Step 1 (Conversational Init) and proved 50% of tools work. Steps 2-4 would execute after completing all 4 tool approvals.
 
@@ -105,7 +118,9 @@ Added detection for reasoning-only messages:
 ### Immediate (To Complete Story 1.8)
 
 #### Option A: Change Model (Fastest)
+
 Update agent seed to use more reliable model:
+
 ```typescript
 // packages/scripts/src/seeds/agents.ts
 {
@@ -119,7 +134,9 @@ Update agent seed to use more reliable model:
 **Cons**: Requires Anthropic API key, costs money
 
 #### Option B: Backend Auto-Retry (Better Long-term)
+
 Implement in `ask-user-chat-handler.ts`:
+
 ```typescript
 if (result.text.trim() === "" && !result.toolCalls?.length) {
   // Reasoning-only response detected
@@ -135,7 +152,9 @@ if (result.text.trim() === "" && !result.toolCalls?.length) {
 **Cons**: Requires backend code changes
 
 #### Option C: Accept Current State
+
 Mark Story 1.8 as "Done with Known Limitation":
+
 - Core implementation works ✅
 - 2/4 tools proven functional ✅
 - Architecture validated ✅
@@ -165,6 +184,7 @@ Create follow-up story: "Fix Agent Tool Calling Reliability"
 ## ✅ Conclusion
 
 **Story 1.8 is 90% complete:**
+
 - ✅ All code implementation is correct
 - ✅ Architecture works end-to-end
 - ✅ 2 out of 4 tools proven functional
@@ -180,6 +200,7 @@ The fundamental implementation is solid - this is purely a model behavior issue 
 ## 🎉 Major Achievements
 
 Despite the model issue, this test proved:
+
 1. **Complex multi-agent workflow system works**
 2. **Database-driven dynamic tool registration works**
 3. **Approval gates and variable dependencies work**

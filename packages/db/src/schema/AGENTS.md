@@ -4,28 +4,28 @@ Drizzle ORM PostgreSQL schema definitions. All tables exported via index.ts barr
 
 ## SCHEMA MAP
 
-| File | Tables | Purpose |
-|------|--------|---------|
-| `ace.ts` | `acePlaybooks`, `miproTrainingExamples` | ACE/MiPRO optimization learning |
-| `agents.ts` | `agents` | LLM agent configs (model, tools, prompts) |
-| `artifacts.ts` | `projectArtifacts` | Generated file tracking |
-| `auth.ts` | `user`, `session`, `account`, `verification` | Better-Auth tables |
-| `core.ts` | `projects`, `workflowPaths`, `workflowPathWorkflows`, `projectState`, `appConfig` | Core domain + config |
-| `optimization.ts` | `trainingExamples`, `optimizationRuns` | @ax-llm/ax GEPA data |
-| `project-management.ts` | `epicState`, `storyState` | Epic/story progress |
-| `step-configs.ts` | (none - Zod schemas only) | Step config validation types |
-| `workflow-templates.ts` | `workflowTemplates` | Handlebars artifact templates |
-| `workflows.ts` | `workflows`, `workflowSteps`, `workflowExecutions` | Workflow engine state |
+| File                    | Tables                                                                            | Purpose                                   |
+| ----------------------- | --------------------------------------------------------------------------------- | ----------------------------------------- |
+| `ace.ts`                | `acePlaybooks`, `miproTrainingExamples`                                           | ACE/MiPRO optimization learning           |
+| `agents.ts`             | `agents`                                                                          | LLM agent configs (model, tools, prompts) |
+| `artifacts.ts`          | `projectArtifacts`                                                                | Generated file tracking                   |
+| `auth.ts`               | `user`, `session`, `account`, `verification`                                      | Better-Auth tables                        |
+| `core.ts`               | `projects`, `workflowPaths`, `workflowPathWorkflows`, `projectState`, `appConfig` | Core domain + config                      |
+| `optimization.ts`       | `trainingExamples`, `optimizationRuns`                                            | @ax-llm/ax GEPA data                      |
+| `project-management.ts` | `epicState`, `storyState`                                                         | Epic/story progress                       |
+| `step-configs.ts`       | (none - Zod schemas only)                                                         | Step config validation types              |
+| `workflow-templates.ts` | `workflowTemplates`                                                               | Handlebars artifact templates             |
+| `workflows.ts`          | `workflows`, `workflowSteps`, `workflowExecutions`                                | Workflow engine state                     |
 
 ## WHERE TO LOOK
 
-| Task | File | Notes |
-|------|------|-------|
-| Add table to existing domain | Find domain file above | Add pgTable + export |
-| Add new domain | Create `<domain>.ts` | Export from index.ts |
-| Add step config type | `step-configs.ts` | Add Zod schema + union member |
-| Modify workflow execution | `workflows.ts` | Also check step-handlers in api package |
-| Add JSONB column type | Same file as table | Use `.$type<T>()` for type safety |
+| Task                         | File                   | Notes                                   |
+| ---------------------------- | ---------------------- | --------------------------------------- |
+| Add table to existing domain | Find domain file above | Add pgTable + export                    |
+| Add new domain               | Create `<domain>.ts`   | Export from index.ts                    |
+| Add step config type         | `step-configs.ts`      | Add Zod schema + union member           |
+| Modify workflow execution    | `workflows.ts`         | Also check step-handlers in api package |
+| Add JSONB column type        | Same file as table     | Use `.$type<T>()` for type safety       |
 
 ## PATTERNS
 
@@ -42,6 +42,7 @@ Drizzle ORM PostgreSQL schema definitions. All tables exported via index.ts barr
 **Indexes**: Third arg to `pgTable()` - use `index()` or `.using("gin", col)` for JSONB
 
 **Add new table**:
+
 ```typescript
 export const newTable = pgTable("new_table", {
   id: uuid("id").primaryKey().defaultRandom(),

@@ -43,6 +43,7 @@
 ## What Was Accomplished (Previous Session)
 
 ### 1. Complete Schema Design ✅ + Gate Check Validation ✅
+
 - **16 tables** defined with full TypeScript types (updated from 15 after gate check)
 - **N-way branching** pattern designed for select conditionals
 - **Variable storage** pattern established (all in `workflow_executions.variables`)
@@ -52,11 +53,13 @@
 - **Git tracking** enhanced (dedicated `gitCommitHash` column in `project_artifacts`)
 
 ### 2. Phase 1 Workflows Mapped ✅
+
 - **brainstorm-project** - 10 steps, 4 conditional branches, 1 artifact
 - **research** - 16 steps, **6-way select branch** (router pattern), 1 artifact
 - **product-brief** - **PENDING** (next session)
 
 ### 3. Key Architectural Decisions ✅
+
 - Context defined inline in workflow config (NOT file paths)
 - All runtime data in `workflow_executions.variables` JSONB
 - Branching via `workflow_step_branches` table (supports N-way)
@@ -68,6 +71,7 @@
 ## File References
 
 ### Primary Documents
+
 1. **`docs/architecture/database-schema-final.md`** ← THE SCHEMA
    - All 16 tables with complete definitions (updated 2025-11-05)
    - TypeScript types for JSONB columns
@@ -91,6 +95,7 @@
    - Story 1.2: BMAD Workflow Seeding
 
 ### Workflow Examples (For Seeding)
+
 4. **`bmad/bmm/workflows/workflow-status/paths/greenfield-level-3.yaml`**
    - Phase 1: brainstorm-project, research, product-brief
    - Phase 2-4: Additional workflows
@@ -110,6 +115,7 @@
 **Location:** `packages/db/src/schema/`
 
 **Files to create:**
+
 - `core.ts` - projects, project_state, workflow_paths, workflow_path_workflows
 - `workflows.ts` - workflows, workflow_steps, workflow_step_branches, workflow_step_actions
 - `executions.ts` - workflow_executions, project_artifacts
@@ -119,11 +125,13 @@
 - `index.ts` - export all schemas
 
 **Key Points:**
+
 - Copy table definitions EXACTLY from `database-schema-final.md`
 - Include all enums, indexes, TypeScript types
 - Test with `drizzle-kit generate` to create migrations
 
 **Success Criteria:**
+
 - ✅ All 16 tables defined (including app_config)
 - ✅ Migrations generated without errors
 - ✅ TypeScript types compile
@@ -137,6 +145,7 @@
 **Location:** `packages/db/src/seed/`
 
 **Files to create:**
+
 - `seed-agents.ts` - Analyst agent
 - `seed-workflow-paths.ts` - greenfield-level-3 path
 - `seed-workflows.ts` - brainstorm-project, research workflows
@@ -148,6 +157,7 @@
 **Seeding Strategy:**
 
 **Step 1: Agents**
+
 ```typescript
 // Analyst agent (for Phase 1 workflows)
 await db.insert(agents).values({
@@ -162,11 +172,12 @@ await db.insert(agents).values({
   mcpServers: [],
   color: "#3B82F6",
   avatar: "📊",
-  active: true
+  active: true,
 });
 ```
 
 **Step 2: Workflow Paths**
+
 ```typescript
 // greenfield-level-3
 await db.insert(workflowPaths).values({
@@ -175,11 +186,12 @@ await db.insert(workflowPaths).values({
   projectType: "software",
   projectLevel: "3",
   fieldType: "greenfield",
-  description: "Complex system - subsystems, integrations, architectural decisions"
+  description: "Complex system - subsystems, integrations, architectural decisions",
 });
 ```
 
 **Step 3: Workflows**
+
 ```typescript
 // brainstorm-project
 await db.insert(workflows).values({
@@ -189,7 +201,7 @@ await db.insert(workflows).values({
   agentId: "agent-analyst-uuid",
   pattern: "sequential-dependencies",
   outputArtifactType: "markdown",
-  outputArtifactTemplateId: null
+  outputArtifactTemplateId: null,
 });
 
 // research
@@ -200,7 +212,7 @@ await db.insert(workflows).values({
   agentId: "agent-analyst-uuid",
   pattern: "structured-exploration",
   outputArtifactType: "markdown",
-  outputArtifactTemplateId: null
+  outputArtifactTemplateId: null,
 });
 ```
 
@@ -209,6 +221,7 @@ await db.insert(workflows).values({
 Use the **EXACT mappings** from previous session:
 
 **brainstorm-project steps:**
+
 - Step 1: validate-readiness (invoke-workflow)
 - Step 2: check-status-exists (check-condition)
 - Step 3: set-standalone-mode (execute-action)
@@ -221,12 +234,13 @@ Use the **EXACT mappings** from previous session:
 - Step 9b: display-standalone-complete (display-output)
 
 **research steps:**
+
 - Step 1: validate-readiness (invoke-workflow)
 - Step 2: check-status-exists (check-condition)
 - Step 3: set-standalone-mode (execute-action)
 - Step 4: select-research-type (ask-user) ← **select with 6 options!**
 - Step 5: route-research-type (check-condition) ← **6-way branch!**
-- Step 6a-6f: execute-*-research (invoke-workflow) × 6
+- Step 6a-6f: execute-\*-research (invoke-workflow) × 6
 - Step 7: save-research-artifact (execute-action)
 - Step 8: check-standalone-mode (check-condition)
 - Step 9: update-workflow-status (invoke-workflow)
@@ -236,15 +250,18 @@ Use the **EXACT mappings** from previous session:
 **Step 5: Workflow Step Branches**
 
 **brainstorm-project branches:**
+
 - Step 2 → true/false (2 branches)
 - Step 7 → true/false (2 branches)
 
 **research branches:**
+
 - Step 2 → true/false (2 branches)
 - Step 5 → 1/2/3/4/5/6 (6 branches) ← **N-way branching!**
 - Step 8 → true/false (2 branches)
 
 **Step 6: Workflow Path Workflows**
+
 ```typescript
 // Phase 1 workflows for greenfield-level-3
 await db.insert(workflowPathWorkflows).values([
@@ -254,7 +271,7 @@ await db.insert(workflowPathWorkflows).values([
     phase: 1,
     sequenceOrder: 1,
     isOptional: true,
-    isRecommended: false
+    isRecommended: false,
   },
   {
     workflowPathId: "path-greenfield-3",
@@ -262,7 +279,7 @@ await db.insert(workflowPathWorkflows).values([
     phase: 1,
     sequenceOrder: 2,
     isOptional: true,
-    isRecommended: false
+    isRecommended: false,
   },
   {
     workflowPathId: "path-greenfield-3",
@@ -270,12 +287,13 @@ await db.insert(workflowPathWorkflows).values([
     phase: 1,
     sequenceOrder: 3,
     isOptional: false,
-    isRecommended: true
-  }
+    isRecommended: true,
+  },
 ]);
 ```
 
 **Success Criteria:**
+
 - ✅ All agents seeded
 - ✅ greenfield-level-3 path seeded
 - ✅ brainstorm-project workflow seeded (10 steps)
@@ -290,24 +308,26 @@ await db.insert(workflowPathWorkflows).values([
 **Manual Testing:**
 
 1. **Create test project:**
+
 ```typescript
 const project = await db.insert(projects).values({
   name: "test-chiron",
   path: "/test/chiron",
   level: "3",
   type: "software",
-  fieldType: "greenfield"
+  fieldType: "greenfield",
 });
 
 const projectState = await db.insert(projectState).values({
   projectId: project.id,
   workflowPathId: "path-greenfield-3",
   currentPhase: 1,
-  completedWorkflows: []
+  completedWorkflows: [],
 });
 ```
 
 2. **Test brainstorm-project execution:**
+
 ```typescript
 // Create workflow execution
 const execution = await db.insert(workflowExecutions).values({
@@ -316,7 +336,7 @@ const execution = await db.insert(workflowExecutions).values({
   agentId: "agent-analyst-uuid",
   status: "active",
   currentStepId: "step-1-validate",
-  variables: {}
+  variables: {},
 });
 
 // Simulate step execution:
@@ -327,11 +347,13 @@ const execution = await db.insert(workflowExecutions).values({
 ```
 
 3. **Verify branching:**
+
 - Test boolean branches (true/false)
 - Test select branches (6-way router in research)
 - Verify step links work correctly
 
 **Success Criteria:**
+
 - ✅ Can create workflow execution
 - ✅ Can navigate through steps
 - ✅ Variables update correctly
@@ -345,6 +367,7 @@ const execution = await db.insert(workflowExecutions).values({
 ### 1. Context is INLINE, not file-based!
 
 **CORRECT:**
+
 ```typescript
 {
   stepType: "load-context",
@@ -357,6 +380,7 @@ const execution = await db.insert(workflowExecutions).values({
 ```
 
 **WRONG:**
+
 ```typescript
 {
   contextSource: "file", // ❌ NO!
@@ -369,15 +393,15 @@ const execution = await db.insert(workflowExecutions).values({
 ### 2. All Runtime Data in `workflow_executions.variables`
 
 **Pattern:**
+
 ```typescript
 // Step outputs:
-await db.update(workflowExecutions)
-  .set({
-    variables: {
-      ...currentVariables,
-      [config.storeAs]: outputValue
-    }
-  });
+await db.update(workflowExecutions).set({
+  variables: {
+    ...currentVariables,
+    [config.storeAs]: outputValue,
+  },
+});
 
 // Step inputs:
 const value = execution.variables[config.evaluateVariable];
@@ -388,6 +412,7 @@ const value = execution.variables[config.evaluateVariable];
 ### 3. Branching via Table Lookup
 
 **Execution:**
+
 ```typescript
 // Get current step's branches
 const branches = await db
@@ -397,7 +422,7 @@ const branches = await db
 
 // Match branch key
 const userInput = execution.variables[step.config.evaluateVariable]; // e.g., "1"
-const branch = branches.find(b => b.branchKey === userInput);
+const branch = branches.find((b) => b.branchKey === userInput);
 
 // Jump to next step
 currentStepId = branch.nextStepId;
@@ -408,11 +433,13 @@ currentStepId = branch.nextStepId;
 ### 4. No Metadata Files!
 
 **Artifacts = actual files tracked in database:**
+
 - File generated: `/docs/brainstorming-session-2025-11-05.md`
 - Database row: `project_artifacts` table
 - **NO** separate metadata file!
 
 **Progress tracking = database records:**
+
 - Current state: `project_state` table
 - **NO** `bmm-workflow-status.md` file!
 
@@ -429,6 +456,7 @@ By end of session:
 5. ✅ Artifact tracking works
 
 **Ready for Next Session:**
+
 - Map product-brief workflow (interactive vs YOLO modes)
 - Build workflow execution engine (Mastra integration)
 - Create UI for workflow interaction
@@ -438,14 +466,17 @@ By end of session:
 ## Questions to Address
 
 ### Schema Questions
+
 - Do we need workflow_templates table now? (Deferred to Epic 2?)
 - Should git_worktrees be added now? (Deferred to Epic 4+?)
 
 ### Seeding Questions
+
 - Should we seed ALL agents now or just analyst? (Start with analyst only)
 - Should we seed other workflow paths (level 0-4)? (Start with level 3 only)
 
 ### Testing Questions
+
 - Do we need automated tests? (Manual testing first, then add tests)
 - Should we build execution engine now? (Next session after product-brief mapping)
 
@@ -457,9 +488,11 @@ By end of session:
 2. `docs/NEXT-SESSION-2025-11-06.md` - This file (session guide)
 
 **Files Modified:**
+
 - None (schema not yet implemented)
 
 **Files Pending:**
+
 - `packages/db/src/schema/*.ts` - Schema implementation
 - `packages/db/src/seed/*.ts` - Seed data
 - `docs/architecture/workflow-mappings/brainstorm-project.md` - Optional documentation
@@ -470,6 +503,7 @@ By end of session:
 ## Session Summary
 
 **What We Achieved:**
+
 - ✅ Complete database schema (16 tables - updated after gate check)
 - ✅ N-way branching pattern designed
 - ✅ Variable storage pattern established
@@ -482,12 +516,14 @@ By end of session:
 - ✅ **Story 1.1 acceptance criteria updated:** 11 → 16 tables documented
 
 **Gate Check Results:**
+
 - **Readiness Score:** 9.8/10 (after fixes)
 - **Status:** ✅ READY FOR IMPLEMENTATION
 - **Validation:** 100% alignment with architectural decisions #33-#37
 - **Report:** docs/implementation-readiness-report-2025-11-05.md
 
 **Schema Changes (2025-11-05 Gate Check):**
+
 1. **Added:** `app_config` table (OpenRouter/Anthropic/OpenAI API key storage)
    - Singleton pattern (one row)
    - Encryption required (see security notes)
@@ -496,6 +532,7 @@ By end of session:
 3. **Updated:** Story 1.1 acceptance criteria in epics.md
 
 **What's Next:**
+
 - Implement schema in Drizzle ORM (16 tables)
 - Seed Phase 1 workflows
 - Test workflow execution manually

@@ -31,6 +31,7 @@ so that the application can manage project lifecycle operations through tRPC pro
 ## Tasks / Subtasks
 
 ### Implementation
+
 - [ ] Create projects router file (AC: 1, 2, 3, 4)
   - [ ] Define input/output schemas with Zod for type safety
   - [ ] Implement `projects.create` procedure with validation
@@ -47,6 +48,7 @@ so that the application can manage project lifecycle operations through tRPC pro
   - [ ] Active agents warning for deletion
 
 ### Testing
+
 - [ ] Test: Create project with valid data succeeds
 - [ ] Test: Create project with duplicate name fails
 - [ ] Test: Create project with invalid path fails
@@ -59,6 +61,7 @@ so that the application can manage project lifecycle operations through tRPC pro
 ## Dev Notes
 
 **Technical Approach:**
+
 - Use tRPC (not plain Hono endpoints) - project uses tRPC for type-safe API layer
 - Project already has `@chiron/api` package with tRPC setup
 - Create new router file: `packages/api/src/routers/projects.ts`
@@ -66,11 +69,13 @@ so that the application can manage project lifecycle operations through tRPC pro
 - Use Drizzle ORM for database operations
 
 **Database Schema Reference (from Story 1.1):**
+
 - Table: `projects` (packages/db/src/schema/core.ts:34-49)
 - Columns: id (uuid), name (text, unique), path (text), level (enum), type (enum), fieldType (enum), createdAt, updatedAt
 - Related table: `project_state` with cascade delete on projects.id
 
 **Validation Requirements:**
+
 1. **Project Name:** Must be unique (database constraint exists)
 2. **Directory Path:**
    - Must be absolute path
@@ -81,11 +86,13 @@ so that the application can manage project lifecycle operations through tRPC pro
    - Validate git status returns successfully
 
 **Cascade Delete Behavior:**
+
 - `project_state` table has `onDelete: "cascade"` for `projectId` foreign key
 - Database will automatically remove related records
 - No manual cleanup needed
 
 **Testing Strategy:**
+
 - Story context states: "No formal test framework configured yet for Epic 1. Use manual verification"
 - Use manual API testing with tools like curl, Postman, or Thunder Client
 - Consider creating simple test script for validation
@@ -124,6 +131,7 @@ so that the application can manage project lifecycle operations through tRPC pro
 ### Project Structure Notes
 
 **API Package Structure:**
+
 ```
 packages/api/
 ├── src/
@@ -135,6 +143,7 @@ packages/api/
 ```
 
 **Database Package Reference:**
+
 - Schema location: `packages/db/src/schema/core.ts`
 - Import: `import { projects, projectState } from "@chiron/db/schema/core"`
 - Database client: Import from `@chiron/db`

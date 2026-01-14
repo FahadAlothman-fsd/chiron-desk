@@ -10,51 +10,45 @@ import { db, workflowSteps } from "@chiron/db";
  * Steps: 3 (Constraints → Wild Ideas → Practical Extraction)
  */
 export async function seedWhatIfScenariosTechnique() {
-	// Query Analyst agent ID (Brainstorming Coach uses Analyst agent)
-	const analystAgent = await db.query.agents.findFirst({
-		where: (agents, { eq }) => eq(agents.name, "analyst"),
-	});
+  // Query Analyst agent ID (Brainstorming Coach uses Analyst agent)
+  const analystAgent = await db.query.agents.findFirst({
+    where: (agents, { eq }) => eq(agents.name, "analyst"),
+  });
 
-	if (!analystAgent) {
-		console.error(
-			"  ❌ Analyst agent not found - cannot seed What If Scenarios workflow",
-		);
-		return;
-	}
+  if (!analystAgent) {
+    console.error("  ❌ Analyst agent not found - cannot seed What If Scenarios workflow");
+    return;
+  }
 
-	// Query existing workflow
-	const workflow = await db.query.workflows.findFirst({
-		where: (workflows, { eq }) => eq(workflows.name, "what-if-scenarios"),
-	});
+  // Query existing workflow
+  const workflow = await db.query.workflows.findFirst({
+    where: (workflows, { eq }) => eq(workflows.name, "what-if-scenarios"),
+  });
 
-	if (!workflow) {
-		console.error(
-			"  ❌ What If Scenarios workflow not found - run workflow seeder first",
-		);
-		return;
-	}
+  if (!workflow) {
+    console.error("  ❌ What If Scenarios workflow not found - run workflow seeder first");
+    return;
+  }
 
-	console.log("  ✓ What If Scenarios workflow found (Analyst agent)");
+  console.log("  ✓ What If Scenarios workflow found (Analyst agent)");
 
-	// Check if steps already exist
-	const existingSteps = await db.query.workflowSteps.findMany({
-		where: (steps, { eq }) => eq(steps.workflowId, workflow.id),
-	});
+  // Check if steps already exist
+  const existingSteps = await db.query.workflowSteps.findMany({
+    where: (steps, { eq }) => eq(steps.workflowId, workflow.id),
+  });
 
-	if (existingSteps.length > 0) {
-		console.log(
-			"  ℹ️  What If Scenarios steps already exist, skipping step seeding",
-		);
-		return;
-	}
+  if (existingSteps.length > 0) {
+    console.log("  ℹ️  What If Scenarios steps already exist, skipping step seeding");
+    return;
+  }
 
-	// ============================================
-	// STEP 1: Identify Current Constraints
-	// ============================================
-	const step1Config: AskUserChatStepConfig = {
-		agentId: analystAgent.id,
-		generateInitialMessage: true,
-		initialPrompt: `You are Carson facilitating What If Scenarios - a technique for radical innovation!
+  // ============================================
+  // STEP 1: Identify Current Constraints
+  // ============================================
+  const step1Config: AskUserChatStepConfig = {
+    agentId: analystAgent.id,
+    generateInitialMessage: true,
+    initialPrompt: `You are Carson facilitating What If Scenarios - a technique for radical innovation!
 
 **Session Context:**
 Topic: {{parent.session_topic}}
@@ -85,42 +79,42 @@ Ask: "What CONSTRAINTS are you working under right now? What limits or assumptio
 
 Be supportive - constraints are normal! We're about to shatter them!`,
 
-		tools: [
-			{
-				name: "capture_constraints",
-				toolType: "update-variable",
-				targetVariable: "current_constraints",
-				description: "Capture current constraints (3-7 major limitations)",
-				usageGuidance:
-					"Once user has identified 3-7 constraints, save them and build excitement: 'Great! Now let's SHATTER these constraints with some wild What If questions! 🚀' Step advances.",
-				requiredVariables: [],
-				requiresApproval: true,
-				valueSchema: {
-					type: "array",
-					items: { type: "string" },
-					description:
-						"List of constraints (e.g., '$5,000 budget', '2-week deadline', 'Must work on mobile')",
-				},
-			},
-		],
+    tools: [
+      {
+        name: "capture_constraints",
+        toolType: "update-variable",
+        targetVariable: "current_constraints",
+        description: "Capture current constraints (3-7 major limitations)",
+        usageGuidance:
+          "Once user has identified 3-7 constraints, save them and build excitement: 'Great! Now let's SHATTER these constraints with some wild What If questions! 🚀' Step advances.",
+        requiredVariables: [],
+        requiresApproval: true,
+        valueSchema: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "List of constraints (e.g., '$5,000 budget', '2-week deadline', 'Must work on mobile')",
+        },
+      },
+    ],
 
-		completionCondition: {
-			type: "all-variables-set",
-			requiredVariables: ["current_constraints"],
-		},
+    completionCondition: {
+      type: "all-variables-set",
+      requiredVariables: ["current_constraints"],
+    },
 
-		outputVariables: {
-			current_constraints: "current_constraints",
-		},
-	};
+    outputVariables: {
+      current_constraints: "current_constraints",
+    },
+  };
 
-	// ============================================
-	// STEP 2: Explore Radical What-Ifs
-	// ============================================
-	const step2Config: AskUserChatStepConfig = {
-		agentId: analystAgent.id,
-		generateInitialMessage: true,
-		initialPrompt: `**Phase 2: WHAT IF...? 🚀**
+  // ============================================
+  // STEP 2: Explore Radical What-Ifs
+  // ============================================
+  const step2Config: AskUserChatStepConfig = {
+    agentId: analystAgent.id,
+    generateInitialMessage: true,
+    initialPrompt: `**Phase 2: WHAT IF...? 🚀**
 
 Current Constraints: {{current_constraints}}
 
@@ -153,59 +147,59 @@ Start energetically: "Let's go WILD! Take your first constraint: {{current_const
 
 Be wildly enthusiastic! Encourage the craziest ideas! "YES! MORE! What else?!"`,
 
-		tools: [
-			{
-				name: "capture_what_if_scenarios",
-				toolType: "update-variable",
-				targetVariable: "what_if_scenarios",
-				description: "Capture what-if scenarios and resulting ideas",
-				usageGuidance:
-					"For EACH constraint, capture the what-if scenario and the wild ideas it generates. Save the full collection and celebrate: 'WOW! Look at these radical possibilities! Now let's find the practical gold! ✨' Step advances.",
-				requiredVariables: [],
-				requiresApproval: true,
-				valueSchema: {
-					type: "array",
-					items: {
-						type: "object",
-						required: ["constraint", "whatIf", "ideas"],
-						properties: {
-							constraint: {
-								type: "string",
-								description: "The original constraint being challenged",
-							},
-							whatIf: {
-								type: "string",
-								description: "The what-if scenario that inverts the constraint",
-							},
-							ideas: {
-								type: "array",
-								description: "Wild ideas generated from this what-if scenario",
-							},
-						},
-					},
-					description:
-						"Array of what-if explorations, each with constraint, what-if question, and resulting wild ideas",
-				},
-			},
-		],
+    tools: [
+      {
+        name: "capture_what_if_scenarios",
+        toolType: "update-variable",
+        targetVariable: "what_if_scenarios",
+        description: "Capture what-if scenarios and resulting ideas",
+        usageGuidance:
+          "For EACH constraint, capture the what-if scenario and the wild ideas it generates. Save the full collection and celebrate: 'WOW! Look at these radical possibilities! Now let's find the practical gold! ✨' Step advances.",
+        requiredVariables: [],
+        requiresApproval: true,
+        valueSchema: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["constraint", "whatIf", "ideas"],
+            properties: {
+              constraint: {
+                type: "string",
+                description: "The original constraint being challenged",
+              },
+              whatIf: {
+                type: "string",
+                description: "The what-if scenario that inverts the constraint",
+              },
+              ideas: {
+                type: "array",
+                description: "Wild ideas generated from this what-if scenario",
+              },
+            },
+          },
+          description:
+            "Array of what-if explorations, each with constraint, what-if question, and resulting wild ideas",
+        },
+      },
+    ],
 
-		completionCondition: {
-			type: "all-variables-set",
-			requiredVariables: ["what_if_scenarios"],
-		},
+    completionCondition: {
+      type: "all-variables-set",
+      requiredVariables: ["what_if_scenarios"],
+    },
 
-		outputVariables: {
-			what_if_scenarios: "what_if_scenarios",
-		},
-	};
+    outputVariables: {
+      what_if_scenarios: "what_if_scenarios",
+    },
+  };
 
-	// ============================================
-	// STEP 3: Extract Actionable Insights
-	// ============================================
-	const step3Config: AskUserChatStepConfig = {
-		agentId: analystAgent.id,
-		generateInitialMessage: true,
-		initialPrompt: `**Phase 3: EXTRACT PRACTICAL INSIGHTS 💡**
+  // ============================================
+  // STEP 3: Extract Actionable Insights
+  // ============================================
+  const step3Config: AskUserChatStepConfig = {
+    agentId: analystAgent.id,
+    generateInitialMessage: true,
+    initialPrompt: `**Phase 3: EXTRACT PRACTICAL INSIGHTS 💡**
 
 Your Wild What-If Scenarios: {{what_if_scenarios}}
 
@@ -239,79 +233,78 @@ Start thoughtfully: "Let's mine for gold! Take your first wild idea - what's the
 
 Be excited about practical discoveries! "YES! That's a brilliant insight we can actually DO!"`,
 
-		tools: [
-			{
-				name: "capture_actionable_insights",
-				toolType: "update-variable",
-				targetVariable: "actionable_insights",
-				description: "Capture practical insights extracted from wild scenarios",
-				usageGuidance:
-					"Capture actionable insights that bridge wild ideas to reality. Once you have 3-5 practical innovations, save and CELEBRATE: 'AMAZING! You just turned wild dreams into practical innovations! These are IDEAS YOU CAN ACTUALLY USE! 🎉' Workflow completes.",
-				requiredVariables: [],
-				requiresApproval: true,
-				valueSchema: {
-					type: "array",
-					items: {
-						type: "object",
-						required: ["wildIdea", "essence", "practical"],
-						properties: {
-							wildIdea: {
-								type: "string",
-								description: "The original wild idea from Step 2",
-							},
-							essence: {
-								type: "string",
-								description: "The core insight or underlying truth",
-							},
-							practical: {
-								type: "string",
-								description: "The actionable smaller version or workaround",
-							},
-						},
-					},
-					description:
-						"Array of insights showing the bridge from wild ideas to practical actions",
-				},
-			},
-		],
+    tools: [
+      {
+        name: "capture_actionable_insights",
+        toolType: "update-variable",
+        targetVariable: "actionable_insights",
+        description: "Capture practical insights extracted from wild scenarios",
+        usageGuidance:
+          "Capture actionable insights that bridge wild ideas to reality. Once you have 3-5 practical innovations, save and CELEBRATE: 'AMAZING! You just turned wild dreams into practical innovations! These are IDEAS YOU CAN ACTUALLY USE! 🎉' Workflow completes.",
+        requiredVariables: [],
+        requiresApproval: true,
+        valueSchema: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["wildIdea", "essence", "practical"],
+            properties: {
+              wildIdea: {
+                type: "string",
+                description: "The original wild idea from Step 2",
+              },
+              essence: {
+                type: "string",
+                description: "The core insight or underlying truth",
+              },
+              practical: {
+                type: "string",
+                description: "The actionable smaller version or workaround",
+              },
+            },
+          },
+          description: "Array of insights showing the bridge from wild ideas to practical actions",
+        },
+      },
+    ],
 
-		completionCondition: {
-			type: "all-variables-set",
-			requiredVariables: ["actionable_insights"],
-		},
+    completionCondition: {
+      type: "all-variables-set",
+      requiredVariables: ["actionable_insights"],
+    },
 
-		outputVariables: {
-			generated_ideas: "practical_innovations", // Final actionable ideas
-		},
-	};
+    outputVariables: {
+      generated_ideas: "practical_innovations", // Final actionable ideas
+    },
+  };
 
-	// Insert all 3 steps
-	await db.insert(workflowSteps).values([
-		{
-			workflowId: workflow.id,
-			stepNumber: 1,
-			goal: "Identify current constraints and assumptions",
-			stepType: "ask-user-chat",
-			config: step1Config,
-			nextStepNumber: 2,
-		},
-		{
-			workflowId: workflow.id,
-			stepNumber: 2,
-			goal: "Generate radical what-if scenarios",
-			stepType: "ask-user-chat",
-			config: step2Config,
-			nextStepNumber: 3,
-		},
-		{
-			workflowId: workflow.id,
-			stepNumber: 3,
-			goal: "Reverse-engineer practical insights from radical ideas",
-			stepType: "ask-user-chat",
-			config: step3Config,
-			nextStepNumber: null, // Final step
-		},
-	]);
+  // Insert all 3 steps
+  await db.insert(workflowSteps).values([
+    {
+      workflowId: workflow.id,
+      stepNumber: 1,
+      goal: "Identify current constraints and assumptions",
+      stepType: "ask-user-chat",
+      config: step1Config,
+      nextStepNumber: 2,
+    },
+    {
+      workflowId: workflow.id,
+      stepNumber: 2,
+      goal: "Generate radical what-if scenarios",
+      stepType: "ask-user-chat",
+      config: step2Config,
+      nextStepNumber: 3,
+    },
+    {
+      workflowId: workflow.id,
+      stepNumber: 3,
+      goal: "Reverse-engineer practical insights from radical ideas",
+      stepType: "ask-user-chat",
+      config: step3Config,
+      nextStepNumber: null, // Final step
+    },
+  ]);
 
-	console.log("  ✓ Step 1-3: Constraints → Wild Ideas → Practical Extraction");
+  console.log("  ✓ Step 1-3: Constraints → Wild Ideas → Practical Extraction");
 }

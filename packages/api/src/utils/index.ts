@@ -2,9 +2,4 @@
  * Utility Functions
  */
 
-export {
-	extractValues,
-	getValueByPath,
-	hasPath,
-	setValueByPath,
-} from "./json-path";
+export { extractValues, getValueByPath, hasPath, setValueByPath } from "./json-path";

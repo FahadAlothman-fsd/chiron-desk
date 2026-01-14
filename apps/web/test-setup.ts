@@ -18,9 +18,9 @@ global.HTMLElement = window.HTMLElement;
 global.Element = window.Element;
 
 beforeAll(() => {
-	console.log("✅ DOM environment initialized with happy-dom");
+  console.log("✅ DOM environment initialized with happy-dom");
 });
 
 afterAll(() => {
-	// Cleanup
+  // Cleanup
 });

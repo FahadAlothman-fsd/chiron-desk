@@ -10,6 +10,7 @@
 
 **Session Goals:**
 Explore four critical aspects:
+
 1. Interactive question/answer/refine UX pattern
 2. **How to implement BMAD workflows within a project management context** (PRIMARY FOCUS)
 3. Balance between BMM/CIS modules and traditional PM features
@@ -34,6 +35,7 @@ Explore four critical aspects:
 **Goal:** Understand BMAD workflow engine fundamentals
 
 **Process:**
+
 - Started with understanding workflow-init workflow execution
 - Asked BMAD agent 10 detailed implementation questions
 - Received complete execution pseudocode, state management details, variable resolution flow
@@ -42,6 +44,7 @@ Explore four critical aspects:
 
 **Fundamental Truth #1: Three-File Minimum**
 Every workflow needs:
+
 1. workflow.yaml - Configuration, variables, file paths
 2. instructions.md - Execution steps with XML tags
 3. config.yaml - Project context, user settings
@@ -49,6 +52,7 @@ Every workflow needs:
 
 **Fundamental Truth #2: Variable Resolution Chain**
 4-level precedence:
+
 1. user_responses (from `<ask>` tags) - Highest priority
 2. workflow.yaml variables - Medium priority
 3. system_variables (date, paths) - Low priority
@@ -56,6 +60,7 @@ Every workflow needs:
 
 **Fundamental Truth #3: Sequential Step Execution**
 Engine processes steps (n=1, n=2, n=3...) with XML tag handlers:
+
 - `<action>` → Execute immediately
 - `<ask>` → Prompt user, HALT until response
 - `<invoke-workflow>` → Call child workflow, manage call stack
@@ -64,11 +69,13 @@ Engine processes steps (n=1, n=2, n=3...) with XML tag handlers:
 - `<elicit-required>` → Enhancement loop with CSV-driven methods
 
 **Fundamental Truth #4: Two Workflow Types**
+
 - Template workflows (`template: true`) → Create/edit files
 - Action workflows (`template: false`) → Perform actions, no file output
 
 **Fundamental Truth #5: Workflow Communication**
 Via `<invoke-workflow>` with call stack management:
+
 - Parent state saved to call stack
 - Child inherits parent variables
 - Child returns template-output values
@@ -76,6 +83,7 @@ Via `<invoke-workflow>` with call stack management:
 
 **Fundamental Truth #6: Status as Central Coordinator**
 `workflow-status.md` (→ DB table in Chiron) is single source of truth:
+
 - Stores current phase, workflow, next action
 - Other workflows read (validate mode) and update (update mode)
 - Acts as both workflow and service
@@ -86,34 +94,42 @@ Optional validation runs at workflow completion before marking done
 **Implementation Insights from BMAD Agent:**
 
 **WorkflowState Object:**
+
 ```typescript
 {
   // Execution tracking
-  current_step: number
-  yolo_mode: boolean
+  current_step: number;
+  yolo_mode: boolean;
 
   // Variable management (4-level precedence)
-  variables: {}           // workflow.yaml
-  user_responses: {}      // <ask> tags
-  system_variables: {}    // date, paths
-  inherited_vars: {}      // from parent
+  variables: {
+  } // workflow.yaml
+  user_responses: {
+  } // <ask> tags
+  system_variables: {
+  } // date, paths
+  inherited_vars: {
+  } // from parent
 
   // Workflow invocation
-  call_stack: []          // nested workflows
-  return_values: {}       // child outputs
-  parent_workflow: {}     // parent reference
+  call_stack: []; // nested workflows
+  return_values: {
+  } // child outputs
+  parent_workflow: {
+  } // parent reference
 
   // File & content
-  output_file: string
-  current_content: string
+  output_file: string;
+  current_content: string;
 
   // Error handling
-  rollback_points: []
-  errors: []
+  rollback_points: [];
+  errors: [];
 }
 ```
 
 **Execution Loop Pseudocode:**
+
 ```python
 while current_step <= total_steps:
   step = instructions.steps[current_step - 1]
@@ -136,6 +152,7 @@ while current_step <= total_steps:
 ```
 
 **Insights Generated:**
+
 - BMAD workflows are markdown with embedded XML, not pure XML
 - State management is central - all execution flows through WorkflowState
 - Modules are just workflow collections + data seeded into DB
@@ -159,7 +176,7 @@ while current_step <= total_steps:
 2. **Data Layer** (Seeded from BMAD)
    - Workflows (from workflow-manifest.csv)
    - Agents (from agent-manifest.csv)
-   - Techniques (from *-methods.csv)
+   - Techniques (from \*-methods.csv)
    - Patterns (from pattern-categories.csv)
    - Runtime State (projects, stories, artifacts)
 
@@ -193,7 +210,8 @@ while current_step <= total_steps:
 ## Idea Categorization
 
 ### Immediate Opportunities
-*Ideas ready to implement now*
+
+_Ideas ready to implement now_
 
 1. **Build WorkflowEngine core class**
    - Implement WorkflowState type
@@ -217,7 +235,8 @@ while current_step <= total_steps:
    - Maps to BMAD's `<ask>` tag handling
 
 ### Future Innovations
-*Ideas requiring development/research*
+
+_Ideas requiring development/research_
 
 1. **Interactive artifact refinement UI**
    - Real-time preview as user answers questions
@@ -241,7 +260,8 @@ while current_step <= total_steps:
    - Elicitation loop implementation
 
 ### Moonshots
-*Ambitious, transformative concepts*
+
+_Ambitious, transformative concepts_
 
 1. **Module builder UI**
    - Users create custom workflows via web interface
@@ -260,7 +280,8 @@ while current_step <= total_steps:
    - Auto-generate stories from minimal input
 
 ### Insights and Learnings
-*Key realizations from the session*
+
+_Key realizations from the session_
 
 1. **Chiron is fundamentally different from Linear/Jira**
    - Not just PM + AI features
@@ -293,6 +314,7 @@ while current_step <= total_steps:
 Foundation for everything else. Without the engine, nothing works. This validates the entire architecture before committing to more features.
 
 **Next Steps:**
+
 1. Design WorkflowState TypeScript type/class with all fields from BMAD agent's spec
 2. Implement variable resolver with 4-level precedence (user_responses → variables → system_variables → inherited_vars)
 3. Build step processor that parses instructions and executes tags sequentially
@@ -300,6 +322,7 @@ Foundation for everything else. Without the engine, nothing works. This validate
 5. Write tests for execution loop with mock workflow data
 
 **Resources Needed:**
+
 - BMAD agent's execution pseudocode (already captured)
 - TypeScript/Node.js environment
 - Test framework (Vitest recommended)
@@ -314,6 +337,7 @@ Foundation for everything else. Without the engine, nothing works. This validate
 First complete module proves the architecture works end-to-end. BMM is the core orchestrator for Chiron, so it must work first before adding CIS or custom workflows.
 
 **Next Steps:**
+
 1. Design database schema using Drizzle ORM (workflows, agents, techniques, patterns, projects, workflow_status, stories, epics)
 2. Write seed scripts to parse BMAD CSV files (workflow-manifest.csv, agent-manifest.csv, brain-methods.csv, pattern-categories.csv)
 3. Insert BMM workflows, agents, and data into database
@@ -321,7 +345,8 @@ First complete module proves the architecture works end-to-end. BMM is the core 
 5. Test complete flow: create project → execute workflow-init → generate workflow status
 
 **Resources Needed:**
-- BMAD CSV files from /bmad/bmm/ and /bmad/_cfg/
+
+- BMAD CSV files from /bmad/bmm/ and /bmad/\_cfg/
 - PostgreSQL database
 - Drizzle ORM
 - CSV parsing library
@@ -336,6 +361,7 @@ First complete module proves the architecture works end-to-end. BMM is the core 
 This is Chiron's core differentiator over BMAD CLI. The interactive Q&A pattern transforms workflow execution from terminal-based to collaborative and visual. This is the "added value" that makes Chiron worth building.
 
 **Next Steps:**
+
 1. Design QuestionDialog component with Answer/Refine/Skip actions
 2. Build InteractiveList component that renders questions with contextual actions
 3. Implement ArtifactPreview component with real-time markdown rendering
@@ -343,6 +369,7 @@ This is Chiron's core differentiator over BMAD CLI. The interactive Q&A pattern 
 5. Test with brainstorming workflow (technique selection + facilitation prompts)
 
 **Resources Needed:**
+
 - React + TypeScript
 - Radix UI or shadcn/ui for dialogs
 - Markdown renderer (react-markdown)
@@ -385,19 +412,22 @@ When ready for next brainstorming session:
 ### Next Session Planning
 
 **Suggested Topics:**
+
 - After implementing workflow engine core: Brainstorm error handling and recovery strategies
 - After building first Q&A UI: Explore artifact refinement UX variations
 - Before implementing agents: Brainstorm agent orchestration patterns and communication
 
 **Recommended Timeframe:**
+
 - Week 3-4 of implementation (after core engine + BMM seeding complete)
 - Or when hitting specific architecture decision points
 
 **Preparation Needed:**
+
 - Have working workflow-init execution
 - Screenshots of first Q&A UI implementation
 - List of questions/blockers encountered during implementation
 
 ---
 
-*Session facilitated using the BMAD CIS brainstorming framework*
+_Session facilitated using the BMAD CIS brainstorming framework_

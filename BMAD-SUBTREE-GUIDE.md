@@ -152,6 +152,7 @@ bmad-source/tools/cli/
 This folder is managed by git subtree. Changes here should come from upstream BMAD only.
 
 **If you need to modify:**
+
 1. Fork BMAD on GitHub
 2. Make changes in your fork
 3. Update the subtree remote to your fork
@@ -162,6 +163,7 @@ This folder is managed by git subtree. Changes here should come from upstream BM
 Your `bmad/` installation is managed by `npx bmad-method`. Don't manually sync it with `bmad-source/`.
 
 **Update process:**
+
 1. Update bmad-source/ with subtree pull
 2. Review changes
 3. When ready, upgrade bmad/ installation with npx
@@ -189,30 +191,30 @@ grep -r "config_source" bmad-source/src/core/
 
 ```typescript
 // Import BMAD types/schemas
-import { WorkflowSchema } from '../bmad-source/src/core/types'
+import { WorkflowSchema } from "../bmad-source/src/core/types";
 
 // Reference BMAD patterns
 const workflowStructure = {
   // Based on bmad-source/src/core/workflow.schema.yaml
-}
+};
 ```
 
 ### 4. Asking Claude About BMAD
 
 > "How does BMAD handle step execution in workflow.xml?"
-> 
+>
 > Claude can now read: `bmad-source/src/core/tasks/workflow.xml`
 
 ---
 
 ## 📊 Version Comparison
 
-| Aspect | alpha.9 (Installed) | alpha.12 (Source) |
-|--------|---------------------|-------------------|
-| **Location** | `bmad/` | `bmad-source/` |
-| **Purpose** | Runtime | Reference |
-| **Updated** | Manual (npx) | Git subtree |
-| **Modified** | Yes (your config) | No (upstream only) |
+| Aspect       | alpha.9 (Installed) | alpha.12 (Source)  |
+| ------------ | ------------------- | ------------------ |
+| **Location** | `bmad/`             | `bmad-source/`     |
+| **Purpose**  | Runtime             | Reference          |
+| **Updated**  | Manual (npx)        | Git subtree        |
+| **Modified** | Yes (your config)   | No (upstream only) |
 
 ---
 

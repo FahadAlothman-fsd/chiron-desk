@@ -13,5 +13,5 @@ config({ path: envPath });
 
 // Verify DATABASE_URL is loaded
 if (!process.env.DATABASE_URL) {
-	throw new Error(`DATABASE_URL not found. Checked: ${envPath}`);
+  throw new Error(`DATABASE_URL not found. Checked: ${envPath}`);
 }

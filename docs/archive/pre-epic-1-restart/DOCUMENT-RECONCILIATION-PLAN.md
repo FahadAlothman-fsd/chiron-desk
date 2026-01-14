@@ -37,6 +37,7 @@ We have **TWO conflicting schema documents** with major differences:
    - ✅ Correct step types
 
 **Current File Locations:**
+
 ```
 docs/architecture/
 ├── database-schema-final.md ❌ (EXISTS - outdated)
@@ -58,33 +59,41 @@ docs/architecture/
 **Actions:**
 
 1. **Create archive directory:**
+
    ```bash
    mkdir -p docs/archive/pre-epic-1-restart
    ```
 
 2. **Archive outdated schema doc:**
+
    ```bash
    git mv docs/architecture/database-schema-final.md docs/archive/pre-epic-1-restart/database-schema-final-OLD-2025-11-05.md
    ```
 
 3. **Archive redundant architecture docs:**
+
    ```bash
    git mv docs/architecture-foundations.md docs/archive/pre-epic-1-restart/
    git mv docs/architecture-summary.md docs/archive/pre-epic-1-restart/
    ```
+
    - **Keep:** `docs/architecture-decisions.md` (canonical ADR log)
 
 4. **Archive outdated session guides:**
+
    ```bash
    git mv docs/NEXT-SESSION-2025-11-06.md docs/archive/pre-epic-1-restart/
    git mv docs/next-session-guide.md docs/archive/pre-epic-1-restart/
    ```
+
    - **Keep:** `docs/SESSION-SUMMARY-2025-11-06.md` (latest context)
 
 5. **Archive old seed examples:**
+
    ```bash
    git mv docs/architecture/seed-data-examples.md docs/archive/pre-epic-1-restart/
    ```
+
    - **Reason:** Will be replaced by seed data in CANONICAL-WORKFLOW-SCHEMA.md
 
 6. **Archive ALL Epic 1 stories (written against old schema):**
@@ -95,9 +104,11 @@ docs/architecture/
    git mv docs/sprint-artifacts/1-3-project-crud-operations.md docs/archive/pre-epic-1-restart/
    git mv docs/sprint-artifacts/1-3-project-crud-operations.context.xml docs/archive/pre-epic-1-restart/
    ```
+
    - **Reason:** Stories reference old schema with enums, missing tables, wrong assumptions
 
 **Files Archived (11 total):**
+
 - database-schema-final-OLD-2025-11-05.md
 - architecture-foundations.md
 - architecture-summary.md
@@ -121,6 +132,7 @@ docs/architecture/
 **Actions:**
 
 1. **Rename workflow-schema-snapshot.md to CANONICAL-WORKFLOW-SCHEMA.md:**
+
    ```bash
    # Current file: docs/architecture/workflow-schema-snapshot.md
    # Target file: docs/architecture/CANONICAL-WORKFLOW-SCHEMA.md
@@ -154,9 +166,10 @@ docs/architecture/
    Find and replace at the bottom (Lines 1658-1663):
 
    **OLD:**
+
    ```markdown
    ## References
-   
+
    - **Workflow Engine Design Brief:** `/docs/workflow-engine-design-brief.md`
    - **Workflow Engine Structure:** `/docs/workflow-engine-structure.md`
    - **PRD:** `/docs/PRD.md` (FR001-FR045)
@@ -164,9 +177,10 @@ docs/architecture/
    ```
 
    **NEW:**
+
    ```markdown
    ## References
-   
+
    - **Workflow Engine Design Brief:** `docs/workflow-engine-design-brief.md`
    - **Workflow Engine Structure:** `docs/workflow-engine-structure.md`
    - **PRD:** `docs/PRD.md` (FR001-FR045)
@@ -176,7 +190,7 @@ docs/architecture/
 
 ---
 
-### **PHASE 3: ~~Update Story Context Files~~** 
+### **PHASE 3: ~~Update Story Context Files~~**
 
 **SKIPPED** - All stories archived in Phase 1, will be rewritten fresh after canonical schema verified
 
@@ -209,27 +223,32 @@ This directory contains all project documentation organized by purpose.
 **All agents and developers MUST reference these documents:**
 
 ### Product Definition
+
 - **`PRD.md`** - Product Requirements Document (FR001-FR045)
 - **`epics.md`** - Epic breakdown with story details
 
 ### Architecture
+
 - **`architecture/CANONICAL-WORKFLOW-SCHEMA.md`** - Database schema (SINGLE SOURCE OF TRUTH)
 - **`architecture-decisions.md`** - Architectural Decision Records (ADR log)
 - **`workflow-engine-design-brief.md`** - Workflow engine design
 - **`workflow-engine-structure.md`** - Workflow step types and patterns
 
 ### Implementation Status
+
 - **`workflow-status.yaml`** - Current workflow state (v6-main format)
 - **`sprint-status.yaml`** - Sprint tracking with story states
 - **`stories/*.md`** - Individual story definitions
 - **`stories/*.context.xml`** - Story context for agents
 
 ### Design
+
 - **`ux-design-specification.md`** - UX design patterns
 - **`chiron-ui-wireframes-v1.md`** - UI wireframes
 - **`design/ux-design-directions.html`** - Interactive design directions
 
 ### Session Context
+
 - **`SESSION-SUMMARY-2025-11-06.md`** - Latest session summary (updated each session)
 
 ---
@@ -254,6 +273,7 @@ This directory contains all project documentation organized by purpose.
 **ONLY use:** `architecture/CANONICAL-WORKFLOW-SCHEMA.md`
 
 **Key Schema Features:**
+
 - ✅ NO PostgreSQL enums for project level/type/field
 - ✅ JSONB `tags` in `workflow_paths` for dynamic filtering
 - ✅ `executedVsPath` in `projects` table (project-level progress)
@@ -261,6 +281,7 @@ This directory contains all project documentation organized by purpose.
 - ✅ 16 tables total (including `workflow_templates`, `dialog_sessions`)
 
 **Contradictions Resolved:**
+
 - `database-schema-final.md` archived (outdated, had enums)
 - `architecture-foundations.md` archived (redundant)
 - `architecture-summary.md` archived (redundant)
@@ -268,6 +289,7 @@ This directory contains all project documentation organized by purpose.
 ### For Story Context
 
 **Story context files (`.context.xml`) reference:**
+
 - `CANONICAL-WORKFLOW-SCHEMA.md` for schema
 - `PRD.md` for requirements
 - `architecture-decisions.md` for ADRs
@@ -275,17 +297,18 @@ This directory contains all project documentation organized by purpose.
 ---
 
 ## 📖 Document Relationships
-
 ```
+
 PRD.md (requirements)
-  ↓
+↓
 epics.md (story breakdown)
-  ↓
-stories/*.md (implementation)
-  ↓
-stories/*.context.xml (agent context)
-  ↑
+↓
+stories/_.md (implementation)
+↓
+stories/_.context.xml (agent context)
+↑
 CANONICAL-WORKFLOW-SCHEMA.md (schema reference)
+
 ```
 
 ---
@@ -316,7 +339,7 @@ CANONICAL-WORKFLOW-SCHEMA.md (schema reference)
 
 ---
 
-_Document structure established: 2025-11-06_  
+_Document structure established: 2025-11-06_
 _Next: Epic 1 restart with clean canonical references_
 ```
 
@@ -332,16 +355,16 @@ _Next: Epic 1 restart with clean canonical references_
 
 ```yaml
 # Current State (UPDATE these lines)
-status: epic-1-ready  # CHANGED from "story-1-3-in-progress"
+status: epic-1-ready # CHANGED from "story-1-3-in-progress"
 
 # Implementation Tracking (UPDATE these lines)
 epic_status:
-  epic-1: not-started  # CHANGED from "in-progress"
+  epic-1: not-started # CHANGED from "in-progress"
 
 story_status:
-  1-1-database-schema-design-and-migration-system: not-started  # CHANGED from "done"
-  1-2-bmad-workflow-seeding-system: not-started  # CHANGED from "done"
-  1-3-project-crud-operations: not-started  # CHANGED from "in-progress"
+  1-1-database-schema-design-and-migration-system: not-started # CHANGED from "done"
+  1-2-bmad-workflow-seeding-system: not-started # CHANGED from "done"
+  1-3-project-crud-operations: not-started # CHANGED from "in-progress"
   # Stories 1-4 through 1-6 remain "backlog"
 
 # Key Artifacts (UPDATE this section)
@@ -350,7 +373,7 @@ artifacts:
   prd: docs/PRD.md
   epics: docs/epics.md
   architecture_decisions: docs/architecture-decisions.md
-  canonical_schema: docs/architecture/CANONICAL-WORKFLOW-SCHEMA.md  # ADDED
+  canonical_schema: docs/architecture/CANONICAL-WORKFLOW-SCHEMA.md # ADDED
   # REMOVED: architecture_summary (archived)
   sprint_status: docs/sprint-status.yaml
 
@@ -383,19 +406,21 @@ notes: |
 ```yaml
 development_status:
   # Epic 1: Core Infrastructure & Database Foundation
-  epic-1: backlog  # UNCHANGED - correct state
-  1-1-database-schema-design-and-migration-system: backlog  # CHANGED from "done"
-  1-2-bmad-workflow-seeding-system: backlog  # CHANGED from "done"
-  1-3-project-crud-operations: backlog  # CHANGED from "in-progress"
-  1-4-workflow-init-conversational-setup: backlog  # UNCHANGED
-  1-5-workflow-execution-engine-simplified: backlog  # UNCHANGED
-  1-6-git-repository-validation: backlog  # UNCHANGED
-  epic-1-retrospective: optional  # UNCHANGED
-  
+  epic-1: backlog # UNCHANGED - correct state
+  1-1-database-schema-design-and-migration-system: backlog # CHANGED from "done"
+  1-2-bmad-workflow-seeding-system: backlog # CHANGED from "done"
+  1-3-project-crud-operations: backlog # CHANGED from "in-progress"
+  1-4-workflow-init-conversational-setup: backlog # UNCHANGED
+  1-5-workflow-execution-engine-simplified: backlog # UNCHANGED
+  1-6-git-repository-validation: backlog # UNCHANGED
+  epic-1-retrospective: optional # UNCHANGED
+
+
   # All other epics remain unchanged
 ```
 
 **Rationale:**
+
 - "backlog" means "story only exists in epic file" per sprint-status.yaml definitions
 - After archiving story files, stories only exist in epics.md
 - This is the correct state for a fresh start
@@ -519,11 +544,13 @@ docs/
 ## 🚀 NEXT STEPS (After Reconciliation)
 
 ### **Immediate:**
+
 1. ✅ Complete this reconciliation plan (all 7 phases)
 2. ✅ Git commit changes
 3. ✅ Verify clean state (no stories in docs/sprint-artifacts/, tracking reset)
 
 ### **Next Session with Architect:**
+
 1. Load `docs/architecture/CANONICAL-WORKFLOW-SCHEMA.md`
 2. Discuss remaining questions:
    - Resolve `load-context` vs `branch` step type naming
@@ -532,11 +559,13 @@ docs/
 3. Get Architect's approval on schema before Story 1.1 implementation
 
 ### **Then: Rewrite Stories (with PM/Analyst):**
+
 1. **Story 1.1:** Rewrite based on CANONICAL-WORKFLOW-SCHEMA.md (16 tables, no enums, JSONB tags)
 2. **Story 1.2:** Rewrite for workflow seeding (correct path names: `method-greenfield`)
 3. **Story 1.3:** Rewrite for Projects API (includes executedVsPath, tags, no enums)
 
 ### **Then: Epic 1 Implementation (Fresh Start)**
+
 1. **Story 1.1:** Implement schema from canonical document
 2. **Story 1.2:** Seed workflows using verified schema
 3. **Story 1.3:** Build Projects API with correct schema
@@ -554,6 +583,7 @@ docs/
 > "Please read `docs/DOCUMENT-RECONCILIATION-PLAN.md` and summarize what will be done in each phase. Do NOT execute yet, I want to review first."
 
 **Key Points for Agent:**
+
 - Archive 11 files (6 docs + 5 stories)
 - Rename workflow-schema-snapshot.md → CANONICAL-WORKFLOW-SCHEMA.md
 - Reset workflow-status.yaml (Epic 1 to not-started)
@@ -567,15 +597,18 @@ docs/
 ## 🔗 REFERENCES
 
 **This Session:**
+
 - Full audit report in chat history
 - 9 contradictions identified and resolved
 - 4 critical, 2 moderate, 3 minor
 
 **Files BEFORE Reconciliation:**
+
 - `docs/architecture/workflow-schema-snapshot.md` - CURRENT schema (will be renamed)
 - `docs/architecture/database-schema-final.md` - OLD schema (will be archived)
 
 **Canonical Documents (AFTER Reconciliation):**
+
 - `docs/architecture/CANONICAL-WORKFLOW-SCHEMA.md` - Schema source of truth (RENAMED from workflow-schema-snapshot.md)
 - `docs/PRD.md` - Requirements
 - `docs/epics.md` - Story breakdown
@@ -583,6 +616,7 @@ docs/
 - `docs/SESSION-SUMMARY-2025-11-06.md` - Latest context
 
 **Archived (Historical Context Only):**
+
 - `docs/archive/pre-epic-1-restart/` - Old documents (DO NOT USE for implementation)
 
 ---
@@ -598,7 +632,7 @@ docs/
 ## 📋 PHASE SUMMARY
 
 1. **Phase 1:** Archive 11 files (6 docs + 5 stories) - 7 min
-2. **Phase 2:** Rename to CANONICAL-WORKFLOW-SCHEMA.md - 3 min  
+2. **Phase 2:** Rename to CANONICAL-WORKFLOW-SCHEMA.md - 3 min
 3. **Phase 3:** SKIPPED (stories archived)
 4. **Phase 4:** Create docs/README.md - 5 min
 5. **Phase 5:** Reset workflow-status.yaml - 3 min

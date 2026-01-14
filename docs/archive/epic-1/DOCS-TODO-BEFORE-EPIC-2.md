@@ -23,6 +23,7 @@
 **File**: `/docs/architecture/CANONICAL-WORKFLOW-SCHEMA.md`
 
 **Changes Needed**:
+
 - [ ] Update execute-action step structure (around line 870)
   - Change from single `action` to `actions[]` array
   - Add `requiresUserConfirmation: boolean`
@@ -42,22 +43,26 @@
 **File**: `/docs/architecture/tool-types-reference.md` (NEW)
 
 **Content**:
+
 ```markdown
 # Tool Types Reference
 
 ## 1. ax-generation
+
 - LLM-powered generation/classification
 - Input schema: z.object({}) - NO agent inputs (all from context)
 - Uses Ax signatures
 - Example: complexity classification, workflow path selection
 
-## 2. update-variable  
+## 2. update-variable
+
 - Agent-powered direct updates
 - Input schema: z.object({ value, reasoning })
 - Agent extracts from conversation and passes value
 - Example: project description, project name
 
 ## 3. Future Types
+
 - database-query
 - custom (deprecated)
 ```
@@ -71,16 +76,15 @@
 **File**: `/docs/architecture/dynamic-tool-options.md`
 
 **Add Sections**:
+
 - [ ] **Section: Token Optimization with `selectFields`**
   - What: Filter JSON data before LLM
   - Why: Reduce tokens 50-80%
   - Example with workflow_paths
-  
 - [ ] **Section: Field-Level Class Sources with `classesFrom`**
   - What: Configure class source per output field
   - Why: More flexible than tool-level classSource
   - Example with multiple class outputs
-  
 - [ ] **Section: Derived Variables with `extractFrom`** (THE BIG ONE)
   - What: Extract related fields without LLM
   - Why: Deterministic, no hallucination, human-readable
@@ -99,6 +103,7 @@
 **File**: `/docs/architecture/step-types-reference.md` (NEW)
 
 **Content**: Document all 4 step types with examples
+
 - ask-user-chat
 - display-input
 - execute-action
@@ -111,6 +116,7 @@
 **File**: `/docs/architecture/approval-rejection-system.md` (NEW)
 
 **Content**: Move REJECTION-SYSTEM-FINAL.md into docs/architecture and expand
+
 - Timeline pattern
 - State management
 - Forced regeneration
@@ -123,6 +129,7 @@
 **File**: `/docs/architecture/variable-resolution.md` (NEW)
 
 **Content**:
+
 - Template syntax: `{{variable}}`
 - Resolution order: execution vars → approval states → derived values
 - Where it's used: file paths, content, git messages, display templates

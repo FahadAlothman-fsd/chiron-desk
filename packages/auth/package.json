@@ -1,29 +1,29 @@
 {
-	"name": "@chiron/auth",
-	"exports": {
-		".": {
-			"types": "./dist/index.d.ts",
-			"default": "./src/index.ts"
-		},
-		"./*": {
-			"types": "./dist/*.d.ts",
-			"default": "./src/*.ts"
-		}
-	},
-	"type": "module",
-	"scripts": {
-		"build": "tsdown"
-	},
-	"devDependencies": {
-		"tsdown": "catalog:"
-	},
-	"peerDependencies": {
-		"typescript": "^5"
-	},
-	"dependencies": {
-		"better-auth": "catalog:",
-		"dotenv": "catalog:",
-		"zod": "catalog:",
-		"@chiron/db": "workspace:*"
-	}
+  "name": "@chiron/auth",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "default": "./src/*.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsdown"
+  },
+  "dependencies": {
+    "@chiron/db": "workspace:*",
+    "better-auth": "catalog:",
+    "dotenv": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "tsdown": "catalog:"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
 }

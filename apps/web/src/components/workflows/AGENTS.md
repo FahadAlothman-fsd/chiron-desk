@@ -24,13 +24,13 @@ workflows/
 
 ## WHERE TO LOOK
 
-| Task | Location |
-|------|----------|
-| Add step type | `steps/` new file + register in `step-renderer.tsx` switch |
-| Add layout type | `layouts/` new file + register in `workflow-layout-renderer.tsx` |
-| Modify step props | Step component + `StepRendererProps` interface |
-| Change approval UI | `option-card/` or `approval-card*.tsx` |
-| Modify timeline | `timeline.tsx`, `timeline-*.tsx` variants |
+| Task               | Location                                                         |
+| ------------------ | ---------------------------------------------------------------- |
+| Add step type      | `steps/` new file + register in `step-renderer.tsx` switch       |
+| Add layout type    | `layouts/` new file + register in `workflow-layout-renderer.tsx` |
+| Modify step props  | Step component + `StepRendererProps` interface                   |
+| Change approval UI | `option-card/` or `approval-card*.tsx`                           |
+| Modify timeline    | `timeline.tsx`, `timeline-*.tsx` variants                        |
 
 ## PATTERNS
 
@@ -61,6 +61,7 @@ case "my-new-step":
 ### Step Props Contract
 
 All steps receive from `StepRenderer`:
+
 - `step.config` - Step-specific configuration from DB
 - `execution.id` - Current execution ID
 - `execution.variables` - Workflow state variables
@@ -69,6 +70,7 @@ All steps receive from `StepRenderer`:
 ### Layout Selection
 
 `workflow-layout-renderer.tsx` reads `workflow.metadata.layoutType`:
+
 - `"wizard"` → Linear stepper, no split pane
 - `"artifact-workbench"` → Timeline + ArtifactPreview split (default)
 - `"dialog"` → Modal overlay (auto-applied when `dialogProps` provided)

@@ -17,6 +17,7 @@
 ## What Was Accomplished This Session
 
 ### ✅ Architecture Decisions (5/5 Critical)
+
 1. **Database ORM:** Drizzle
 2. **API Pattern:** tRPC with Hono
 3. **Real-Time:** SSE + tRPC HTTP
@@ -24,18 +25,21 @@
 5. **Git Operations:** simple-git
 
 ### ✅ Key Outputs
+
 - `architecture-decisions.md` - All decisions documented
 - `framework-evaluation-effect-vs-mastra.md` - Deferred to Epic 3
 - `architecture-summary.md` - Implementation-ready overview
 - `bmm-workflow-status.md` - Updated with architecture progress
 
 ### ✅ Novel Patterns Identified
+
 1. Multi-agent git worktree orchestration
 2. Git-database dual-tracking with divergence detection
 3. Cross-agent conflict resolution (3 strategies)
 4. Workflow-as-data execution
 
 ### ✅ Framework Evaluation
+
 - **Effect:** Deferred to Epic 3+ (structured concurrency/error handling)
 - **Mastra:** Deferred to Epic 3 (agent orchestration evaluation)
 - **Decision:** Test core patterns first with current stack
@@ -45,6 +49,7 @@
 ## Critical Issue Discovered
 
 **Problem:** User wants to test **Artifact Workbench + Chat Patterns** FIRST, but current epic sequence has them in:
+
 - Artifact Workbench → Epic 4 (week 6+)
 - Chat Patterns → Epic 7 (week 12+)
 
@@ -55,6 +60,7 @@
 ## Epic Resequencing Required
 
 ### Current Epic Order (17.5 weeks)
+
 1. Epic 1: Core Infrastructure & Database (2w)
 2. Epic 2: Git Worktree Management (1.5w)
 3. Epic 3: Multi-Agent Orchestration (3w)
@@ -71,6 +77,7 @@
 **Goal:** Build vertical slice proving visual UX > CLI for BMAD workflows
 
 **Scope:**
+
 1. **Minimal Database**
    - `workflows` table (seed product-brief workflow only)
    - `project_artifacts` table (store generated artifacts)
@@ -99,6 +106,7 @@
    - Track commit hash in database (dual-tracking pattern)
 
 **Success Criteria:**
+
 - User completes product-brief workflow in Artifact Workbench
 - PRD artifact generated with chat-based interaction
 - Git commit hash tracked in database
@@ -112,13 +120,16 @@
 ## What Needs to Happen Next Session
 
 ### Option A: Define Epic 0 (Recommended)
+
 1. Break Epic 0 into 6-8 stories (vertical slices)
 2. Estimate effort (1-2 weeks realistic?)
 3. Define story acceptance criteria
 4. Start implementation immediately
 
 ### Option B: Resequence Epic 1
+
 Merge Artifact Workbench + Chat Pattern into Epic 1:
+
 - Keep Epic 1 stories 1.1-1.2 (DB + seeding)
 - Add Epic 1.3: Artifact Workbench UI (from Epic 4)
 - Add Epic 1.4: Sequential Dependencies Pattern (from Epic 7)
@@ -126,6 +137,7 @@ Merge Artifact Workbench + Chat Pattern into Epic 1:
 - Keep Epic 1.6: Git validation
 
 ### Option C: Start Epic 1 As-Is
+
 Accept that thesis validation happens late (not recommended)
 
 ---
@@ -152,12 +164,14 @@ Accept that thesis validation happens late (not recommended)
 ## Recommended Next Steps
 
 **Immediate (Next Session):**
+
 1. Review Epic 0 definition
 2. Decide: Epic 0 or resequenced Epic 1
 3. Define stories for chosen approach
 4. Start implementation
 
 **Commands to Run:**
+
 ```bash
 # Option A: Continue architecture (if more decisions needed)
 /bmad:bmm:workflows:architecture

@@ -16,19 +16,17 @@ import { createLegacyUserFormHandler } from "./step-handlers/user-form-handler";
 // Placeholder handlers for Story 1.4 (actual implementations in future stories)
 // These handlers will auto-advance using nextStepNumber
 class PlaceholderStepHandler implements StepHandler {
-	constructor(private stepType: string) {}
+  constructor(private stepType: string) {}
 
-	async executeStep(step: any, _context: any, _userInput?: unknown) {
-		console.warn(
-			`Placeholder handler for step type: ${this.stepType} (step ${step.stepNumber})`,
-		);
+  async executeStep(step: any, _context: any, _userInput?: unknown) {
+    console.warn(`Placeholder handler for step type: ${this.stepType} (step ${step.stepNumber})`);
 
-		return {
-			output: {},
-			nextStepNumber: step.nextStepNumber ?? null,
-			requiresUserInput: false, // Auto-advance
-		};
-	}
+    return {
+      output: {},
+      nextStepNumber: step.nextStepNumber ?? null,
+      requiresUserInput: false, // Auto-advance
+    };
+  }
 }
 
 /**
@@ -36,15 +34,15 @@ class PlaceholderStepHandler implements StepHandler {
  * Add new step types here as they are implemented
  */
 export const STEP_HANDLERS = {
-	"ask-user": new AskUserStepHandler(),
-	"ask-user-chat": new AskUserChatStepHandler(),
-	"user-form": createLegacyUserFormHandler() as StepHandler,
-	"sandboxed-agent": createLegacySandboxedAgentHandler() as StepHandler,
-	"system-agent": new PlaceholderStepHandler("system-agent"),
-	branch: createLegacyBranchHandler() as StepHandler,
-	"execute-action": new ExecuteActionStepHandler(),
-	"invoke-workflow": new InvokeWorkflowStepHandler(),
-	"display-output": new DisplayOutputStepHandler(),
+  "ask-user": new AskUserStepHandler(),
+  "ask-user-chat": new AskUserChatStepHandler(),
+  "user-form": createLegacyUserFormHandler() as StepHandler,
+  "sandboxed-agent": createLegacySandboxedAgentHandler() as StepHandler,
+  "system-agent": new PlaceholderStepHandler("system-agent"),
+  branch: createLegacyBranchHandler() as StepHandler,
+  "execute-action": new ExecuteActionStepHandler(),
+  "invoke-workflow": new InvokeWorkflowStepHandler(),
+  "display-output": new DisplayOutputStepHandler(),
 } as const;
 
 /**
@@ -57,5 +55,5 @@ export type StepType = keyof typeof STEP_HANDLERS;
  * Type guard to check if a string is a valid step type
  */
 export function isValidStepType(type: string): type is StepType {
-	return type in STEP_HANDLERS;
+  return type in STEP_HANDLERS;
 }
