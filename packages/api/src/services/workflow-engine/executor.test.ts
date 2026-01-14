@@ -58,30 +58,56 @@ describe("Workflow Executor", () => {
 	});
 
 	it("should execute workflow with auto-advancing steps", async () => {
-		// Create workflow with 3 display-output steps (auto-advance)
 		await db.insert(workflowSteps).values([
 			{
 				workflowId: testWorkflowId,
 				stepNumber: 1,
 				goal: "Step 1",
-				stepType: "display-output",
-				config: { outputTemplate: "Step 1", outputType: "info" },
+				stepType: "execute-action",
+				config: {
+					actions: [
+						{
+							type: "set-variable",
+							config: { variable: "step1", value: "done" },
+						},
+					],
+					executionMode: "sequential",
+					requiresUserConfirmation: false,
+				},
 				nextStepNumber: 2,
 			},
 			{
 				workflowId: testWorkflowId,
 				stepNumber: 2,
 				goal: "Step 2",
-				stepType: "display-output",
-				config: { outputTemplate: "Step 2", outputType: "info" },
+				stepType: "execute-action",
+				config: {
+					actions: [
+						{
+							type: "set-variable",
+							config: { variable: "step2", value: "done" },
+						},
+					],
+					executionMode: "sequential",
+					requiresUserConfirmation: false,
+				},
 				nextStepNumber: 3,
 			},
 			{
 				workflowId: testWorkflowId,
 				stepNumber: 3,
 				goal: "Step 3",
-				stepType: "display-output",
-				config: { outputTemplate: "Step 3", outputType: "info" },
+				stepType: "execute-action",
+				config: {
+					actions: [
+						{
+							type: "set-variable",
+							config: { variable: "step3", value: "done" },
+						},
+					],
+					executionMode: "sequential",
+					requiresUserConfirmation: false,
+				},
 				nextStepNumber: null,
 			},
 		]);
@@ -109,35 +135,46 @@ describe("Workflow Executor", () => {
 	});
 
 	it("should execute workflow with auto-advancing execute-action steps", async () => {
-		// Create workflow with 5 steps to test state tracking
-		// execute-action steps auto-advance unless requiresUserConfirmation=true
 		await db.insert(workflowSteps).values([
 			{
 				workflowId: testWorkflowId,
 				stepNumber: 1,
 				goal: "Step 1",
-				stepType: "display-output",
-				config: { outputTemplate: "Step 1", outputType: "info" },
+				stepType: "execute-action",
+				config: {
+					actions: [
+						{ type: "set-variable", config: { variable: "v1", value: "done" } },
+					],
+					executionMode: "sequential",
+					requiresUserConfirmation: false,
+				},
 				nextStepNumber: 2,
 			},
 			{
 				workflowId: testWorkflowId,
 				stepNumber: 2,
 				goal: "Step 2",
-				stepType: "display-output",
-				config: { outputTemplate: "Step 2", outputType: "info" },
+				stepType: "execute-action",
+				config: {
+					actions: [
+						{ type: "set-variable", config: { variable: "v2", value: "done" } },
+					],
+					executionMode: "sequential",
+					requiresUserConfirmation: false,
+				},
 				nextStepNumber: 3,
 			},
 			{
 				workflowId: testWorkflowId,
 				stepNumber: 3,
 				goal: "Step 3",
-				stepType: "llm-generate",
+				stepType: "execute-action",
 				config: {
-					promptTemplate: "Generate content",
-					outputSchema: "{}",
-					streaming: false,
-					storeAs: "generated",
+					actions: [
+						{ type: "set-variable", config: { variable: "v3", value: "done" } },
+					],
+					executionMode: "sequential",
+					requiresUserConfirmation: false,
 				},
 				nextStepNumber: 4,
 			},
@@ -147,15 +184,11 @@ describe("Workflow Executor", () => {
 				goal: "Step 4",
 				stepType: "execute-action",
 				config: {
-					type: "execute-action",
 					actions: [
-						{
-							type: "set-variable",
-							config: { variable: "test_var", value: "test" },
-						},
+						{ type: "set-variable", config: { variable: "v4", value: "done" } },
 					],
 					executionMode: "sequential",
-					requiresUserConfirmation: false, // Auto-advance
+					requiresUserConfirmation: false,
 				},
 				nextStepNumber: 5,
 			},
@@ -163,8 +196,14 @@ describe("Workflow Executor", () => {
 				workflowId: testWorkflowId,
 				stepNumber: 5,
 				goal: "Step 5",
-				stepType: "display-output",
-				config: { outputTemplate: "Complete", outputType: "success" },
+				stepType: "execute-action",
+				config: {
+					actions: [
+						{ type: "set-variable", config: { variable: "v5", value: "done" } },
+					],
+					executionMode: "sequential",
+					requiresUserConfirmation: false,
+				},
 				nextStepNumber: null,
 			},
 		]);
@@ -174,7 +213,6 @@ describe("Workflow Executor", () => {
 			userId: testUserId,
 		});
 
-		// Check execution completed with all steps
 		const [execution] = await db
 			.select()
 			.from(workflowExecutions)
@@ -183,11 +221,9 @@ describe("Workflow Executor", () => {
 
 		expect(execution.status).toBe("completed");
 
-		// Check all 5 steps executed
 		const executedSteps = execution.executedSteps as Record<number, any>;
 		expect(Object.keys(executedSteps)).toHaveLength(5);
 
-		// Verify all steps completed
 		for (let i = 1; i <= 5; i++) {
 			expect(executedSteps[i].status).toBe("completed");
 			expect(executedSteps[i].stepId).toBeDefined();
@@ -249,11 +285,15 @@ describe("Workflow Executor", () => {
 		const registeredTypes = stepRegistry.getRegisteredTypes();
 
 		expect(registeredTypes).toContain("ask-user");
-		expect(registeredTypes).toContain("llm-generate");
+		expect(registeredTypes).toContain("ask-user-chat");
+		expect(registeredTypes).toContain("user-form");
+		expect(registeredTypes).toContain("sandboxed-agent");
+		expect(registeredTypes).toContain("system-agent");
 		expect(registeredTypes).toContain("branch");
 		expect(registeredTypes).toContain("execute-action");
+		expect(registeredTypes).toContain("invoke-workflow");
 		expect(registeredTypes).toContain("display-output");
-		expect(registeredTypes).toHaveLength(8); // All step types from step-types.ts
+		expect(registeredTypes).toHaveLength(9);
 	});
 
 	describe("Error Handling", () => {

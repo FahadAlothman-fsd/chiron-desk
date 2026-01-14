@@ -43,65 +43,77 @@ describe("Workflow Engine Integration Tests", () => {
 	 * Currently tests manual pause/resume infrastructure
 	 */
 	it("should manually pause and resume workflow from correct step", async () => {
-		// Create workflow with 3 steps
 		await db.insert(workflowSteps).values([
 			{
 				workflowId: testWorkflowId,
 				stepNumber: 1,
 				goal: "Step 1",
-				stepType: "display-output",
-				config: { outputTemplate: "Step 1", outputType: "info" },
+				stepType: "execute-action",
+				config: {
+					actions: [
+						{ type: "set-variable", config: { variable: "s1", value: "done" } },
+					],
+					executionMode: "sequential",
+					requiresUserConfirmation: false,
+				},
 				nextStepNumber: 2,
 			},
 			{
 				workflowId: testWorkflowId,
 				stepNumber: 2,
 				goal: "Step 2",
-				stepType: "display-output",
-				config: { outputTemplate: "Step 2", outputType: "info" },
+				stepType: "execute-action",
+				config: {
+					actions: [
+						{ type: "set-variable", config: { variable: "s2", value: "done" } },
+					],
+					executionMode: "sequential",
+					requiresUserConfirmation: false,
+				},
 				nextStepNumber: 3,
 			},
 			{
 				workflowId: testWorkflowId,
 				stepNumber: 3,
 				goal: "Step 3",
-				stepType: "display-output",
-				config: { outputTemplate: "Step 3", outputType: "info" },
+				stepType: "execute-action",
+				config: {
+					actions: [
+						{ type: "set-variable", config: { variable: "s3", value: "done" } },
+					],
+					executionMode: "sequential",
+					requiresUserConfirmation: false,
+				},
 				nextStepNumber: null,
 			},
 		]);
 
-		// Start workflow - will complete immediately with auto-advance steps
 		const executionId = await executeWorkflow({
 			workflowId: testWorkflowId,
 			userId: testUserId,
 		});
 
-		// Verify workflow completed
-		let execution = await stateManager.getExecution(executionId);
-		expect(execution).toBeDefined();
-		expect(execution?.status).toBe("completed");
+		let result = await stateManager.getExecution(executionId);
+		expect(result).toBeDefined();
+		expect(result?.execution.status).toBe("completed");
 
-		// Verify all steps executed
-		const executedSteps = execution?.executedSteps as Record<number, any>;
+		const executedSteps = result?.execution.executedSteps as Record<
+			number,
+			any
+		>;
 		expect(executedSteps[1].status).toBe("completed");
 		expect(executedSteps[2].status).toBe("completed");
 		expect(executedSteps[3].status).toBe("completed");
 
-		// Test manual pause/resume infrastructure
-		// Manually pause the completed workflow
 		await stateManager.pauseExecution(executionId);
 
-		execution = await stateManager.getExecution(executionId);
-		expect(execution?.status).toBe("paused");
+		result = await stateManager.getExecution(executionId);
+		expect(result?.execution.status).toBe("paused");
 
-		// Resume the paused workflow
 		await stateManager.resumeExecution(executionId);
 
-		execution = await stateManager.getExecution(executionId);
-		expect(execution?.status).toBe("active");
-
-		// Note: Full pause/resume testing with user input steps will be tested in Story 1.5
+		result = await stateManager.getExecution(executionId);
+		expect(result?.execution.status).toBe("active");
 	});
 
 	/**
@@ -110,110 +122,130 @@ describe("Workflow Engine Integration Tests", () => {
 	 * Currently all valid enum step types have placeholder handlers in Story 1.4
 	 */
 	it("should complete workflow with auto-advancing execute-action step", async () => {
-		// Create workflow using different step types
-		// execute-action steps auto-advance unless requiresUserConfirmation=true
 		await db.insert(workflowSteps).values([
 			{
 				workflowId: testWorkflowId,
 				stepNumber: 1,
-				goal: "Display step",
-				stepType: "display-output",
-				config: { outputTemplate: "Step 1", outputType: "info" },
+				goal: "Action step 1",
+				stepType: "execute-action",
+				config: {
+					actions: [
+						{ type: "set-variable", config: { variable: "v1", value: "done" } },
+					],
+					executionMode: "sequential",
+					requiresUserConfirmation: false,
+				},
 				nextStepNumber: 2,
 			},
 			{
 				workflowId: testWorkflowId,
 				stepNumber: 2,
-				goal: "Approval step",
-				stepType: "approval-checkpoint",
-				config: {},
+				goal: "Action step 2",
+				stepType: "execute-action",
+				config: {
+					actions: [
+						{ type: "set-variable", config: { variable: "v2", value: "done" } },
+					],
+					executionMode: "sequential",
+					requiresUserConfirmation: false,
+				},
 				nextStepNumber: 3,
 			},
 			{
 				workflowId: testWorkflowId,
 				stepNumber: 3,
-				goal: "Action step",
+				goal: "Action step 3",
 				stepType: "execute-action",
 				config: {
-					type: "execute-action",
 					actions: [],
 					executionMode: "sequential",
-					requiresUserConfirmation: false, // Auto-advance
+					requiresUserConfirmation: false,
 				},
 				nextStepNumber: null,
 			},
 		]);
 
-		// Execute workflow - should complete automatically
 		const executionId = await executeWorkflow({
 			workflowId: testWorkflowId,
 			userId: testUserId,
 		});
 
-		// Verify workflow completed
-		const execution = await stateManager.getExecution(executionId);
-		expect(execution).toBeDefined();
-		expect(execution?.status).toBe("completed");
+		const result = await stateManager.getExecution(executionId);
+		expect(result).toBeDefined();
+		expect(result?.execution.status).toBe("completed");
 
-		// All 3 steps completed
-		const executedSteps = execution?.executedSteps as Record<number, any>;
+		const executedSteps = result?.execution.executedSteps as Record<
+			number,
+			any
+		>;
 		expect(executedSteps[1].status).toBe("completed");
 		expect(executedSteps[2].status).toBe("completed");
 		expect(executedSteps[3].status).toBe("completed");
 	});
 
-	/**
-	 * AC29: Full workflow execution with multiple steps
-	 * Note: Full variable resolution testing deferred to Story 1.5 when actual step handlers implemented
-	 * Currently tests basic multi-step execution with placeholder handlers
-	 */
 	it("should execute multi-step workflow successfully", async () => {
-		// Create simple multi-step workflow
 		await db.insert(workflowSteps).values([
 			{
 				workflowId: testWorkflowId,
 				stepNumber: 1,
 				goal: "Step 1",
-				stepType: "display-output",
-				config: { outputTemplate: "Step 1", outputType: "info" },
+				stepType: "execute-action",
+				config: {
+					actions: [
+						{ type: "set-variable", config: { variable: "m1", value: "done" } },
+					],
+					executionMode: "sequential",
+					requiresUserConfirmation: false,
+				},
 				nextStepNumber: 2,
 			},
 			{
 				workflowId: testWorkflowId,
 				stepNumber: 2,
 				goal: "Step 2",
-				stepType: "display-output",
-				config: { outputTemplate: "Step 2", outputType: "info" },
+				stepType: "execute-action",
+				config: {
+					actions: [
+						{ type: "set-variable", config: { variable: "m2", value: "done" } },
+					],
+					executionMode: "sequential",
+					requiresUserConfirmation: false,
+				},
 				nextStepNumber: 3,
 			},
 			{
 				workflowId: testWorkflowId,
 				stepNumber: 3,
 				goal: "Step 3",
-				stepType: "display-output",
-				config: { outputTemplate: "Step 3", outputType: "info" },
+				stepType: "execute-action",
+				config: {
+					actions: [
+						{ type: "set-variable", config: { variable: "m3", value: "done" } },
+					],
+					executionMode: "sequential",
+					requiresUserConfirmation: false,
+				},
 				nextStepNumber: null,
 			},
 		]);
 
-		// Execute workflow
 		const executionId = await executeWorkflow({
 			workflowId: testWorkflowId,
 			userId: testUserId,
 		});
 
-		// Verify workflow completed
-		const execution = await stateManager.getExecution(executionId);
-		expect(execution).toBeDefined();
-		expect(execution?.status).toBe("completed");
+		const result = await stateManager.getExecution(executionId);
+		expect(result).toBeDefined();
+		expect(result?.execution.status).toBe("completed");
 
-		// Verify all steps completed in order
-		const executedSteps = execution?.executedSteps as Record<number, any>;
+		const executedSteps = result?.execution.executedSteps as Record<
+			number,
+			any
+		>;
 		expect(executedSteps[1].status).toBe("completed");
 		expect(executedSteps[2].status).toBe("completed");
 		expect(executedSteps[3].status).toBe("completed");
 
-		// Verify execution history contains stepId references
 		expect(executedSteps[1].stepId).toBeDefined();
 		expect(executedSteps[2].stepId).toBeDefined();
 		expect(executedSteps[3].stepId).toBeDefined();

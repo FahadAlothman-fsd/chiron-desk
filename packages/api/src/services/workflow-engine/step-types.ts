@@ -6,9 +6,12 @@
 import type { StepHandler } from "./step-handler";
 import { AskUserChatStepHandler } from "./step-handlers/ask-user-chat-handler";
 import { AskUserStepHandler } from "./step-handlers/ask-user-handler";
+import { createLegacyBranchHandler } from "./step-handlers/branch-effect-handler";
 import { DisplayOutputStepHandler } from "./step-handlers/display-output-handler";
 import { ExecuteActionStepHandler } from "./step-handlers/execute-action-handler";
 import { InvokeWorkflowStepHandler } from "./step-handlers/invoke-workflow-handler";
+import { createLegacySandboxedAgentHandler } from "./step-handlers/sandboxed-agent-handler";
+import { createLegacyUserFormHandler } from "./step-handlers/user-form-handler";
 
 // Placeholder handlers for Story 1.4 (actual implementations in future stories)
 // These handlers will auto-advance using nextStepNumber
@@ -35,13 +38,13 @@ class PlaceholderStepHandler implements StepHandler {
 export const STEP_HANDLERS = {
 	"ask-user": new AskUserStepHandler(),
 	"ask-user-chat": new AskUserChatStepHandler(),
-	"llm-generate": new PlaceholderStepHandler("llm-generate"),
-	branch: new PlaceholderStepHandler("branch"),
-	"approval-checkpoint": new PlaceholderStepHandler("approval-checkpoint"),
+	"user-form": createLegacyUserFormHandler() as StepHandler,
+	"sandboxed-agent": createLegacySandboxedAgentHandler() as StepHandler,
+	"system-agent": new PlaceholderStepHandler("system-agent"),
+	branch: createLegacyBranchHandler() as StepHandler,
 	"execute-action": new ExecuteActionStepHandler(),
-	"invoke-workflow": new InvokeWorkflowStepHandler(), // Story 2.3: Real implementation
+	"invoke-workflow": new InvokeWorkflowStepHandler(),
 	"display-output": new DisplayOutputStepHandler(),
-	"question-set": new PlaceholderStepHandler("question-set"),
 } as const;
 
 /**
