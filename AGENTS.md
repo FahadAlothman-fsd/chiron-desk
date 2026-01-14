@@ -34,7 +34,7 @@ chiron/
 | Add UI component | `apps/web/src/components/` | shadcn/ui base in `ui/`, workflows in `workflows/` |
 | Add route | `apps/web/src/routes/` | TanStack Router file-based, auto-generates routeTree.gen.ts |
 | Seed data | `packages/scripts/src/seeds/` | Export from seed.ts, run `bun db:seed` |
-| Configure AI model | `packages/api/src/services/mastra/` | model-loader.ts for providers |
+| Configure AI model | `packages/api/src/services/workflow-engine/effect/` | ai-provider-service.ts (4 providers: OpenRouter, OpenCode, Anthropic, OpenAI) |
 
 ## CONVENTIONS
 
@@ -56,7 +56,7 @@ chiron/
 ## UNIQUE STYLES
 
 - **Workflow steps**: Handler pattern with registry lookup, NOT switch statements
-- **AI integration**: Vercel AI SDK + Mastra for agents, @ax-llm/ax for optimization
+- **AI integration**: Vercel AI SDK + Effect for agents, @ax-llm/ax for optimization
 - **Variable resolution**: Handlebars templates in workflow configs
 - **Event-driven**: EventBus for workflow lifecycle (started/completed/error)
 

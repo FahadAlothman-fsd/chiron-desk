@@ -24,6 +24,7 @@
 	"dependencies": {
 		"@ai-sdk/anthropic": "^1.2.12",
 		"@ai-sdk/openai": "^1.3.22",
+		"ai-sdk-provider-opencode-sdk": "^1.0.0",
 		"@chiron/auth": "workspace:*",
 		"@chiron/db": "workspace:*",
 		"@effect/platform": "^0.82.0",

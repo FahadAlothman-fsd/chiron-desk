@@ -9,11 +9,6 @@ import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 import {
-	getMastraInstance,
-	getThreadMessages,
-} from "../services/mastra/mastra-service";
-import { MiProCollector } from "../services/mastra/mipro-collector";
-import {
 	type WorkflowEvent,
 	workflowEventBus,
 } from "../services/workflow-engine/event-bus";
@@ -674,34 +669,6 @@ export const workflowRouter = router({
 				}
 			}
 
-			// Get agent ID from execution or current step config
-			let agentId: string | undefined;
-			if (execution.agentId) {
-				agentId = execution.agentId;
-			} else if (currentStep?.config) {
-				const stepConfig = currentStep.config as any;
-				agentId = stepConfig.agentId;
-			}
-
-			console.log("[ApproveToolCall] Agent ID for MiPRO:", agentId);
-
-			// Save approved output to MiPRO training examples (only if we have agent ID)
-			if (agentId) {
-				const miproCollector = new MiProCollector();
-				await miproCollector.saveApprovedOutput(
-					input.toolName,
-					agentId,
-					toolState.input || {},
-					input.approvedValue,
-					toolState.rejection_history || [],
-				);
-				console.log(`[ApproveToolCall] Saved to MiPRO: ${input.toolName}`);
-			} else {
-				console.warn(
-					`[ApproveToolCall] Skipping MiPRO save - no agent ID found for execution: ${input.executionId}`,
-				);
-			}
-
 			// Update execution variables
 			await db
 				.update(workflowExecutions)
@@ -799,38 +766,6 @@ export const workflowRouter = router({
 				updatedVariables,
 			);
 
-			// Add rejection feedback as a user message with metadata
-			// This creates the timeline message: "🔄 Rejection feedback for {tool_name}"
-			const threadId = execution.variables.mastra_thread_id as
-				| string
-				| undefined;
-
-			if (!threadId) {
-				throw new Error("No thread ID found for execution");
-			}
-
-			const mastra = await getMastraInstance();
-			const storage = mastra.getStorage();
-
-			if (storage) {
-				await storage.saveMessages({
-					messages: [
-						{
-							id: crypto.randomUUID(),
-							role: "user",
-							content: input.feedback,
-							createdAt: new Date(),
-							threadId,
-							metadata: {
-								type: "rejection_feedback",
-								toolName: input.toolName,
-								rejectedAt: rejectionEntry.rejectedAt,
-							},
-						},
-					],
-				});
-			}
-
 			console.log(
 				`[WorkflowRouter] Rejected tool: ${input.toolName}, feedback: ${input.feedback}`,
 			);
@@ -891,22 +826,9 @@ export const workflowRouter = router({
 				return { messages: [] };
 			}
 
-			// Fetch messages from Mastra
-			const messages = await getThreadMessages(threadId);
-
-			// Format for frontend
-			return {
-				messages: messages.map((msg) => ({
-					id: msg.id,
-					role: msg.role,
-					content:
-						typeof msg.content === "string"
-							? msg.content
-							: JSON.stringify(msg.content),
-					metadata: msg.metadata || {},
-					created_at: msg.createdAt?.toISOString() || new Date().toISOString(),
-				})),
-			};
+			// Legacy Mastra thread storage removed - return empty for now
+			// Chat history is now managed by sandboxed-agent-handler via AI-SDK
+			return { messages: [] };
 		}),
 
 	/**
@@ -1105,67 +1027,6 @@ export const workflowRouter = router({
 				updatedVariables,
 			);
 
-			// Save to MiPRO training examples
-			const miproCollector = new MiProCollector();
-
-			// Get conversation history from Mastra thread
-			const threadId = execution.variables.mastra_thread_id as
-				| string
-				| undefined;
-			let conversationHistory = "";
-			if (threadId) {
-				try {
-					const messages = await getThreadMessages(threadId);
-					conversationHistory = messages
-						.map(
-							(m: any) =>
-								`${m.role === "user" ? "User" : "Agent"}: ${m.content}`,
-						)
-						.join("\n");
-				} catch (error) {
-					console.warn(
-						"[ApproveToolOutput] Failed to load conversation history:",
-						error,
-					);
-				}
-			}
-
-			// Get ACE context (from agent's current playbooks)
-			// TODO: Load current ACE playbooks for the agent
-			const aceContext = ""; // Placeholder for now
-
-			// Get agent ID from execution or current step config
-			let agentId: string | undefined;
-			if (execution.agentId) {
-				agentId = execution.agentId;
-			} else if (execution.currentStep?.config) {
-				const stepConfig = execution.currentStep.config as any;
-				agentId = stepConfig.agentId;
-			}
-
-			console.log("[ApproveToolOutput] Agent ID for MiPRO:", agentId);
-
-			// Save to MiPRO only if we have an agent ID
-			if (agentId) {
-				await miproCollector.saveApprovedOutput(
-					input.toolName,
-					agentId,
-					{
-						conversation_history: conversationHistory,
-						ace_context: aceContext,
-						variables: execution.variables,
-					},
-					approvedValue,
-					toolState.rejection_history || [],
-					{}, // Scorer results (future: add quality metrics)
-				);
-				console.log(`[ApproveToolOutput] Saved to MiPRO: ${input.toolName}`);
-			} else {
-				console.warn(
-					`[ApproveToolOutput] Skipping MiPRO save - no agent ID found for execution: ${input.executionId}`,
-				);
-			}
-
 			// Resume workflow execution
 			await stateManager.resumeExecution(input.executionId);
 			await continueExecution(input.executionId, userId, "");
@@ -1249,38 +1110,6 @@ export const workflowRouter = router({
 				input.executionId,
 				updatedVariables,
 			);
-
-			// Add rejection feedback as a user message with metadata
-			// This creates the timeline message: "🔄 Rejection feedback for update_description"
-			const threadId = execution.variables.mastra_thread_id as
-				| string
-				| undefined;
-
-			if (!threadId) {
-				throw new Error("No thread ID found for execution");
-			}
-
-			const mastra = await getMastraInstance();
-			const storage = mastra.getStorage();
-
-			if (storage) {
-				await storage.saveMessages({
-					messages: [
-						{
-							id: crypto.randomUUID(),
-							role: "user",
-							content: input.feedback,
-							createdAt: new Date(),
-							threadId,
-							metadata: {
-								type: "rejection_feedback",
-								toolName: input.toolName,
-								rejectedAt: rejectionEntry.rejectedAt,
-							},
-						},
-					],
-				});
-			}
 
 			// Resume workflow for regeneration
 			// Handler will detect rejected tools from approval_states and process regeneration

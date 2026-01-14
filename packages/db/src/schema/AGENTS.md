@@ -11,7 +11,6 @@ Drizzle ORM PostgreSQL schema definitions. All tables exported via index.ts barr
 | `artifacts.ts` | `projectArtifacts` | Generated file tracking |
 | `auth.ts` | `user`, `session`, `account`, `verification` | Better-Auth tables |
 | `core.ts` | `projects`, `workflowPaths`, `workflowPathWorkflows`, `projectState`, `appConfig` | Core domain + config |
-| `dialog-sessions.ts` | `dialogSessions` | Chat history for clarification dialogs |
 | `optimization.ts` | `trainingExamples`, `optimizationRuns` | @ax-llm/ax GEPA data |
 | `project-management.ts` | `epicState`, `storyState` | Epic/story progress |
 | `step-configs.ts` | (none - Zod schemas only) | Step config validation types |

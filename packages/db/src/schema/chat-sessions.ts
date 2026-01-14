@@ -9,9 +9,9 @@ import {
 	timestamp,
 	uuid,
 } from "drizzle-orm/pg-core";
-import { workflowExecutions } from "./workflows";
 import { chatMessages } from "./chat-messages";
 import { streamCheckpoints } from "./stream-checkpoints";
+import { workflowExecutions } from "./workflows";
 
 export const chatSessionStatusEnum = pgEnum("chat_session_status", [
 	"active",

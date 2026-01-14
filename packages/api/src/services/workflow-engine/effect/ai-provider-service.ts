@@ -1,10 +1,13 @@
 /**
  * AIProviderService - Effect-wrapped AI provider integration
  *
- * Wraps the existing model-loader.ts and AI-SDK to provide Effect-native
- * streaming and generation capabilities.
+ * Provides Effect-native streaming and generation capabilities with
+ * multi-provider support: OpenRouter, OpenCode, Anthropic, OpenAI.
  */
 
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { createOpenAI } from "@ai-sdk/openai";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import {
 	generateText as aiGenerateText,
 	streamText as aiStreamText,
@@ -13,8 +16,8 @@ import {
 	type FinishReason,
 	type LanguageModel,
 } from "ai";
+import { opencode } from "ai-sdk-provider-opencode-sdk";
 import { Context, Data, Effect, Layer, Stream } from "effect";
-import { loadModel, parseModelConfig } from "../../mastra/model-loader";
 import { ConfigService } from "./config-service";
 
 // ===== ERRORS =====
@@ -40,8 +43,10 @@ export class StreamingError extends Data.TaggedError("StreamingError")<{
 
 // ===== TYPES =====
 
+export type AIProvider = "openrouter" | "opencode" | "openai" | "anthropic";
+
 export interface ModelConfig {
-	provider: "openrouter" | "openai" | "anthropic";
+	provider: AIProvider;
 	modelId: string;
 	apiKey?: string;
 	enableThinking?: boolean;
@@ -170,6 +175,121 @@ function extractRetryAfter(error: unknown): number | undefined {
 	return undefined;
 }
 
+function createOpenRouterFetchWithFix(): (
+	url: RequestInfo | URL,
+	init?: RequestInit,
+) => Promise<Response> {
+	return async (url: RequestInfo | URL, init?: RequestInit) => {
+		const response = await fetch(url, init);
+
+		if (
+			!response.body ||
+			!response.headers.get("content-type")?.includes("text/event-stream")
+		) {
+			return response;
+		}
+
+		const reader = response.body.getReader();
+		const stream = new ReadableStream({
+			async start(controller) {
+				try {
+					while (true) {
+						const { done, value } = await reader.read();
+						if (done) break;
+
+						const text = new TextDecoder().decode(value);
+						const fixed = text.replace(/"type":""/g, '"type":"function"');
+						controller.enqueue(new TextEncoder().encode(fixed));
+					}
+					controller.close();
+				} catch (error) {
+					controller.error(error);
+				}
+			},
+		});
+
+		return new Response(stream, {
+			headers: response.headers,
+			status: response.status,
+			statusText: response.statusText,
+		});
+	};
+}
+
+function loadModelFromConfig(
+	config: ModelConfig & { apiKey: string },
+): LanguageModel {
+	switch (config.provider) {
+		case "openrouter": {
+			const provider = createOpenRouter({
+				apiKey: config.apiKey,
+				fetch: createOpenRouterFetchWithFix(),
+			});
+			return provider(config.modelId) as LanguageModel;
+		}
+
+		case "opencode": {
+			return opencode(config.modelId) as LanguageModel;
+		}
+
+		case "openai": {
+			const openaiProvider = createOpenAI({ apiKey: config.apiKey });
+			return openaiProvider(config.modelId) as LanguageModel;
+		}
+
+		case "anthropic": {
+			const anthropicProvider = createAnthropic({ apiKey: config.apiKey });
+			return anthropicProvider(config.modelId) as LanguageModel;
+		}
+
+		default:
+			throw new Error(
+				`Unsupported model provider: ${(config as ModelConfig).provider}`,
+			);
+	}
+}
+
+function getDefaultModelConfig(): ModelConfig {
+	return {
+		provider: "openrouter",
+		modelId: "openrouter/polaris-alpha",
+	};
+}
+
+function parseModelConfigString(modelString?: string | null): ModelConfig {
+	if (!modelString) {
+		return getDefaultModelConfig();
+	}
+
+	const parts = modelString.split(":");
+	if (parts.length !== 2) {
+		console.warn(
+			`[AIProvider] Invalid model format: ${modelString}, using default`,
+		);
+		return getDefaultModelConfig();
+	}
+
+	const [provider, modelId] = parts;
+	const validProviders: AIProvider[] = [
+		"openrouter",
+		"opencode",
+		"openai",
+		"anthropic",
+	];
+
+	if (!validProviders.includes(provider as AIProvider)) {
+		console.warn(
+			`[AIProvider] Unsupported provider: ${provider}, using default`,
+		);
+		return getDefaultModelConfig();
+	}
+
+	return {
+		provider: provider as AIProvider,
+		modelId: modelId as string,
+	};
+}
+
 // ===== SERVICE INTERFACE =====
 
 export interface AIProviderService {
@@ -208,12 +328,12 @@ export const AIProviderServiceLive = Layer.effect(
 	Effect.gen(function* () {
 		const configService = yield* ConfigService;
 
-		const getApiKey = (
-			provider: "openrouter" | "openai" | "anthropic",
-		): string | undefined => {
+		const getApiKey = (provider: AIProvider): string | undefined => {
 			switch (provider) {
 				case "openrouter":
 					return configService.get("openrouterApiKey");
+				case "opencode":
+					return "opencode-no-key-needed";
 				case "openai":
 					return configService.get("openaiApiKey");
 				case "anthropic":
@@ -233,12 +353,12 @@ export const AIProviderServiceLive = Layer.effect(
 								`API key required for provider: ${config.provider}`,
 							);
 						}
-						return loadModel({
+						return loadModelFromConfig({
 							provider: config.provider,
 							modelId: config.modelId,
 							apiKey,
 							enableThinking: config.enableThinking,
-						}) as LanguageModel;
+						});
 					},
 					catch: (error) => {
 						if (error instanceof Error && error.message.includes("not found")) {
@@ -374,15 +494,7 @@ export const AIProviderServiceLive = Layer.effect(
 
 			parseModelString: (modelString: string) =>
 				Effect.try({
-					try: () => {
-						const parsed = parseModelConfig(modelString);
-						return {
-							provider: parsed.provider,
-							modelId: parsed.modelId,
-							apiKey: parsed.apiKey,
-							enableThinking: parsed.enableThinking,
-						};
-					},
+					try: () => parseModelConfigString(modelString),
 					catch: (error) =>
 						new AIProviderError({
 							cause: error,

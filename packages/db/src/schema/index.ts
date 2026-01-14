@@ -6,7 +6,7 @@ export * from "./auth";
 export * from "./chat-messages";
 export * from "./chat-sessions";
 export * from "./core";
-export * from "./dialog-sessions";
+
 export * from "./optimization";
 export * from "./project-management";
 export * from "./step-configs";

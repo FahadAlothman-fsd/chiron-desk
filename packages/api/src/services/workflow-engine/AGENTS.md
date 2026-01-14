@@ -1,6 +1,6 @@
 # WORKFLOW ENGINE
 
-Core execution engine. Orchestrates step-by-step workflow processing with state management, event emission, and variable resolution.
+Core execution engine. Orchestrates step-by-step workflow processing with state management, event emission, and variable resolution. Uses Effect + AI-SDK for all AI interactions.
 
 ## STRUCTURE
 
@@ -12,15 +12,14 @@ workflow-engine/
 ├── step-handler.ts       # StepHandler interface, StepResult type
 ├── step-handlers/        # Handler implementations
 │   ├── ask-user-handler.ts
-│   ├── ask-user-chat-handler.ts
+│   ├── sandboxed-agent-handler.ts  # AI-SDK based agent interactions
 │   ├── display-output-handler.ts
 │   ├── execute-action-handler.ts
 │   └── invoke-workflow-handler.ts
-├── tools/                # Mastra tools for ask-user-chat
-│   ├── update-variable-tool.ts
-│   ├── database-query-tool.ts
-│   ├── ax-generation-tool.ts
-│   └── custom/           # Domain-specific tools
+├── effect/               # Effect service layer
+│   ├── ai-provider-service.ts      # Multi-provider AI (OpenRouter, OpenCode, Anthropic, OpenAI)
+│   ├── config-service.ts
+│   └── variable-service.ts
 ├── execution-context.ts  # 4-level variable precedence
 ├── variable-resolver.ts  # Handlebars template resolution
 ├── event-bus.ts          # Lifecycle events (singleton)
@@ -33,7 +32,7 @@ workflow-engine/
 | Task | File | Notes |
 |------|------|-------|
 | Add step handler | `step-handlers/*.ts` + `step-types.ts` | Implement StepHandler, register in STEP_HANDLERS |
-| Add Mastra tool | `tools/*.ts` | Used by ask-user-chat handler |
+| Configure AI provider | `effect/ai-provider-service.ts` | 4 providers: openrouter, opencode, anthropic, openai |
 | Debug variable resolution | `variable-resolver.ts` | Handlebars + 4-level precedence |
 | Trace execution flow | `executor.ts` | executeWorkflow → continueExecution loop |
 | Subscribe to events | `event-bus.ts` | workflowEventBus.subscribeToExecution() |
@@ -61,18 +60,19 @@ export const STEP_HANDLERS = {
 } as const;
 ```
 
-### Add New Tool (for ask-user-chat)
+### AI Provider Usage
 
 ```typescript
-// tools/my-tool.ts
-export async function buildMyTool(config: ToolConfig, context: ExecutionContext) {
-  return createTool({
-    id: config.name,
-    description: "...",
-    inputSchema: z.object({ ... }),
-    execute: async ({ context }) => ({ ... }),
-  });
-}
+// Use AIProviderService from Effect layer
+const model = yield* aiProvider.loadModel({
+  provider: "openrouter",  // or "opencode", "anthropic", "openai"
+  modelId: "anthropic/claude-sonnet-4-20250514",
+});
+
+const result = yield* aiProvider.generateText({
+  model,
+  messages: [{ role: "user", content: "Hello" }],
+});
 ```
 
 ### Variable Resolution
@@ -90,3 +90,4 @@ resolveVariables(template, context);  // → "Hello MyProject"
 - **Skip StepResult.requiresUserInput**: Must return true for pause/wait states
 - **Ignore MAX_STEP_EXECUTIONS**: 100-step limit prevents infinite loops
 - **Manual event emission**: Use workflowEventBus helpers
+- **Direct AI SDK calls**: Use AIProviderService for consistent provider handling
