@@ -83,7 +83,7 @@ development_status:
   2-M3-ai-sdk-integration: done
   2-M4-step-handler-migration: done
   2-M5-mastra-removal: done
-  2-M6-biome-to-oxc: backlog  # Last migration - oxlint + oxfmt (3x faster than Biome)
+  2-M6-biome-to-oxc: done  # Completed - oxlint + oxfmt replacing Biome
   2-M7-filesystem-field-type: backlog     # User-form enhancement for file/directory selection
   2-M8-seed-verification: backlog         # Verify seeds work with migrated engine before merge
   
