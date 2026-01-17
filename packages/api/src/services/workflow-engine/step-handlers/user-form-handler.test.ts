@@ -4,12 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { Effect } from "effect";
 import type { StepHandlerInput } from "../effect/step-registry";
-import {
-  createLegacyUserFormHandler,
-  UserFormHandler,
-  UserFormHandlerLive,
-  validateFolderName,
-} from "./user-form-handler";
+import { UserFormHandler, UserFormHandlerLive, validateFolderName } from "./user-form-handler";
 
 function createInput(config: Record<string, unknown>): StepHandlerInput {
   return {
@@ -716,42 +711,6 @@ describe("UserFormHandler", () => {
       const maxName = "a".repeat(255);
       const result = validateFolderName(maxName);
       expect(result.valid).toBe(true);
-    });
-  });
-
-  describe("legacy adapter", () => {
-    it("createLegacyUserFormHandler works with legacy interface", async () => {
-      const handler = createLegacyUserFormHandler();
-      const step = {
-        config: {
-          prompt: "Enter name",
-          responseVariable: "name",
-          responseType: "string",
-        },
-        nextStepNumber: 2,
-      };
-
-      const result = await handler.executeStep(step, {}, "John");
-
-      expect(result.output).toEqual({ name: "John" });
-      expect(result.nextStepNumber).toBe(2);
-      expect(result.requiresUserInput).toBe(false);
-    });
-
-    it("legacy adapter returns requiresUserInput when no input", async () => {
-      const handler = createLegacyUserFormHandler();
-      const step = {
-        config: {
-          prompt: "Enter name",
-          responseVariable: "name",
-          responseType: "string",
-        },
-        nextStepNumber: 2,
-      };
-
-      const result = await handler.executeStep(step, {});
-
-      expect(result.requiresUserInput).toBe(true);
     });
   });
 });

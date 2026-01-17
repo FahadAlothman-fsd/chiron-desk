@@ -1,11 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { Effect } from "effect";
 import type { StepHandlerInput } from "../effect/step-registry";
-import {
-  BranchHandler,
-  BranchHandlerLive,
-  createLegacyBranchHandler,
-} from "./branch-effect-handler";
+import { BranchHandler, BranchHandlerLive } from "./branch-effect-handler";
 
 function createInput(
   config: Record<string, unknown>,
@@ -239,33 +235,6 @@ describe("BranchHandler", () => {
       const result = await runHandler(input);
 
       expect(result.nextStepNumber).toBe(5);
-    });
-  });
-
-  describe("legacy adapter", () => {
-    it("works with legacy interface", async () => {
-      const handler = createLegacyBranchHandler();
-      const step = {
-        config: {
-          conditions: [
-            {
-              variable: "approved",
-              operator: "equals",
-              value: true,
-              targetStepNumber: 5,
-            },
-          ],
-          defaultStepNumber: 10,
-        },
-        nextStepNumber: null,
-      };
-
-      const result = await handler.executeStep(step, {
-        executionVariables: { approved: true },
-      });
-
-      expect(result.nextStepNumber).toBe(5);
-      expect(result.requiresUserInput).toBe(false);
     });
   });
 });

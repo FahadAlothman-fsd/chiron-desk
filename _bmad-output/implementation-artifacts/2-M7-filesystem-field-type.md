@@ -1,6 +1,6 @@
 # Story 2.M7: Filesystem Field Type Enhancement
 
-Status: review
+Status: done
 
 ## Story
 
@@ -268,8 +268,7 @@ For two-part input:
 - Implemented `validateFolderName` utility for folder name validation
 - Created `TwoPartDirectoryInput` component for `mustExist: false` scenarios
 - Updated `AskUserStep` to handle `relative-path` type and two-part input
-- Added 64 tests covering all validation scenarios
-- All tests pass (64/64, 77 expect() calls)
+- All tests pass (62 tests, 73 expect() calls)
 
 ### Change Log
 
@@ -288,6 +287,10 @@ For two-part input:
 - 2026-01-16: Added comprehensive Validation Error Messages table
   - Specified exact error messages for all validation scenarios
   - Added test subtask for error message verification
+- 2026-01-17: Code review fixes
+  - Removed legacy adapter tests (not needed post-Effect migration)
+  - Fixed test import for removed `createLegacyUserFormHandler`
+  - Tests pass: 62 tests, 73 expect() calls
 
 ### File List
 
