@@ -4,6 +4,9 @@
  */
 
 import type { StepHandler } from "./step-handler";
+
+export type { PathConfig } from "./step-handlers/user-form-handler";
+
 import { AskUserChatStepHandler } from "./step-handlers/ask-user-chat-handler";
 import { AskUserStepHandler } from "./step-handlers/ask-user-handler";
 import { createLegacyBranchHandler } from "./step-handlers/branch-effect-handler";

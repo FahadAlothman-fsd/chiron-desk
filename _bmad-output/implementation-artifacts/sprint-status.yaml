@@ -84,8 +84,10 @@ development_status:
   2-M4-step-handler-migration: done
   2-M5-mastra-removal: done
   2-M6-biome-to-oxc: done  # Completed - oxlint + oxfmt replacing Biome
-  2-M7-filesystem-field-type: backlog     # User-form enhancement for file/directory selection
-  2-M8-seed-verification: backlog         # Verify seeds work with migrated engine before merge
+  2-M7-filesystem-field-type: review     # User-form enhancement for file/directory selection
+  2-M8-complete-sandboxed-agent: backlog  # Complete sandboxed-agent-handler with AI integration
+  2-M9-effect-executor-wiring: backlog    # Wire Effect executor to production, delete old code
+  2-M10-seed-verification: backlog        # Verify seeds work with migrated engine before merge
   
   # Original stories (resume after migration)
   2-3-execution-loop-and-child-workflows: blocked

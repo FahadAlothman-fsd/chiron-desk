@@ -16,10 +16,20 @@ export class ValidationError extends Data.TaggedError("ValidationError")<{
   readonly validationType: "path" | "string" | "boolean" | "number" | "choice";
 }> {}
 
+/**
+ * Configuration for path-based inputs (directory picker, file picker)
+ * Shared between backend validation and frontend components
+ */
+export interface PathConfig {
+  readonly mustExist?: boolean;
+  readonly selectMode?: "file" | "directory";
+  readonly startPath?: string;
+}
+
 export interface UserFormConfig {
   readonly prompt: string;
   readonly responseVariable: string;
-  readonly responseType: "path" | "string" | "boolean" | "number" | "choice";
+  readonly responseType: "path" | "string" | "boolean" | "number" | "choice" | "relative-path";
   readonly validation?: {
     readonly required?: boolean;
     readonly minLength?: number;
@@ -28,9 +38,7 @@ export interface UserFormConfig {
     readonly max?: number;
     readonly pattern?: string;
   };
-  readonly pathConfig?: {
-    readonly mustExist?: boolean;
-  };
+  readonly pathConfig?: PathConfig;
   readonly choices?: readonly string[];
 }
 
@@ -47,6 +55,125 @@ export interface UserFormHandler {
 }
 
 export const UserFormHandler = Context.GenericTag<UserFormHandler>("UserFormHandler");
+
+const WINDOWS_RESERVED_NAMES = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i;
+const INVALID_PATH_CHARS = /[<>:"|?*]/;
+const FOLDER_NAME_REGEX = /^\.?[a-zA-Z0-9][a-zA-Z0-9_\-.]*$/;
+const MAX_FOLDER_NAME_LENGTH = 255;
+
+export interface FolderNameValidationResult {
+  valid: boolean;
+  error?: string;
+}
+
+export function validateFolderName(name: string): FolderNameValidationResult {
+  if (!name) {
+    return { valid: false, error: "Folder name is required" };
+  }
+
+  if (name.length > MAX_FOLDER_NAME_LENGTH) {
+    return {
+      valid: false,
+      error: "Folder name is too long (max 255 characters)",
+    };
+  }
+
+  if (INVALID_PATH_CHARS.test(name)) {
+    return { valid: false, error: 'Folder name cannot contain < > : " | ? *' };
+  }
+
+  if (WINDOWS_RESERVED_NAMES.test(name)) {
+    return {
+      valid: false,
+      error: `'${name.toUpperCase()}' is a reserved system name`,
+    };
+  }
+
+  if (!FOLDER_NAME_REGEX.test(name)) {
+    return {
+      valid: false,
+      error: "Folder name must start with a letter, number, or dot",
+    };
+  }
+
+  return { valid: true };
+}
+
+function validateRelativePath(
+  input: string,
+  config: UserFormConfig,
+): Effect.Effect<string, ValidationError> {
+  return Effect.gen(function* () {
+    if (config.validation?.required && !input) {
+      return yield* Effect.fail(
+        new ValidationError({
+          message: "Path is required",
+          validationType: "path",
+          fieldName: config.responseVariable,
+        }),
+      );
+    }
+
+    if (!input) {
+      return input;
+    }
+
+    if (input.includes("..")) {
+      return yield* Effect.fail(
+        new ValidationError({
+          message: "Path cannot contain '..' (directory traversal)",
+          validationType: "path",
+          fieldName: config.responseVariable,
+        }),
+      );
+    }
+
+    if (input.startsWith("/")) {
+      return yield* Effect.fail(
+        new ValidationError({
+          message: "Path must be relative, not absolute",
+          validationType: "path",
+          fieldName: config.responseVariable,
+        }),
+      );
+    }
+
+    if (input.includes("//")) {
+      return yield* Effect.fail(
+        new ValidationError({
+          message: "Path cannot contain double slashes",
+          validationType: "path",
+          fieldName: config.responseVariable,
+        }),
+      );
+    }
+
+    if (INVALID_PATH_CHARS.test(input)) {
+      return yield* Effect.fail(
+        new ValidationError({
+          message: 'Path cannot contain < > : " | ? *',
+          validationType: "path",
+          fieldName: config.responseVariable,
+        }),
+      );
+    }
+
+    const segments = input.split("/");
+    for (const segment of segments) {
+      if (WINDOWS_RESERVED_NAMES.test(segment)) {
+        return yield* Effect.fail(
+          new ValidationError({
+            message: `Path contains reserved name '${segment.toUpperCase()}'`,
+            validationType: "path",
+            fieldName: config.responseVariable,
+          }),
+        );
+      }
+    }
+
+    return input;
+  });
+}
 
 function validatePath(
   inputPath: string,
@@ -350,6 +477,8 @@ function validateInput(
   switch (config.responseType) {
     case "path":
       return validatePath(userInput as string, config);
+    case "relative-path":
+      return validateRelativePath(userInput as string, config);
     case "string":
       return validateString(userInput as string, config);
     case "boolean":

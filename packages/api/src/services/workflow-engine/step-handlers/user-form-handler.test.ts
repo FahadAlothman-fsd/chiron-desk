@@ -8,6 +8,7 @@ import {
   createLegacyUserFormHandler,
   UserFormHandler,
   UserFormHandlerLive,
+  validateFolderName,
 } from "./user-form-handler";
 
 function createInput(config: Record<string, unknown>): StepHandlerInput {
@@ -437,6 +438,284 @@ describe("UserFormHandler", () => {
       const result = await runHandler(input, existingPath);
 
       expect(result.variableUpdates).toEqual({ filePath: existingPath });
+    });
+  });
+
+  describe("relative-path validation", () => {
+    it("accepts valid simple relative path", async () => {
+      const input = createInput({
+        prompt: "Enter output path",
+        responseVariable: "outputPath",
+        responseType: "relative-path",
+      });
+
+      const result = await runHandler(input, "docs");
+
+      expect(result.variableUpdates).toEqual({ outputPath: "docs" });
+    });
+
+    it("accepts valid nested relative path", async () => {
+      const input = createInput({
+        prompt: "Enter output path",
+        responseVariable: "outputPath",
+        responseType: "relative-path",
+      });
+
+      const result = await runHandler(input, "_bmad-output/planning");
+
+      expect(result.variableUpdates).toEqual({
+        outputPath: "_bmad-output/planning",
+      });
+    });
+
+    it("accepts hidden folder paths", async () => {
+      const input = createInput({
+        prompt: "Enter output path",
+        responseVariable: "outputPath",
+        responseType: "relative-path",
+      });
+
+      const result = await runHandler(input, ".chiron");
+
+      expect(result.variableUpdates).toEqual({ outputPath: ".chiron" });
+    });
+
+    it("accepts nested hidden folder paths", async () => {
+      const input = createInput({
+        prompt: "Enter output path",
+        responseVariable: "outputPath",
+        responseType: "relative-path",
+      });
+
+      const result = await runHandler(input, "config/.hidden-folder");
+
+      expect(result.variableUpdates).toEqual({
+        outputPath: "config/.hidden-folder",
+      });
+    });
+
+    it("rejects path with directory traversal (..)", async () => {
+      const input = createInput({
+        prompt: "Enter output path",
+        responseVariable: "outputPath",
+        responseType: "relative-path",
+      });
+
+      await expect(runHandler(input, "docs/../secrets")).rejects.toThrow(
+        "Path cannot contain '..' (directory traversal)",
+      );
+    });
+
+    it("rejects absolute path starting with /", async () => {
+      const input = createInput({
+        prompt: "Enter output path",
+        responseVariable: "outputPath",
+        responseType: "relative-path",
+      });
+
+      await expect(runHandler(input, "/etc/passwd")).rejects.toThrow(
+        "Path must be relative, not absolute",
+      );
+    });
+
+    it("rejects path with double slashes", async () => {
+      const input = createInput({
+        prompt: "Enter output path",
+        responseVariable: "outputPath",
+        responseType: "relative-path",
+      });
+
+      await expect(runHandler(input, "docs//artifacts")).rejects.toThrow(
+        "Path cannot contain double slashes",
+      );
+    });
+
+    it("rejects path with invalid characters (<>)", async () => {
+      const input = createInput({
+        prompt: "Enter output path",
+        responseVariable: "outputPath",
+        responseType: "relative-path",
+      });
+
+      await expect(runHandler(input, "docs/<file>")).rejects.toThrow(
+        'Path cannot contain < > : " | ? *',
+      );
+    });
+
+    it("rejects path with invalid characters (|?*)", async () => {
+      const input = createInput({
+        prompt: "Enter output path",
+        responseVariable: "outputPath",
+        responseType: "relative-path",
+      });
+
+      await expect(runHandler(input, "file|name")).rejects.toThrow(
+        'Path cannot contain < > : " | ? *',
+      );
+    });
+
+    it("rejects Windows reserved name CON", async () => {
+      const input = createInput({
+        prompt: "Enter output path",
+        responseVariable: "outputPath",
+        responseType: "relative-path",
+      });
+
+      await expect(runHandler(input, "CON")).rejects.toThrow("Path contains reserved name 'CON'");
+    });
+
+    it("rejects Windows reserved name in path segment", async () => {
+      const input = createInput({
+        prompt: "Enter output path",
+        responseVariable: "outputPath",
+        responseType: "relative-path",
+      });
+
+      await expect(runHandler(input, "docs/NUL/file")).rejects.toThrow(
+        "Path contains reserved name 'NUL'",
+      );
+    });
+
+    it("rejects Windows reserved name COM1", async () => {
+      const input = createInput({
+        prompt: "Enter output path",
+        responseVariable: "outputPath",
+        responseType: "relative-path",
+      });
+
+      await expect(runHandler(input, "COM1")).rejects.toThrow("Path contains reserved name 'COM1'");
+    });
+
+    it("rejects Windows reserved name LPT3", async () => {
+      const input = createInput({
+        prompt: "Enter output path",
+        responseVariable: "outputPath",
+        responseType: "relative-path",
+      });
+
+      await expect(runHandler(input, "LPT3")).rejects.toThrow("Path contains reserved name 'LPT3'");
+    });
+
+    it("rejects empty path when required", async () => {
+      const input = createInput({
+        prompt: "Enter output path",
+        responseVariable: "outputPath",
+        responseType: "relative-path",
+        validation: { required: true },
+      });
+
+      await expect(runHandler(input, "")).rejects.toThrow("Path is required");
+    });
+
+    it("accepts empty path when not required", async () => {
+      const input = createInput({
+        prompt: "Enter output path",
+        responseVariable: "outputPath",
+        responseType: "relative-path",
+        validation: { required: false },
+      });
+
+      const result = await runHandler(input, "");
+
+      expect(result.variableUpdates).toEqual({ outputPath: "" });
+    });
+
+    it("allows paths with underscore prefix", async () => {
+      const input = createInput({
+        prompt: "Enter output path",
+        responseVariable: "outputPath",
+        responseType: "relative-path",
+      });
+
+      const result = await runHandler(input, "_bmad-output");
+
+      expect(result.variableUpdates).toEqual({ outputPath: "_bmad-output" });
+    });
+
+    it("allows paths with dashes and underscores", async () => {
+      const input = createInput({
+        prompt: "Enter output path",
+        responseVariable: "outputPath",
+        responseType: "relative-path",
+      });
+
+      const result = await runHandler(input, "my-project_artifacts/sub-folder");
+
+      expect(result.variableUpdates).toEqual({
+        outputPath: "my-project_artifacts/sub-folder",
+      });
+    });
+  });
+
+  describe("validateFolderName utility", () => {
+    it("accepts valid folder name", () => {
+      const result = validateFolderName("my-project");
+      expect(result.valid).toBe(true);
+      expect(result.error).toBeUndefined();
+    });
+
+    it("accepts folder name with underscore", () => {
+      const result = validateFolderName("my_project");
+      expect(result.valid).toBe(true);
+    });
+
+    it("accepts hidden folder name (dot prefix)", () => {
+      const result = validateFolderName(".chiron");
+      expect(result.valid).toBe(true);
+    });
+
+    it("accepts dot-prefixed with numbers", () => {
+      const result = validateFolderName(".config123");
+      expect(result.valid).toBe(true);
+    });
+
+    it("rejects empty folder name", () => {
+      const result = validateFolderName("");
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe("Folder name is required");
+    });
+
+    it("rejects folder name with invalid chars", () => {
+      const result = validateFolderName("my<project>");
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe('Folder name cannot contain < > : " | ? *');
+    });
+
+    it("rejects Windows reserved name CON", () => {
+      const result = validateFolderName("CON");
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe("'CON' is a reserved system name");
+    });
+
+    it("rejects Windows reserved name nul (case-insensitive)", () => {
+      const result = validateFolderName("nul");
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe("'NUL' is a reserved system name");
+    });
+
+    it("rejects Windows reserved name COM1", () => {
+      const result = validateFolderName("COM1");
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe("'COM1' is a reserved system name");
+    });
+
+    it("rejects folder name starting with invalid character", () => {
+      const result = validateFolderName("-invalid");
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe("Folder name must start with a letter, number, or dot");
+    });
+
+    it("rejects folder name exceeding max length", () => {
+      const longName = "a".repeat(256);
+      const result = validateFolderName(longName);
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe("Folder name is too long (max 255 characters)");
+    });
+
+    it("accepts max length folder name (255 chars)", () => {
+      const maxName = "a".repeat(255);
+      const result = validateFolderName(maxName);
+      expect(result.valid).toBe(true);
     });
   });
 

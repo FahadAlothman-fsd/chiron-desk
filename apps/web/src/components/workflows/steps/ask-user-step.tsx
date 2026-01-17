@@ -5,12 +5,13 @@ import { Button } from "@/components/ui/button";
 import { DirectoryPicker, DirectoryPickerHelp } from "@/components/ui/directory-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { TwoPartDirectoryInput } from "@/components/ui/two-part-directory-input";
 
 export interface AskUserStepConfig {
   type: "ask-user";
   message?: string;
   question: string;
-  responseType: "boolean" | "string" | "number" | "choice" | "path";
+  responseType: "boolean" | "string" | "number" | "choice" | "path" | "relative-path";
   responseVariable: string;
   pathConfig?: {
     startPath?: string;
@@ -27,6 +28,53 @@ export interface AskUserStepConfig {
   };
 }
 
+const RELATIVE_PATH_TRAVERSAL = /\.\./;
+const RELATIVE_PATH_DOUBLE_SLASH = /\/\//;
+const RELATIVE_PATH_INVALID_CHARS = /[<>:"|?*]/;
+const WINDOWS_RESERVED_NAMES = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i;
+
+interface RelativePathValidationResult {
+  valid: boolean;
+  error?: string;
+}
+
+function validateRelativePath(input: string): RelativePathValidationResult {
+  if (!input) {
+    return { valid: false, error: "Path is required" };
+  }
+
+  if (RELATIVE_PATH_TRAVERSAL.test(input)) {
+    return {
+      valid: false,
+      error: "Path cannot contain '..' (directory traversal)",
+    };
+  }
+
+  if (input.startsWith("/")) {
+    return { valid: false, error: "Path must be relative, not absolute" };
+  }
+
+  if (RELATIVE_PATH_DOUBLE_SLASH.test(input)) {
+    return { valid: false, error: "Path cannot contain double slashes" };
+  }
+
+  if (RELATIVE_PATH_INVALID_CHARS.test(input)) {
+    return { valid: false, error: 'Path cannot contain < > : " | ? *' };
+  }
+
+  const segments = input.split("/");
+  for (const segment of segments) {
+    if (WINDOWS_RESERVED_NAMES.test(segment)) {
+      return {
+        valid: false,
+        error: `Path contains reserved name '${segment.toUpperCase()}'`,
+      };
+    }
+  }
+
+  return { valid: true };
+}
+
 export interface AskUserStepProps {
   config: AskUserStepConfig;
   onSubmit: (value: unknown) => void;
@@ -38,6 +86,7 @@ export function AskUserStep({ config, onSubmit, loading, error }: AskUserStepPro
   const [value, setValue] = useState<string>("");
   const [validationError, setValidationError] = useState<string>("");
   const [isValidating, setIsValidating] = useState(false);
+  const [isTwoPartValid, setIsTwoPartValid] = useState(false);
 
   const handleSubmit = async () => {
     // Clear previous validation error
@@ -133,6 +182,14 @@ export function AskUserStep({ config, onSubmit, loading, error }: AskUserStepPro
       }
     }
 
+    if (config.responseType === "relative-path") {
+      const result = validateRelativePath(value);
+      if (!result.valid) {
+        setValidationError(result.error || "Invalid path");
+        return;
+      }
+    }
+
     // Submit the value
     onSubmit(config.responseType === "number" ? Number.parseFloat(value) : value);
   };
@@ -144,7 +201,19 @@ export function AskUserStep({ config, onSubmit, loading, error }: AskUserStepPro
       <div className="space-y-2">
         <Label htmlFor="user-input">{config.question}</Label>
 
-        {config.responseType === "path" ? (
+        {config.responseType === "path" && config.pathConfig?.mustExist === false ? (
+          <TwoPartDirectoryInput
+            value={value}
+            onChange={(fullPath, isValid) => {
+              setValue(fullPath);
+              setIsTwoPartValid(isValid);
+              setValidationError("");
+            }}
+            onError={(err) => setValidationError(err)}
+            disabled={loading}
+            defaultPath={config.pathConfig?.startPath}
+          />
+        ) : config.responseType === "path" ? (
           <div className="space-y-2">
             <DirectoryPicker
               value={value}
@@ -159,6 +228,26 @@ export function AskUserStep({ config, onSubmit, loading, error }: AskUserStepPro
               className={validationError || error ? "border-destructive" : ""}
             />
             <DirectoryPickerHelp />
+          </div>
+        ) : config.responseType === "relative-path" ? (
+          <div className="space-y-2">
+            <Input
+              id="user-input"
+              type="text"
+              value={value}
+              onChange={(e) => {
+                setValue(e.target.value);
+                setValidationError("");
+              }}
+              disabled={loading}
+              placeholder="docs/artifacts"
+              className={`font-mono ${validationError || error ? "border-destructive" : ""}`}
+              aria-label="Relative path"
+              aria-describedby={validationError ? "relative-path-error" : undefined}
+            />
+            <p className="text-muted-foreground text-xs">
+              Enter a path relative to the project root (e.g., docs, _bmad-output/planning)
+            </p>
           </div>
         ) : config.responseType === "string" || config.responseType === "number" ? (
           <Input
@@ -187,7 +276,15 @@ export function AskUserStep({ config, onSubmit, loading, error }: AskUserStepPro
 
       <Button
         onClick={handleSubmit}
-        disabled={loading || isValidating || !value || !!validationError}
+        disabled={
+          loading ||
+          isValidating ||
+          !value ||
+          !!validationError ||
+          (config.responseType === "path" &&
+            config.pathConfig?.mustExist === false &&
+            !isTwoPartValid)
+        }
         className="w-full"
       >
         {loading || isValidating ? (
