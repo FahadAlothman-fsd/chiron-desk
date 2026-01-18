@@ -2,7 +2,6 @@ import { Context, Layer } from "effect";
 
 export interface WorkflowConfig {
   readonly databaseUrl: string;
-  readonly useEffectExecutor: boolean;
   readonly useEffectAI: boolean;
   readonly maxStepExecutions: number;
   readonly stepTimeoutMs: number;
@@ -23,7 +22,6 @@ export class ConfigService extends Context.Tag("ConfigService")<
 
 const loadConfig = (): WorkflowConfig => ({
   databaseUrl: process.env.DATABASE_URL || "",
-  useEffectExecutor: process.env.USE_EFFECT_EXECUTOR === "true",
   useEffectAI: process.env.USE_EFFECT_AI === "true",
   maxStepExecutions: Number.parseInt(process.env.MAX_STEP_EXECUTIONS || "100", 10),
   stepTimeoutMs: Number.parseInt(process.env.STEP_TIMEOUT_MS || "300000", 10),

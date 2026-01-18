@@ -3,8 +3,8 @@ import { observable } from "@trpc/server/observable";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
+import { continueExecution, executeWorkflow } from "../services/workflow-engine/effect/executor";
 import { type WorkflowEvent, workflowEventBus } from "../services/workflow-engine/event-bus";
-import { continueExecution, executeWorkflow } from "../services/workflow-engine/executor";
 import { stateManager } from "../services/workflow-engine/state-manager";
 
 /**
@@ -725,50 +725,18 @@ export const workflowRouter = router({
       return { success: true };
     }),
 
-  /**
-   * Story 1.6: Get chat message history from Mastra thread
-   * Updated: Now supports per-step threads with optional stepNumber parameter
-   */
   getChatMessages: protectedProcedure
     .input(
       z.object({
         executionId: z.string().uuid(),
-        stepNumber: z.number().optional(), // Per-step thread lookup
+        stepNumber: z.number().optional(),
       }),
     )
     .query(async ({ input }) => {
-      // Get execution to find thread ID
       const executionData = await stateManager.getExecution(input.executionId);
       if (!executionData || !executionData.execution) {
         throw new Error(`Execution not found: ${input.executionId}`);
       }
-
-      const { execution } = executionData;
-      const variables = execution.variables as Record<string, unknown>;
-
-      // Per-step thread ID lookup (falls back to legacy mastra_thread_id)
-      let threadId: string | undefined;
-
-      if (input.stepNumber) {
-        // First try step-specific thread
-        const stepThreadKey = `mastra_thread_id_step_${input.stepNumber}`;
-        threadId = variables[stepThreadKey] as string | undefined;
-        console.log(`[getChatMessages] Looking for ${stepThreadKey}: ${threadId}`);
-      }
-
-      // Fallback to legacy mastra_thread_id if no step-specific thread found
-      if (!threadId) {
-        threadId = variables.mastra_thread_id as string | undefined;
-        console.log(`[getChatMessages] Falling back to mastra_thread_id: ${threadId}`);
-      }
-
-      if (!threadId) {
-        // No thread yet, return empty
-        return { messages: [] };
-      }
-
-      // Legacy Mastra thread storage removed - return empty for now
-      // Chat history is now managed by sandboxed-agent-handler via AI-SDK
       return { messages: [] };
     }),
 

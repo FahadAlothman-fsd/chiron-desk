@@ -24,14 +24,15 @@
     "@openrouter/ai-sdk-provider": "^0.4.3",
     "@trpc/client": "catalog:",
     "@trpc/server": "catalog:",
-    "ai": "^4.3.16",
+    "ai": "^6.0.39",
     "ai-sdk-provider-opencode-sdk": "^1.0.0",
     "dotenv": "catalog:",
     "drizzle-orm": "^0.44.7",
     "effect": "^3.14.0",
     "hono": "catalog:",
     "simple-git": "^3.30.0",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "zod-to-json-schema": "^3.25.1"
   },
   "devDependencies": {
     "tsdown": "catalog:"

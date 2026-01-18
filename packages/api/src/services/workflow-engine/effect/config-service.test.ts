@@ -23,10 +23,10 @@ describe("ConfigService", () => {
     Effect.runSync(Effect.provide(program, ConfigServiceLive));
   });
 
-  test("useEffectExecutor defaults to false", () => {
+  test("useEffectAI defaults to false", () => {
     const program = Effect.gen(function* () {
       const configService = yield* ConfigService;
-      expect(configService.get("useEffectExecutor")).toBe(false);
+      expect(configService.get("useEffectAI")).toBe(false);
     });
 
     Effect.runSync(Effect.provide(program, ConfigServiceLive));

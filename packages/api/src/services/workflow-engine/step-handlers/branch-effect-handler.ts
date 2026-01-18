@@ -97,32 +97,3 @@ export const BranchHandlerLive = Layer.succeed(BranchHandler, {
       };
     }),
 });
-
-export function createLegacyBranchHandler() {
-  return {
-    async executeStep(
-      step: { config: unknown; nextStepNumber: number | null },
-      context: { executionVariables?: Record<string, unknown> },
-      _userInput?: unknown,
-    ) {
-      const input: StepHandlerInput = {
-        stepConfig: step.config as Record<string, unknown>,
-        variables: context.executionVariables ?? {},
-        executionId: "",
-      };
-
-      const program = Effect.provide(
-        Effect.flatMap(BranchHandler, (handler) => handler.execute(input)),
-        BranchHandlerLive,
-      );
-
-      const result = await Effect.runPromise(program);
-
-      return {
-        output: result.result,
-        nextStepNumber: result.nextStepNumber ?? step.nextStepNumber ?? null,
-        requiresUserInput: false,
-      };
-    },
-  };
-}

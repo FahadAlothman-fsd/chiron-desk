@@ -531,32 +531,3 @@ export const UserFormHandlerLive = Layer.succeed(UserFormHandler, {
       };
     }),
 });
-
-export function createLegacyUserFormHandler() {
-  return {
-    async executeStep(
-      step: { config: unknown; nextStepNumber: number | null },
-      _context: unknown,
-      userInput?: unknown,
-    ) {
-      const input: StepHandlerInput = {
-        stepConfig: step.config as Record<string, unknown>,
-        variables: {},
-        executionId: "",
-      };
-
-      const program = Effect.provide(
-        Effect.flatMap(UserFormHandler, (handler) => handler.execute(input, userInput)),
-        UserFormHandlerLive,
-      );
-
-      const result = await Effect.runPromise(program);
-
-      return {
-        output: result.variableUpdates ?? {},
-        nextStepNumber: step.nextStepNumber ?? null,
-        requiresUserInput: result.requiresUserInput,
-      };
-    },
-  };
-}

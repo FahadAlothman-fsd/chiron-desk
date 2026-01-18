@@ -4,7 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, publicProcedure, router } from "../index";
-import { executeWorkflow } from "../services/workflow-engine/executor";
+import { executeWorkflow } from "../services/workflow-engine/effect/executor";
 
 // Zod schemas for input validation
 const createProjectSchema = z.object({

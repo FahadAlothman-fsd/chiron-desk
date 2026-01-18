@@ -1,9 +1,7 @@
-import type { CoreTool } from "ai";
-import { tool } from "ai";
+import { type Tool, tool } from "ai";
 import { Data, Effect } from "effect";
 import { type ZodSchema, z } from "zod";
-import type { WorkflowEventBus } from "./event-bus";
-import type { VariableService } from "./variable-service";
+import type { WorkflowEvent } from "./event-bus";
 
 export class ToolBuilderError extends Data.TaggedError("ToolBuilderError")<{
   readonly cause: unknown;
@@ -12,7 +10,6 @@ export class ToolBuilderError extends Data.TaggedError("ToolBuilderError")<{
 }> {}
 
 export type ToolType = "update-variable" | "ax-generation" | "snapshot-artifact" | "custom";
-
 export type ApprovalMode = "none" | "text" | "selector" | "confirm";
 export type RiskLevel = "safe" | "moderate" | "dangerous";
 
@@ -34,11 +31,34 @@ export interface ToolConfig {
   execute?: (args: unknown, context: ToolExecutionContext) => Promise<unknown>;
 }
 
+export type VariableSourceType =
+  | "input"
+  | "step"
+  | "system"
+  | "parent"
+  | "child-propagation"
+  | "migration";
+
+export interface ToolVariableService {
+  set: (
+    executionId: string,
+    name: string,
+    value: unknown,
+    source: VariableSourceType,
+    stepNumber?: number,
+  ) => Effect.Effect<unknown, unknown>;
+  get: (executionId: string, name: string) => Effect.Effect<unknown, unknown>;
+}
+
+export interface ToolEventBus {
+  publish: (event: WorkflowEvent) => Effect.Effect<boolean, unknown>;
+}
+
 export interface ToolExecutionContext {
   executionId: string;
   stepId: string;
-  variableService: VariableService;
-  eventBus: WorkflowEventBus;
+  variableService: ToolVariableService;
+  eventBus: ToolEventBus;
 }
 
 export interface ToolExecutionResult {
@@ -65,16 +85,14 @@ const snapshotArtifactSchema = z.object({
 const axGenerationSchema = z.object({
   prompt: z.string().describe("Generation prompt"),
   templateId: z.string().optional().describe("Template ID to use"),
-  variables: z.record(z.unknown()).optional().describe("Template variables"),
+  variables: z.record(z.string(), z.unknown()).optional().describe("Template variables"),
 });
 
-function createUpdateVariableTool(
-  context: ToolExecutionContext,
-): CoreTool<typeof updateVariableSchema, ToolExecutionResult> {
+function createUpdateVariableTool(context: ToolExecutionContext): Tool {
   return tool({
     description:
       "Update a workflow variable with a new value. Use this to store results, state changes, or computed values.",
-    parameters: updateVariableSchema,
+    inputSchema: updateVariableSchema,
     execute: async (args) => {
       const effect = Effect.gen(function* () {
         yield* context.eventBus.publish({
@@ -89,8 +107,7 @@ function createUpdateVariableTool(
           context.executionId,
           args.variableName,
           args.value,
-          "tool",
-          args.reason ?? "Updated via AI tool call",
+          "step",
         );
 
         yield* context.eventBus.publish({
@@ -124,13 +141,11 @@ function createUpdateVariableTool(
   });
 }
 
-function createSnapshotArtifactTool(
-  context: ToolExecutionContext,
-): CoreTool<typeof snapshotArtifactSchema, ToolExecutionResult> {
+function createSnapshotArtifactTool(context: ToolExecutionContext): Tool {
   return tool({
     description:
       "Read the current state of an artifact. Use this to inspect documents, configurations, or generated content.",
-    parameters: snapshotArtifactSchema,
+    inputSchema: snapshotArtifactSchema,
     execute: async (args) => {
       const effect = Effect.gen(function* () {
         yield* context.eventBus.publish({
@@ -177,13 +192,11 @@ function createSnapshotArtifactTool(
   });
 }
 
-function createAxGenerationTool(
-  context: ToolExecutionContext,
-): CoreTool<typeof axGenerationSchema, ToolExecutionResult> {
+function createAxGenerationTool(context: ToolExecutionContext): Tool {
   return tool({
     description:
       "Generate content using ax optimization. Useful for structured output generation with templates.",
-    parameters: axGenerationSchema,
+    inputSchema: axGenerationSchema,
     execute: async (args) => {
       const effect = Effect.gen(function* () {
         yield* context.eventBus.publish({
@@ -250,10 +263,10 @@ export function validateToolArgs(
 export function buildToolsFromConfig(
   toolConfigs: ToolConfig[],
   context: ToolExecutionContext,
-): Effect.Effect<Record<string, CoreTool>, ToolBuilderError> {
+): Effect.Effect<Record<string, Tool>, ToolBuilderError> {
   return Effect.try({
     try: () => {
-      const tools: Record<string, CoreTool> = {};
+      const tools: Record<string, Tool> = {};
 
       for (const config of toolConfigs) {
         switch (config.type) {
@@ -273,7 +286,7 @@ export function buildToolsFromConfig(
             if (config.execute) {
               tools[config.name] = tool({
                 description: config.description,
-                parameters: config.inputSchema as z.ZodType<Record<string, unknown>>,
+                inputSchema: config.inputSchema as z.ZodObject<z.ZodRawShape>,
                 execute: async (args) => {
                   try {
                     const result = await config.execute!(args, context);
@@ -310,15 +323,17 @@ export function executeTool(
   context: ToolExecutionContext,
 ): Effect.Effect<ToolExecutionResult, ToolBuilderError> {
   return Effect.gen(function* () {
-    yield* context.eventBus.publish({
-      _tag: "ToolCallStarted",
-      executionId: context.executionId,
-      stepId: context.stepId,
-      toolName,
-      args,
-    });
+    yield* context.eventBus
+      .publish({
+        _tag: "ToolCallStarted",
+        executionId: context.executionId,
+        stepId: context.stepId,
+        toolName,
+        args,
+      })
+      .pipe(Effect.catchAll(() => Effect.succeed(true)));
 
-    const result = yield* Effect.tryPromise({
+    const result = yield* Effect.tryPromise<ToolExecutionResult, ToolBuilderError>({
       try: async () => {
         switch (toolType) {
           case "update-variable": {
@@ -328,8 +343,7 @@ export function executeTool(
                 context.executionId,
                 parsed.variableName,
                 parsed.value,
-                "tool",
-                parsed.reason ?? "Updated via tool execution",
+                "step",
               ),
             );
             return {
@@ -369,15 +383,17 @@ export function executeTool(
       catch: (error) => new ToolBuilderError({ cause: error, toolName, operation: "execute" }),
     });
 
-    yield* context.eventBus.publish({
-      _tag: "ToolCallCompleted",
-      executionId: context.executionId,
-      stepId: context.stepId,
-      toolName,
-      result,
-    });
+    yield* context.eventBus
+      .publish({
+        _tag: "ToolCallCompleted",
+        executionId: context.executionId,
+        stepId: context.stepId,
+        toolName,
+        result,
+      })
+      .pipe(Effect.catchAll(() => Effect.succeed(true)));
 
-    return result as ToolExecutionResult;
+    return result;
   });
 }
 

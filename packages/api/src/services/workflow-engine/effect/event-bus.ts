@@ -9,33 +9,44 @@ export type WorkflowEvent =
   | {
       readonly _tag: "StepStarted";
       readonly executionId: string;
-      readonly stepNumber: number;
+      readonly stepId: string;
+      readonly stepNumber?: number;
       readonly stepType: string;
     }
   | {
       readonly _tag: "StepCompleted";
       readonly executionId: string;
-      readonly stepNumber: number;
+      readonly stepId: string;
+      readonly stepNumber?: number;
+      readonly result?: unknown;
     }
   | {
       readonly _tag: "ToolCallStarted";
       readonly executionId: string;
+      readonly stepId: string;
       readonly toolName: string;
+      readonly args?: unknown;
     }
   | {
       readonly _tag: "ToolCallCompleted";
       readonly executionId: string;
+      readonly stepId: string;
       readonly toolName: string;
+      readonly result?: unknown;
     }
   | {
       readonly _tag: "TextChunk";
       readonly executionId: string;
-      readonly chunk: string;
+      readonly stepId: string;
+      readonly content: string;
     }
   | {
       readonly _tag: "ApprovalRequested";
       readonly executionId: string;
       readonly stepId: string;
+      readonly toolName: string;
+      readonly args?: unknown;
+      readonly riskLevel?: string;
     }
   | { readonly _tag: "WorkflowCompleted"; readonly executionId: string }
   | {

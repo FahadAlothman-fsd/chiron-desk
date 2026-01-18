@@ -23,12 +23,14 @@ export interface StepHandlerInput {
   readonly stepConfig: Record<string, unknown>;
   readonly variables: Record<string, unknown>;
   readonly executionId: string;
+  readonly userInput?: unknown;
 }
 
 export interface StepHandlerOutput {
   readonly result: unknown;
   readonly variableUpdates?: Record<string, unknown>;
   readonly nextStepOverride?: number;
+  readonly requiresUserInput?: boolean;
 }
 
 export type StepHandler = (input: StepHandlerInput) => Effect.Effect<StepHandlerOutput, Error>;
@@ -55,6 +57,7 @@ export const makeStepHandlerRegistry = Effect.gen(function* () {
       Effect.map((output) => ({
         result: output.result,
         variableUpdates: output.variableUpdates,
+        requiresUserInput: output.requiresUserInput,
       })),
       Effect.catchAll((error) => Effect.fail(new Error(error.message))),
     );
@@ -64,6 +67,7 @@ export const makeStepHandlerRegistry = Effect.gen(function* () {
     displayOutputHandler.execute(input).pipe(
       Effect.map((output) => ({
         result: output.result,
+        requiresUserInput: output.requiresUserInput,
       })),
       Effect.catchAll((error) => Effect.fail(new Error(error.message))),
     );
@@ -74,6 +78,7 @@ export const makeStepHandlerRegistry = Effect.gen(function* () {
       Effect.map((output) => ({
         result: output.result,
         variableUpdates: output.variableUpdates,
+        requiresUserInput: output.requiresUserInput,
       })),
       Effect.catchAll((error) => Effect.fail(new Error(error.message))),
     );
@@ -84,6 +89,7 @@ export const makeStepHandlerRegistry = Effect.gen(function* () {
       Effect.map((output) => ({
         result: output.result,
         variableUpdates: output.variableUpdates,
+        requiresUserInput: output.requiresUserInput,
       })),
       Effect.catchAll((error) => Effect.fail(new Error(error.message))),
     );
@@ -107,12 +113,15 @@ export const makeStepHandlerRegistry = Effect.gen(function* () {
       Effect.map((output) => ({
         result: output.result,
         variableUpdates: output.variableUpdates,
+        requiresUserInput: output.requiresUserInput,
       })),
       Effect.catchAll((error) => Effect.fail(new Error(error.message))),
     );
 
   handlers = HashMap.set(handlers, "user-form", userFormStepHandler);
+  handlers = HashMap.set(handlers, "ask-user", userFormStepHandler);
   handlers = HashMap.set(handlers, "sandboxed-agent", sandboxedAgentStepHandler);
+  handlers = HashMap.set(handlers, "ask-user-chat", sandboxedAgentStepHandler);
   handlers = HashMap.set(handlers, "system-agent", defaultHandler);
   handlers = HashMap.set(handlers, "branch", branchStepHandler);
 
@@ -133,7 +142,7 @@ export const makeStepHandlerRegistry = Effect.gen(function* () {
   };
 });
 
-const AllHandlerLayers = Layer.mergeAll(
+export const AllHandlerLayers = Layer.mergeAll(
   UserFormHandlerLive,
   DisplayOutputHandlerLive,
   ExecuteActionHandlerLive,

@@ -1,25 +1,16 @@
 import { Context, Data, Effect, Layer } from "effect";
 import type { StepHandlerInput, StepHandlerOutput } from "../effect/step-registry";
-import { InvokeWorkflowStepHandler } from "./invoke-workflow-handler";
 
 export class InvokeWorkflowError extends Data.TaggedError("InvokeWorkflowError")<{
   readonly cause: unknown;
-  readonly operation: string;
   readonly message: string;
 }> {}
 
-export interface InvokeWorkflowConfig {
-  readonly workflowsToInvoke: string;
-  readonly variableMapping: Record<string, string>;
-  readonly aggregateInto: string;
-  readonly expectedOutputVariable: string;
-  readonly completionCondition: {
-    readonly type: "all-complete";
-  };
-}
-
-export interface InvokeWorkflowHandlerOutput extends StepHandlerOutput {
-  readonly requiresUserInput: boolean;
+interface InvokeWorkflowConfig {
+  workflowId: string;
+  inputMapping?: Record<string, string>;
+  outputMapping?: Record<string, string>;
+  waitForCompletion?: boolean;
 }
 
 export interface InvokeWorkflowHandler {
@@ -27,83 +18,94 @@ export interface InvokeWorkflowHandler {
   execute: (
     input: StepHandlerInput,
     userInput?: unknown,
-  ) => Effect.Effect<InvokeWorkflowHandlerOutput, InvokeWorkflowError>;
+  ) => Effect.Effect<StepHandlerOutput, InvokeWorkflowError>;
 }
 
 export const InvokeWorkflowHandler =
   Context.GenericTag<InvokeWorkflowHandler>("InvokeWorkflowHandler");
 
-const legacyHandler = new InvokeWorkflowStepHandler();
+function resolveTemplate(template: string, variables: Record<string, unknown>): string {
+  return template.replace(/\{\{(\w+(?:\.\w+)*)\}\}/g, (match, path) => {
+    const parts = path.split(".");
+    let value: unknown = variables;
+    for (const part of parts) {
+      if (value && typeof value === "object" && part in value) {
+        value = (value as Record<string, unknown>)[part];
+      } else {
+        return match;
+      }
+    }
+    if (value === undefined || value === null) return match;
+    return String(value);
+  });
+}
 
 export const InvokeWorkflowHandlerLive = Layer.succeed(InvokeWorkflowHandler, {
   _tag: "InvokeWorkflowHandler" as const,
 
-  execute: (input: StepHandlerInput, userInput?: unknown) =>
-    Effect.tryPromise({
-      try: async () => {
-        const step = {
-          id: input.executionId,
-          workflowId: "",
-          stepNumber: 1,
-          goal: "",
-          stepType: "invoke-workflow" as const,
-          config: input.stepConfig,
-          nextStepNumber: null,
-          createdAt: new Date(),
-        };
+  execute: (input: StepHandlerInput) =>
+    Effect.gen(function* () {
+      const config = input.stepConfig as unknown as InvokeWorkflowConfig;
+      const variables = input.variables;
+      const parentExecutionId = input.executionId;
 
-        const context = {
-          executionId: input.executionId,
-          workflowId: "",
-          projectId: "",
-          userId: "",
-          executionVariables: {},
-          systemVariables: {},
-          variables: input.variables,
-        };
+      if (!config.workflowId) {
+        return yield* Effect.fail(
+          new InvokeWorkflowError({
+            cause: new Error("Missing workflowId in config"),
+            message: "InvokeWorkflow step requires a workflowId",
+          }),
+        );
+      }
 
-        const result = await legacyHandler.executeStep(step, context, userInput);
+      const resolvedWorkflowId = resolveTemplate(config.workflowId, variables);
 
-        return {
-          result: result.output,
-          variableUpdates: result.output as Record<string, unknown>,
-          requiresUserInput: result.requiresUserInput ?? false,
-        };
-      },
-      catch: (error) =>
-        new InvokeWorkflowError({
-          cause: error,
-          operation: "execute",
-          message: error instanceof Error ? error.message : String(error),
-        }),
-    }),
-});
+      const inputVariables: Record<string, unknown> = {};
+      if (config.inputMapping) {
+        for (const [targetKey, sourceTemplate] of Object.entries(config.inputMapping)) {
+          const resolvedValue = resolveTemplate(sourceTemplate, variables);
+          inputVariables[targetKey] = resolvedValue;
+        }
+      }
 
-export function createLegacyInvokeWorkflowHandler() {
-  return {
-    async executeStep(
-      step: { config: unknown; nextStepNumber: number | null },
-      context: { variables: Record<string, unknown> },
-      userInput?: unknown,
-    ) {
-      const input: StepHandlerInput = {
-        stepConfig: step.config as Record<string, unknown>,
-        variables: context.variables,
-        executionId: "",
-      };
+      const { executeWorkflow } = yield* Effect.tryPromise({
+        try: () => import("../effect/executor"),
+        catch: (error) =>
+          new InvokeWorkflowError({
+            cause: error,
+            message: "Failed to import executor",
+          }),
+      });
 
-      const program = Effect.provide(
-        Effect.flatMap(InvokeWorkflowHandler, (handler) => handler.execute(input, userInput)),
-        InvokeWorkflowHandlerLive,
-      );
+      const userId = (variables.userId as string) || "system";
+      const projectId = variables.projectId as string | undefined;
 
-      const result = await Effect.runPromise(program);
+      const childExecutionId = yield* Effect.tryPromise({
+        try: () =>
+          executeWorkflow({
+            workflowId: resolvedWorkflowId,
+            userId,
+            projectId,
+            initialVariables: { ...variables, ...inputVariables },
+            parentExecutionId,
+          }),
+        catch: (error) =>
+          new InvokeWorkflowError({
+            cause: error,
+            message: `Failed to execute child workflow: ${error instanceof Error ? error.message : "Unknown error"}`,
+          }),
+      });
 
       return {
-        output: result.result,
-        nextStepNumber: step.nextStepNumber ?? null,
-        requiresUserInput: result.requiresUserInput,
+        result: {
+          childExecutionId,
+          workflowId: resolvedWorkflowId,
+          status: "started",
+        },
+        variableUpdates: {
+          lastChildExecutionId: childExecutionId,
+        },
+        requiresUserInput: false,
       };
-    },
-  };
-}
+    }),
+});

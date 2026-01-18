@@ -74,32 +74,3 @@ export const DisplayOutputHandlerLive = Layer.succeed(DisplayOutputHandler, {
       };
     }),
 });
-
-export function createLegacyDisplayOutputHandler() {
-  return {
-    async executeStep(
-      step: { config: unknown; nextStepNumber: number | null },
-      _context: unknown,
-      userInput?: unknown,
-    ) {
-      const input: StepHandlerInput = {
-        stepConfig: step.config as Record<string, unknown>,
-        variables: {},
-        executionId: "",
-      };
-
-      const program = Effect.provide(
-        Effect.flatMap(DisplayOutputHandler, (handler) => handler.execute(input, userInput)),
-        DisplayOutputHandlerLive,
-      );
-
-      const result = await Effect.runPromise(program);
-
-      return {
-        output: result.result,
-        nextStepNumber: step.nextStepNumber ?? null,
-        requiresUserInput: result.requiresUserInput,
-      };
-    },
-  };
-}
