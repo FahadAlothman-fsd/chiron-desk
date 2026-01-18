@@ -1,348 +1,255 @@
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
-import { db, type WorkflowMetadata, type WorkflowTags, workflows } from "@chiron/db";
-import yaml from "js-yaml";
-
 /**
- * Story 2.1: Updated workflow seed to use tags/metadata JSONB fields
+ * Stub Workflows Seed
  *
- * Agent mapping is now stored in metadata.agentId instead of agentId column
- * Workflow categorization uses tags JSONB (phase, type, track, module)
+ * Creates stub workflows for all path-referenced workflows that don't have
+ * full implementations yet. These are minimal placeholders that will be
+ * fleshed out as development progresses.
+ *
+ * Fully implemented workflows are in separate files:
+ * - workflow-init-new.ts
+ * - brainstorming.ts
+ * - techniques/*.ts
  */
 
-// Agent-Workflow Mapping Strategy (now stored in metadata.agentId)
+import { db, agents, workflows, workflowSteps } from "@chiron/db";
+import { eq } from "drizzle-orm";
+
+// Agent name to workflow mapping for metadata
 const AGENT_WORKFLOW_MAP: Record<string, string> = {
   // Analyst workflows
-  "product-brief": "analyst",
-  "brainstorm-project": "analyst",
-  research: "analyst",
-  "workflow-init": "analyst",
   brainstorming: "analyst",
-
-  // PM workflows
-  prd: "pm",
-  "validate-prd": "pm",
-
-  // Architect workflows
-  architecture: "architect",
-  "create-architecture": "architect",
-  "validate-architecture": "architect",
-  "tech-spec": "architect",
-  "tech-spec-sm": "architect",
-  "solutioning-gate-check": "architect",
-  "document-project": "architect",
-
-  // Dev workflows
-  "dev-story": "dev",
-  "code-review": "dev",
-
-  // SM workflows
-  "sprint-planning": "sm",
-  "create-story": "sm",
-  "story-ready": "sm",
-  "story-done": "sm",
-  "story-context": "sm",
-  "epic-tech-context": "sm",
-  retrospective: "sm",
-  "workflow-status": "sm",
-  "correct-course": "sm",
-
-  // UX Designer workflows
-  "create-ux-design": "ux-designer",
-  "design-thinking": "ux-designer",
-
-  // CIS workflows - all map to analyst by default
-  "innovation-strategy": "analyst",
-  "problem-solving": "analyst",
-  storytelling: "analyst",
-
-  // Core technique workflows
   scamper: "analyst",
   "five-whys": "analyst",
   "six-thinking-hats": "analyst",
   "mind-mapping": "analyst",
   "what-if-scenarios": "analyst",
+  "document-project": "analyst",
+  "brainstorm-project": "analyst",
+  research: "analyst",
+  "product-brief": "analyst",
+
+  // PM workflows
+  prd: "pm",
+  "create-epics-and-stories": "pm",
+  "implementation-readiness": "pm",
+
+  // Architect workflows
+  "create-architecture": "architect",
+  "test-design": "architect",
+
+  // UX Designer workflows
+  "create-ux-design": "ux-designer",
+
+  // Scrum Master workflows
+  "sprint-planning": "sm",
 };
 
+// Stub workflow definitions
+const STUB_WORKFLOWS = [
+  {
+    name: "brainstorming",
+    displayName: "Brainstorming",
+    description:
+      "Facilitate interactive brainstorming sessions using diverse creative techniques and ideation methods.",
+    tags: { phase: 0, type: "ideation", track: "standalone", module: "bmm" },
+    isStandalone: true,
+  },
+  {
+    name: "scamper",
+    displayName: "SCAMPER",
+    description:
+      "Creative ideation technique using Substitute, Combine, Adapt, Modify, Put to other uses, Eliminate, Reverse.",
+    tags: { phase: 0, type: "technique", track: "standalone", module: "bmm" },
+    isStandalone: true,
+  },
+  {
+    name: "five-whys",
+    displayName: "Five Whys",
+    description:
+      "Root cause analysis technique that asks 'why' five times to uncover underlying issues.",
+    tags: { phase: 0, type: "technique", track: "standalone", module: "bmm" },
+    isStandalone: true,
+  },
+  {
+    name: "six-thinking-hats",
+    displayName: "Six Thinking Hats",
+    description:
+      "Parallel thinking technique using six perspectives: facts, emotions, benefits, risks, creativity, and process.",
+    tags: { phase: 0, type: "technique", track: "standalone", module: "bmm" },
+    isStandalone: true,
+  },
+  {
+    name: "mind-mapping",
+    displayName: "Mind Mapping",
+    description:
+      "Visual brainstorming technique that organizes ideas around a central concept with branches.",
+    tags: { phase: 0, type: "technique", track: "standalone", module: "bmm" },
+    isStandalone: true,
+  },
+  {
+    name: "what-if-scenarios",
+    displayName: "What-If Scenarios",
+    description:
+      "Creative exploration technique that challenges constraints by asking 'what if' to generate innovative ideas.",
+    tags: { phase: 0, type: "technique", track: "standalone", module: "bmm" },
+    isStandalone: true,
+  },
+
+  // Phase 0 (Brownfield only)
+  {
+    name: "document-project",
+    displayName: "Document Existing Project",
+    description:
+      "Analyze and document an existing codebase to create comprehensive reference documentation for AI-assisted development.",
+    tags: { phase: 0, type: "documentation", track: "main", module: "bmm" },
+  },
+
+  // Phase 1 (Optional Discovery)
+  {
+    name: "brainstorm-project",
+    displayName: "Brainstorm Project",
+    description:
+      "Facilitate interactive brainstorming sessions to explore project ideas and possibilities.",
+    tags: { phase: 1, type: "discovery", track: "main", module: "bmm" },
+  },
+  {
+    name: "research",
+    displayName: "Research",
+    description:
+      "Conduct comprehensive research across multiple domains using current web data and verified sources.",
+    tags: { phase: 1, type: "discovery", track: "main", module: "bmm" },
+  },
+  {
+    name: "product-brief",
+    displayName: "Create Product Brief",
+    description:
+      "Create comprehensive product briefs through collaborative step-by-step discovery.",
+    tags: { phase: 1, type: "discovery", track: "main", module: "bmm" },
+  },
+
+  // Phase 2 (Solutioning)
+  {
+    name: "prd",
+    displayName: "Create PRD",
+    description:
+      "Create a comprehensive Product Requirements Document through collaborative discovery.",
+    tags: { phase: 2, type: "planning", track: "main", module: "bmm" },
+  },
+  {
+    name: "create-ux-design",
+    displayName: "Create UX Design",
+    description:
+      "Work with a UX Design expert to plan your application's UX patterns, look and feel.",
+    tags: { phase: 2, type: "design", track: "main", module: "bmm" },
+  },
+
+  // Phase 3 (Architecture & Planning)
+  {
+    name: "create-architecture",
+    displayName: "Create Architecture",
+    description:
+      "Collaborative architectural decision facilitation producing a decision-focused architecture document.",
+    tags: { phase: 3, type: "architecture", track: "main", module: "bmm" },
+  },
+  {
+    name: "create-epics-and-stories",
+    displayName: "Create Epics & Stories",
+    description:
+      "Transform PRD requirements and Architecture decisions into comprehensive stories organized by user value.",
+    tags: { phase: 3, type: "planning", track: "main", module: "bmm" },
+  },
+  {
+    name: "test-design",
+    displayName: "Test Design",
+    description:
+      "Dual-mode workflow for system-level testability review or epic-level test planning.",
+    tags: { phase: 3, type: "testing", track: "optional", module: "bmm" },
+  },
+  {
+    name: "implementation-readiness",
+    displayName: "Implementation Readiness Check",
+    description:
+      "Critical validation that assesses PRD, Architecture, and Epics for completeness before implementation.",
+    tags: { phase: 3, type: "validation", track: "main", module: "bmm" },
+  },
+
+  // Phase 4 (Implementation)
+  {
+    name: "sprint-planning",
+    displayName: "Sprint Planning",
+    description: "Generate and manage the sprint status tracking file for implementation phase.",
+    tags: { phase: 4, type: "implementation", track: "main", module: "bmm" },
+  },
+];
+
 /**
- * Detect workflow phase based on BMAD methodology
- * Phase 0 = Discovery, 1 = Analysis, 2 = Planning, 3 = Solutioning, 4 = Implementation
+ * Get agent ID by name
  */
-function detectPhase(workflowName: string): string {
-  const name = workflowName.toLowerCase();
-
-  // Phase 0: Discovery workflows
-  if (name.includes("brainstorm") || name.includes("research") || name.includes("product-brief")) {
-    return "0";
-  }
-
-  // Phase 1: Analysis workflows
-  if (name.includes("prd") || name.includes("validate")) {
-    return "1";
-  }
-
-  // Phase 2: Planning workflows
-  if (name.includes("architecture") || name.includes("tech-spec") || name.includes("ux-design")) {
-    return "2";
-  }
-
-  // Phase 3: Solutioning workflows
-  if (name.includes("story") || name.includes("sprint") || name.includes("epic")) {
-    return "3";
-  }
-
-  // Phase 4: Implementation workflows
-  if (name.includes("dev") || name.includes("code") || name.includes("review")) {
-    return "4";
-  }
-
-  // Default to phase 0
-  return "0";
-}
-
-/**
- * Detect workflow type (method, technique, utility, initializer)
- */
-function detectType(workflowName: string, _isStandalone?: boolean): string {
-  const name = workflowName.toLowerCase();
-
-  // Initializer workflows
-  if (name.includes("workflow-init") || name.includes("init")) {
-    return "initializer";
-  }
-
-  // Technique workflows (sub-workflows used within methods)
-  if (
-    name.includes("scamper") ||
-    name.includes("six-hats") ||
-    name.includes("six-thinking-hats") ||
-    name.includes("five-whys") ||
-    name.includes("mind-mapping") ||
-    name.includes("what-if") ||
-    name.includes("technique")
-  ) {
-    return "technique";
-  }
-
-  // Utility workflows (standalone tools)
-  if (name.includes("validate") || name.includes("review") || name.includes("status")) {
-    return "utility";
-  }
-
-  // Default to method (main workflow type)
-  return "method";
-}
-
-/**
- * Detect module origin (bmm, cis, core, custom)
- */
-function detectModule(filePath: string): string {
-  if (filePath.includes("/cis/")) {
-    return "cis";
-  }
-  if (filePath.includes("/bmm/")) {
-    return "bmm";
-  }
-  if (filePath.includes("/core/")) {
-    return "core";
-  }
-  return "custom";
-}
-
-// Convert workflow name to display name
-function toDisplayName(name: string): string {
-  return name
-    .split("-")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
-
-// Recursively find all workflow.yaml files
-async function findWorkflowFiles(dir: string): Promise<string[]> {
-  const files: string[] = [];
-
-  try {
-    const entries = await readdir(dir, { withFileTypes: true });
-
-    for (const entry of entries) {
-      const fullPath = join(dir, entry.name);
-
-      if (entry.isDirectory()) {
-        // Recursively scan subdirectories
-        const subFiles = await findWorkflowFiles(fullPath);
-        files.push(...subFiles);
-      } else if (entry.name === "workflow.yaml") {
-        files.push(fullPath);
-      }
-    }
-  } catch (error) {
-    console.warn(`⚠️  Could not read directory ${dir}:`, error);
-  }
-
-  return files;
-}
-
-// Get agent ID by name
 async function getAgentId(agentName: string): Promise<string | null> {
   const agent = await db.query.agents.findFirst({
-    where: (agents, { eq }) => eq(agents.name, agentName),
+    where: eq(agents.name, agentName),
   });
-
   return agent?.id ?? null;
 }
 
-export async function seedWorkflows() {
-  // Navigate to project root (../../ from packages/scripts)
-  const PROJECT_ROOT = join(process.cwd(), "../..");
-  const BMM_WORKFLOWS_DIR = join(PROJECT_ROOT, "bmad/bmm/workflows");
-  const CIS_WORKFLOWS_DIR = join(PROJECT_ROOT, "bmad/cis/workflows");
-  const CORE_WORKFLOWS_DIR = join(PROJECT_ROOT, "bmad/core/workflows");
-
-  // Find all workflow.yaml files
-  const bmmFiles = await findWorkflowFiles(BMM_WORKFLOWS_DIR);
-  const cisFiles = await findWorkflowFiles(CIS_WORKFLOWS_DIR);
-  const coreFiles = await findWorkflowFiles(CORE_WORKFLOWS_DIR);
-
-  const allFiles = [...bmmFiles, ...cisFiles, ...coreFiles];
-
-  console.log(`  📂 Found ${allFiles.length} workflow files`);
-
-  let seededCount = 0;
-  let skippedCount = 0;
-
-  for (const filePath of allFiles) {
-    try {
-      const content = await readFile(filePath, "utf-8");
-      const data = yaml.load(content) as any;
-
-      if (!data.name) {
-        console.warn(`  ⚠️  Skipping ${filePath} - no name field`);
-        skippedCount++;
-        continue;
-      }
-
-      const workflowName = data.name;
-
-      // Determine agent
-      const agentName = AGENT_WORKFLOW_MAP[workflowName];
-      if (!agentName) {
-        console.warn(`  ⚠️  Skipping ${workflowName} - no agent mapping defined`);
-        skippedCount++;
-        continue;
-      }
-
-      const agentId = await getAgentId(agentName);
-      if (!agentId) {
-        console.warn(`  ⚠️  Skipping ${workflowName} - agent '${agentName}' not found`);
-        skippedCount++;
-        continue;
-      }
-
-      // Story 2.1: Build tags JSONB
-      const tags: WorkflowTags = {
-        phase: detectPhase(workflowName),
-        type: detectType(workflowName, data.standalone),
-        module: detectModule(filePath),
-      };
-
-      // Add track for initializer workflows
-      if (tags.type === "initializer") {
-        // Default to greenfield for new-project workflow-init
-        tags.track = workflowName.includes("existing") ? "brownfield" : "greenfield";
-      }
-
-      // Story 2.1: Build metadata JSONB
-      const metadata: WorkflowMetadata = {
-        agentId, // Migrated from column
-        isStandalone: data.standalone ?? true, // Migrated from column
-        requiresProjectContext: !data.standalone, // Migrated from column
-      };
-
-      // Story 2.3: Add layoutType and inputSchema for technique workflows
-      if (tags.type === "technique") {
-        metadata.layoutType = "dialog"; // Techniques render as modal dialogs
-        metadata.inputSchema = {
-          // All brainstorming techniques expect these parent variables
-          session_topic: {
-            type: "string",
-            required: true,
-            description: "The brainstorming session topic",
-          },
-          stated_goals: {
-            type: "array",
-            items: { type: "string" },
-            required: true,
-            description: "User's stated session goals",
-          },
-        };
-      }
-
-      // Insert workflow with new schema
-      await db
-        .insert(workflows)
-        .values({
-          name: workflowName,
-          displayName: toDisplayName(workflowName),
-          description: data.description || null,
-          tags,
-          metadata,
-          outputArtifactType: data.template ? "markdown" : null,
-        })
-        .onConflictDoNothing();
-
-      console.log(`  ✓ ${workflowName} (${agentName}, phase: ${tags.phase}, type: ${tags.type})`);
-      seededCount++;
-    } catch (error) {
-      console.error(`  ❌ Error processing ${filePath}:`, error);
-      skippedCount++;
-    }
-  }
-
-  console.log(`\n  📊 Seeded ${seededCount} workflows, skipped ${skippedCount}`);
-}
-
 /**
- * Story 2.1: Seed brainstorming workflow specifically for Phase 0 Dashboard
- * This ensures the brainstorming workflow is available with correct tags
+ * Seed stub workflows
  */
-export async function seedBrainstormingWorkflow() {
-  console.log("  🧠 Seeding brainstorming workflow for Phase 0...");
+export async function seedWorkflows(): Promise<void> {
+  console.log("Seeding stub workflows...");
 
-  // Get analyst agent ID
-  const agentId = await getAgentId("analyst");
-  if (!agentId) {
-    console.warn("  ⚠️  Analyst agent not found - skipping brainstorming seed");
-    return;
+  for (const workflow of STUB_WORKFLOWS) {
+    // Get the agent for this workflow
+    const agentName = AGENT_WORKFLOW_MAP[workflow.name];
+    const agentId = agentName ? await getAgentId(agentName) : null;
+
+    // Check if workflow already exists
+    const existing = await db.query.workflows.findFirst({
+      where: eq(workflows.name, workflow.name),
+    });
+
+    if (existing) {
+      console.log(`  ⏭️  Workflow "${workflow.name}" already exists, skipping`);
+      continue;
+    }
+
+    // Insert workflow
+    const [insertedWorkflow] = await db
+      .insert(workflows)
+      .values({
+        name: workflow.name,
+        displayName: workflow.displayName,
+        description: workflow.description,
+        tags: workflow.tags,
+        metadata: {
+          agentId,
+          isStandalone: false,
+          layoutType: "standard",
+        },
+      })
+      .returning();
+
+    if (!insertedWorkflow) {
+      console.log(`  ❌ Failed to insert workflow "${workflow.name}"`);
+      continue;
+    }
+
+    // Insert a single stub step
+    await db.insert(workflowSteps).values({
+      workflowId: insertedWorkflow.id,
+      stepNumber: 1,
+      name: "stub-placeholder",
+      goal: `${workflow.displayName} - Implementation pending`,
+      stepType: "display-output",
+      config: {
+        title: workflow.displayName,
+        message: `This workflow is a placeholder. Full implementation coming soon.\n\nDescription: ${workflow.description}`,
+        variant: "info",
+      },
+    });
+
+    console.log(`  ✅ Created stub workflow: ${workflow.name}`);
   }
 
-  const tags: WorkflowTags = {
-    phase: "0", // Phase 0: Discovery
-    type: "method", // Primary workflow type
-    module: "cis", // Creative Innovation System
-  };
-
-  const metadata: WorkflowMetadata = {
-    agentId,
-    isStandalone: false, // Requires project context
-    requiresProjectContext: true,
-    icon: "brain", // Lucide icon
-    color: "#8B5CF6", // Purple color
-    estimatedDuration: "15-30 min",
-    recommendedFor: ["new-projects", "ideation", "discovery"],
-  };
-
-  await db
-    .insert(workflows)
-    .values({
-      name: "brainstorming",
-      displayName: "Brainstorming Session",
-      description:
-        "Kick off your project by defining the core topic, goals, and scope with AI assistance",
-      tags,
-      metadata,
-      outputArtifactType: "markdown",
-    })
-    .onConflictDoNothing();
-
-  console.log("  ✓ Brainstorming workflow seeded");
+  console.log("Stub workflows seeding complete!");
 }

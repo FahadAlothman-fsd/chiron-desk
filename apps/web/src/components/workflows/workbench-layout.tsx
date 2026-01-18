@@ -20,7 +20,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
  */
 
 interface WorkbenchLayoutProps {
-  /** Chat interface component (typically AskUserChatStep) */
+  /** Chat interface component (typically SandboxedAgentStep) */
   chatContent: React.ReactNode;
   /** Artifact preview component (markdown renderer with live updates) */
   artifactContent: React.ReactNode;

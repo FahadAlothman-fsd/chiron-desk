@@ -2,13 +2,12 @@ import { describe, expect, it } from "bun:test";
 import { db } from "@chiron/db";
 import { seedAgents } from "./agents";
 import { seedBrainstorming } from "./brainstorming";
-import { seedBrainstormingWorkflow } from "./workflows";
+import { seedWorkflows } from "./workflows";
 
 describe("Brainstorming Workflow Seed", () => {
   it("should create brainstorming workflow with Step 1 configured", async () => {
-    // Seed prerequisites
     await seedAgents();
-    await seedBrainstormingWorkflow();
+    await seedWorkflows();
     await seedBrainstorming();
 
     // Verify workflow exists
@@ -29,7 +28,7 @@ describe("Brainstorming Workflow Seed", () => {
     });
 
     expect(step1).toBeDefined();
-    expect(step1?.stepType).toBe("ask-user-chat");
+    expect(step1?.stepType).toBe("sandboxed-agent");
     expect(step1?.goal).toBe("Define session topic, goals, and select brainstorming techniques");
 
     // Verify Step 1 config has 3 tools

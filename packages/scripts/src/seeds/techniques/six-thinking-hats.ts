@@ -198,7 +198,7 @@ Start enthusiastically: "🎩 Let's put on different thinking hats to see this f
     workflowId: workflow.id,
     stepNumber: 1,
     goal: "Analyze topic through 6 thinking perspectives",
-    stepType: "ask-user-chat",
+    stepType: "sandboxed-agent",
     config: step1Config,
     nextStepNumber: null, // Single step workflow
   });

@@ -105,7 +105,7 @@ interface ToolConfig {
   requiredVariables?: string[];
 }
 
-interface AskUserChatStepProps {
+interface SandboxedAgentStepProps {
   executionId: string;
   stepConfig: {
     agentId: string;
@@ -300,7 +300,7 @@ function parseMessageContent(content: string): ParsedContent {
   }
 }
 
-export function AskUserChatStep({
+export function SandboxedAgentStep({
   executionId,
   stepConfig,
   stepGoal,
@@ -309,7 +309,7 @@ export function AskUserChatStep({
   isStepComplete = false,
   onComplete,
   readOnly = false,
-}: AskUserChatStepProps) {
+}: SandboxedAgentStepProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   // Default to GPT OSS 120B
   const [model, setModel] = useState<string>("openrouter:openai/gpt-oss-120b");
@@ -385,7 +385,7 @@ export function AskUserChatStep({
 
       setIsLoading(false);
     } catch (error) {
-      console.error("[AskUserChatStep] Error sending message:", error);
+      console.error("[SandboxedAgentStep] Error sending message:", error);
       setMessages((prev) => prev.filter((m) => m.id !== userMessage.id));
       setIsLoading(false);
     }

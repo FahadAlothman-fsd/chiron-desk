@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { AskUserStepConfig } from "./ask-user-step";
-import { AskUserStep } from "./ask-user-step";
+import type { UserFormStepConfig } from "./user-form-step";
+import { UserFormStep } from "./user-form-step";
 
-describe("AskUserStep", () => {
-  const pathConfig: AskUserStepConfig = {
-    type: "ask-user",
+describe("UserFormStep", () => {
+  const pathConfig: UserFormStepConfig = {
+    type: "user-form",
     question: "Select your project directory",
     message: "Let's set up your project! Where would you like to create it?",
     responseType: "path",
@@ -20,8 +20,8 @@ describe("AskUserStep", () => {
     },
   };
 
-  const stringConfig: AskUserStepConfig = {
-    type: "ask-user",
+  const stringConfig: UserFormStepConfig = {
+    type: "user-form",
     question: "Enter project name",
     responseType: "string",
     responseVariable: "project_name",
@@ -42,7 +42,7 @@ describe("AskUserStep", () => {
 
   describe("path selector", () => {
     it("renders path selector correctly", () => {
-      render(<AskUserStep config={pathConfig} onSubmit={mock(() => {})} loading={false} />);
+      render(<UserFormStep config={pathConfig} onSubmit={mock(() => {})} loading={false} />);
 
       expect(screen.getByText(pathConfig.message!)).toBeInTheDocument();
       expect(screen.getByText(pathConfig.question)).toBeInTheDocument();
@@ -53,7 +53,7 @@ describe("AskUserStep", () => {
       const user = userEvent.setup();
       const onSubmit = mock(() => {});
 
-      render(<AskUserStep config={pathConfig} onSubmit={onSubmit} loading={false} />);
+      render(<UserFormStep config={pathConfig} onSubmit={onSubmit} loading={false} />);
 
       // Find input by its textbox role (DirectoryPicker renders an input)
       const inputs = screen.getAllByRole("textbox");
@@ -70,7 +70,7 @@ describe("AskUserStep", () => {
       const _user = userEvent.setup();
       const onSubmit = mock(() => {});
 
-      render(<AskUserStep config={pathConfig} onSubmit={onSubmit} loading={false} />);
+      render(<UserFormStep config={pathConfig} onSubmit={onSubmit} loading={false} />);
 
       const continueButton = screen.getByRole("button", { name: /continue/i });
 
@@ -79,7 +79,7 @@ describe("AskUserStep", () => {
     });
 
     it("disables submit button during loading", () => {
-      render(<AskUserStep config={pathConfig} onSubmit={mock(() => {})} loading={true} />);
+      render(<UserFormStep config={pathConfig} onSubmit={mock(() => {})} loading={true} />);
 
       const continueButton = screen.getByRole("button", {
         name: /submitting/i,
@@ -90,7 +90,7 @@ describe("AskUserStep", () => {
 
   describe("string input", () => {
     it("renders string input correctly", () => {
-      render(<AskUserStep config={stringConfig} onSubmit={mock(() => {})} loading={false} />);
+      render(<UserFormStep config={stringConfig} onSubmit={mock(() => {})} loading={false} />);
 
       expect(screen.getByLabelText(stringConfig.question)).toBeInTheDocument();
     });
@@ -99,7 +99,7 @@ describe("AskUserStep", () => {
       const user = userEvent.setup();
       const onSubmit = mock(() => {});
 
-      render(<AskUserStep config={stringConfig} onSubmit={onSubmit} loading={false} />);
+      render(<UserFormStep config={stringConfig} onSubmit={onSubmit} loading={false} />);
 
       const input = screen.getByLabelText(stringConfig.question);
       await user.type(input, "ab"); // Too short
@@ -118,7 +118,7 @@ describe("AskUserStep", () => {
       const user = userEvent.setup();
       const onSubmit = mock(() => {});
 
-      render(<AskUserStep config={stringConfig} onSubmit={onSubmit} loading={false} />);
+      render(<UserFormStep config={stringConfig} onSubmit={onSubmit} loading={false} />);
 
       const input = screen.getByLabelText(stringConfig.question);
       const longString = "a".repeat(51); // Too long
@@ -138,7 +138,7 @@ describe("AskUserStep", () => {
       const user = userEvent.setup();
       const onSubmit = mock(() => {});
 
-      render(<AskUserStep config={stringConfig} onSubmit={onSubmit} loading={false} />);
+      render(<UserFormStep config={stringConfig} onSubmit={onSubmit} loading={false} />);
 
       const input = screen.getByLabelText(stringConfig.question);
       await user.type(input, "My Project");
@@ -151,8 +151,8 @@ describe("AskUserStep", () => {
   });
 
   describe("number input", () => {
-    const numberConfig: AskUserStepConfig = {
-      type: "ask-user",
+    const numberConfig: UserFormStepConfig = {
+      type: "user-form",
       question: "Enter count",
       responseType: "number",
       responseVariable: "item_count",
@@ -166,7 +166,7 @@ describe("AskUserStep", () => {
       const user = userEvent.setup();
       const onSubmit = mock(() => {});
 
-      render(<AskUserStep config={numberConfig} onSubmit={onSubmit} loading={false} />);
+      render(<UserFormStep config={numberConfig} onSubmit={onSubmit} loading={false} />);
 
       const input = screen.getByLabelText(numberConfig.question);
       await user.type(input, "0");
@@ -185,7 +185,7 @@ describe("AskUserStep", () => {
       const user = userEvent.setup();
       const onSubmit = mock(() => {});
 
-      render(<AskUserStep config={numberConfig} onSubmit={onSubmit} loading={false} />);
+      render(<UserFormStep config={numberConfig} onSubmit={onSubmit} loading={false} />);
 
       const input = screen.getByLabelText(numberConfig.question);
       await user.type(input, "150");
@@ -204,7 +204,7 @@ describe("AskUserStep", () => {
       const user = userEvent.setup();
       const onSubmit = mock(() => {});
 
-      render(<AskUserStep config={numberConfig} onSubmit={onSubmit} loading={false} />);
+      render(<UserFormStep config={numberConfig} onSubmit={onSubmit} loading={false} />);
 
       const input = screen.getByLabelText(numberConfig.question);
       await user.type(input, "42");
@@ -219,7 +219,7 @@ describe("AskUserStep", () => {
   describe("error display", () => {
     it("displays server error", () => {
       render(
-        <AskUserStep
+        <UserFormStep
           config={pathConfig}
           onSubmit={mock(() => {})}
           loading={false}

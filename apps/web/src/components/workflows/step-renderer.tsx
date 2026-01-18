@@ -1,21 +1,5 @@
-/**
- * Step Renderer - Story 2.3 Task 7
- *
- * Pure step content rendering based on stepType
- * Returns step component WITHOUT any layout concerns (no Timeline, no stepper)
- *
- * Step types:
- * - "ask-user-chat" → AskUserChatStep
- * - "invoke-workflow" → InvokeWorkflowStep
- * - "ask-user" → AskUserStep
- * - "display-output" → DisplayOutputStep
- * - "execute-action" → ExecuteActionStep
- *
- * Layout wrapper applied by WorkflowLayoutRenderer based on metadata.layoutType
- */
-
-import { AskUserChatStep } from "./steps/ask-user-chat-step";
-import { AskUserStep } from "./steps/ask-user-step";
+import { SandboxedAgentStep } from "./steps/sandboxed-agent-step";
+import { UserFormStep } from "./steps/user-form-step";
 import { DisplayOutputStep } from "./steps/display-output-step";
 import { ExecuteActionStep } from "./steps/execute-action-step";
 import { InvokeWorkflowStep } from "./steps/invoke-workflow-step";
@@ -59,9 +43,9 @@ export function StepRenderer({
   onExecuteWorkflow,
   onViewExecution,
 }: StepRendererProps) {
-  // Check if step is complete (for ask-user-chat steps with tools)
+  // Check if step is complete (for sandboxed-agent steps with tools)
   const isStepComplete =
-    step.stepType === "ask-user-chat" && step.config?.tools && Array.isArray(step.config.tools)
+    step.stepType === "sandboxed-agent" && step.config?.tools && Array.isArray(step.config.tools)
       ? (step.config.tools as Array<{ name: string }>).every((tool) => {
           const approvalStates = execution.variables?.approval_states as Record<
             string,
@@ -72,11 +56,10 @@ export function StepRenderer({
         })
       : false;
 
-  // Render step based on type
   switch (step.stepType) {
-    case "ask-user-chat":
+    case "sandboxed-agent":
       return (
-        <AskUserChatStep
+        <SandboxedAgentStep
           stepConfig={step.config}
           executionId={execution.id}
           stepGoal={step.goal}
@@ -96,8 +79,8 @@ export function StepRenderer({
         />
       );
 
-    case "ask-user":
-      return <AskUserStep stepConfig={step.config} executionId={execution.id} />;
+    case "user-form":
+      return <UserFormStep stepConfig={step.config} executionId={execution.id} />;
 
     case "display-output":
       return <DisplayOutputStep stepConfig={step.config} variables={execution.variables} />;

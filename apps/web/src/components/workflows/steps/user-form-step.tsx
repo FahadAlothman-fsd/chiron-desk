@@ -7,8 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TwoPartDirectoryInput } from "@/components/ui/two-part-directory-input";
 
-export interface AskUserStepConfig {
-  type: "ask-user";
+export interface UserFormStepConfig {
+  type: "user-form";
   message?: string;
   question: string;
   responseType: "boolean" | "string" | "number" | "choice" | "path" | "relative-path";
@@ -75,14 +75,14 @@ function validateRelativePath(input: string): RelativePathValidationResult {
   return { valid: true };
 }
 
-export interface AskUserStepProps {
-  config: AskUserStepConfig;
+export interface UserFormStepProps {
+  config: UserFormStepConfig;
   onSubmit: (value: unknown) => void;
   loading: boolean;
   error?: string;
 }
 
-export function AskUserStep({ config, onSubmit, loading, error }: AskUserStepProps) {
+export function UserFormStep({ config, onSubmit, loading, error }: UserFormStepProps) {
   const [value, setValue] = useState<string>("");
   const [validationError, setValidationError] = useState<string>("");
   const [isValidating, setIsValidating] = useState(false);

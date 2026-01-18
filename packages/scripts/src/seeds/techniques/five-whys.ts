@@ -312,7 +312,7 @@ Then ask a SPECIFIC first WHY question (not generic "Why?", but tailored to thei
   await db.insert(workflowSteps).values({
     workflowId: workflow.id,
     stepNumber: 1,
-    stepType: "ask-user-chat",
+    stepType: "sandboxed-agent",
     goal: "Discover root cause through 5 sequential whys",
     config: step1Config,
     nextStepNumber: null, // Final step

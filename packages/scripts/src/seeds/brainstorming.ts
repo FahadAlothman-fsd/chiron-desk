@@ -266,7 +266,7 @@ export async function seedBrainstorming() {
     workflowId: workflow.id,
     stepNumber: 1,
     goal: "Define session topic, goals, and select brainstorming techniques",
-    stepType: "ask-user-chat",
+    stepType: "sandboxed-agent",
     config: step1Config,
     nextStepNumber: 2, // Story 2.3: Continue to Step 2
   });

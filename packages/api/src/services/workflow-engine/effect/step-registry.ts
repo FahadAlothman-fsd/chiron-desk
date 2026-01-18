@@ -119,9 +119,7 @@ export const makeStepHandlerRegistry = Effect.gen(function* () {
     );
 
   handlers = HashMap.set(handlers, "user-form", userFormStepHandler);
-  handlers = HashMap.set(handlers, "ask-user", userFormStepHandler);
   handlers = HashMap.set(handlers, "sandboxed-agent", sandboxedAgentStepHandler);
-  handlers = HashMap.set(handlers, "ask-user-chat", sandboxedAgentStepHandler);
   handlers = HashMap.set(handlers, "system-agent", defaultHandler);
   handlers = HashMap.set(handlers, "branch", branchStepHandler);
 

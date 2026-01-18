@@ -223,7 +223,7 @@ export async function seedScamperTechnique() {
     workflowId: workflow.id,
     stepNumber: 1,
     goal: "Explore idea through 7 SCAMPER lenses systematically",
-    stepType: "ask-user-chat",
+    stepType: "sandboxed-agent",
     config: step1Config,
     nextStepNumber: null, // Single-step technique
   });

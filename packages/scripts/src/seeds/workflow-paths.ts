@@ -1,216 +1,290 @@
-import { readdir, readFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { db, workflowPaths, workflowPathWorkflows, workflows } from "@chiron/db";
 import { eq } from "drizzle-orm";
-import yaml from "js-yaml";
 
-// Get the directory of this file
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const COMPLEXITY_TAGS = {
+  "quick-flow": {
+    name: "Quick Flow Track",
+    value: "quick-flow",
+    description:
+      "Fast implementation track using tech-spec planning only. Best for bug fixes, small features, and changes with clear scope. Typical range: 1-15 stories.",
+  },
+  method: {
+    name: "BMad Method Track",
+    value: "method",
+    description:
+      "Full product planning track using PRD + Architecture + UX. Best for products, platforms, and complex features requiring system design. Typical range: 10-50+ stories.",
+  },
+  enterprise: {
+    name: "Enterprise Method Track",
+    value: "enterprise",
+    description:
+      "Extended enterprise planning track adding Security Architecture, DevOps Strategy, and Test Strategy. Best for enterprise requirements and compliance needs. Typical range: 30+ stories.",
+  },
+};
 
-// Navigate to project root from packages/scripts/src/seeds
-const WORKFLOW_PATHS_DIR = join(__dirname, "../../../../bmad/bmm/workflows/workflow-status/paths");
+const FIELD_TYPE_TAGS = {
+  greenfield: {
+    name: "Greenfield",
+    value: "greenfield",
+    description: "Starting a new project from scratch with no existing codebase.",
+  },
+  brownfield: {
+    name: "Brownfield",
+    value: "brownfield",
+    description: "Working with an existing codebase, adding features or refactoring.",
+  },
+};
 
-export async function seedWorkflowPaths() {
-  const files = await readdir(WORKFLOW_PATHS_DIR);
-  const yamlFiles = files.filter(
-    (f) => f.endsWith(".yaml") && f !== "game-design.yaml", // Skip game workflows (not in MVP)
-  );
+const EDUCATION_TEXT: Record<string, string> = {
+  "quick-flow-greenfield":
+    "Best for: Small projects (1-2 weeks), clear requirements, single developer or tiny team. Skips formal architecture in favor of rapid iteration.",
+  "quick-flow-brownfield":
+    "Best for: Adding features to well-understood codebases, bug fixes, minor enhancements. Skips re-analysis of existing architecture.",
+  "method-greenfield":
+    "Best for: Medium projects (4-8 weeks), structured requirements, small team (2-4 developers). Includes tech-spec planning.",
+  "method-brownfield":
+    "Best for: Major feature additions, refactoring existing systems, technical debt resolution. Includes architecture updates.",
+  "enterprise-greenfield":
+    "Best for: Large projects (3+ months), formal governance requirements, multi-team coordination. Comprehensive documentation.",
+  "enterprise-brownfield":
+    "Best for: Large-scale refactoring, system modernization, legacy migration with multi-team coordination.",
+};
 
-  for (const file of yamlFiles) {
-    const filePath = join(WORKFLOW_PATHS_DIR, file);
-    const content = await readFile(filePath, "utf-8");
-    const data = yaml.load(content) as any;
+const ESTIMATED_TIME: Record<string, string> = {
+  "quick-flow": "1-2 weeks",
+  method: "4-8 weeks",
+  enterprise: "3-6 months",
+};
 
-    // Extract workflow path name from filename (e.g., "greenfield-level-3.yaml" → "greenfield-level-3")
-    const name = file.replace(".yaml", "");
+const AGENT_SUPPORT: Record<string, string> = {
+  "quick-flow": "PM, DEV",
+  method: "PM, Architect, DEV, SM",
+  enterprise: "Full agent suite",
+};
 
-    // Convert method_name to displayName or generate from name
-    const displayName =
-      data.method_name ||
-      name
-        .split("-")
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(" ");
+interface PhaseWorkflow {
+  workflowName: string;
+  optional?: boolean;
+}
 
-    // Extract track and field type from data or filename
-    const track = data.track || "";
-    const fieldType = data.field_type || "";
+interface PathDefinition {
+  name: string;
+  displayName: string;
+  description: string;
+  track: "quick-flow" | "method" | "enterprise";
+  fieldType: "greenfield" | "brownfield";
+  phases: PhaseWorkflow[][];
+}
 
-    // Create structured tag objects with {name, value, description}
-    // Map from YAML track values to structured tags
-    const complexityTagMap: Record<string, { name: string; value: string; description: string }> = {
-      "quick-flow": {
-        name: "Quick Flow Track",
-        value: "quick-flow",
-        description:
-          "Fast implementation track using tech-spec planning only. Best for bug fixes, small features, and changes with clear scope. Typical range: 1-15 stories. Examples: bug fixes, OAuth login, search features.",
-      },
-      "bmad-method": {
-        name: "BMad Method Track",
-        value: "method",
-        description:
-          "Full product planning track using PRD + Architecture + UX. Best for products, platforms, and complex features requiring system design. Typical range: 10-50+ stories. Examples: admin dashboards, e-commerce platforms, SaaS products.",
-      },
-      "enterprise-bmad-method": {
-        name: "Enterprise Method Track",
-        value: "enterprise",
-        description:
-          "Extended enterprise planning track adding Security Architecture, DevOps Strategy, and Test Strategy to BMad Method. Best for enterprise requirements, compliance needs, and multi-tenant systems. Typical range: 30+ stories. Examples: multi-tenant platforms, compliance-driven systems, mission-critical applications.",
-      },
-    };
+const PATH_DEFINITIONS: PathDefinition[] = [
+  {
+    name: "quick-flow-greenfield",
+    displayName: "Quick Flow - Greenfield",
+    description: "Fast-track for new small projects with clear scope.",
+    track: "quick-flow",
+    fieldType: "greenfield",
+    phases: [
+      [],
+      [{ workflowName: "brainstorm-project", optional: true }],
+      [{ workflowName: "prd" }],
+      [],
+      [{ workflowName: "sprint-planning" }],
+    ],
+  },
+  {
+    name: "quick-flow-brownfield",
+    displayName: "Quick Flow - Brownfield",
+    description: "Fast-track for adding features to existing codebases.",
+    track: "quick-flow",
+    fieldType: "brownfield",
+    phases: [
+      [{ workflowName: "document-project", optional: true }],
+      [{ workflowName: "brainstorm-project", optional: true }],
+      [{ workflowName: "prd" }],
+      [],
+      [{ workflowName: "sprint-planning" }],
+    ],
+  },
+  {
+    name: "method-greenfield",
+    displayName: "Method BMAD - Greenfield",
+    description: "Standard BMAD methodology for new projects starting from scratch.",
+    track: "method",
+    fieldType: "greenfield",
+    phases: [
+      [],
+      [
+        { workflowName: "brainstorm-project", optional: true },
+        { workflowName: "research", optional: true },
+        { workflowName: "product-brief", optional: true },
+      ],
+      [{ workflowName: "prd" }, { workflowName: "create-ux-design", optional: true }],
+      [
+        { workflowName: "create-architecture" },
+        { workflowName: "create-epics-and-stories" },
+        { workflowName: "test-design", optional: true },
+        { workflowName: "implementation-readiness" },
+      ],
+      [{ workflowName: "sprint-planning" }],
+    ],
+  },
+  {
+    name: "method-brownfield",
+    displayName: "Method BMAD - Brownfield",
+    description: "BMAD methodology for existing projects requiring documentation first.",
+    track: "method",
+    fieldType: "brownfield",
+    phases: [
+      [{ workflowName: "document-project" }],
+      [
+        { workflowName: "brainstorm-project", optional: true },
+        { workflowName: "research", optional: true },
+        { workflowName: "product-brief", optional: true },
+      ],
+      [{ workflowName: "prd" }, { workflowName: "create-ux-design", optional: true }],
+      [
+        { workflowName: "create-architecture" },
+        { workflowName: "create-epics-and-stories" },
+        { workflowName: "test-design", optional: true },
+        { workflowName: "implementation-readiness" },
+      ],
+      [{ workflowName: "sprint-planning" }],
+    ],
+  },
+  {
+    name: "enterprise-greenfield",
+    displayName: "Enterprise BMAD - Greenfield",
+    description: "Full BMAD methodology with all phases for enterprise-scale new projects.",
+    track: "enterprise",
+    fieldType: "greenfield",
+    phases: [
+      [],
+      [
+        { workflowName: "brainstorm-project", optional: true },
+        { workflowName: "research", optional: true },
+        { workflowName: "product-brief", optional: true },
+      ],
+      [{ workflowName: "prd" }, { workflowName: "create-ux-design", optional: true }],
+      [
+        { workflowName: "create-architecture" },
+        { workflowName: "create-epics-and-stories" },
+        { workflowName: "test-design", optional: true },
+        { workflowName: "implementation-readiness" },
+      ],
+      [{ workflowName: "sprint-planning" }],
+    ],
+  },
+  {
+    name: "enterprise-brownfield",
+    displayName: "Enterprise BMAD - Brownfield",
+    description: "Full BMAD methodology for enterprise-scale existing projects.",
+    track: "enterprise",
+    fieldType: "brownfield",
+    phases: [
+      [{ workflowName: "document-project" }],
+      [
+        { workflowName: "brainstorm-project", optional: true },
+        { workflowName: "research", optional: true },
+        { workflowName: "product-brief", optional: true },
+      ],
+      [{ workflowName: "prd" }, { workflowName: "create-ux-design", optional: true }],
+      [
+        { workflowName: "create-architecture" },
+        { workflowName: "create-epics-and-stories" },
+        { workflowName: "test-design", optional: true },
+        { workflowName: "implementation-readiness" },
+      ],
+      [{ workflowName: "sprint-planning" }],
+    ],
+  },
+];
 
-    const fieldTypeTagMap: Record<string, { name: string; value: string; description: string }> = {
-      greenfield: {
-        name: "Greenfield",
-        value: "greenfield",
-        description: "Starting a new project from scratch with no existing codebase.",
-      },
-      brownfield: {
-        name: "Brownfield",
-        value: "brownfield",
-        description: "Working with an existing codebase, adding features or refactoring.",
-      },
-    };
+function buildTags(track: PathDefinition["track"], fieldType: PathDefinition["fieldType"]) {
+  return {
+    complexity: COMPLEXITY_TAGS[track],
+    fieldType: FIELD_TYPE_TAGS[fieldType],
+  };
+}
 
-    // Generate appropriate metadata based on track and field type
-    const educationTextMap: Record<string, string> = {
-      "quick-flow-greenfield":
-        "Best for: Small projects (1-2 weeks), clear requirements, single developer or tiny team. Skips formal architecture in favor of rapid iteration.",
-      "quick-flow-brownfield":
-        "Best for: Adding features to well-understood codebases, bug fixes, minor enhancements. Skips re-analysis of existing architecture.",
-      "method-greenfield":
-        "Best for: Medium projects (4-8 weeks), structured requirements, small team (2-4 developers). Includes tech-spec planning.",
-      "method-brownfield":
-        "Best for: Major feature additions, refactoring existing systems, technical debt resolution. Includes architecture updates.",
-      "enterprise-greenfield":
-        "Best for: Large projects (3+ months), formal governance requirements, multi-team coordination. Comprehensive documentation.",
-      "enterprise-brownfield":
-        "Best for: Large-scale refactoring, system modernization, legacy migration with multi-team coordination.",
-    };
+function buildMetadata(track: PathDefinition["track"], name: string) {
+  return {
+    educationText: EDUCATION_TEXT[name] || "",
+    estimatedTime: ESTIMATED_TIME[track],
+    agentSupport: AGENT_SUPPORT[track],
+  };
+}
 
-    const estimatedTimeMap: Record<string, string> = {
-      "quick-flow": "1-2 weeks",
-      "bmad-method": "4-8 weeks",
-      "enterprise-bmad-method": "3-6 months",
-    };
+async function getWorkflowId(name: string): Promise<string | null> {
+  const workflow = await db.query.workflows.findFirst({
+    where: eq(workflows.name, name),
+  });
+  return workflow?.id ?? null;
+}
 
-    const agentSupportMap: Record<string, string> = {
-      "quick-flow": "PM, DEV",
-      "bmad-method": "PM, Analyst, Architect, DEV, SM",
-      "enterprise-bmad-method": "All 6 agents",
-    };
+export async function seedWorkflowPaths(): Promise<void> {
+  console.log("Seeding workflow paths...");
 
-    // Determine sequence order
-    const sequenceMap: Record<string, number> = {
-      "quick-flow-greenfield": 1,
-      "quick-flow-brownfield": 2,
-      "method-greenfield": 3,
-      "method-brownfield": 4,
-      "enterprise-greenfield": 5,
-      "enterprise-brownfield": 6,
-    };
+  for (const path of PATH_DEFINITIONS) {
+    const tags = buildTags(path.track, path.fieldType);
+    const metadata = buildMetadata(path.track, path.name);
 
-    // Insert workflow path
-    const insertedPath = await db
-      .insert(workflowPaths)
-      .values({
-        name,
-        displayName,
-        description: data.description,
-        educationText: educationTextMap[name] || data.description,
-        tags: {
-          complexity: complexityTagMap[track] || complexityTagMap.method,
-          fieldType: fieldTypeTagMap[fieldType] || fieldTypeTagMap.greenfield,
-        },
-        recommendedFor: data.recommended_for || null,
-        estimatedTime: estimatedTimeMap[track] || null,
-        agentSupport: agentSupportMap[track] || null,
-        sequenceOrder: sequenceMap[name] || 0,
-      })
-      .onConflictDoUpdate({
-        target: workflowPaths.name,
-        set: {
-          displayName,
-          description: data.description,
-          educationText: educationTextMap[name] || data.description,
-          tags: {
-            complexity: complexityTagMap[track] || complexityTagMap.method,
-            fieldType: fieldTypeTagMap[fieldType] || fieldTypeTagMap.greenfield,
-          },
-          recommendedFor: data.recommended_for || null,
-          estimatedTime: estimatedTimeMap[track] || null,
-          agentSupport: agentSupportMap[track] || null,
-          sequenceOrder: sequenceMap[name] || 0,
-        },
-      })
-      .returning();
+    const existing = await db.query.workflowPaths.findFirst({
+      where: eq(workflowPaths.name, path.name),
+    });
 
-    let workflowPathId = insertedPath[0]?.id;
+    let pathId: string;
 
-    // Fallback: if upsert didn't return ID (e.g. no changes made), fetch it
-    if (!workflowPathId) {
-      // Use raw select instead of query builder to be safe
-      const existing = await db
-        .select({ id: workflowPaths.id })
-        .from(workflowPaths)
-        .where(eq(workflowPaths.name, name))
-        .limit(1);
-      workflowPathId = existing[0]?.id;
-    }
+    if (existing) {
+      console.log(`  ⏭️  Path "${path.name}" exists, updating workflows...`);
+      pathId = existing.id;
 
-    console.log(`    Path ID for ${name}: ${workflowPathId}`);
-
-    // Seed workflow_path_workflows join table from phases
-    if (data.phases && Array.isArray(data.phases) && workflowPathId) {
-      console.log(`    Seeding ${data.phases.length} phases for ${name}...`);
-
-      // Clean up existing join rows for this path first to avoid duplicates
       await db
         .delete(workflowPathWorkflows)
-        .where(eq(workflowPathWorkflows.workflowPathId, workflowPathId));
+        .where(eq(workflowPathWorkflows.workflowPathId, pathId));
+    } else {
+      const [inserted] = await db
+        .insert(workflowPaths)
+        .values({
+          name: path.name,
+          displayName: path.displayName,
+          description: path.description,
+          tags,
+          metadata,
+        })
+        .returning();
 
-      for (const phaseData of data.phases) {
-        const phaseNumber = phaseData.phase !== undefined ? phaseData.phase : null;
-        const phaseWorkflows = phaseData.workflows || [];
+      if (!inserted) {
+        console.log(`  ❌ Failed to insert path "${path.name}"`);
+        continue;
+      }
 
-        if (phaseNumber === null) {
-          console.warn(`    ⚠️  Phase number missing in ${name}, skipping phase`);
+      pathId = inserted.id;
+      console.log(`  ✅ Created path: ${path.name}`);
+    }
+
+    let orderIndex = 0;
+    for (let phaseNum = 0; phaseNum < path.phases.length; phaseNum++) {
+      const phase = path.phases[phaseNum];
+      if (!phase) continue;
+
+      for (const wf of phase) {
+        const workflowId = await getWorkflowId(wf.workflowName);
+
+        if (!workflowId) {
+          console.log(`    ⚠️  Workflow "${wf.workflowName}" not found, skipping`);
           continue;
         }
 
-        for (let i = 0; i < phaseWorkflows.length; i++) {
-          const workflowData = phaseWorkflows[i];
-          const workflowName = workflowData.id;
-
-          // Look up workflow by name
-          const workflow = await db.query.workflows.findFirst({
-            where: eq(workflows.name, workflowName),
-          });
-
-          if (!workflow) {
-            console.warn(`    ⚠️  Workflow '${workflowName}' not found, skipping`);
-            continue;
-          }
-
-          // Insert into join table
-          await db
-            .insert(workflowPathWorkflows)
-            .values({
-              workflowPathId,
-              workflowId: workflow.id,
-              phase: phaseNumber,
-              sequenceOrder: i + 1,
-              isOptional: workflowData.optional || false,
-              isRecommended: workflowData.recommended || false,
-            })
-            .onConflictDoNothing();
-        }
+        await db.insert(workflowPathWorkflows).values({
+          workflowPathId: pathId,
+          workflowId,
+          phase: phaseNum,
+          sequenceOrder: orderIndex++,
+          isOptional: wf.optional ?? false,
+        });
       }
-      console.log(`  ✓ ${name} (${displayName}) with ${data.phases.length} phases`);
-    } else {
-      console.log(`  ✓ ${name} (${displayName})`);
     }
   }
+
+  console.log("Workflow paths seeding complete!");
 }

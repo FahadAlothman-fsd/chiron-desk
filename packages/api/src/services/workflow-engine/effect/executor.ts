@@ -2,12 +2,14 @@ import { db, eq, workflowExecutions } from "@chiron/db";
 import { Effect, Layer } from "effect";
 import { workflowEventBus as legacyEventBus } from "../event-bus";
 import { loadWorkflow } from "../workflow-loader";
+import { AIProviderServiceLive } from "./ai-provider-service";
 import { ConfigServiceLive } from "./config-service";
 import { DatabaseServiceLive } from "./database-service";
 import { MaxStepsExceededError, UnknownStepTypeError } from "./errors";
 import { WorkflowEventBusLive } from "./event-bus";
 import { ExecutionContextLive, type ExecutionState } from "./execution-context";
 import { AllHandlerLayers, StepHandlerRegistry, StepHandlerRegistryLive } from "./step-registry";
+import { VariableServiceLive } from "./variable-service";
 
 /**
  * Maximum step executions per workflow (prevents infinite loops)
@@ -40,6 +42,8 @@ const createWorkflowLayer = (initialState: ExecutionState) =>
     WorkflowEventBusLive,
     StepHandlerRegistryLive,
     ExecutionContextLive(initialState),
+    AIProviderServiceLive,
+    VariableServiceLive,
   ).pipe(Layer.provide(AllHandlerLayers));
 
 /**

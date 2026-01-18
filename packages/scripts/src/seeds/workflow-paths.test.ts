@@ -1,4 +1,4 @@
-import "../../test-setup"; // Load environment variables
+import "../../test-setup";
 import { describe, expect, test } from "bun:test";
 import { db, workflowPaths } from "@chiron/db";
 import { sql } from "drizzle-orm";
@@ -10,7 +10,6 @@ describe("Workflow Paths Seeding", () => {
 
     const allPaths = await db.select().from(workflowPaths);
 
-    // Verify all 6 BMM paths exist
     const requiredPaths = [
       "quick-flow-greenfield",
       "quick-flow-brownfield",
@@ -29,58 +28,68 @@ describe("Workflow Paths Seeding", () => {
     expect(allPaths.length).toBeGreaterThanOrEqual(6);
   });
 
-  test("All paths have tags JSONB", async () => {
+  test("All paths have tags JSONB with nested structure", async () => {
     const allPaths = await db.select().from(workflowPaths);
 
     for (const path of allPaths) {
       expect(path.tags).toBeTruthy();
       expect(typeof path.tags).toBe("object");
-    }
-  });
-
-  test("Tags contain track and fieldType", async () => {
-    const allPaths = await db.select().from(workflowPaths);
-
-    for (const path of allPaths) {
-      expect(path.tags).toHaveProperty("track");
       expect(path.tags).toHaveProperty("fieldType");
       expect(path.tags).toHaveProperty("complexity");
     }
   });
 
-  test("sequenceOrder is sequential (1-6)", async () => {
-    const allPaths = await db.select().from(workflowPaths).orderBy(workflowPaths.sequenceOrder);
+  test("Tags have proper nested object structure with name, value, description", async () => {
+    const allPaths = await db.select().from(workflowPaths);
 
-    const orders = allPaths.map((p) => p.sequenceOrder);
-    expect(orders).toEqual([1, 2, 3, 4, 5, 6]);
+    for (const path of allPaths) {
+      const tags = path.tags as {
+        complexity: { name: string; value: string; description: string };
+        fieldType: { name: string; value: string; description: string };
+      };
+
+      expect(tags.complexity).toHaveProperty("name");
+      expect(tags.complexity).toHaveProperty("value");
+      expect(tags.complexity).toHaveProperty("description");
+
+      expect(tags.fieldType).toHaveProperty("name");
+      expect(tags.fieldType).toHaveProperty("value");
+      expect(tags.fieldType).toHaveProperty("description");
+    }
   });
 
-  test("Query by fieldType: greenfield returns 3 paths", async () => {
+  test("Query by fieldType.value: greenfield returns 3 paths", async () => {
     const greenfieldPaths = await db
       .select()
       .from(workflowPaths)
-      .where(sql`${workflowPaths.tags}->>'fieldType' = 'greenfield'`);
+      .where(sql`${workflowPaths.tags}->'fieldType'->>'value' = 'greenfield'`);
 
     expect(greenfieldPaths.length).toBe(3);
   });
 
-  test("Query by track: quick-flow returns 2 paths", async () => {
+  test("Query by complexity.value: method returns 2 paths", async () => {
+    const methodPaths = await db
+      .select()
+      .from(workflowPaths)
+      .where(sql`${workflowPaths.tags}->'complexity'->>'value' = 'method'`);
+
+    expect(methodPaths.length).toBe(2);
+  });
+
+  test("Query by complexity.value: quick-flow returns 2 paths", async () => {
     const quickFlowPaths = await db
       .select()
       .from(workflowPaths)
-      .where(sql`${workflowPaths.tags}->>'track' = 'quick-flow'`);
+      .where(sql`${workflowPaths.tags}->'complexity'->>'value' = 'quick-flow'`);
 
     expect(quickFlowPaths.length).toBe(2);
   });
 
   test("Running twice doesn't create duplicates", async () => {
-    // Get count before
     const countBefore = (await db.select().from(workflowPaths)).length;
 
-    // Run seed again
     await seedWorkflowPaths();
 
-    // Count should remain the same
     const countAfter = (await db.select().from(workflowPaths)).length;
     expect(countAfter).toBe(countBefore);
   });

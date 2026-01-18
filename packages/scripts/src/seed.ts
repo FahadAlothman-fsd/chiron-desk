@@ -17,7 +17,7 @@ async function main() {
   const { db } = await import("@chiron/db");
   const { seedWorkflowPaths } = await import("./seeds/workflow-paths");
   const { seedAgents } = await import("./seeds/agents");
-  const { seedWorkflows, seedBrainstormingWorkflow } = await import("./seeds/workflows");
+  const { seedWorkflows } = await import("./seeds/workflows");
   const { seedWorkflowInitNew } = await import("./seeds/workflow-init-new");
   const { seedBrainstorming } = await import("./seeds/brainstorming");
   const { seedUsers } = await import("./seeds/users");
@@ -49,11 +49,6 @@ async function main() {
     console.log("\n🔄 Seeding workflows...");
     await seedWorkflows();
     console.log("✅ Workflows seeded");
-
-    // Story 2.1: Seed brainstorming workflow for Phase 0 Dashboard
-    console.log("\n🧠 Seeding brainstorming workflow...");
-    await seedBrainstormingWorkflow();
-    console.log("✅ Brainstorming workflow seeded");
 
     // Story 2.2: Seed brainstorming Step 1 with Mastra tools
     console.log("\n🧠 Seeding brainstorming Step 1...");

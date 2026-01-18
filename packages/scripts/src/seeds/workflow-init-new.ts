@@ -300,55 +300,20 @@ export async function seedWorkflowInitNew() {
         },
       },
 
-      // Tool 4: Generate/Approve Project Name (Story 1.7)
+      // Tool 4: Set Project Name (Story 1.7)
       {
         name: "update_project_name",
-        toolType: "ax-generation",
-        description:
-          "Generate 3-5 project name suggestions based on the description, and let user pick one or provide a custom name",
+        toolType: "update-variable",
+        targetVariable: "project_name",
+        description: "Set the project name in kebab-case format",
         usageGuidance:
-          "Call this tool when the user asks about the project name OR after complexity/workflow path are set. Generate 3-5 diverse project name suggestions that follow kebab-case conventions (lowercase, hyphens, no spaces). Pick your recommended name from the suggestions. The user can select one of your suggestions or enter a custom name. ALWAYS call this tool - do NOT just say you've set the name without calling it.",
+          "Call this tool when the user provides or confirms a project name. The name must be in kebab-case format (lowercase letters, numbers, and hyphens only, e.g. 'my-project-name'). If user hasn't mentioned a name, suggest 2-3 options based on the project description and let them pick or provide their own. ALWAYS call this tool - do NOT just say you've set the name without calling it.",
         requiredVariables: ["project_description"],
         requiresApproval: true,
-        axSignature: {
-          input: [
-            {
-              name: "project_description",
-              type: "string",
-              source: "variable",
-              variableName: "project_description",
-              description: "Project description for generating name ideas",
-            },
-            {
-              name: "conversation_history",
-              type: "string",
-              source: "context",
-              description: "Conversation history to pick up on user naming preferences",
-            },
-          ],
-          output: [
-            {
-              name: "project_name_suggestions",
-              type: "json",
-              description:
-                "3-5 diverse project name suggestions in kebab-case format. Include variations like: direct names, abbreviated names, metaphorical names, and action-oriented names. Return as JSON array of strings.",
-              internal: false,
-            },
-            {
-              name: "project_name",
-              type: "string",
-              description:
-                "Your recommended project name from the suggestions (kebab-case, e.g. 'my-project-name'). Pick the most memorable and descriptive option.",
-              internal: false,
-            },
-            {
-              name: "reasoning",
-              type: "string",
-              description: "Why you recommend this specific name over the other suggestions",
-              internal: true,
-            },
-          ],
-          strategy: "ChainOfThought",
+        valueSchema: {
+          type: "string",
+          description:
+            "Project name in kebab-case format (lowercase, hyphens, no spaces). Examples: 'task-manager', 'ai-chat-app', 'inventory-system'",
         },
       },
     ],
@@ -371,7 +336,7 @@ export async function seedWorkflowInitNew() {
         "approval_states.select_workflow_path.value.selected_workflow_path_id",
       selected_workflow_path_name:
         "approval_states.select_workflow_path.derived_values.selected_workflow_path_name",
-      project_name: "approval_states.update_project_name.value.project_name",
+      project_name: "approval_states.update_project_name.value",
     },
   };
 
@@ -379,7 +344,7 @@ export async function seedWorkflowInitNew() {
     workflowId: workflow.id,
     stepNumber: 1,
     goal: "Conversational project initialization with AI-powered approval gates",
-    stepType: "ask-user-chat",
+    stepType: "sandboxed-agent",
     config: step1Config,
     nextStepNumber: 2,
   });
@@ -392,7 +357,7 @@ export async function seedWorkflowInitNew() {
 
   // Step 2: Ask-User (Directory Selection)
   const step2Config: AskUserStepConfig = {
-    type: "ask-user",
+    type: "user-form",
     message: "Great! Now that we've defined your project, where should we create it?",
     question: "Enter the full path for your project directory",
     helpText:
@@ -412,7 +377,7 @@ export async function seedWorkflowInitNew() {
     workflowId: workflow.id,
     stepNumber: 2,
     goal: "Get project directory location from user",
-    stepType: "ask-user",
+    stepType: "user-form",
     config: step2Config,
     nextStepNumber: 3, // Continue to Step 3: Project Initialization
   });

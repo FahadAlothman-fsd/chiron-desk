@@ -87,7 +87,7 @@ development_status:
   2-M7-filesystem-field-type: done       # User-form enhancement for file/directory selection
   2-M8-complete-sandboxed-agent: done  # Complete sandboxed-agent-handler with streaming AI
   2-M9-effect-executor-wiring: done     # Wire Effect executor to production, delete old code (CODE REVIEW COMPLETE)
-  2-M10-seed-verification: ready-for-dev  # Verify seeds work with migrated engine before merge
+  2-M10-seed-verification: done  # Seeds verified, naming migration complete, YAML reading removed
   2-M11-real-time-agent-streaming: drafted  # Real-time streaming with AI SDK UI useChat
   
   # Original stories (resume after migration)

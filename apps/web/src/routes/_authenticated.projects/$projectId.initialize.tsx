@@ -5,8 +5,8 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { WorkflowStepperWizard } from "@/components/workflows/steppers/wizard/workflow-stepper-wizard";
-import { AskUserChatStep } from "@/components/workflows/steps/ask-user-chat-step";
-import { AskUserStep } from "@/components/workflows/steps/ask-user-step";
+import { SandboxedAgentStep } from "@/components/workflows/steps/sandboxed-agent-step";
+import { UserFormStep } from "@/components/workflows/steps/user-form-step";
 import { DisplayOutputStep } from "@/components/workflows/steps/display-output-step";
 import { ExecuteActionStep } from "@/components/workflows/steps/execute-action-step";
 import type { WorkflowStepDefinition } from "@/components/workflows/types";
@@ -254,8 +254,8 @@ function InitializePage() {
             />
           )}
 
-          {displayStepData?.stepType === "ask-user" && !isViewingHistory && (
-            <AskUserStep
+          {displayStepData?.stepType === "user-form" && !isViewingHistory && (
+            <UserFormStep
               config={displayStepData.config as any}
               loading={submitStep.isPending}
               error={submitStep.error?.message}
@@ -268,20 +268,19 @@ function InitializePage() {
             />
           )}
 
-          {displayStepData?.stepType === "ask-user-chat" && (
-            <AskUserChatStep
+          {displayStepData?.stepType === "sandboxed-agent" && (
+            <SandboxedAgentStep
               executionId={execution.id}
               stepConfig={displayStepData.config as any}
               stepGoal={displayStepData.goal}
               readOnly={isViewingCompletedStep}
               onComplete={() => {
-                // Refresh execution to get next step
                 refetchExecution();
               }}
             />
           )}
 
-          {displayStepData?.stepType === "ask-user" && isViewingCompletedStep && (
+          {displayStepData?.stepType === "user-form" && isViewingCompletedStep && (
             <div className="space-y-4">
               <div>
                 <h3 className="font-medium text-sm">Step Goal</h3>

@@ -90,15 +90,13 @@ export const workflowPatternEnum = pgEnum("workflow_pattern", [
 ]);
 
 export const stepTypeEnum = pgEnum("step_type", [
-  "ask-user",
-  "ask-user-chat", // Story 1.6 - Conversational chat with AI agent
-  "llm-generate",
-  "branch", // Renamed from "check-condition" for clarity (N-way branching)
-  "approval-checkpoint",
+  "user-form",
+  "sandboxed-agent",
+  "system-agent",
   "execute-action",
   "invoke-workflow",
   "display-output",
-  "question-set", // NEW - batch questions with optional dialogs
+  "branch",
 ]);
 
 export const actionExecutionEnum = pgEnum("action_execution", [
