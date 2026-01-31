@@ -1,11 +1,56 @@
-import { db, workflowExecutions, workflowPathWorkflows, workflows } from "@chiron/db";
+import {
+  chatMessages,
+  chatSessions,
+  db,
+  projects,
+  stepExecutions,
+  workflowExecutions,
+  workflowPathWorkflows,
+  workflows,
+} from "@chiron/db";
 import { observable } from "@trpc/server/observable";
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 import { continueExecution, executeWorkflow } from "../services/workflow-engine/effect/executor";
+import { effectWorkflowEventBus } from "../services/workflow-engine/effect/event-bus";
+import {
+  eventBusToAsyncGenerator,
+  type StreamEvent,
+} from "../services/workflow-engine/effect/streaming-adapter";
+import type { AiStreamEvent } from "../services/workflow-engine/effect/ai-runtime/events";
 import { type WorkflowEvent, workflowEventBus } from "../services/workflow-engine/event-bus";
 import { stateManager } from "../services/workflow-engine/state-manager";
+
+type AgentStreamEvent = StreamEvent | AiStreamEvent;
+
+async function assertExecutionOwner(executionId: string, userId: string) {
+  const [execution] = await db
+    .select()
+    .from(workflowExecutions)
+    .where(eq(workflowExecutions.id, executionId))
+    .limit(1);
+
+  if (!execution) {
+    throw new Error(`Execution not found: ${executionId}`);
+  }
+
+  if (!execution.projectId) {
+    throw new Error(`Execution not scoped to a project: ${executionId}`);
+  }
+
+  const [project] = await db
+    .select()
+    .from(projects)
+    .where(eq(projects.id, execution.projectId))
+    .limit(1);
+
+  if (!project || project.userId !== userId) {
+    throw new Error("Not authorized for this execution");
+  }
+
+  return execution;
+}
 
 /**
  * Workflow Router - tRPC endpoints for workflow execution
@@ -35,7 +80,7 @@ export const workflowRouter = router({
     }),
 
   /**
-   * Story 1.5: Continue an existing execution (for execute-action steps)
+   * Story 1.5: Continue an existing execution (for action steps)
    * Use this instead of execute() when an execution already exists
    */
   continue: protectedProcedure
@@ -66,6 +111,164 @@ export const workflowRouter = router({
       // Resume execution with user input
       await stateManager.resumeExecution(input.executionId);
       await continueExecution(input.executionId, userId, input.userInput);
+
+      return { success: true };
+    }),
+
+  submitToolApproval: protectedProcedure
+    .input(
+      z.object({
+        executionId: z.string().uuid(),
+        stepId: z.string(),
+        toolCallId: z.string(),
+        toolName: z.string(),
+        action: z.enum(["approve", "reject", "edit"]),
+        editedArgs: z.unknown().optional(),
+        feedback: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      await assertExecutionOwner(input.executionId, ctx.session.user.id);
+      const userId = ctx.session.user.id;
+
+      const executionData = await stateManager.getExecution(input.executionId);
+      if (!executionData || !executionData.execution) {
+        throw new Error(`Execution not found: ${input.executionId}`);
+      }
+
+      const { execution, currentStep } = executionData;
+
+      if (execution.status !== "paused") {
+        throw new Error(`Cannot approve: Execution is ${execution.status}, expected "paused"`);
+      }
+
+      const approvalStates = (execution.variables.approval_states || {}) as Record<string, any>;
+      const toolState = approvalStates[input.toolName];
+
+      if (!toolState) {
+        throw new Error(`Tool "${input.toolName}" not found in approval states`);
+      }
+
+      if (input.action === "reject") {
+        const feedback = input.feedback ?? "Tool call rejected by user";
+        const lastRejection = toolState.rejection_history?.[toolState.rejection_history.length - 1];
+        if (
+          lastRejection &&
+          lastRejection.feedback === feedback &&
+          Date.now() - new Date(lastRejection.rejectedAt).getTime() < 2000
+        ) {
+          console.log("[RejectToolCall] Duplicate rejection detected, ignoring");
+          return { success: true, duplicate: true };
+        }
+
+        const rejectionEntry = {
+          feedback,
+          rejectedAt: new Date().toISOString(),
+          previousOutput: toolState.value,
+        };
+
+        toolState.rejection_history = toolState.rejection_history || [];
+        toolState.rejection_history.push(rejectionEntry);
+        toolState.status = "rejected";
+
+        const updatedVariables = {
+          ...execution.variables,
+          approval_states: approvalStates,
+        };
+
+        await stateManager.mergeExecutionVariables(input.executionId, updatedVariables);
+        await stateManager.resumeExecution(input.executionId);
+        await continueExecution(input.executionId, userId, feedback);
+        workflowEventBus.emitWorkflowResumed(input.executionId);
+
+        return { success: true };
+      }
+
+      const approvedValue = input.editedArgs ?? toolState.value;
+
+      toolState.status = "approved";
+      toolState.value = approvedValue;
+      toolState.approved_at = new Date().toISOString();
+      toolState.regenerationNeeded = false;
+
+      const stepConfig = currentStep?.config as any;
+      const tools = stepConfig?.tools || [];
+      const toolConfig = tools.find((t: any) => t.name === input.toolName);
+
+      if (toolConfig?.axSignature?.output) {
+        const derivedValues: Record<string, unknown> = {};
+
+        for (const output of toolConfig.axSignature.output) {
+          const outputAny = output as any;
+          if (!outputAny.extractFrom) continue;
+
+          const { source, matchField, matchValue, selectField } = outputAny.extractFrom;
+          const matchValueData = approvedValue?.[matchValue];
+          if (!matchValueData) {
+            console.warn(
+              `[ApproveToolCall] extractFrom: matchValue field '${matchValue}' not found in approved value for '${output.name}'`,
+            );
+            continue;
+          }
+
+          const sourceData = execution.variables[source];
+          if (!sourceData || !Array.isArray(sourceData)) {
+            console.warn(
+              `[ApproveToolCall] extractFrom: source '${source}' not found or not an array for '${output.name}'`,
+            );
+            continue;
+          }
+
+          const matchedOption = sourceData.find((item: any) => item[matchField] === matchValueData);
+          if (!matchedOption) {
+            console.warn(
+              `[ApproveToolCall] extractFrom: no option found matching ${matchField}='${matchValueData}' in '${source}' for '${output.name}'`,
+            );
+            continue;
+          }
+
+          const extractedValue = matchedOption[selectField];
+          if (extractedValue === undefined) {
+            console.warn(
+              `[ApproveToolCall] extractFrom: field '${selectField}' not found in matched option for '${output.name}'`,
+            );
+            continue;
+          }
+
+          derivedValues[output.name] = extractedValue;
+        }
+
+        if (Object.keys(derivedValues).length > 0) {
+          toolState.derived_values = derivedValues;
+        }
+      }
+
+      if (toolConfig?.toolType === "update-variable" && toolConfig?.targetVariable) {
+        execution.variables[toolConfig.targetVariable] = approvedValue;
+      } else if (approvedValue && typeof approvedValue === "object") {
+        for (const [key, value] of Object.entries(approvedValue)) {
+          if (key !== "reasoning" && key !== "internal") {
+            execution.variables[key] = value;
+          }
+        }
+
+        if (toolState.derived_values) {
+          for (const [key, value] of Object.entries(toolState.derived_values)) {
+            execution.variables[key] = value;
+          }
+        }
+      }
+
+      await db
+        .update(workflowExecutions)
+        .set({
+          variables: execution.variables,
+          status: "active",
+        })
+        .where(eq(workflowExecutions.id, input.executionId));
+
+      workflowEventBus.emitWorkflowResumed(input.executionId);
+      await continueExecution(input.executionId, userId);
 
       return { success: true };
     }),
@@ -221,6 +424,57 @@ export const workflowRouter = router({
         // Return cleanup function
         return () => {
           unsubscribe();
+        };
+      });
+    }),
+
+  onAgentStream: protectedProcedure
+    .input(
+      z.object({
+        executionId: z.string().uuid(),
+        stepId: z.string(),
+      }),
+    )
+    .subscription(({ input, ctx }) => {
+      return observable<AgentStreamEvent>((emit) => {
+        console.log("[AgentStream] subscribe", input.executionId, input.stepId);
+        let cancelled = false;
+        const generator = eventBusToAsyncGenerator(
+          effectWorkflowEventBus,
+          input.executionId,
+          (event) => event.stepId === input.stepId,
+        );
+        const iterator = generator[Symbol.asyncIterator]();
+
+        void (async () => {
+          try {
+            await assertExecutionOwner(input.executionId, ctx.session.user.id);
+
+            while (!cancelled) {
+              const { value, done } = await iterator.next();
+              if (done) break;
+              if (!value) continue;
+              console.log("[AgentStream] emit", value.type, value.stepId);
+              emit.next(value);
+            }
+          } catch (error) {
+            emit.next({
+              type: "error",
+              executionId: input.executionId,
+              stepId: input.stepId,
+              message: error instanceof Error ? error.message : "Stream failed",
+            });
+            emit.complete();
+          } finally {
+            if (iterator.return) {
+              await iterator.return(undefined);
+            }
+          }
+        })();
+
+        return () => {
+          cancelled = true;
+          void iterator.return?.(undefined);
         };
       });
     }),
@@ -729,7 +983,8 @@ export const workflowRouter = router({
     .input(
       z.object({
         executionId: z.string().uuid(),
-        stepNumber: z.number().optional(),
+        stepId: z.string().uuid().optional(),
+        stepExecutionId: z.string().uuid().optional(),
       }),
     )
     .query(async ({ input }) => {
@@ -737,7 +992,63 @@ export const workflowRouter = router({
       if (!executionData || !executionData.execution) {
         throw new Error(`Execution not found: ${input.executionId}`);
       }
-      return { messages: [] };
+
+      const stepId = input.stepId ?? executionData.currentStep?.id;
+      let stepExecutionId = input.stepExecutionId;
+
+      if (!stepExecutionId && stepId) {
+        const [activeStepExecution] = await db
+          .select({ id: stepExecutions.id })
+          .from(stepExecutions)
+          .where(
+            and(
+              eq(stepExecutions.executionId, input.executionId),
+              eq(stepExecutions.stepId, stepId),
+              eq(stepExecutions.isActive, true),
+            ),
+          )
+          .orderBy(desc(stepExecutions.createdAt))
+          .limit(1);
+
+        stepExecutionId = activeStepExecution?.id;
+      }
+
+      if (!stepExecutionId) {
+        return { messages: [] };
+      }
+
+      const [session] = await db
+        .select()
+        .from(chatSessions)
+        .where(
+          and(
+            eq(chatSessions.executionId, input.executionId),
+            eq(chatSessions.stepExecutionId, stepExecutionId),
+          ),
+        )
+        .limit(1);
+
+      if (!session) {
+        return { messages: [] };
+      }
+
+      const messages = await db
+        .select()
+        .from(chatMessages)
+        .where(eq(chatMessages.sessionId, session.id))
+        .orderBy(chatMessages.sequenceNum);
+
+      return {
+        messages: messages
+          .filter((message) => message.role !== "system")
+          .map((message) => ({
+            id: message.id,
+            role: message.role,
+            content: message.content,
+            created_at: message.createdAt.toISOString(),
+            metadata: message.metadata ?? undefined,
+          })),
+      };
     }),
 
   /**
@@ -758,23 +1069,29 @@ export const workflowRouter = router({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      // Get userId from authenticated session
       const userId = ctx.session.user.id;
 
-      // If user selected a model, store it in execution variables
-      if (input.selectedModel) {
-        await stateManager.mergeExecutionVariables(input.executionId, {
-          selected_model: input.selectedModel,
+      try {
+        if (input.selectedModel) {
+          await stateManager.mergeExecutionVariables(input.executionId, {
+            selected_model: input.selectedModel,
+          });
+        }
+
+        await stateManager.resumeExecution(input.executionId);
+        await continueExecution(input.executionId, userId, input.message);
+
+        workflowEventBus.emitWorkflowResumed(input.executionId);
+
+        return { success: true };
+      } catch (error) {
+        console.error("[WorkflowRouter] sendChatMessage failed", {
+          executionId: input.executionId,
+          userId,
+          error,
         });
+        throw error;
       }
-
-      // Submit the message as user input to continue execution
-      await stateManager.resumeExecution(input.executionId);
-      await continueExecution(input.executionId, userId, input.message);
-
-      workflowEventBus.emitWorkflowResumed(input.executionId);
-
-      return { success: true };
     }),
 
   /**
@@ -1015,7 +1332,7 @@ export const workflowRouter = router({
 
   /**
    * Get workflows by IDs
-   * Used by invoke-workflow step to display workflow names
+   * Used by invoke step to display workflow names
    * Includes step count for progress visualization
    */
   getByIds: protectedProcedure
@@ -1044,7 +1361,7 @@ export const workflowRouter = router({
 
   /**
    * Get executions by IDs
-   * Used by invoke-workflow step to poll child execution status
+   * Used by invoke step to poll child execution status
    * Returns step progress and tool progress for running workflows
    */
   getExecutionsByIds: protectedProcedure
@@ -1243,7 +1560,7 @@ export const workflowRouter = router({
 
   /**
    * Create and start a child workflow execution
-   * Used by invoke-workflow steps to create child workflows on-demand
+   * Used by invoke steps to create child workflows on-demand
    */
   createAndStartChild: protectedProcedure
     .input(

@@ -1,4 +1,14 @@
-import { asc, db, eq, workflowExecutions, workflowSteps, workflows } from "@chiron/db";
+import {
+  and,
+  asc,
+  db,
+  desc,
+  eq,
+  stepExecutions,
+  workflowExecutions,
+  workflowSteps,
+  workflows,
+} from "@chiron/db";
 import deepmerge from "deepmerge";
 
 /**
@@ -76,6 +86,127 @@ export class StateManager {
         updatedAt: new Date(),
       })
       .where(eq(workflowExecutions.id, executionId));
+  }
+
+  async startStepExecution(params: { executionId: string; stepId: string; stepNumber: number }) {
+    const [activeStepExecution] = await db
+      .select()
+      .from(stepExecutions)
+      .where(
+        and(
+          eq(stepExecutions.executionId, params.executionId),
+          eq(stepExecutions.stepId, params.stepId),
+          eq(stepExecutions.isActive, true),
+        ),
+      )
+      .orderBy(desc(stepExecutions.createdAt))
+      .limit(1);
+
+    if (
+      activeStepExecution &&
+      (activeStepExecution.status === "waiting" || activeStepExecution.status === "running")
+    ) {
+      return activeStepExecution;
+    }
+
+    await db
+      .update(stepExecutions)
+      .set({
+        isActive: false,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(stepExecutions.executionId, params.executionId),
+          eq(stepExecutions.stepNumber, params.stepNumber),
+          eq(stepExecutions.isActive, true),
+        ),
+      );
+
+    const [stepExecution] = await db
+      .insert(stepExecutions)
+      .values({
+        executionId: params.executionId,
+        stepId: params.stepId,
+        stepNumber: params.stepNumber,
+        status: "running",
+        isActive: true,
+        startedAt: new Date(),
+      })
+      .returning();
+
+    return stepExecution;
+  }
+
+  async markStepExecutionWaiting(params: {
+    executionId: string;
+    stepId: string;
+    variablesDelta?: Record<string, unknown>;
+    approvalState?: Record<string, unknown>;
+  }) {
+    await db
+      .update(stepExecutions)
+      .set({
+        status: "waiting",
+        variablesDelta: params.variablesDelta ?? {},
+        approvalState: params.approvalState ?? {},
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(stepExecutions.executionId, params.executionId),
+          eq(stepExecutions.stepId, params.stepId),
+          eq(stepExecutions.isActive, true),
+        ),
+      );
+  }
+
+  async completeStepExecution(params: {
+    executionId: string;
+    stepId: string;
+    variablesDelta?: Record<string, unknown>;
+    approvalState?: Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+  }) {
+    await db
+      .update(stepExecutions)
+      .set({
+        status: "completed",
+        variablesDelta: params.variablesDelta ?? {},
+        approvalState: params.approvalState ?? {},
+        metadata: params.metadata ?? {},
+        completedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(stepExecutions.executionId, params.executionId),
+          eq(stepExecutions.stepId, params.stepId),
+          eq(stepExecutions.isActive, true),
+        ),
+      );
+  }
+
+  async failStepExecution(params: {
+    executionId: string;
+    stepId: string;
+    metadata?: Record<string, unknown>;
+  }) {
+    await db
+      .update(stepExecutions)
+      .set({
+        status: "failed",
+        metadata: params.metadata ?? {},
+        completedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(stepExecutions.executionId, params.executionId),
+          eq(stepExecutions.stepId, params.stepId),
+          eq(stepExecutions.isActive, true),
+        ),
+      );
   }
 
   /**
@@ -248,6 +379,12 @@ export class StateManager {
       .where(eq(workflowSteps.workflowId, execution.workflowId))
       .orderBy(asc(workflowSteps.stepNumber));
 
+    const stepExecutionsForExecution = await db
+      .select()
+      .from(stepExecutions)
+      .where(eq(stepExecutions.executionId, executionId))
+      .orderBy(asc(stepExecutions.startedAt));
+
     // If there's a current step, fetch its details
     let currentStep = null;
     if (execution.currentStepId) {
@@ -265,6 +402,7 @@ export class StateManager {
       workflow: workflow || null,
       currentStep,
       steps, // Story 2.3: All steps for layout rendering
+      stepExecutions: stepExecutionsForExecution,
     };
   }
 }

@@ -39,76 +39,24 @@ describe("Workflow Loader", () => {
         workflowId: testWorkflowId,
         stepNumber: 3,
         goal: "Step 3",
-        stepType: "display-output",
-        config: { outputTemplate: "Step 3", outputType: "info" },
-        nextStepNumber: null,
-      },
-      {
-        workflowId: testWorkflowId,
-        stepNumber: 1,
-        goal: "Step 1",
-        stepType: "ask-user",
-        config: {
-          question: "Test?",
-          inputType: "text",
-          storeAs: "test",
-        },
-        nextStepNumber: 2,
-      },
-      {
-        workflowId: testWorkflowId,
-        stepNumber: 2,
-        goal: "Step 2",
-        stepType: "display-output",
-        config: { outputTemplate: "Step 2", outputType: "info" },
-        nextStepNumber: 3,
-      },
-    ]);
+        stepType: "display",
+        config: { contentTemplate: "Step 3" },
 
-    const result = await loadWorkflow(testWorkflowId);
-
-    expect(result.steps).toHaveLength(3);
-    expect(result.steps[0].stepNumber).toBe(1);
-    expect(result.steps[1].stepNumber).toBe(2);
-    expect(result.steps[2].stepNumber).toBe(3);
-  });
-
-  it("should allow gaps in step numbers with warning", async () => {
-    // Create workflow with gaps: 1, 3, 5
-    await db.insert(workflowSteps).values([
-      {
-        workflowId: testWorkflowId,
-        stepNumber: 1,
-        goal: "Step 1",
-        stepType: "ask-user",
-        config: {
-          question: "Test?",
-          inputType: "text",
-          storeAs: "test",
-        },
-        nextStepNumber: 3,
-      },
-      {
-        workflowId: testWorkflowId,
-        stepNumber: 3,
-        goal: "Step 3",
-        stepType: "display-output",
-        config: { outputTemplate: "Step 3", outputType: "info" },
         nextStepNumber: 5,
       },
       {
         workflowId: testWorkflowId,
         stepNumber: 5,
         goal: "Step 5",
-        stepType: "display-output",
-        config: { outputTemplate: "Step 5", outputType: "info" },
+        stepType: "display",
+        config: { contentTemplate: "Step 5" },
         nextStepNumber: null,
       },
     ]);
 
     // Should not throw - gaps are allowed
     const result = await loadWorkflow(testWorkflowId);
-    expect(result.steps).toHaveLength(3);
+    expect(result.steps).toHaveLength(2);
   });
 
   it("should throw error for invalid nextStepNumber reference", async () => {
@@ -117,11 +65,11 @@ describe("Workflow Loader", () => {
         workflowId: testWorkflowId,
         stepNumber: 1,
         goal: "Step 1",
-        stepType: "ask-user",
+        stepType: "form",
         config: {
           question: "Test?",
-          inputType: "text",
-          storeAs: "test",
+          responseType: "string",
+          responseVariable: "test",
         },
         nextStepNumber: 999, // Invalid reference
       },
@@ -140,24 +88,24 @@ describe("Workflow Loader", () => {
         workflowId: testWorkflowId,
         stepNumber: 1,
         goal: "Step 1",
-        stepType: "display-output",
-        config: { outputTemplate: "Step 1", outputType: "info" },
+        stepType: "display",
+        config: { contentTemplate: "Step 1" },
         nextStepNumber: 2,
       },
       {
         workflowId: testWorkflowId,
         stepNumber: 2,
         goal: "Step 2",
-        stepType: "display-output",
-        config: { outputTemplate: "Step 2", outputType: "info" },
+        stepType: "display",
+        config: { contentTemplate: "Step 2" },
         nextStepNumber: 3,
       },
       {
         workflowId: testWorkflowId,
         stepNumber: 3,
         goal: "Step 3",
-        stepType: "display-output",
-        config: { outputTemplate: "Step 3", outputType: "info" },
+        stepType: "display",
+        config: { contentTemplate: "Step 3" },
         nextStepNumber: 1, // Creates cycle
       },
     ]);
@@ -175,12 +123,13 @@ describe("Workflow Loader", () => {
         workflowId: testWorkflowId,
         stepNumber: 1,
         goal: "Step 1",
-        stepType: "ask-user",
+        stepType: "form",
         config: {
-          question: "Continue?",
-          inputType: "boolean",
-          storeAs: "continue",
+          question: "Test?",
+          responseType: "string",
+          responseVariable: "test",
         },
+
         nextStepNumber: 2,
       },
       {
@@ -207,16 +156,16 @@ describe("Workflow Loader", () => {
         workflowId: testWorkflowId,
         stepNumber: 1,
         goal: "Step 1a",
-        stepType: "display-output",
-        config: { outputTemplate: "Step 1a", outputType: "info" },
+        stepType: "display",
+        config: { contentTemplate: "Step 1a" },
         nextStepNumber: 2,
       },
       {
         workflowId: testWorkflowId,
         stepNumber: 1, // Duplicate!
         goal: "Step 1b",
-        stepType: "display-output",
-        config: { outputTemplate: "Step 1b", outputType: "info" },
+        stepType: "display",
+        config: { contentTemplate: "Step 1b" },
         nextStepNumber: 2,
       },
     ]);

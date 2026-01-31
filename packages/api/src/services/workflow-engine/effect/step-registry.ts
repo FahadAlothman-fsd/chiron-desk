@@ -1,4 +1,4 @@
-import { Context, Effect, HashMap, Layer } from "effect";
+import { Context, Effect, HashMap, Layer, Option } from "effect";
 import { BranchHandler, BranchHandlerLive } from "../step-handlers/branch-effect-handler";
 import {
   DisplayOutputHandler,
@@ -17,12 +17,19 @@ import {
   SandboxedAgentHandlerLive,
 } from "../step-handlers/sandboxed-agent-handler";
 import { UserFormHandler, UserFormHandlerLive } from "../step-handlers/user-form-handler";
+import { WorkflowEventBusSingletonLive } from "./event-bus";
 import { UnknownStepTypeError } from "./errors";
 
 export interface StepHandlerInput {
   readonly stepConfig: Record<string, unknown>;
   readonly variables: Record<string, unknown>;
   readonly executionId: string;
+  readonly workflowId?: string;
+  readonly stepId?: string;
+  readonly stepExecutionId?: string;
+  readonly stepNumber?: number;
+  readonly stepGoal?: string | null;
+  readonly stepType?: string;
   readonly userInput?: unknown;
 }
 
@@ -34,6 +41,29 @@ export interface StepHandlerOutput {
 }
 
 export type StepHandler = (input: StepHandlerInput) => Effect.Effect<StepHandlerOutput, Error>;
+
+const normalizeError = (error: unknown) => {
+  if (error instanceof Error) {
+    return error;
+  }
+
+  if (error && typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    if (typeof record.message === "string" && record.message.trim().length > 0) {
+      return new Error(record.message);
+    }
+
+    if (typeof record._tag === "string") {
+      try {
+        return new Error(JSON.stringify(record));
+      } catch {
+        return new Error(record._tag);
+      }
+    }
+  }
+
+  return new Error(typeof error === "string" ? error : String(error));
+};
 
 export class StepHandlerRegistry extends Context.Tag("StepHandlerRegistry")<
   StepHandlerRegistry,
@@ -59,7 +89,7 @@ export const makeStepHandlerRegistry = Effect.gen(function* () {
         variableUpdates: output.variableUpdates,
         requiresUserInput: output.requiresUserInput,
       })),
-      Effect.catchAll((error) => Effect.fail(new Error(error.message))),
+      Effect.catchAll((error) => Effect.fail(normalizeError(error))),
     );
 
   const displayOutputHandler = yield* DisplayOutputHandler;
@@ -69,7 +99,7 @@ export const makeStepHandlerRegistry = Effect.gen(function* () {
         result: output.result,
         requiresUserInput: output.requiresUserInput,
       })),
-      Effect.catchAll((error) => Effect.fail(new Error(error.message))),
+      Effect.catchAll((error) => Effect.fail(normalizeError(error))),
     );
 
   const executeActionHandler = yield* ExecuteActionHandler;
@@ -80,7 +110,7 @@ export const makeStepHandlerRegistry = Effect.gen(function* () {
         variableUpdates: output.variableUpdates,
         requiresUserInput: output.requiresUserInput,
       })),
-      Effect.catchAll((error) => Effect.fail(new Error(error.message))),
+      Effect.catchAll((error) => Effect.fail(normalizeError(error))),
     );
 
   const invokeWorkflowHandler = yield* InvokeWorkflowHandler;
@@ -91,7 +121,7 @@ export const makeStepHandlerRegistry = Effect.gen(function* () {
         variableUpdates: output.variableUpdates,
         requiresUserInput: output.requiresUserInput,
       })),
-      Effect.catchAll((error) => Effect.fail(new Error(error.message))),
+      Effect.catchAll((error) => Effect.fail(normalizeError(error))),
     );
 
   const branchHandler = yield* BranchHandler;
@@ -101,12 +131,12 @@ export const makeStepHandlerRegistry = Effect.gen(function* () {
         result: output.result,
         nextStepOverride: output.nextStepNumber,
       })),
-      Effect.catchAll((error) => Effect.fail(new Error(error.message))),
+      Effect.catchAll((error) => Effect.fail(normalizeError(error))),
     );
 
-  handlers = HashMap.set(handlers, "display-output", displayOutputStepHandler);
-  handlers = HashMap.set(handlers, "execute-action", executeActionStepHandler);
-  handlers = HashMap.set(handlers, "invoke-workflow", invokeWorkflowStepHandler);
+  handlers = HashMap.set(handlers, "display", displayOutputStepHandler);
+  handlers = HashMap.set(handlers, "action", executeActionStepHandler);
+  handlers = HashMap.set(handlers, "invoke", invokeWorkflowStepHandler);
   const sandboxedAgentHandler = yield* SandboxedAgentHandler;
   const sandboxedAgentStepHandler: StepHandler = (input) =>
     sandboxedAgentHandler.execute(input).pipe(
@@ -115,12 +145,20 @@ export const makeStepHandlerRegistry = Effect.gen(function* () {
         variableUpdates: output.variableUpdates,
         requiresUserInput: output.requiresUserInput,
       })),
-      Effect.catchAll((error) => Effect.fail(new Error(error.message))),
+      Effect.catchAll((error) => Effect.fail(normalizeError(error))),
     );
 
-  handlers = HashMap.set(handlers, "user-form", userFormStepHandler);
-  handlers = HashMap.set(handlers, "sandboxed-agent", sandboxedAgentStepHandler);
-  handlers = HashMap.set(handlers, "system-agent", defaultHandler);
+  const agentStepHandler: StepHandler = (input) => {
+    const stepConfig = (input.stepConfig ?? {}) as Record<string, unknown>;
+    const agentKind = stepConfig.agentKind;
+    if (agentKind === "opencode") {
+      return defaultHandler(input);
+    }
+    return sandboxedAgentStepHandler(input);
+  };
+
+  handlers = HashMap.set(handlers, "form", userFormStepHandler);
+  handlers = HashMap.set(handlers, "agent", agentStepHandler);
   handlers = HashMap.set(handlers, "branch", branchStepHandler);
 
   return {
@@ -141,6 +179,7 @@ export const makeStepHandlerRegistry = Effect.gen(function* () {
 });
 
 export const AllHandlerLayers = Layer.mergeAll(
+  WorkflowEventBusSingletonLive,
   UserFormHandlerLive,
   DisplayOutputHandlerLive,
   ExecuteActionHandlerLive,
@@ -149,7 +188,4 @@ export const AllHandlerLayers = Layer.mergeAll(
   SandboxedAgentHandlerLive,
 );
 
-export const StepHandlerRegistryLive = Layer.effect(
-  StepHandlerRegistry,
-  makeStepHandlerRegistry,
-).pipe(Layer.provide(AllHandlerLayers));
+export const StepHandlerRegistryLive = Layer.effect(StepHandlerRegistry, makeStepHandlerRegistry);

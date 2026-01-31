@@ -1,8 +1,8 @@
 import type {
-  AskUserChatStepConfig,
-  AskUserStepConfig,
-  DisplayOutputStepConfig,
-  ExecuteActionStepConfig,
+  ActionStepConfig,
+  AgentStepConfig,
+  DisplayStepConfig,
+  FormStepConfig,
   WorkflowMetadata,
   WorkflowTags,
 } from "@chiron/db";
@@ -85,7 +85,8 @@ export async function seedWorkflowInitNew() {
   // Step 1: Ask-User-Chat (Conversational Project Initialization)
   // Story 1.6: PM Agent (Athena) guides user through project setup
   // Story 1.7: Added project naming and refactored to be Step 1
-  const step1Config: AskUserChatStepConfig = {
+  const step1Config: AgentStepConfig = {
+    agentKind: "chiron",
     agentId: pmAgent.id,
     initialMessage:
       "Let's set up your new project! Tell me about what you're building - what problem are you solving for your users?",
@@ -98,7 +99,7 @@ export async function seedWorkflowInitNew() {
         targetVariable: "project_description",
         description: "Set the project description based on your analysis of the conversation",
         usageGuidance:
-          "Call this tool when you have enough information to understand: (1) what problem the user is solving, (2) who the target users are, and (3) key features or requirements. Write a clear, comprehensive description that captures what the product is, who it's for, the core problem it solves, and key value proposition. Use specific details from the conversation - mention the product name if provided, target users, and main features. The description can be as detailed as the conversation warrants - don't artificially limit it to a specific length. If the user provides comprehensive details in their first message, call this tool immediately. If their message is vague, ask 1-2 follow-up questions first.",
+          "Call this tool when you have enough information to understand: (1) what problem the user is solving, (2) who the target users are, and (3) key features or requirements. Before calling the tool, send a brief 1-2 sentence summary to the user. Write a clear, comprehensive description that captures what the product is, who it's for, the core problem it solves, and key value proposition. Use specific details from the conversation - mention the product name if provided, target users, and main features. The description can be as detailed as the conversation warrants - don't artificially limit it to a specific length. If the user provides comprehensive details in their first message, provide the brief summary and then call this tool immediately. If their message is vague, ask 1-2 follow-up questions first.",
         requiredVariables: [], // Can execute anytime based on conversation
         requiresApproval: true,
         valueSchema: {
@@ -344,7 +345,7 @@ export async function seedWorkflowInitNew() {
     workflowId: workflow.id,
     stepNumber: 1,
     goal: "Conversational project initialization with AI-powered approval gates",
-    stepType: "sandboxed-agent",
+    stepType: "agent",
     config: step1Config,
     nextStepNumber: 2,
   });
@@ -356,8 +357,7 @@ export async function seedWorkflowInitNew() {
   );
 
   // Step 2: Ask-User (Directory Selection)
-  const step2Config: AskUserStepConfig = {
-    type: "user-form",
+  const step2Config: FormStepConfig = {
     message: "Great! Now that we've defined your project, where should we create it?",
     question: "Enter the full path for your project directory",
     helpText:
@@ -377,7 +377,7 @@ export async function seedWorkflowInitNew() {
     workflowId: workflow.id,
     stepNumber: 2,
     goal: "Get project directory location from user",
-    stepType: "user-form",
+    stepType: "form",
     config: step2Config,
     nextStepNumber: 3, // Continue to Step 3: Project Initialization
   });
@@ -386,7 +386,7 @@ export async function seedWorkflowInitNew() {
 
   // Step 3: Execute-Action (Project Initialization)
   // Story 1.8: Create directory + Git init + README creation + Database update
-  const step3Config: ExecuteActionStepConfig = {
+  const step3Config: ActionStepConfig = {
     actions: [
       // Action 1: Create project directory
       {
@@ -452,7 +452,7 @@ export async function seedWorkflowInitNew() {
     workflowId: workflow.id,
     stepNumber: 3,
     goal: "Initialize git repository and update project record",
-    stepType: "execute-action",
+    stepType: "action",
     config: step3Config,
     nextStepNumber: 4, // Continue to Step 4: Success Display
   });
@@ -461,7 +461,7 @@ export async function seedWorkflowInitNew() {
 
   // Step 4: Display-Output (Success Message)
   // Story 1.8: Show celebratory success message
-  const step4Config: DisplayOutputStepConfig = {
+  const step4Config: DisplayStepConfig = {
     contentTemplate: `🎉 **Project Created Successfully!**
 
 Your project **{{project_name}}** has been initialized at:
@@ -484,7 +484,7 @@ Happy building! 🚀`,
     workflowId: workflow.id,
     stepNumber: 4,
     goal: "Display success message to user",
-    stepType: "display-output",
+    stepType: "display",
     config: step4Config,
     nextStepNumber: null, // End of workflow
   });

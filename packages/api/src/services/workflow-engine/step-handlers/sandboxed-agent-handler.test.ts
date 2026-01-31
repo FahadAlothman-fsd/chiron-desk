@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { Chunk, Effect, Layer } from "effect";
-import { ConfigServiceLive, DatabaseServiceLive } from "../effect";
+import { ConfigServiceLive, DatabaseServiceLive, ExecutionContextLive } from "../effect";
 import { AIProviderService, type StreamResult } from "../effect/ai-provider-service";
 import { WorkflowEventBus } from "../effect/event-bus";
 import type { StepHandlerInput } from "../effect/step-registry";
@@ -72,16 +72,36 @@ function runHandler(input: StepHandlerInput, userInput?: unknown) {
   const program = Effect.gen(function* () {
     const handler = yield* SandboxedAgentHandler;
     return yield* handler.execute(input, userInput);
-  }).pipe(
-    Effect.provide(SandboxedAgentHandlerLive),
-    Effect.provide(createMockAIProvider("Hello, I'm your AI assistant")),
-    Effect.provide(createMockEventBus()),
-    Effect.provide(createMockVariableService()),
-    Effect.provide(DatabaseServiceLive),
-    Effect.provide(ConfigServiceLive),
+  });
+
+  const contextLayer = Layer.mergeAll(
+    DatabaseServiceLive,
+    ExecutionContextLive({
+      executionId: input.executionId,
+      workflowId: "test-workflow",
+      projectId: undefined,
+      parentExecutionId: null,
+      userId: "test-user",
+      variables: input.variables,
+      currentStepNumber: 1,
+    }),
   );
 
-  return Effect.runPromise(program);
+  const configLayer = ConfigServiceLive.pipe(Layer.provide(contextLayer));
+
+  const baseLayer = Layer.mergeAll(
+    contextLayer,
+    configLayer,
+    createMockAIProvider("Hello, I'm your AI assistant"),
+    createMockEventBus(),
+    createMockVariableService(),
+  );
+
+  const handlerLayer = SandboxedAgentHandlerLive.pipe(Layer.provide(baseLayer));
+
+  const layer = Layer.mergeAll(baseLayer, handlerLayer);
+
+  return Effect.runPromise(program.pipe(Effect.provide(layer)));
 }
 
 // ===== TESTS =====

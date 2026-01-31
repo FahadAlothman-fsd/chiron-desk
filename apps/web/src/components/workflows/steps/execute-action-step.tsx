@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 
 export interface ExecuteActionStepProps {
   config: {
-    type: "execute-action";
+    type: "action";
     actions: Array<{
       type: string;
       config: Record<string, unknown>;

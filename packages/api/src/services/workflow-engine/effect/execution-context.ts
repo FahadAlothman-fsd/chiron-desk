@@ -3,8 +3,9 @@ import { Context, Effect, Layer, Ref } from "effect";
 export interface ExecutionState {
   readonly executionId: string;
   readonly workflowId: string;
-  readonly projectId: string;
+  readonly projectId?: string;
   readonly parentExecutionId: string | null;
+  readonly userId?: string;
   readonly variables: Record<string, unknown>;
   readonly currentStepNumber: number;
 }

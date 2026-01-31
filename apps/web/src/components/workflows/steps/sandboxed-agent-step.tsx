@@ -14,7 +14,14 @@ import {
   Wrench,
   XCircle,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { toast } from "sonner";
 import {
   Conversation,
@@ -53,11 +60,6 @@ import { ApprovalCardSelector } from "../approval-card-selector";
 import { SelectionWithCustomCard } from "../selection-with-custom-card";
 import { ToolStatusSidebar } from "../tool-status-sidebar";
 
-/**
- * AI Elements-powered chat interface for workflow steps
- * Polished, modern UI matching Chiron's aesthetic
- */
-
 interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -80,10 +82,405 @@ interface ParsedContent {
   thinking?: string;
 }
 
+type ToolRuntimeStatus = "executing" | "awaiting_approval" | "approved" | "rejected";
+
+type AgentStreamEvent =
+  | {
+      type: "message.delta";
+      executionId: string;
+      stepId: string;
+      content: string;
+      tokenIndex?: number;
+    }
+  | {
+      type: "message.complete";
+      executionId: string;
+      stepId: string;
+      fullText: string;
+      tokenCount?: number;
+      durationMs?: number;
+    }
+  | {
+      type: "tool.call";
+      executionId: string;
+      stepId: string;
+      toolCallId: string;
+      toolName: string;
+      toolType?: string;
+      args?: unknown;
+    }
+  | {
+      type: "tool.input.start";
+      executionId: string;
+      stepId: string;
+      toolCallId: string;
+    }
+  | {
+      type: "tool.input.delta";
+      executionId: string;
+      stepId: string;
+      toolCallId: string;
+      delta: string;
+    }
+  | {
+      type: "tool.pending";
+      executionId: string;
+      stepId: string;
+      toolCallId: string;
+      toolName: string;
+      toolType?: string;
+      args?: unknown;
+      riskLevel?: string;
+      approvalMode?: string;
+    }
+  | {
+      type: "tool.approval";
+      executionId: string;
+      stepId: string;
+      toolCallId: string;
+      toolName: string;
+      toolType?: string;
+      action: "approve" | "reject" | "edit";
+      editedArgs?: unknown;
+      feedback?: string;
+    }
+  | {
+      type: "tool.result";
+      executionId: string;
+      stepId: string;
+      toolCallId: string;
+      toolName: string;
+      toolType?: string;
+      result?: unknown;
+    }
+  | {
+      type: "error";
+      executionId: string;
+      stepId: string;
+      message: string;
+    };
+
+interface UseAgentStreamOptions {
+  executionId: string;
+  stepId: string;
+  agentId: string;
+  agentName: string;
+  agentIcon: string;
+  readOnly: boolean;
+  isStepComplete: boolean;
+  executionStatus?: string | null;
+  setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
+  setToolRuntimeStatuses: Dispatch<SetStateAction<Record<string, ToolRuntimeStatus>>>;
+  setToolInputByCallId: Dispatch<SetStateAction<Record<string, string>>>;
+  setToolInputByToolName: Dispatch<SetStateAction<Record<string, string>>>;
+  setIsLoading: Dispatch<SetStateAction<boolean>>;
+  refetchExecution: () => Promise<unknown>;
+  setPollingEnabled: Dispatch<SetStateAction<boolean>>;
+  refetchMessages: () => Promise<unknown>;
+}
+
+function useAgentStream({
+  executionId,
+  stepId,
+  agentId,
+  agentName,
+  agentIcon,
+  readOnly,
+  isStepComplete,
+  executionStatus,
+  setMessages,
+  setToolRuntimeStatuses,
+  setToolInputByCallId,
+  setToolInputByToolName,
+  setIsLoading,
+  refetchExecution,
+  setPollingEnabled,
+  refetchMessages,
+}: UseAgentStreamOptions) {
+  const [streamStatus, setStreamStatus] = useState<"idle" | "streaming" | "error">("idle");
+  const streamMessageIdRef = useRef<string | null>(null);
+  const streamBufferRef = useRef("");
+  const streamToolCallsRef = useRef<Array<{ name: string }>>([]);
+  const toolCallIdToNameRef = useRef<Record<string, string>>({});
+  const toolInputByCallIdRef = useRef<Record<string, string>>({});
+  const streamEnabled = !readOnly && !isStepComplete;
+
+  useEffect(() => {
+    streamMessageIdRef.current = null;
+    streamBufferRef.current = "";
+    streamToolCallsRef.current = [];
+    toolCallIdToNameRef.current = {};
+    toolInputByCallIdRef.current = {};
+    setStreamStatus("idle");
+    setPollingEnabled(false);
+    setToolRuntimeStatuses({});
+    setToolInputByCallId({});
+    setToolInputByToolName({});
+  }, [executionId, stepId]);
+
+  useEffect(() => {
+    console.log("[AgentStream UI] enabled", {
+      executionId,
+      stepId,
+      readOnly,
+      isStepComplete,
+      enabled: streamEnabled,
+    });
+  }, [executionId, stepId, readOnly, isStepComplete, streamEnabled]);
+
+  useEffect(() => {
+    if (executionStatus === "paused") {
+      setStreamStatus("idle");
+      setPollingEnabled(true);
+      setIsLoading(false);
+    }
+  }, [executionStatus, setIsLoading, setPollingEnabled]);
+
+  const handleStreamEvent = useCallback(
+    (event: AgentStreamEvent) => {
+      console.log("[AgentStream UI]", event.type, event);
+      if (event.type === "error") {
+        setStreamStatus("error");
+        setPollingEnabled(true);
+        void refetchExecution();
+        return;
+      }
+
+      setIsLoading(false);
+
+      setStreamStatus("streaming");
+      setPollingEnabled(false);
+
+      const ensureStreamMessage = () => {
+        if (streamMessageIdRef.current) {
+          return streamMessageIdRef.current;
+        }
+
+        const messageId = `stream-${Date.now()}`;
+        streamMessageIdRef.current = messageId;
+        streamBufferRef.current = "";
+        streamToolCallsRef.current = [];
+
+        const assistantMessage: ChatMessage = {
+          id: messageId,
+          role: "assistant",
+          content: "",
+          created_at: new Date().toISOString(),
+          metadata: {
+            agent_id: agentId,
+            agent_name: agentName,
+            agent_icon: agentIcon,
+            tool_calls: [],
+          },
+        };
+
+        setMessages((prev) => [...prev, assistantMessage]);
+        return messageId;
+      };
+
+      const updateStreamMessage = (updater: (message: ChatMessage) => ChatMessage) => {
+        const messageId = streamMessageIdRef.current;
+        if (!messageId) return;
+
+        setMessages((prev) =>
+          prev.map((message) => (message.id === messageId ? updater(message) : message)),
+        );
+      };
+
+      switch (event.type) {
+        case "message.delta": {
+          if (!event.content) return;
+          ensureStreamMessage();
+          streamBufferRef.current += event.content;
+          updateStreamMessage((message) => ({
+            ...message,
+            content: streamBufferRef.current,
+          }));
+          break;
+        }
+        case "tool.call": {
+          ensureStreamMessage();
+          const toolCalls = streamToolCallsRef.current;
+          toolCalls.push({ name: event.toolName });
+          const notice = `Calling tool ${event.toolName}...`;
+          if (!streamBufferRef.current.includes(notice)) {
+            streamBufferRef.current = streamBufferRef.current
+              ? `${streamBufferRef.current}\n\n${notice}`
+              : notice;
+            updateStreamMessage((message) => ({
+              ...message,
+              content: streamBufferRef.current,
+            }));
+          }
+          toolCallIdToNameRef.current[event.toolCallId] = event.toolName;
+          const bufferedInput = toolInputByCallIdRef.current[event.toolCallId];
+          if (bufferedInput) {
+            setToolInputByToolName((prev) => ({
+              ...prev,
+              [event.toolName]: bufferedInput,
+            }));
+          }
+          updateStreamMessage((message) => ({
+            ...message,
+            metadata: {
+              ...message.metadata,
+              tool_calls: [...toolCalls],
+            },
+          }));
+          setToolRuntimeStatuses((prev) => ({
+            ...prev,
+            [event.toolName]: "executing",
+          }));
+          break;
+        }
+        case "tool.input.start": {
+          if (!event.toolCallId) return;
+          setToolInputByCallId((prev) => {
+            const next = { ...prev, [event.toolCallId]: "" };
+            toolInputByCallIdRef.current = next;
+            return next;
+          });
+          break;
+        }
+        case "tool.input.delta": {
+          if (!event.toolCallId || !event.delta) return;
+          setToolInputByCallId((prev) => {
+            const next = {
+              ...prev,
+              [event.toolCallId]: `${prev[event.toolCallId] ?? ""}${event.delta}`,
+            };
+            toolInputByCallIdRef.current = next;
+            return next;
+          });
+          const toolName = toolCallIdToNameRef.current[event.toolCallId];
+          if (toolName) {
+            setToolInputByToolName((prev) => ({
+              ...prev,
+              [toolName]: `${prev[toolName] ?? ""}${event.delta}`,
+            }));
+          }
+          break;
+        }
+        case "tool.result": {
+          ensureStreamMessage();
+          setToolRuntimeStatuses((prev) => ({
+            ...prev,
+            [event.toolName]: "approved",
+          }));
+          break;
+        }
+        case "tool.pending": {
+          setToolRuntimeStatuses((prev) => ({
+            ...prev,
+            [event.toolName]: "awaiting_approval",
+          }));
+          setStreamStatus("idle");
+          setPollingEnabled(true);
+          void refetchExecution();
+          break;
+        }
+        case "tool.approval": {
+          const status = event.action === "reject" ? "rejected" : "approved";
+          setToolRuntimeStatuses((prev) => ({
+            ...prev,
+            [event.toolName]: status,
+          }));
+          setStreamStatus("idle");
+          setPollingEnabled(true);
+          void refetchExecution();
+          break;
+        }
+        case "message.complete": {
+          if (!streamMessageIdRef.current && event.fullText) {
+            const messageId = `stream-${Date.now()}`;
+            const toolCalls = streamToolCallsRef.current;
+            streamMessageIdRef.current = messageId;
+            streamBufferRef.current = event.fullText;
+            const assistantMessage: ChatMessage = {
+              id: messageId,
+              role: "assistant",
+              content: event.fullText,
+              created_at: new Date().toISOString(),
+              metadata: {
+                agent_id: agentId,
+                agent_name: agentName,
+                agent_icon: agentIcon,
+                tool_calls: [...toolCalls],
+              },
+            };
+            setMessages((prev) => [...prev, assistantMessage]);
+          }
+          void refetchExecution();
+          void refetchMessages();
+          streamMessageIdRef.current = null;
+          streamBufferRef.current = "";
+          streamToolCallsRef.current = [];
+          setStreamStatus("idle");
+          setPollingEnabled(false);
+          break;
+        }
+        default:
+          break;
+      }
+    },
+    [
+      agentIcon,
+      agentId,
+      agentName,
+      refetchExecution,
+      refetchMessages,
+      setMessages,
+      setPollingEnabled,
+      setToolInputByCallId,
+      setToolInputByToolName,
+      setToolRuntimeStatuses,
+    ],
+  );
+
+  useEffect(() => {
+    if (!streamEnabled) return;
+
+    const baseUrl = import.meta.env.DEV
+      ? window.location.origin
+      : (import.meta.env.VITE_SERVER_URL ?? window.location.origin);
+    const url = new URL("/api/agent-stream", baseUrl);
+    url.searchParams.set("executionId", executionId);
+    url.searchParams.set("stepId", stepId);
+
+    const source = new EventSource(url.toString(), { withCredentials: true });
+
+    source.addEventListener("message", (event) => {
+      try {
+        const parsed = JSON.parse(event.data) as AgentStreamEvent;
+        handleStreamEvent(parsed);
+      } catch (error) {
+        console.warn("[AgentStream UI] invalid event", error);
+      }
+    });
+
+    source.addEventListener("error", () => {
+      setStreamStatus("error");
+      setPollingEnabled(true);
+      void refetchExecution();
+    });
+
+    return () => {
+      source.close();
+    };
+  }, [executionId, handleStreamEvent, refetchExecution, setPollingEnabled, stepId, streamEnabled]);
+
+  return {
+    streamStatus,
+    isStreaming: streamStatus === "streaming",
+  };
+}
+
 interface ApprovalState {
   status: "pending" | "approved" | "rejected";
   value: Record<string, unknown>;
   reasoning?: string;
+  toolCallId?: string;
+  stepId?: string;
   available_options?: Array<Record<string, unknown>>; // Changed to generic to support any option shape
   display_config?: {
     cardLayout: "simple" | "detailed";
@@ -107,6 +504,7 @@ interface ToolConfig {
 
 interface SandboxedAgentStepProps {
   executionId: string;
+  stepId: string;
   stepConfig: {
     agentId: string;
     initialMessage?: string;
@@ -234,9 +632,49 @@ const models = [
   },
 ];
 
-function parseMessageContent(content: string): ParsedContent {
+function parseMessageContent(content: unknown): ParsedContent {
   try {
+    if (content === null || content === undefined) {
+      return { text: "" };
+    }
+
+    if (Array.isArray(content)) {
+      const text = content
+        .map((part) => {
+          if (typeof part === "string") return part;
+          if (!part || typeof part !== "object") return "";
+          if ("text" in part && typeof part.text === "string") return part.text;
+          if ("content" in part && typeof part.content === "string") return part.content;
+          return "";
+        })
+        .join("")
+        .trim();
+      return { text };
+    }
+
+    if (typeof content === "object") {
+      if ("text" in content && typeof content.text === "string") {
+        return { text: content.text };
+      }
+      if ("content" in content && typeof content.content === "string") {
+        return { text: content.content };
+      }
+      return { text: JSON.stringify(content) };
+    }
+
     if (typeof content === "string" && !content.startsWith("{") && !content.startsWith("[")) {
+      const lines = content.split(/\r?\n/);
+      const firstLine = lines[0]?.trim() ?? "";
+      const isThinkingLine =
+        firstLine.toLowerCase().startsWith("thinking:") ||
+        firstLine.toLowerCase().startsWith("reasoning:");
+
+      if (isThinkingLine) {
+        const thinking = firstLine.replace(/^(thinking|reasoning):\s*/i, "");
+        const text = lines.slice(1).join("\n").trimStart();
+        return { text, thinking };
+      }
+
       return { text: content };
     }
 
@@ -294,14 +732,15 @@ function parseMessageContent(content: string): ParsedContent {
       };
     }
 
-    return { text: content };
+    return { text: String(content) };
   } catch (_error) {
-    return { text: content };
+    return { text: String(content ?? "") };
   }
 }
 
 export function SandboxedAgentStep({
   executionId,
+  stepId,
   stepConfig,
   stepGoal,
   stepNumber,
@@ -311,10 +750,16 @@ export function SandboxedAgentStep({
   readOnly = false,
 }: SandboxedAgentStepProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  // Default to GPT OSS 120B
+  const [pollingEnabled, setPollingEnabled] = useState(false);
   const [model, setModel] = useState<string>("openrouter:openai/gpt-oss-120b");
   const [modelSelectorOpen, setModelSelectorOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [toolRuntimeStatuses, setToolRuntimeStatuses] = useState<Record<string, ToolRuntimeStatus>>(
+    {},
+  );
+  const [toolInputByCallId, setToolInputByCallId] = useState<Record<string, string>>({});
+  const [toolInputByToolName, setToolInputByToolName] = useState<Record<string, string>>({});
+  const pendingHistoryRef = useRef<ChatMessage[] | null>(null);
 
   const selectedModelData = models.find((m) => m.id === model);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -329,22 +774,40 @@ export function SandboxedAgentStep({
   const _agentIcon = agent?.metadata?.icon || "🤖";
 
   // Load message history
-  const { data: messageHistory } = trpc.workflows.getChatMessages.useQuery(
-    { executionId },
-    { refetchInterval: 2000 },
-  );
+  const { data: messageHistory, refetch: refetchMessages } =
+    trpc.workflows.getChatMessages.useQuery({ executionId, stepId }, { refetchInterval: false });
 
-  // Get execution state for approval gates
-  const { data: executionData } = trpc.workflows.getExecution.useQuery(
+  const executionQuery = trpc.workflows.getExecution.useQuery(
     { executionId },
-    { refetchInterval: 2000 },
+    { refetchInterval: false },
   );
-  const execution = executionData?.execution;
+  const execution = executionQuery.data?.execution;
+  const { refetch: refetchExecution } = executionQuery;
+
+  const { isStreaming } = useAgentStream({
+    executionId,
+    stepId,
+    agentId: stepConfig.agentId,
+    agentName,
+    agentIcon: _agentIcon,
+    readOnly,
+    isStepComplete,
+    setMessages,
+    setToolRuntimeStatuses,
+    setToolInputByCallId,
+    setToolInputByToolName,
+    setIsLoading,
+    refetchExecution,
+    setPollingEnabled,
+    refetchMessages,
+  });
 
   // Send message mutation
   const sendMessage = trpc.workflows.sendChatMessage.useMutation({
     onSuccess: () => {
       toast.success("Message sent!");
+      void refetchExecution();
+      void refetchMessages();
     },
     onError: (error) => {
       toast.error(`Failed to send message: ${error.message}`);
@@ -352,17 +815,44 @@ export function SandboxedAgentStep({
     },
   });
 
-  // Update messages when history loads
   useEffect(() => {
-    if (messageHistory?.messages && messageHistory.messages.length > 0) {
-      setMessages(messageHistory.messages as ChatMessage[]);
+    if (!messageHistory?.messages || messageHistory.messages.length === 0) return;
+
+    const nextMessages = messageHistory.messages as ChatMessage[];
+
+    if (isStreaming) {
+      pendingHistoryRef.current = nextMessages;
+      return;
     }
-    // Note: We no longer create a fake message from initialMessage
-    // initialMessage is now shown as a banner only (lines 550-566)
-  }, [messageHistory]);
+
+    setMessages((prev) => {
+      const historyIds = new Set(nextMessages.map((message) => message.id));
+      const streamMessages = prev.filter(
+        (message) => message.id.startsWith("stream-") && !historyIds.has(message.id),
+      );
+      return streamMessages.length > 0 ? [...nextMessages, ...streamMessages] : nextMessages;
+    });
+    pendingHistoryRef.current = null;
+  }, [messageHistory, isStreaming]);
+
+  useEffect(() => {
+    if (isStreaming || !pendingHistoryRef.current) return;
+
+    const nextMessages = pendingHistoryRef.current;
+    pendingHistoryRef.current = null;
+    setMessages((prev) => {
+      const historyIds = new Set(nextMessages.map((message) => message.id));
+      const streamMessages = prev.filter(
+        (message) => message.id.startsWith("stream-") && !historyIds.has(message.id),
+      );
+      return streamMessages.length > 0 ? [...nextMessages, ...streamMessages] : nextMessages;
+    });
+  }, [isStreaming]);
+
+  const isBusy = isLoading || isStreaming;
 
   async function handleSubmit(message: PromptInputMessage) {
-    if (!message.text?.trim() || isLoading || sendMessage.isPending) return;
+    if (!message.text?.trim() || isBusy || sendMessage.isPending) return;
 
     const messageContent = message.text;
 
@@ -406,6 +896,11 @@ export function SandboxedAgentStep({
     | "blocked";
 
   function getToolStatus(tool: ToolConfig): ToolStatus {
+    const runtimeStatus = toolRuntimeStatuses[tool.name];
+    if (runtimeStatus) {
+      return runtimeStatus;
+    }
+
     const approvalState = approvalStates?.[tool.name];
     const executionVariables = (execution?.variables as Record<string, unknown>) || {};
 
@@ -662,7 +1157,8 @@ export function SandboxedAgentStep({
                         <div key={`approval-${toolName}`} className="my-4">
                           <SelectionWithCustomCard
                             executionId={executionId}
-                            agentId={stepConfig.agentId}
+                            stepId={state.stepId ?? stepId}
+                            toolCallId={state.toolCallId}
                             toolName={toolName}
                             title="📝 Project Name Suggestions"
                             suggestions={nameSuggestions}
@@ -697,7 +1193,8 @@ export function SandboxedAgentStep({
                         <div key={`approval-${toolName}`} className="my-4">
                           <ApprovalCardSelector
                             executionId={executionId}
-                            agentId={stepConfig.agentId}
+                            stepId={state.stepId ?? stepId}
+                            toolCallId={state.toolCallId}
                             toolName={toolName}
                             generatedValue={state.value as Record<string, unknown>}
                             availableOptions={state.available_options}
@@ -717,7 +1214,8 @@ export function SandboxedAgentStep({
                       <div key={`approval-${toolName}`} className="my-4">
                         <ApprovalCard
                           executionId={executionId}
-                          agentId={stepConfig.agentId}
+                          stepId={state.stepId ?? stepId}
+                          toolCallId={state.toolCallId}
                           toolName={toolName}
                           generatedValue={state.value as Record<string, unknown>}
                           reasoning={state.reasoning}
@@ -783,7 +1281,7 @@ export function SandboxedAgentStep({
               <PromptInputBody>
                 <PromptInputTextarea
                   placeholder="Type your message... (Shift+Enter for new line)"
-                  disabled={isLoading}
+                  disabled={isBusy}
                 />
               </PromptInputBody>
               <PromptInputFooter>
@@ -837,10 +1335,7 @@ export function SandboxedAgentStep({
                     <span>{agentName}</span>
                   </div>
                 </PromptInputTools>
-                <PromptInputSubmit
-                  disabled={isLoading}
-                  status={isLoading ? "streaming" : "ready"}
-                />
+                <PromptInputSubmit disabled={isBusy} status={isBusy ? "streaming" : "ready"} />
               </PromptInputFooter>
             </PromptInput>
           </div>
@@ -872,6 +1367,8 @@ export function SandboxedAgentStep({
             <ToolStatusSidebar
               tools={stepConfig.tools}
               approvalStates={approvalStates}
+              runtimeStatuses={toolRuntimeStatuses}
+              toolInputPreviews={toolInputByToolName}
               executionVariables={(execution?.variables as Record<string, unknown>) || {}}
               executionId={executionId}
               agentId={stepConfig.agentId}

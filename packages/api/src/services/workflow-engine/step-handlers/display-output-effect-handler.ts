@@ -7,7 +7,8 @@ export class DisplayOutputError extends Data.TaggedError("DisplayOutputError")<{
 }> {}
 
 export interface DisplayOutputConfig {
-  readonly outputTemplate: string;
+  readonly outputTemplate?: string;
+  readonly contentTemplate?: string;
   readonly outputType?: "info" | "warning" | "error" | "success";
   readonly requiresAcknowledgment?: boolean;
 }
@@ -43,17 +44,18 @@ export const DisplayOutputHandlerLive = Layer.succeed(DisplayOutputHandler, {
   execute: (input: StepHandlerInput, userInput?: unknown) =>
     Effect.gen(function* () {
       const config = input.stepConfig as unknown as DisplayOutputConfig;
+      const template = config.outputTemplate ?? config.contentTemplate ?? "";
 
-      if (!config.outputTemplate && typeof config.outputTemplate !== "string") {
+      if (!template || typeof template !== "string") {
         return yield* Effect.fail(
           new DisplayOutputError({
-            cause: new Error("Missing outputTemplate in config"),
-            message: "DisplayOutput step requires an outputTemplate",
+            cause: new Error("Missing outputTemplate/contentTemplate in config"),
+            message: "DisplayOutput step requires an output template",
           }),
         );
       }
 
-      const renderedOutput = resolveTemplate(config.outputTemplate || "", input.variables);
+      const renderedOutput = resolveTemplate(template, input.variables);
       const outputType = config.outputType ?? "info";
       const requiresAck = config.requiresAcknowledgment !== false;
 

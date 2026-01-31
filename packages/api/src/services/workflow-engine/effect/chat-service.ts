@@ -42,7 +42,7 @@ export interface ChatMessage {
 export interface ChatSession {
   id: string;
   executionId: string;
-  stepId: string;
+  stepExecutionId: string;
   title: string | null;
   status: "active" | "completed" | "failed" | "interrupted";
   messageCount: number;
@@ -62,7 +62,7 @@ function dbSessionToSession(db: DBChatSession): ChatSession {
   return {
     id: db.id,
     executionId: db.executionId,
-    stepId: db.stepId,
+    stepExecutionId: db.stepExecutionId,
     title: db.title,
     status: db.status,
     messageCount: db.messageCount,
@@ -90,16 +90,18 @@ export interface ChatService {
 
   createSession: (
     executionId: string,
-    stepId: string,
+    stepExecutionId: string,
     metadata?: Record<string, unknown>,
+    title?: string | null,
   ) => Effect.Effect<ChatSession, ChatServiceError>;
 
   getSession: (sessionId: string) => Effect.Effect<ChatSession, SessionNotFoundError>;
 
   getOrCreateSession: (
     executionId: string,
-    stepId: string,
+    stepExecutionId: string,
     metadata?: Record<string, unknown>,
+    title?: string | null,
   ) => Effect.Effect<ChatSession, ChatServiceError>;
 
   addMessage: (
@@ -149,12 +151,13 @@ export const ChatServiceLive = Layer.effect(
     return {
       _tag: "ChatService" as const,
 
-      createSession: (executionId, stepId, metadata) =>
+      createSession: (executionId, stepExecutionId, metadata, title) =>
         Effect.tryPromise({
           try: async () => {
             const newSession: NewChatSession = {
               executionId,
-              stepId,
+              stepExecutionId,
+              title: title ?? null,
               metadata: metadata ?? null,
             };
             const [result] = await db.insert(chatSessions).values(newSession).returning();
@@ -182,14 +185,17 @@ export const ChatServiceLive = Layer.effect(
           },
         }),
 
-      getOrCreateSession: (executionId, stepId, metadata) =>
+      getOrCreateSession: (executionId, stepExecutionId, metadata, title) =>
         Effect.tryPromise({
           try: async () => {
             const existing = await db
               .select()
               .from(chatSessions)
               .where(
-                and(eq(chatSessions.executionId, executionId), eq(chatSessions.stepId, stepId)),
+                and(
+                  eq(chatSessions.executionId, executionId),
+                  eq(chatSessions.stepExecutionId, stepExecutionId),
+                ),
               )
               .limit(1);
 
@@ -199,7 +205,12 @@ export const ChatServiceLive = Layer.effect(
 
             const [newSession] = await db
               .insert(chatSessions)
-              .values({ executionId, stepId, metadata: metadata ?? null })
+              .values({
+                executionId,
+                stepExecutionId,
+                metadata: metadata ?? null,
+                title: title ?? null,
+              })
               .returning();
             return dbSessionToSession(newSession!);
           },
@@ -243,7 +254,8 @@ export const ChatServiceLive = Layer.effect(
           yield* eventBus.publish({
             _tag: "TextChunk",
             executionId: sessionId,
-            chunk: `[${message.role}] Message added`,
+            stepId: sessionId,
+            content: `[${message.role}] Message added`,
           });
 
           return dbMessageToMessage(result);

@@ -1,4 +1,5 @@
 import { chatMessages, chatSessions, streamCheckpoints } from "@chiron/db";
+import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { Duration, Effect, Schedule, Stream } from "effect";
 import { type AIProviderError, StreamingError, type StreamResult } from "./ai-provider-service";
@@ -169,14 +170,18 @@ export function requestApprovalWithTimeout(
     const eventBus = yield* WorkflowEventBus;
     const approvalService = yield* ApprovalService;
 
+    const toolCallId = randomUUID();
+    const stepId = (request.context?.stepId as string | undefined) ?? request.toolName;
+
     yield* eventBus.publish({
       _tag: "ApprovalRequested",
       executionId: request.executionId,
-      stepId: request.toolName,
-      questionId: `approval-${request.toolName}-${Date.now()}`,
-      questionType: request.approval.mode === "confirm" ? "yes_no" : "text",
-      prompt: request.approval.confirmMessage ?? `Approve ${request.toolName}?`,
-      options: request.approval.selectorOptions,
+      stepId,
+      toolName: request.toolName,
+      toolType: "custom",
+      toolCallId,
+      args: request.context ?? {},
+      riskLevel: request.approval.riskLevel,
     });
 
     const waitForResponse = Effect.async<ApprovalResponse, never>((resume) => {
@@ -204,6 +209,7 @@ export function requestApprovalWithTimeout(
       yield* eventBus.publish({
         _tag: "TextChunk",
         executionId: request.executionId,
+        stepId,
         chunk: `[APPROVAL_TIMEOUT] ${request.toolName} - defaulted to ${config.defaultAction}`,
       });
     }

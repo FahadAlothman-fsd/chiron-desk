@@ -56,6 +56,7 @@ export interface StreamTextParams {
   model: LanguageModel;
   messages: CoreMessage[];
   tools?: Record<string, CoreTool>;
+  toolChoice?: unknown;
   maxTokens?: number;
   temperature?: number;
   system?: string;
@@ -120,7 +121,21 @@ export interface StreamResult {
 /** Text stream part types from AI-SDK */
 export type TextStreamPart =
   | { type: "text-delta"; textDelta: string }
-  | { type: "tool-call"; toolCallId: string; toolName: string; args: unknown }
+  | { type: "tool-input-start"; toolCallId?: string; id?: string }
+  | {
+      type: "tool-input-delta";
+      toolCallId?: string;
+      id?: string;
+      argsTextDelta?: string;
+      inputTextDelta?: string;
+    }
+  | {
+      type: "tool-call";
+      toolCallId: string;
+      toolName: string;
+      args?: unknown;
+      input?: unknown;
+    }
   | {
       type: "tool-result";
       toolCallId: string;
@@ -356,6 +371,7 @@ export const AIProviderServiceLive = Layer.effect(
               model: params.model,
               messages: params.messages,
               tools: params.tools,
+              toolChoice: params.toolChoice as any,
               maxTokens: params.maxTokens,
               temperature: params.temperature,
               system: params.system,
@@ -425,6 +441,7 @@ export const AIProviderServiceLive = Layer.effect(
               model: params.model,
               messages: params.messages,
               tools: params.tools,
+              toolChoice: params.toolChoice as any,
               maxTokens: params.maxTokens,
               temperature: params.temperature,
               system: params.system,

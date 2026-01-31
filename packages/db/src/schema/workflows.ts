@@ -1,5 +1,15 @@
 import { relations } from "drizzle-orm";
-import { index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  index,
+  integer,
+  jsonb,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { agents } from "./agents";
 import { projects } from "./core";
 import type { StepConfig } from "./step-configs";
@@ -90,12 +100,11 @@ export const workflowPatternEnum = pgEnum("workflow_pattern", [
 ]);
 
 export const stepTypeEnum = pgEnum("step_type", [
-  "user-form",
-  "sandboxed-agent",
-  "system-agent",
-  "execute-action",
-  "invoke-workflow",
-  "display-output",
+  "form",
+  "agent",
+  "action",
+  "invoke",
+  "display",
   "branch",
 ]);
 
@@ -111,6 +120,15 @@ export const workflowStatusEnum = pgEnum("workflow_status", [
   "paused",
   "completed",
   "failed",
+]);
+
+export const stepExecutionStatusEnum = pgEnum("step_execution_status", [
+  "pending",
+  "running",
+  "waiting",
+  "completed",
+  "failed",
+  "cancelled",
 ]);
 
 // ============================================
@@ -249,6 +267,78 @@ export const workflowExecutions = pgTable(
 );
 
 // ============================================
+// STEP EXECUTIONS TABLE (NEW - StepExecution Core)
+// Immutable per-step run records with revision support
+// ============================================
+
+export interface StepExecutionMetadata {
+  toolCalls?: unknown[];
+  prompts?: unknown[];
+  [key: string]: unknown;
+}
+
+export interface StepExecutionApprovalState {
+  [toolName: string]: {
+    status: "pending" | "approved" | "rejected";
+    value?: unknown;
+    toolCallId?: string;
+    stepId?: string;
+    rejection_history?: Array<{
+      feedback: string;
+      rejectedAt: string;
+      previousOutput?: unknown;
+    }>;
+  };
+}
+
+export const stepExecutions = pgTable(
+  "step_executions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    executionId: uuid("execution_id")
+      .notNull()
+      .references(() => workflowExecutions.id, { onDelete: "cascade" }),
+    stepId: uuid("step_id")
+      .notNull()
+      .references(() => workflowSteps.id, { onDelete: "cascade" }),
+    stepNumber: integer("step_number").notNull(),
+
+    status: stepExecutionStatusEnum("status").notNull().default("pending"),
+    isActive: boolean("is_active").notNull().default(true),
+
+    variablesDelta: jsonb("variables_delta").$type<Record<string, unknown>>().notNull().default({}),
+    approvalState: jsonb("approval_state")
+      .$type<StepExecutionApprovalState>()
+      .notNull()
+      .default({}),
+    metadata: jsonb("metadata").$type<StepExecutionMetadata>().notNull().default({}),
+
+    revisionOfStepExecutionId: uuid("revision_of_step_execution_id").references(
+      () => stepExecutions.id,
+      { onDelete: "set null" },
+    ),
+    parentStepExecutionId: uuid("parent_step_execution_id").references(() => stepExecutions.id, {
+      onDelete: "set null",
+    }),
+
+    startedAt: timestamp("started_at"),
+    completedAt: timestamp("completed_at"),
+
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    executionIdx: index("step_executions_execution_idx").on(table.executionId),
+    stepIdx: index("step_executions_step_idx").on(table.stepId),
+    executionStepIdx: index("step_executions_execution_step_idx").on(
+      table.executionId,
+      table.stepNumber,
+    ),
+    activeIdx: index("step_executions_active_idx").on(table.executionId, table.isActive),
+  }),
+);
+
+// ============================================
 // DRIZZLE RELATIONS
 // ============================================
 
@@ -289,6 +379,34 @@ export const workflowExecutionsRelations = relations(workflowExecutions, ({ one,
   children: many(workflowExecutions, {
     relationName: "parentChild",
   }),
+  stepExecutions: many(stepExecutions),
+}));
+
+export const stepExecutionsRelations = relations(stepExecutions, ({ one, many }) => ({
+  execution: one(workflowExecutions, {
+    fields: [stepExecutions.executionId],
+    references: [workflowExecutions.id],
+  }),
+  step: one(workflowSteps, {
+    fields: [stepExecutions.stepId],
+    references: [workflowSteps.id],
+  }),
+  revisionOf: one(stepExecutions, {
+    fields: [stepExecutions.revisionOfStepExecutionId],
+    references: [stepExecutions.id],
+    relationName: "revisionChain",
+  }),
+  revisions: many(stepExecutions, {
+    relationName: "revisionChain",
+  }),
+  parent: one(stepExecutions, {
+    fields: [stepExecutions.parentStepExecutionId],
+    references: [stepExecutions.id],
+    relationName: "parentStep",
+  }),
+  children: many(stepExecutions, {
+    relationName: "parentStep",
+  }),
 }));
 
 // ============================================
@@ -300,6 +418,8 @@ export type Workflow = typeof workflows.$inferSelect;
 
 // Inferred type for workflow step records from database
 export type WorkflowStep = typeof workflowSteps.$inferSelect;
+
+export type StepExecution = typeof stepExecutions.$inferSelect;
 
 // NOTE: Step config types are defined in step-configs.ts using Zod schemas
 // Import them from there instead of duplicating here

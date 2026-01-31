@@ -25,7 +25,7 @@ const createMockDb = () => ({
           const session = {
             id,
             executionId: data.executionId,
-            stepId: data.stepId,
+            stepExecutionId: data.stepExecutionId,
             title: data.title ?? null,
             status: "active" as const,
             messageCount: 0,
@@ -142,7 +142,7 @@ describe("ChatService", () => {
 
       expect(result.id).toBeDefined();
       expect(result.executionId).toBe("exec-1");
-      expect(result.stepId).toBe("step-1");
+      expect(result.stepExecutionId).toBe("step-1");
       expect(result.status).toBe("active");
       expect(result.messageCount).toBe(0);
     });

@@ -1,4 +1,4 @@
-import type { AskUserChatStepConfig } from "@chiron/db";
+import type { AgentStepConfig } from "@chiron/db";
 import { db, workflowSteps } from "@chiron/db";
 
 /**
@@ -54,7 +54,8 @@ export async function seedFiveWhysTechnique() {
 
   // Step 1: Interactive Five Whys Session
   // 5 sequential update-variable tools with object type for Q&A pairs
-  const step1Config: AskUserChatStepConfig = {
+  const step1Config: AgentStepConfig = {
+    agentKind: "chiron",
     agentId: coachAgent.id,
     generateInitialMessage: true,
     initialPrompt: `You are Carson, an elite brainstorming facilitator who loves helping people drill down to root causes through the Five Whys technique!
@@ -312,7 +313,7 @@ Then ask a SPECIFIC first WHY question (not generic "Why?", but tailored to thei
   await db.insert(workflowSteps).values({
     workflowId: workflow.id,
     stepNumber: 1,
-    stepType: "sandboxed-agent",
+    stepType: "agent",
     goal: "Discover root cause through 5 sequential whys",
     config: step1Config,
     nextStepNumber: null, // Final step

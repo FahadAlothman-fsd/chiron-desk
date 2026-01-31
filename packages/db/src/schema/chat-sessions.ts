@@ -2,7 +2,7 @@ import { relations } from "drizzle-orm";
 import { index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { chatMessages } from "./chat-messages";
 import { streamCheckpoints } from "./stream-checkpoints";
-import { workflowExecutions } from "./workflows";
+import { stepExecutions, workflowExecutions } from "./workflows";
 
 export const chatSessionStatusEnum = pgEnum("chat_session_status", [
   "active",
@@ -26,7 +26,9 @@ export const chatSessions = pgTable(
     executionId: uuid("execution_id")
       .notNull()
       .references(() => workflowExecutions.id, { onDelete: "cascade" }),
-    stepId: text("step_id").notNull(),
+    stepExecutionId: uuid("step_execution_id")
+      .notNull()
+      .references(() => stepExecutions.id, { onDelete: "cascade" }),
 
     title: text("title"),
     status: chatSessionStatusEnum("status").notNull().default("active"),
@@ -42,7 +44,10 @@ export const chatSessions = pgTable(
   },
   (table) => ({
     executionIdx: index("chat_sessions_execution_idx").on(table.executionId),
-    executionStepIdx: index("chat_sessions_execution_step_idx").on(table.executionId, table.stepId),
+    executionStepIdx: index("chat_sessions_execution_step_idx").on(
+      table.executionId,
+      table.stepExecutionId,
+    ),
     statusIdx: index("chat_sessions_status_idx").on(table.status),
   }),
 );
@@ -51,6 +56,10 @@ export const chatSessionsRelations = relations(chatSessions, ({ one, many }) => 
   execution: one(workflowExecutions, {
     fields: [chatSessions.executionId],
     references: [workflowExecutions.id],
+  }),
+  stepExecution: one(stepExecutions, {
+    fields: [chatSessions.stepExecutionId],
+    references: [stepExecutions.id],
   }),
   messages: many(chatMessages),
   checkpoints: many(streamCheckpoints),

@@ -1,3 +1,4 @@
+import "../../../../test-setup";
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -6,7 +7,7 @@ import { UserFormStep } from "./user-form-step";
 
 describe("UserFormStep", () => {
   const pathConfig: UserFormStepConfig = {
-    type: "user-form",
+    type: "form",
     question: "Select your project directory",
     message: "Let's set up your project! Where would you like to create it?",
     responseType: "path",
@@ -21,7 +22,7 @@ describe("UserFormStep", () => {
   };
 
   const stringConfig: UserFormStepConfig = {
-    type: "user-form",
+    type: "form",
     question: "Enter project name",
     responseType: "string",
     responseVariable: "project_name",
@@ -46,7 +47,7 @@ describe("UserFormStep", () => {
 
       expect(screen.getByText(pathConfig.message!)).toBeInTheDocument();
       expect(screen.getByText(pathConfig.question)).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /browse/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /parent directory/i })).toBeInTheDocument();
     });
 
     it("allows manual path input", async () => {
@@ -56,14 +57,13 @@ describe("UserFormStep", () => {
       render(<UserFormStep config={pathConfig} onSubmit={onSubmit} loading={false} />);
 
       // Find input by its textbox role (DirectoryPicker renders an input)
-      const inputs = screen.getAllByRole("textbox");
-      const input = inputs[0]; // DirectoryPicker input is the first textbox
-      await user.type(input, "/home/user/my-project");
+      const input = screen.getByLabelText("New folder name");
+      await user.type(input, "my-project");
 
       const continueButton = screen.getByRole("button", { name: /continue/i });
       await user.click(continueButton);
 
-      expect(onSubmit).toHaveBeenCalledWith("/home/user/my-project");
+      expect(onSubmit).toHaveBeenCalledWith("~/my-project");
     });
 
     it("shows validation error for empty required path", async () => {
@@ -152,7 +152,7 @@ describe("UserFormStep", () => {
 
   describe("number input", () => {
     const numberConfig: UserFormStepConfig = {
-      type: "user-form",
+      type: "form",
       question: "Enter count",
       responseType: "number",
       responseVariable: "item_count",

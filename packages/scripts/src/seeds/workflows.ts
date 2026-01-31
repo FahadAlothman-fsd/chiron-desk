@@ -240,11 +240,10 @@ export async function seedWorkflows(): Promise<void> {
       stepNumber: 1,
       name: "stub-placeholder",
       goal: `${workflow.displayName} - Implementation pending`,
-      stepType: "display-output",
+      stepType: "display",
       config: {
-        title: workflow.displayName,
-        message: `This workflow is a placeholder. Full implementation coming soon.\n\nDescription: ${workflow.description}`,
-        variant: "info",
+        contentTemplate: `This workflow is a placeholder. Full implementation coming soon.\n\nDescription: ${workflow.description}`,
+        outputType: "info",
       },
     });
 

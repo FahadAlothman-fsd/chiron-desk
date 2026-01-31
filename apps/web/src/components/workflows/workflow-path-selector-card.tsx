@@ -43,7 +43,8 @@ interface SelectionReasoning {
 
 interface WorkflowPathSelectorCardProps {
   executionId: string;
-  agentId: string;
+  stepId: string;
+  toolCallId?: string | null;
   toolName: string;
   availablePaths: WorkflowPath[];
   reasoning?: SelectionReasoning;
@@ -52,7 +53,8 @@ interface WorkflowPathSelectorCardProps {
 
 export function WorkflowPathSelectorCard({
   executionId,
-  agentId,
+  stepId,
+  toolCallId,
   toolName,
   availablePaths,
   reasoning,
@@ -63,10 +65,7 @@ export function WorkflowPathSelectorCard({
   );
 
   // Approval mutation
-  const approveMutation = trpc.workflows.approveToolCall.useMutation({
-    onSuccess: () => {
-      toast.success("Workflow path selected! Continuing...");
-    },
+  const approvalMutation = trpc.workflows.submitToolApproval.useMutation({
     onError: (error) => {
       toast.error(`Selection failed: ${error.message}`);
     },
@@ -79,17 +78,27 @@ export function WorkflowPathSelectorCard({
       return;
     }
 
-    await approveMutation.mutateAsync({
+    if (!toolCallId) {
+      toast.error("Missing tool call id for approval.");
+      return;
+    }
+
+    await approvalMutation.mutateAsync({
       executionId,
+      stepId,
+      toolCallId,
       toolName,
-      approvedValue: {
+      action: "approve",
+      editedArgs: {
         selected_workflow_path_id: selectedPathId,
         selected_workflow_path_name: selectedPath.name,
       },
     });
+
+    toast.success("Workflow path selected! Continuing...");
   }
 
-  const isLoading = approveMutation.isPending;
+  const isLoading = approvalMutation.isPending;
   const recommendedPathId = reasoning?.recommendedPathId || availablePaths[0]?.id;
 
   // Helper to normalize tag objects/string values

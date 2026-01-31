@@ -1,6 +1,7 @@
 import { Data, Effect, Stream } from "effect";
 import type { TextStreamPart } from "./ai-provider-service";
 import type { WorkflowEventBus } from "./event-bus";
+import type { AiStreamEvent } from "./ai-runtime/events";
 
 export class StreamingError extends Data.TaggedError("StreamingError")<{
   readonly cause: unknown;
@@ -8,54 +9,7 @@ export class StreamingError extends Data.TaggedError("StreamingError")<{
   readonly partialText?: string;
 }> {}
 
-export interface StreamChunkEvent {
-  type: "ai:stream:chunk";
-  executionId: string;
-  sessionId: string;
-  chunk: string;
-  tokenIndex: number;
-}
-
-export interface StreamCompleteEvent {
-  type: "ai:stream:complete";
-  executionId: string;
-  sessionId: string;
-  fullText: string;
-  totalTokens: number;
-  durationMs: number;
-}
-
-export interface StreamErrorEvent {
-  type: "ai:stream:error";
-  executionId: string;
-  sessionId: string;
-  error: string;
-}
-
-export interface ToolCallEvent {
-  type: "ai:tool:call";
-  executionId: string;
-  sessionId: string;
-  toolName: string;
-  toolCallId: string;
-  args: unknown;
-}
-
-export interface ToolResultEvent {
-  type: "ai:tool:result";
-  executionId: string;
-  sessionId: string;
-  toolName: string;
-  toolCallId: string;
-  result: unknown;
-}
-
-export type StreamEvent =
-  | StreamChunkEvent
-  | StreamCompleteEvent
-  | StreamErrorEvent
-  | ToolCallEvent
-  | ToolResultEvent;
+export type StreamEvent = AiStreamEvent;
 
 export function aiStreamToEffectStream<A>(
   asyncIterable: AsyncIterable<A>,
@@ -88,7 +42,8 @@ export function streamToEventBus(
             yield* eventBus.publish({
               _tag: "TextChunk",
               executionId,
-              chunk: part.textDelta,
+              stepId: sessionId,
+              content: part.textDelta,
             });
             break;
 
@@ -98,8 +53,32 @@ export function streamToEventBus(
               executionId,
               stepId: sessionId,
               toolName: part.toolName,
+              toolCallId: part.toolCallId,
               args: part.args,
             });
+            break;
+
+          case "tool-input-start":
+            if (part.toolCallId ?? part.id) {
+              yield* eventBus.publish({
+                _tag: "ToolInputStarted",
+                executionId,
+                stepId: sessionId,
+                toolCallId: part.toolCallId ?? part.id ?? "",
+              });
+            }
+            break;
+
+          case "tool-input-delta":
+            if (part.toolCallId ?? part.id) {
+              yield* eventBus.publish({
+                _tag: "ToolInputDelta",
+                executionId,
+                stepId: sessionId,
+                toolCallId: part.toolCallId ?? part.id ?? "",
+                delta: part.argsTextDelta ?? part.inputTextDelta ?? "",
+              });
+            }
             break;
 
           case "tool-result":
@@ -108,6 +87,7 @@ export function streamToEventBus(
               executionId,
               stepId: sessionId,
               toolName: part.toolName,
+              toolCallId: part.toolCallId,
               result: part.result,
             });
             break;
@@ -127,14 +107,6 @@ export function streamToEventBus(
         }
       }),
     );
-
-    const durationMs = Date.now() - startTime;
-
-    yield* eventBus.publish({
-      _tag: "TextChunk",
-      executionId,
-      chunk: `[STREAM_COMPLETE] ${tokenIndex} tokens in ${durationMs}ms`,
-    });
 
     return fullText;
   }).pipe(
@@ -157,37 +129,64 @@ export async function* eventBusToAsyncGenerator(
 
   const asyncIterable = Stream.toAsyncIterable(stream);
   const iterator = asyncIterable[Symbol.asyncIterator]();
+  let fullText = "";
+  let tokenIndex = 0;
+  const startTime = Date.now();
+  let didComplete = false;
+  let lastToolCallName: string | null = null;
+
+  const emitSyntheticDelta = async () => {
+    if (tokenIndex > 0 || fullText) return;
+    if (!lastToolCallName) return;
+    const content = `Calling tool ${lastToolCallName}...\n`;
+    fullText += content;
+    tokenIndex += 1;
+    const event: AiStreamEvent = {
+      type: "message.delta",
+      executionId,
+      stepId: executionId,
+      content,
+      tokenIndex,
+    };
+    if (!filter || filter(event)) {
+      await Promise.resolve(event);
+      return event;
+    }
+    return event;
+  };
 
   try {
     while (true) {
       const { value, done } = await iterator.next();
       if (done) break;
 
+      console.log("[AgentStream]", value._tag, value.executionId, value.stepId ?? null);
+
       if (value._tag === "TextChunk" && value.executionId === executionId) {
-        const event: StreamChunkEvent = {
-          type: "ai:stream:chunk",
+        fullText += value.content;
+        tokenIndex += 1;
+        const event: AiStreamEvent = {
+          type: "message.delta",
           executionId,
-          sessionId: executionId,
-          chunk: value.chunk,
-          tokenIndex: 0,
+          stepId: value.stepId,
+          content: value.content,
+          tokenIndex,
         };
 
         if (!filter || filter(event)) {
           yield event;
         }
-
-        if (value.chunk.startsWith("[STREAM_COMPLETE]")) {
-          break;
-        }
       }
 
       if (value._tag === "ToolCallStarted" && value.executionId === executionId) {
-        const event: ToolCallEvent = {
-          type: "ai:tool:call",
+        lastToolCallName = value.toolName;
+        const event: AiStreamEvent = {
+          type: "tool.call",
           executionId,
-          sessionId: value.stepId,
+          stepId: value.stepId,
           toolName: value.toolName,
-          toolCallId: `${value.toolName}-${Date.now()}`,
+          toolType: value.toolType,
+          toolCallId: value.toolCallId,
           args: value.args,
         };
 
@@ -196,13 +195,41 @@ export async function* eventBusToAsyncGenerator(
         }
       }
 
-      if (value._tag === "ToolCallCompleted" && value.executionId === executionId) {
-        const event: ToolResultEvent = {
-          type: "ai:tool:result",
+      if (value._tag === "ToolInputStarted" && value.executionId === executionId) {
+        const event: AiStreamEvent = {
+          type: "tool.input.start",
           executionId,
-          sessionId: value.stepId,
+          stepId: value.stepId,
+          toolCallId: value.toolCallId,
+        };
+
+        if (!filter || filter(event)) {
+          yield event;
+        }
+      }
+
+      if (value._tag === "ToolInputDelta" && value.executionId === executionId) {
+        const event: AiStreamEvent = {
+          type: "tool.input.delta",
+          executionId,
+          stepId: value.stepId,
+          toolCallId: value.toolCallId,
+          delta: value.delta,
+        };
+
+        if (!filter || filter(event)) {
+          yield event;
+        }
+      }
+
+      if (value._tag === "ToolCallCompleted" && value.executionId === executionId) {
+        const event: AiStreamEvent = {
+          type: "tool.result",
+          executionId,
+          stepId: value.stepId,
           toolName: value.toolName,
-          toolCallId: `${value.toolName}-${Date.now()}`,
+          toolType: value.toolType,
+          toolCallId: value.toolCallId,
           result: value.result,
         };
 
@@ -210,8 +237,114 @@ export async function* eventBusToAsyncGenerator(
           yield event;
         }
       }
+
+      if (value._tag === "ApprovalRequested" && value.executionId === executionId) {
+        const event: AiStreamEvent = {
+          type: "tool.pending",
+          executionId,
+          stepId: value.stepId,
+          toolName: value.toolName,
+          toolType: value.toolType,
+          toolCallId: value.toolCallId,
+          args: value.args ?? null,
+          riskLevel: value.riskLevel,
+        };
+
+        if (!filter || filter(event)) {
+          yield event;
+        }
+      }
+
+      if (value._tag === "ApprovalResolved" && value.executionId === executionId) {
+        const event: AiStreamEvent = {
+          type: "tool.approval",
+          executionId,
+          stepId: value.stepId,
+          toolName: value.toolName,
+          toolType: value.toolType,
+          toolCallId: value.toolCallId,
+          action: value.action,
+          editedArgs: value.editedArgs,
+          feedback: value.feedback,
+        };
+
+        if (!filter || filter(event)) {
+          yield event;
+        }
+      }
+
+      if (value._tag === "WorkflowError" && value.executionId === executionId) {
+        const event: AiStreamEvent = {
+          type: "error",
+          executionId,
+          stepId: value.stepId ?? executionId,
+          message: value.error,
+        };
+        if (!filter || filter(event)) {
+          yield event;
+        }
+        didComplete = true;
+        return;
+      }
+
+      if (value._tag === "StepCompleted" && value.executionId === executionId) {
+        const synthetic = await emitSyntheticDelta();
+        if (synthetic && (!filter || filter(synthetic))) {
+          yield synthetic;
+        }
+        const event: AiStreamEvent = {
+          type: "message.complete",
+          executionId,
+          stepId: value.stepId,
+          fullText,
+          tokenCount: tokenIndex,
+          durationMs: Date.now() - startTime,
+        };
+        if (!filter || filter(event)) {
+          yield event;
+        }
+        didComplete = true;
+        return;
+      }
+
+      if (value._tag === "WorkflowCompleted" && value.executionId === executionId) {
+        const synthetic = await emitSyntheticDelta();
+        if (synthetic && (!filter || filter(synthetic))) {
+          yield synthetic;
+        }
+        const event: AiStreamEvent = {
+          type: "message.complete",
+          executionId,
+          stepId: executionId,
+          fullText,
+          tokenCount: tokenIndex,
+          durationMs: Date.now() - startTime,
+        };
+        if (!filter || filter(event)) {
+          yield event;
+        }
+        didComplete = true;
+        return;
+      }
     }
   } finally {
+    if (!didComplete) {
+      const synthetic = await emitSyntheticDelta();
+      if (synthetic && (!filter || filter(synthetic))) {
+        yield synthetic;
+      }
+      const completeEvent: AiStreamEvent = {
+        type: "message.complete",
+        executionId,
+        stepId: executionId,
+        fullText,
+        tokenCount: tokenIndex,
+        durationMs: Date.now() - startTime,
+      };
+      if (!filter || filter(completeEvent)) {
+        yield completeEvent;
+      }
+    }
     if (iterator.return) {
       await iterator.return(undefined);
     }

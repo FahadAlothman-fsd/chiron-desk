@@ -1,4 +1,4 @@
-import type { AskUserChatStepConfig } from "@chiron/db";
+import type { AgentStepConfig } from "@chiron/db";
 import { db, workflowSteps } from "@chiron/db";
 
 /**
@@ -45,7 +45,8 @@ export async function seedWhatIfScenariosTechnique() {
   // ============================================
   // STEP 1: Identify Current Constraints
   // ============================================
-  const step1Config: AskUserChatStepConfig = {
+  const step1Config: AgentStepConfig = {
+    agentKind: "chiron",
     agentId: analystAgent.id,
     generateInitialMessage: true,
     initialPrompt: `You are Carson facilitating What If Scenarios - a technique for radical innovation!
@@ -111,7 +112,8 @@ Be supportive - constraints are normal! We're about to shatter them!`,
   // ============================================
   // STEP 2: Explore Radical What-Ifs
   // ============================================
-  const step2Config: AskUserChatStepConfig = {
+  const step2Config: AgentStepConfig = {
+    agentKind: "chiron",
     agentId: analystAgent.id,
     generateInitialMessage: true,
     initialPrompt: `**Phase 2: WHAT IF...? 🚀**
@@ -196,7 +198,8 @@ Be wildly enthusiastic! Encourage the craziest ideas! "YES! MORE! What else?!"`,
   // ============================================
   // STEP 3: Extract Actionable Insights
   // ============================================
-  const step3Config: AskUserChatStepConfig = {
+  const step3Config: AgentStepConfig = {
+    agentKind: "chiron",
     agentId: analystAgent.id,
     generateInitialMessage: true,
     initialPrompt: `**Phase 3: EXTRACT PRACTICAL INSIGHTS 💡**
@@ -284,7 +287,7 @@ Be excited about practical discoveries! "YES! That's a brilliant insight we can 
       workflowId: workflow.id,
       stepNumber: 1,
       goal: "Identify current constraints and assumptions",
-      stepType: "sandboxed-agent",
+      stepType: "agent",
       config: step1Config,
       nextStepNumber: 2,
     },
@@ -292,7 +295,7 @@ Be excited about practical discoveries! "YES! That's a brilliant insight we can 
       workflowId: workflow.id,
       stepNumber: 2,
       goal: "Generate radical what-if scenarios",
-      stepType: "sandboxed-agent",
+      stepType: "agent",
       config: step2Config,
       nextStepNumber: 3,
     },
@@ -300,7 +303,7 @@ Be excited about practical discoveries! "YES! That's a brilliant insight we can 
       workflowId: workflow.id,
       stepNumber: 3,
       goal: "Reverse-engineer practical insights from radical ideas",
-      stepType: "sandboxed-agent",
+      stepType: "agent",
       config: step3Config,
       nextStepNumber: null, // Final step
     },

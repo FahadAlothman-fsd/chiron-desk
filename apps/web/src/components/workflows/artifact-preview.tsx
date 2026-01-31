@@ -232,7 +232,7 @@ function BrainstormingPreview({ execution, templateData }: BrainstormingPreviewP
 /**
  * Captured Ideas Section - Story 2.3 Task 8
  * Generic display of aggregated child workflow outputs
- * Works for ANY invoke-workflow step, not just techniques
+ * Works for ANY invoke step, not just techniques
  */
 interface CapturedIdeasSectionProps {
   variables: Record<string, any>;

@@ -1,15 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import {
-  askUserChatStepConfigSchema,
-  askUserStepConfigSchema,
-  displayOutputStepConfigSchema,
-  executeActionStepConfigSchema,
-  llmGenerateStepConfigSchema,
+  actionStepConfigSchema,
+  agentStepConfigSchema,
+  displayStepConfigSchema,
+  formStepConfigSchema,
+  invokeStepConfigSchema,
   stepConfigSchema,
 } from "./step-configs";
 
 describe("Step Config Zod Schemas", () => {
-  test("validates AskUserStepConfig correctly", () => {
+  test("validates FormStepConfig correctly", () => {
     const validConfig = {
       question: "What is your project name?",
       responseType: "string" as const,
@@ -21,62 +21,71 @@ describe("Step Config Zod Schemas", () => {
       },
     };
 
-    const result = askUserStepConfigSchema.safeParse(validConfig);
+    const result = formStepConfigSchema.safeParse(validConfig);
     expect(result.success).toBe(true);
   });
 
-  test("rejects invalid AskUserStepConfig", () => {
+  test("rejects invalid FormStepConfig", () => {
     const invalidConfig = {
       question: "What is your project name?",
       responseType: "invalid_type", // Invalid enum value
       responseVariable: "project_name",
     };
 
-    const result = askUserStepConfigSchema.safeParse(invalidConfig);
+    const result = formStepConfigSchema.safeParse(invalidConfig);
     expect(result.success).toBe(false);
   });
 
-  test("validates AskUserChatStepConfig correctly", () => {
+  test("validates AgentStepConfig correctly", () => {
     const validConfig = {
-      systemPrompt: "You are a helpful assistant",
+      agentKind: "chiron" as const,
+      agentId: "00000000-0000-0000-0000-000000000000",
       initialMessage: "How can I help you?",
-      outputVariable: "chat_result",
       completionCondition: {
         type: "user-satisfied" as const,
       },
     };
 
-    const result = askUserChatStepConfigSchema.safeParse(validConfig);
+    const result = agentStepConfigSchema.safeParse(validConfig);
     expect(result.success).toBe(true);
   });
 
-  test("validates ExecuteActionStepConfig correctly", () => {
+  test("validates ActionStepConfig correctly", () => {
     const validConfig = {
-      actions: [{ type: "set-variable" as const }],
+      actions: [
+        {
+          type: "set-variable" as const,
+          config: {
+            variable: "foo",
+            value: "bar",
+          },
+        },
+      ],
     };
 
-    const result = executeActionStepConfigSchema.safeParse(validConfig);
+    const result = actionStepConfigSchema.safeParse(validConfig);
     expect(result.success).toBe(true);
   });
 
-  test("validates LLMGenerateStepConfig correctly", () => {
-    const validConfig = {
-      llmTask: {
-        type: "classification" as const,
-      },
-      outputVariable: "classification_result",
-    };
-
-    const result = llmGenerateStepConfigSchema.safeParse(validConfig);
-    expect(result.success).toBe(true);
-  });
-
-  test("validates DisplayOutputStepConfig correctly", () => {
+  test("validates DisplayStepConfig correctly", () => {
     const validConfig = {
       contentTemplate: "Hello {{name}}!",
     };
 
-    const result = displayOutputStepConfigSchema.safeParse(validConfig);
+    const result = displayStepConfigSchema.safeParse(validConfig);
+    expect(result.success).toBe(true);
+  });
+
+  test("validates InvokeStepConfig correctly", () => {
+    const validConfig = {
+      workflowsToInvoke: "{{techniques}}",
+      variableMapping: { session_topic: "{{topic}}" },
+      expectedOutputVariable: "generated_ideas",
+      aggregateInto: "captured_ideas",
+      completionCondition: { type: "all-complete" as const },
+    };
+
+    const result = invokeStepConfigSchema.safeParse(validConfig);
     expect(result.success).toBe(true);
   });
 
@@ -88,20 +97,28 @@ describe("Step Config Zod Schemas", () => {
         responseVariable: "test",
       },
       {
-        systemPrompt: "Test",
+        agentKind: "chiron" as const,
+        agentId: "00000000-0000-0000-0000-000000000000",
         initialMessage: "Test",
-        outputVariable: "test",
         completionCondition: { type: "user-satisfied" as const },
       },
       {
-        actions: [{ type: "set-variable" as const }],
-      },
-      {
-        llmTask: { type: "classification" as const },
-        outputVariable: "test",
+        actions: [
+          {
+            type: "set-variable" as const,
+            config: { variable: "foo", value: "bar" },
+          },
+        ],
       },
       {
         contentTemplate: "Test",
+      },
+      {
+        workflowsToInvoke: "{{techniques}}",
+        variableMapping: { session_topic: "{{topic}}" },
+        expectedOutputVariable: "generated_ideas",
+        aggregateInto: "captured_ideas",
+        completionCondition: { type: "all-complete" as const },
       },
     ];
 

@@ -27,14 +27,14 @@ describe("Workflow-Init-New Seeding", () => {
       where: eq(workflows.name, "workflow-init-new"),
     });
 
-    expect(workflow?.agentId).toBeTruthy();
+    expect(workflow?.metadata?.agentId).toBeTruthy();
 
     // Verify the agent is PM
     const pmAgent = await db.query.agents.findFirst({
       where: eq(agents.name, "pm"),
     });
 
-    expect(workflow?.agentId).toBe(pmAgent?.id);
+    expect(workflow?.metadata?.agentId).toBe(pmAgent?.id);
   });
 
   test("initializerType = 'new-project'", async () => {
@@ -42,7 +42,7 @@ describe("Workflow-Init-New Seeding", () => {
       where: eq(workflows.name, "workflow-init-new"),
     });
 
-    expect(workflow?.initializerType).toBe("new-project");
+    expect(workflow?.metadata?.initializerType).toBe("new-project");
   });
 
   test("isStandalone = true", async () => {
@@ -50,7 +50,7 @@ describe("Workflow-Init-New Seeding", () => {
       where: eq(workflows.name, "workflow-init-new"),
     });
 
-    expect(workflow?.isStandalone).toBe(true);
+    expect(workflow?.metadata?.isStandalone).toBe(true);
   });
 
   test("requiresProjectContext = false", async () => {
@@ -58,7 +58,7 @@ describe("Workflow-Init-New Seeding", () => {
       where: eq(workflows.name, "workflow-init-new"),
     });
 
-    expect(workflow?.requiresProjectContext).toBe(false);
+    expect(workflow?.metadata?.requiresProjectContext).toBe(false);
   });
 
   test("Running twice doesn't create duplicates", async () => {

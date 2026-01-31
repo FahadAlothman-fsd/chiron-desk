@@ -30,7 +30,7 @@ export interface StepRendererProps {
   execution: WorkflowExecution;
   /** Project ID for context */
   projectId: string;
-  /** Dialog handler for child workflow execution (invoke-workflow steps) */
+  /** Dialog handler for child workflow execution (invoke steps) */
   onExecuteWorkflow?: (workflowId: string) => void;
   /** Handler to navigate to a child execution (for viewing completed workflows) */
   onViewExecution?: (executionId: string) => void;
@@ -43,9 +43,9 @@ export function StepRenderer({
   onExecuteWorkflow,
   onViewExecution,
 }: StepRendererProps) {
-  // Check if step is complete (for sandboxed-agent steps with tools)
+  // Check if step is complete (for agent steps with tools)
   const isStepComplete =
-    step.stepType === "sandboxed-agent" && step.config?.tools && Array.isArray(step.config.tools)
+    step.stepType === "agent" && step.config?.tools && Array.isArray(step.config.tools)
       ? (step.config.tools as Array<{ name: string }>).every((tool) => {
           const approvalStates = execution.variables?.approval_states as Record<
             string,
@@ -57,11 +57,12 @@ export function StepRenderer({
       : false;
 
   switch (step.stepType) {
-    case "sandboxed-agent":
+    case "agent":
       return (
         <SandboxedAgentStep
           stepConfig={step.config}
           executionId={execution.id}
+          stepId={step.id}
           stepGoal={step.goal}
           stepNumber={step.stepNumber}
           stepName={step.name}
@@ -69,7 +70,7 @@ export function StepRenderer({
         />
       );
 
-    case "invoke-workflow":
+    case "invoke":
       return (
         <InvokeWorkflowStep
           config={step.config}
@@ -79,13 +80,13 @@ export function StepRenderer({
         />
       );
 
-    case "user-form":
+    case "form":
       return <UserFormStep stepConfig={step.config} executionId={execution.id} />;
 
-    case "display-output":
+    case "display":
       return <DisplayOutputStep stepConfig={step.config} variables={execution.variables} />;
 
-    case "execute-action":
+    case "action":
       return (
         <ExecuteActionStep
           stepConfig={step.config}

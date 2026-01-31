@@ -1,4 +1,4 @@
-import type { AskUserChatStepConfig } from "@chiron/db";
+import type { AgentStepConfig } from "@chiron/db";
 import { db, workflowSteps } from "@chiron/db";
 
 /**
@@ -43,7 +43,8 @@ export async function seedSixThinkingHatsTechnique() {
   }
 
   // Step 1: Single conversation with 6 sequential tools (one for each hat)
-  const step1Config: AskUserChatStepConfig = {
+  const step1Config: AgentStepConfig = {
+    agentKind: "chiron",
     agentId: analystAgent.id,
     generateInitialMessage: true,
     initialPrompt: `You are Carson facilitating Six Thinking Hats - a method for examining problems from six distinct perspectives!
@@ -198,7 +199,7 @@ Start enthusiastically: "🎩 Let's put on different thinking hats to see this f
     workflowId: workflow.id,
     stepNumber: 1,
     goal: "Analyze topic through 6 thinking perspectives",
-    stepType: "sandboxed-agent",
+    stepType: "agent",
     config: step1Config,
     nextStepNumber: null, // Single step workflow
   });

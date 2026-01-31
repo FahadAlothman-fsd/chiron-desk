@@ -1,14 +1,19 @@
 import { db, eq, workflowExecutions } from "@chiron/db";
 import { Effect, Layer } from "effect";
 import { workflowEventBus as legacyEventBus } from "../event-bus";
+import { stateManager } from "../state-manager";
 import { loadWorkflow } from "../workflow-loader";
 import { AIProviderServiceLive } from "./ai-provider-service";
+import { AiRuntimeServiceLive } from "./ai-runtime/ai-runtime-service";
+import { ApprovalServiceLive } from "./approval-service";
+import { ChatServiceLive } from "./chat-service";
 import { ConfigServiceLive } from "./config-service";
 import { DatabaseServiceLive } from "./database-service";
 import { MaxStepsExceededError, UnknownStepTypeError } from "./errors";
-import { WorkflowEventBusLive } from "./event-bus";
+import { WorkflowEventBusSingletonLive } from "./event-bus";
 import { ExecutionContextLive, type ExecutionState } from "./execution-context";
 import { AllHandlerLayers, StepHandlerRegistry, StepHandlerRegistryLive } from "./step-registry";
+import { ToolApprovalGatewayLive } from "./tool-approval-gateway";
 import { VariableServiceLive } from "./variable-service";
 
 /**
@@ -35,16 +40,39 @@ export class WorkflowExecutionError extends Error {
 /**
  * Create the Effect runtime layer with all required services
  */
-const createWorkflowLayer = (initialState: ExecutionState) =>
-  Layer.mergeAll(
+const createWorkflowLayer = (initialState: ExecutionState) => {
+  const coreLayer = Layer.mergeAll(
     DatabaseServiceLive,
-    ConfigServiceLive,
-    WorkflowEventBusLive,
-    StepHandlerRegistryLive,
     ExecutionContextLive(initialState),
-    AIProviderServiceLive,
-    VariableServiceLive,
-  ).pipe(Layer.provide(AllHandlerLayers));
+    WorkflowEventBusSingletonLive,
+  );
+
+  const configLayer = ConfigServiceLive.pipe(Layer.provide(coreLayer));
+  const providerLayer = AIProviderServiceLive.pipe(Layer.provide(configLayer));
+  const runtimeLayer = AiRuntimeServiceLive.pipe(Layer.provide(providerLayer));
+  const aiLayer = Layer.mergeAll(providerLayer, runtimeLayer);
+  const approvalLayer = Layer.mergeAll(ApprovalServiceLive, ToolApprovalGatewayLive).pipe(
+    Layer.provide(coreLayer),
+  );
+  const variableLayer = VariableServiceLive.pipe(Layer.provide(coreLayer));
+  const chatLayer = ChatServiceLive.pipe(Layer.provide(coreLayer));
+
+  const baseLayer = Layer.mergeAll(
+    coreLayer,
+    configLayer,
+    aiLayer,
+    approvalLayer,
+    variableLayer,
+    chatLayer,
+  );
+
+  const handlerLayer = AllHandlerLayers.pipe(Layer.provide(baseLayer));
+  const registryLayer = StepHandlerRegistryLive.pipe(
+    Layer.provide(Layer.mergeAll(baseLayer, handlerLayer)),
+  );
+
+  return Layer.mergeAll(baseLayer, handlerLayer, registryLayer);
+};
 
 /**
  * Execute a workflow
@@ -219,7 +247,8 @@ export async function continueExecution(
       executionId,
       workflowId: freshExecution.workflowId,
       projectId: freshExecution.projectId ?? undefined,
-      parentExecutionId: freshExecution.parentExecutionId ?? undefined,
+      parentExecutionId: freshExecution.parentExecutionId ?? null,
+      userId,
       variables: freshExecution.variables as Record<string, unknown>,
       currentStepNumber,
     };
@@ -228,6 +257,12 @@ export async function continueExecution(
     try {
       // Emit step_started event
       legacyEventBus.emitStepStarted(executionId, currentStep.stepNumber);
+
+      const stepExecution = await stateManager.startStepExecution({
+        executionId,
+        stepId: currentStep.id,
+        stepNumber: currentStep.stepNumber,
+      });
 
       // Create the Effect program to execute this step
       const stepProgram = Effect.gen(function* () {
@@ -241,6 +276,12 @@ export async function continueExecution(
           stepConfig: currentStep.config as Record<string, unknown>,
           variables: initialState.variables,
           executionId: executionId,
+          workflowId: initialState.workflowId,
+          stepId: currentStep.id,
+          stepExecutionId: stepExecution.id,
+          stepNumber: currentStep.stepNumber,
+          stepGoal: currentStep.goal,
+          stepType: currentStep.stepType,
           userInput: currentUserInput,
         });
 
@@ -248,7 +289,7 @@ export async function continueExecution(
       });
 
       // Create layer with execution context
-      const layer = createWorkflowLayer(initialState);
+      const layer = Layer.mergeAll(DatabaseServiceLive, createWorkflowLayer(initialState));
 
       // Run the Effect program
       const result = await Effect.runPromise(stepProgram.pipe(Effect.provide(layer)));
@@ -268,6 +309,16 @@ export async function continueExecution(
         console.log(
           `[Effect Executor] Step ${currentStep.stepNumber} requires user input - pausing execution`,
         );
+
+        const approvalState =
+          (result.variableUpdates as Record<string, unknown> | undefined)?.approval_states ?? {};
+
+        await stateManager.markStepExecutionWaiting({
+          executionId,
+          stepId: currentStep.id,
+          variablesDelta: result.variableUpdates || {},
+          approvalState: approvalState as Record<string, unknown>,
+        });
 
         // Mark step as waiting (not completed yet) - SAVE OUTPUT
         await updateExecutedSteps(
@@ -291,6 +342,8 @@ export async function continueExecution(
 
       // Step completed without user input - save result
       const output = result.variableUpdates || {};
+      const approvalState =
+        (result.variableUpdates as Record<string, unknown> | undefined)?.approval_states ?? {};
       console.log(
         `[Effect Executor] Saving step ${currentStep.stepNumber} output:`,
         JSON.stringify(output, null, 2),
@@ -302,6 +355,13 @@ export async function continueExecution(
         output,
         "completed",
       );
+
+      await stateManager.completeStepExecution({
+        executionId,
+        stepId: currentStep.id,
+        variablesDelta: output,
+        approvalState: approvalState as Record<string, unknown>,
+      });
 
       // Merge output into execution variables
       if (result.variableUpdates) {
@@ -340,6 +400,13 @@ export async function continueExecution(
           "skipped",
         );
 
+        await stateManager.completeStepExecution({
+          executionId,
+          stepId: currentStep.id,
+          variablesDelta: {},
+          metadata: { skipped: true },
+        });
+
         // Auto-advance
         currentStepNumber = currentStep.nextStepNumber;
         continue;
@@ -369,10 +436,35 @@ export async function continueExecution(
           error instanceof Error ? error.message : "Unknown error",
         );
 
+        await stateManager.failStepExecution({
+          executionId,
+          stepId: currentStep.id,
+          metadata: {
+            error: error instanceof Error ? error.message : "Unknown error",
+          },
+        });
+
         // Continue to next step
         currentStepNumber = currentStep.nextStepNumber;
         continue;
       }
+
+      console.error("[WorkflowExecutor] Step failed", {
+        executionId,
+        stepNumber: currentStep.stepNumber,
+        stepId: currentStep.id,
+        stepType: currentStep.stepType,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+
+      await stateManager.failStepExecution({
+        executionId,
+        stepId: currentStep.id,
+        metadata: {
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
 
       // Halt workflow on error
       throw new WorkflowExecutionError(

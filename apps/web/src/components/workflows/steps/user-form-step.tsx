@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { TwoPartDirectoryInput } from "@/components/ui/two-part-directory-input";
 
 export interface UserFormStepConfig {
-  type: "user-form";
+  type: "form";
   message?: string;
   question: string;
   responseType: "boolean" | "string" | "number" | "choice" | "path" | "relative-path";

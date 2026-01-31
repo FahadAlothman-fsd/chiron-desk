@@ -1,4 +1,9 @@
-import { Context, Layer } from "effect";
+import { appConfig } from "@chiron/db";
+import { eq } from "drizzle-orm";
+import { Context, Effect, Layer } from "effect";
+import { decrypt } from "../../../services/encryption";
+import { DatabaseService } from "./database-service";
+import { ExecutionContext } from "./execution-context";
 
 export interface WorkflowConfig {
   readonly databaseUrl: string;
@@ -32,10 +37,74 @@ const loadConfig = (): WorkflowConfig => ({
   openrouterApiKey: process.env.OPENROUTER_API_KEY,
 });
 
-export const ConfigServiceLive = Layer.sync(ConfigService, () => {
-  const config = loadConfig();
-  return {
-    config,
-    get: <K extends keyof WorkflowConfig>(key: K) => config[key],
-  };
+const decryptKey = (value: string | null | undefined): string | undefined => {
+  if (!value) return undefined;
+  try {
+    return decrypt(value);
+  } catch (error) {
+    console.warn(
+      "[ConfigService] Failed to decrypt app_config key:",
+      error instanceof Error ? error.message : error,
+    );
+    return undefined;
+  }
+};
+
+const applyAppConfigOverrides = (
+  config: WorkflowConfig,
+  overrides?: {
+    openaiApiKey?: string;
+    anthropicApiKey?: string;
+    openrouterApiKey?: string;
+  },
+): WorkflowConfig => ({
+  ...config,
+  openaiApiKey: overrides?.openaiApiKey ?? config.openaiApiKey,
+  anthropicApiKey: overrides?.anthropicApiKey ?? config.anthropicApiKey,
+  openrouterApiKey: overrides?.openrouterApiKey ?? config.openrouterApiKey,
 });
+
+export const ConfigServiceLive = Layer.effect(
+  ConfigService,
+  Effect.gen(function* () {
+    const config = loadConfig();
+    const executionContext = yield* ExecutionContext;
+    const { db } = yield* DatabaseService;
+
+    const state = yield* executionContext.getState();
+
+    if (!state.userId) {
+      return {
+        config,
+        get: <K extends keyof WorkflowConfig>(key: K) => config[key],
+      };
+    }
+
+    const appConfigRecord = yield* Effect.tryPromise({
+      try: async () => {
+        const [record] = await db
+          .select()
+          .from(appConfig)
+          .where(eq(appConfig.userId, state.userId ?? ""))
+          .limit(1);
+        return record ?? null;
+      },
+      catch: () => null,
+    });
+
+    const overrides = appConfigRecord
+      ? {
+          openaiApiKey: decryptKey(appConfigRecord.openaiApiKey),
+          anthropicApiKey: decryptKey(appConfigRecord.anthropicApiKey),
+          openrouterApiKey: decryptKey(appConfigRecord.openrouterApiKey),
+        }
+      : undefined;
+
+    const resolvedConfig = applyAppConfigOverrides(config, overrides);
+
+    return {
+      config: resolvedConfig,
+      get: <K extends keyof WorkflowConfig>(key: K) => resolvedConfig[key],
+    };
+  }),
+);

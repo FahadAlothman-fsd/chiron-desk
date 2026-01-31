@@ -54,13 +54,13 @@ describe("Agent Seeding", () => {
     expect(countAfter).toBe(countBefore);
   });
 
-  test("PM agent has anthropic provider", async () => {
+  test("PM agent has openrouter provider", async () => {
     const pmAgent = await db.query.agents.findFirst({
       where: eq(agents.name, "pm"),
     });
 
     expect(pmAgent).toBeTruthy();
-    expect(pmAgent?.llmProvider).toBe("anthropic");
+    expect(pmAgent?.llmProvider).toBe("openrouter");
   });
 
   test("DEV agent exists with correct role", async () => {

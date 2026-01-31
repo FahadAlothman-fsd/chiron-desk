@@ -72,7 +72,7 @@ export interface WorkflowLayoutRendererProps {
   projectId: string;
   /** Step content (pre-rendered by parent) - deprecated for artifact-workbench */
   stepContent?: React.ReactNode;
-  /** Handler for execute workflow (invoke-workflow steps) */
+  /** Handler for execute workflow (invoke steps) */
   onExecuteWorkflow?: (workflowId: string) => void;
   /** Handler to navigate to a child execution (for viewing completed workflows) */
   onViewExecution?: (executionId: string) => void;

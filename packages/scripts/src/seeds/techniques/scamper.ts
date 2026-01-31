@@ -1,4 +1,4 @@
-import type { AskUserChatStepConfig } from "@chiron/db";
+import type { AgentStepConfig } from "@chiron/db";
 import { db, workflowSteps } from "@chiron/db";
 
 /**
@@ -50,7 +50,8 @@ export async function seedScamperTechnique() {
 
   // Step 1: Interactive SCAMPER Session
   // 7 sequential blocking tools (one for each letter)
-  const step1Config: AskUserChatStepConfig = {
+  const step1Config: AgentStepConfig = {
+    agentKind: "chiron",
     agentId: analystAgent.id,
     initialMessage:
       "Let's explore your idea using the SCAMPER method! 🔍\n\nSCAMPER helps you systematically examine your concept through 7 creative lenses. We'll go through each one step by step.\n\nFirst, let's start with **Substitute**: What elements of your idea could be substituted with something else?",
@@ -223,7 +224,7 @@ export async function seedScamperTechnique() {
     workflowId: workflow.id,
     stepNumber: 1,
     goal: "Explore idea through 7 SCAMPER lenses systematically",
-    stepType: "sandboxed-agent",
+    stepType: "agent",
     config: step1Config,
     nextStepNumber: null, // Single-step technique
   });

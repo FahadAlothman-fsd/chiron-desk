@@ -1,3 +1,4 @@
+import "../../../../test-setup";
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -5,7 +6,7 @@ import { ExecuteActionStep } from "./execute-action-step";
 
 describe("ExecuteActionStep", () => {
   const mockConfig = {
-    type: "execute-action" as const,
+    type: "action" as const,
     actions: [
       {
         type: "set-variable",

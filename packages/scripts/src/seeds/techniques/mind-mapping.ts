@@ -1,4 +1,4 @@
-import type { AskUserChatStepConfig } from "@chiron/db";
+import type { AgentStepConfig } from "@chiron/db";
 import { db, workflowSteps } from "@chiron/db";
 
 /**
@@ -45,7 +45,8 @@ export async function seedMindMappingTechnique() {
   // ============================================
   // STEP 1: Define Central Concept
   // ============================================
-  const step1Config: AskUserChatStepConfig = {
+  const step1Config: AgentStepConfig = {
+    agentKind: "chiron",
     agentId: analystAgent.id,
     generateInitialMessage: true,
     initialPrompt: `You are Carson facilitating Mind Mapping - a visual technique for exploring ideas!
@@ -100,7 +101,8 @@ Be enthusiastic and help them refine until it's crystal clear!`,
   // ============================================
   // STEP 2: Generate Main Branches
   // ============================================
-  const step2Config: AskUserChatStepConfig = {
+  const step2Config: AgentStepConfig = {
+    agentKind: "chiron",
     agentId: analystAgent.id,
     generateInitialMessage: true,
     initialPrompt: `**Phase 2: MAIN BRANCHES 🌳**
@@ -157,7 +159,8 @@ Be encouraging! Build energy as branches emerge!`,
   // ============================================
   // STEP 3: Expand with Sub-branches
   // ============================================
-  const step3Config: AskUserChatStepConfig = {
+  const step3Config: AgentStepConfig = {
+    agentKind: "chiron",
     agentId: analystAgent.id,
     generateInitialMessage: true,
     initialPrompt: `**Phase 3: SUB-BRANCHES 🌿**
@@ -223,7 +226,8 @@ Be patient and methodical! Celebrate each expanded branch!`,
   // ============================================
   // STEP 4: Discover Connections
   // ============================================
-  const step4Config: AskUserChatStepConfig = {
+  const step4Config: AgentStepConfig = {
+    agentKind: "chiron",
     agentId: analystAgent.id,
     generateInitialMessage: true,
     initialPrompt: `**Phase 4: CONNECTIONS ✨**
@@ -294,7 +298,7 @@ Be excited about discoveries! These connections are where innovation happens!`,
       workflowId: workflow.id,
       stepNumber: 1,
       goal: "Establish the central concept",
-      stepType: "sandboxed-agent",
+      stepType: "agent",
       config: step1Config,
       nextStepNumber: 2,
     },
@@ -302,7 +306,7 @@ Be excited about discoveries! These connections are where innovation happens!`,
       workflowId: workflow.id,
       stepNumber: 2,
       goal: "Create main branches from center",
-      stepType: "sandboxed-agent",
+      stepType: "agent",
       config: step2Config,
       nextStepNumber: 3,
     },
@@ -310,7 +314,7 @@ Be excited about discoveries! These connections are where innovation happens!`,
       workflowId: workflow.id,
       stepNumber: 3,
       goal: "Add sub-branches to each main branch",
-      stepType: "sandboxed-agent",
+      stepType: "agent",
       config: step3Config,
       nextStepNumber: 4,
     },
@@ -318,7 +322,7 @@ Be excited about discoveries! These connections are where innovation happens!`,
       workflowId: workflow.id,
       stepNumber: 4,
       goal: "Find connections between branches",
-      stepType: "sandboxed-agent",
+      stepType: "agent",
       config: step4Config,
       nextStepNumber: null, // Final step
     },

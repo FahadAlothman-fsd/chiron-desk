@@ -1,4 +1,4 @@
-import type { AskUserChatStepConfig } from "@chiron/db";
+import type { AgentStepConfig } from "@chiron/db";
 import { db, workflowSteps, workflows, workflowTemplates } from "@chiron/db";
 
 /**
@@ -129,7 +129,8 @@ export async function seedBrainstorming() {
 
   // Step 1: Setup Phase - Topic, Goals, Techniques
   // Story 2.2: Configure Step 1 with three Mastra tools
-  const step1Config: AskUserChatStepConfig = {
+  const step1Config: AgentStepConfig = {
+    agentKind: "chiron",
     agentId: analystAgent.id,
     initialMessage:
       "Welcome to your brainstorming session! 🧠\n\nI'm here to help you generate creative ideas and develop an action plan. Let's start by setting up your session.\n\nWhat would you like to brainstorm about? Tell me the topic or problem you want to explore.",
@@ -266,15 +267,15 @@ export async function seedBrainstorming() {
     workflowId: workflow.id,
     stepNumber: 1,
     goal: "Define session topic, goals, and select brainstorming techniques",
-    stepType: "sandboxed-agent",
+    stepType: "agent",
     config: step1Config,
     nextStepNumber: 2, // Story 2.3: Continue to Step 2
   });
 
   console.log("  ✓ Step 1: Setup (topic, goals, techniques)");
 
-  // Step 2: Execute Selected Techniques (Invoke-Workflow)
-  // Story 2.3: Configure Step 2 with invoke-workflow logic
+  // Step 2: Execute Selected Techniques (Invoke)
+  // Story 2.3: Configure Step 2 with invoke logic
   const step2Config = {
     workflowsToInvoke: "{{techniques}}", // Read from Step 1 outputVariables (techniques → approval_states.select_techniques.value.selected_techniques)
     variableMapping: {
@@ -294,10 +295,10 @@ export async function seedBrainstorming() {
     workflowId: workflow.id,
     stepNumber: 2,
     goal: "Execute selected brainstorming techniques and collect ideas",
-    stepType: "invoke-workflow",
+    stepType: "invoke",
     config: step2Config,
     nextStepNumber: null, // Story 2.4+ will add convergence steps
   });
 
-  console.log("  ✓ Step 2: Technique Execution (invoke-workflow)");
+  console.log("  ✓ Step 2: Technique Execution (invoke)");
 }

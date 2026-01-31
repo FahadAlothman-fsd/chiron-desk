@@ -41,7 +41,8 @@ interface ValidationConfig {
 
 interface SelectionWithCustomCardProps {
   executionId: string;
-  agentId: string;
+  stepId: string;
+  toolCallId?: string | null;
   toolName: string;
   title: string;
   suggestions: Suggestion[];
@@ -54,7 +55,8 @@ interface SelectionWithCustomCardProps {
 
 export function SelectionWithCustomCard({
   executionId,
-  agentId,
+  stepId,
+  toolCallId,
   toolName,
   title,
   suggestions,
@@ -72,15 +74,7 @@ export function SelectionWithCustomCard({
   const [customValueError, setCustomValueError] = useState("");
 
   // Approval mutation
-  const approveMutation = trpc.workflows.approveToolCall.useMutation({
-    onSuccess: () => {
-      // Derive success message from title (remove emoji and "Suggestions" suffix)
-      const cleanTitle = title.replace(/[^\w\s-]/g, "").trim();
-      const successMsg = cleanTitle.endsWith("Suggestions")
-        ? `${cleanTitle.replace("Suggestions", "").trim()} selected!`
-        : `${cleanTitle} confirmed!`;
-      toast.success(successMsg);
-    },
+  const approvalMutation = trpc.workflows.submitToolApproval.useMutation({
     onError: (error) => {
       toast.error(`Selection failed: ${error.message}`);
     },
@@ -151,16 +145,30 @@ export function SelectionWithCustomCard({
       return;
     }
 
-    await approveMutation.mutateAsync({
+    if (!toolCallId) {
+      toast.error("Missing tool call id for approval.");
+      return;
+    }
+
+    await approvalMutation.mutateAsync({
       executionId,
+      stepId,
+      toolCallId,
       toolName,
-      approvedValue: {
+      action: "approve",
+      editedArgs: {
         [valueField]: finalValue,
       },
     });
+
+    const cleanTitle = title.replace(/[^\w\s-]/g, "").trim();
+    const successMsg = cleanTitle.endsWith("Suggestions")
+      ? `${cleanTitle.replace("Suggestions", "").trim()} selected!`
+      : `${cleanTitle} confirmed!`;
+    toast.success(successMsg);
   }
 
-  const isLoading = approveMutation.isPending;
+  const isLoading = approvalMutation.isPending;
   const canSubmit =
     selectedOption === "custom" ? !customValueError && customValue.length > 0 : !!selectedOption;
 

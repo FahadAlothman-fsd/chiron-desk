@@ -64,7 +64,7 @@ export interface ArtifactWorkbenchLayoutProps {
   defaultTimelineSize?: number;
   /** Initial timeline mode */
   defaultTimelineMode?: "focused" | "browse";
-  /** Handler for execute workflow (invoke-workflow steps) */
+  /** Handler for execute workflow (invoke steps) */
   onExecuteWorkflow?: (workflowId: string) => void;
   /** Handler to navigate to a child execution (for viewing completed workflows) */
   onViewExecution?: (executionId: string) => void;
@@ -94,7 +94,7 @@ export function ArtifactWorkbenchLayout({
   // Get the focused step data
   const focusedStepData = steps.find((s) => s.stepNumber === focusedStep);
 
-  // Extract child executions if step is invoke-workflow
+  // Extract child executions if step is invoke
   const childExecutions =
     (execution.variables._child_metadata as Array<{
       workflowName: string;

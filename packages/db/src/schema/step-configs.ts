@@ -7,11 +7,11 @@ import { z } from "zod";
 // ============================================
 
 /**
- * AskUserStepConfig - Captures user input via form field
+ * FormStepConfig - Captures user input via form field
  *
  * @example
  * {
- *   type: "ask-user",
+ *   type: "form",
  *   question: "What is your project name?",
  *   message: "Let's name your project",
  *   responseType: "string",
@@ -23,8 +23,8 @@ import { z } from "zod";
  *   }
  * }
  */
-export const askUserStepConfigSchema = z.object({
-  type: z.literal("ask-user").optional(), // Optional type field for explicit config
+export const formStepConfigSchema = z.object({
+  type: z.literal("form").optional(), // Optional type field for explicit config
   question: z.string(),
   message: z.string().optional(), // Display message before the question
   responseType: z.enum(["string", "text", "number", "boolean", "choice", "path"]),
@@ -56,7 +56,7 @@ export const askUserStepConfigSchema = z.object({
 });
 
 /**
- * AskUserChatStepConfig - Interactive chat dialog with LLM and dynamic tools
+ * AgentStepConfig - Interactive chat dialog with LLM and dynamic tools
  *
  * @example
  * {
@@ -105,7 +105,9 @@ export const askUserStepConfigSchema = z.object({
  *   }
  * }
  */
-export const askUserChatStepConfigSchema = z.object({
+export const agentStepConfigSchema = z.object({
+  type: z.literal("agent").optional(),
+  agentKind: z.enum(["chiron", "opencode"]),
   agentId: z.string().uuid(),
   initialMessage: z.string().optional(),
   generateInitialMessage: z.boolean().optional(), // NEW: Generate first message dynamically
@@ -227,7 +229,7 @@ export const askUserChatStepConfigSchema = z.object({
 });
 
 /**
- * ExecuteActionStepConfig - Execute system actions
+ * ActionStepConfig - Execute system actions
  *
  * @example
  * {
@@ -238,7 +240,7 @@ export const askUserChatStepConfigSchema = z.object({
  *   ]
  * }
  */
-export const executeActionStepConfigSchema = z.object({
+export const actionStepConfigSchema = z.object({
   actions: z.array(
     z.discriminatedUnion("type", [
       // Set variable action
@@ -284,40 +286,20 @@ export const executeActionStepConfigSchema = z.object({
 });
 
 /**
- * LLMGenerateStepConfig - Generate content using LLM
- *
- * @example
- * {
- *   llmTask: {
- *     type: "classification",
- *     prompt: "Classify this project type",
- *     options: ["greenfield", "brownfield"]
- *   },
- *   outputVariable: "project_type"
- * }
- */
-export const llmGenerateStepConfigSchema = z.object({
-  llmTask: z.object({
-    type: z.enum(["classification", "structured", "generation"]),
-    // Type-specific fields can be extended here
-  }),
-  outputVariable: z.string(),
-});
-
 /**
- * DisplayOutputStepConfig - Show message to user
+ * DisplayStepConfig - Show message to user
  *
  * @example
  * {
  *   contentTemplate: "Project {{project_name}} created successfully!"
  * }
  */
-export const displayOutputStepConfigSchema = z.object({
+export const displayStepConfigSchema = z.object({
   contentTemplate: z.string(), // Handlebars template
 });
 
 /**
- * InvokeWorkflowStepConfig - Spawn child workflow executions
+ * InvokeStepConfig - Spawn child workflow executions
  *
  * @example
  * {
@@ -331,7 +313,7 @@ export const displayOutputStepConfigSchema = z.object({
  *   completionCondition: { type: "all-complete" }
  * }
  */
-export const invokeWorkflowStepConfigSchema = z.object({
+export const invokeStepConfigSchema = z.object({
   workflowsToInvoke: z.string(), // Variable reference e.g., "{{techniques}}"
   variableMapping: z.record(z.string(), z.string()), // Map child var names to parent var references
   expectedOutputVariable: z.string(), // Variable name to read from each child
@@ -346,22 +328,20 @@ export const invokeWorkflowStepConfigSchema = z.object({
  * Use this for runtime validation of any step config
  */
 export const stepConfigSchema = z.union([
-  askUserStepConfigSchema,
-  askUserChatStepConfigSchema,
-  executeActionStepConfigSchema,
-  llmGenerateStepConfigSchema,
-  displayOutputStepConfigSchema,
-  invokeWorkflowStepConfigSchema,
+  formStepConfigSchema,
+  agentStepConfigSchema,
+  actionStepConfigSchema,
+  displayStepConfigSchema,
+  invokeStepConfigSchema,
 ]);
 
 // ============================================
 // TYPESCRIPT TYPES (Inferred from Zod schemas)
 // ============================================
 
-export type AskUserStepConfig = z.infer<typeof askUserStepConfigSchema>;
-export type AskUserChatStepConfig = z.infer<typeof askUserChatStepConfigSchema>;
-export type ExecuteActionStepConfig = z.infer<typeof executeActionStepConfigSchema>;
-export type LLMGenerateStepConfig = z.infer<typeof llmGenerateStepConfigSchema>;
-export type DisplayOutputStepConfig = z.infer<typeof displayOutputStepConfigSchema>;
-export type InvokeWorkflowStepConfig = z.infer<typeof invokeWorkflowStepConfigSchema>;
+export type FormStepConfig = z.infer<typeof formStepConfigSchema>;
+export type AgentStepConfig = z.infer<typeof agentStepConfigSchema>;
+export type ActionStepConfig = z.infer<typeof actionStepConfigSchema>;
+export type DisplayStepConfig = z.infer<typeof displayStepConfigSchema>;
+export type InvokeStepConfig = z.infer<typeof invokeStepConfigSchema>;
 export type StepConfig = z.infer<typeof stepConfigSchema>;

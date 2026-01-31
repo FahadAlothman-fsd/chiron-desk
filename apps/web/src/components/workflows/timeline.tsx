@@ -40,7 +40,7 @@ export interface TimelineProps {
   onModeChange: (mode: "focused" | "browse") => void;
   /** Step focus handler (changes which step is displayed, not execution state) */
   onStepChange?: (stepNumber: number) => void;
-  /** Child workflow states (for invoke-workflow steps) */
+  /** Child workflow states (for invoke steps) */
   childExecutions?: Array<{
     workflowName: string;
     status: "pending" | "running" | "completed" | "failed";

@@ -30,7 +30,8 @@ import type { DisplayConfig } from "./option-card";
 
 interface ApprovalCardSelectorProps {
   executionId: string;
-  agentId: string;
+  stepId: string;
+  toolCallId?: string | null;
   toolName: string;
   generatedValue: Record<string, unknown>; // AI's recommended choice
   availableOptions: Array<Record<string, unknown>>; // All available options from database
@@ -44,7 +45,8 @@ interface ApprovalCardSelectorProps {
 
 export function ApprovalCardSelector({
   executionId,
-  agentId,
+  stepId,
+  toolCallId,
   toolName,
   generatedValue,
   availableOptions,
@@ -152,33 +154,9 @@ export function ApprovalCardSelector({
   // Debug: Log when selectedValue changes
   console.log("[ApprovalCardSelector] selectedValue:", selectedValue);
 
-  // Approval mutation
-  const approveMutation = trpc.workflows.approveToolCall.useMutation({
-    onSuccess: () => {
-      toast.success("Approved! Athena will continue...");
-      // Invalidate chat messages to show approval confirmation
-      queryClient.invalidateQueries({
-        queryKey: [["workflows", "getChatMessages"], { input: { executionId } }],
-      });
-      // CRITICAL: Invalidate execution to refresh variables (for blocked tool detection)
-      queryClient.invalidateQueries({
-        queryKey: [["workflows", "getExecution"], { input: { executionId } }],
-      });
-    },
+  const approvalMutation = trpc.workflows.submitToolApproval.useMutation({
     onError: (error) => {
       toast.error(`Approval failed: ${error.message}`);
-    },
-  });
-
-  // Rejection mutation
-  const rejectMutation = trpc.workflows.rejectToolCall.useMutation({
-    onSuccess: () => {
-      toast.success("Feedback received! Athena will regenerate...");
-      setFeedback("");
-      setShowFeedbackInput(false);
-    },
-    onError: (error) => {
-      toast.error(`Rejection failed: ${error.message}`);
     },
   });
 
@@ -220,10 +198,26 @@ export function ApprovalCardSelector({
       [outputFieldKey]: selectedValue,
     };
 
-    await approveMutation.mutateAsync({
+    if (!toolCallId) {
+      toast.error("Missing tool call id for approval.");
+      return;
+    }
+
+    await approvalMutation.mutateAsync({
       executionId,
+      stepId,
+      toolCallId,
       toolName,
-      approvedValue,
+      action: "approve",
+      editedArgs: approvedValue,
+    });
+
+    toast.success("Approved! Athena will continue...");
+    queryClient.invalidateQueries({
+      queryKey: [["workflows", "getChatMessages"], { input: { executionId, stepId } }],
+    });
+    queryClient.invalidateQueries({
+      queryKey: [["workflows", "getExecution"], { input: { executionId } }],
     });
   }
 
@@ -233,15 +227,26 @@ export function ApprovalCardSelector({
       return;
     }
 
-    await rejectMutation.mutateAsync({
+    if (!toolCallId) {
+      toast.error("Missing tool call id for rejection.");
+      return;
+    }
+
+    await approvalMutation.mutateAsync({
       executionId,
+      stepId,
+      toolCallId,
       toolName,
+      action: "reject",
       feedback,
-      agentId,
     });
+
+    toast.success("Feedback received! Athena will regenerate...");
+    setFeedback("");
+    setShowFeedbackInput(false);
   }
 
-  const isLoading = approveMutation.isPending || rejectMutation.isPending;
+  const isLoading = approvalMutation.isPending;
   const isReadOnly = isApproved || isRejected;
   const displayToolName = toolName.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 

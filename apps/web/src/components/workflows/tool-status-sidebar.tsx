@@ -47,6 +47,8 @@ interface ApprovalState {
   status: "pending" | "approved" | "rejected";
   value: Record<string, unknown>;
   reasoning?: string;
+  toolCallId?: string;
+  stepId?: string;
   rejection_history?: Array<{
     feedback: string;
     rejectedAt: string;
@@ -60,6 +62,8 @@ interface ApprovalState {
 interface ToolStatusSidebarProps {
   tools: ToolConfig[];
   approvalStates?: Record<string, ApprovalState>;
+  runtimeStatuses?: Record<string, ToolStatus>;
+  toolInputPreviews?: Record<string, string>;
   executionVariables?: Record<string, unknown>;
   executionId: string;
   agentId: string;
@@ -78,6 +82,8 @@ type ToolStatus =
 export function ToolStatusSidebar({
   tools,
   approvalStates = {},
+  runtimeStatuses = {},
+  toolInputPreviews = {},
   executionVariables = {},
   executionId,
   agentId,
@@ -85,6 +91,11 @@ export function ToolStatusSidebar({
   stepGoal,
 }: ToolStatusSidebarProps) {
   function getToolStatus(tool: ToolConfig): ToolStatus {
+    const runtimeStatus = runtimeStatuses[tool.name];
+    if (runtimeStatus) {
+      return runtimeStatus;
+    }
+
     const approvalState = approvalStates[tool.name];
 
     // Check if tool is blocked by missing prerequisites
@@ -200,7 +211,10 @@ export function ToolStatusSidebar({
 
   // Calculate a hash or simple indicator of approval state to trigger refetches
   // When approval count changes, we know the execution state has advanced
-  const _approvalHash = `${approvedCount}-${Object.keys(approvalStates).length}`;
+  const runtimeHash = Object.entries(runtimeStatuses)
+    .map(([name, status]) => `${name}:${status}`)
+    .join("|");
+  const _approvalHash = `${approvedCount}-${Object.keys(approvalStates).length}-${runtimeHash}`;
 
   // Fetch resolved instructions (for system prompt)
   // Pass approvalHash as a dependency key to force React Query to refetch when it changes
@@ -224,7 +238,7 @@ export function ToolStatusSidebar({
     if (agentId && executionId) {
       utils.agents.getResolvedInstructions.invalidate({ agentId, executionId });
     }
-  }, [agentId, executionId, utils]);
+  }, [agentId, executionId, _approvalHash, utils]);
 
   return (
     <Card className={`${className} flex flex-col overflow-hidden`}>
@@ -269,12 +283,23 @@ export function ToolStatusSidebar({
             value="progress"
             className="m-0 h-full overflow-y-auto overflow-x-hidden border-0"
           >
+            {stepGoal && (
+              <div className="px-4 pb-2">
+                <div className="rounded-md border border-muted bg-muted/30 p-3">
+                  <div className="mb-1 font-medium text-muted-foreground text-xs uppercase tracking-wider">
+                    Step Goal
+                  </div>
+                  <p className="text-sm">{stepGoal}</p>
+                </div>
+              </div>
+            )}
             <Accordion type="multiple" defaultValue={defaultOpenItems} className="w-full">
               {tools.map((tool) => {
                 const status = getToolStatus(tool);
                 const missingPrereqs = getMissingPrerequisites(tool);
                 const approvalState = approvalStates[tool.name];
                 const rejectionCount = approvalState?.rejection_count || 0;
+                const toolInputPreview = toolInputPreviews[tool.name];
 
                 return (
                   <AccordionItem key={tool.name} value={tool.name} className="border-b-0">
@@ -305,6 +330,18 @@ export function ToolStatusSidebar({
                     <AccordionContent className="px-4 pb-4">
                       {/* Tool Description */}
                       <p className="mb-3 text-muted-foreground text-sm">{tool.description}</p>
+
+                      {toolInputPreview && (
+                        <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-950">
+                          <div className="mb-1 flex items-center gap-2 font-medium text-blue-900 text-xs uppercase tracking-wider dark:text-blue-100">
+                            <FileText className="h-3.5 w-3.5" />
+                            Tool Input (streaming)
+                          </div>
+                          <div className="max-h-32 overflow-y-auto whitespace-pre-wrap text-blue-700 text-xs dark:text-blue-300">
+                            {toolInputPreview}
+                          </div>
+                        </div>
+                      )}
 
                       {/* Available Options */}
                       {(() => {
@@ -464,6 +501,16 @@ export function ToolStatusSidebar({
 
           <TabsContent value="instructions" className="m-0 h-full overflow-y-auto border-0 p-4">
             <div className="space-y-6">
+              {stepGoal && (
+                <div className="space-y-2">
+                  <h3 className="flex items-center gap-2 font-semibold text-muted-foreground text-sm uppercase tracking-wider">
+                    Step Goal
+                  </h3>
+                  <div className="rounded-md border border-muted bg-muted/30 p-3 text-sm">
+                    {stepGoal}
+                  </div>
+                </div>
+              )}
               {/* Agent Persona */}
               {agent && (
                 <div className="space-y-2">

@@ -36,8 +36,9 @@ async function verifyBrainstormingSeed() {
     console.log(`   Step Type: ${step.stepType}`);
     console.log(`   Next Step: ${step.nextStepNumber ?? "None (end)"}`);
 
-    if (step.stepType === "ask-user-chat") {
+    if (step.stepType === "agent") {
       const config = step.config as any;
+      console.log(`   Agent Kind: ${config.agentKind}`);
       console.log(`   Agent ID: ${config.agentId}`);
       console.log(`   Initial Message: ${config.initialMessage?.substring(0, 80)}...`);
       console.log(`   Tools: ${config.tools?.length ?? 0}`);

@@ -25,6 +25,8 @@ export type WorkflowEvent =
       readonly executionId: string;
       readonly stepId: string;
       readonly toolName: string;
+      readonly toolType?: string;
+      readonly toolCallId: string;
       readonly args?: unknown;
     }
   | {
@@ -32,7 +34,22 @@ export type WorkflowEvent =
       readonly executionId: string;
       readonly stepId: string;
       readonly toolName: string;
+      readonly toolType?: string;
+      readonly toolCallId: string;
       readonly result?: unknown;
+    }
+  | {
+      readonly _tag: "ToolInputStarted";
+      readonly executionId: string;
+      readonly stepId: string;
+      readonly toolCallId: string;
+    }
+  | {
+      readonly _tag: "ToolInputDelta";
+      readonly executionId: string;
+      readonly stepId: string;
+      readonly toolCallId: string;
+      readonly delta: string;
     }
   | {
       readonly _tag: "TextChunk";
@@ -45,8 +62,21 @@ export type WorkflowEvent =
       readonly executionId: string;
       readonly stepId: string;
       readonly toolName: string;
+      readonly toolType?: string;
+      readonly toolCallId: string;
       readonly args?: unknown;
       readonly riskLevel?: string;
+    }
+  | {
+      readonly _tag: "ApprovalResolved";
+      readonly executionId: string;
+      readonly stepId: string;
+      readonly toolName: string;
+      readonly toolType?: string;
+      readonly toolCallId: string;
+      readonly action: "approve" | "reject" | "edit";
+      readonly editedArgs?: unknown;
+      readonly feedback?: string;
     }
   | { readonly _tag: "WorkflowCompleted"; readonly executionId: string }
   | {
@@ -85,3 +115,10 @@ export const makeWorkflowEventBus = Effect.gen(function* () {
 });
 
 export const WorkflowEventBusLive = Layer.scoped(WorkflowEventBus, makeWorkflowEventBus);
+
+export const effectWorkflowEventBus = Effect.runSync(Effect.scoped(makeWorkflowEventBus));
+
+export const WorkflowEventBusSingletonLive = Layer.succeed(
+  WorkflowEventBus,
+  effectWorkflowEventBus,
+);

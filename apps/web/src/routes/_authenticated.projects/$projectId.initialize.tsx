@@ -39,11 +39,11 @@ function InitializePage() {
       });
     },
     enabled: !!projectId,
-    refetchInterval: 2000, // Poll for step transitions
+    refetchInterval: false,
   });
 
   // Redirect if project is already active AND workflow is completed
-  // Don't redirect if there's still a workflow execution in progress (e.g., display-output step)
+  // Don't redirect if there's still a workflow execution in progress (e.g., display step)
   useEffect(() => {
     if (project?.status === "active" && executionsData?.execution?.status === "completed") {
       navigate({
@@ -90,7 +90,7 @@ function InitializePage() {
     },
   });
 
-  // Continue workflow mutation (for auto-executing execute-action steps)
+  // Continue workflow mutation (for auto-executing action steps)
   const continueWorkflow = useMutation({
     mutationFn: async (input: { executionId: string; userId: string }) => {
       return trpcClient.workflows.continue.mutate(input);
@@ -105,7 +105,7 @@ function InitializePage() {
     },
   });
 
-  // Auto-execute execute-action steps on mount
+  // Auto-execute action steps on mount
   useEffect(() => {
     if (!project || !executionsData || !workflowData || continueWorkflow.isPending) {
       return;
@@ -113,8 +113,8 @@ function InitializePage() {
 
     const { execution, currentStep } = executionsData;
 
-    // Only auto-execute if step is execute-action and status is idle
-    if (currentStep?.stepType === "execute-action" && execution.status === "idle") {
+    // Only auto-execute if step is action and status is idle
+    if (currentStep?.stepType === "action" && execution.status === "idle") {
       continueWorkflow.mutate({
         executionId: execution.id,
       });
@@ -203,7 +203,7 @@ function InitializePage() {
         {/* Step Content Container - Full height for chat, width adapts to step type */}
         <div
           className={`flex min-h-0 flex-col rounded-lg border bg-card p-6 shadow-sm ${
-            displayStepData?.stepType === "ask-user" ? "mx-auto max-w-2xl" : "flex-1"
+            displayStepData?.stepType === "form" ? "mx-auto max-w-2xl" : "flex-1"
           }`}
         >
           {/* Read-only banner for completed steps */}
@@ -213,7 +213,7 @@ function InitializePage() {
             </div>
           )}
 
-          {displayStepData?.stepType === "execute-action" && (
+          {displayStepData?.stepType === "action" && (
             <ExecuteActionStep
               config={displayStepData.config as any}
               loading={
@@ -254,7 +254,7 @@ function InitializePage() {
             />
           )}
 
-          {displayStepData?.stepType === "user-form" && !isViewingHistory && (
+          {displayStepData?.stepType === "form" && !isViewingHistory && (
             <UserFormStep
               config={displayStepData.config as any}
               loading={submitStep.isPending}
@@ -268,9 +268,10 @@ function InitializePage() {
             />
           )}
 
-          {displayStepData?.stepType === "sandboxed-agent" && (
+          {displayStepData?.stepType === "agent" && (
             <SandboxedAgentStep
               executionId={execution.id}
+              stepId={displayStepData.id}
               stepConfig={displayStepData.config as any}
               stepGoal={displayStepData.goal}
               readOnly={isViewingCompletedStep}
@@ -280,7 +281,7 @@ function InitializePage() {
             />
           )}
 
-          {displayStepData?.stepType === "user-form" && isViewingCompletedStep && (
+          {displayStepData?.stepType === "form" && isViewingCompletedStep && (
             <div className="space-y-4">
               <div>
                 <h3 className="font-medium text-sm">Step Goal</h3>
@@ -301,7 +302,7 @@ function InitializePage() {
             </div>
           )}
 
-          {displayStepData?.stepType === "display-output" && (
+          {displayStepData?.stepType === "display" && (
             <DisplayOutputStep
               config={displayStepData.config as any}
               variables={execution.variables}
