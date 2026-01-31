@@ -1,5 +1,5 @@
 import { useLocation } from "@tanstack/react-router";
-import { type ReactNode, useMemo } from "react";
+import { Fragment, type ReactNode, useMemo } from "react";
 
 import { ProjectSidebar } from "@/components/project-sidebar";
 import {
@@ -62,14 +62,16 @@ export function ProjectLayout({ children, projectName }: ProjectLayoutProps) {
           <Breadcrumb>
             <BreadcrumbList>
               {breadcrumbs.map((crumb, index) => (
-                <BreadcrumbItem key={crumb.label}>
+                <Fragment key={crumb.label}>
                   {index > 0 && <BreadcrumbSeparator />}
-                  {crumb.href ? (
-                    <BreadcrumbLink href={crumb.href}>{crumb.label}</BreadcrumbLink>
-                  ) : (
-                    <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
-                  )}
-                </BreadcrumbItem>
+                  <BreadcrumbItem>
+                    {crumb.href ? (
+                      <BreadcrumbLink href={crumb.href}>{crumb.label}</BreadcrumbLink>
+                    ) : (
+                      <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                    )}
+                  </BreadcrumbItem>
+                </Fragment>
               ))}
             </BreadcrumbList>
           </Breadcrumb>
