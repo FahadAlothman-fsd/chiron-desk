@@ -1,105 +1,164 @@
 # Story 2-M11: Real-Time Agent Streaming
 
-**Status:** drafted
-**Story Key:** `2-M11-real-time-agent-streaming`
-**Epic:** `epic-2`
-**Created:** 2026-01-17
+Status: ready-for-dev
 
-## Story Summary
+## Story
 
-Replace polling-based chat with real-time streaming using AI SDK UI (`useChat`) and tRPC subscriptions. Currently, `ask-user-chat-step.tsx` polls every 2 seconds for updates. This story implements proper streaming for instant text chunks, tool calls, and approval flow.
+As a workflow user,
+I want sandboxed-agent chat to stream responses and approvals in real time,
+so that I see immediate progress and can approve tool calls without polling delays.
 
-## Problem Statement
+## Acceptance Criteria
 
-Current implementation uses polling which introduces:
-- 2-second delay in message updates
-- No real-time text chunk streaming
-- Manual message state management
-- Wasted resources from constant polling
+1. Text chunks stream from the backend in real time (no 2-second polling delay).
+2. Tool call and tool result events stream to the UI as they happen.
+3. Approval requests pause chat input and resume after approval, matching approval-gate UX.
+4. Frontend consumes a streaming subscription via custom hook (no AI SDK UI `useChat`).
+5. Streaming preserves chunk order and reconstructs the final assistant message.
+6. Errors and end-of-stream events are surfaced to the UI with clear status.
+7. Optional fallback to polling remains possible if streaming cannot connect.
+8. Workflow LLM calls use the active user’s `app_config` API key before environment fallback.
 
-## Proposed Solution
+## Tasks / Subtasks
 
-Add streaming endpoint that:
-1. Calls `sandboxed-agent-handler` with streaming support
-2. Emits `TextChunk` events in real-time via tRPC subscription
-3. Handles tool approvals through the same stream
-4. Frontend uses `useChat` or custom hook for real-time updates
+- [ ] **Task 1: Backend Streaming Subscription (AC: 1, 2, 5, 6)**
+  - [ ] 1.1 Add/extend a tRPC subscription in `packages/api/src/routers/workflows.ts` to stream events by executionId/stepId.
+  - [ ] 1.2 Expose Effect `WorkflowEventBus` stream as AsyncIterable (TextChunk, ToolCall, ToolResult, ApprovalRequested, StepCompleted, StreamError).
+  - [ ] 1.3 Filter events to sandboxed-agent step scope and emit ordered chunks.
+  - [ ] 1.4 Ensure stream ends on step completion or workflow completion.
+  - [ ] 1.5 Define the subscription input/output contract and auth scope (session user must own execution).
 
-## Technical Notes (from Research)
+- [ ] **Task 2: Sandboxed Agent Event Emission (AC: 1, 2, 3, 5)**
+  - [ ] 2.1 Confirm `sandboxed-agent-handler.ts` publishes `TextChunk`, `ToolCallCompleted`, `ApprovalRequested`.
+  - [ ] 2.2 Add missing event tags if needed (ToolResult/Done).
+  - [ ] 2.3 Include executionId/stepId context in event payloads for filtering.
 
-- AI SDK UI `useChat` expects streaming endpoints with SSE format
-- Can use `createUIMessageStream` from AI SDK for server-side streaming
-- tRPC subscriptions already exist (`onWorkflowEvent`) - leverage that pattern
-- Effect services (`AIProviderService`, `WorkflowEventBus`) already support streaming
+- [ ] **Task 3: Frontend Streaming Hook (AC: 1, 2, 4, 5, 6)**
+  - [ ] 3.1 Replace polling in `apps/web/src/components/workflows/steps/sandboxed-agent-step.tsx`.
+  - [ ] 3.2 Implement `useAgentStream` hook (tRPC subscription + reducer for chunks, tool calls, approvals).
+  - [ ] 3.3 Aggregate chunks into streaming message while preserving final assistant message.
+  - [ ] 3.4 Update UI state transitions (idle → streaming → awaiting approval → complete).
 
-## Dependencies
+- [ ] **Task 4: Approval Integration (AC: 3)**
+  - [ ] 4.1 When `ApprovalRequested` arrives, disable chat input and show approval modal.
+  - [ ] 4.2 Send approval response via existing mutation and resume streaming.
+  - [ ] 4.3 Maintain progress indicator (approved/remaining) per UX wireframes.
 
-- **Blocked by:** `2-M8-complete-sandboxed-agent` (must complete first)
-- **Related:** `2-M9-effect-executor-wiring` (uses same Effect infrastructure)
+- [ ] **Task 5: User Config Resolution (AC: 8)**
+  - [ ] 5.1 Introduce a Request/Session context (userId + appConfig) available to Effect services.
+  - [ ] 5.2 Update ConfigService to resolve API keys from app_config first, then env fallback.
+  - [ ] 5.3 Ensure workflow execution passes userId into Effect layers consistently.
 
-## Estimated Effort
+- [ ] **Task 6: Testing (AC: 1-8)**
+  - [ ] 6.1 Unit test the stream reducer/hook behavior.
+  - [ ] 6.2 Integration test subscription end-to-end (mock event bus stream).
+  - [ ] 6.3 Verify fallback polling path still functions if subscription fails.
+  - [ ] 6.4 Verify OpenRouter key resolution uses app_config when set.
 
-- Backend: 2-3 hours
-- Frontend: 3-4 hours
-- Testing: 1-2 hours
+## Dev Notes
 
-## Out of Scope
+### Developer Context
+- The current chat UI polls every 2 seconds in `apps/web/src/components/workflows/steps/sandboxed-agent-step.tsx`.
+- The backend already emits `TextChunk` events and uses `WorkflowEventBus` (Effect PubSub) in `packages/api/src/services/workflow-engine/step-handlers/sandboxed-agent-handler.ts`.
+- There is an existing tRPC subscription pattern in `workflows.onWorkflowEvent` (or `streamExecution`) to reuse.
+- The tech spec defines a StepStream event model and Effect Stream → tRPC subscription pattern.
+- Use Effect-first streaming with a dedicated streaming hook (no AI SDK UI `useChat`).
 
-- Full `useChat` migration (can be incremental)
-- Changing approval UI components (already work well)
-- Backward compatibility with polling (may keep as fallback)
+### Technical Requirements
+- Prefer Effect Stream + WorkflowEventBus as the source of truth (avoid UI-only streaming).
+- Do not reintroduce polling when the stream is active.
+- Ensure streaming includes approval events and tool call events, not just text.
+- Preserve ordering and message reconstruction across chunked streaming.
+- Keep streaming compatible with existing approval-gate flow (input disabled, modal shown, feedback captured).
+- Subscription contract:
+  - Input: `{ executionId, stepId }` (stepId required for sandboxed-agent scoping).
+  - Output: union of `TextChunk`, `ToolCall`, `ToolResult`, `ApprovalRequested`, `StepCompleted`, `StreamError`.
+  - Ordering: chunks must be emitted in the order received from Effect Stream.
+  - Completion: stream ends on `StepCompleted` or explicit `StreamError`.
+- Security: subscription must scope to `ctx.session.user.id` and deny non-owner executionIds.
 
-## References
+### Architecture Compliance
+- Real-time updates are SSE/tRPC subscription based (Architecture Decision #3).
+- Use Effect services and EventBus publish/subscribe patterns (tech spec section 7).
+- Avoid new frameworks; follow existing Effect + tRPC stack.
 
-- AI SDK UI Docs: https://ai-sdk.dev/docs/ai-sdk-ui/use-chat
-- Current Implementation: `apps/web/src/components/workflows/steps/ask-user-chat-step.tsx`
-- Handler: `packages/api/src/services/workflow-engine/step-handlers/sandboxed-agent-handler.ts`
-- Existing tRPC Subscription: `workflows.onWorkflowEvent` in `routers/workflows.ts`
+### Library / Framework Requirements
+- **Effect:** Event bus + Stream usage must remain in Effect domain.
+- **AI SDK:** `streamText` already in handler; do not depend on AI SDK UI if it conflicts with Effect stream architecture.
+- **tRPC:** Use subscription API; follow existing `workflows` router patterns.
+- **Frontend:** React Query + Zustand for state, with hook-based streaming reducer.
 
----
+### File Structure Requirements
+- Backend subscription: `packages/api/src/routers/workflows.ts`.
+- Event bus: `packages/api/src/services/workflow-engine/effect/event-bus.ts`.
+- Handler: `packages/api/src/services/workflow-engine/step-handlers/sandboxed-agent-handler.ts`.
+- Frontend step: `apps/web/src/components/workflows/steps/sandboxed-agent-step.tsx`.
+- New hook (if created): `apps/web/src/hooks/use-agent-stream.ts`.
 
-## Templates (fill in via create-story workflow)
+### Testing Requirements
+- Add unit tests for stream reducer/hook logic.
+- Add integration test or manual verification with a seeded workflow execution.
+- Ensure approval modal accessibility (keyboard navigation, ARIA labels) per wireframe spec.
 
-### User Story
-As a [user/persona],
-I want [goal],
-So that [benefit].
+### Project Structure Notes
+- Keep step renderer layout-agnostic; do not couple to layout routing system.
+- Maintain Bloomberg-terminal aesthetic and chat patterns from UX spec.
 
-### Acceptance Criteria
-1. [ ] Real-time text streaming (no polling delay)
-2. [ ] Tool calls streamed to frontend
-3. [ ] Approval flow works with streaming
-4. [ ] Frontend uses streaming hook
-5. [ ] Fallback/polling still works (optional)
+### Prior Story Learnings
+- Reuse the Effect executor wiring patterns from `2-M9-effect-executor-wiring` for effect layers and event bus streaming.
+- Use the same workflow execution seed data patterns validated in `2-M10-seed-verification` for integration testing.
 
-### Tasks / Subtasks
-- [ ] **Task 1: Backend Streaming Endpoint**
-  - [ ] 1.1 Add `streamAgentMessage` subscription in workflows.ts
-  - [ ] 1.2 Wire `sandboxed-agent-handler` to stream events
-  - [ ] 1.3 Test streaming with curl/wget
+### Database Considerations
+- No schema changes required; streaming consumes existing execution/event data.
+- If persisting chat transcripts, reuse existing message storage (do not introduce new tables).
 
-- [ ] **Task 2: Frontend Streaming Hook**
-  - [ ] 2.1 Create `useAgentChat` hook or adapt `useChat`
-  - [ ] 2.2 Connect to streaming subscription
-  - [ ] 2.3 Handle text chunks in real-time
+### Performance & Reliability
+- Add a subscription timeout and close stream when idle or on workflow completion.
+- Keep chunk payloads small (emit as received; avoid buffering large chunks).
+- Avoid fan-out leaks: unsubscribe when the step completes or the UI unmounts.
 
-- [ ] **Task 3: Approval Integration**
-  - [ ] 3.1 Stream approval requests to frontend
-  - [ ] 3.2 Handle approval responses via same stream
-  - [ ] 3.3 Test full approval flow
+### Regression Guardrails
+- Only replace polling within `sandboxed-agent-step.tsx`; other workflow steps remain unchanged.
+- If streaming fails, fall back to existing polling without breaking approval flow.
 
-- [ ] **Task 4: Testing**
-  - [ ] 4.1 Unit tests for streaming hook
-  - [ ] 4.2 Integration tests for endpoint
-  - [ ] 4.3 Verify with workflow-init seed
+### Verification Steps
+- Stream text live while the agent runs (no 2-second delay).
+- Trigger a tool call approval and confirm the modal pauses input and resumes streaming.
+- Confirm executionId scoping: a user cannot subscribe to another user’s execution.
+- Validate that app_config OpenRouter key overrides env on an active session.
 
-### Dev Notes
-<!-- Add technical implementation details here -->
+### Git History Notes
+- Recent streaming-related changes should reference `packages/api/src/routers/workflows.ts` subscription patterns and `sandboxed-agent-handler.ts` event emission updates; follow existing change patterns in these files.
 
-### Related Stories
-- Preceding: `2-M8-complete-sandboxed-agent`
-- Following: `3-3-streaming-unification`
+### Version / Compatibility Notes
+- Effect, tRPC, and AI SDK versions are pinned in the repo; confirm any API signatures before refactors.
+- AI SDK UI `useChat` requires Fetch/SSE transport and is not compatible with Effect Stream directly; use the custom hook approach.
 
----
+### References
+- `_bmad-output/planning-artifacts/tech-spec-effect-workflow-engine.md` (Streaming Architecture, Section 7)
+- `_bmad-output/planning-artifacts/architecture/architecture-decisions.md` (Decision #3: Real-Time Updates)
+- `_bmad-output/planning-artifacts/design/ux-design-specification.md` (Chat patterns + accessibility)
+- `_bmad-output/planning-artifacts/design/wireframe-approval-gate-chat.md` (Approval modal flow)
+- `_bmad-output/planning-artifacts/epics/epic-2-artifact-workbench.md` (Story 2-M11 context)
 
-*This is a story stub. Use `/bmad-bmm-create-story` to fully elaborate.*
+## Dev Agent Record
+
+### Agent Model Used
+
+Claude Sonnet 4 (claude-sonnet-4-20250514)
+
+### Debug Log References
+
+N/A
+
+### Completion Notes List
+
+- Ultimate context engine analysis completed - comprehensive developer guide created.
+
+### File List
+
+- `packages/api/src/routers/workflows.ts`
+- `packages/api/src/services/workflow-engine/step-handlers/sandboxed-agent-handler.ts`
+- `packages/api/src/services/workflow-engine/effect/event-bus.ts`
+- `apps/web/src/components/workflows/steps/sandboxed-agent-step.tsx`
+- `apps/web/src/hooks/use-agent-stream.ts`

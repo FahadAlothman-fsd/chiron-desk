@@ -219,6 +219,152 @@ Primary Workflow → Validation Workflow → Approval/Changes Requested
    - `prd` → `validate-prd` (validates requirements completeness)
 
 **Proposed Configuration (workflow.yaml):**
+
+---
+
+### Decision #7: Step Execution Model ✅ DECIDED
+
+**Choice:** Introduce `step_executions` as the unit of execution
+**Date Decided:** 2026-01-26
+
+**Rationale:**
+- Current execution state is overloaded in `workflow_executions` and `executedSteps`
+- Step-level history, approvals, and chat state are difficult to isolate
+- Step execution is the natural unit for UI, streaming, and rollback
+
+**Implementation:**
+- New table `step_executions` with: `execution_id`, `step_id`, `step_number`, `status`, `variables_delta`, `approval_state`, `metadata`, timestamps, `parent_step_execution_id`
+- `workflow_executions.current_step_execution_id` points to active step
+- Variables resolve by precedence: `step → workflow → parent → child`
+- AI-SDK chat binds to `step_execution_id`
+- OpenCode stores only `session_id` (no duplication)
+
+**Applies to:**
+- Workflow engine execution, UI step streaming, approvals, rollback
+
+**Alternatives Considered:**
+- Continue using `executedSteps` JSONB (insufficient isolation)
+
+---
+
+### Decision #8: AI Runtime Streaming Strategy ✅ DECIDED
+
+**Choice:** Stream-first AI SDK with OpenCode-style tool parsing
+**Date Decided:** 2026-01-26
+
+**Rationale:**
+- Streaming is required for step UX
+- Tool-call args are unreliable in `result.toolCalls` for some models
+- OpenCode-style `fullStream` parsing consistently recovers tool arguments
+
+**Implementation:**
+- Always use `streamText`
+- Parse tool calls from `fullStream` (`tool-input-start`, `tool-input-delta`, `tool-call`)
+- If args invalid → do not request approval; fall back to text-only
+- If provider rejects tool schema → retry without tools
+- No persistent capability flags; handle per call
+
+**Applies to:**
+- Sandboxed-agent handler, streaming UI, approval gating
+
+**Alternatives Considered:**
+- `generateText` as default (loses streaming UX)
+
+---
+
+### Decision #9: Model Catalog by Engine ✅ DECIDED
+
+**Choice:** Provider registry with engine-specific model catalogs
+**Date Decided:** 2026-01-26
+
+**Rationale:**
+- ai-sdk and OpenCode have distinct provider/model sources
+- Models must reflect user-configured providers (app_config)
+
+**Implementation:**
+- `ModelCatalogService` aggregates providers from `app_config`
+- ai-sdk steps use OpenRouter list (provider prefix: `openrouter:<id>`)
+- OpenCode steps use OpenCode providers list
+- Ax tools default to step model; allow override in tool config
+
+**Applies to:**
+- Model selector UI, step execution configuration
+
+**Alternatives Considered:**
+- Single static model list (out of sync with user config)
+
+---
+
+### Decision #10: AX Signature Registry ✅ DECIDED
+
+**Choice:** Signature registry with system-context injection
+**Date Decided:** 2026-01-26
+
+**Rationale:**
+- AX should be composable and independent of tool handlers
+- Optimization/examples should be configured once per signature
+
+**Implementation:**
+- `ax_generate` tool accepts `{ signature, input }`
+- Registry maps signature → input schema, output schema, Ax execution
+- Inputs merged with system context (`resolved_vars`, `chat_history`, execution metadata)
+- Output validated and optionally written to variables
+
+**Applies to:**
+- Complexity classification, structured planning tools
+
+**Alternatives Considered:**
+- Inline Ax calls inside handlers (harder to optimize)
+
+---
+
+### Decision #11: OpenCode Compatibility ✅ DECIDED
+
+**Choice:** OpenCode session ID storage + streaming relay
+**Date Decided:** 2026-01-26
+
+**Rationale:**
+- Avoid duplicating OpenCode chat/tool data
+- Preserve user’s OpenCode setup (plugins, skills, commands)
+
+**Implementation:**
+- Store only `opencode_session_id` in step metadata
+- Stream OpenCode session events via SDK and relay into Chiron EventBus
+- Use the same tRPC streaming pipeline as ai-sdk steps (unified UI reducer)
+- Emulate OpenCode TUI streaming patterns for ordering and chunk handling
+- Expose OpenCode tools/skills/commands for discovery only
+- Optional plugin hooks for notifications (future)
+
+**Applies to:**
+- System-agent steps and OpenCode integration
+
+**Alternatives Considered:**
+- Duplicate OpenCode chat into Chiron DB (overhead, divergence risk)
+
+---
+
+### Decision #12: MCP Integration Strategy ✅ DECIDED
+
+**Choice:** Single shared Chiron MCP server with static tools
+**Date Decided:** 2026-01-26
+
+**Rationale:**
+- MCP tool list updates affect all connected clients
+- Step-scoped tooling must not mutate global tool lists
+
+**Implementation:**
+- One shared MCP server for all sessions
+- Static MCP tools: `chiron_context`, `chiron_actions`, `chiron_action`
+- Step-specific action registry returned via `chiron_actions`
+- All tool execution routed through Tooling Engine
+- Can be hosted as separate process or mounted in Hono via Streamable HTTP
+
+**Applies to:**
+- OpenCode integration, Chiron tooling, approvals
+
+**Alternatives Considered:**
+- Per-session MCP servers (higher overhead)
+- Dynamic tool enable/disable (cross-session interference)
 ```yaml
 name: dev-story
 validation:
