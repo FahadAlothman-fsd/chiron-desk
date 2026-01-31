@@ -1,6 +1,6 @@
 # Chiron Documentation
 
-**Last Updated:** 2025-11-06  
+**Last Updated:** 2026-01-31  
 **Status:** Post-Reconciliation - Ready for Epic 1 Restart
 
 ---
@@ -24,6 +24,8 @@ This directory contains all project documentation organized by purpose.
 
 - **`architecture/CANONICAL-WORKFLOW-SCHEMA.md`** - Database schema (SINGLE SOURCE OF TRUTH)
 - **`architecture/architecture-decisions.md`** - Architectural Decision Records (ADR log)
+- **`architecture/chiron-module-structure.md`** - Canonical module boundaries + ownership
+- **`architecture/module-implementation-workflow.md`** - Module build workflow (contract → stub → Effect)
 - **`architecture/workflow-init-complete-example.md`** - Complete workflow-init example
 
 ### Implementation Status

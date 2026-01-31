@@ -40,7 +40,7 @@
 
 **Workflow composition:**
 
-- How do workflows call other workflows? (<invoke-workflow>?)
+- How do workflows call other workflows? (<invoke>?)
 - How does variable/context inheritance work?
 - Can you show an example workflow chain?
 

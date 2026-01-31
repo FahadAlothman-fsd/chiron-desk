@@ -15,7 +15,9 @@
     },
     "dev": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "env": ["AI_RUNTIME_DEBUG_TOOL_STREAM"],
+      "passThroughEnv": ["AI_RUNTIME_DEBUG_TOOL_STREAM"]
     },
     "desktop:dev": {
       "cache": false,

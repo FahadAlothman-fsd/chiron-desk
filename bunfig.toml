@@ -1,2 +1,12 @@
 [install]
 linker = "isolated"
+
+[test]
+exclude = [
+  "**/dist/**",
+  "packages/**/dist/**",
+  "**/*.test.js",
+  "packages/api/src/services/workflow-engine/step-handlers/tool-approval-flow.test.ts",
+]
+pattern = "**/*.test.{ts,tsx}"
+preload = ["./apps/web/test-setup.ts"]

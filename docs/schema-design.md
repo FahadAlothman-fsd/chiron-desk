@@ -192,7 +192,7 @@ Standard Better-Auth tables, no changes.
 | workflowId     | UUID FK → workflows |                                                                                                                                   |
 | stepNumber     | INTEGER             |                                                                                                                                   |
 | goal           | TEXT                | "Collect project details"                                                                                                         |
-| stepType       | ENUM                | ask-user, ask-user-chat, llm-generate, branch, approval-checkpoint, execute-action, invoke-workflow, display-output, question-set |
+| stepType       | ENUM                | form, agent, action, invoke, display, branch |
 | config         | JSONB               | Step-type-specific config                                                                                                         |
 | nextStepNumber | INTEGER             | For linear flow                                                                                                                   |
 | createdAt      | TIMESTAMP           |                                                                                                                                   |

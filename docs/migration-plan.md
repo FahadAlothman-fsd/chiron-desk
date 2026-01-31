@@ -401,53 +401,46 @@ Effect-based workflow execution with unified streaming.
    - Document pattern
    - Acceptance: Pattern defined and documented
 
-2. **Migrate ask-user handler to Effect**
+2. **Create form handler (Effect)**
    - Wrap in Effect
    - Use VariableService
    - Proper error handling
-   - Acceptance: ask-user works with Effect
+   - Acceptance: form steps work with Effect
 
-3. **Create sandboxed-agent handler (Effect)**
-   - Replace ask-user-chat handler
-   - Use SandboxedAgentService
-   - Use ChatSessionService
-   - Acceptance: Chat steps work with AI-SDK
+3. **Create agent handler (Effect)**
+   - agentKind routing (chiron/opencode)
+   - Use AgentRuntime + ChatSessionService
+   - Acceptance: agent steps work with AI-SDK and OpenCode
 
-4. **Create system-agent handler (Effect)**
-   - New handler for OpenCode steps
-   - Use SystemAgentService
-   - Use ChatSessionService
-   - Acceptance: System agent steps work
-
-5. **Migrate execute-action handler to Effect**
+4. **Migrate action handler to Effect**
    - Wrap in Effect
    - Use VariableService
    - Proper error handling
-   - Acceptance: execute-action works with Effect
+   - Acceptance: action steps work with Effect
 
-6. **Migrate invoke-workflow handler to Effect**
+5. **Migrate invoke handler to Effect**
    - Wrap in Effect
    - Use new execution tracking
    - Proper error handling
-   - Acceptance: invoke-workflow works with Effect
+   - Acceptance: invoke steps work with Effect
 
-7. **Migrate display-output handler to Effect**
+6. **Migrate display handler to Effect**
    - Wrap in Effect
    - Use VariableResolver
    - Proper error handling
-   - Acceptance: display-output works with Effect
+   - Acceptance: display steps work with Effect
 
-8. **Create branch handler (Effect)**
+7. **Create branch handler (Effect)**
    - Implement branch step type
    - Condition evaluation
    - Route to next step
    - Acceptance: branch steps work
 
-9. **Create approval-checkpoint handler (Effect)**
-   - Implement approval step type
+8. **Implement approval gating (Effect)**
+   - Tooling/agent approval flow
    - Pause execution
    - Resume on approval
-   - Acceptance: approval checkpoints work
+   - Acceptance: approvals work across agent/action steps
 
 ### Epic 4.2: Execution Management
 
@@ -476,7 +469,7 @@ Effect-based workflow execution with unified streaming.
    - Parent-child relationship
    - Variable passing
    - Result aggregation
-   - Acceptance: invoke-workflow creates child executions
+- Acceptance: invoke creates child executions
 
 ### Epic 4.3: Streaming Unification
 
