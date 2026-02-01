@@ -1,0 +1,61 @@
+{
+  "name": "@chiron/agent-runtime",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./src/index.ts"
+    },
+    "./runtime": {
+      "types": "./dist/runtime.d.ts",
+      "default": "./src/runtime.ts"
+    },
+    "./adapters": {
+      "types": "./dist/adapters.d.ts",
+      "default": "./src/adapters.ts"
+    },
+    "./errors": {
+      "types": "./dist/errors.d.ts",
+      "default": "./src/errors.ts"
+    },
+    "./config-service": {
+      "types": "./dist/config-service.d.ts",
+      "default": "./src/config-service.ts"
+    },
+    "./tooling-bridge": {
+      "types": "./dist/tooling-bridge.d.ts",
+      "default": "./src/tooling-bridge.ts"
+    },
+    "./ai-sdk/*": {
+      "types": "./dist/ai-sdk/*.d.ts",
+      "default": "./src/ai-sdk/*.ts"
+    },
+    "./opencode/*": {
+      "types": "./dist/opencode/*.d.ts",
+      "default": "./src/opencode/*.ts"
+    },
+    "./events/*": {
+      "types": "./dist/events/*.d.ts",
+      "default": "./src/events/*.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsdown"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "catalog:",
+    "@ai-sdk/openai": "catalog:",
+    "@chiron/contracts": "workspace:*",
+    "@openrouter/ai-sdk-provider": "catalog:",
+    "@opencode-ai/sdk": "^1.0.0",
+    "ai": "catalog:",
+    "ai-sdk-provider-opencode-sdk": "^1.0.0",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "tsdown": "catalog:"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}
