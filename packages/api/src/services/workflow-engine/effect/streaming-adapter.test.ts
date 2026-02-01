@@ -1,12 +1,12 @@
 import { describe, expect, it } from "bun:test";
 import { Effect, Stream } from "effect";
-import type { TextStreamPart } from "./ai-provider-service";
+import type { TextStreamPart } from "@chiron/agent-runtime/ai-sdk/ai-provider-service";
 import {
   aiStreamToEffectStream,
   collectStreamText,
   processStreamWithCallback,
   StreamingError,
-} from "./streaming-adapter";
+} from "@chiron/agent-runtime/ai-sdk/streaming-adapter";
 
 async function* createMockAsyncIterable<T>(items: T[]): AsyncIterable<T> {
   for (const item of items) {

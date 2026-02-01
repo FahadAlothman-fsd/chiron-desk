@@ -1,6 +1,7 @@
 import { Layer } from "effect";
-import { AIProviderServiceLive } from "./ai-provider-service";
-import { AiRuntimeServiceLive } from "./ai-runtime/ai-runtime-service";
+import { AIProviderServiceLive } from "@chiron/agent-runtime/ai-sdk/ai-provider-service";
+import { AiRuntimeServiceLive } from "@chiron/agent-runtime/ai-sdk/ai-runtime-service";
+import { AgentRuntimeDefault } from "@chiron/agent-runtime/runtime";
 import { ApprovalServiceLive } from "./approval-service";
 import { ChatServiceLive } from "./chat-service";
 import { ConfigServiceLive } from "./config-service";
@@ -10,10 +11,10 @@ import { StepHandlerRegistryLive } from "./step-registry";
 import { ToolApprovalGatewayLive } from "./tool-approval-gateway";
 import { VariableServiceLive } from "./variable-service";
 
-export * from "./ai-runtime/ai-runtime-service";
-export * from "./ai-runtime/ai-runtime-runner";
-export * from "./ai-runtime/events";
-export * from "./ai-runtime/opencode-relay";
+export * from "@chiron/agent-runtime/ai-sdk/ai-runtime-service";
+export * from "@chiron/agent-runtime/ai-sdk/ai-runtime-runner";
+export * from "@chiron/agent-runtime/ai-sdk/events";
+export * from "@chiron/agent-runtime/opencode/opencode-relay";
 export * from "./approval-service";
 export * from "./chat-service";
 export * from "./config-service";
@@ -25,7 +26,7 @@ export * from "./event-bus";
 export * from "./execution-context";
 export * from "./executor";
 export * from "./step-registry";
-export * from "./streaming-adapter";
+export * from "@chiron/agent-runtime/ai-sdk/streaming-adapter";
 export * from "./tool-approval-gateway";
 export * from "./tool-builder";
 export * from "./tooling-engine";
@@ -34,6 +35,7 @@ export * from "./variable-service";
 export const AILayer = Layer.mergeAll(
   AIProviderServiceLive,
   AiRuntimeServiceLive,
+  AgentRuntimeDefault,
   ChatServiceLive,
   ApprovalServiceLive,
 );

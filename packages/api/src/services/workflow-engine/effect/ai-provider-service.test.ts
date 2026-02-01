@@ -5,8 +5,8 @@ import {
   AIProviderService,
   AIProviderServiceLive,
   ModelNotFoundError,
-} from "./ai-provider-service";
-import { ConfigService, ConfigServiceLive } from "./config-service";
+} from "@chiron/agent-runtime/ai-sdk/ai-provider-service";
+import { ConfigService } from "@chiron/agent-runtime/config-service";
 
 const mockConfigService = {
   _tag: "ConfigService" as const,

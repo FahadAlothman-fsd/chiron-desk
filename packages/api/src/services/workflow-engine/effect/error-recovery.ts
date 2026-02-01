@@ -2,7 +2,11 @@ import { chatMessages, chatSessions, streamCheckpoints } from "@chiron/db";
 import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { Duration, Effect, Schedule, Stream } from "effect";
-import { type AIProviderError, StreamingError, type StreamResult } from "./ai-provider-service";
+import {
+  type AIProviderError,
+  StreamingError,
+  type StreamResult,
+} from "@chiron/agent-runtime/ai-sdk/ai-provider-service";
 import type { ApprovalRequest } from "./approval-service";
 import { ApprovalService, type ApprovalServiceError } from "./approval-service";
 import { ChatService, ChatServiceError } from "./chat-service";

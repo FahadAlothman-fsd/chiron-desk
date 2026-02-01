@@ -16,16 +16,13 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "catalog:",
-    "@ai-sdk/openai": "catalog:",
+    "@chiron/agent-runtime": "workspace:*",
     "@chiron/auth": "workspace:*",
+    "@chiron/contracts": "workspace:*",
     "@chiron/db": "workspace:*",
     "@effect/platform": "^0.82.0",
-    "@openrouter/ai-sdk-provider": "catalog:",
     "@trpc/client": "catalog:",
     "@trpc/server": "catalog:",
-    "ai": "catalog:",
-    "ai-sdk-provider-opencode-sdk": "^1.0.0",
     "dotenv": "catalog:",
     "drizzle-orm": "^0.44.7",
     "effect": "^3.14.0",

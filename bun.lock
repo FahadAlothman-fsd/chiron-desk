@@ -1,5 +1,6 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "chiron",
@@ -20,9 +21,11 @@
         "@radix-ui/react-use-controllable-state": "^1.2.2",
         "@trpc/react-query": "^11.7.1",
         "ai": "catalog:",
+        "ai-sdk-provider-opencode-sdk": "^1.0.0",
         "cmdk": "^1.1.1",
         "deepmerge": "^4.3.1",
         "dotenv": "^17.2.2",
+        "effect": "^3.14.0",
         "handlebars": "^4.7.8",
         "lucide-react": "^0.553.0",
         "motion": "^12.23.24",
@@ -132,19 +135,34 @@
         "vite": "^6.2.2",
       },
     },
-    "packages/api": {
-      "name": "@chiron/api",
+    "packages/agent-runtime": {
+      "name": "@chiron/agent-runtime",
       "dependencies": {
         "@ai-sdk/anthropic": "catalog:",
         "@ai-sdk/openai": "catalog:",
-        "@chiron/auth": "workspace:*",
-        "@chiron/db": "workspace:*",
-        "@effect/platform": "^0.82.0",
+        "@chiron/contracts": "workspace:*",
         "@openrouter/ai-sdk-provider": "catalog:",
-        "@trpc/client": "catalog:",
-        "@trpc/server": "catalog:",
         "ai": "catalog:",
         "ai-sdk-provider-opencode-sdk": "^1.0.0",
+        "effect": "^3.14.0",
+      },
+      "devDependencies": {
+        "tsdown": "catalog:",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
+      },
+    },
+    "packages/api": {
+      "name": "@chiron/api",
+      "dependencies": {
+        "@chiron/agent-runtime": "workspace:*",
+        "@chiron/auth": "workspace:*",
+        "@chiron/contracts": "workspace:*",
+        "@chiron/db": "workspace:*",
+        "@effect/platform": "^0.82.0",
+        "@trpc/client": "catalog:",
+        "@trpc/server": "catalog:",
         "dotenv": "catalog:",
         "drizzle-orm": "^0.44.7",
         "effect": "^3.14.0",
@@ -175,6 +193,24 @@
         "typescript": "^5",
       },
     },
+    "packages/ax-engine": {
+      "name": "@chiron/ax-engine",
+      "devDependencies": {
+        "tsdown": "catalog:",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
+      },
+    },
+    "packages/contracts": {
+      "name": "@chiron/contracts",
+      "devDependencies": {
+        "tsdown": "catalog:",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
+      },
+    },
     "packages/db": {
       "name": "@chiron/db",
       "dependencies": {
@@ -192,6 +228,42 @@
         "typescript": "^5",
       },
     },
+    "packages/event-bus": {
+      "name": "@chiron/event-bus",
+      "devDependencies": {
+        "tsdown": "catalog:",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
+      },
+    },
+    "packages/prompt-composer": {
+      "name": "@chiron/prompt-composer",
+      "devDependencies": {
+        "tsdown": "catalog:",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
+      },
+    },
+    "packages/provider-registry": {
+      "name": "@chiron/provider-registry",
+      "devDependencies": {
+        "tsdown": "catalog:",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
+      },
+    },
+    "packages/sandbox-git": {
+      "name": "@chiron/sandbox-git",
+      "devDependencies": {
+        "tsdown": "catalog:",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
+      },
+    },
     "packages/scripts": {
       "name": "@chiron/scripts",
       "dependencies": {
@@ -203,6 +275,33 @@
       },
       "devDependencies": {
         "@types/js-yaml": "^4.0.9",
+      },
+    },
+    "packages/tooling-engine": {
+      "name": "@chiron/tooling-engine",
+      "devDependencies": {
+        "tsdown": "catalog:",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
+      },
+    },
+    "packages/variable-service": {
+      "name": "@chiron/variable-service",
+      "devDependencies": {
+        "tsdown": "catalog:",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
+      },
+    },
+    "packages/workflow-engine": {
+      "name": "@chiron/workflow-engine",
+      "devDependencies": {
+        "tsdown": "catalog:",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
       },
     },
   },
@@ -321,13 +420,33 @@
 
     "@chevrotain/utils": ["@chevrotain/utils@11.0.3", "", {}, "sha512-YslZMgtJUyuMbZ+aKvfF3x1f5liK4mWNxghFRv7jqRR9C3R3fAOGTTKvxXDa2Y1s9zSbcpuO0cAxDYsc9SrXoQ=="],
 
+    "@chiron/agent-runtime": ["@chiron/agent-runtime@workspace:packages/agent-runtime"],
+
     "@chiron/api": ["@chiron/api@workspace:packages/api"],
 
     "@chiron/auth": ["@chiron/auth@workspace:packages/auth"],
 
+    "@chiron/ax-engine": ["@chiron/ax-engine@workspace:packages/ax-engine"],
+
+    "@chiron/contracts": ["@chiron/contracts@workspace:packages/contracts"],
+
     "@chiron/db": ["@chiron/db@workspace:packages/db"],
 
+    "@chiron/event-bus": ["@chiron/event-bus@workspace:packages/event-bus"],
+
+    "@chiron/prompt-composer": ["@chiron/prompt-composer@workspace:packages/prompt-composer"],
+
+    "@chiron/provider-registry": ["@chiron/provider-registry@workspace:packages/provider-registry"],
+
+    "@chiron/sandbox-git": ["@chiron/sandbox-git@workspace:packages/sandbox-git"],
+
     "@chiron/scripts": ["@chiron/scripts@workspace:packages/scripts"],
+
+    "@chiron/tooling-engine": ["@chiron/tooling-engine@workspace:packages/tooling-engine"],
+
+    "@chiron/variable-service": ["@chiron/variable-service@workspace:packages/variable-service"],
+
+    "@chiron/workflow-engine": ["@chiron/workflow-engine@workspace:packages/workflow-engine"],
 
     "@drizzle-team/brocli": ["@drizzle-team/brocli@0.10.2", "", {}, "sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w=="],
 

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "bun:test";
 import { Chunk, Effect, Layer } from "effect";
 import { ConfigServiceLive, DatabaseServiceLive, ExecutionContextLive } from "../effect";
-import { AIProviderService, type StreamResult } from "../effect/ai-provider-service";
+import {
+  AIProviderService,
+  type StreamResult,
+} from "@chiron/agent-runtime/ai-sdk/ai-provider-service";
 import { WorkflowEventBus } from "../effect/event-bus";
 import type { StepHandlerInput } from "../effect/step-registry";
 import { VariableService } from "../effect/variable-service";

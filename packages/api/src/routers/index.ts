@@ -1,6 +1,7 @@
 import { protectedProcedure, publicProcedure, router } from "../index";
 import { agentsRouter } from "./agents";
 import { modelsRouter } from "./models";
+import { opencodeRouter } from "./opencode";
 import { projectsRouter } from "./projects";
 import { settingsRouter } from "./settings";
 import { workflowRouter } from "./workflows";
@@ -20,5 +21,6 @@ export const appRouter = router({
   settings: settingsRouter,
   workflows: workflowRouter,
   agents: agentsRouter,
+  opencode: opencodeRouter,
 });
 export type AppRouter = typeof appRouter;

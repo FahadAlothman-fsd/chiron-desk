@@ -17,6 +17,12 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "types": ["bun"]
+    "types": ["bun"],
+    "paths": {
+      "@chiron/contracts": ["./packages/contracts/dist/index.d.ts"],
+      "@chiron/contracts/*": ["./packages/contracts/dist/*"],
+      "@chiron/agent-runtime": ["./packages/agent-runtime/dist/index.d.ts"],
+      "@chiron/agent-runtime/*": ["./packages/agent-runtime/dist/*"]
+    }
   }
 }

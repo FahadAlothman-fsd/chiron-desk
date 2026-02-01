@@ -3,8 +3,9 @@ import { Effect, Layer } from "effect";
 import { workflowEventBus as legacyEventBus } from "../event-bus";
 import { stateManager } from "../state-manager";
 import { loadWorkflow } from "../workflow-loader";
-import { AIProviderServiceLive } from "./ai-provider-service";
-import { AiRuntimeServiceLive } from "./ai-runtime/ai-runtime-service";
+import { AIProviderServiceLive } from "@chiron/agent-runtime/ai-sdk/ai-provider-service";
+import { AiRuntimeServiceLive } from "@chiron/agent-runtime/ai-sdk/ai-runtime-service";
+import { AgentRuntimeDefault } from "@chiron/agent-runtime/runtime";
 import { ApprovalServiceLive } from "./approval-service";
 import { ChatServiceLive } from "./chat-service";
 import { ConfigServiceLive } from "./config-service";
@@ -50,7 +51,11 @@ const createWorkflowLayer = (initialState: ExecutionState) => {
   const configLayer = ConfigServiceLive.pipe(Layer.provide(coreLayer));
   const providerLayer = AIProviderServiceLive.pipe(Layer.provide(configLayer));
   const runtimeLayer = AiRuntimeServiceLive.pipe(Layer.provide(providerLayer));
-  const aiLayer = Layer.mergeAll(providerLayer, runtimeLayer);
+  const agentRuntimeLayer = AgentRuntimeDefault.pipe(
+    Layer.provide(runtimeLayer),
+    Layer.provide(providerLayer),
+  );
+  const aiLayer = Layer.mergeAll(providerLayer, runtimeLayer, agentRuntimeLayer);
   const approvalLayer = Layer.mergeAll(ApprovalServiceLive, ToolApprovalGatewayLive).pipe(
     Layer.provide(coreLayer),
   );

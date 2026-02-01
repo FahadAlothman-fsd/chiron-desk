@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { Duration, Effect, Schedule } from "effect";
-import { AIProviderError, StreamingError } from "./ai-provider-service";
+import { AIProviderError, StreamingError } from "@chiron/agent-runtime/ai-sdk/ai-provider-service";
 import {
   executeToolWithTimeout,
   getPartialText,

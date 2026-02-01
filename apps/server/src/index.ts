@@ -56,6 +56,39 @@ app.use(
   }),
 );
 
+app.post("/api/opencode/chiron_context", async (c) => {
+  const input = await c.req.json();
+  try {
+    const caller = appRouter.createCaller(await createContext({ context: c }));
+    const result = await caller.opencode.chironContext(input);
+    return c.json(result);
+  } catch (error) {
+    return c.json({ error: String(error) }, 500);
+  }
+});
+
+app.post("/api/opencode/chiron_actions", async (c) => {
+  const input = await c.req.json();
+  try {
+    const caller = appRouter.createCaller(await createContext({ context: c }));
+    const result = await caller.opencode.chironActions(input);
+    return c.json(result);
+  } catch (error) {
+    return c.json({ error: String(error) }, 500);
+  }
+});
+
+app.post("/api/opencode/chiron_action", async (c) => {
+  const input = await c.req.json();
+  try {
+    const caller = appRouter.createCaller(await createContext({ context: c }));
+    const result = await caller.opencode.chironAction(input);
+    return c.json(result);
+  } catch (error) {
+    return c.json({ error: String(error) }, 500);
+  }
+});
+
 app.get("/api/agent-stream", (c) => {
   const executionId = c.req.query("executionId");
   const stepId = c.req.query("stepId");

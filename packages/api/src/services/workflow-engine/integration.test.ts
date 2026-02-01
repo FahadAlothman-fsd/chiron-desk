@@ -2,7 +2,7 @@ import "../../../../db/test-setup";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { db, eq, workflowSteps, workflows } from "@chiron/db";
 import { executeWorkflow } from "./effect/executor";
-import { AIProviderService } from "./effect/ai-provider-service";
+import { AIProviderService } from "@chiron/agent-runtime/ai-sdk/ai-provider-service";
 import { stateManager } from "./state-manager";
 
 /**

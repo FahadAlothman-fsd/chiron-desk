@@ -1,5 +1,5 @@
 import { Context, Deferred, Effect, Layer, Ref } from "effect";
-import type { ToolApprovalAction } from "./ai-runtime/events";
+import type { ToolApprovalAction } from "@chiron/agent-runtime/ai-sdk/events";
 
 export interface ToolApprovalRequest {
   toolCallId: string;

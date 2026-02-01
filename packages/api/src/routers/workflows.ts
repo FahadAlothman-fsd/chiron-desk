@@ -17,12 +17,12 @@ import { effectWorkflowEventBus } from "../services/workflow-engine/effect/event
 import {
   eventBusToAsyncGenerator,
   type StreamEvent,
-} from "../services/workflow-engine/effect/streaming-adapter";
-import type { AiStreamEvent } from "../services/workflow-engine/effect/ai-runtime/events";
+} from "@chiron/agent-runtime/ai-sdk/streaming-adapter";
+import type { AgentStreamEvent } from "@chiron/contracts";
 import { type WorkflowEvent, workflowEventBus } from "../services/workflow-engine/event-bus";
 import { stateManager } from "../services/workflow-engine/state-manager";
 
-type AgentStreamEvent = StreamEvent | AiStreamEvent;
+type AgentStreamEvent = StreamEvent;
 
 async function assertExecutionOwner(executionId: string, userId: string) {
   const [execution] = await db

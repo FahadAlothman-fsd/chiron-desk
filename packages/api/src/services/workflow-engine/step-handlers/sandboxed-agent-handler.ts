@@ -3,9 +3,12 @@ import { agents } from "@chiron/db";
 import { eq } from "drizzle-orm";
 import { Context, Data, Effect, Layer } from "effect";
 import Handlebars from "handlebars";
-import type { AIProvider } from "../effect/ai-provider-service";
-import { AiRuntimeService, type ModelConfig } from "../effect/ai-runtime/ai-runtime-service";
-import { runAiRuntime } from "../effect/ai-runtime/ai-runtime-runner";
+import type { AIProvider } from "@chiron/agent-runtime/ai-sdk/ai-provider-service";
+import {
+  AiRuntimeService,
+  type ModelConfig,
+} from "@chiron/agent-runtime/ai-sdk/ai-runtime-service";
+import { runAiRuntime } from "@chiron/agent-runtime/ai-sdk/ai-runtime-runner";
 import { DatabaseService } from "../effect/database-service";
 import { ChatService } from "../effect/chat-service";
 import { WorkflowEventBus } from "../effect/event-bus";

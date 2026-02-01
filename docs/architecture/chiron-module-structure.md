@@ -22,6 +22,10 @@ Workflow steps use this fixed set of types:
 
 Each module is Effect-wrapped and owns its public contract.
 
+### contracts
+- Shared types and events to prevent circular deps
+- Step types, event schemas, agentKind enums
+
 ### workflow-engine
 - Orchestrates workflow + step execution lifecycle
 - Drives step transitions and approvals
@@ -88,6 +92,10 @@ Each module is Effect-wrapped and owns its public contract.
 | invoke | workflow-engine, event-bus, variable-service |
 | display | workflow-engine, step-renderer |
 | branch | workflow-engine, variable-service |
+
+## Dependency Rule
+
+All modules may depend on `@chiron/contracts`. No module may import another module only for shared types.
 
 ## OpenCode Integration
 
