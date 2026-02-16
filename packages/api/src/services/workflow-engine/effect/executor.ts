@@ -16,6 +16,7 @@ import { ExecutionContextLive, type ExecutionState } from "./execution-context";
 import { AllHandlerLayers, StepHandlerRegistry, StepHandlerRegistryLive } from "./step-registry";
 import { ToolApprovalGatewayLive } from "./tool-approval-gateway";
 import { VariableServiceLive } from "./variable-service";
+import { validateWorkflowDecodeBoundary } from "./decode-boundary";
 
 /**
  * Maximum step executions per workflow (prevents infinite loops)
@@ -95,6 +96,11 @@ export async function executeWorkflow(params: {
 }): Promise<string> {
   // Load workflow and steps
   const { workflow, steps } = await loadWorkflow(params.workflowId);
+  await validateWorkflowDecodeBoundary({
+    workflowId: workflow.id,
+    workflowName: workflow.displayName,
+    steps,
+  });
 
   // Story 2.1: Get agentId from metadata JSONB field instead of column
   const metadata = workflow.metadata as { agentId?: string } | null;
@@ -172,6 +178,11 @@ export async function continueExecution(
 
   // Load workflow and steps
   const { steps } = await loadWorkflow(execution.workflowId);
+  await validateWorkflowDecodeBoundary({
+    workflowId: execution.workflowId,
+    workflowName: null,
+    steps,
+  });
 
   if (steps.length === 0) {
     await completeExecution(executionId);

@@ -1,5 +1,5 @@
 {
-  "name": "@chiron/sandbox-git",
+  "name": "@chiron/sandbox-engine",
   "type": "module",
   "exports": {
     ".": {

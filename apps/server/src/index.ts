@@ -3,8 +3,11 @@ import type { Serve } from "bun";
 import { createContext } from "@chiron/api/context";
 import { appRouter } from "@chiron/api/routers/index";
 import { auth } from "@chiron/auth";
-import { effectWorkflowEventBus } from "@chiron/api/services/workflow-engine/effect/event-bus";
-import { eventBusToAsyncGenerator } from "@chiron/api/services/workflow-engine/effect/streaming-adapter";
+import {
+  effectWorkflowEventBus,
+  eventBusToAsyncGenerator,
+} from "@chiron/api/services/workflow-engine/effect/index";
+import { Effect } from "effect";
 import { trpcServer } from "@hono/trpc-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -12,6 +15,11 @@ import { logger } from "hono/logger";
 import { streamSSE } from "hono/streaming";
 
 const app = new Hono();
+
+const streamingEventBus = {
+  publish: (_event: unknown) => Effect.void,
+  stream: effectWorkflowEventBus.stream,
+};
 
 const envOrigins = (process.env.CORS_ORIGIN ?? "")
   .split(",")
@@ -110,9 +118,9 @@ app.get("/api/agent-stream", (c) => {
 
   return streamSSE(c, async (stream) => {
     const generator = eventBusToAsyncGenerator(
-      effectWorkflowEventBus,
+      streamingEventBus,
       executionId,
-      (event) => event.stepId === stepId,
+      (event) => "stepId" in event && event.stepId === stepId,
     );
 
     for await (const event of generator) {

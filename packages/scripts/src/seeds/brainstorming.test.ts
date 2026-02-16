@@ -71,17 +71,13 @@ describe("Brainstorming Workflow Seed", () => {
         "technique",
       );
 
-      // Verify completion condition
-      expect(config?.completionCondition?.type).toBe("all-variables-set");
-      expect(config?.completionCondition?.requiredVariables).toHaveLength(3);
-      expect(config?.completionCondition?.requiredVariables).toContain("session_topic");
-      expect(config?.completionCondition?.requiredVariables).toContain("stated_goals");
-      expect(config?.completionCondition?.requiredVariables).toContain("selected_techniques");
-
-      // Verify output variables mapping
-      expect(config?.outputVariables).toHaveProperty("topic");
-      expect(config?.outputVariables).toHaveProperty("goals");
-      expect(config?.outputVariables).toHaveProperty("techniques");
+      // Verify completion conditions
+      expect(config?.completionConditions).toHaveLength(1);
+      expect(config?.completionConditions?.[0]?.type).toBe("all-variables-set");
+      expect(config?.completionConditions?.[0]?.requiredVariables).toHaveLength(3);
+      expect(config?.completionConditions?.[0]?.requiredVariables).toContain("session_topic");
+      expect(config?.completionConditions?.[0]?.requiredVariables).toContain("stated_goals");
+      expect(config?.completionConditions?.[0]?.requiredVariables).toContain("selected_techniques");
     } else {
       expect(config).toBeDefined();
     }

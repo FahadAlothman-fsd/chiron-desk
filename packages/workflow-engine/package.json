@@ -12,7 +12,14 @@
     }
   },
   "scripts": {
-    "build": "tsdown"
+    "build": "tsdown",
+    "test": "bun test src",
+    "test:all": "bun test"
+  },
+  "dependencies": {
+    "@chiron/agent-runtime": "workspace:*",
+    "effect": "catalog:",
+    "handlebars": "catalog:"
   },
   "devDependencies": {
     "tsdown": "catalog:"

@@ -1,5 +1,7 @@
 # Draft: Agent Runtime Contracts (Chiron + OpenCode)
 
+> **STATUS: COMPLETED** — This work has been implemented. Kept for historical reference.
+
 ## Requirements (confirmed)
 - Need agent-runtime contracts for both Chiron (AI SDK) and OpenCode adapters with near-identical interface.
 - Provide: (1) contract interface spec (types), (2) shared contracts needed in @chiron/contracts, (3) extraction plan from existing ai-runtime, (4) questions/risks.

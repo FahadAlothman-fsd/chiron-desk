@@ -1,5 +1,7 @@
 # Draft: Shared Contracts Package
 
+> **STATUS: COMPLETED** — This work has been implemented. Kept for historical reference.
+
 ## Requirements (confirmed)
 - "Add shared contracts package to prevent circular deps."
 - "Provide minimal steps: create packages/contracts with package.json/tsconfig/tsdown/src/index.ts"

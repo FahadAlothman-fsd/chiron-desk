@@ -1,4 +1,3 @@
-import type { AgentStepConfig } from "@chiron/db";
 import { db, workflowSteps, workflows, workflowTemplates } from "@chiron/db";
 
 /**
@@ -129,10 +128,10 @@ export async function seedBrainstorming() {
 
   // Step 1: Setup Phase - Topic, Goals, Techniques
   // Story 2.2: Configure Step 1 with three Mastra tools
-  const step1Config: AgentStepConfig = {
+  const step1Config = {
     agentKind: "chiron",
     agentId: analystAgent.id,
-    initialMessage:
+    message:
       "Welcome to your brainstorming session! 🧠\n\nI'm here to help you generate creative ideas and develop an action plan. Let's start by setting up your session.\n\nWhat would you like to brainstorm about? Tell me the topic or problem you want to explore.",
 
     tools: [
@@ -249,17 +248,12 @@ export async function seedBrainstorming() {
     ],
 
     // Completion condition: All three variables must be set
-    completionCondition: {
-      type: "all-variables-set",
-      requiredVariables: ["session_topic", "stated_goals", "selected_techniques"],
-    },
-
-    // Output variables mapping (for template rendering in artifact preview)
-    outputVariables: {
-      topic: "approval_states.update_topic.value",
-      goals: "approval_states.update_goals.value",
-      techniques: "approval_states.select_techniques.value.selected_techniques",
-    },
+    completionConditions: [
+      {
+        type: "all-variables-set",
+        requiredVariables: ["session_topic", "stated_goals", "selected_techniques"],
+      },
+    ],
   };
 
   // Insert Step 1
@@ -277,17 +271,20 @@ export async function seedBrainstorming() {
   // Step 2: Execute Selected Techniques (Invoke)
   // Story 2.3: Configure Step 2 with invoke logic
   const step2Config = {
-    workflowsToInvoke: "{{techniques}}", // Read from Step 1 outputVariables (techniques → approval_states.select_techniques.value.selected_techniques)
-    variableMapping: {
-      // Key = child workflow variable name, Value = parent execution variable reference
-      session_topic: "{{topic}}", // Child uses {{parent.session_topic}}, gets from parent's {{topic}} (Step 1 output)
-      stated_goals: "{{goals}}", // Child uses {{parent.stated_goals}}, gets from parent's {{goals}} (Step 1 output)
+    workflowRef: {
+      key: "{{selected_techniques}}",
     },
-    expectedOutputVariable: "generated_ideas", // Variable name to read from each child
-    aggregateInto: "captured_ideas", // Parent variable to append child outputs
-    completionCondition: {
-      type: "all-complete", // Wait for all children to reach status = completed
+    executionMode: "parallel",
+    waitForCompletion: true,
+    inputMapping: {
+      session_topic: "{{session_topic}}",
+      stated_goals: "{{stated_goals}}",
     },
+    output: {
+      mode: "namespace",
+      target: "captured_ideas",
+    },
+    onChildError: "continue",
   };
 
   // Insert Step 2

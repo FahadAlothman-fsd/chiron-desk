@@ -1,5 +1,7 @@
 # Draft: OpenCode Adapter for @chiron/agent-runtime
 
+> **STATUS: COMPLETED** — This work has been implemented. Kept for historical reference.
+
 ## Requirements (confirmed)
 - Implement OpenCode adapter in @chiron/agent-runtime.
 - Use static tools: chiron_context / chiron_actions / chiron_action.

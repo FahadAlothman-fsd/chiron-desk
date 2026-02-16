@@ -1,11 +1,4 @@
-import type {
-  ActionStepConfig,
-  AgentStepConfig,
-  DisplayStepConfig,
-  FormStepConfig,
-  WorkflowMetadata,
-  WorkflowTags,
-} from "@chiron/db";
+import type { WorkflowMetadata, WorkflowTags } from "@chiron/db";
 import { db, workflowSteps, workflows } from "@chiron/db";
 
 /**
@@ -85,10 +78,10 @@ export async function seedWorkflowInitNew() {
   // Step 1: Ask-User-Chat (Conversational Project Initialization)
   // Story 1.6: PM Agent (Athena) guides user through project setup
   // Story 1.7: Added project naming and refactored to be Step 1
-  const step1Config: AgentStepConfig = {
+  const step1Config = {
     agentKind: "chiron",
     agentId: pmAgent.id,
-    initialMessage:
+    message:
       "Let's set up your new project! Tell me about what you're building - what problem are you solving for your users?",
 
     tools: [
@@ -319,26 +312,17 @@ export async function seedWorkflowInitNew() {
       },
     ],
 
-    completionCondition: {
-      type: "all-tools-approved",
-      requiredTools: [
-        "update_description",
-        "update_complexity",
-        "select_workflow_path",
-        "update_project_name",
-      ],
-    },
-
-    outputVariables: {
-      project_description: "approval_states.update_description.value.project_description",
-      complexity_classification:
-        "approval_states.update_complexity.value.complexity_classification",
-      selected_workflow_path_id:
-        "approval_states.select_workflow_path.value.selected_workflow_path_id",
-      selected_workflow_path_name:
-        "approval_states.select_workflow_path.derived_values.selected_workflow_path_name",
-      project_name: "approval_states.update_project_name.value",
-    },
+    completionConditions: [
+      {
+        type: "all-tools-approved",
+        requiredTools: [
+          "update_description",
+          "update_complexity",
+          "select_workflow_path",
+          "update_project_name",
+        ],
+      },
+    ],
   };
 
   await db.insert(workflowSteps).values({
@@ -353,24 +337,26 @@ export async function seedWorkflowInitNew() {
   console.log("  ✓ Step 1: Conversational project initialization (Athena)");
   console.log(`    - ${step1Config.tools?.length || 0} tools configured`);
   console.log(
-    `    - Completion: ${step1Config.completionCondition.requiredTools?.length || 0} approvals required`,
+    `    - Completion: ${step1Config.completionConditions?.[0]?.requiredTools?.length || 0} approvals required`,
   );
 
   // Step 2: Ask-User (Directory Selection)
-  const step2Config: FormStepConfig = {
+  const step2Config = {
     message: "Great! Now that we've defined your project, where should we create it?",
-    question: "Enter the full path for your project directory",
     helpText:
       "Include the project folder name (e.g., /home/user/projects/my-project). This directory will be created if it doesn't exist.",
-    responseType: "path",
-    responseVariable: "project_path",
-    pathConfig: {
-      selectMode: "directory",
-      mustExist: false, // Will create project dir in Step 3
-    },
-    validation: {
-      required: true,
-    },
+    fields: [
+      {
+        key: "project_path",
+        type: "string",
+        label: "Project directory",
+        description: "Full path including project folder name",
+        ref: "path",
+        validation: {
+          required: true,
+        },
+      },
+    ],
   };
 
   await db.insert(workflowSteps).values({
@@ -386,31 +372,28 @@ export async function seedWorkflowInitNew() {
 
   // Step 3: Execute-Action (Project Initialization)
   // Story 1.8: Create directory + Git init + README creation + Database update
-  const step3Config: ActionStepConfig = {
+  const step3Config = {
     actions: [
-      // Action 1: Create project directory
       {
-        type: "file",
-        config: {
-          operation: "mkdir",
-          path: "{{project_path}}", // User provides full project path
-        },
+        id: "normalize_project_path",
+        kind: "directory",
+        operation: "join",
+        segments: ["{{project_path}}"],
+        outputVariable: "project_path_normalized",
       },
-      // Action 2: Initialize git repository
       {
-        type: "git",
-        config: {
-          operation: "init",
-          path: "{{project_path}}",
-        },
+        id: "initialize_git_reference",
+        kind: "git",
+        operation: "ref",
+        branch: "main",
+        outputVariable: "project_git_ref",
       },
-      // Action 3: Create README.md from template with all project variables
       {
-        type: "file",
-        config: {
-          operation: "write",
-          path: "{{project_path}}/README.md",
-          content: `# {{project_name}}
+        id: "render_readme_template",
+        kind: "file",
+        operation: "template",
+        outputVariable: "project_readme_content",
+        content: `# {{project_name}}
 
 {{project_description}}
 
@@ -424,28 +407,20 @@ export async function seedWorkflowInitNew() {
 
 *Project initialized with Chiron*
 `,
-        },
       },
-      // Action 4: Update project record in database
       {
-        type: "database",
-        config: {
-          table: "projects",
-          operation: "update",
-          columns: {
-            name: "{{project_name}}",
-            path: "{{project_path}}",
-            workflowPathId: "{{selected_workflow_path_id}}",
-            status: "active", // Mark project as active after initialization
-          },
-          where: {
-            id: "{{project_id}}",
-          },
+        id: "record_project_initialization",
+        kind: "artifact",
+        operation: "record",
+        outputVariable: "project_init_artifact",
+        artifact: {
+          name: "{{project_name}}",
+          path: "{{project_path}}",
+          workflowPathId: "{{selected_workflow_path_id}}",
+          status: "active",
         },
       },
     ],
-    executionMode: "sequential", // mkdir → git init → README → DB update
-    requiresUserConfirmation: true, // Show preview before executing
   };
 
   await db.insert(workflowSteps).values({
@@ -457,12 +432,12 @@ export async function seedWorkflowInitNew() {
     nextStepNumber: 4, // Continue to Step 4: Success Display
   });
 
-  console.log("  ✓ Step 3: Project Initialization (git init + DB update)");
+  console.log("  ✓ Step 3: Project Initialization Actions");
 
   // Step 4: Display-Output (Success Message)
   // Story 1.8: Show celebratory success message
-  const step4Config: DisplayStepConfig = {
-    contentTemplate: `🎉 **Project Created Successfully!**
+  const step4Config = {
+    message: `🎉 **Project Created Successfully!**
 
 Your project **{{project_name}}** has been initialized at:
 \`{{project_path}}\`

@@ -242,8 +242,7 @@ export async function seedWorkflows(): Promise<void> {
       goal: `${workflow.displayName} - Implementation pending`,
       stepType: "display",
       config: {
-        contentTemplate: `This workflow is a placeholder. Full implementation coming soon.\n\nDescription: ${workflow.description}`,
-        outputType: "info",
+        message: `This workflow is a placeholder. Full implementation coming soon.\n\nDescription: ${workflow.description}`,
       },
     });
 

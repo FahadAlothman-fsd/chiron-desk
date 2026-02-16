@@ -1,6 +1,8 @@
 # Chiron Module Structure (Canonical)
 
-This document freezes the module boundaries and ownership for Chiron. It is the source of truth for module names, responsibilities, and step-type mapping.
+> **Last Updated:** 2026-02-08
+
+This document freezes the module boundaries, ownership, and execution model for Chiron. It is the source of truth for module names, responsibilities, step-type mapping, and concurrency architecture.
 
 ## Step Taxonomy
 
@@ -18,13 +20,57 @@ Workflow steps use this fixed set of types:
 - `chiron` (Chiron agent runtime)
 - `opencode` (OpenCode SDK)
 
+## Execution & Concurrency Model
+
+Chiron uses Effect-TS structured concurrency for real-time multi-workflow execution.
+
+### Concurrent Workflow Executions
+
+Multiple workflows run as sibling Fibers under a root supervisor. A user can brainstorm a PRD, implement a story, and run a code review simultaneously.
+
+```
+Supervisor (root Scope, Ref<HashMap<executionId, Fiber>>)
+  ├── Fiber: Execution A — "Create PRD"       (sequential steps)
+  ├── Fiber: Execution B — "Dev Story 2.3"    (sequential steps)
+  └── Fiber: Execution C — "Code Review"      (sequential steps)
+```
+
+### Sequential Steps, Concurrent Internals
+
+Within each execution, steps run **sequentially** (while-loop). But within a single step, child Fibers handle concurrent operations:
+
+| Step Type | Child Fibers? | What For |
+| --- | --- | --- |
+| form | No | Deferred awaiting user input |
+| agent | Yes | AI stream consumption + tool calls |
+| action | Yes | Tooling-engine execution + approval waiting |
+| invoke | Yes | Sub-workflow as child Fiber (Fibers within Fibers) |
+| display | No | Renders output |
+| branch | No | Evaluates condition |
+
+### Effect Primitives
+
+| Primitive | Use Case |
+| --- | --- |
+| `Fiber.fork` | Spawn workflow executions, agent streams, tool calls |
+| `Scope` | Lifecycle — cancel workflow interrupts all child fibers |
+| `Stream` | Agent responses, event feeds, SSE to frontend |
+| `PubSub` | Event bus backbone (sliding window, 256 buffer) |
+| `Deferred` | Approval rendezvous, user input awaiting |
+| `Queue` | Rate limiting concurrent executions |
+| `FiberRef` | Propagate execution context (executionId, userId) |
+| `Ref` | Active executions map: HashMap<executionId, Fiber> |
+| `Schema` | Decode boundaries at package edges |
+| `TaggedError` | Typed error channels across all packages |
+
 ## Core Modules (Effect-First)
 
 Each module is Effect-wrapped and owns its public contract.
 
 ### contracts
-- Shared types and events to prevent circular deps
+- Shared Effect Schema types and events to prevent circular deps
 - Step types, event schemas, agentKind enums
+- **Direction: Migrating to Effect-native** (Schema.Struct definitions, not plain TS types)
 
 ### workflow-engine
 - Orchestrates workflow + step execution lifecycle
@@ -53,14 +99,14 @@ Each module is Effect-wrapped and owns its public contract.
 - Canonical variable resolution + precedence
 - Variable history and merges
 
-### prompt-composer
+### template-engine
 - Living system prompt composition
 - Renders agentKind-specific prompt layers
 
 ### provider-registry
 - Model catalog + provider credentials
 
-### sandbox-git
+### sandbox-engine
 - Worktree per workflow execution
 - Repo init for new projects
 - Commit snapshots per step
@@ -87,8 +133,8 @@ Each module is Effect-wrapped and owns its public contract.
 | Step Type | Primary Modules |
 | --- | --- |
 | form | workflow-engine, variable-service |
-| agent | agent-runtime, prompt-composer, tooling-engine, event-bus |
-| action | tooling-engine, sandbox-git, variable-service |
+| agent | agent-runtime, template-engine, tooling-engine, event-bus |
+| action | tooling-engine, sandbox-engine, variable-service |
 | invoke | workflow-engine, event-bus, variable-service |
 | display | workflow-engine, step-renderer |
 | branch | workflow-engine, variable-service |

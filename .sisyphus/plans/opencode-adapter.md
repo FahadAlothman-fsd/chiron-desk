@@ -1,5 +1,7 @@
 # OpenCode Adapter Plan (@chiron/agent-runtime)
 
+> **STATUS: COMPLETED** — All deliverables implemented. See `packages/agent-runtime/src/adapters/opencode-adapter.ts` and related files.
+
 ## TL;DR
 
 > **Quick Summary**: Add a minimal OpenCode SDK adapter alongside existing agent-runtime adapters, wired through `step.config.agentKind`, registering the static Chiron tools and mapping OpenCode session/events into `AgentStreamEvent`.
@@ -166,7 +168,7 @@ Map OpenCode SDK stream events into the runtime event model. Use a deterministic
 
 ## TODOs
 
-- [ ] 1. Identify adapter interfaces and existing adapter patterns in agent-runtime
+- [x] 1. Identify adapter interfaces and existing adapter patterns in agent-runtime
 
   **What to do**:
   - Locate adapter interface/type (init/run/stream signatures).
@@ -184,7 +186,7 @@ Map OpenCode SDK stream events into the runtime event model. Use a deterministic
   **Acceptance Criteria**:
   - Adapter interface signature and event contract documented in notes.
 
-- [ ] 2. Define minimal OpenCode adapter interface and file placement
+- [x] 2. Define minimal OpenCode adapter interface and file placement
 
   **What to do**:
   - Choose file location in adapter folder.
@@ -196,7 +198,7 @@ Map OpenCode SDK stream events into the runtime event model. Use a deterministic
   **Acceptance Criteria**:
   - Proposed file path and export name agreed.
 
-- [ ] 3. Implement OpenCode session lifecycle mapping (create/reuse/close)
+- [x] 3. Implement OpenCode session lifecycle mapping (create/reuse/close)
 
   **What to do**:
   - Select OpenCode SDK session API.
@@ -206,7 +208,7 @@ Map OpenCode SDK stream events into the runtime event model. Use a deterministic
   **Acceptance Criteria**:
   - Session mapping flow documented in code comments/tests.
 
-- [ ] 4. Register static tools with OpenCode SDK
+- [x] 4. Register static tools with OpenCode SDK
 
   **What to do**:
   - Register `chiron_context`, `chiron_actions`, `chiron_action` during adapter init/session start.
@@ -216,7 +218,7 @@ Map OpenCode SDK stream events into the runtime event model. Use a deterministic
   **Acceptance Criteria**:
   - Tool calls appear in stream as OpenCode tool events.
 
-- [ ] 5. Map OpenCode stream events to `AgentStreamEvent`
+- [x] 5. Map OpenCode stream events to `AgentStreamEvent`
 
   **What to do**:
   - Create mapping table for OpenCode event types to `AgentStreamEvent`.
@@ -226,7 +228,7 @@ Map OpenCode SDK stream events into the runtime event model. Use a deterministic
   **Acceptance Criteria**:
   - Stream test or script shows expected event types.
 
-- [ ] 6. Wire agentKind dispatch
+- [x] 6. Wire agentKind dispatch
 
   **What to do**:
   - Add `opencode` (or chosen identifier) to agentKind registry.
@@ -235,7 +237,7 @@ Map OpenCode SDK stream events into the runtime event model. Use a deterministic
   **Acceptance Criteria**:
   - A step configured with agentKind=OpenCode resolves to the adapter.
 
-- [ ] 7. Verification
+- [x] 7. Verification
 
   **What to do**:
   - Add tests or scripted verification of adapter initialization, tool calls, and event mapping.

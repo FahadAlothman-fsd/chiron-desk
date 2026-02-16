@@ -1,5 +1,10 @@
 # Chiron Stack Migration Plan
 
+> **STATUS: ARCHIVED / SUPERSEDED**
+>
+> This migration plan captured the Mastra-to-Effect transition period and is preserved for history.
+> It is not the active implementation plan. Use `AGENTS.md`, `docs/design/design-decisions.md`, and current epics in `_bmad-output/planning-artifacts/epics/`.
+
 **Version:** 1.0  
 **Date:** 2026-01-08  
 **Status:** Planning Document for BMAD Execution  

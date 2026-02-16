@@ -1,4 +1,3 @@
-import type { AgentStepConfig } from "@chiron/db";
 import { db, workflowSteps } from "@chiron/db";
 
 /**
@@ -43,10 +42,9 @@ export async function seedSixThinkingHatsTechnique() {
   }
 
   // Step 1: Single conversation with 6 sequential tools (one for each hat)
-  const step1Config: AgentStepConfig = {
+  const step1Config = {
     agentKind: "chiron",
     agentId: analystAgent.id,
-    generateInitialMessage: true,
     initialPrompt: `You are Carson facilitating Six Thinking Hats - a method for examining problems from six distinct perspectives!
 
 **Session Context:**
@@ -176,22 +174,19 @@ Start enthusiastically: "🎩 Let's put on different thinking hats to see this f
     ],
 
     // Completion condition: All 6 hats must be complete
-    completionCondition: {
-      type: "all-variables-set",
-      requiredVariables: [
-        "white_facts",
-        "red_emotions",
-        "yellow_benefits",
-        "black_risks",
-        "green_creativity",
-        "blue_synthesis",
-      ],
-    },
-
-    // Output variables mapping (for parent aggregation)
-    outputVariables: {
-      generated_ideas: "six_hats_analysis", // Structured analysis from all 6 perspectives
-    },
+    completionConditions: [
+      {
+        type: "all-variables-set",
+        requiredVariables: [
+          "white_facts",
+          "red_emotions",
+          "yellow_benefits",
+          "black_risks",
+          "green_creativity",
+          "blue_synthesis",
+        ],
+      },
+    ],
   };
 
   // Insert Step 1

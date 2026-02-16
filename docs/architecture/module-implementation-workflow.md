@@ -35,3 +35,13 @@ This workflow defines how every module is designed, stubbed, and implemented in 
 - No lift-and-shift of legacy code into new packages
 - Modules are only moved when fully implemented
 - Every module remains Effect-wrapped
+
+## Effect Learning Guide
+- Effect software guide: https://www.effect.solutions/
+- Effect quick start: https://www.effect.solutions/quick-start
+- Effect docs: https://effect.website/docs/
+- Agent-guided setup instructions: https://www.effect.solutions/quick-start#agent-guided-setup
+- Effect Solutions CLI:
+  - Install: `bun add -g effect-solutions@latest`
+  - Topics list: `effect-solutions list`
+  - Show topics: `effect-solutions show project-setup tsconfig`

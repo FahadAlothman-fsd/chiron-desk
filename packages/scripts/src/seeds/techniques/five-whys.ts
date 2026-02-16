@@ -1,4 +1,3 @@
-import type { AgentStepConfig } from "@chiron/db";
 import { db, workflowSteps } from "@chiron/db";
 
 /**
@@ -54,10 +53,9 @@ export async function seedFiveWhysTechnique() {
 
   // Step 1: Interactive Five Whys Session
   // 5 sequential update-variable tools with object type for Q&A pairs
-  const step1Config: AgentStepConfig = {
+  const step1Config = {
     agentKind: "chiron",
     agentId: coachAgent.id,
-    generateInitialMessage: true,
     initialPrompt: `You are Carson, an elite brainstorming facilitator who loves helping people drill down to root causes through the Five Whys technique!
 
 **Session Context:**
@@ -291,22 +289,18 @@ Then ask a SPECIFIC first WHY question (not generic "Why?", but tailored to thei
       },
     ],
 
-    completionCondition: {
-      type: "all-tools-approved",
-      requiredTools: [
-        "save_why_1",
-        "save_why_2",
-        "save_why_3",
-        "save_why_4",
-        "save_why_5_root_cause",
-      ],
-    },
-
-    outputVariables: {
-      // The root cause is the key output - the final insight from drilling down 5 times
-      // We output just the root cause answer as a single idea/insight
-      generated_ideas: "why_5_root_cause",
-    },
+    completionConditions: [
+      {
+        type: "all-tools-approved",
+        requiredTools: [
+          "save_why_1",
+          "save_why_2",
+          "save_why_3",
+          "save_why_4",
+          "save_why_5_root_cause",
+        ],
+      },
+    ],
   };
 
   // Insert step

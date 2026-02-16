@@ -1,4 +1,3 @@
-import type { AgentStepConfig } from "@chiron/db";
 import { db, workflowSteps } from "@chiron/db";
 
 /**
@@ -50,10 +49,10 @@ export async function seedScamperTechnique() {
 
   // Step 1: Interactive SCAMPER Session
   // 7 sequential blocking tools (one for each letter)
-  const step1Config: AgentStepConfig = {
+  const step1Config = {
     agentKind: "chiron",
     agentId: analystAgent.id,
-    initialMessage:
+    message:
       "Let's explore your idea using the SCAMPER method! 🔍\n\nSCAMPER helps you systematically examine your concept through 7 creative lenses. We'll go through each one step by step.\n\nFirst, let's start with **Substitute**: What elements of your idea could be substituted with something else?",
 
     tools: [
@@ -192,31 +191,20 @@ export async function seedScamperTechnique() {
     ],
 
     // Completion: All 7 SCAMPER lenses must be explored
-    completionCondition: {
-      type: "all-variables-set",
-      requiredVariables: [
-        "substitute_ideas",
-        "combine_ideas",
-        "adapt_ideas",
-        "modify_ideas",
-        "other_uses_ideas",
-        "eliminate_ideas",
-        "reverse_ideas",
-      ],
-    },
-
-    // Output variables for parent workflow
-    outputVariables: {
-      captured_ideas: {
-        substitute: "approval_states.scamper_substitute.value.substitute_ideas",
-        combine: "approval_states.scamper_combine.value.combine_ideas",
-        adapt: "approval_states.scamper_adapt.value.adapt_ideas",
-        modify: "approval_states.scamper_modify.value.modify_ideas",
-        other_uses: "approval_states.scamper_put_to_other_uses.value.other_uses_ideas",
-        eliminate: "approval_states.scamper_eliminate.value.eliminate_ideas",
-        reverse: "approval_states.scamper_reverse.value.reverse_ideas",
+    completionConditions: [
+      {
+        type: "all-variables-set",
+        requiredVariables: [
+          "substitute_ideas",
+          "combine_ideas",
+          "adapt_ideas",
+          "modify_ideas",
+          "other_uses_ideas",
+          "eliminate_ideas",
+          "reverse_ideas",
+        ],
       },
-    },
+    ],
   };
 
   // Insert Step 1

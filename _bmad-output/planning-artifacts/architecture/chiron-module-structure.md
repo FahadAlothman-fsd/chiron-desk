@@ -12,10 +12,10 @@ flowchart TD
   event_bus[event-bus]
   provider_registry[provider-registry]
   agent_runtime[agent-runtime]
-  prompt_composer[prompt-composer]
+  prompt_composer[template-engine]
   ax_engine[ax-engine]
   mcp_gateway[mcp-gateway]
-  sandbox_git[sandbox-git]
+  sandbox_git[sandbox-engine]
   step_renderer[step-renderer]
   approval_ui[approval-ui]
 
@@ -54,12 +54,12 @@ flowchart TD
 
 ### Shared Infrastructure
 - variable-service: canonical variable resolution, precedence, history, templates.
-- prompt-composer: structured prompt spec and adapter rendering per agentKind.
+- template-engine: structured prompt spec and adapter rendering per agentKind.
 - tooling-engine: tool registry, approvals, execution; bridges ax-generation to ax-engine.
 - provider-registry: model catalog + credentials (per-user, global across projects), usage tracking, spend estimates, and provider limits.
 - event-bus: unified streaming and lifecycle events.
 - mcp-gateway: MCP tool discovery and schema exposure (optional; replaced by OpenCode custom tools by default).
-- sandbox-git: worktree ops, apply changes, cleanup.
+- sandbox-engine: worktree ops, apply changes, cleanup.
 
 ### UI Layer
 - step-renderer: step_type -> UI component registry.

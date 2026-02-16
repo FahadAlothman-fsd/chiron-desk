@@ -1,5 +1,7 @@
 # Draft: Workflow Step Migration and Module Alignment
 
+> **STATUS: COMPLETED** — This work has been implemented. Kept for historical reference.
+
 ## Requirements (confirmed)
 - Produce a concrete plan with parallel task graph + detailed todo list.
 - Hard migration of workflow step types; reset/reseed acceptable.

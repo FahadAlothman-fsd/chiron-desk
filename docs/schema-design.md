@@ -1,5 +1,10 @@
 # Chiron Database Schema Design
 
+> **STATUS: ARCHIVED / SUPERSEDED**
+> 
+> This is a migration-era design document and is not the canonical implementation source of truth.
+> Use `packages/db/src/schema/` for current schema definitions and `AGENTS.md` + `docs/architecture/chiron-module-structure.md` for architecture truth.
+
 **Version:** 2.0 (Post-Mastra)  
 **Date:** 2026-01-08  
 **Status:** Design Document for BMAD Implementation

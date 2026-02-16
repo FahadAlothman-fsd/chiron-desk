@@ -1,4 +1,3 @@
-import type { AgentStepConfig } from "@chiron/db";
 import { db, workflowSteps } from "@chiron/db";
 
 /**
@@ -45,10 +44,9 @@ export async function seedWhatIfScenariosTechnique() {
   // ============================================
   // STEP 1: Identify Current Constraints
   // ============================================
-  const step1Config: AgentStepConfig = {
+  const step1Config = {
     agentKind: "chiron",
     agentId: analystAgent.id,
-    generateInitialMessage: true,
     initialPrompt: `You are Carson facilitating What If Scenarios - a technique for radical innovation!
 
 **Session Context:**
@@ -99,23 +97,20 @@ Be supportive - constraints are normal! We're about to shatter them!`,
       },
     ],
 
-    completionCondition: {
-      type: "all-variables-set",
-      requiredVariables: ["current_constraints"],
-    },
-
-    outputVariables: {
-      current_constraints: "current_constraints",
-    },
+    completionConditions: [
+      {
+        type: "all-variables-set",
+        requiredVariables: ["current_constraints"],
+      },
+    ],
   };
 
   // ============================================
   // STEP 2: Explore Radical What-Ifs
   // ============================================
-  const step2Config: AgentStepConfig = {
+  const step2Config = {
     agentKind: "chiron",
     agentId: analystAgent.id,
-    generateInitialMessage: true,
     initialPrompt: `**Phase 2: WHAT IF...? 🚀**
 
 Current Constraints: {{current_constraints}}
@@ -185,23 +180,20 @@ Be wildly enthusiastic! Encourage the craziest ideas! "YES! MORE! What else?!"`,
       },
     ],
 
-    completionCondition: {
-      type: "all-variables-set",
-      requiredVariables: ["what_if_scenarios"],
-    },
-
-    outputVariables: {
-      what_if_scenarios: "what_if_scenarios",
-    },
+    completionConditions: [
+      {
+        type: "all-variables-set",
+        requiredVariables: ["what_if_scenarios"],
+      },
+    ],
   };
 
   // ============================================
   // STEP 3: Extract Actionable Insights
   // ============================================
-  const step3Config: AgentStepConfig = {
+  const step3Config = {
     agentKind: "chiron",
     agentId: analystAgent.id,
-    generateInitialMessage: true,
     initialPrompt: `**Phase 3: EXTRACT PRACTICAL INSIGHTS 💡**
 
 Your Wild What-If Scenarios: {{what_if_scenarios}}
@@ -271,14 +263,12 @@ Be excited about practical discoveries! "YES! That's a brilliant insight we can 
       },
     ],
 
-    completionCondition: {
-      type: "all-variables-set",
-      requiredVariables: ["actionable_insights"],
-    },
-
-    outputVariables: {
-      generated_ideas: "practical_innovations", // Final actionable ideas
-    },
+    completionConditions: [
+      {
+        type: "all-variables-set",
+        requiredVariables: ["actionable_insights"],
+      },
+    ],
   };
 
   // Insert all 3 steps

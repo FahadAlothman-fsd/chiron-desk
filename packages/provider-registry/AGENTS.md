@@ -1,41 +1,27 @@
-# Provider Registry — TODO Spec
+# @chiron/provider-registry
 
-This module will centralize provider policy, model catalogs, usage, and cost accounting.
-Implementation is intentionally deferred; this file captures the plan.
+Runtime-aware provider and model catalog service (planned).
 
-## Goals (TODO)
+## What This Package Contains
 
-- [ ] Define provider registry contract (Effect Tag + Layer)
-- [ ] Model catalog per provider (OpenAI, Anthropic, OpenRouter, OpenCode)
-- [ ] Per-agentKind provider views (`chiron`, `opencode`, future)
-- [ ] Credentials management (per-user, global across projects)
-- [ ] Usage tracking (tokens, requests, latency)
-- [ ] Cost estimation per model (pricing tables)
-- [ ] Spend caps / quotas (per-user, with optional per-project overrides)
-- [ ] Provider health status (rate limit, outages)
-- [ ] Audit log of provider usage
+- `src/index.ts` - scaffold export
 
-## Consumers (TODO)
+## Current State
 
-- [ ] `@chiron/agent-runtime` (model selection + provider routing)
-- [ ] `@chiron/ax-engine` (optimization runs + model availability)
-- [ ] UI settings + model selector
-- [ ] Workflow validation (disallow unavailable models)
+- Standalone package is scaffold-only
+- Provider/model logic is currently split across API model services, agent-runtime adapters, and user settings
 
-## Data Sources (TODO)
+## Intended Scope
 
-- [ ] Provider config table (keys + allowed models)
-- [ ] Pricing table (per provider/model)
-- [ ] Usage ledger (per session/execution)
+- Provider catalog per runtime family (`ai-sdk`, `opencode`, `ax`)
+- Runtime-aware model compatibility and capability metadata
+- User/provider credential bindings
+- Usage, latency, and cost tracking
+- Spend controls and access policy enforcement
 
-## Security (TODO)
+## Consumers
 
-- [ ] Enforce provider access policy (per-user)
-- [ ] Reject requests exceeding spend caps
-- [ ] Mask API keys in logs
-
-## Integration Milestones (TODO)
-
-- [ ] MVP: static catalog + per-user provider keys
-- [ ] Phase 2: usage + spend estimates
-- [ ] Phase 3: quotas + health signals
+- `@chiron/agent-runtime` (provider routing + model resolution)
+- `@chiron/ax-engine` (optimizer model selection)
+- Settings/model-selector UI
+- Workflow validation and planning checks

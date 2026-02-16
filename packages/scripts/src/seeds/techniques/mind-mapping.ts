@@ -1,4 +1,3 @@
-import type { AgentStepConfig } from "@chiron/db";
 import { db, workflowSteps } from "@chiron/db";
 
 /**
@@ -45,10 +44,9 @@ export async function seedMindMappingTechnique() {
   // ============================================
   // STEP 1: Define Central Concept
   // ============================================
-  const step1Config: AgentStepConfig = {
+  const step1Config = {
     agentKind: "chiron",
     agentId: analystAgent.id,
-    generateInitialMessage: true,
     initialPrompt: `You are Carson facilitating Mind Mapping - a visual technique for exploring ideas!
 
 **Session Context:**
@@ -88,23 +86,20 @@ Be enthusiastic and help them refine until it's crystal clear!`,
       },
     ],
 
-    completionCondition: {
-      type: "all-variables-set",
-      requiredVariables: ["central_concept"],
-    },
-
-    outputVariables: {
-      central_concept: "central_concept",
-    },
+    completionConditions: [
+      {
+        type: "all-variables-set",
+        requiredVariables: ["central_concept"],
+      },
+    ],
   };
 
   // ============================================
   // STEP 2: Generate Main Branches
   // ============================================
-  const step2Config: AgentStepConfig = {
+  const step2Config = {
     agentKind: "chiron",
     agentId: analystAgent.id,
-    generateInitialMessage: true,
     initialPrompt: `**Phase 2: MAIN BRANCHES 🌳**
 
 Central Concept: **{{central_concept}}**
@@ -146,23 +141,20 @@ Be encouraging! Build energy as branches emerge!`,
       },
     ],
 
-    completionCondition: {
-      type: "all-variables-set",
-      requiredVariables: ["main_branches"],
-    },
-
-    outputVariables: {
-      main_branches: "main_branches",
-    },
+    completionConditions: [
+      {
+        type: "all-variables-set",
+        requiredVariables: ["main_branches"],
+      },
+    ],
   };
 
   // ============================================
   // STEP 3: Expand with Sub-branches
   // ============================================
-  const step3Config: AgentStepConfig = {
+  const step3Config = {
     agentKind: "chiron",
     agentId: analystAgent.id,
-    generateInitialMessage: true,
     initialPrompt: `**Phase 3: SUB-BRANCHES 🌿**
 
 Your Main Branches: {{main_branches}}
@@ -213,23 +205,20 @@ Be patient and methodical! Celebrate each expanded branch!`,
       },
     ],
 
-    completionCondition: {
-      type: "all-variables-set",
-      requiredVariables: ["sub_branches"],
-    },
-
-    outputVariables: {
-      sub_branches: "sub_branches",
-    },
+    completionConditions: [
+      {
+        type: "all-variables-set",
+        requiredVariables: ["sub_branches"],
+      },
+    ],
   };
 
   // ============================================
   // STEP 4: Discover Connections
   // ============================================
-  const step4Config: AgentStepConfig = {
+  const step4Config = {
     agentKind: "chiron",
     agentId: analystAgent.id,
-    generateInitialMessage: true,
     initialPrompt: `**Phase 4: CONNECTIONS ✨**
 
 Your Complete Mind Map:
@@ -282,14 +271,12 @@ Be excited about discoveries! These connections are where innovation happens!`,
       },
     ],
 
-    completionCondition: {
-      type: "all-variables-set",
-      requiredVariables: ["connections"],
-    },
-
-    outputVariables: {
-      generated_ideas: "complete_mind_map", // Full structured mind map object
-    },
+    completionConditions: [
+      {
+        type: "all-variables-set",
+        requiredVariables: ["connections"],
+      },
+    ],
   };
 
   // Insert all 4 steps

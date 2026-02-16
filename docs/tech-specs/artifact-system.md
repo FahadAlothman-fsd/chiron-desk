@@ -1,5 +1,10 @@
 # Artifact System Technical Specification
 
+> **STATUS: ARCHIVED / SUPERSEDED**
+>
+> This document describes a legacy artifact design and is retained as historical context.
+> It is not the current source of truth for implementation. Prefer active architecture and package-level docs.
+
 **Version:** 1.0  
 **Date:** 2026-01-08  
 **Status:** Design Document for BMAD Implementation  

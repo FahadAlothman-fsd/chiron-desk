@@ -25,6 +25,8 @@ export * from "./errors";
 export * from "./event-bus";
 export * from "./execution-context";
 export * from "./executor";
+export * from "./decode-boundary";
+export * from "./runtime-composition";
 export * from "./step-registry";
 export * from "@chiron/agent-runtime/ai-sdk/streaming-adapter";
 export * from "./tool-approval-gateway";

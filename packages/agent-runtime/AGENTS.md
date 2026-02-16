@@ -42,6 +42,7 @@ packages/agent-runtime/
       streaming-adapter.ts
       events.ts
     opencode/
+      ensure-tools.ts
       opencode-relay.ts
       session-registry.ts
     adapters.ts
@@ -155,8 +156,8 @@ Dependencies consumed by agent-runtime:
 - `@chiron/tooling-engine` (via tooling-bridge -> execute/approve/validate tool calls)
 - `@chiron/event-bus` (stream events to UI + workflows)
 - `@chiron/provider-registry` (model/provider resolution)
-- `@chiron/prompt-composer` (system prompt layers)
-- `@chiron/sandbox-git` (worktree resolution for OpenCode execution)
+- `@chiron/template-engine` (system prompt layers)
+- `@chiron/sandbox-engine` (worktree resolution for OpenCode execution)
 - AI-SDK providers: OpenAI, Anthropic, OpenRouter
 - OpenCode SDK: `@opencode-ai/sdk`
 - Effect runtime

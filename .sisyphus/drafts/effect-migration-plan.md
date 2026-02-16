@@ -1,5 +1,7 @@
 # Draft: Effect Migration Planning
 
+> **STATUS: COMPLETED** — This work has been implemented. Kept for historical reference.
+
 ## Requirements (confirmed)
 - Migration completed by tomorrow on branch `feat/effect-migration`.
 - App fully done in 4 weeks; need a 4-week roadmap with milestones.

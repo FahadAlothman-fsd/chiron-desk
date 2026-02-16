@@ -1,5 +1,7 @@
 # Draft: Agent Runtime Implementation Plan
 
+> **STATUS: COMPLETED** — This work has been implemented. Kept for historical reference.
+
 ## Requirements (confirmed)
 - Start implementation of `@chiron/agent-runtime` with a step-by-step plan.
 - Include contract types in `@chiron/contracts`.
