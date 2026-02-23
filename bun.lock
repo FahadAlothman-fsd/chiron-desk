@@ -95,6 +95,7 @@
       "name": "@chiron/agent-runtime",
       "dependencies": {
         "@chiron/contracts": "workspace:*",
+        "effect": "catalog:",
       },
       "devDependencies": {
         "@chiron/config": "workspace:*",
@@ -139,6 +140,7 @@
       "name": "@chiron/ax-engine",
       "dependencies": {
         "@chiron/contracts": "workspace:*",
+        "effect": "catalog:",
       },
       "devDependencies": {
         "@chiron/config": "workspace:*",
@@ -193,6 +195,7 @@
       "name": "@chiron/event-bus",
       "dependencies": {
         "@chiron/contracts": "workspace:*",
+        "effect": "catalog:",
       },
       "devDependencies": {
         "@chiron/config": "workspace:*",
@@ -203,6 +206,7 @@
       "name": "@chiron/methodology-engine",
       "dependencies": {
         "@chiron/contracts": "workspace:*",
+        "effect": "catalog:",
       },
       "devDependencies": {
         "@chiron/config": "workspace:*",
@@ -213,6 +217,7 @@
       "name": "@chiron/provider-registry",
       "dependencies": {
         "@chiron/contracts": "workspace:*",
+        "effect": "catalog:",
       },
       "devDependencies": {
         "@chiron/config": "workspace:*",
@@ -223,6 +228,7 @@
       "name": "@chiron/sandbox-engine",
       "dependencies": {
         "@chiron/contracts": "workspace:*",
+        "effect": "catalog:",
       },
       "devDependencies": {
         "@chiron/config": "workspace:*",
@@ -243,6 +249,7 @@
         "@chiron/tooling-engine": "workspace:*",
         "@chiron/variable-service": "workspace:*",
         "@chiron/workflow-engine": "workspace:*",
+        "effect": "catalog:",
       },
       "devDependencies": {
         "@chiron/config": "workspace:*",
@@ -253,6 +260,7 @@
       "name": "@chiron/template-engine",
       "dependencies": {
         "@chiron/contracts": "workspace:*",
+        "effect": "catalog:",
       },
       "devDependencies": {
         "@chiron/config": "workspace:*",
@@ -263,6 +271,7 @@
       "name": "@chiron/tooling-engine",
       "dependencies": {
         "@chiron/contracts": "workspace:*",
+        "effect": "catalog:",
       },
       "devDependencies": {
         "@chiron/config": "workspace:*",
@@ -273,6 +282,7 @@
       "name": "@chiron/variable-service",
       "dependencies": {
         "@chiron/contracts": "workspace:*",
+        "effect": "catalog:",
       },
       "devDependencies": {
         "@chiron/config": "workspace:*",
@@ -283,6 +293,7 @@
       "name": "@chiron/workflow-engine",
       "dependencies": {
         "@chiron/contracts": "workspace:*",
+        "effect": "catalog:",
       },
       "devDependencies": {
         "@chiron/config": "workspace:*",

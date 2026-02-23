@@ -24,7 +24,8 @@
     "@chiron/template-engine": "workspace:*",
     "@chiron/tooling-engine": "workspace:*",
     "@chiron/variable-service": "workspace:*",
-    "@chiron/workflow-engine": "workspace:*"
+    "@chiron/workflow-engine": "workspace:*",
+    "effect": "catalog:"
   },
   "devDependencies": {
     "@chiron/config": "workspace:*",
