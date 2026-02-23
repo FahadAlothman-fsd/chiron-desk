@@ -1,0 +1,67 @@
+apps/server/src/index.ts
+  ad5cdade57d25c42 13,79-92
+apps/web/src/lib/use-sse.ts
+  62afd3ca205c10d3 1-35
+apps/web/src/routes/dashboard.tsx
+  7b454d2453b3831b 5,8,28-29,31,39-41,44,46-54
+  ab86082756ddc9be 9,38,42-43,45,55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "8e5ec88f3ae33512ead3eee37e4a6fa25fb45f4f",
+  "prompts": {
+    "62afd3ca205c10d3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_374025174ffeqnpxNwTdezylHb-e611c829-a14b-439c-82d4-f40d1f74be04",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 35,
+      "total_deletions": 0,
+      "accepted_lines": 35,
+      "overriden_lines": 0
+    },
+    "7b454d2453b3831b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_374025174ffeqnpxNwTdezylHb-dd90673a-9882-4da4-89a8-011d80a8aef5",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 22,
+      "total_deletions": 6,
+      "accepted_lines": 21,
+      "overriden_lines": 0
+    },
+    "ab86082756ddc9be": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_374025174ffeqnpxNwTdezylHb-75946961-e1aa-432c-bb71-b3575353a4a1",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 15,
+      "total_deletions": 2,
+      "accepted_lines": 14,
+      "overriden_lines": 0
+    },
+    "ad5cdade57d25c42": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_37404447dffefZ0dZmeMRNY7uP-69614af1-bbc7-4d4e-9ce5-3e4756b3b662",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 17,
+      "total_deletions": 0,
+      "accepted_lines": 17,
+      "overriden_lines": 0
+    }
+  }
+}
