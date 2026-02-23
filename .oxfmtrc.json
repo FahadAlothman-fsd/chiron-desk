@@ -1,0 +1,10 @@
+{
+  "ignorePatterns": [
+    ".opencode/**",
+    ".sisyphus/**",
+    "_bmad/**",
+    "_bmad-output/**",
+    "docs/**",
+    "academic_reports/**"
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "name": "@chiron/auth",
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "default": "./src/*.ts"
+    }
+  },
+  "scripts": {},
+  "dependencies": {
+    "@chiron/db": "workspace:*",
+    "@chiron/env": "workspace:*",
+    "better-auth": "catalog:",
+    "dotenv": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@chiron/config": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

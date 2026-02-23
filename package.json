@@ -1,0 +1,55 @@
+{
+  "name": "chiron",
+  "private": true,
+  "workspaces": {
+    "packages": [
+      "apps/*",
+      "packages/*"
+    ],
+    "catalog": {
+      "dotenv": "^17.2.2",
+      "zod": "^4.1.13",
+      "typescript": "^5",
+      "@types/bun": "^1.3.4",
+      "hono": "^4.8.2",
+      "@orpc/server": "^1.12.2",
+      "@orpc/openapi": "^1.12.2",
+      "@orpc/zod": "^1.12.2",
+      "better-auth": "^1.4.18",
+      "@libsql/client": "0.15.15",
+      "libsql": "0.5.22",
+      "@orpc/client": "^1.12.2"
+    }
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "check-types": "turbo check-types",
+    "dev:native": "turbo -F native dev",
+    "dev:web": "turbo -F web dev",
+    "dev:server": "turbo -F server dev",
+    "db:push": "turbo -F @chiron/db db:push",
+    "db:studio": "turbo -F @chiron/db db:studio",
+    "db:generate": "turbo -F @chiron/db db:generate",
+    "db:migrate": "turbo -F @chiron/db db:migrate",
+    "db:local": "turbo -F @chiron/db db:local",
+    "check": "oxlint && oxfmt --check",
+    "format": "oxfmt --write"
+  },
+  "dependencies": {
+    "@chiron/env": "workspace:*",
+    "dotenv": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@chiron/config": "workspace:*",
+    "@types/bun": "catalog:",
+    "lefthook": "^2.0.13",
+    "oxfmt": "^0.26.0",
+    "oxlint": "^1.41.0",
+    "turbo": "^2.6.3",
+    "typescript": "catalog:"
+  },
+  "packageManager": "bun@1.3.9"
+}

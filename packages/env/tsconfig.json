@@ -1,0 +1,3 @@
+{
+  "extends": "@chiron/config/tsconfig.base.json"
+}
