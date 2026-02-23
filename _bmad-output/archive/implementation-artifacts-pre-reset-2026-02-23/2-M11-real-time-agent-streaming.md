@@ -137,7 +137,7 @@ so that I see immediate progress and can approve tool calls without polling dela
 ### References
 - `_bmad-output/planning-artifacts/tech-spec-effect-workflow-engine.md` (Streaming Architecture, Section 7)
 - `_bmad-output/planning-artifacts/architecture/architecture-decisions.md` (Decision #3: Real-Time Updates)
-- `_bmad-output/planning-artifacts/design/ux-design-specification.md` (Chat patterns + accessibility)
+- `_bmad-output/planning-artifacts/ux-design-specification.md` (Chat patterns + accessibility)
 - `_bmad-output/planning-artifacts/design/wireframe-approval-gate-chat.md` (Approval modal flow)
 - `_bmad-output/planning-artifacts/epics/epic-2-artifact-workbench.md` (Story 2-M11 context)
 
