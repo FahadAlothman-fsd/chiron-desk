@@ -10,6 +10,7 @@ import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+import { streamSSE } from "hono/streaming";
 
 const app = new Hono();
 
@@ -73,6 +74,21 @@ app.use("/*", async (c, next) => {
 
 app.get("/", (c) => {
   return c.text("OK");
+});
+
+app.get("/sse/smoke", (c) => {
+  return streamSSE(c, async (stream) => {
+    for (let i = 0; i < 5; i++) {
+      await stream.writeSSE({
+        data: JSON.stringify({ tick: i, ts: Date.now() }),
+        event: "tick",
+        id: String(i),
+      });
+      if (i < 4) {
+        await stream.sleep(1000);
+      }
+    }
+  });
 });
 
 export default app;
