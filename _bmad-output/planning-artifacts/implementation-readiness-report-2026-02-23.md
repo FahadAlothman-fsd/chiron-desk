@@ -109,7 +109,7 @@ Total NFRs: 5
 - Workflows are scoped to `methodologyVersion + workUnitType`.
 - Transition authority is controlled by allowed workflow bindings per transition.
 - Only six step capabilities are valid: `form`, `agent`, `action`, `invoke`, `branch`, `display`.
-- Runtime/backend stack is locked for current horizon: Bun + Turborepo, Hono, tRPC, Effect, AI SDK + OpenCode SDK, SQLite + Drizzle, Better-Auth.
+- Runtime/backend stack is locked for current horizon: Bun + Turborepo, Hono, oRPC, Effect, AI SDK + OpenCode SDK, SQLite + Drizzle, Better-Auth.
 - Frontend direction is constrained for later implementation (Commit Mono, Geist Pixel, Bloomberg-terminal influence, React Flow, TanStack Hotkeys).
 - Desktop rollout assumptions constrain platform sequence (Linux primary, macOS secondary, Windows deferred post-MVP).
 - Offline behavior requires deterministic diagnostics and no partial transition-state commit for network/provider-dependent failures.

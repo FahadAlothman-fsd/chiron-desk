@@ -107,7 +107,7 @@ Total NFRs: 5
 - Workflow scoping: workflows are bound to `methodologyVersion + workUnitType`.
 - Transition authority: allowed workflow bindings per transition govern execution authority.
 - Step capability constraint: only `form`, `agent`, `action`, `invoke`, `branch`, `display` are valid.
-- Runtime stack constraints are locked for current horizon: Bun/Turborepo, Hono + SSE, tRPC, Effect, AI SDK + OpenCode SDK, SQLite + Drizzle, Better-Auth.
+- Runtime stack constraints are locked for current horizon: Bun/Turborepo, Hono + SSE, oRPC, Effect, AI SDK + OpenCode SDK, SQLite + Drizzle, Better-Auth.
 - Frontend direction is locked for later implementation (Commit Mono, Geist Pixel, Bloomberg-terminal influence, React Flow, TanStack Hotkeys).
 - Scope boundaries: AX optimization loops and non-critical admin/customization surfaces are deferred.
 

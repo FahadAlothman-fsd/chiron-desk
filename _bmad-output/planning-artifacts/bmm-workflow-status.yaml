@@ -50,6 +50,6 @@ notes: |
   Migrated from legacy workflow-status.yaml (pre-v6 format)
   Original start date: 2025-10-24
   Architecture validated: 2025-11-07
-  - PostgreSQL 17 (latest via Docker), Drizzle ORM 0.44.2
+  - SQLite (current horizon), Drizzle ORM 0.44.2
   - Final schema: 15 tables
   - Ready for Epic 1 implementation

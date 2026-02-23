@@ -151,7 +151,7 @@ chiron/
 - [ ] `test` baseline passes.
 - [ ] Smoke path 1: one typed oRPC command/query from web to server works end-to-end.
 - [ ] Smoke path 2: one SSE stream from server to web renders live updates.
-- [ ] Docs alignment check: no stale tRPC assumptions remain in active canonical docs.
+- [ ] Docs alignment check: no stale oRPC/orpc assumptions remain in active canonical docs.
 
 ## 8) Go To Sprint Planning
 

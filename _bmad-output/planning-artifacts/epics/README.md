@@ -13,7 +13,7 @@ See `docs/architecture/chiron-module-structure.md` for the canonical module stru
 - `@chiron/workflow-engine` — 6 step handlers, Effect services
 - `@chiron/agent-runtime` — dual adapter (chiron + opencode)
 - `@chiron/contracts` — shared types (migrating to Effect Schema)
-- `@chiron/api` — tRPC routers (legacy workflow code still present)
+- `@chiron/api` — oRPC routers (legacy workflow code still present)
 - `@chiron/db` — 15+ tables
 - `@chiron/auth`, `@chiron/scripts` — supporting packages
 - `apps/web` + `apps/server` — functional frontend + backend

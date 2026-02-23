@@ -6,7 +6,7 @@ Goal: Finish canonical documentation and lock implementation direction today.
 
 ## A) Must-Finalize Today (Lock Tonight)
 
-- [ ] Confirm canonical stack section includes: Effect, AI SDK, OpenCode SDK, Hono, tRPC, Tauri, Better-Auth, Drizzle, SQLite, Handlebars, OXC.
+- [ ] Confirm canonical stack section includes: Effect, AI SDK, OpenCode SDK, Hono, oRPC, Tauri, Better-Auth, Drizzle, SQLite, Handlebars, OXC.
 - [ ] Approve canonical taxonomy mapping table (legacy + current BMAD sample -> final terms).
 - [ ] Approve simplified transition gate model: Start Gate + Completion Gate only.
 - [ ] Approve transition lifecycle terms (`UNAVAILABLE`, `AVAILABLE`, `EXECUTING`, `EVALUATING_COMPLETION`, `COMPLETED`, `EXECUTED_NOT_COMPLETED`).

@@ -12,7 +12,7 @@ This extends the starter stack with project-critical runtime dependencies alread
 - Monorepo: Bun workspaces + Turborepo
 - Frontend: React 19 + TanStack Router + TanStack Query + TanStack Form
 - Desktop shell: Tauri v2
-- Backend/API: Hono + tRPC
+- Backend/API: Hono + oRPC
 - Auth: Better-Auth
 - UI/tooling: Tailwind v4, Radix primitives, OXC (oxlint + oxfmt), Lefthook/Husky
 
@@ -41,7 +41,7 @@ This extends the starter stack with project-critical runtime dependencies alread
 
 - `effect` execution patterns and service boundaries
 - `ai` + provider adapters + OpenCode SDK integration
-- Hono + tRPC API surface
+- Hono + oRPC API surface
 - Tauri + web shell/layout stack
 - Better-Auth package boundary
 - Handlebars for templating baseline

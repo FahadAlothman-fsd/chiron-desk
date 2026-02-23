@@ -103,7 +103,7 @@ Current delivery posture is a desktop application with a client-server architect
 
 - Bun + Turborepo
 - Hono (HTTP + SSE streaming transport)
-- tRPC (typed API)
+- oRPC (typed API)
 - Effect (orchestration/services/layers)
 - AI SDK + OpenCode SDK (dual runtime)
 - SQLite + Drizzle (current horizon)

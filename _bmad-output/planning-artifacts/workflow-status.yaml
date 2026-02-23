@@ -53,7 +53,7 @@ next_workflow: epic-context
 # Notes
 notes: |
   - Architecture validated 2025-11-07 with actual versions from codebase
-  - PostgreSQL 17 (latest via Docker), Drizzle ORM 0.44.2
+  - SQLite (current horizon), Drizzle ORM 0.44.2
   - Final schema: 15 tables (down from 17 after simplification)
   - Removed: workflow_step_branches, workflow_step_actions, workflows.signatureConfig
   - Added: workflows.initializerType, projects.userId, app_config.userId

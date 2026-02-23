@@ -89,11 +89,11 @@ From current sprint status and planning artifacts:
 
 ### DB Decision
 
-**Use PostgreSQL as primary DB for Week 6-10 implementation.**
+**Use SQLite as primary DB for Week 6-10 implementation.**
 
 Rationale:
 
-- Current architecture/contracts and local dev workflows already assume PostgreSQL.
+- Current architecture/contracts and local dev workflows already assume SQLite.
 - JSON-heavy workload (slot payload metadata, transition evidence, gate diagnostics) is better served by JSONB + indexing and query flexibility.
 - No migration lock-in currently means this is the correct time to standardize on the stronger long-term runtime store.
 
@@ -263,7 +263,7 @@ Acceptance Criteria:
 
 ## Final Recommendation
 
-Proceed with **A) targeted core reset** and **PostgreSQL** as the Week 6-10 implementation strategy. This provides the highest confidence path to deliver methodology-first correctness, preserve existing UX value, and minimize user interruption during high-velocity execution.
+Proceed with **A) targeted core reset** and **SQLite** as the Week 6-10 implementation strategy. This provides the highest confidence path to deliver methodology-first correctness, preserve existing UX value, and minimize user interruption during high-velocity execution.
 
 ---
 

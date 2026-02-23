@@ -32,7 +32,7 @@ Mode: Incremental
 - On-demand context retrieval (no full project-state prompt injection).
 - `tooling-engine` as control plane.
 - MCP external runtimes + native Chiron runtime.
-- One backend process may expose tRPC + SSE + MCP.
+- One backend process may expose oRPC + SSE + MCP.
 - Minimal versioning scope (execution snapshot pinning + append-only evidence).
 - Git as checkpoint/portability layer; DB as live orchestration truth.
 

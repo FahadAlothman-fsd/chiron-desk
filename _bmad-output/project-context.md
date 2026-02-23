@@ -89,18 +89,13 @@ _Version note: entries here are planning-time targets and may change during rese
 - `packages/contracts/AGENTS.md`
 
 ## Command Reference
-
 - `bun dev` - Run all services for development
-- `bun dev:native` - Run Tauri desktop app flow
+- `bun build` - Build all applications
+- `bun check-types` - Workspace typecheck command
 - `bun check` - Lint/format validation with OXC
-- `bun check-types` - Workspace typecheck command (prefer `tsgo` once wired; use current fallback until then)
-- `bun test` - Run test suite
-- `bun test:db` - Run database-focused tests
-- `bun test:scripts` - Run script/seed tests
-- `bun db:local` - Start local SQLite database
+- `bun run test` - Run test suite
 - `bun db:push` - Push schema changes in development
 - `bun db:generate` - Generate database client/types
-- `bun db:migrate` - Run database migrations
 - `bun db:studio` - Open Drizzle Studio
 
 ## Implementation Note

@@ -400,7 +400,7 @@ Given Chiron is a self-funded master's thesis project with 4-month timeline, fin
 
 **Month 2-3: Core Implementation (MVP Solutioning + Development)**
 - Build workflow engine (YAML ingestion, DSPy-based execution, state management)
-- Implement database layer (PostgreSQL schema, migrations, queries)
+- Implement database layer (SQLite schema, migrations, queries)
 - Build pattern-driven UX components (Agent Dashboard, Story Kanban, Artifact Workbench)
 - Integrate OpenCode for DEV agent execution
 - **Milestone:** Single-agent workflows functional end-to-end
@@ -619,12 +619,12 @@ Chiron transforms how software is built—from isolated human developers using A
 **Development Environment:**
 - **OS:** Cross-platform (macOS, Linux, Windows) via Tauri
 - **Node.js:** v20+ (for TypeScript compilation, build tools)
-- **Database:** PostgreSQL 15+ (local instance for development)
+- **Database:** SQLite (local instance for development)
 - **Package Manager:** pnpm (monorepo management)
 
 **Runtime Requirements (User Machine):**
 - **Tauri Desktop App:** No browser required, native application
-- **PostgreSQL:** Local database instance (or remote connection)
+- **SQLite:** Local database instance
 - **AI Provider API Keys:** User-provided (Anthropic Claude, OpenAI, etc.)
 - **Git:** For repository integration and artifact generation
 - **Disk Space:** ~500MB for application + variable (project databases)
@@ -649,7 +649,7 @@ Chiron transforms how software is built—from isolated human developers using A
 - **Runtime:** Node.js with TypeScript
 - **Web Framework:** Hono (lightweight, edge-compatible)
 - **Database ORM:** Drizzle ORM (TypeScript-first, type-safe queries)
-- **Database:** PostgreSQL 15+ (robust, supports JSONB for flexible schemas)
+- **Database:** SQLite (local, supports JSON for flexible schemas)
 - **Migration Tool:** Drizzle Kit (schema migrations)
 
 **AI Integration:**
@@ -679,8 +679,8 @@ Chiron transforms how software is built—from isolated human developers using A
 
 **Key Technical Decisions:**
 - ✅ **Full TypeScript:** Consistency, type safety, single language for frontend + backend
-- ✅ **Local-first:** Tauri + local PostgreSQL (no cloud costs, user owns data)
-- ✅ **PostgreSQL over SQLite:** Better support for JSONB (flexible workflow metadata), concurrent access
+- ✅ **Local-first:** Tauri + local SQLite (no cloud costs, user owns data)
+- ✅ **SQLite:** Lightweight, local-first, supports JSON (flexible workflow metadata)
 - ✅ **Drizzle over Prisma:** TypeScript-first ORM, better Tauri compatibility
 - ✅ **Hono over Express:** Modern, lightweight, TypeScript-native
 - ✅ **DSPy/ax for structured outputs:** Guaranteed schema validation, future optimization (GEPA/ACE)
@@ -752,14 +752,14 @@ _Full architecture design deferred to PRD/Architecture phase_
 **User Assumptions:**
 - **Target users already use BMAD CLI:** Chiron is evolution, not introduction
 - **Intermediate/expert developers:** Comfortable with CLI, Node.js, git, AI coding agents
-- **Self-hosted database:** Users can run local PostgreSQL instance
+- **Self-hosted database:** Users can run local SQLite instance
 - **AI API access:** Users have their own Anthropic/OpenAI keys
 
 **Technical Assumptions:**
 - **BMAD v6 reaches stable:** Alpha → stable within 6 months (Chiron can adapt if delayed)
 - **DSPy TypeScript port (`ax`) is production-ready:** Structured outputs work reliably
 - **Tauri 2.0 stability:** Desktop framework is mature enough for complex app
-- **PostgreSQL performance:** Local database handles workflow execution without lag
+- **SQLite performance:** Local database handles workflow execution without lag
 - **LLM reliability:** Claude/GPT-4 provide consistent outputs for workflow decisions
 
 **Workflow Assumptions:**
@@ -822,10 +822,10 @@ _Full architecture design deferred to PRD/Architecture phase_
 - **Mitigation:** Dogfood Chiron for own projects, synthetic validation if needed
 - **Contingency:** Thesis demonstrates architecture + prototype, defers user validation to post-graduation
 
-- **Risk:** PostgreSQL setup barrier too high for target users
+- **Risk:** Database setup barrier too high for target users
 - **Impact:** Low adoption, users can't run Chiron easily
-- **Mitigation:** Provide Docker Compose setup, detailed installation docs
-- **Contingency:** Embed SQLite as alternative (simpler setup, reduced features)
+- **Mitigation:** Provide detailed installation docs, SQLite is zero-setup
+- **Contingency:** SQLite is the primary choice (simpler setup, sufficient features)
 
 **Research Risks (LOW):**
 - **Risk:** Productivity gains not statistically significant or measurable
@@ -905,9 +905,9 @@ _Full architecture design deferred to PRD/Architecture phase_
 - **Variable resolution:** Handle all 4 precedence levels correctly
 - **Tag interpretation:** Ensure all supported tags parse reliably
 
-**Tauri + PostgreSQL Integration (Month 1):**
+**Tauri + SQLite Integration (Month 1):**
 - **IPC performance:** How fast are Tauri commands for database queries?
-- **Database lifecycle:** How to manage PostgreSQL connection in desktop app?
+- **Database lifecycle:** How to manage SQLite connection in desktop app?
 - **Platform differences:** Any macOS/Linux/Windows gotchas?
 
 **Multi-Agent Context Isolation (Month 2-3):**

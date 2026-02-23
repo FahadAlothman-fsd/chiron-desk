@@ -54,7 +54,7 @@ NFR5: Local-first development supports reset/rebuild cycles to runnable canonica
 - Context retrieval must be on-demand only; full project-state prompt injection is disallowed.
 - `tooling-engine` must remain the single control plane for tool availability, policy checks, approvals, and execution authorization.
 - Interface split is mandatory: MCP for external runtimes, native interface for `chiron` runtime, with one canonical internal tool contract.
-- One backend process may expose tRPC control/query, SSE runtime streams, and MCP endpoint interfaces.
+- One backend process may expose oRPC control/query, SSE runtime streams, and MCP endpoint interfaces.
 - Minimal versioning strategy applies now: execution-start snapshot pinning plus append-only transition/gate evidence and step attempt/revision persistence.
 - Git is for checkpoint snapshots and portability; DB is the authoritative source for live orchestration/runtime state.
 - Invoke contracts must remain explicit: parent->child inputs (`topic`, `goals`, `constraints`, optional `scope`, `originWorkUnitRef`) and child->parent outputs (`elicitation_summary`, `technique_results`, `decision_notes`, `recommendations`, `evidenceRefs`).
@@ -66,7 +66,7 @@ NFR5: Local-first development supports reset/rebuild cycles to runnable canonica
 - Transitions from any defined state back to `__absent__` are disallowed in current scope (no delete/deactivate lifecycle flow in this horizon).
 - Activation uses the same transition semantics as progress transitions (`start_gate`/`completion_gate` plus transition-bound workflow authority); no separate gate class is introduced.
 - Workflow binding remains scoped by `methodologyVersion + workUnitType` with transition-allowed workflow authority.
-- Stack and persistence constraints for this horizon remain locked: Bun, Hono, tRPC, Effect, dual AI runtimes, Better-Auth, Drizzle, SQLite-only DB.
+- Stack and persistence constraints for this horizon remain locked: Bun, Hono, oRPC, Effect, dual AI runtimes, Better-Auth, Drizzle, SQLite-only DB.
 - Effect is not optional library usage; it is the runtime architecture posture for orchestration, service composition, and failure semantics across all implementation epics.
 - Epics 1-2 backend stories must use baseline Effect constraints in AC/DoD: Tag plus Live/Test Layer service boundaries, typed TaggedError channels, and deterministic diagnostics persistence.
 - Epic 3+ stories must additionally encode advanced Effect runtime constraints in AC/DoD: structured concurrency (`Fiber`/`Scope`), Supervisor coverage for long-running child-fiber orchestration, and deterministic testability (Layer substitution plus `TestClock` where applicable).
@@ -89,7 +89,7 @@ FR7: Epic 2 (baseline operator visibility), expanded in Epics 4-7 for end-to-end
 
 ### ADR and Governance Traceability (Epic 3+)
 
-- Locked ADR constraints preserved across Epic 3-7: minimal namespaced tools, on-demand context retrieval, tooling-engine control plane, MCP/native interface split with one canonical internal tool contract, one backend process option for tRPC + SSE + MCP, minimal versioning scope, and DB live-state authority with Git checkpoints.
+- Locked ADR constraints preserved across Epic 3-7: minimal namespaced tools, on-demand context retrieval, tooling-engine control plane, MCP/native interface split with one canonical internal tool contract, one backend process option for oRPC + SSE + MCP, minimal versioning scope, and DB live-state authority with Git checkpoints.
 - Any BMAD->Chiron mapping change in Epic 3+ requires all three updates in the same change-set: ADR delta, affected story acceptance criteria update, and planning traceability refresh.
 - Story-level traceability in Epic 3+ must include requirement IDs (FR/NFR), gate evidence refs (G3/G4/G5/G6 where applicable), and diagnostics evidence refs.
 

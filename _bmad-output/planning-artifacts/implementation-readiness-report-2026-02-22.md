@@ -109,7 +109,7 @@ Total NFRs: 5
 - Workflows are scoped to `methodologyVersion + workUnitType`.
 - Transition authority is controlled by allowed workflow bindings per transition.
 - Only six step capabilities are valid: `form`, `agent`, `action`, `invoke`, `branch`, `display`.
-- Runtime/backend stack is locked for current horizon: Bun + Turborepo, Hono, tRPC, Effect, AI SDK + OpenCode SDK, SQLite + Drizzle, Better-Auth.
+- Runtime/backend stack is locked for current horizon: Bun + Turborepo, Hono, oRPC, Effect, AI SDK + OpenCode SDK, SQLite + Drizzle, Better-Auth.
 - Frontend direction is constrained for later implementation (Commit Mono, Geist Pixel, Bloomberg-terminal influence, React Flow, TanStack Hotkeys).
 - Desktop rollout assumptions constrain platform sequence (Linux primary, macOS secondary, Windows deferred post-MVP).
 - Offline behavior requires deterministic diagnostics and no partial transition-state commit for network/provider-dependent failures.
@@ -185,7 +185,7 @@ Supporting UX references found:
    - UX docs describe rich interaction patterns and dashboards but do not provide explicit FR-tagged mapping showing where each FR is represented in screen/component behavior.
 
 3. Architecture-to-UX contract gap:
-   - Architecture defines strong runtime/service boundaries (SSE + tRPC + Effect modules) but does not define explicit frontend contracts for key UX constructs (agent radar semantics, artifact workbench interaction contracts, graph-state projection contract).
+   - Architecture defines strong runtime/service boundaries (SSE + oRPC + Effect modules) but does not define explicit frontend contracts for key UX constructs (agent radar semantics, artifact workbench interaction contracts, graph-state projection contract).
    - Result: higher risk of UI interpretation drift while backend contracts remain stable.
 
 4. Version-reference drift in UX appendix:
