@@ -27,7 +27,7 @@ _Version note: entries here are planning-time targets and may change during rese
 - Monorepo orchestrator: Turborepo (task pipeline/workspace orchestration)
 - Language: TypeScript (`^5`, strict mode)
 - Frontend: React 19 + TanStack Router/Query + Tauri v2
-- Backend: Hono + tRPC 11
+- Backend: Hono + oRPC 11
 - Orchestration core: Effect + `@effect/platform` (versions pinned during reset bootstrap)
 - Persistence: Drizzle ORM (`0.44.x`) with SQLite-only runtime baseline for current horizon
 - Auth: Better-Auth (`1.3.x`)
@@ -65,8 +65,7 @@ _Version note: entries here are planning-time targets and may change during rese
 
 ### Development Workflow Rules
 
-- Development DB flow uses schema push in local development (`bun db:push`).
-- Use PostgreSQL port `5434` in local environment.
+- Development DB flow uses schema push in local development (`bun db:push`) with SQLite via `@libsql/client`.
 - Respect module boundaries documented under `docs/architecture/modules/`.
 - Preserve contracts as the shared cross-package surface (`@chiron/contracts`).
 
@@ -98,9 +97,10 @@ _Version note: entries here are planning-time targets and may change during rese
 - `bun test` - Run test suite
 - `bun test:db` - Run database-focused tests
 - `bun test:scripts` - Run script/seed tests
-- `bun db:start` - Start local DB service when needed
+- `bun db:local` - Start local SQLite database
 - `bun db:push` - Push schema changes in development
-- `bun db:seed` - Seed baseline data
+- `bun db:generate` - Generate database client/types
+- `bun db:migrate` - Run database migrations
 - `bun db:studio` - Open Drizzle Studio
 
 ## Implementation Note

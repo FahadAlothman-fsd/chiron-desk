@@ -92,7 +92,7 @@ Each module is Effect-wrapped and owns its public contract.
 - Optimizer + examples store
 
 ### event-bus
-- Unified stream for UI + tRPC
+- Unified stream for UI + oRPC
 - Normalizes AI SDK and OpenCode events
 
 ### variable-service

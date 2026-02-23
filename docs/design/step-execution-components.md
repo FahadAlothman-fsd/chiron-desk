@@ -591,8 +591,8 @@ export function ApprovalCard({
   isRejected,
   createdAt,
 }: ApprovalCardProps) {
-  const approveMutation = trpc.agents.approveToolResult.useMutation();
-  const rejectMutation = trpc.agents.rejectToolResult.useMutation();
+  const approveMutation = orpc.agents.approveToolResult.useMutation();
+  const rejectMutation = orpc.agents.rejectToolResult.useMutation();
 
   const [showFeedback, setShowFeedback] = useState(false);
   const [feedback, setFeedback] = useState("");

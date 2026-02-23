@@ -18,7 +18,9 @@
       "better-auth": "^1.4.18",
       "@libsql/client": "0.15.15",
       "libsql": "0.5.22",
-      "@orpc/client": "^1.12.2"
+      "@orpc/client": "^1.12.2",
+      "vitest": "^3.2.4",
+      "@vitest/coverage-v8": "^3.2.4"
     }
   },
   "type": "module",
@@ -35,7 +37,8 @@
     "db:migrate": "turbo -F @chiron/db db:migrate",
     "db:local": "turbo -F @chiron/db db:local",
     "check": "oxlint && oxfmt --check",
-    "format": "oxfmt --write"
+    "format": "oxfmt --write",
+    "test": "turbo test"
   },
   "dependencies": {
     "@chiron/env": "workspace:*",

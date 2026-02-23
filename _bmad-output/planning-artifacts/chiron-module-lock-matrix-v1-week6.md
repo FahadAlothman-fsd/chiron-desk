@@ -30,7 +30,7 @@ This prevents architecture drift during high-velocity story implementation.
 
 | Module | Primary Role | Lock State | Dependency Direction (target) | What is locked now | What remains to lock | Owner | Lock By |
 |---|---|---|---|---|---|---|---|
-| `apps/server` | Hono transport + tRPC + SSE bridge | Locked | depends on `@chiron/api` only for app logic | Hono+tRPC+SSE is canonical transport | endpoint naming details | Dev Lead | Week 6 |
+| `apps/server` | Hono transport + oRPC + SSE bridge | Locked | depends on `@chiron/api` only for app logic | Hono+oRPC+SSE is canonical transport | endpoint naming details | Dev Lead | Week 6 |
 | `packages/api` | composition boundary | Near-Lock | depends on contracts/workflow-engine/auth/db; avoid deep runtime internals | API should be transport/composition, not runtime internals | remove direct `agent-runtime/*` internal coupling | Architect + Dev | Week 6 |
 | `packages/contracts` | Effect schema contracts | Near-Lock | foundational, imported by all backend modules | contract-first direction, core schemas added | tighten remaining broad JSON schemas + decoder entrypoints | Architect + Dev | Week 6 |
 | `packages/db` | SQLite persistence | Near-Lock | depends on contracts | SQLite-only decision locked | finalize methodology tables + transition binding tables + script updates | Dev | Week 6 |

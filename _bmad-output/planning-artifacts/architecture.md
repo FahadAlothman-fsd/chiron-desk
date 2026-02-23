@@ -110,7 +110,7 @@ No additional gate class is allowed in this horizon.
 
 - Hono is the streaming/transport edge for execution updates.
 - SSE/event streams deliver live agent/step/runtime signals.
-- tRPC remains the typed control/query surface.
+- oRPC remains the typed control/query surface.
 
 ## 8) Migration/Cutover Posture
 
@@ -148,7 +148,7 @@ No additional gate class is allowed in this horizon.
 ## 9.4) Runtime Transport Topology
 
 - One backend runtime process may expose multiple interfaces:
-  - tRPC control/query
+  - oRPC control/query
   - SSE runtime streams
   - MCP endpoint(s)
 - This interface split does not require separate backend products.
@@ -225,7 +225,7 @@ The following locked ADR decisions remain authoritative and are preserved throug
 - On-demand context retrieval (no full-state prompt injection).
 - `tooling-engine` as tool control plane.
 - MCP for external runtimes and native interface for `chiron` runtime.
-- One backend process may expose tRPC + SSE + MCP.
+- One backend process may expose oRPC + SSE + MCP.
 - Minimal versioning scope now; advanced versioning deferred.
 - Git checkpoints/portability with DB authoritative for live orchestration state.
 

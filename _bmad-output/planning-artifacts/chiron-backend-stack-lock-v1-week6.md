@@ -8,7 +8,7 @@ Scope: Backend only (frontend deferred until backend spine is stable)
 
 - Runtime/monorepo: Bun + Turborepo
 - Server transport: Hono (SSE/streaming endpoints are first-class)
-- Typed API: tRPC
+- Typed API: oRPC
 - Core orchestration/runtime: Effect
 - Agent runtimes: AI SDK + OpenCode SDK
 - Persistence: SQLite + Drizzle
@@ -48,8 +48,8 @@ Scope: Backend only (frontend deferred until backend spine is stable)
 
 Required:
 - `hono`
-- `@hono/trpc-server`
-- `@trpc/server`
+- `@hono/orpc-server`
+- `@orpc/server`
 - `ai`
 - `@openrouter/ai-sdk-provider`
 - `@opencode-ai/sdk`
@@ -65,7 +65,7 @@ Workspace deps:
 Required:
 - `effect`, `@effect/platform`
 - `hono`
-- `@trpc/server`, `@trpc/client`
+- `@orpc/server`, `@orpc/client`
 - `drizzle-orm`
 
 Workspace deps:
@@ -233,7 +233,7 @@ The prior draft should be interpreted with this correction:
 
 - `@chiron/api`
   - depends on: `@chiron/contracts`, `@chiron/workflow-engine`, `@chiron/auth`, `@chiron/db`
-  - owns: transport/adapters only (Hono/tRPC/SSE), not runtime internals
+  - owns: transport/adapters only (Hono/oRPC/SSE), not runtime internals
 
 ### Provider dependency ownership
 

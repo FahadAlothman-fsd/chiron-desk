@@ -11,7 +11,7 @@ This document maps each package to its current implementation state, owned respo
 | --- | --- | --- | --- |
 | `@chiron/workflow-engine` | Implemented (core) | 6 step handlers, schemas, execution loop, event bus, variable service, approval gateway | `packages/workflow-engine/AGENTS.md` |
 | `@chiron/agent-runtime` | Implemented (core) | Chiron + OpenCode adapters, streaming bridge, session relay, tooling bridge placeholder | `packages/agent-runtime/AGENTS.md` |
-| `@chiron/api` | Implemented + migration bridge | tRPC routers, service composition, legacy workflow-engine integration paths | `packages/api/AGENTS.md` |
+| `@chiron/api` | Implemented + migration bridge | oRPC routers, service composition, legacy workflow-engine integration paths | `packages/api/AGENTS.md` |
 | `@chiron/db` | Implemented | Drizzle schema, auth/workflow/project/chat/approval/optimization tables | `packages/db/AGENTS.md` + `packages/db/src/schema/AGENTS.md` |
 | `@chiron/auth` | Implemented (thin) | Better-Auth wiring + Drizzle adapter | `packages/auth/AGENTS.md` |
 | `@chiron/scripts` | Implemented | Seed pipelines, verification scripts, migration helpers | `packages/scripts/AGENTS.md` |
