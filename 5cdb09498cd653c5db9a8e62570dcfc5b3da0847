@@ -1,0 +1,23 @@
+_bmad-output/project-context.md
+  8225ad2da5158c29 1,5,16-19,21-23,35-37,39,44,46,51,53,58,60,65,67,72,74,79,81,90,92,104,106,108,110,114-116,118,120,125,127,131,133,135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "5cdb09498cd653c5db9a8e62570dcfc5b3da0847",
+  "prompts": {
+    "8225ad2da5158c29": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_375b04350ffeP65sNUDnMZY1Wf-40476904-f8a0-4609-937f-c12676ff3fb9",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 242,
+      "total_deletions": 0,
+      "accepted_lines": 41,
+      "overriden_lines": 21
+    }
+  }
+}
