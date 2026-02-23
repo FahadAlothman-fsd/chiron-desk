@@ -5,6 +5,7 @@
     "_bmad/**",
     "_bmad-output/**",
     "docs/**",
-    "academic_reports/**"
+    "academic_reports/**",
+    "apps/web/src/routeTree.gen.ts"
   ]
 }
