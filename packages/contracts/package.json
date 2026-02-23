@@ -1,0 +1,20 @@
+{
+  "name": "@chiron/contracts",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "default": "./src/*.ts"
+    }
+  },
+  "dependencies": {
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@chiron/config": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

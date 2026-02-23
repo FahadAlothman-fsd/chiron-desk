@@ -1,0 +1,33 @@
+{
+  "name": "@chiron/scripts",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "default": "./src/*.ts"
+    }
+  },
+  "scripts": {
+    "module:wiring-smoke": "bun run src/module-wiring-smoke.ts"
+  },
+  "dependencies": {
+    "@chiron/agent-runtime": "workspace:*",
+    "@chiron/ax-engine": "workspace:*",
+    "@chiron/contracts": "workspace:*",
+    "@chiron/event-bus": "workspace:*",
+    "@chiron/methodology-engine": "workspace:*",
+    "@chiron/provider-registry": "workspace:*",
+    "@chiron/sandbox-engine": "workspace:*",
+    "@chiron/template-engine": "workspace:*",
+    "@chiron/tooling-engine": "workspace:*",
+    "@chiron/variable-service": "workspace:*",
+    "@chiron/workflow-engine": "workspace:*"
+  },
+  "devDependencies": {
+    "@chiron/config": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

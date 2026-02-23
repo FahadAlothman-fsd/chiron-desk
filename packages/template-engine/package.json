@@ -1,0 +1,20 @@
+{
+  "name": "@chiron/template-engine",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "default": "./src/*.ts"
+    }
+  },
+  "dependencies": {
+    "@chiron/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@chiron/config": "workspace:*",
+    "typescript": "catalog:"
+  }
+}
