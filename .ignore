@@ -1,5 +1,0 @@
-# OpenCode ignore patterns
-# Use ! prefix to include files that are normally ignored
-
-# Include symlinked components.json at root
-!components.json
