@@ -1,0 +1,336 @@
+{
+  "version": "v1",
+  "methodologyVersionKey": "bmad.v1",
+  "source": "_bmad-output/planning-artifacts/chiron-seed-workflow-definitions-v1.json",
+  "bindings": [
+    {
+      "workUnitRef": "WU.SETUP",
+      "workUnitType": "setup",
+      "fromState": "__absent__",
+      "toState": "done",
+      "allowed": [
+        { "workflowKey": "setup-project", "priority": 10, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.BRAINSTORMING",
+      "workUnitType": "brainstorming",
+      "fromState": "draft",
+      "toState": "done",
+      "allowed": [
+        {
+          "workflowKey": "brainstorming",
+          "priority": 10,
+          "enabled": true,
+          "bindingDefaultsJson": {
+            "bindingMode": "same_work_unit",
+            "minSelections": 1,
+            "maxSelections": 3,
+            "onChildError": "continue",
+            "outputNamespace": "fanout.outputs"
+          }
+        },
+        { "workflowKey": "five-whys", "priority": 20, "enabled": true },
+        { "workflowKey": "mind-mapping", "priority": 30, "enabled": true },
+        { "workflowKey": "scamper", "priority": 40, "enabled": true },
+        { "workflowKey": "six-thinking-hats", "priority": 50, "enabled": true },
+        { "workflowKey": "what-if-scenarios", "priority": 60, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.FACILITATION_SESSION",
+      "workUnitType": "facilitation-session",
+      "fromState": "draft",
+      "toState": "done",
+      "allowed": [
+        { "workflowKey": "party-mode", "priority": 10, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.PRODUCT_BRIEF",
+      "workUnitType": "product-brief",
+      "fromState": "draft",
+      "toState": "done",
+      "allowed": [
+        { "workflowKey": "create-product-brief", "priority": 10, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.RESEARCH",
+      "workUnitType": "research",
+      "fromState": "draft",
+      "toState": "done",
+      "allowed": [
+        { "workflowKey": "domain-research", "priority": 10, "enabled": true },
+        { "workflowKey": "market-research", "priority": 20, "enabled": true },
+        { "workflowKey": "technical-research", "priority": 30, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.PRD",
+      "workUnitType": "prd",
+      "fromState": "draft",
+      "toState": "done",
+      "allowed": [
+        { "workflowKey": "create-prd", "priority": 10, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.PRD",
+      "workUnitType": "prd",
+      "fromState": "done",
+      "toState": "review",
+      "allowed": [
+        { "workflowKey": "edit-prd", "priority": 10, "enabled": true },
+        { "workflowKey": "validate-prd", "priority": 20, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.UX_DESIGN",
+      "workUnitType": "ux-design",
+      "fromState": "draft",
+      "toState": "done",
+      "allowed": [
+        { "workflowKey": "create-ux-design", "priority": 10, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.IMPLEMENTATION_READINESS",
+      "workUnitType": "implementation-readiness",
+      "fromState": "draft",
+      "toState": "done",
+      "allowed": [
+        { "workflowKey": "check-implementation-readiness", "priority": 10, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.ARCHITECTURE",
+      "workUnitType": "architecture",
+      "fromState": "draft",
+      "toState": "done",
+      "allowed": [
+        { "workflowKey": "create-architecture", "priority": 10, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.BACKLOG",
+      "workUnitType": "backlog",
+      "fromState": "draft",
+      "toState": "done",
+      "allowed": [
+        {
+          "workflowKey": "create-epics-and-stories",
+          "priority": 10,
+          "enabled": true,
+          "bindingDefaultsJson": {
+            "bindingMode": "child_work_units",
+            "childWorkUnitTypeKey": "story",
+            "activationTransitionKey": "activate",
+            "onChildError": "continue"
+          }
+        }
+      ]
+    },
+    {
+      "workUnitRef": "WU.STORY",
+      "workUnitType": "story",
+      "fromState": "__absent__",
+      "toState": "draft",
+      "allowed": [
+        { "workflowKey": "create-story", "priority": 10, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.STORY",
+      "workUnitType": "story",
+      "fromState": "ready",
+      "toState": "review",
+      "allowed": [
+        { "workflowKey": "dev-story", "priority": 10, "enabled": true },
+        { "workflowKey": "quick-dev", "priority": 20, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.STORY",
+      "workUnitType": "story",
+      "fromState": "review",
+      "toState": "review",
+      "allowed": [
+        { "workflowKey": "code-review", "priority": 10, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.CHANGE_PROPOSAL",
+      "workUnitType": "change-proposal",
+      "fromState": "draft",
+      "toState": "done",
+      "allowed": [
+        { "workflowKey": "correct-course", "priority": 10, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.RETROSPECTIVE",
+      "workUnitType": "retrospective",
+      "fromState": "draft",
+      "toState": "done",
+      "allowed": [
+        { "workflowKey": "retrospective", "priority": 10, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.SPRINT_PLAN",
+      "workUnitType": "sprint-plan",
+      "fromState": "draft",
+      "toState": "done",
+      "allowed": [
+        { "workflowKey": "sprint-planning", "priority": 10, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.SPRINT_PLAN",
+      "workUnitType": "sprint-plan",
+      "fromState": "done",
+      "toState": "done",
+      "allowed": [
+        { "workflowKey": "sprint-status", "priority": 10, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.TECH_SPEC",
+      "workUnitType": "tech-spec",
+      "fromState": "draft",
+      "toState": "done",
+      "allowed": [
+        { "workflowKey": "quick-spec", "priority": 10, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.PROJECT_CONTEXT",
+      "workUnitType": "project-context",
+      "fromState": "draft",
+      "toState": "done",
+      "allowed": [
+        { "workflowKey": "document-project", "priority": 10, "enabled": true },
+        { "workflowKey": "generate-project-context", "priority": 20, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.TEST_AUTOMATION",
+      "workUnitType": "test-automation",
+      "fromState": "draft",
+      "toState": "done",
+      "allowed": [
+        { "workflowKey": "qa-automate", "priority": 10, "enabled": true },
+        { "workflowKey": "testarch-automate", "priority": 20, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.TEST_ARCHITECTURE",
+      "workUnitType": "test-architecture",
+      "fromState": "draft",
+      "toState": "done",
+      "allowed": [
+        { "workflowKey": "testarch-atdd", "priority": 10, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.CI_QUALITY",
+      "workUnitType": "ci-quality",
+      "fromState": "draft",
+      "toState": "done",
+      "allowed": [
+        { "workflowKey": "testarch-ci", "priority": 10, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.TEST_FRAMEWORK",
+      "workUnitType": "test-framework",
+      "fromState": "draft",
+      "toState": "done",
+      "allowed": [
+        { "workflowKey": "testarch-framework", "priority": 10, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.NFR_ASSESSMENT",
+      "workUnitType": "nfr-assessment",
+      "fromState": "draft",
+      "toState": "done",
+      "allowed": [
+        { "workflowKey": "testarch-nfr", "priority": 10, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.LEARNING_TRACK",
+      "workUnitType": "learning-track",
+      "fromState": "draft",
+      "toState": "done",
+      "allowed": [
+        { "workflowKey": "teach-me-testing", "priority": 10, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.TEST_DESIGN",
+      "workUnitType": "test-design",
+      "fromState": "draft",
+      "toState": "done",
+      "allowed": [
+        { "workflowKey": "testarch-test-design", "priority": 10, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.TEST_REVIEW",
+      "workUnitType": "test-review",
+      "fromState": "draft",
+      "toState": "done",
+      "allowed": [
+        { "workflowKey": "testarch-test-review", "priority": 10, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.TEST_TRACEABILITY",
+      "workUnitType": "test-traceability",
+      "fromState": "draft",
+      "toState": "done",
+      "allowed": [
+        { "workflowKey": "testarch-trace", "priority": 10, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.DESIGN_FACILITATION",
+      "workUnitType": "design-facilitation",
+      "fromState": "draft",
+      "toState": "done",
+      "allowed": [
+        { "workflowKey": "design-thinking", "priority": 10, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.STRATEGY_FACILITATION",
+      "workUnitType": "strategy-facilitation",
+      "fromState": "draft",
+      "toState": "done",
+      "allowed": [
+        { "workflowKey": "innovation-strategy", "priority": 10, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.PROBLEM_SOLVING",
+      "workUnitType": "problem-solving",
+      "fromState": "draft",
+      "toState": "done",
+      "allowed": [
+        { "workflowKey": "problem-solving", "priority": 10, "enabled": true }
+      ]
+    },
+    {
+      "workUnitRef": "WU.STORYTELLING",
+      "workUnitType": "storytelling",
+      "fromState": "draft",
+      "toState": "done",
+      "allowed": [
+        { "workflowKey": "storytelling", "priority": 10, "enabled": true }
+      ]
+    }
+  ]
+}

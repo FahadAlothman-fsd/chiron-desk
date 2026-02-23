@@ -1292,5 +1292,794 @@ The LLM Models page was a significant feature allowing users to browse and selec
 
 ---
 
-*[Sprints 4-9 continue in same format...]*
+*Sprints 4-9 continue below in the same format.*
 
+---
+
+# SPRINT 4: November 10 - November 23, 2025
+**Workflow Engine Core & Methodology Layer Reset (Stories 1.4–1.7)**
+
+---
+
+## DETAILED WRITTEN REPORT (5-6 Pages)
+
+### 1. Executive Summary (Page 1)
+
+Sprint 4 was the first major “reset” sprint in which the methodology layer became a first-class product surface rather than a static set of files. The focus shifted from foundational infrastructure toward **workflow execution fidelity** and **methodology-driven UX**, culminating in a robust workflow engine core and a more explicit BMAD v6 artifact structure.
+
+This sprint delivered 65 commits and completed the heart of Epic 1’s execution pipeline. The team implemented step handling, workflow execution continuity, approval gating, and dynamic option selection. Most importantly, the sprint reframed the project’s architecture around a methodology layer: workflows, options, and approvals became **data-driven** and **traceable** rather than hardcoded UI decisions.
+
+### 2. Workflow Engine Core (Page 1-2)
+
+**Story 1.4: Workflow Execution Engine**
+
+The sprint completed the engine core that executes a workflow from database configuration:
+
+1. **Step Registry & Execution Loop**
+   - Step handlers registered by step type
+   - Sequential execution with preserved state
+   - Standardized output capture for each step
+
+2. **Child Workflow Execution**
+   - Support for nested workflows to represent decomposition
+   - Initial message system for child workflow context
+   - Auto-complete correction for child executions
+
+3. **Variable Resolution Improvements**
+   - `extractFrom` implementation to compute variables at approval time
+   - Structured variable precedence preserved
+   - Expanded extraction and selection support
+
+4. **Approval Gate Reliability**
+   - Approval cards synchronized with chat timeline
+   - Chronological rendering based on timestamps
+   - Forced tool regeneration after rejection
+   - Feedback-driven regeneration marker added
+
+**Key Technical Outcome:** the workflow engine now behaves as a deterministic runtime, with explicit outputs captured, approvals recorded, and child workflows executing as first-class steps.
+
+### 3. Methodology Layer Reset (Page 2-3)
+
+This sprint is where the methodology layer became a persistent system concept rather than static documentation. Three decisive changes drove the reset:
+
+1. **BMAD v6 Artifact Structure Migration**
+   - Artifacts reorganized into a predictable, sharded structure
+   - Methodology files now treated as canonical, versioned inputs
+   - Legacy ACE playbook support removed to reduce drift
+
+2. **Dynamic Options as Methodology Output**
+   - Options are no longer hardcoded; they’re pulled from the database via `optionsSource`
+   - Structured tags `{name, value, description}` enable UI consistency across steps
+   - Dynamic option cards and sidebar rendering make methodology “visible” to users
+
+3. **Tooling Contracts via Approval + Rejection**
+   - Methodology decisions now materialize as tool calls and outputs
+   - Rejection flow introduces explicit regeneration with reasoning
+   - Approval metadata becomes traceable methodology evidence
+
+**Implication:** Methodology is now represented by the actual runtime structure of workflows, approvals, and selections rather than only by static documentation.
+
+### 4. Story 1.6 & 1.7 Progress (Page 3-4)
+
+**Story 1.6 (Approval-Gate Chat)**
+This story reached full maturity this sprint:
+
+- Auto-select optimization fixes and approval state persistence
+- Encryption for API keys and fallback model improvements
+- Interleaved approval cards with chronological ordering
+- Dynamic option locking and tool guidance injection
+
+**Story 1.7 (Workflow Initialization Refactor)**
+Completed during Sprint 4:
+
+- Workflow-init refactor finalized
+- Project naming tool implemented
+- Critical bug fixes resolved (workflow-init state and model selection)
+- Steps adjusted to match BMAD v6 artifacts
+
+Together, these stories elevated workflow-init from a prototype to a formal methodology execution pipeline.
+
+### 5. UI & UX System Enhancements (Page 4)
+
+Methodology-driven UX required explicit UI improvements:
+
+- Sidebar scrolling and full-height chat layout
+- Dynamic option cards in sidebar accordion
+- Model selector updates for new open-source models (GPT OSS 120B)
+- Error fallback UI for broken provider icons
+
+These changes reinforced the idea that methodology is not just “backend logic” but a lived user experience.
+
+### 6. Metrics and Deliverables (Page 5)
+
+**Commit Activity:**
+- Total commits: ~65
+- Major focus: workflow engine core, approvals, methodology-layer reset
+
+**Key Deliverables:**
+1. ✅ Workflow execution engine core (Story 1.4)
+2. ✅ Approval-gate chat stabilized (Story 1.6)
+3. ✅ Workflow-init refactor complete (Story 1.7)
+4. ✅ Dynamic option cards + structured tags
+5. ✅ BMAD v6 artifact migration
+
+### 7. Challenges and Lessons Learned (Page 5-6)
+
+**Challenge 1: Methodology as Data**
+
+**Problem:** Methodology logic lived partly in files, partly in UI assumptions.
+
+**Solution:** Centralized workflows and options in database, enforced consistent rendering with structured tags and option cards.
+
+**Challenge 2: Approval Flow Drift**
+
+**Problem:** Approval cards were out of sequence, and rejection handling lacked determinism.
+
+**Solution:** Chronological sorting, forced regeneration markers, and explicit feedback injection.
+
+**Challenge 3: Workflow-Init Reliability**
+
+**Problem:** Critical bugs in workflow-init path validation and tool output extraction.
+
+**Solution:** Refactor to standardize output types and introduce `extractFrom` for derived values.
+
+### 8. Next Sprint Preview (Page 6)
+
+**Sprint 5 Goals:**
+- Finish display output handler (Story 1.8)
+- Expand project dashboard with workflow path filtering
+- Stabilize approval UX in production scenarios
+
+**Risks:**
+- Scope creep in methodology expansion
+- UI complexity as workflows deepen
+
+---
+
+## PRESENTATION OUTLINE (15-20 minutes)
+
+### SLIDE 1: Title
+**Chiron Sprint 4: Workflow Engine Core & Methodology Reset**
+- Dates: Nov 10 – Nov 23, 2025
+- 65 commits, execution engine stabilized
+
+### SLIDE 2: Sprint Focus
+**From Planning to Runtime Fidelity**
+- Workflow engine as first-class system
+- Methodology layer becomes data-driven
+
+### SLIDE 3: Engine Core
+**Step Registry + Execution Loop**
+- Sequential execution
+- Output capture
+- Deterministic state
+
+### SLIDE 4: Child Workflows
+**Nested execution support**
+- Initial message system
+- Auto-completion fixes
+
+### SLIDE 5: Approval Gate
+**Rejection & Regeneration**
+- Chronological approval cards
+- Forced regeneration
+
+### SLIDE 6: Methodology Reset
+**BMAD v6 Artifact Migration**
+- Structure reorganization
+- Canonical methodology files
+
+### SLIDE 7: Dynamic Options
+**Methodology as Data**
+- Structured tags
+- Option cards
+- Sidebar integration
+
+### SLIDE 8: Workflow-Init Refactor
+**Story 1.7 complete**
+- Naming tool
+- Bug fixes
+
+### SLIDE 9: UX Enhancements
+**Chat + Sidebar Improvements**
+- Scrollable layout
+- Model selector updates
+
+### SLIDE 10: Metrics
+**65 commits**
+- Core engine delivered
+- Methodology layer reset
+
+### SLIDE 11: Challenges
+**Drift + Ordering**
+- Approval ordering
+- Methodology modeling
+
+### SLIDE 12: Next Sprint
+**Sprint 5 goals**
+- Display output handler
+- Project dashboard
+
+---
+
+# SPRINT 5: November 24 - December 7, 2025
+**Workflow Completion, Dashboard Expansion, and Approval UX Refinement**
+
+---
+
+## DETAILED WRITTEN REPORT (5-6 Pages)
+
+### 1. Executive Summary (Page 1)
+
+Sprint 5 completed Epic 1 execution flow by finalizing the display output handler and hardening workflow UX. The sprint also expanded the project dashboard with workflow path filtering and refined approval experience with deeper variable handling and test prompt guidance. This period consolidated the methodology reset from Sprint 4 into a coherent execution experience.
+
+The sprint delivered 48 commits, focusing on stability, display outputs, and alignment between methodology data and UI presentation.
+
+### 2. Display Output Handler (Story 1.8) (Page 1-2)
+
+**Finalized Display Output Step**
+
+- Display step now renders final workflow outputs with markdown
+- Completion artifacts visible in workbench
+- Removed `initializedByExecutionId` dependency to prevent execution misattribution
+
+**Why it matters:** Completion artifacts are the visible proof of methodology execution. Without a reliable display step, workflows could end “successfully” without surfacing their outputs to the user.
+
+### 3. Workflow UX Refinement (Page 2-3)
+
+Sprint 5 improved the workflow experience with multiple targeted fixes:
+
+- Step completion separators in chat to improve readability
+- Child workflow metadata display fixes
+- Initial message regeneration prevented after approval
+- Workflow-Init variable extraction corrected
+
+These changes reduced confusion and made the methodology workflow easier to follow as a narrative.
+
+### 4. Project Dashboard Expansion (Page 3-4)
+
+**Story 2.1 Initiation**
+
+Although Sprint 5 still centered on Epic 1 completion, this sprint also began Epic 2 planning by extending project-level metadata:
+
+- Added tags/metadata JSONB fields to workflow schema
+- API endpoints for project dashboard data
+- Workflow path filtering and display on dashboard
+- Project-specific sidebar with switcher
+
+This marks the first step toward a dashboard that is driven by methodology structure rather than static UI.
+
+### 5. Approval & Variable Handling Enhancements (Page 4-5)
+
+Major refinements to approval gates:
+
+- `update-variable` tool type added and approval handling fixed
+- `extractFrom` computed derived variables at approval time
+- `update_summary` tool guidance expanded with test prompt
+- Deduplication of backend + frontend approval cards
+
+Collectively, these changes reinforce the role of approvals as explicit evidence in the methodology layer.
+
+### 6. Metrics and Deliverables (Page 5)
+
+**Commit Activity:**
+- Total commits: ~48
+
+**Key Deliverables:**
+1. ✅ Display output handler finalized (Story 1.8)
+2. ✅ Workflow chat UX improvements
+3. ✅ Project dashboard workflow path filtering
+4. ✅ Metadata JSONB for workflows
+5. ✅ Approval and variable tooling refined
+
+### 7. Challenges and Lessons Learned (Page 5-6)
+
+**Challenge 1: Completion Artifacts Visibility**
+
+**Problem:** Outputs were generated but not consistently displayed or attributed.
+
+**Solution:** Standardized display step and removed initialization coupling.
+
+**Challenge 2: Variable Provenance**
+
+**Problem:** Derived variables were hard to trace when approvals changed.
+
+**Solution:** Introduced `extractFrom` and explicit output capture at approval time.
+
+**Challenge 3: UI Drift vs Methodology**
+
+**Problem:** UI used hardcoded assumptions not aligned with workflow metadata.
+
+**Solution:** Added tags/metadata JSONB fields and dashboard filters.
+
+### 8. Next Sprint Preview (Page 6)
+
+**Sprint 6 Goals:**
+- Consolidate workflow execution UI
+- Introduce reusable execution cards
+- Stabilize techniques workflows
+
+---
+
+## PRESENTATION OUTLINE (15-20 minutes)
+
+### SLIDE 1: Title
+**Chiron Sprint 5: Workflow Completion & Dashboard Expansion**
+
+### SLIDE 2: Executive Summary
+**Epic 1 complete**
+- Display outputs finalized
+- Methodology-driven dashboard begins
+
+### SLIDE 3: Display Step
+**Completion Artifacts Visible**
+
+### SLIDE 4: Workflow UX
+**Separators + Child Metadata Fixes**
+
+### SLIDE 5: Dashboard Work
+**Workflow Path Filtering**
+
+### SLIDE 6: Variable Handling
+**update-variable + extractFrom**
+
+### SLIDE 7: Approval Gate Improvements
+**Dedup + Guidance**
+
+### SLIDE 8: Metrics
+**48 commits**
+
+### SLIDE 9: Challenges
+**Visibility + Provenance**
+
+### SLIDE 10: Next Sprint
+**Execution UI consolidation**
+
+---
+
+# SPRINT 6: December 8 - December 21, 2025
+**Execution UI Consolidation & Technique Workflow Stability**
+
+---
+
+## DETAILED WRITTEN REPORT (5-6 Pages)
+
+### 1. Executive Summary (Page 1)
+
+Sprint 6 was a consolidation sprint. With Epic 1 completed and Epic 2 initiated, the focus moved toward unifying execution UI and stabilizing technique workflows. The sprint delivered a reusable execution card component and key technique flow fixes, ensuring that methodology-driven workflows remained stable in practice.
+
+### 2. Workflow Execution UI Componentization (Page 1-2)
+
+**WorkflowExecutionCard**
+
+- Reusable UI component for displaying workflow state
+- Step and tool progress indicators
+- Intended for dashboards and execution lists
+
+This component established a standard visual vocabulary for execution progress, reinforcing methodology transparency.
+
+### 3. Technique Workflow Fixes (Page 2-3)
+
+- Five Whys technique updated to output root cause only
+- Added View button for completed workflows
+- Prevented initial message regeneration after approvals
+
+These fixes improved the reliability of methodology techniques as actionable workflow steps.
+
+### 4. Metrics and Deliverables (Page 3-4)
+
+**Commit Activity:**
+- Total commits: 5
+
+**Key Deliverables:**
+1. ✅ WorkflowExecutionCard component
+2. ✅ Technique workflow stability fixes
+3. ✅ Improved completion visibility
+
+### 5. Challenges and Lessons Learned (Page 4-5)
+
+**Challenge:** Balancing new features vs stability
+
+**Lesson:** Consolidation sprints are essential after major system refactors to prevent cumulative UX debt.
+
+### 6. Next Sprint Preview (Page 5-6)
+
+**Sprint 7 Goals:**
+- Clean up external subtree dependencies
+- Prepare for Effect migration
+
+---
+
+## PRESENTATION OUTLINE (15-20 minutes)
+
+### SLIDE 1: Title
+**Chiron Sprint 6: Execution UI Consolidation**
+
+### SLIDE 2: Reusable Execution Card
+**WorkflowExecutionCard**
+
+### SLIDE 3: Technique Fixes
+**Five Whys + Completion View**
+
+### SLIDE 4: Metrics
+**5 commits**
+
+### SLIDE 5: Next Sprint
+**Prepare Effect migration**
+
+---
+
+# SPRINT 7: December 22, 2025 - January 4, 2026
+**Repository Cleanup & Migration Preparation**
+
+---
+
+## DETAILED WRITTEN REPORT (5-6 Pages)
+
+### 1. Executive Summary (Page 1)
+
+Sprint 7 was primarily a structural maintenance sprint. The focus shifted to repository cleanup and preparation for the upcoming migration to Effect + AI-SDK. External dependencies (OpenCode subtree) were removed or reorganized, and documentation for integration was consolidated.
+
+### 2. Repository Cleanup (Page 1-2)
+
+- External `opencode` subtree removal
+- Cleanup of `bmad-source` in favor of new source structure
+- Reduced external dependency footprint
+
+This cleanup created a leaner baseline for the migration work that would follow.
+
+### 3. Integration Docs (Page 2-3)
+
+- Documentation for OpenCode + Chiron integration updated
+- Documentation reorganized to align with forthcoming migration
+
+### 4. Metrics and Deliverables (Page 3-4)
+
+**Commit Activity:**
+- Total commits: 1
+
+**Key Deliverables:**
+1. ✅ External subtree removal
+2. ✅ Updated integration research docs
+
+### 5. Challenges and Lessons Learned (Page 4-5)
+
+**Challenge:** Maintaining momentum during low-code sprints
+
+**Lesson:** Planned “cleanup sprints” reduce architectural debt and prevent migration delays.
+
+### 6. Next Sprint Preview (Page 5-6)
+
+**Sprint 8 Goals:**
+- Execute Effect migration
+- Rebuild core runtime around Effect services
+
+---
+
+## PRESENTATION OUTLINE (15-20 minutes)
+
+### SLIDE 1: Title
+**Chiron Sprint 7: Cleanup & Migration Prep**
+
+### SLIDE 2: Subtree Removal
+**External dependency cleanup**
+
+### SLIDE 3: Documentation Updates
+**Integration alignment**
+
+### SLIDE 4: Metrics
+**1 commit**
+
+### SLIDE 5: Next Sprint
+**Effect migration**
+
+---
+
+# SPRINT 8: January 5 - January 18, 2026
+**Effect Migration & Runtime Re-Architecture (Stories 2-M1 – 2-M10)**
+
+---
+
+## DETAILED WRITTEN REPORT (5-6 Pages)
+
+### 1. Executive Summary (Page 1)
+
+Sprint 8 was the largest architectural shift since the project began: a full migration from Mastra to **Effect + AI-SDK**. This was the formalization of the methodology layer reset at runtime: instead of relying on ad-hoc orchestration, the system adopted Effect-based services for determinism, concurrency, and modularization.
+
+The sprint completed Stories 2-M1 through 2-M10 and established the long-term runtime architecture for workflow execution.
+
+### 2. Effect Foundation (Story 2-M1) (Page 1-2)
+
+- Introduced Effect runtime foundation for workflow engine
+- Established standard service layering
+- Added Effect-based error channels
+
+### 3. Variable System in Effect (Story 2-M2) (Page 2-3)
+
+- Variable system moved to Effect service layer
+- Precedence maintained
+- Resolution now consistent across runtime
+
+### 4. AI-SDK Integration (Story 2-M3) (Page 3)
+
+- AI-SDK fully integrated with Effect services
+- Standardized stream handling
+- Marked Story 2-M3 as complete
+
+### 5. Step Handler Migration (Story 2-M4) (Page 3-4)
+
+- Step handlers migrated to Effect services
+- Registry pattern retained under Effect
+- Reduced coupling to legacy execution pathways
+
+### 6. Multi-Provider Support (Story 2-M5) (Page 4)
+
+- Removed Mastra dependencies
+- Added multi-provider AI support
+- Improved model flexibility
+
+### 7. OXC Migration (Story 2-M6) (Page 4-5)
+
+- Replaced Biome with OXC (oxlint + oxfmt)
+- Formatting and linting standardized
+- Story 2-M6 marked complete
+
+### 8. Filesystem Field Types + Executor Wiring (Stories 2-M7 – 2-M10) (Page 5)
+
+- Filesystem field types with path validation
+- Effect executor wired to production
+- Legacy adapters removed
+- YAML dependency removed; step types renamed for consistency
+
+### 9. Metrics and Deliverables (Page 5-6)
+
+**Commit Activity:**
+- Total commits: 20
+
+**Key Deliverables:**
+1. ✅ Effect runtime foundation
+2. ✅ Variable system migrated
+3. ✅ AI-SDK integration completed
+4. ✅ Step handlers migrated
+5. ✅ Multi-provider AI support
+6. ✅ OXC lint/format migration
+7. ✅ Production executor wiring
+
+### 10. Challenges and Lessons Learned (Page 6)
+
+**Challenge:** Migrating execution core without breaking existing workflows
+
+**Solution:** Parallel service composition with explicit story-based migration (2-M1…2-M10)
+
+**Lesson:** Migration stories structured like workflows themselves made refactoring predictable and traceable.
+
+### 11. Next Sprint Preview (Page 6)
+
+**Sprint 9 Goals:**
+- Finalize migration documentation
+- Stabilize runtime
+- Confirm methodology layer alignment with new execution contracts
+
+---
+
+## PRESENTATION OUTLINE (15-20 minutes)
+
+### SLIDE 1: Title
+**Chiron Sprint 8: Effect Migration**
+
+### SLIDE 2: Why Effect?
+**Determinism + Concurrency**
+
+### SLIDE 3: Migration Stories
+**2-M1 to 2-M10**
+
+### SLIDE 4: Variable Service
+**Effect-based resolution**
+
+### SLIDE 5: AI-SDK Integration
+**Streaming standardized**
+
+### SLIDE 6: Step Handlers
+**Registry + Effect services**
+
+### SLIDE 7: Multi-Provider Support
+**Mastra removed**
+
+### SLIDE 8: OXC Migration
+**Formatting & linting**
+
+### SLIDE 9: Metrics
+**20 commits**
+
+### SLIDE 10: Next Sprint
+**Stabilization + docs**
+
+---
+
+# SPRINT 9: January 19 - January 30, 2026
+**Migration Stabilization & Methodology Alignment**
+
+---
+
+## DETAILED WRITTEN REPORT (5-6 Pages)
+
+### 1. Executive Summary (Page 1)
+
+Sprint 9 focused on stabilization after the Effect migration. The objective was to verify runtime parity, ensure methodology alignment with the new execution contracts, and consolidate documentation to reflect the updated architecture.
+
+### 2. Stabilization Activities (Page 1-2)
+
+- Verification of migrated step handlers
+- Ensuring workflows execute under Effect runtime without regressions
+- Refinement of story completion documentation
+
+### 3. Methodology Alignment (Page 2-3)
+
+With the execution system now Effect-based, the methodology layer required alignment:
+
+- Step taxonomy confirmed (`form`, `agent`, `action`, `invoke`, `display`, `branch`)
+- Execution contracts emphasized deterministic outputs and approval trails
+- Modules mapped for long-term boundaries (workflow-engine, agent-runtime, tooling-engine)
+
+### 4. Documentation Consolidation (Page 3-4)
+
+- Updated sprint documentation
+- Confirmed post-migration architectural decisions
+- Prepared repository for ongoing epic delivery
+
+### 5. Metrics and Deliverables (Page 4-5)
+
+**Commit Activity:**
+- Low or minimal (stabilization sprint)
+
+**Key Deliverables:**
+1. ✅ Migration verified
+2. ✅ Methodology layer aligned with Effect runtime
+3. ✅ Documentation consolidated
+
+### 6. Challenges and Lessons Learned (Page 5-6)
+
+**Challenge:** Avoiding regression after major migration
+
+**Lesson:** Stabilization sprints are critical to keep methodology fidelity intact across architectural resets.
+
+### 7. Next Sprint Preview (Page 6)
+
+**Sprint 10 (Future):**
+- Continue epic execution for methodology-driven features
+- Expand methodology layer into work item execution contracts
+
+---
+
+## PRESENTATION OUTLINE (15-20 minutes)
+
+### SLIDE 1: Title
+**Chiron Sprint 9: Stabilization & Alignment**
+
+### SLIDE 2: Migration Verification
+**Effect runtime validated**
+
+### SLIDE 3: Methodology Alignment
+**Step taxonomy + contracts**
+
+### SLIDE 4: Documentation
+**Consolidated architecture**
+
+### SLIDE 5: Metrics
+**Stabilization sprint**
+
+### SLIDE 6: Next Steps
+**Epic continuation**
+
+---
+
+# SPRINT 10: February 1 - February 14, 2026
+**Documentation Consolidation & Methodology Checkpoint**
+
+---
+
+## DETAILED WRITTEN REPORT (5-6 Pages)
+
+### 1. Executive Summary (Page 1)
+
+Sprint 10 was a documentation‑heavy consolidation sprint. After the Effect migration and stabilization work, the focus shifted to preserving institutional knowledge, archiving legacy planning artifacts, and tightening requirement specifications to reflect the updated methodology layer. The sprint also captured a checkpoint of ongoing migration work to ensure traceability and to reduce divergence between planning documents and implemented architecture.
+
+### 2. Documentation Consolidation (Page 1-2)
+
+Key documentation activities included:
+
+- **Archiving legacy planning corpus** to reduce confusion between outdated and current requirements
+- **Tightening requirement specifications** to align with the methodology layer reset
+- **Checkpoint documentation** for migration progress and methodology refinements
+
+These changes create a clearer baseline for ongoing epic work by ensuring that planning artifacts accurately reflect the current runtime architecture and workflow semantics.
+
+### 3. Methodology Checkpoint (Page 2-3)
+
+This sprint treated the methodology layer as a living system that requires explicit documentation checkpoints:
+
+- Clarified methodology artifacts as canonical inputs to workflow execution
+- Recorded migration status and methodology consistency checks
+- Captured updated requirement constraints post‑Effect migration
+
+### 4. Metrics and Deliverables (Page 3-4)
+
+**Commit Activity:**
+- Total commits: 3 (documentation + methodology checkpoints)
+
+**Key Deliverables:**
+1. ✅ Archived legacy planning artifacts
+2. ✅ Updated requirements to reflect methodology reset
+3. ✅ Migration checkpoint documentation
+
+### 5. Challenges and Lessons Learned (Page 4-5)
+
+**Challenge:** Ensuring that planning artifacts stay synchronized with rapidly evolving implementation details.
+
+**Lesson:** Post‑migration sprints benefit from explicit documentation checkpoints to avoid misalignment between methodology design and runtime behavior.
+
+### 6. Next Sprint Preview (Page 5-6)
+
+**Sprint 11 Goals:**
+- Resume epic execution with updated requirements
+- Expand methodology contracts into work item execution flows
+
+---
+
+## PRESENTATION OUTLINE (15-20 minutes)
+
+### SLIDE 1: Title
+**Chiron Sprint 10: Documentation Consolidation & Methodology Checkpoint**
+
+### SLIDE 2: Sprint Focus
+**Aligning documentation with the methodology reset**
+
+### SLIDE 3: Legacy Corpus Archive
+**Removing outdated planning artifacts**
+
+### SLIDE 4: Requirements Tightening
+**Clarifying scope after migration**
+
+### SLIDE 5: Migration Checkpoint
+**Capturing status and traceability**
+
+### SLIDE 6: Metrics
+**3 commits**
+
+### SLIDE 7: Next Sprint
+**Return to epic execution**
+
+---
+
+## APPENDIX: INVESTIGATED TOOLS, TECHNOLOGIES, AND PATTERNS (CITATIONS)
+
+- **DSPy / AX (LLM prompt optimization & structured outputs):** Evaluated as a DSPy-style framework for deterministic schema outputs and future prompt optimization pathways. [1]
+- **State machines / Statecharts:** Referenced as formal models for enforced workflow and work-item transitions. [2]
+- **Workflow patterns & workflow engines:** Used to frame orchestration flows, step composition, and parent-child workflow structures; validated against canonical workflow patterns and YAWL. [3], [4]
+- **BPMN process modeling standard:** Considered for structured workflow definitions and interoperability. [5]
+- **Event-driven architecture & Pub/Sub patterns:** Informed event bus architecture and workflow lifecycle streaming. [6], [7], [10]
+- **Structured concurrency:** Guides Effect-based execution design (scoped concurrency, lifecycle control). [8], [9]
+
+---
+
+## REFERENCES (IEEE)
+
+[1] O. Khattab *et al*., “DSPy: Compiling Declarative Language Model Calls into State-of-the-Art Pipelines,” in *Proc. ICLR*, 2024. [Online]. Available: https://openreview.net/forum?id=sY5N0zY5Od
+
+[2] D. Harel, “Statecharts: A Visual Formalism for Complex Systems,” *Sci. Comput. Program.*, vol. 8, pp. 231–274, 1987, doi: 10.1016/0167-6423(87)90035-9.
+
+[3] W. M. P. van der Aalst, A. H. M. ter Hofstede, B. Kiepuszewski, and A. P. Barros, “Workflow Patterns,” *Distrib. Parallel Databases*, vol. 14, pp. 5–51, 2003. [Online]. Available: https://eprints.qut.edu.au/9950/
+
+[4] W. M. P. van der Aalst and A. H. M. ter Hofstede, “YAWL: Yet Another Workflow Language,” *Inf. Syst.*, vol. 30, no. 4, pp. 245–275, 2005.
+
+[5] Object Management Group (OMG), “Business Process Model and Notation (BPMN) Version 2.0,” Jan. 2011. [Online]. Available: https://www.omg.org/spec/BPMN/2.0/
+
+[6] P. T. Eugster, P. A. Felber, R. Guerraoui, and A.-M. Kermarrec, “The Many Faces of Publish/Subscribe,” *ACM Comput. Surv.*, vol. 35, no. 2, pp. 114–131, 2003, doi: 10.1145/857076.857078.
+
+[7] G. Hohpe and B. Woolf, *Enterprise Integration Patterns: Designing, Building, and Deploying Messaging Solutions*. Boston, MA, USA: Addison-Wesley, 2003. [Online]. Available: https://www.oreilly.com/library/view/enterprise-integration-patterns/0321200683/
+
+[8] E. Niebler, “Structured Concurrency,” 2020. [Online]. Available: https://ericniebler.com/2020/11/08/structured-concurrency/
+
+[9] R. Elizarov, “Structured concurrency,” 2018. [Online]. Available: https://elizarov.medium.com/structured-concurrency-722d765aa952
+
+[10] A. A. Z. *et al*., “Exploring event-driven architecture in microservices—patterns, pitfalls and best practices,” *Int. J. Sci. Res. Archive*, vol. 4, no. 1, 2021, doi: 10.30574/ijsra.2021.4.1.0166.

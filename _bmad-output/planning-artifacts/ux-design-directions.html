@@ -1,0 +1,718 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chiron UX Design Directions</title>
+    <style>
+      @font-face {
+        font-family: "CommitMonoLocal";
+        src: url("../../apps/web/public/fonts/CommitMono-400-Regular.woff2") format("woff2");
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: "CommitMonoLocal";
+        src: url("../../apps/web/public/fonts/CommitMono-700-Regular.woff2") format("woff2");
+        font-weight: 700;
+        font-style: normal;
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: "GeistPixelSquare";
+        src: url("../../apps/web/public/fonts/GeistPixel-Square.woff2") format("woff2");
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
+
+      :root {
+        --bg: #101010;
+        --panel: #1a1a1a;
+        --panel-2: #222;
+        --text: #f0f2e2;
+        --muted: #c1c6b8;
+        --line: #60655f;
+        --ok: #bcc89c;
+        --loading: #79b6d6;
+        --warn: #f16d50;
+        --err: #fe5344;
+        --focus: #c4ff58;
+        --winter: #5d6c6a;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: radial-gradient(circle at 0 0, #1a1a1a 0%, #101010 40%, #0b0b0b 100%);
+        color: var(--text);
+        font-family: "CommitMonoLocal", "Commit Mono", "JetBrains Mono", monospace;
+      }
+
+      .wrap {
+        width: min(1400px, 100% - 32px);
+        margin: 24px auto 64px;
+      }
+
+      .header {
+        border: 1px solid var(--line);
+        background: rgba(16, 16, 16, 0.8);
+        backdrop-filter: blur(4px);
+        padding: 16px;
+        position: sticky;
+        top: 0;
+        z-index: 5;
+      }
+
+      .header h1 {
+        margin: 0 0 8px;
+        letter-spacing: 0.02em;
+        font-size: 20px;
+      }
+
+      .header p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .scope-banner {
+        margin-top: 10px;
+        border: 1px solid #7e8678;
+        background: #151712;
+        color: #dce3c5;
+        padding: 8px 10px;
+        font-size: 12px;
+      }
+
+      .toolbar {
+        margin-top: 12px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .legend {
+        margin-top: 14px;
+        border: 1px solid var(--line);
+        background: #11120f;
+        padding: 12px;
+      }
+
+      .legend h2 {
+        margin: 0 0 8px;
+        font-size: 14px;
+      }
+
+      .legend p {
+        margin: 0 0 10px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .legend-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 8px;
+      }
+
+      .legend-item {
+        border: 1px solid var(--line);
+        background: #131411;
+        padding: 8px;
+      }
+
+      .legend-item strong {
+        display: block;
+        margin-bottom: 4px;
+        color: var(--text);
+        font-size: 12px;
+      }
+
+      .legend-item span {
+        display: block;
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.3;
+      }
+
+      .zen {
+        margin-top: 10px;
+        border: 1px solid #7e8678;
+        background: #151712;
+        padding: 8px;
+      }
+
+      .zen summary {
+        cursor: pointer;
+        font-size: 12px;
+        color: #dce3c5;
+      }
+
+      .zen ul {
+        margin: 8px 0 0;
+        padding-left: 18px;
+        color: var(--text);
+        font-size: 12px;
+      }
+
+      button,
+      .chip {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        color: var(--text);
+        padding: 6px 10px;
+        font: inherit;
+        font-size: 12px;
+        cursor: pointer;
+      }
+
+      button:hover {
+        border-color: var(--focus);
+      }
+
+      .grid {
+        margin-top: 18px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 14px;
+      }
+
+      .card {
+        border: 1px solid var(--line);
+        border-left: 2px solid var(--accent, var(--line));
+        background: linear-gradient(180deg, #191919 0%, #101010 100%);
+        transition: transform 160ms ease, border-color 160ms ease;
+      }
+
+      .card:hover {
+        transform: translateY(-2px);
+        border-color: #6d7567;
+      }
+
+      .card-head {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 8px;
+      }
+
+      .dir-id {
+        color: var(--focus);
+        font-family: "GeistPixelSquare", "CommitMonoLocal", monospace;
+        font-size: 12px;
+      }
+
+      .dir-name {
+        font-size: 15px;
+        font-weight: 700;
+        line-height: 1.25;
+      }
+
+      .meta {
+        color: var(--text);
+        font-size: 12px;
+        line-height: 1.2;
+        text-align: right;
+        max-width: 48%;
+        overflow-wrap: anywhere;
+      }
+
+      .meta small {
+        color: var(--muted);
+        display: block;
+        margin-top: 2px;
+      }
+
+      .context-strip {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 6px;
+        margin-bottom: 8px;
+      }
+
+      .ctx-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .ctx-chip {
+        border: 1px solid var(--line);
+        background: #131313;
+        color: var(--text);
+        font-size: 10px;
+        padding: 2px 6px;
+      }
+
+      .ctx-scenario {
+        border-left: 2px solid var(--accent, var(--focus));
+        padding-left: 8px;
+        color: var(--text);
+        font-size: 11px;
+      }
+
+      .preview {
+        padding: 12px;
+        display: grid;
+        gap: 8px;
+      }
+
+      .desktop,
+      .mobile {
+        border: 1px solid var(--line);
+        background: #121212;
+        overflow: hidden;
+      }
+
+      .desktop {
+        height: 180px;
+      }
+
+      .mobile {
+        height: 120px;
+      }
+
+      .bar {
+        min-height: 26px;
+        border-bottom: 1px solid var(--line);
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        align-items: start;
+        gap: 8px;
+        padding: 4px 8px;
+        color: #dde2d5;
+        font-size: 11px;
+      }
+
+      .bar span {
+        display: block;
+        line-height: 1.25;
+        overflow-wrap: anywhere;
+      }
+
+      .zones {
+        display: grid;
+        height: calc(100% - 26px);
+      }
+
+      .z {
+        border-right: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+        padding: 6px;
+        font-size: 11px;
+        color: var(--text);
+      }
+
+      .z:last-child {
+        border-right: 0;
+      }
+
+      .state-row {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        margin-top: 6px;
+      }
+
+      .s {
+        border: 1px solid var(--line);
+        padding: 2px 6px;
+        font-size: 11px;
+        font-weight: 700;
+      }
+
+      .ok {
+        border-color: var(--ok);
+        color: #dcebc3;
+        background: rgba(141, 151, 132, 0.22);
+      }
+
+      .warn {
+        border-color: var(--warn);
+        color: #ffd3c6;
+        background: rgba(241, 109, 80, 0.2);
+      }
+
+      .err {
+        border-color: var(--err);
+        color: #ffd2cc;
+        background: rgba(254, 83, 68, 0.2);
+      }
+
+      .run {
+        border-color: var(--loading);
+        color: #cde9f8;
+        background: rgba(93, 108, 106, 0.28);
+      }
+
+      .copy {
+        border-top: 1px solid var(--line);
+        padding: 10px 12px;
+        font-size: 12px;
+        color: var(--text);
+      }
+
+      .copy div {
+        overflow-wrap: anywhere;
+      }
+
+      .compare {
+        margin-top: 14px;
+        border: 1px solid var(--line);
+        background: #0f0f0f;
+        padding: 12px;
+      }
+
+      .compare h2 {
+        margin: 0 0 10px;
+        font-size: 14px;
+      }
+
+      .favorites {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .fav {
+        border: 1px solid #6d7567;
+        color: #bcc89c;
+        background: #151710;
+        padding: 4px 8px;
+        font-size: 12px;
+      }
+
+      .hint {
+        margin-top: 8px;
+        color: var(--text);
+        font-size: 12px;
+      }
+
+      .selected {
+        border-color: var(--focus) !important;
+        box-shadow: 0 0 0 1px var(--focus) inset;
+      }
+
+      @media (max-width: 840px) {
+        .header {
+          position: static;
+        }
+        .desktop {
+          height: 150px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <section class="header">
+        <h1>Chiron Design Direction Mockups</h1>
+        <p>
+          8 visual directions for one concrete page: the Execution Orchestration Cockpit.
+        </p>
+        <div class="scope-banner">
+          <strong>Page scope:</strong> Execution Orchestration Cockpit (default runtime view) | <strong>Goal:</strong>
+          monitor transition state, inspect diagnostics/evidence, and trigger the next valid action with a
+          step-focused center pane.
+        </div>
+        <div class="toolbar">
+          <button id="reset">Reset selection</button>
+          <span class="chip">Compare up to 3 directions</span>
+          <span class="chip">Hover cards for interaction emphasis</span>
+          <span class="chip">Same page scope in every direction</span>
+          <span class="chip">Run focus: active step + context injections (@mentions, deps, artifacts)</span>
+          <span class="chip">Zen focus: collapse non-step panels during execution</span>
+        </div>
+      </section>
+
+      <section class="legend">
+        <h2>Legend: What Each Block Means</h2>
+        <p>
+          Every direction is the same page (`Execution Orchestration Cockpit`). Only layout and interaction emphasis
+          change. Use this legend to interpret zone labels while comparing cards.
+        </p>
+        <div class="legend-grid">
+          <div class="legend-item">
+            <strong>Active Step Pane</strong>
+            <span>Main execution focus for the current step. Example: agent step conversation, tool calls, and
+              step-level controls (`retry`, `resume`, `cancel`).</span>
+          </div>
+          <div class="legend-item">
+            <strong>Diagnostics</strong>
+            <span>Blocked/failed explanations and remediation guidance. Example: gate mismatch (`required` vs
+              `observed`) with evidence links.</span>
+          </div>
+          <div class="legend-item">
+            <strong>Timeline</strong>
+            <span>Chronological run history. Example: transition attempts, retries, child invokes, terminal outcome.</span>
+          </div>
+          <div class="legend-item">
+            <strong>Work Unit Queue</strong>
+            <span>Dependency-aware queue of pending/current work units. Example: which unit is blocked by which upstream
+              output.</span>
+          </div>
+          <div class="legend-item">
+            <strong>Evidence / Artifacts</strong>
+            <span>Persisted outputs tied to attempts. Example: generated doc snapshot, IDs, and lineage references.</span>
+          </div>
+          <div class="legend-item">
+            <strong>Context Injection</strong>
+            <span>What is currently injected into step context. Example: `@work-unit`, `@artifact`, dependency refs,
+              and mention chips in agent steps.</span>
+          </div>
+          <div class="legend-item">
+            <strong>Command Rail / Activity Rail</strong>
+            <span>Power-user acceleration and event feed surfaces. Example: command palette actions, tool-call stream,
+              and quick jump links.</span>
+          </div>
+          <div class="legend-item">
+            <strong>Refinement Side Context</strong>
+            <span>Episodic methodology tuning panel. Example: adjusting transition rules while keeping execution
+              visibility intact.</span>
+          </div>
+        </div>
+        <details class="zen">
+          <summary>Zen Focus Behavior (Step Execution)</summary>
+          <ul>
+            <li>Active Step Pane expands to primary width.</li>
+            <li>Secondary panels (timeline, queue, artifacts, diagnostics) become collapsible drawers.</li>
+            <li>A compact context strip remains visible with step status, dependency count, and quick "open context"
+              actions.</li>
+            <li>Context injections (`@mentions`, dependencies, artifacts) stay one-click accessible from the step
+              pane.</li>
+          </ul>
+        </details>
+      </section>
+
+      <section class="grid" id="grid"></section>
+
+      <section class="compare">
+        <h2>Comparison Deck</h2>
+        <div class="favorites" id="favorites"></div>
+        <p class="hint">
+          Evaluation focus: layout intuitiveness, interaction style, visual weight, navigation approach,
+          and brand alignment.
+        </p>
+      </section>
+    </div>
+
+    <script>
+      const directions = [
+        {
+          id: "D1",
+          name: "Carbon Ops Grid",
+          accent: "#c4ff58",
+          weight: "Compact-heavy",
+          scope: "Execution Orchestration Cockpit",
+          intent: "Triage active transition and unblock quickly",
+          action: "Open blocker diagnostics and run remediation",
+          scenario: "Operator is monitoring a run with one blocked dependency.",
+          layout: "Three-column cockpit: nav / graph / diagnostics",
+          pattern: "Always-on status rail + strict border matrix",
+          desktopZones: ["Nav Rail", "Active Step Pane", "Diagnostics", "Work Unit Queue", "Timeline", "Evidence"],
+          mobileZones: ["Status", "Active Step", "Diagnostics", "Queue", "Timeline", "Evidence"],
+        },
+        {
+          id: "D2",
+          name: "Command + Graph Split",
+          accent: "#f16d50",
+          weight: "Compact shell, standard drawers",
+          scope: "Execution Orchestration Cockpit",
+          intent: "Jump to exact command then verify visually",
+          action: "Run command action and confirm graph impact",
+          scenario: "Power user invokes command palette to resolve a blocked gate.",
+          layout: "Command rail left, graph center, evidence drawer right",
+          pattern: "Command-first acceleration with visual parity",
+          desktopZones: ["Command Rail", "Active Step Pane", "Evidence Drawer", "Context", "Timeline", "Artifacts"],
+          mobileZones: ["Command", "Active Step", "Diagnostics", "Actions", "Timeline", "Evidence"],
+        },
+        {
+          id: "D3",
+          name: "Timeline Anchor",
+          accent: "#79b6d6",
+          weight: "Standard with compact lists",
+          scope: "Execution Orchestration Cockpit",
+          intent: "Understand chronology before acting",
+          action: "Select failed attempt from timeline and inspect cause",
+          scenario: "Operator investigates repeated retry failures over time.",
+          layout: "Timeline primary, graph secondary",
+          pattern: "Chronology-led triage for failures and retries",
+          desktopZones: ["Context", "Timeline", "Diagnostics", "Active Step", "Work Units", "Artifacts"],
+          mobileZones: ["Timeline", "Active Step", "Diagnostics", "Queue", "Actions", "Artifacts"],
+        },
+        {
+          id: "D4",
+          name: "Artifact Workbench Dense",
+          accent: "#a6a77e",
+          weight: "Standard",
+          scope: "Execution Orchestration Cockpit",
+          intent: "Inspect generated artifacts during execution",
+          action: "Open artifact detail and confirm transition evidence",
+          scenario: "Reviewer validates output quality before approving next step.",
+          layout: "Editor + preview + lineage strip",
+          pattern: "Structured exploration list plus focused dialogs",
+          desktopZones: ["Artifact List", "Active Step", "Diagnostics", "Lineage", "Timeline", "Actions"],
+          mobileZones: ["Artifacts", "Active Step", "Diagnostics", "Lineage", "Actions", "Timeline"],
+        },
+        {
+          id: "D5",
+          name: "Graph-first Mission Control",
+          accent: "#8d9784",
+          weight: "Compact",
+          scope: "Execution Orchestration Cockpit",
+          intent: "Track path-level execution at a glance",
+          action: "Select active node to open attempt details",
+          scenario: "Operator follows parent/child invoke path during live run.",
+          layout: "Full-width graph with layered inspectors",
+          pattern: "Path highlighting and node attempt drill-down",
+          desktopZones: ["Context", "Active Step Pane", "Inspector", "Work Units", "Timeline", "Artifacts"],
+          mobileZones: ["Active Step", "Inspector", "Diagnostics", "Queue", "Timeline", "Artifacts"],
+        },
+        {
+          id: "D6",
+          name: "Terminal Rail Hybrid",
+          accent: "#5d6c6a",
+          weight: "Compact",
+          scope: "Execution Orchestration Cockpit",
+          intent: "Observe tool calls with deterministic states",
+          action: "Inspect tool failure and retry safely",
+          scenario: "Tool call fails; user needs cause + remediation fast.",
+          layout: "Terminal activity rail with panelized controls",
+          pattern: "Tool-call transparency + deterministic state chips",
+          desktopZones: ["Activity Rail", "Active Step Pane", "Diagnostics", "Tool Calls", "Timeline", "Artifacts"],
+          mobileZones: ["Activity", "Active Step", "Tool Calls", "Diagnostics", "Timeline", "Artifacts"],
+        },
+        {
+          id: "D7",
+          name: "Dialog Depth Workflow",
+          accent: "#cdc9b9",
+          weight: "Layered compact/standard/comfortable",
+          scope: "Execution Orchestration Cockpit",
+          intent: "Use deep dialogs for subcontext decisions",
+          action: "Open focused dialog and return with decision",
+          scenario: "User opens a deep-read approval modal from compact shell.",
+          layout: "Compact shell, comfortable deep-read dialogs",
+          pattern: "Subcontext-in-context decision flow",
+          desktopZones: ["Shell", "Active Step", "Diagnostics", "Dialog Trigger", "Timeline", "Artifacts"],
+          mobileZones: ["Shell", "Active Step Dialog", "Diagnostics", "Actions", "Timeline", "Artifacts"],
+        },
+        {
+          id: "D8",
+          name: "Balanced Adaptive",
+          accent: "#bcc89c",
+          weight: "Balanced",
+          scope: "Execution Orchestration Cockpit",
+          intent: "Balance clarity across execution and refinement side context",
+          action: "Switch side-context while preserving execution focus",
+          scenario: "User checks refinement context without losing run visibility.",
+          layout: "Execution default with refinement side-context",
+          pattern: "Same semantics across contexts, cadence-aware density",
+          desktopZones: ["Execution Context", "Active Step", "Diagnostics", "Refinement Side Context", "Timeline", "Artifacts"],
+          mobileZones: ["Execution", "Active Step", "Diagnostics", "Refinement", "Timeline", "Artifacts"],
+        },
+      ];
+
+      const grid = document.getElementById("grid");
+      const favorites = document.getElementById("favorites");
+      const selected = new Set();
+
+      function frameTemplate(cols, rows, zones) {
+        const cells = zones
+          .map((label) => `<div class="z">${label}</div>`)
+          .join("");
+        return `<div class="zones" style="grid-template-columns:${cols};grid-template-rows:${rows}">
+          ${cells}
+        </div>`;
+      }
+
+      directions.forEach((d) => {
+        const card = document.createElement("article");
+        card.className = "card";
+        card.dataset.id = d.id;
+        card.style.setProperty("--accent", d.accent);
+        card.innerHTML = `
+          <header class="card-head">
+            <div>
+              <div class="dir-id">${d.id}</div>
+              <div class="dir-name">${d.name}</div>
+            </div>
+            <div class="meta">${d.weight}<small>same page scope</small></div>
+          </header>
+          <div class="preview">
+            <div class="context-strip">
+              <div class="ctx-row">
+                <span class="ctx-chip">Page: ${d.scope}</span>
+                <span class="ctx-chip">Intent: ${d.intent}</span>
+              </div>
+              <div class="ctx-row">
+                <span class="ctx-chip">Primary action: ${d.action}</span>
+              </div>
+              <div class="ctx-row">
+                <span class="ctx-chip">Run focus: active step pane</span>
+                <span class="ctx-chip">Context injection: @mentions, dependencies, artifacts</span>
+              </div>
+              <div class="ctx-scenario">Scenario: ${d.scenario}</div>
+            </div>
+            <div class="desktop">
+              <div class="bar"><span>${d.layout}</span><span>${d.pattern}</span></div>
+              ${frameTemplate("1fr 2fr 1fr", "1fr 1fr", d.desktopZones)}
+            </div>
+            <div class="mobile">
+              <div class="bar"><span>Mobile behavior demo</span><span>single-stack context</span></div>
+              ${frameTemplate("1fr 1fr", "1fr 1fr 1fr", d.mobileZones)}
+            </div>
+            <div class="state-row">
+              <span class="s run">◌ loading</span>
+              <span class="s warn">⛔ blocked</span>
+              <span class="s err">✕ failed</span>
+              <span class="s ok">✓ success</span>
+            </div>
+          </div>
+          <div class="copy">
+            <div><strong>Layout:</strong> ${d.layout}</div>
+            <div><strong>Interaction style:</strong> ${d.pattern}</div>
+          </div>`;
+
+        card.addEventListener("click", () => {
+          if (selected.has(d.id)) {
+            selected.delete(d.id);
+            card.classList.remove("selected");
+          } else if (selected.size < 3) {
+            selected.add(d.id);
+            card.classList.add("selected");
+          }
+          renderFavorites();
+        });
+
+        grid.appendChild(card);
+      });
+
+      function renderFavorites() {
+        favorites.innerHTML = "";
+        [...selected].forEach((id) => {
+          const d = directions.find((x) => x.id === id);
+          const chip = document.createElement("span");
+          chip.className = "fav";
+          chip.textContent = `${d.id} - ${d.name}`;
+          favorites.appendChild(chip);
+        });
+      }
+
+      document.getElementById("reset").addEventListener("click", () => {
+        selected.clear();
+        document.querySelectorAll(".card").forEach((el) => el.classList.remove("selected"));
+        renderFavorites();
+      });
+    </script>
+  </body>
+</html>

@@ -30,7 +30,7 @@ workflow_status:
 
   # Phase 2: Planning - COMPLETED
   prd: "_bmad-output/planning-artifacts/PRD.md"
-  create-ux-design: "_bmad-output/planning-artifacts/design/ux-design-specification.md"
+  create-ux-design: "_bmad-output/planning-artifacts/ux-design-specification.md"
 
   # Phase 3: Solutioning - COMPLETED
   create-architecture: "_bmad-output/planning-artifacts/architecture/database-schema-architecture.md"
@@ -40,6 +40,10 @@ workflow_status:
 
   # Phase 4: Implementation - IN PROGRESS
   sprint-planning: required
+
+# Notes from migration
+completion_timestamps:
+  create-ux-design: "2026-02-23T04:32:43+03:00"
 
 # Notes from migration
 notes: |

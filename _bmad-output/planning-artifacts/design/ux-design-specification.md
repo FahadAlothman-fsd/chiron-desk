@@ -260,7 +260,8 @@ Primary: #3C4236 (Dark forest green)
 Accent:  #8D9784 (Medium sage green)
 Light:   #BCC89C (Light moss green)
 ```
-- **Mythology Name:** [To be determined]
+- **Mythology Name:** Hermes
+- **Mythology Name:** Mimir
 - **Role:** Research, exploration, data gathering
 - **Color Rationale:** Earthy greens represent growth, discovery, natural exploration
 
@@ -268,7 +269,7 @@ Light:   #BCC89C (Light moss green)
 ```
 Primary: #FE5344 (Vibrant coral red)
 ```
-- **Mythology Name:** [To be determined]
+- **Mythology Name:** Athena
 - **Role:** Strategy, planning, command
 - **Color Rationale:** Commanding red represents authority, decision-making, action
 
@@ -276,7 +277,7 @@ Primary: #FE5344 (Vibrant coral red)
 ```
 Primary: #5D6C6A (Cool blue-gray)
 ```
-- **Mythology Name:** [To be determined]
+- **Mythology Name:** Daedalus
 - **Role:** Structure, design, technical blueprints
 - **Color Rationale:** Cool technical color represents precision, logic, systematic thinking
 
@@ -284,7 +285,8 @@ Primary: #5D6C6A (Cool blue-gray)
 ```
 Primary: #C4FF58 (Bright neon yellow-green)
 ```
-- **Mythology Name:** [To be determined]
+- **Mythology Name:** Hephaestus
+- **Mythology Name:** Osiris
 - **Role:** Execution, implementation, building
 - **Color Rationale:** High-energy neon represents activity, execution, getting things done
 
@@ -292,7 +294,8 @@ Primary: #C4FF58 (Bright neon yellow-green)
 ```
 Primary: #A6A77E (Muted olive)
 ```
-- **Mythology Name:** [To be determined]
+- **Mythology Name:** Hestia
+- **Mythology Name:** Chronos
 - **Role:** Coordination, workflow management, facilitation
 - **Color Rationale:** Balanced neutral represents harmony, coordination, smooth flow
 
@@ -300,7 +303,8 @@ Primary: #A6A77E (Muted olive)
 ```
 Primary: #F16D50 (Warm coral orange)
 ```
-- **Mythology Name:** [To be determined]
+- **Mythology Name:** Aphrodite
+- **Mythology Name:** Ariadne
 - **Role:** Design, aesthetics, user experience
 - **Color Rationale:** Creative warm color represents innovation, beauty, human-centered design
 
@@ -407,7 +411,33 @@ Orange:     #FF9B6B
 
 ### 4.1 Chosen Design Approach
 
-[To be completed in Step 5]
+**Selected Direction: D8 Ops Variant (Execution-Balanced Mission Control)**
+
+This specification preserves the locked visual direction and converts it into implementation-ready rules without scope expansion.
+
+**Direction Contract:**
+
+1. **Execution-first primary focus**
+   - In active runs, the center surface is the `Active Step Pane`.
+   - Secondary context (`Diagnostics`, `Work Unit Queue`, `Timeline`, `Evidence`) is collapsible and progressively disclosed.
+2. **Single system grammar across pages**
+   - Sharp borders, explicit separators, compact-to-layered density, deterministic state semantics.
+   - No separate visual language per page type.
+3. **Cadence-aware context model**
+   - Daily use defaults to execution orchestration.
+   - Methodology refinement is intentional/episodic and uses the same semantic system.
+4. **Branch-aware timeline behavior**
+   - Default timeline is compact summary rail.
+   - On fork detection, escalate to branch-lane view with deterministic references.
+5. **Tooling governance visibility**
+   - Governed executions (agent tool calls and action-step calls) render explicit lifecycle and decision outcomes.
+
+**Page Archetype Emphasis (same direction, different primary pane):**
+
+- `Execution Cockpit`: Active step primary, context secondary.
+- `Project/Work Unit Overview`: graph/state projection primary.
+- `Forensics/Debug`: diagnostics + timeline primary.
+- `Methodology Refinement`: configuration editors primary.
 
 **Interactive Mockups:**
 
@@ -419,7 +449,47 @@ Orange:     #FF9B6B
 
 ### 5.1 Critical User Paths
 
-[To be completed in Step 6]
+The following critical paths define implementation behavior and coverage.
+
+#### Path 1 - Methodology Publish and Share (episodic)
+
+1. User edits work-unit/transition/gate/workflow binding configuration.
+2. System validates configuration deterministically.
+3. If validation fails, user receives typed diagnostics + remediation.
+4. If validation passes, user publishes immutable methodology version and share metadata.
+5. Audit lineage is persisted and queryable.
+
+#### Path 2 - Deterministic Transition Control (execution default)
+
+1. User selects transition from current work-unit state.
+2. System evaluates gates deterministically.
+3. If blocked, UI shows `required` vs `observed` and remediation options.
+4. If pass, transition proceeds either:
+   - directly (no workflow required), or
+   - through configured workflow execution path.
+5. Transition evidence and next valid action are surfaced.
+
+#### Path 3 - Step Execution (transition-bound or standalone)
+
+1. Active step opens in step-focused pane.
+2. User/system executes step-type behavior (`form`, `agent`, `action`, `invoke`, `branch`, `display`).
+3. Context is injected as needed (including `@mentions` in input/chat contexts).
+4. State transitions render deterministically (`loading`, `blocked`, `failed`, `success`).
+5. Outcomes persist with evidence links and next action.
+
+#### Path 4 - Tool Governance Decision Loop (cross-path)
+
+1. Tool/action call enters governance lifecycle.
+2. Policy evaluation and user decision (`approve`, `reject`, `request refinement`) are explicit.
+3. Rejected/refined calls re-enter proposal flow with audit trail.
+4. Blocked policy constraints remain distinct from user rejection.
+
+#### Path 5 - Branch and Forensics Escalation
+
+1. Run stays on timeline summary rail by default.
+2. On fork detection, branch lane panel opens.
+3. User inspects branch outcomes by stable IDs/evidence references.
+4. Recovery paths (`retry`, `resume`, remediation) remain available from diagnostics context.
 
 ---
 
@@ -427,7 +497,72 @@ Orange:     #FF9B6B
 
 ### 6.1 Component Strategy
 
-[To be completed in Step 7]
+**Foundation:** shadcn-compatible component system (Radix baseline; Base UI by governed exception).
+
+**Custom component groups (implementation-critical):**
+
+1. Methodology builder: `MethodologyWorkspaceShell`, editors, validation and publish/share panels.
+2. Execution runtime: `ActiveStepPane`, step panel registry, step-type panels.
+3. Evidence and diagnostics: unified `DiagnosticsEvidencePanel`.
+4. Projection surfaces: graph canvas, projection switch, queue panel, timeline/branch components.
+5. Focus modes: zen-focused shell and context drawer stack.
+
+#### Architecture -> UX Interface Contracts
+
+##### A) Agent Radar Semantics Contract
+
+**Purpose:** consistent multi-agent run awareness, whether rendered as radar panel or equivalent queue/stream fallback.
+
+**Required input fields:**
+- `executionId`, `runId`, `agentId`, `agentKind`, `state`, `queuePosition`, `updatedAt`
+- optional: `blockedReasonCode`, `failedCode`, `awaitingDecision`
+
+**Rendering rules:**
+- State uses canonical semantics (`normal/loading/blocked/failed/success`).
+- `blocked` and `failed` are visually and behaviorally distinct.
+- If radar surface is collapsed/unavailable, equivalent semantics are shown in queue/activity representation.
+
+##### B) Artifact Workbench Interaction Contract
+
+**Purpose:** deterministic review and reuse of generated artifacts during and after runs.
+
+**Required input fields:**
+- `artifactId`, `artifactType`, `executionId`, `stepAttemptId`, `version`, `status`, `references[]`
+
+**Core interactions:**
+- open artifact, compare versions, accept/reject where applicable, attach artifact as context, trace to source attempt.
+
+**State constraints:**
+- Loading/blocked/failed/success states are explicit for artifact operations.
+- All artifact decisions preserve lineage and evidence links.
+
+##### C) Graph/State Projection Contract
+
+**Purpose:** stable orchestration visibility across projections.
+
+**Projection modes:**
+- `state-machine`, `dependency`, `actionability`
+
+**Required node/edge fields:**
+- nodes: `workUnitId`, `currentState`, `eligibleTransitions`, `blockersCount`, `activeExecutionCount`
+- edges: `dependencyType`, `strength`, `status`
+
+**Behavior contract:**
+- Switching projection changes view emphasis only, never semantic meaning.
+- Node state and transition eligibility remain deterministic and referenceable.
+
+##### D) Failure Diagnostics Payload Rendering Contract
+
+**Purpose:** ensure diagnostics are actionable, stable, and testable across all surfaces.
+
+**Required payload fields:**
+- `code`, `scope`, `blocking`, `required`, `observed`, `remediation`, `timestamp`
+- references: `executionId`, `transitionAttemptId`, `stepAttemptId`, related artifact IDs
+
+**Rendering contract:**
+- `blocked`: shows unmet condition (`required` vs `observed`) + remediation.
+- `failed`: shows terminal attempt context + recovery options.
+- Equivalent payloads render equivalent UX structure and actions.
 
 ---
 
@@ -435,7 +570,30 @@ Orange:     #FF9B6B
 
 ### 7.1 Consistency Rules
 
-[To be completed in Step 8]
+#### Cross-Surface Consistency Rules
+
+1. One state model everywhere: `normal`, `loading`, `blocked`, `failed`, `success`.
+2. Triple state encoding is mandatory: icon + label + semantic color.
+3. Command and visible-control paths must produce equivalent outcomes.
+4. Secondary context is collapsible and progressively disclosed.
+5. Tool-governance outcomes are explicit (`approved`, `rejected`, `refine_requested`, `blocked`).
+
+#### State Behavior Definitions by Critical Surface
+
+| Surface | Loading | Blocked | Failed | Success |
+| --- | --- | --- | --- | --- |
+| Active Step Pane | step in progress, stream visible | prerequisite or governance condition unmet, remediation visible | terminal attempt failure, retry/resume options shown | step output persisted, next action shown |
+| Tool Governance Card | policy/user decision pending | policy constraint prevents execution | governed call failed during execution | call completed with persisted result |
+| Work Unit Queue | queue refresh/rank recalculating | upstream dependency unmet | queue transition/update error | readiness and ordering updated |
+| Graph/State Projection | projection/state refresh | transition ineligible due to blockers | projection data/render failure | projection synchronized and actionable |
+| DiagnosticsEvidence Panel | diagnostics/evidence retrieval | missing required context for full diagnostics | diagnostics fetch/render failure | diagnostics + evidence links available |
+| Branch Timeline | branch summary/lane loading | branch branch-data incomplete due to unmet refs | branch tracking failed | branch lanes synchronized with stable references |
+
+#### Error Distinction Rules
+
+- `blocked` = currently ineligible (not terminal).
+- `failed` = terminal attempt failure.
+- `rejected` (user-governance decision) is distinct from `blocked`.
 
 ---
 
@@ -443,7 +601,28 @@ Orange:     #FF9B6B
 
 ### 8.1 Responsive Strategy
 
-[To be completed in Step 9]
+Chiron is desktop-first with deterministic responsive degradation.
+
+#### Breakpoint and Panel Strategy
+
+- `xl/2xl`: multi-panel cockpit (active step + at least one secondary context panel)
+- `lg`: active step primary + one secondary visible + additional drawers
+- `md`: single primary pane + context sheets
+- `sm/xs`: single-pane mode with segmented context access
+
+#### Responsive Constraints
+
+1. Semantic meaning does not change by breakpoint.
+2. Context collapse order is deterministic (aux -> timeline -> evidence -> diagnostics detail).
+3. Active step remains primary in execution contexts.
+4. Branch timeline escalation remains available on all breakpoints.
+
+#### Accessibility Baseline
+
+- WCAG 2.2 AA target.
+- Keyboard parity for command and visual paths.
+- Explicit focus management for drawers/modals.
+- Live updates announced with bounded/throttled `aria-live` behavior.
 
 ---
 
@@ -451,7 +630,33 @@ Orange:     #FF9B6B
 
 ### 9.1 Completion Summary
 
-[To be completed in Step 10]
+This specification now addresses implementation-readiness blockers without redesigning product scope.
+
+#### Completed Readiness Outcomes
+
+1. Placeholder sections 4.1/5.1/6.1/7.1/8.1/9.1 are replaced with implementation-oriented content.
+2. FR-to-UX traceability is explicit for FR1..FR7.
+3. Architecture-to-UX interface contracts are defined for radar, workbench, graph/state projections, and diagnostics payload rendering.
+4. Appendix references now point to canonical planning-artifact sources.
+5. Critical surfaces include explicit non-happy-path state behavior definitions.
+
+#### FR -> UX Traceability Matrix
+
+| FR | Screen/Surface Mapping | Component Mapping | Required State/Behavior Mapping |
+| --- | --- | --- | --- |
+| FR1 | Execution Cockpit, Project Overview, Work Unit Overview | `WorkUnitGraphCanvas`, `WorkUnitQueuePanel`, transition editors | readiness/eligibility states explicit; deterministic lifecycle display |
+| FR2 | Methodology Workspace + Execution Cockpit | `MethodologyValidationPanel`, `PublishSharePanel`, `StepRendererRegistry` | pinned methodology context visible for runs and transitions |
+| FR3 | Transition control + Diagnostics surfaces | `DiagnosticsEvidencePanel`, state badges, transition controls | deterministic gate decisions with `required` vs `observed`, explicit blocked remediation |
+| FR4 | Active Step Pane + Invoke/Branch surfaces | `InvokeStepPanel`, `BranchAwareTimelinePanel` | explicit invoke mode rendering, parent-child lineage, branch escalation |
+| FR5 | Agent/runtime execution surfaces | `AgentStepPanel`, tool governance cards, stream components | runtime provenance visible; deterministic streaming and terminal states |
+| FR6 | Diagnostics/evidence/forensics surfaces | `DiagnosticsEvidencePanel`, artifact views, timeline refs | append-only evidence links with stable execution/attempt identifiers |
+| FR7 | Cockpit + Overview + Forensics | graph/queue/timeline/diagnostics stack | operator can inspect execution, transitions, artifacts, and graph/state with stable refs |
+
+#### Explicit Hard-Blocker Clarifications
+
+- **FR3 (gates/diagnostics):** blocked decisions always show `required` vs `observed` and remediation actions.
+- **FR4 (invoke semantics):** UI always shows `same_work_unit` vs `child_work_units` semantics and lineage mappings.
+- **FR6 (evidence visibility):** diagnostics, artifacts, and variable snapshots remain cross-linked with stable IDs across surfaces.
 
 ---
 
@@ -459,23 +664,56 @@ Orange:     #FF9B6B
 
 ### Related Documents
 
-- Product Requirements: `/home/gondilf/Desktop/projects/masters/chiron/docs/PRD.md`
-- Product Brief: `/home/gondilf/Desktop/projects/masters/chiron/docs/product-brief-chiron-2025-10-26.md`
-- Brainstorming: `/home/gondilf/Desktop/projects/masters/chiron/docs/brainstorming-session-results-2025-01-24.md`
+- Implementation Readiness Report: `/home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/implementation-readiness-report-2026-02-22.md`
+- Product Requirements (canonical): `/home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/prd.md`
+- Architecture (canonical): `/home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/architecture.md`
+- Epics (canonical): `/home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/epics.md`
+- Product Brief (canonical): `/home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/product-brief-chiron-2025-10-26.md`
+- UX Pattern Index: `/home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/design/ux-patterns-index.md`
+- Structured Exploration Lists: `/home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/design/ux-pattern-structured-exploration-lists.md`
 
 ### Core Interactive Deliverables
 
 This UX Design Specification was created through visual collaboration:
 
-- **Color Theme Visualizer**: /home/gondilf/Desktop/projects/masters/chiron/docs/ux-color-themes.html
+- **Color Theme Visualizer**: /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/archive/2026-02-reset/design-exploration/mockups/ux-color-themes.html
   - Interactive HTML showing all color theme options explored
   - Live UI component examples in each theme
   - Side-by-side comparison and semantic color usage
 
-- **Design Direction Mockups**: /home/gondilf/Desktop/projects/masters/chiron/docs/ux-design-directions.html
+- **Design Direction Mockups**: /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/ux-design-directions.html
   - Interactive HTML with 6-8 complete design approaches
   - Full-screen mockups of key screens
   - Design philosophy and rationale for each direction
+
+### BMAD Agent -> Chiron Naming Map (Config Extraction Reference)
+
+Source of truth for BMAD agent config location:
+
+- `/home/gondilf/Desktop/projects/masters/chiron/_bmad/_config/agent-manifest.csv`
+
+Use this map to resolve Chiron names to BMAD agent configuration files.
+
+| BMAD Agent Key | BMAD Display Name | Chiron Name | BMAD Config Path |
+| --- | --- | --- | --- |
+| `bmad-master` | BMad Master | Odin | `_bmad/core/agents/bmad-master.md` |
+| `analyst` | Mary | Mimir | `_bmad/bmm/agents/analyst.md` |
+| `pm` | John | Athena | `_bmad/bmm/agents/pm.md` |
+| `architect` | Winston | Daedalus | `_bmad/bmm/agents/architect.md` |
+| `dev` | Amelia | Osiris | `_bmad/bmm/agents/dev.md` |
+| `sm` | Bob | Chronos | `_bmad/bmm/agents/sm.md` |
+| `ux-designer` | Sally | Ariadne | `_bmad/bmm/agents/ux-designer.md` |
+| `quick-flow-solo-dev` | Barry | Hermes | `_bmad/bmm/agents/quick-flow-solo-dev.md` |
+| `quinn` | Quinn | Maat | `_bmad/bmm/agents/quinn.md` |
+| `qa` | Quinn | Themis | `_bmad/bmm/agents/qa.md` |
+| `tech-writer` | Paige | Thoth | `_bmad/bmm/agents/tech-writer/tech-writer.md` |
+| `tea` | Murat | Drona | `_bmad/tea/agents/tea.md` |
+| `brainstorming-coach` | Carson | Carson | `_bmad/cis/agents/brainstorming-coach.md` |
+| `creative-problem-solver` | Dr. Quinn | Odysseus | `_bmad/cis/agents/creative-problem-solver.md` |
+| `design-thinking-coach` | Maya | Brigid | `_bmad/cis/agents/design-thinking-coach.md` |
+| `innovation-strategist` | Victor | Prometheus | `_bmad/cis/agents/innovation-strategist.md` |
+| `presentation-master` | Caravaggio | Bragi | `_bmad/cis/agents/presentation-master.md` |
+| `storyteller` | Sophia | Anansi | `_bmad/cis/agents/storyteller/storyteller.md` |
 
 ### Version History
 
