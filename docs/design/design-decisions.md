@@ -1,5 +1,8 @@
 # Chiron Design Decisions
 
+> Status Notice (2026-02-23): For frontend UX implementation, this document is historical context only.
+> Canonical UX and visual-system source of truth is `_bmad-output/planning-artifacts/ux-design-specification.md` plus `_bmad-output/planning-artifacts/reset-baseline-checklist.md`.
+
 > Living document. Records key design choices made during development.
 
 ---
@@ -11,28 +14,28 @@
 
 ### Decision
 
-Adopt **Geist Pixel** as the defacto font and font family for Chiron's desktop UI.
+Adopt **Commit Mono + Geist Pixel** as the locked typography system for Chiron's desktop UI.
 
 ### Font Family Stack
 
 | Use | Font | CSS Variable |
 |---|---|---|
-| **Primary UI** | Geist Pixel Square | `--font-geist-pixel-square` |
-| **Monospace / Code** | Geist Mono | `--font-geist-mono` |
+| **Primary UI** | Commit Mono | `--font-commit-mono` |
+| **Accent / Signifiers** | Geist Pixel Square | `--font-geist-pixel-square` |
 | **Alternate pixel variants** | Grid, Circle, Triangle, Line | Available via stylistic alternates |
 
 ### Details
 
-- **Package:** `geist` (npm)
-- **Import:** `import 'geist/font/pixel'` (CSS) or `import { GeistPixelSquare } from 'geist/font/pixel'`
-- **Variants:** 5 pixel sub-families — Square (default), Grid, Circle, Triangle, Line
+- **Package:** local/bundled font assets
+- **Import:** project CSS font-face declarations for Commit Mono + Geist Pixel variants
+- **Variants:** 5 Geist Pixel sub-families — Square (default), Grid, Circle, Triangle, Line
 - **Glyphs:** 480 glyphs, 7 stylistic sets, 32 languages
-- **Metrics:** Aligned vertical metrics with Geist Sans/Mono for seamless mixing
+- **Metrics:** tuned line-height and spacing for Commit Mono dominant reading surfaces
 - **Horizontal:** Semi-monospaced — consistent widths across similar glyphs
 
 ### Rationale
 
-Chiron is a developer-facing workflow orchestration tool. Geist Pixel gives it a distinctive, technical aesthetic that differentiates it from generic SaaS UIs while remaining highly readable. The bitmap-inspired design aligns with the "AI agent workbench" identity. Aligned metrics with Geist Mono means code snippets and UI text mix cleanly.
+Chiron is a developer-facing workflow orchestration tool. Commit Mono provides high legibility in dense operational interfaces, while Geist Pixel adds a distinctive technical accent for labels and identity cues. This balance preserves readability and the mission-control visual signature.
 
 ### Integration Notes
 

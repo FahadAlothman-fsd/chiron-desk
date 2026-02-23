@@ -1,5 +1,8 @@
 # Step Execution Components Specification
 
+> Status Notice (2026-02-23): Superseded for active implementation.
+> Use `_bmad-output/planning-artifacts/ux-design-specification.md` and `_bmad-output/planning-artifacts/reset-baseline-checklist.md` as canonical sources.
+
 **Implementation Guide for Component Hierarchy**
 
 ---

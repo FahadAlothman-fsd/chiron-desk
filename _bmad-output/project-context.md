@@ -75,12 +75,13 @@ _Version note: entries here are planning-time targets and may change during rese
 - Do not bypass approval semantics (`allow | ask | deny`) when integrating tool execution.
 - Do not collapse module boundaries by direct cross-module internals imports.
 - Do not introduce new legacy patterns where migration direction is already documented (Effect-native contracts).
-- Do not add implementation details that conflict with locked design decisions in `docs/design/design-decisions.md`.
+- Do not add implementation details that conflict with `_bmad-output/planning-artifacts/ux-design-specification.md` and `_bmad-output/planning-artifacts/reset-baseline-checklist.md`.
 
 ## Canonical Docs to Consult
 
 - `AGENTS.md`
-- `docs/design/design-decisions.md`
+- `_bmad-output/planning-artifacts/ux-design-specification.md`
+- `_bmad-output/planning-artifacts/reset-baseline-checklist.md`
 - `docs/architecture/chiron-module-structure.md`
 - `docs/architecture/workflow-engine/effectful-design.md`
 - `docs/architecture/workflow-engine/agent-step-contract.md`

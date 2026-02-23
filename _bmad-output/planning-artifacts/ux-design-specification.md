@@ -6,12 +6,13 @@ inputDocuments:
   - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/prd.md
   - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/architecture.md
   - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/epics.md
-  - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/design/ux-design-specification.md
   - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/design/ux-patterns-index.md
   - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/design/ux-pattern-structured-exploration-lists.md
 ---
 
 # UX Design Specification chiron
+
+> Canonical Source (2026-02-23): this is the active UX implementation contract.
 
 **Author:** Gondilf
 **Date:** 2026-02-22

@@ -10,7 +10,7 @@ selectedDocuments:
   prd: /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/prd.md
   architecture: /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/architecture.md
   epics: /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/epics.md
-  ux: /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/design/ux-design-specification.md
+  ux: /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/ux-design-specification.md
 documentInventory:
   prdCandidates:
     - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/prd.md
@@ -25,7 +25,6 @@ documentInventory:
     - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/archive/2026-02-reset/research/epic-2-research-analysis.md
   uxCandidates:
     - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/ux-design-specification.md
-    - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/design/ux-design-specification.md
     - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/design/ux-pattern-structured-exploration-lists.md
     - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/design/ux-patterns-index.md
     - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/archive/2026-02-reset/design-exploration/ux-pattern-canvas-reveal-corners.md
@@ -59,7 +58,6 @@ documentInventory:
 ### UX Documents
 
 - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/ux-design-specification.md
-- /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/design/ux-design-specification.md
 - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/design/ux-pattern-structured-exploration-lists.md
 - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/design/ux-patterns-index.md
 - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/archive/2026-02-reset/design-exploration/ux-pattern-canvas-reveal-corners.md
@@ -152,7 +150,7 @@ No missing PRD functional requirements were identified in the selected epics art
 
 Found.
 
-Validated UX source: `/home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/design/ux-design-specification.md`.
+Validated UX source: `/home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/ux-design-specification.md`.
 
 ### Alignment Issues
 

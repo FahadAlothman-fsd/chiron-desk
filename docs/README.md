@@ -9,7 +9,8 @@ Use these files for current architecture and planning decisions.
 
 - `AGENTS.md` - Project-level canonical architecture, package map, conventions, commands
 - `docs/architecture/chiron-module-structure.md` - Module boundaries and execution model
-- `docs/design/design-decisions.md` - Locked decisions (permissions model, font choice, contracts direction)
+- `_bmad-output/planning-artifacts/ux-design-specification.md` - Canonical UX implementation contract and visual direction
+- `_bmad-output/planning-artifacts/reset-baseline-checklist.md` - Canonical reset/setup decisions before sprint planning
 - `_bmad-output/planning-artifacts/epics/README.md` - Current epic planning status and next epic set location
 
 ## Active Supporting Docs
@@ -52,6 +53,6 @@ The following files are intentionally kept in place for historical context but a
 ## Alignment Rules
 
 - Prefer `AGENTS.md` when a doc conflicts with code
-- Treat `docs/design/design-decisions.md` as authoritative for locked decisions
+- Treat `_bmad-output/planning-artifacts/ux-design-specification.md` and `_bmad-output/planning-artifacts/reset-baseline-checklist.md` as authoritative for frontend UX decisions
 - Keep new planning artifacts under `_bmad-output/planning-artifacts/`
 - Archive, do not delete, obsolete docs

@@ -1,5 +1,8 @@
 # Step Execution Layout System
 
+> Status Notice (2026-02-23): Superseded for active implementation.
+> Use `_bmad-output/planning-artifacts/ux-design-specification.md` and `_bmad-output/planning-artifacts/reset-baseline-checklist.md` as canonical sources.
+
 **Author:** Design System  
 **Status:** Proposed  
 **Last Updated:** 2026-01-26

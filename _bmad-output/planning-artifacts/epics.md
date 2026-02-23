@@ -7,7 +7,7 @@ stepsCompleted:
 inputDocuments:
   - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/prd.md
   - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/architecture.md
-  - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/design/ux-design-specification.md
+  - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/ux-design-specification.md
   - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/sprint-change-proposal-2026-02-21.md
   - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/chiron-layered-requirements-register-v1-week6.md
   - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/chiron-week6-doc-finalization-checklist.md

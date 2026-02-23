@@ -1,5 +1,9 @@
 # Chiron UX Design Specification
 
+> Status Notice (2026-02-23): Superseded.
+> Canonical UX spec is `_bmad-output/planning-artifacts/ux-design-specification.md`.
+> Keep this file for historical reference only; do not use it for new implementation decisions.
+
 _Created on 2025-11-01 by fahad_
 _Generated using BMad Method - Create UX Design Workflow v1.0_
 
