@@ -1,0 +1,25 @@
+packages/methodology-engine/src/lifecycle-service.ts
+  04b5a578ddc5ff30 1-135
+packages/methodology-engine/src/eligibility-service.ts
+  04b5a578ddc5ff30 1-114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "216116b7112ea90e416e9c118211aa2518c5f31a",
+  "prompts": {
+    "04b5a578ddc5ff30": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3706e6bc2ffeaY5sb7B3IF4W9H",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 277,
+      "total_deletions": 0,
+      "accepted_lines": 277,
+      "overriden_lines": 0
+    }
+  }
+}
