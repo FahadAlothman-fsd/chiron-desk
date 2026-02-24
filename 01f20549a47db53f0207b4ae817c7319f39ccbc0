@@ -1,0 +1,23 @@
+packages/db/src/schema/methodology.ts
+  04b5a578ddc5ff30 118-255
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "01f20549a47db53f0207b4ae817c7319f39ccbc0",
+  "prompts": {
+    "04b5a578ddc5ff30": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3706e6bc2ffeaY5sb7B3IF4W9H",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 138,
+      "total_deletions": 0,
+      "accepted_lines": 138,
+      "overriden_lines": 0
+    }
+  }
+}
