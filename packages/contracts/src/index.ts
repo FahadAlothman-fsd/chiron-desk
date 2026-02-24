@@ -1,1 +1,1 @@
-export {};
+export * from "./methodology/version";

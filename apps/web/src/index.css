@@ -237,24 +237,24 @@
 @layer utilities {
   .chiron-dashboard-shell {
     min-height: 100dvh;
-    background-color: var(--chiron-carbon-1);
-    background-image:
-      radial-gradient(
-        circle at 18% 12%,
-        color-mix(in srgb, var(--chiron-dawn-3) 24%, transparent),
-        transparent 34%
-      ),
-      radial-gradient(
-        circle at 84% 4%,
-        color-mix(in srgb, var(--chiron-fluo-3) 22%, transparent),
-        transparent 38%
-      ),
-      linear-gradient(
-        145deg,
-        var(--chiron-carbon-1) 0%,
-        var(--chiron-winter-1) 42%,
-        var(--chiron-alert-2) 100%
-      );
+    background-color: var(--chiron-camo-2);
+    /* background-image: */
+    /*   radial-gradient( */
+    /*     circle at 18% 12%, */
+    /*     color-mix(in srgb, var(--chiron-dawn-3) 24%, transparent), */
+    /*     transparent 34% */
+    /*   ), */
+    /*   radial-gradient( */
+    /*     circle at 84% 4%, */
+    /*     color-mix(in srgb, var(--chiron-fluo-3) 22%, transparent), */
+    /*     transparent 38% */
+    /*   ), */
+    /*   linear-gradient( */
+    /*     145deg, */
+    /*     var(--chiron-carbon-1) 0%, */
+    /*     var(--chiron-winter-1) 42%, */
+    /*     var(--chiron-alert-2) 100% */
+    /*   ); */
     color: var(--chiron-fluo-1);
   }
 

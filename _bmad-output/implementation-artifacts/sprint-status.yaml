@@ -1,0 +1,93 @@
+# generated: 2026-02-24 00:57
+# project: chiron
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Semantics:
+#   - in-progress: At least one story is active beyond backlog
+#   - done: All stories in the epic are done
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Use 'in-progress' when at least one story leaves backlog
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-02-24 00:57
+project: chiron
+project_key: NOKEY
+tracking_system: file-system
+story_location: /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/implementation-artifacts
+
+development_status:
+  epic-1: in-progress
+  1-1-create-methodology-draft-baseline: done
+  1-2-define-work-unit-types-and-transition-lifecycle-rules-in-methodology-draft: backlog
+  1-3-define-workflows-under-work-unit-scope-and-bind-executable-subset-to-transitions: backlog
+  1-4-publish-validated-methodology-draft-as-immutable-version: backlog
+  1-5-pin-project-to-published-methodology-version-and-preserve-pin-lineage: backlog
+  epic-1-retrospective: optional
+  epic-2: backlog
+  2-1-build-methodology-workspace-ui-for-draft-authoring-and-validation: backlog
+  2-2-build-react-flow-methodology-graph-for-work-unit-transition-and-workflow-binding-management: backlog
+  2-3-deliver-validation-publish-and-evidence-ux-for-methodology-contracts: backlog
+  2-4-provide-project-creation-and-methodology-pinning-ux-with-pin-lineage-visibility: backlog
+  2-5-provide-baseline-operator-visibility-for-methodology-pin-and-diagnostics-state: backlog
+  epic-2-retrospective: optional
+  epic-3: backlog
+  3-1-execute-one-transition-through-start-gate-preflight-and-exact-workflow-selection: backlog
+  3-2-invoke-child-work-unit-via-workflow-defined-relationship-and-contracted-i-o-mapping: backlog
+  3-3-execute-same-work-unit-technique-path-with-prefilled-inputs-and-selection-first-flow: backlog
+  3-4-prove-cancellation-cascade-stream-reconnect-continuity-and-idempotent-replay-boundaries: backlog
+  3-5-consolidate-g3-evidence-and-record-promotion-decision: backlog
+  epic-3-retrospective: optional
+  epic-4: backlog
+  4-1-run-brainstorming-to-research-as-a-repeatable-vertical-slice-planning-flow: backlog
+  4-2-produce-product-brief-from-brainstorming-and-research-evidence: backlog
+  4-3-generate-prd-from-product-brief-with-gate-derived-actionability-and-warning-semantics: backlog
+  4-4-consolidate-slice-a-evidence-and-record-g4-promotion-decision: backlog
+  epic-4-retrospective: optional
+  epic-5: backlog
+  5-1-generate-ux-design-from-prd-snapshot-linked-inputs: backlog
+  5-2-generate-architecture-from-prd-and-conditional-ux-snapshot-inputs: backlog
+  5-3-run-create-epics-stories-with-canonical-child-work-unit-fan-out: backlog
+  5-4-execute-create-story-for-story-progression-from-draft-to-ready-for-dev: backlog
+  5-5-execute-dev-story-for-story-progression-from-ready-for-dev-to-review: backlog
+  5-6-execute-code-review-for-story-promotion-from-review-to-done: backlog
+  5-7-consolidate-slice-b-evidence-and-record-g5-promotion-decision: backlog
+  epic-5-retrospective: optional
+  epic-6: backlog
+  6-1-harden-runtime-control-loops-for-cancel-retry-resume-and-reconnect: backlog
+  6-2-stabilize-diagnostics-contract-and-evidence-integrity-under-failure-pressure: backlog
+  6-3-validate-bounded-concurrency-and-runtime-feedback-targets: backlog
+  6-4-establish-ax-optimization-and-feedback-loop-baseline: backlog
+  6-5-consolidate-hardening-evidence-and-record-g6-promotion-decision: backlog
+  epic-6-retrospective: optional
+  epic-7: backlog
+  7-1-expand-workflow-coverage-across-additional-bmad-work-units: backlog
+  7-2-scale-project-graph-ux-with-layered-views-and-filters: backlog
+  7-3-provide-controlled-methodology-version-migration-for-execution-bearing-projects: backlog
+  7-4-map-and-execute-bmad-course-correction-workflow-path: backlog
+  7-5-orchestrate-impact-revalidation-and-traceability-refresh: backlog
+  7-6-consolidate-scale-out-evidence-and-record-release-readiness: backlog
+  epic-7-retrospective: optional

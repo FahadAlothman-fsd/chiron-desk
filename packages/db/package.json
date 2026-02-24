@@ -17,10 +17,13 @@
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
+    "@chiron/contracts": "workspace:*",
     "@chiron/env": "workspace:*",
+    "@chiron/methodology-engine": "workspace:*",
     "@libsql/client": "catalog:",
     "dotenv": "catalog:",
     "drizzle-orm": "^0.45.1",
+    "effect": "catalog:",
     "libsql": "catalog:",
     "zod": "catalog:"
   },

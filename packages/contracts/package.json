@@ -10,11 +10,15 @@
       "default": "./src/*.ts"
     }
   },
+  "scripts": {
+    "test": "vitest run"
+  },
   "dependencies": {
     "effect": "catalog:"
   },
   "devDependencies": {
     "@chiron/config": "workspace:*",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

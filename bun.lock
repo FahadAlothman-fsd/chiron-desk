@@ -26,11 +26,13 @@
         "@chiron/auth": "workspace:*",
         "@chiron/db": "workspace:*",
         "@chiron/env": "workspace:*",
+        "@chiron/methodology-engine": "workspace:*",
         "@orpc/openapi": "catalog:",
         "@orpc/server": "catalog:",
         "@orpc/zod": "catalog:",
         "better-auth": "catalog:",
         "dotenv": "catalog:",
+        "effect": "catalog:",
         "hono": "catalog:",
         "zod": "catalog:",
       },
@@ -106,13 +108,16 @@
       "name": "@chiron/api",
       "dependencies": {
         "@chiron/auth": "workspace:*",
+        "@chiron/contracts": "workspace:*",
         "@chiron/db": "workspace:*",
         "@chiron/env": "workspace:*",
+        "@chiron/methodology-engine": "workspace:*",
         "@orpc/client": "catalog:",
         "@orpc/openapi": "catalog:",
         "@orpc/server": "catalog:",
         "@orpc/zod": "catalog:",
         "dotenv": "catalog:",
+        "effect": "catalog:",
         "zod": "catalog:",
       },
       "devDependencies": {
@@ -159,15 +164,19 @@
       "devDependencies": {
         "@chiron/config": "workspace:*",
         "typescript": "catalog:",
+        "vitest": "catalog:",
       },
     },
     "packages/db": {
       "name": "@chiron/db",
       "dependencies": {
+        "@chiron/contracts": "workspace:*",
         "@chiron/env": "workspace:*",
+        "@chiron/methodology-engine": "workspace:*",
         "@libsql/client": "catalog:",
         "dotenv": "catalog:",
         "drizzle-orm": "^0.45.1",
+        "effect": "catalog:",
         "libsql": "catalog:",
         "zod": "catalog:",
       },
@@ -211,6 +220,7 @@
       "devDependencies": {
         "@chiron/config": "workspace:*",
         "typescript": "catalog:",
+        "vitest": "catalog:",
       },
     },
     "packages/provider-registry": {

@@ -1,5 +1,5 @@
 import { createContext } from "@chiron/api/context";
-import { appRouter } from "@chiron/api/routers/index";
+import { createAppRouter } from "@chiron/api/routers/index";
 import { auth } from "@chiron/auth";
 import { env } from "@chiron/env/server";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
@@ -11,6 +11,9 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { streamSSE } from "hono/streaming";
+import { db, createMethodologyRepoLayer } from "@chiron/db";
+
+const appRouter = createAppRouter(createMethodologyRepoLayer(db));
 
 const app = new Hono();
 
