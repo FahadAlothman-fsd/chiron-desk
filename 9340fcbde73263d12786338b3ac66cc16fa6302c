@@ -1,0 +1,23 @@
+_bmad-output/implementation-artifacts/1-2-define-work-unit-types-and-transition-lifecycle-rules-in-methodology-draft.md
+  118eaf04904881c0 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "9340fcbde73263d12786338b3ac66cc16fa6302c",
+  "prompts": {
+    "118eaf04904881c0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_3706e6bc2ffeaY5sb7B3IF4W9H-fc2cdfc3-9b48-4f1a-b2c4-8acc4c56ce4a",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}
