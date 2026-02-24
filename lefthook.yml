@@ -12,9 +12,3 @@ pre-commit:
       glob: "*.{ts,tsx,js,jsx}"
       run: bun oxfmt --write {staged_files}
       stage_fixed: true
-    - name: oxlint
-      run: bun oxlint --fix {staged_files}
-      stage_fixed: true
-    - name: oxfmt
-      run: bun oxfmt --write {staged_files}
-      stage_fixed: true
