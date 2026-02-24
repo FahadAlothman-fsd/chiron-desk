@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "5e1dce3896d495c77e861bb326aa5335fee43540",
+  "prompts": {
+    "890507f256a981ec": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_3706e6bc2ffeaY5sb7B3IF4W9H-93a0e4de-4508-43ad-bcc0-938beec67bff",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 6,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  }
+}
