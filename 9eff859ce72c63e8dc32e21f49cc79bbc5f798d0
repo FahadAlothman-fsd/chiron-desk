@@ -1,0 +1,33 @@
+packages/api/src/routers/index.ts
+  04b5a578ddc5ff30 10-13,22-28
+packages/methodology-engine/src/index.ts
+  04b5a578ddc5ff30 10-22
+packages/methodology-engine/src/lifecycle-validation.ts
+  04b5a578ddc5ff30 7
+packages/methodology-engine/src/lifecycle-validation.test.ts
+  04b5a578ddc5ff30 1-31,33-66,68-94,96-122,124-141,143-159,161-183,185-203,205-262,264-326,328-352,354-476
+packages/methodology-engine/src/errors.ts
+  04b5a578ddc5ff30 31-37
+packages/api/src/routers/methodology.ts
+  04b5a578ddc5ff30 8-13,16,74-122,148,167-172,180,261-284,288-299
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "9eff859ce72c63e8dc32e21f49cc79bbc5f798d0",
+  "prompts": {
+    "04b5a578ddc5ff30": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3706e6bc2ffeaY5sb7B3IF4W9H",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 648,
+      "total_deletions": 16,
+      "accepted_lines": 608,
+      "overriden_lines": 13
+    }
+  }
+}
