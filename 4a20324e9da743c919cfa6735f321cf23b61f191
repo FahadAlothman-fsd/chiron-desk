@@ -1,0 +1,51 @@
+packages/api/src/routers/index.ts
+  26bd2a986dd3c6c3 1,8-11,13,15,21-23,25
+_bmad-output/implementation-artifacts/sprint-status.yaml
+  20269a347f83e7ee 45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "4a20324e9da743c919cfa6735f321cf23b61f191",
+  "prompts": {
+    "20269a347f83e7ee": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_3706e6bc2ffeaY5sb7B3IF4W9H-832d65cc-8a12-4da4-906e-77c6d8915d15",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "26bd2a986dd3c6c3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_3706e6bc2ffeaY5sb7B3IF4W9H-7d6234e0-5563-4212-a279-634e37624694",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 12,
+      "total_deletions": 14,
+      "accepted_lines": 12,
+      "overriden_lines": 0
+    },
+    "3921105e5e715b3d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_3706e6bc2ffeaY5sb7B3IF4W9H-bf83088c-bc61-429f-89c1-1f8cf0e2fb0e",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 304,
+      "overriden_lines": 0
+    }
+  }
+}
