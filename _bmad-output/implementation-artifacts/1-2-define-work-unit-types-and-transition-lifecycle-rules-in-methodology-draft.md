@@ -1,6 +1,6 @@
 # Story 1.2: Define Work Unit Types and Transition Lifecycle Rules in Methodology Draft
 
-Status: in-review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
