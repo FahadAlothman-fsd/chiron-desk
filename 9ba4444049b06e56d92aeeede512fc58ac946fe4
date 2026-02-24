@@ -1,0 +1,453 @@
+packages/api/src/routers/methodology.test.ts
+  4cc8dcaf2b43ec2a 166-170
+  3139adc36fbccf3b 148-149
+  b00b6270977cf0a5 8-12,157-165
+_bmad-output/implementation-artifacts/1-2-define-work-unit-types-and-transition-lifecycle-rules-in-methodology-draft.md
+  0949a243caf3a4c9 30-50
+  aa7b2e3723ecf103 243,246-248,251-252,254,256-258,263-265,267-269,271-277
+packages/contracts/src/methodology/lifecycle.ts
+  5db87afc32f93827 3,34
+docs/plans/2026-02-24-story-1-2-review-fix-plan.md
+  7a37151d3da321cb 1-79
+packages/api/src/routers/index.ts
+  3ee776252ac3d577 14
+  d20fb7c33e0086f1 18
+  0b3c9be82c75c21f 19,22
+  7fdc88eb00cd29f9 21,23-25
+packages/methodology-engine/src/lifecycle-validation.ts
+  6f8c19bdc8567213 285-301
+  af18d5c76702889d 30
+packages/db/src/methodology-repository.ts
+  57071e7b55313221 308-317
+packages/db/src/lifecycle-repository.ts
+  8c7282f08374045c 1-7,9-17,19-106,123-161,163,165,170-205,207,209,214-232,243-267,272-285,290-317,333-341,346-354,356-367,375-389,424-434,440-441,443-458,466-468
+  1cd02bd61adc48ca 390
+  26f000b7ffc28f1c 355
+  2298542669db6c43 392-394,423
+  d73f8186a4d89c79 206,208,210-213
+  40e4f0addcd1a9b9 162,164,166-169
+packages/db/src/index.ts
+  20b2fefddfff2637 16
+apps/server/src/index.ts
+  c78b20cd42087862 14
+docs/plans/2026-02-24-story-1-2-agent-type-schema-design.md
+  6615a02406f4626b 1-132
+packages/methodology-engine/src/repository.ts
+  4dc8f3ddf3d8b10a 90
+packages/methodology-engine/src/version-service.test.ts
+  fa905dd5a286f7d3 143-144
+packages/methodology-engine/src/lifecycle-service.ts
+  4130b045965ba702 152-154
+packages/methodology-engine/src/lifecycle-validation.test.ts
+  855f5f4ad583c9be 91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.5",
+  "base_commit_sha": "9ba4444049b06e56d92aeeede512fc58ac946fe4",
+  "prompts": {
+    "0017dbdfbb940c2f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-300c9b5a-3c13-4880-aabe-c5ba16f42b65",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 1,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "0949a243caf3a4c9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-c9649d23-703c-497b-b644-d9d755e592e1",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 21,
+      "total_deletions": 21,
+      "accepted_lines": 21,
+      "overriden_lines": 0
+    },
+    "0b3c9be82c75c21f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-ae23f656-5970-43fd-8c3b-332f2750de5d",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 18,
+      "total_deletions": 6,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    },
+    "1cd02bd61adc48ca": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-5baa465e-ae4e-463a-9c4f-77dc03d1c24d",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 13,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "20b2fefddfff2637": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-86231cc0-fe59-456b-a8df-9becaeec9c40",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "2298542669db6c43": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-b9868f82-8a8d-4382-8c3f-04426b0300b0",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 7,
+      "total_deletions": 2,
+      "accepted_lines": 4,
+      "overriden_lines": 6
+    },
+    "26f000b7ffc28f1c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-c886ad08-24b6-4e31-b4e9-04a1c523d9ea",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "3139adc36fbccf3b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-2fdd65a0-bad0-44f6-8754-bcb6fe40fe75",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 0,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    },
+    "3ee776252ac3d577": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-77a807c7-c2b5-44f0-a982-3ba503724d3f",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "40e4f0addcd1a9b9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-5b30b2e7-9e9c-4eec-b7e4-23dd29e2c3ec",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 7,
+      "total_deletions": 13,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    },
+    "4130b045965ba702": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-44f67543-26d2-4c00-a472-f1dc62c0ae47",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 9,
+      "total_deletions": 2,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    },
+    "4cc8dcaf2b43ec2a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-eda9d0a2-9ab9-4292-9d4b-43cecc3d14ec",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 5,
+      "total_deletions": 12,
+      "accepted_lines": 5,
+      "overriden_lines": 0
+    },
+    "4dc8f3ddf3d8b10a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-5c077c3c-bcd6-48c1-ad7f-9f5ef48e8e7c",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 0,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    },
+    "57071e7b55313221": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-7196b366-8fa6-4b74-9813-926e2abeb2b2",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 10,
+      "total_deletions": 0,
+      "accepted_lines": 10,
+      "overriden_lines": 0
+    },
+    "5db87afc32f93827": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-164846d9-0e60-4e7f-afa9-0c8cb07830a8",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 7,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    },
+    "6615a02406f4626b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-ea809531-6965-4057-b25f-8280c8d3952b",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 132,
+      "total_deletions": 0,
+      "accepted_lines": 132,
+      "overriden_lines": 0
+    },
+    "6f8c19bdc8567213": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-02e8f29f-3093-49c7-832e-fc29517c1f77",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 22,
+      "total_deletions": 0,
+      "accepted_lines": 22,
+      "overriden_lines": 0
+    },
+    "77c04bb046620728": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-94c644ee-96cf-4d06-804c-dee6d8280adb",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 7,
+      "total_deletions": 3,
+      "accepted_lines": 0,
+      "overriden_lines": 1
+    },
+    "7a37151d3da321cb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-cf32ce8f-c534-4941-b4e6-a8d80d3ef238",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 79,
+      "total_deletions": 0,
+      "accepted_lines": 79,
+      "overriden_lines": 0
+    },
+    "7fdc88eb00cd29f9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-cffd5b85-7ef1-429d-9631-aacd9523ee55",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 15,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    },
+    "855f5f4ad583c9be": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-df505120-e4c0-404c-8861-a5247717ce54",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    },
+    "87324b07aded81fe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-0baab928-05b0-4624-8c18-8ae2fbc53067",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 94,
+      "total_deletions": 0,
+      "accepted_lines": 12,
+      "overriden_lines": 3
+    },
+    "8c7282f08374045c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-bacb9736-18a1-41ba-a2e4-52fbf85f9dfd",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 392,
+      "total_deletions": 0,
+      "accepted_lines": 346,
+      "overriden_lines": 13
+    },
+    "a7dc890e59ebb523": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-d31028ac-9f56-47ee-b282-c5b5d39c1fa3",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "aa7b2e3723ecf103": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-9ce8aee8-9d49-41a1-87f0-baae1a274afa",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 33,
+      "total_deletions": 0,
+      "accepted_lines": 23,
+      "overriden_lines": 12
+    },
+    "af18d5c76702889d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-378b793d-1b2f-450c-9aab-9cbeb45c92c8",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "b00b6270977cf0a5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-f55c9a3b-0a86-4761-8b15-59e6245cb48b",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 27,
+      "total_deletions": 2,
+      "accepted_lines": 14,
+      "overriden_lines": 0
+    },
+    "c78b20cd42087862": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-0b7291c1-e253-49de-8383-cc59c1039f08",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 5,
+      "total_deletions": 2,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    },
+    "d20fb7c33e0086f1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-7bde3a44-356b-4a82-ae86-2d816e28a572",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 10,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "d73f8186a4d89c79": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-ae51b672-7519-48fb-b8d6-569de0415703",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 7,
+      "total_deletions": 13,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    },
+    "fa905dd5a286f7d3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_370352ce3ffeVIkfLMrl5q5Zlx-a194611d-169f-4eac-839e-aeabaeef7a72",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 0,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}
