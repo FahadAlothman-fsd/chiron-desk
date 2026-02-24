@@ -115,3 +115,157 @@ export const methodologyLinkTypeDefinitions = sqliteTable(
     uniqueIndex("methodology_link_type_defs_vid_key_idx").on(table.methodologyVersionId, table.key),
   ],
 );
+
+export const methodologyWorkUnitTypes = sqliteTable(
+  "methodology_work_unit_types",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    methodologyVersionId: text("methodology_version_id")
+      .notNull()
+      .references(() => methodologyVersions.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    displayName: text("display_name"),
+    descriptionJson: text("description_json", { mode: "json" }),
+    cardinality: text("cardinality").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .default(timestampDefault)
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [uniqueIndex("methodology_wut_vid_key_idx").on(table.methodologyVersionId, table.key)],
+);
+
+export const methodologyLifecycleStates = sqliteTable(
+  "methodology_lifecycle_states",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    methodologyVersionId: text("methodology_version_id")
+      .notNull()
+      .references(() => methodologyVersions.id, { onDelete: "cascade" }),
+    workUnitTypeId: text("work_unit_type_id")
+      .notNull()
+      .references(() => methodologyWorkUnitTypes.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    displayName: text("display_name"),
+    descriptionJson: text("description_json", { mode: "json" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .default(timestampDefault)
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("methodology_ls_vid_wut_key_idx").on(
+      table.methodologyVersionId,
+      table.workUnitTypeId,
+      table.key,
+    ),
+    index("methodology_ls_vid_wut_idx").on(table.methodologyVersionId, table.workUnitTypeId),
+  ],
+);
+
+export const methodologyLifecycleTransitions = sqliteTable(
+  "methodology_lifecycle_transitions",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    methodologyVersionId: text("methodology_version_id")
+      .notNull()
+      .references(() => methodologyVersions.id, { onDelete: "cascade" }),
+    workUnitTypeId: text("work_unit_type_id")
+      .notNull()
+      .references(() => methodologyWorkUnitTypes.id, { onDelete: "cascade" }),
+    fromStateId: text("from_state_id").references(() => methodologyLifecycleStates.id, {
+      onDelete: "cascade",
+    }),
+    toStateId: text("to_state_id")
+      .notNull()
+      .references(() => methodologyLifecycleStates.id, { onDelete: "cascade" }),
+    transitionKey: text("transition_key").notNull(),
+    gateClass: text("gate_class").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .default(timestampDefault)
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("methodology_lt_vid_wut_key_idx").on(
+      table.methodologyVersionId,
+      table.workUnitTypeId,
+      table.transitionKey,
+    ),
+    index("methodology_lt_vid_wut_idx").on(table.methodologyVersionId, table.workUnitTypeId),
+    index("methodology_lt_from_state_idx").on(table.fromStateId),
+    index("methodology_lt_to_state_idx").on(table.toStateId),
+  ],
+);
+
+export const methodologyFactSchemas = sqliteTable(
+  "methodology_fact_schemas",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    methodologyVersionId: text("methodology_version_id")
+      .notNull()
+      .references(() => methodologyVersions.id, { onDelete: "cascade" }),
+    workUnitTypeId: text("work_unit_type_id")
+      .notNull()
+      .references(() => methodologyWorkUnitTypes.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    factType: text("fact_type").notNull(),
+    required: integer("required", { mode: "boolean" }).default(true).notNull(),
+    defaultValueJson: text("default_value_json", { mode: "json" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .default(timestampDefault)
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("methodology_fs_vid_wut_key_idx").on(
+      table.methodologyVersionId,
+      table.workUnitTypeId,
+      table.key,
+    ),
+    index("methodology_fs_vid_wut_idx").on(table.methodologyVersionId, table.workUnitTypeId),
+  ],
+);
+
+export const methodologyTransitionRequiredLinks = sqliteTable(
+  "methodology_transition_required_links",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    methodologyVersionId: text("methodology_version_id")
+      .notNull()
+      .references(() => methodologyVersions.id, { onDelete: "cascade" }),
+    transitionId: text("transition_id")
+      .notNull()
+      .references(() => methodologyLifecycleTransitions.id, { onDelete: "cascade" }),
+    linkTypeKey: text("link_type_key").notNull(),
+    strength: text("strength").notNull(),
+    required: integer("required", { mode: "boolean" }).default(true).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .default(timestampDefault)
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("methodology_trl_vid_trans_link_idx").on(
+      table.methodologyVersionId,
+      table.transitionId,
+      table.linkTypeKey,
+    ),
+    index("methodology_trl_vid_trans_idx").on(table.methodologyVersionId, table.transitionId),
+  ],
+);
