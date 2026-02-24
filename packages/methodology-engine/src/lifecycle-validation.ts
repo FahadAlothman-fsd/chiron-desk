@@ -1,9 +1,8 @@
 import type {
-  FactSchema,
-  LifecycleState,
   LifecycleTransition,
   WorkUnitTypeDefinition,
 } from "@chiron/contracts/methodology/lifecycle";
+import type { AgentTypeDefinition } from "@chiron/contracts/methodology/agent";
 import type { ValidationDiagnostic, ValidationResult } from "@chiron/contracts/methodology/version";
 
 function makeDiagnostic(
@@ -26,8 +25,10 @@ const ABSENT_STATE = "__absent__";
  * All 12 ACs from Story 1.2 are validated here.
  */
 export function validateLifecycleDefinition(
-  workUnitTypes: WorkUnitTypeDefinition[],
+  workUnitTypes: readonly WorkUnitTypeDefinition[],
   timestamp: string,
+  definedLinkTypeKeys?: readonly string[],
+  agentTypes: readonly AgentTypeDefinition[] = [],
 ): ValidationResult {
   const diagnostics: ValidationDiagnostic[] = [];
 
@@ -281,6 +282,23 @@ export function validateLifecycleDefinition(
   for (const [wutIndex, wut] of workUnitTypes.entries()) {
     for (const [transIndex, trans] of wut.lifecycleTransitions.entries()) {
       for (const [linkIndex, link] of trans.requiredLinks.entries()) {
+        // Validate linkTypeKey exists in defined link types
+        if (definedLinkTypeKeys !== undefined && !definedLinkTypeKeys.includes(link.linkTypeKey)) {
+          diagnostics.push(
+            makeDiagnostic(
+              {
+                code: "UNDEFINED_LINK_TYPE",
+                scope: `workUnitTypes[${wutIndex}].lifecycleTransitions[${transIndex}].requiredLinks[${linkIndex}].linkTypeKey`,
+                blocking: true,
+                required: `One of defined link types`,
+                observed: link.linkTypeKey,
+                remediation: "Use a defined link type key from the methodology version",
+              },
+              timestamp,
+            ),
+          );
+        }
+
         // Validate strength values
         if (link.strength !== undefined && !ALLOWED_STRENGTHS.has(link.strength)) {
           diagnostics.push(
@@ -333,6 +351,78 @@ export function validateLifecycleDefinition(
           timestamp,
         ),
       );
+    }
+  }
+
+  const agentKeys = new Set<string>();
+  for (const [agentIndex, agent] of agentTypes.entries()) {
+    if (agentKeys.has(agent.key)) {
+      diagnostics.push(
+        makeDiagnostic(
+          {
+            code: "DUPLICATE_AGENT_TYPE_KEY",
+            scope: `agentTypes[${agentIndex}].key`,
+            blocking: true,
+            required: "Unique agent type key within methodology version",
+            observed: agent.key,
+            remediation: `Rename agent key '${agent.key}' to be unique`,
+          },
+          timestamp,
+        ),
+      );
+    }
+    agentKeys.add(agent.key);
+
+    if (agent.key.startsWith("_")) {
+      diagnostics.push(
+        makeDiagnostic(
+          {
+            code: "RESERVED_AGENT_TYPE_KEY",
+            scope: `agentTypes[${agentIndex}].key`,
+            blocking: true,
+            required: "Agent key must not start with underscore",
+            observed: agent.key,
+            remediation: "Use a non-reserved agent key",
+          },
+          timestamp,
+        ),
+      );
+    }
+
+    if (agent.persona.trim().length === 0) {
+      diagnostics.push(
+        makeDiagnostic(
+          {
+            code: "EMPTY_AGENT_PERSONA",
+            scope: `agentTypes[${agentIndex}].persona`,
+            blocking: true,
+            required: "Non-empty persona definition",
+            observed: agent.persona,
+            remediation: "Provide a persona template for this agent",
+          },
+          timestamp,
+        ),
+      );
+    }
+
+    if (agent.defaultModel) {
+      const provider = agent.defaultModel.provider.trim();
+      const model = agent.defaultModel.model.trim();
+      if (provider.length === 0 || model.length === 0) {
+        diagnostics.push(
+          makeDiagnostic(
+            {
+              code: "INVALID_MODEL_REFERENCE",
+              scope: `agentTypes[${agentIndex}].defaultModel`,
+              blocking: true,
+              required: "defaultModel.provider and defaultModel.model must be non-empty",
+              observed: JSON.stringify(agent.defaultModel),
+              remediation: "Provide both provider and model values",
+            },
+            timestamp,
+          ),
+        );
+      }
     }
   }
 

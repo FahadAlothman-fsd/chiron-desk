@@ -40,7 +40,7 @@ export interface CreateDraftParams {
   displayName: string;
   version: string;
   definitionJson: unknown;
-  variableDefinitions?: CreateDraftVersionInput["variableDefinitions"];
+  factDefinitions?: CreateDraftVersionInput["factDefinitions"];
   linkTypeDefinitions?: CreateDraftVersionInput["linkTypeDefinitions"];
   actorId: string | null;
   validationDiagnostics: ValidationResult;
@@ -51,7 +51,7 @@ export interface UpdateDraftParams {
   displayName: string;
   version: string;
   definitionJson: unknown;
-  variableDefinitions?: UpdateDraftVersionInput["variableDefinitions"];
+  factDefinitions?: UpdateDraftVersionInput["factDefinitions"];
   linkTypeDefinitions?: UpdateDraftVersionInput["linkTypeDefinitions"];
   actorId: string | null;
   changedFieldsJson: unknown;
@@ -87,5 +87,6 @@ export class MethodologyRepository extends Context.Tag("MethodologyRepository")<
     readonly recordEvent: (
       event: Omit<MethodologyVersionEventRow, "id" | "createdAt">,
     ) => Effect.Effect<MethodologyVersionEventRow>;
+    readonly findLinkTypeKeys: (versionId: string) => Effect.Effect<readonly string[]>;
   }
 >() {}

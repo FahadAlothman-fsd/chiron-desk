@@ -43,6 +43,7 @@ export type ValidationResult = typeof ValidationResult.Type;
  */
 export const MethodologyVersionDefinition = Schema.Struct({
   workUnitTypes: Schema.Array(Schema.Unknown),
+  agentTypes: Schema.optionalWith(Schema.Array(Schema.Unknown), { default: () => [] }),
   transitions: Schema.Array(Schema.Unknown),
   allowedWorkflowsByTransition: Schema.Record({
     key: Schema.String,
@@ -51,7 +52,7 @@ export const MethodologyVersionDefinition = Schema.Struct({
 });
 export type MethodologyVersionDefinition = typeof MethodologyVersionDefinition.Type;
 
-export const MethodologyVariableDefinitionInput = Schema.Struct({
+export const MethodologyFactDefinitionInput = Schema.Struct({
   key: Schema.NonEmptyString,
   valueType: VariableValueType,
   description: Schema.optional(Schema.String),
@@ -59,7 +60,7 @@ export const MethodologyVariableDefinitionInput = Schema.Struct({
   defaultValue: Schema.optional(Schema.Unknown),
   validation: Schema.optional(Schema.Unknown),
 });
-export type MethodologyVariableDefinitionInput = typeof MethodologyVariableDefinitionInput.Type;
+export type MethodologyFactDefinitionInput = typeof MethodologyFactDefinitionInput.Type;
 
 export const MethodologyLinkTypeDefinitionInput = Schema.Struct({
   key: Schema.NonEmptyString,
@@ -78,7 +79,7 @@ export const CreateDraftVersionInput = Schema.Struct({
   displayName: Schema.NonEmptyString,
   version: Schema.NonEmptyString,
   definition: MethodologyVersionDefinition,
-  variableDefinitions: Schema.optional(Schema.Array(MethodologyVariableDefinitionInput)),
+  factDefinitions: Schema.optional(Schema.Array(MethodologyFactDefinitionInput)),
   linkTypeDefinitions: Schema.optional(Schema.Array(MethodologyLinkTypeDefinitionInput)),
 });
 export type CreateDraftVersionInput = typeof CreateDraftVersionInput.Type;
@@ -92,7 +93,7 @@ export const UpdateDraftVersionInput = Schema.Struct({
   displayName: Schema.NonEmptyString,
   version: Schema.NonEmptyString,
   definition: MethodologyVersionDefinition,
-  variableDefinitions: Schema.optional(Schema.Array(MethodologyVariableDefinitionInput)),
+  factDefinitions: Schema.optional(Schema.Array(MethodologyFactDefinitionInput)),
   linkTypeDefinitions: Schema.optional(Schema.Array(MethodologyLinkTypeDefinitionInput)),
 });
 export type UpdateDraftVersionInput = typeof UpdateDraftVersionInput.Type;
@@ -140,7 +141,7 @@ export const MethodologyVersionEvent = Schema.Struct({
 });
 export type MethodologyVersionEvent = typeof MethodologyVersionEvent.Type;
 
-export const MethodologyVariableDefinition = Schema.Struct({
+export const MethodologyFactDefinition = Schema.Struct({
   id: Schema.String,
   methodologyVersionId: Schema.String,
   key: Schema.String,
@@ -152,7 +153,7 @@ export const MethodologyVariableDefinition = Schema.Struct({
   createdAt: Schema.DateFromSelf,
   updatedAt: Schema.DateFromSelf,
 });
-export type MethodologyVariableDefinition = typeof MethodologyVariableDefinition.Type;
+export type MethodologyFactDefinition = typeof MethodologyFactDefinition.Type;
 
 export const MethodologyLinkTypeDefinition = Schema.Struct({
   id: Schema.String,

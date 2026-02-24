@@ -1,11 +1,6 @@
-import type {
-  FactSchema,
-  LifecycleState,
-  LifecycleTransition,
-  TransitionRequiredLink,
-  ValidationResult,
-  WorkUnitTypeDefinition,
-} from "@chiron/contracts/methodology/lifecycle";
+import type { AgentTypeDefinition } from "@chiron/contracts/methodology/agent";
+import type { WorkUnitTypeDefinition } from "@chiron/contracts/methodology/lifecycle";
+import type { ValidationResult } from "@chiron/contracts/methodology/version";
 import type { MethodologyVersionEventRow, MethodologyVersionRow } from "./repository.js";
 import { Context, Effect } from "effect";
 
@@ -67,11 +62,26 @@ export interface TransitionRequiredLinkRow {
   updatedAt: Date;
 }
 
+export interface AgentTypeRow {
+  id: string;
+  methodologyVersionId: string;
+  key: string;
+  displayName: string | null;
+  description: string | null;
+  persona: string;
+  defaultModelJson: unknown;
+  mcpServersJson: unknown;
+  capabilitiesJson: unknown;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // Parameters for save operations
 export interface SaveLifecycleDefinitionParams {
   versionId: string;
-  workUnitTypes: WorkUnitTypeDefinition[];
-  actorId: string | null;
+  workUnitTypes: readonly WorkUnitTypeDefinition[];
+  agentTypes: readonly AgentTypeDefinition[];
+  actorId: string;
   validationResult: ValidationResult;
   changedFieldsJson: unknown;
 }
@@ -110,6 +120,7 @@ export class LifecycleRepository extends Context.Tag("LifecycleRepository")<
       versionId: string,
       transitionId?: string,
     ) => Effect.Effect<readonly TransitionRequiredLinkRow[]>;
+    readonly findAgentTypes: (versionId: string) => Effect.Effect<readonly AgentTypeRow[]>;
 
     // Transactional save - only writes if validation passed
     readonly saveLifecycleDefinition: (

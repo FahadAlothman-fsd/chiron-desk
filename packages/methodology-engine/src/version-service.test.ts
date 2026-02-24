@@ -140,6 +140,8 @@ function makeTestRepo() {
         events.push(event);
         return event;
       }),
+
+    findLinkTypeKeys: (_versionId: string) => Effect.succeed([] as readonly string[]),
   });
 }
 
@@ -156,6 +158,7 @@ function runWithService<A, E>(effect: Effect.Effect<A, E, MethodologyVersionServ
 
 const VALID_DEFINITION = {
   workUnitTypes: [{ key: "task" }],
+  agentTypes: [],
   transitions: [{ key: "start" }],
   allowedWorkflowsByTransition: { start: ["default-wf"] },
 };
@@ -230,6 +233,7 @@ describe("MethodologyVersionService", () => {
         ...MINIMAL_INPUT,
         definition: {
           workUnitTypes: [],
+          agentTypes: [],
           transitions: [],
           allowedWorkflowsByTransition: {},
         },
@@ -247,10 +251,10 @@ describe("MethodologyVersionService", () => {
       expect(result.diagnostics.diagnostics.some((d) => d.blocking)).toBe(true);
     });
 
-    it("includes variable and link type definitions when provided", async () => {
+    it("includes fact and link type definitions when provided", async () => {
       const input = {
         ...MINIMAL_INPUT,
-        variableDefinitions: [
+        factDefinitions: [
           {
             key: "effort",
             valueType: "number" as const,

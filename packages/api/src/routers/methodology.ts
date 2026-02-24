@@ -25,6 +25,7 @@ import { protectedProcedure, publicProcedure } from "../index";
 
 const definitionSchema = z.object({
   workUnitTypes: z.array(z.unknown()),
+  agentTypes: z.array(z.unknown()).optional().default([]),
   transitions: z.array(z.unknown()),
   allowedWorkflowsByTransition: z.record(z.string(), z.array(z.string())),
 });
@@ -50,7 +51,7 @@ const createDraftInput = z.object({
   displayName: z.string().min(1),
   version: z.string().min(1),
   definition: definitionSchema,
-  variableDefinitions: z.array(variableDefinitionSchema).optional(),
+  factDefinitions: z.array(variableDefinitionSchema).optional(),
   linkTypeDefinitions: z.array(linkTypeDefinitionSchema).optional(),
 });
 
@@ -59,7 +60,7 @@ const updateDraftInput = z.object({
   displayName: z.string().min(1),
   version: z.string().min(1),
   definition: definitionSchema,
-  variableDefinitions: z.array(variableDefinitionSchema).optional(),
+  factDefinitions: z.array(variableDefinitionSchema).optional(),
   linkTypeDefinitions: z.array(linkTypeDefinitionSchema).optional(),
 });
 
@@ -109,9 +110,25 @@ const workUnitTypeSchema = z.object({
   factSchemas: z.array(factSchemaDefinition),
 });
 
+const modelReferenceSchema = z.object({
+  provider: z.string().min(1),
+  model: z.string().min(1),
+});
+
+const agentTypeSchema = z.object({
+  key: z.string().min(1),
+  displayName: z.string().optional(),
+  description: z.string().optional(),
+  persona: z.string().min(1),
+  defaultModel: modelReferenceSchema.optional(),
+  mcpServers: z.array(z.string().min(1)).optional(),
+  capabilities: z.array(z.string().min(1)).optional(),
+});
+
 const updateDraftLifecycleInput = z.object({
   versionId: z.string().min(1),
   workUnitTypes: z.array(workUnitTypeSchema),
+  agentTypes: z.array(agentTypeSchema).optional().default([]),
 });
 
 const getTransitionEligibilityInput = z.object({
@@ -194,7 +211,7 @@ export function createMethodologyRouter(
                 displayName: input.displayName,
                 version: input.version,
                 definition: input.definition,
-                variableDefinitions: input.variableDefinitions,
+                factDefinitions: input.factDefinitions,
                 linkTypeDefinitions:
                   input.linkTypeDefinitions as CreateDraftVersionInput["linkTypeDefinitions"],
               },
@@ -222,7 +239,7 @@ export function createMethodologyRouter(
                 displayName: input.displayName,
                 version: input.version,
                 definition: input.definition,
-                variableDefinitions: input.variableDefinitions,
+                factDefinitions: input.factDefinitions,
                 linkTypeDefinitions:
                   input.linkTypeDefinitions as UpdateDraftVersionInput["linkTypeDefinitions"],
               },
@@ -271,6 +288,7 @@ export function createMethodologyRouter(
               {
                 versionId: input.versionId,
                 workUnitTypes: input.workUnitTypes as UpdateDraftLifecycleInput["workUnitTypes"],
+                agentTypes: input.agentTypes,
               },
               actorId,
             );

@@ -1,10 +1,6 @@
 import { describe, it, expect } from "bun:test";
-import {
-  validateLifecycleDefinition,
-  validateCardinality,
-  validateGateClass,
-  validateAbsentTransitions,
-} from "./lifecycle-validation";
+import { validateLifecycleDefinition } from "./lifecycle-validation";
+import type { AgentTypeDefinition } from "@chiron/contracts/methodology/agent";
 import type { WorkUnitTypeDefinition } from "@chiron/contracts/methodology/lifecycle";
 
 describe("lifecycle-validation", () => {
@@ -92,7 +88,9 @@ describe("lifecycle-validation", () => {
       const result = validateLifecycleDefinition(workUnitTypes, timestamp);
 
       expect(result.valid).toBe(false);
-      expect(result.diagnostics.some((d) => d.code === "UNDEFINED_STATE_REFERENCE")).toBe(true);
+      expect(result.diagnostics.some((d) => d.code === "UNDEFINED_FROM_STATE_REFERENCE")).toBe(
+        true,
+      );
     });
 
     it("should reject undefined toState references", () => {
@@ -120,7 +118,7 @@ describe("lifecycle-validation", () => {
       const result = validateLifecycleDefinition(workUnitTypes, timestamp);
 
       expect(result.valid).toBe(false);
-      expect(result.diagnostics.some((d) => d.code === "UNDEFINED_STATE_REFERENCE")).toBe(true);
+      expect(result.diagnostics.some((d) => d.code === "UNDEFINED_TO_STATE_REFERENCE")).toBe(true);
     });
   });
 
@@ -200,9 +198,7 @@ describe("lifecycle-validation", () => {
       const result = validateLifecycleDefinition(workUnitTypes, timestamp);
 
       expect(result.valid).toBe(false);
-      expect(result.diagnostics.some((d) => d.code === "INVALID_ABSENT_TRANSITION_DIRECTION")).toBe(
-        true,
-      );
+      expect(result.diagnostics.some((d) => d.code === "UNSUPPORTED_FACT_TYPE")).toBe(true);
     });
 
     it("should accept valid fact types", () => {
@@ -412,6 +408,48 @@ describe("lifecycle-validation", () => {
           expect(prev.code.localeCompare(curr.code) <= 0).toBe(true);
         }
       }
+    });
+  });
+
+  describe("Agent Type Validation", () => {
+    it("rejects duplicate agent type keys", () => {
+      const workUnitTypes: WorkUnitTypeDefinition[] = [];
+      const agentTypes: AgentTypeDefinition[] = [
+        {
+          key: "architect",
+          displayName: "Prometheus",
+          persona: "Design architecture",
+        },
+        {
+          key: "architect",
+          displayName: "Duplicate",
+          persona: "Duplicate persona",
+        },
+      ];
+
+      const result = validateLifecycleDefinition(workUnitTypes, timestamp, undefined, agentTypes);
+
+      expect(result.valid).toBe(false);
+      expect(result.diagnostics.some((d) => d.code === "DUPLICATE_AGENT_TYPE_KEY")).toBe(true);
+    });
+
+    it("rejects invalid model references", () => {
+      const workUnitTypes: WorkUnitTypeDefinition[] = [];
+      const agentTypes: AgentTypeDefinition[] = [
+        {
+          key: "developer",
+          persona: "Implement features",
+          defaultModel: {
+            provider: "",
+            model: "claude-sonnet",
+          },
+        },
+      ];
+
+      const result = validateLifecycleDefinition(workUnitTypes, timestamp, undefined, agentTypes);
+
+      expect(result.valid).toBe(false);
+      expect(result.diagnostics.some((d) => d.code === "INVALID_MODEL_REFERENCE")).toBe(true);
     });
   });
 

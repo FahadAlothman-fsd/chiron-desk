@@ -27,27 +27,27 @@ so that published methodology versions have valid, deterministic execution contr
 
 ## Tasks / Subtasks
 
-- [ ] Extend methodology draft domain model for work unit types/lifecycles/transitions (AC: 1, 2, 4, 9, 10)
-  - [ ] Add/adjust contracts and schemas for work unit definitions, lifecycle states, transitions, gate bindings, cardinality policy.
-  - [ ] Update persistence model (Drizzle schema/repositories) for draft-scoped lifecycle data with deterministic ordering.
-- [ ] Implement deterministic validation for lifecycle and fact schema constraints (AC: 3, 5, 6, 7, 8, 9, 10)
-  - [ ] Add validators returning structured diagnostics for duplicates, undefined refs, invalid defaults/types, invalid cardinality, disallowed gate classes, invalid `__absent__` direction.
-  - [ ] Ensure transactional behavior: reject invalid inputs without partial writes.
-- [ ] Implement query/read model for transition eligibility and guard metadata (AC: 1, 11)
-  - [ ] Expose deterministic transition eligibility metadata from lifecycle definitions.
-  - [ ] Include guard metadata required by downstream execution planning.
-  - [ ] Keep eligibility in this story definition-time only (state graph + declared guard requirements), not runtime gate execution.
-- [ ] Add append-only evidence emission for lifecycle mutations (AC: 12)
-  - [ ] Record evidence events for lifecycle changes in draft scope.
-  - [ ] Ensure lineage queryability from draft to published version chain.
-- [ ] Wire API/service surface for create/update/query operations (AC: 1-12)
-  - [ ] Route through authenticated procedures and Effect service layers.
-  - [ ] Keep boundaries aligned with existing `packages/contracts`, `packages/methodology-engine`, `packages/db`, and `packages/api` ownership.
-- [ ] Add tests covering positive and negative paths (AC: 1-12)
-  - [ ] Deterministic validator tests for all rejection cases.
-  - [ ] Persistence/evidence tests ensuring append-only lineage semantics.
-  - [ ] API/service tests proving no partial mutation on invalid input.
-  - [ ] Add regression tests to ensure Story 1.1 guarantees remain true for 1.2 lifecycle APIs (auth writes, actor propagation, deterministic diagnostics ordering, append-only lineage).
+- [x] Extend methodology draft domain model for work unit types/lifecycles/transitions (AC: 1, 2, 4, 9, 10)
+  - [x] Add/adjust contracts and schemas for work unit definitions, lifecycle states, transitions, gate bindings, cardinality policy.
+  - [x] Update persistence model (Drizzle schema/repositories) for draft-scoped lifecycle data with deterministic ordering.
+- [x] Implement deterministic validation for lifecycle and fact schema constraints (AC: 3, 5, 6, 7, 8, 9, 10)
+  - [x] Add validators returning structured diagnostics for duplicates, undefined refs, invalid defaults/types, invalid cardinality, disallowed gate classes, invalid `__absent__` direction.
+  - [x] Ensure transactional behavior: reject invalid inputs without partial writes.
+- [x] Implement query/read model for transition eligibility and guard metadata (AC: 1, 11)
+  - [x] Expose deterministic transition eligibility metadata from lifecycle definitions.
+  - [x] Include guard metadata required by downstream execution planning.
+  - [x] Keep eligibility in this story definition-time only (state graph + declared guard requirements), not runtime gate execution.
+- [x] Add append-only evidence emission for lifecycle mutations (AC: 12)
+  - [x] Record evidence events for lifecycle changes in draft scope.
+  - [x] Ensure lineage queryability from draft to published version chain.
+- [x] Wire API/service surface for create/update/query operations (AC: 1-12)
+  - [x] Route through authenticated procedures and Effect service layers.
+  - [x] Keep boundaries aligned with existing `packages/contracts`, `packages/methodology-engine`, `packages/db`, and `packages/api` ownership.
+- [x] Add tests covering positive and negative paths (AC: 1-12)
+  - [x] Deterministic validator tests for all rejection cases.
+  - [x] Persistence/evidence tests ensuring append-only lineage semantics.
+  - [x] API/service tests proving no partial mutation on invalid input.
+  - [x] Add regression tests to ensure Story 1.1 guarantees remain true for 1.2 lifecycle APIs (auth writes, actor propagation, deterministic diagnostics ordering, append-only lineage).
 
 ## Dev Notes
 
@@ -234,8 +234,48 @@ openai/gpt-5.3-codex
 
 - Story context compiled from epics, PRD, architecture, project context, previous story, and recent git intelligence.
 - Story status set to ready-for-dev in both story file and sprint tracker.
+- Wave 1 review issues resolved: definition JSON merge safety, strict Effect decode at boundaries, removal of silent mutation paths, actor attribution tightening, and deterministic eligibility query improvements.
+- Story 1.2 methodology-layer extension added: `agentTypes` contract + persistence + validation + API input support.
+- Methodology-level definitions now use `factDefinitions` as the canonical name across contracts, API, and services.
 
 ### File List
 
+**Contracts (`packages/contracts/src/methodology/`):**
+- `agent.ts` - NEW: Agent type schema (persona, defaultModel provider/model, MCP server keys, capabilities)
+- `lifecycle.ts` - Core lifecycle schemas (WorkUnitTypeDefinition, LifecycleState, LifecycleTransition) + UpdateDraftLifecycleInput includes agentTypes
+- `fact.ts` - Fact type and schema definitions
+- `dependency.ts` - Dependency strength and requirement types
+- `eligibility.ts` - Transition eligibility and guard metadata types
+- `version.ts` - MethodologyVersionDefinition includes `agentTypes` (default `[]`) and canonical `factDefinitions` inputs
+- `index.ts` - Re-exports for methodology contracts (including `agent.ts`)
+
+**DB (`packages/db/src/`):**
+- `schema/methodology.ts` - Lifecycle tables + NEW `methodology_agent_types`
+- `methodology-repository.ts` - Added findLinkTypeKeys method
+- `lifecycle-repository.ts` - Lifecycle data persistence + agentTypes persistence + safe definitionJson merge
+- `index.ts` - Added lifecycle repository export
+
+**Methodology Engine (`packages/methodology-engine/src/`):**
+- `lifecycle-validation.ts` - Deterministic validation + link type existence + agent type validation
+- `lifecycle-service.ts` - Effect-first updateDraftLifecycle with typed decode of existing definition JSON and agentTypes support
+- `lifecycle-repository.ts` - LifecycleRepository interface and row types + `AgentTypeRow` + `findAgentTypes`
+- `eligibility-service.ts` - Transition eligibility query service with batched requiredLinks fetch (no N+1)
+- `repository.ts` - Added findLinkTypeKeys to MethodologyRepository interface
+- `errors.ts` - MethodologyError and LifecycleError types
+- `index.ts` - Module exports
+- `lifecycle-validation.test.ts` - Deterministic validator tests + agent type validation tests
+- `version-service.test.ts` - Added findLinkTypeKeys mock
+
+**API (`packages/api/src/routers/`):**
+- `methodology.ts` - updateDraftLifecycle and getTransitionEligibility procedures + agentTypes input schema
+- `index.ts` - Fixed duplicate variable, wired LifecycleRepository + all service layers
+- `methodology.test.ts` - Updated service layer composition with lifecycle mocks
+
+**Server (`apps/server/src/`):**
+- `index.ts` - Wired lifecycle repository layer into app router
+
+**Documentation:**
 - `_bmad-output/implementation-artifacts/1-2-define-work-unit-types-and-transition-lifecycle-rules-in-methodology-draft.md`
 - `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `docs/plans/2026-02-24-story-1-2-agent-type-schema-design.md`
+- `docs/plans/2026-02-24-story-1-2-review-fix-plan.md`

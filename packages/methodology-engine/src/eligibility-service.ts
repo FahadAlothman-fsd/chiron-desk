@@ -8,10 +8,18 @@ import { Context, Effect } from "effect";
 import { LifecycleRepository } from "./lifecycle-repository";
 import { MethodologyRepository } from "./repository";
 import { VersionNotFoundError } from "./errors";
-import type { DependencyStrength } from "@chiron/contracts/methodology/dependency";
-import type { GateClass } from "@chiron/contracts/methodology/lifecycle";
 
 const ABSENT_STATE = "__absent__";
+const ALLOWED_GATE_CLASSES = new Set(["start_gate", "completion_gate"] as const);
+const ALLOWED_STRENGTHS = new Set(["hard", "soft", "context"] as const);
+
+function isGateClass(value: string): value is TransitionEligibility["gateClass"] {
+  return ALLOWED_GATE_CLASSES.has(value as TransitionEligibility["gateClass"]);
+}
+
+function isDependencyStrength(value: string): value is RequiredLinkEligibility["strength"] {
+  return ALLOWED_STRENGTHS.has(value as RequiredLinkEligibility["strength"]);
+}
 
 /**
  * Service for querying transition eligibility metadata.
@@ -70,29 +78,50 @@ export const EligibilityServiceLive = Effect.gen(function* () {
         fromStateId: currentStateId, // NULL = __absent__, defined = specific state
       });
 
+      const transitionRequiredLinks = yield* lifecycleRepo.findTransitionRequiredLinks(
+        input.versionId,
+      );
+      const stateKeyById = new Map(states.map((s) => [s.id, s.key]));
+
       // Step 6: Build eligibility metadata with guard requirements
       const eligibleTransitions: TransitionEligibility[] = [];
 
       for (const transition of transitions) {
-        // Find required links for this transition
-        const requiredLinks = yield* lifecycleRepo.findTransitionRequiredLinks(
-          input.versionId,
-          transition.id,
-        );
+        const toStateKey = stateKeyById.get(transition.toStateId);
+        if (!toStateKey) {
+          throw new Error(
+            `Transition '${transition.transitionKey}' references missing toStateId '${transition.toStateId}'`,
+          );
+        }
+
+        if (!isGateClass(transition.gateClass)) {
+          throw new Error(
+            `Transition '${transition.transitionKey}' has invalid gateClass '${transition.gateClass}'`,
+          );
+        }
+
+        const requiredLinks = transitionRequiredLinks
+          .filter((link) => link.transitionId === transition.id)
+          .sort((a, b) => a.linkTypeKey.localeCompare(b.linkTypeKey));
 
         // Map to eligibility format
         const eligibility: TransitionEligibility = {
           transitionKey: transition.transitionKey,
           fromState: currentStateKey,
-          toState: states.find((s) => s.id === transition.toStateId)?.key ?? "",
-          gateClass: transition.gateClass as GateClass,
-          requiredLinks: requiredLinks.map(
-            (link): RequiredLinkEligibility => ({
+          toState: toStateKey,
+          gateClass: transition.gateClass,
+          requiredLinks: requiredLinks.map((link): RequiredLinkEligibility => {
+            if (!isDependencyStrength(link.strength)) {
+              throw new Error(
+                `Transition '${transition.transitionKey}' has invalid link strength '${link.strength}' for linkType '${link.linkTypeKey}'`,
+              );
+            }
+            return {
               linkTypeKey: link.linkTypeKey,
-              strength: link.strength as DependencyStrength,
+              strength: link.strength,
               required: link.required,
-            }),
-          ),
+            };
+          }),
         };
 
         eligibleTransitions.push(eligibility);

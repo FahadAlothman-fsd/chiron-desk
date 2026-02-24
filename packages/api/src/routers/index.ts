@@ -11,24 +11,18 @@ import {
   LifecycleServiceLive,
   EligibilityService,
   EligibilityServiceLive,
-} from "@chiron/methodology-engine";
-import {
-  MethodologyVersionService,
-  MethodologyVersionServiceLive,
-  MethodologyRepository,
+  LifecycleRepository,
 } from "@chiron/methodology-engine";
 
-export function createAppRouter(repoLayer: Layer.Layer<MethodologyRepository>) {
-  const methodologyServiceLayer = Layer.provide(
-    Layer.effect(MethodologyVersionService, MethodologyVersionServiceLive),
-    repoLayer,
-  ).pipe(
-    Layer.provide(Layer.effect(LifecycleService, LifecycleServiceLive)),
-    Layer.provide(Layer.effect(EligibilityService, EligibilityServiceLive)),
-  );
-  const methodologyServiceLayer = Layer.provide(
-    Layer.effect(MethodologyVersionService, MethodologyVersionServiceLive),
-    repoLayer,
+export function createAppRouter(
+  repoLayer: Layer.Layer<MethodologyRepository>,
+  lifecycleRepoLayer: Layer.Layer<LifecycleRepository>,
+) {
+  const allRepos = Layer.mergeAll(repoLayer, lifecycleRepoLayer);
+  const methodologyServiceLayer = Layer.mergeAll(
+    Layer.provide(Layer.effect(MethodologyVersionService, MethodologyVersionServiceLive), allRepos),
+    Layer.provide(Layer.effect(LifecycleService, LifecycleServiceLive), allRepos),
+    Layer.provide(Layer.effect(EligibilityService, EligibilityServiceLive), allRepos),
   );
   return {
     healthCheck: publicProcedure.handler(() => {

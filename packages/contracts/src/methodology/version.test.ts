@@ -5,8 +5,8 @@ import {
   CreateDraftVersionInput,
   GetDraftLineageInput,
   LinkStrength,
+  MethodologyFactDefinitionInput,
   MethodologyLinkTypeDefinitionInput,
-  MethodologyVariableDefinitionInput,
   MethodologyVersionDefinition,
   MethodologyVersionStatus,
   UpdateDraftVersionInput,
@@ -19,6 +19,7 @@ import {
 
 const validDefinition = {
   workUnitTypes: [],
+  agentTypes: [],
   transitions: [],
   allowedWorkflowsByTransition: {},
 };
@@ -185,8 +186,8 @@ describe("MethodologyVersionDefinition", () => {
   });
 });
 
-describe("MethodologyVariableDefinitionInput", () => {
-  const decode = Schema.decodeUnknownSync(MethodologyVariableDefinitionInput);
+describe("MethodologyFactDefinitionInput", () => {
+  const decode = Schema.decodeUnknownSync(MethodologyFactDefinitionInput);
 
   const validVar = {
     key: "priority",
@@ -194,13 +195,13 @@ describe("MethodologyVariableDefinitionInput", () => {
     required: true,
   };
 
-  it("accepts valid variable definition with required fields", () => {
+  it("accepts valid fact definition with required fields", () => {
     const result = decode(validVar);
     expect(result.key).toBe("priority");
     expect(result.valueType).toBe("number");
   });
 
-  it("accepts variable definition with all optional fields", () => {
+  it("accepts fact definition with all optional fields", () => {
     const full = {
       ...validVar,
       description: "Priority level",
@@ -211,11 +212,11 @@ describe("MethodologyVariableDefinitionInput", () => {
     expect(result.description).toBe("Priority level");
   });
 
-  it("rejects variable with empty key", () => {
+  it("rejects fact definition with empty key", () => {
     expect(() => decode({ ...validVar, key: "" })).toThrow();
   });
 
-  it("rejects variable with invalid valueType", () => {
+  it("rejects fact definition with invalid valueType", () => {
     expect(() => decode({ ...validVar, valueType: "array" })).toThrow();
   });
 });
@@ -274,10 +275,10 @@ describe("CreateDraftVersionInput", () => {
     expect(result.version).toBe("1.0.0");
   });
 
-  it("accepts create input with variable definitions", () => {
+  it("accepts create input with fact definitions", () => {
     const input = {
       ...validInput,
-      variableDefinitions: [
+      factDefinitions: [
         {
           key: "priority",
           valueType: "number",
@@ -286,7 +287,7 @@ describe("CreateDraftVersionInput", () => {
       ],
     };
     const result = decode(input);
-    expect(result.variableDefinitions).toHaveLength(1);
+    expect(result.factDefinitions).toHaveLength(1);
   });
 
   it("accepts create input with link type definitions", () => {
@@ -334,6 +335,21 @@ describe("UpdateDraftVersionInput", () => {
   it("accepts valid update input", () => {
     const result = decode(validInput);
     expect(result.versionId).toBe("ver-123");
+  });
+
+  it("accepts update with fact definitions", () => {
+    const input = {
+      ...validInput,
+      factDefinitions: [
+        {
+          key: "priority",
+          valueType: "number",
+          required: true,
+        },
+      ],
+    };
+    const result = decode(input);
+    expect(result.factDefinitions).toHaveLength(1);
   });
 
   it("rejects update with empty versionId", () => {

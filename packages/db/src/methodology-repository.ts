@@ -14,7 +14,7 @@ import {
   methodologyDefinitions,
   methodologyVersions,
   methodologyVersionEvents,
-  methodologyVariableDefinitions,
+  methodologyFactDefinitions,
   methodologyLinkTypeDefinitions,
 } from "./schema/methodology";
 
@@ -144,9 +144,9 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
 
           const ver = versionRows[0]!;
 
-          if (params.variableDefinitions?.length) {
-            await tx.insert(methodologyVariableDefinitions).values(
-              params.variableDefinitions.map((v) => ({
+          if (params.factDefinitions?.length) {
+            await tx.insert(methodologyFactDefinitions).values(
+              params.factDefinitions.map((v) => ({
                 methodologyVersionId: ver.id,
                 key: v.key,
                 valueType: v.valueType,
@@ -213,13 +213,13 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
 
           const ver = versionRows[0]!;
 
-          if (params.variableDefinitions !== undefined) {
+          if (params.factDefinitions !== undefined) {
             await tx
-              .delete(methodologyVariableDefinitions)
-              .where(eq(methodologyVariableDefinitions.methodologyVersionId, params.versionId));
-            if (params.variableDefinitions.length > 0) {
-              await tx.insert(methodologyVariableDefinitions).values(
-                params.variableDefinitions.map((v) => ({
+              .delete(methodologyFactDefinitions)
+              .where(eq(methodologyFactDefinitions.methodologyVersionId, params.versionId));
+            if (params.factDefinitions.length > 0) {
+              await tx.insert(methodologyFactDefinitions).values(
+                params.factDefinitions.map((v) => ({
                   methodologyVersionId: ver.id,
                   key: v.key,
                   valueType: v.valueType,
@@ -304,6 +304,16 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           })
           .returning();
         return toEventRow(rows[0]!);
+      }),
+
+    findLinkTypeKeys: (versionId: string) =>
+      dbEffect(async () => {
+        const rows = await db
+          .select({ key: methodologyLinkTypeDefinitions.key })
+          .from(methodologyLinkTypeDefinitions)
+          .where(eq(methodologyLinkTypeDefinitions.methodologyVersionId, versionId))
+          .orderBy(asc(methodologyLinkTypeDefinitions.key));
+        return rows.map((r) => r.key) as readonly string[];
       }),
   });
 }

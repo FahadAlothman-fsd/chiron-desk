@@ -5,6 +5,11 @@ import {
   MethodologyRepository,
   MethodologyVersionService,
   MethodologyVersionServiceLive,
+  LifecycleService,
+  LifecycleServiceLive,
+  LifecycleRepository,
+  EligibilityService,
+  EligibilityServiceLive,
   type MethodologyVersionRow,
   type MethodologyVersionEventRow,
   type CreateDraftParams,
@@ -140,18 +145,34 @@ function makeTestRepo(): MethodologyRepository["Type"] {
         events.push(row);
         return row;
       }),
+
+    findLinkTypeKeys: (_versionId: string) => Effect.succeed([] as readonly string[]),
   };
 }
 
 function makeServiceLayer() {
   const repo = makeTestRepo();
   const repoLayer = Layer.succeed(MethodologyRepository, repo);
-  const serviceLayer = Layer.effect(MethodologyVersionService, MethodologyVersionServiceLive);
-  return Layer.provide(serviceLayer, repoLayer);
+  const lifecycleRepoLayer = Layer.succeed(LifecycleRepository, {
+    findWorkUnitTypes: () => Effect.succeed([]),
+    findLifecycleStates: () => Effect.succeed([]),
+    findLifecycleTransitions: () => Effect.succeed([]),
+    findFactSchemas: () => Effect.succeed([]),
+    findTransitionRequiredLinks: () => Effect.succeed([]),
+    saveLifecycleDefinition: () => Effect.succeed({} as any),
+    recordLifecycleEvent: () => Effect.succeed({} as any),
+  } as any);
+  const allRepos = Layer.mergeAll(repoLayer, lifecycleRepoLayer);
+  return Layer.mergeAll(
+    Layer.provide(Layer.effect(MethodologyVersionService, MethodologyVersionServiceLive), allRepos),
+    Layer.provide(Layer.effect(LifecycleService, LifecycleServiceLive), allRepos),
+    Layer.provide(Layer.effect(EligibilityService, EligibilityServiceLive), allRepos),
+  );
 }
 
 const VALID_DEFINITION = {
   workUnitTypes: [{ key: "task" }],
+  agentTypes: [],
   transitions: [{ key: "start" }],
   allowedWorkflowsByTransition: {},
 };

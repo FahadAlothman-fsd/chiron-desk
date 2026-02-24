@@ -1,19 +1,19 @@
-import type {
-  GetTransitionEligibilityInput,
-  GetTransitionEligibilityOutput,
-  RequiredLinkEligibility,
-  TransitionEligibility,
-  UpdateDraftLifecycleInput,
-  UpdateDraftLifecycleOutput,
-  ValidationResult,
-  WorkUnitTypeDefinition,
+import {
+  WorkUnitTypeDefinition as WorkUnitTypeDefinitionSchema,
+  type UpdateDraftLifecycleInput,
+  type WorkUnitTypeDefinition,
 } from "@chiron/contracts/methodology/lifecycle";
-import { Context, Effect } from "effect";
+import {
+  AgentTypeDefinition as AgentTypeDefinitionSchema,
+  type AgentTypeDefinition,
+} from "@chiron/contracts/methodology/agent";
+import type { ValidationResult } from "@chiron/contracts/methodology/version";
+import { Context, Effect, Schema } from "effect";
 import { LifecycleRepository } from "./lifecycle-repository";
 import { MethodologyRepository } from "./repository";
 import { validateLifecycleDefinition } from "./lifecycle-validation";
 import type { MethodologyVersionRow } from "./repository";
-import { VersionNotDraftError, VersionNotFoundError } from "./errors";
+import { ValidationDecodeError, VersionNotDraftError, VersionNotFoundError } from "./errors";
 
 export interface UpdateDraftLifecycleResult {
   version: MethodologyVersionRow;
@@ -29,8 +29,11 @@ export class LifecycleService extends Context.Tag("LifecycleService")<
   {
     readonly updateDraftLifecycle: (
       input: UpdateDraftLifecycleInput,
-      actorId: string | null,
-    ) => Effect.Effect<UpdateDraftLifecycleResult, VersionNotFoundError | VersionNotDraftError>;
+      actorId: string,
+    ) => Effect.Effect<
+      UpdateDraftLifecycleResult,
+      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError
+    >;
   }
 >() {}
 
@@ -53,8 +56,14 @@ function ensureVersionIsDraft(
  * Returns null if no changes detected.
  */
 function computeLifecycleChanges(
-  prev: { workUnitTypes: WorkUnitTypeDefinition[] } | null,
-  next: { workUnitTypes: WorkUnitTypeDefinition[] },
+  prev: {
+    workUnitTypes: readonly WorkUnitTypeDefinition[];
+    agentTypes: readonly AgentTypeDefinition[];
+  } | null,
+  next: {
+    workUnitTypes: readonly WorkUnitTypeDefinition[];
+    agentTypes: readonly AgentTypeDefinition[];
+  },
 ): Record<string, { from: unknown; to: unknown }> | null {
   const changes: Record<string, { from: unknown; to: unknown }> = {};
 
@@ -69,7 +78,49 @@ function computeLifecycleChanges(
     };
   }
 
+  const prevAgentsJson = prev ? JSON.stringify(prev.agentTypes) : null;
+  const nextAgentsJson = JSON.stringify(next.agentTypes);
+  if (prevAgentsJson !== nextAgentsJson) {
+    changes.agentTypes = {
+      from: prev?.agentTypes ?? null,
+      to: next.agentTypes,
+    };
+  }
+
   return Object.keys(changes).length > 0 ? changes : null;
+}
+
+const decodeWorkUnitTypes = Schema.decodeUnknown(Schema.Array(WorkUnitTypeDefinitionSchema));
+const decodeAgentTypes = Schema.decodeUnknown(Schema.Array(AgentTypeDefinitionSchema));
+
+function extractPreviousLifecycleDefinition(definitionJson: unknown): Effect.Effect<
+  {
+    workUnitTypes: readonly WorkUnitTypeDefinition[];
+    agentTypes: readonly AgentTypeDefinition[];
+  } | null,
+  ValidationDecodeError
+> {
+  if (typeof definitionJson !== "object" || definitionJson === null) {
+    return Effect.succeed(null);
+  }
+  if (
+    !Object.prototype.hasOwnProperty.call(definitionJson, "workUnitTypes") &&
+    !Object.prototype.hasOwnProperty.call(definitionJson, "agentTypes")
+  ) {
+    return Effect.succeed(null);
+  }
+  const payload = definitionJson as { workUnitTypes?: unknown; agentTypes?: unknown };
+  return Effect.all({
+    workUnitTypes: decodeWorkUnitTypes(payload.workUnitTypes ?? []),
+    agentTypes: decodeAgentTypes(payload.agentTypes ?? []),
+  }).pipe(
+    Effect.mapError(
+      (err) =>
+        new ValidationDecodeError({
+          message: `Invalid existing definitionJson lifecycle payload: ${String(err)}`,
+        }),
+    ),
+  );
 }
 
 export const LifecycleServiceLive = Effect.gen(function* () {
@@ -78,8 +129,11 @@ export const LifecycleServiceLive = Effect.gen(function* () {
 
   const updateDraftLifecycle = (
     input: UpdateDraftLifecycleInput,
-    actorId: string | null,
-  ): Effect.Effect<UpdateDraftLifecycleResult, VersionNotFoundError | VersionNotDraftError> =>
+    actorId: string,
+  ): Effect.Effect<
+    UpdateDraftLifecycleResult,
+    VersionNotFoundError | VersionNotDraftError | ValidationDecodeError
+  > =>
     Effect.gen(function* () {
       // Step 1: Find existing version
       const existing = yield* repo.findVersionById(input.versionId);
@@ -90,18 +144,24 @@ export const LifecycleServiceLive = Effect.gen(function* () {
       // Step 2: Ensure draft status
       yield* ensureVersionIsDraft(existing);
 
-      // Step 3: Validate lifecycle definition (pure function)
+      // Step 3: Fetch defined link types for validation
+      const definedLinkTypeKeys = yield* repo.findLinkTypeKeys(input.versionId);
+
+      // Step 4: Validate lifecycle definition (pure function)
       const timestamp = new Date().toISOString();
-      const validation = validateLifecycleDefinition(input.workUnitTypes, timestamp);
+      const validation = validateLifecycleDefinition(
+        input.workUnitTypes,
+        timestamp,
+        Array.from(definedLinkTypeKeys),
+        input.agentTypes,
+      );
 
       // Step 4: Compute changed fields for evidence
-      const changedFieldsJson = computeLifecycleChanges(
-        // Extract previous lifecycle data from definitionJson if present
-        existing.definitionJson && typeof existing.definitionJson === "object"
-          ? (existing.definitionJson as { workUnitTypes: WorkUnitTypeDefinition[] })
-          : null,
-        { workUnitTypes: input.workUnitTypes },
-      );
+      const previousDefinition = yield* extractPreviousLifecycleDefinition(existing.definitionJson);
+      const changedFieldsJson = computeLifecycleChanges(previousDefinition, {
+        workUnitTypes: input.workUnitTypes,
+        agentTypes: input.agentTypes,
+      });
 
       // Step 5: If validation has blocking errors, return without persisting (AC 5, 6, 7, 8, 9, 10)
       if (!validation.valid) {
@@ -121,6 +181,7 @@ export const LifecycleServiceLive = Effect.gen(function* () {
       const { version } = yield* lifecycleRepo.saveLifecycleDefinition({
         versionId: input.versionId,
         workUnitTypes: input.workUnitTypes,
+        agentTypes: input.agentTypes,
         actorId,
         validationResult: validation,
         changedFieldsJson,

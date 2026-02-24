@@ -1,4 +1,6 @@
 import { Schema } from "effect";
+import { AgentTypeDefinition } from "./agent.js";
+import { FactSchema } from "./fact.js";
 
 export const GateClass = Schema.Literal("start_gate", "completion_gate");
 export type GateClass = typeof GateClass.Type;
@@ -29,13 +31,7 @@ export const LifecycleTransition = Schema.Struct({
 });
 export type LifecycleTransition = typeof LifecycleTransition.Type;
 
-export const FactSchema = Schema.Struct({
-  key: Schema.NonEmptyString,
-  factType: Schema.Literal("string", "number", "boolean", "json"),
-  required: Schema.optionalWith(Schema.Boolean, { default: () => true }),
-  defaultValue: Schema.optional(Schema.Unknown),
-});
-export type FactSchema = typeof FactSchema.Type;
+// FactSchema imported from ./fact.ts — no duplicate definition
 
 export const WorkUnitTypeDefinition = Schema.Struct({
   key: Schema.NonEmptyString,
@@ -51,5 +47,6 @@ export type WorkUnitTypeDefinition = typeof WorkUnitTypeDefinition.Type;
 export const UpdateDraftLifecycleInput = Schema.Struct({
   versionId: Schema.NonEmptyString,
   workUnitTypes: Schema.Array(WorkUnitTypeDefinition),
+  agentTypes: Schema.optionalWith(Schema.Array(AgentTypeDefinition), { default: () => [] }),
 });
 export type UpdateDraftLifecycleInput = typeof UpdateDraftLifecycleInput.Type;

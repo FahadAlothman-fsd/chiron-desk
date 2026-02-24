@@ -67,7 +67,7 @@ export const methodologyVersionEvents = sqliteTable(
   ],
 );
 
-export const methodologyVariableDefinitions = sqliteTable(
+export const methodologyFactDefinitions = sqliteTable(
   "methodology_variable_definitions",
   {
     id: text("id")
@@ -136,6 +136,31 @@ export const methodologyWorkUnitTypes = sqliteTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [uniqueIndex("methodology_wut_vid_key_idx").on(table.methodologyVersionId, table.key)],
+);
+
+export const methodologyAgentTypes = sqliteTable(
+  "methodology_agent_types",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    methodologyVersionId: text("methodology_version_id")
+      .notNull()
+      .references(() => methodologyVersions.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    displayName: text("display_name"),
+    description: text("description"),
+    persona: text("persona").notNull(),
+    defaultModelJson: text("default_model_json", { mode: "json" }),
+    mcpServersJson: text("mcp_servers_json", { mode: "json" }),
+    capabilitiesJson: text("capabilities_json", { mode: "json" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .default(timestampDefault)
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [uniqueIndex("methodology_at_vid_key_idx").on(table.methodologyVersionId, table.key)],
 );
 
 export const methodologyLifecycleStates = sqliteTable(

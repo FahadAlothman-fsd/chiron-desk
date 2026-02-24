@@ -13,3 +13,4 @@ export const db = drizzle({ client, schema });
 export { schema };
 
 export { createMethodologyRepoLayer } from "./methodology-repository";
+export { createLifecycleRepoLayer } from "./lifecycle-repository";

@@ -128,7 +128,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
         displayName: input.displayName,
         version: input.version,
         definitionJson: input.definition,
-        variableDefinitions: input.variableDefinitions,
+        factDefinitions: input.factDefinitions,
         linkTypeDefinitions: input.linkTypeDefinitions,
         actorId,
         validationDiagnostics: diagnostics,
@@ -174,7 +174,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
         displayName: input.displayName,
         version: input.version,
         definitionJson: input.definition,
-        variableDefinitions: input.variableDefinitions,
+        factDefinitions: input.factDefinitions,
         linkTypeDefinitions: input.linkTypeDefinitions,
         actorId,
         changedFieldsJson,
@@ -199,6 +199,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
         Effect.catchAll(() =>
           Effect.succeed({
             workUnitTypes: [],
+            agentTypes: [],
             transitions: [],
             allowedWorkflowsByTransition: {},
           } satisfies MethodologyVersionDefinition),
