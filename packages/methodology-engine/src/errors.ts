@@ -28,3 +28,10 @@ export type MethodologyError =
   | VersionNotDraftError
   | DuplicateVersionError
   | ValidationDecodeError;
+
+export class LifecycleValidationError extends Data.TaggedError("LifecycleValidationError")<{
+  readonly versionId: string;
+  readonly message: string;
+}> {}
+
+export type LifecycleError = LifecycleValidationError;

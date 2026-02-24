@@ -7,9 +7,25 @@ import {
   MethodologyVersionService,
   MethodologyVersionServiceLive,
   MethodologyRepository,
+  LifecycleService,
+  LifecycleServiceLive,
+  EligibilityService,
+  EligibilityServiceLive,
+} from "@chiron/methodology-engine";
+import {
+  MethodologyVersionService,
+  MethodologyVersionServiceLive,
+  MethodologyRepository,
 } from "@chiron/methodology-engine";
 
 export function createAppRouter(repoLayer: Layer.Layer<MethodologyRepository>) {
+  const methodologyServiceLayer = Layer.provide(
+    Layer.effect(MethodologyVersionService, MethodologyVersionServiceLive),
+    repoLayer,
+  ).pipe(
+    Layer.provide(Layer.effect(LifecycleService, LifecycleServiceLive)),
+    Layer.provide(Layer.effect(EligibilityService, EligibilityServiceLive)),
+  );
   const methodologyServiceLayer = Layer.provide(
     Layer.effect(MethodologyVersionService, MethodologyVersionServiceLive),
     repoLayer,

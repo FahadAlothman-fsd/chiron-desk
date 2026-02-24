@@ -2,10 +2,9 @@ import type {
   FactSchema,
   LifecycleState,
   LifecycleTransition,
-  ValidationDiagnostic,
-  ValidationResult,
   WorkUnitTypeDefinition,
 } from "@chiron/contracts/methodology/lifecycle";
+import type { ValidationDiagnostic, ValidationResult } from "@chiron/contracts/methodology/version";
 
 function makeDiagnostic(
   fields: Omit<ValidationDiagnostic, "timestamp">,

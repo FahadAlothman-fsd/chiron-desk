@@ -5,6 +5,15 @@ import {
   type MethodologyVersionEventRow,
   type MethodologyError,
 } from "@chiron/methodology-engine";
+
+import {
+  LifecycleService,
+  EligibilityService,
+  type LifecycleError,
+} from "@chiron/methodology-engine";
+import type { UpdateDraftLifecycleInput } from "@chiron/contracts/methodology/lifecycle";
+import type { GetTransitionEligibilityOutput } from "@chiron/contracts/methodology/eligibility";
+
 import type {
   CreateDraftVersionInput,
   UpdateDraftVersionInput,
@@ -62,6 +71,55 @@ const lineageInput = z.object({
   methodologyVersionId: z.string().min(1),
 });
 
+// Lifecycle definition schemas
+const lifecycleStateSchema = z.object({
+  key: z.string().min(1),
+  displayName: z.string().optional(),
+  description: z.string().optional(),
+});
+
+const transitionRequiredLinkSchema = z.object({
+  linkTypeKey: z.string().min(1),
+  strength: z.enum(["hard", "soft", "context"]).optional(),
+  required: z.boolean().optional(),
+});
+
+const lifecycleTransitionSchema = z.object({
+  transitionKey: z.string().min(1),
+  fromState: z.string().optional(), // undefined/null = __absent__
+  toState: z.string().min(1),
+  gateClass: z.enum(["start_gate", "completion_gate"]),
+  requiredLinks: z.array(transitionRequiredLinkSchema),
+});
+
+const factSchemaDefinition = z.object({
+  key: z.string().min(1),
+  factType: z.enum(["string", "number", "boolean", "json"]),
+  required: z.boolean().optional(),
+  defaultValue: z.unknown().optional(),
+});
+
+const workUnitTypeSchema = z.object({
+  key: z.string().min(1),
+  displayName: z.string().optional(),
+  description: z.string().optional(),
+  cardinality: z.enum(["one_per_project", "many_per_project"]),
+  lifecycleStates: z.array(lifecycleStateSchema),
+  lifecycleTransitions: z.array(lifecycleTransitionSchema),
+  factSchemas: z.array(factSchemaDefinition),
+});
+
+const updateDraftLifecycleInput = z.object({
+  versionId: z.string().min(1),
+  workUnitTypes: z.array(workUnitTypeSchema),
+});
+
+const getTransitionEligibilityInput = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  currentState: z.string().optional(),
+});
+
 function serializeVersion(v: MethodologyVersionRow) {
   return {
     id: v.id,
@@ -87,7 +145,7 @@ function serializeEvent(e: MethodologyVersionEventRow) {
   };
 }
 
-function mapEffectError(err: MethodologyError | unknown): never {
+function mapEffectError(err: MethodologyError | LifecycleError | unknown): never {
   const tag =
     err && typeof err === "object" && "_tag" in err ? (err as { _tag: string })._tag : undefined;
   switch (tag) {
@@ -106,15 +164,21 @@ function mapEffectError(err: MethodologyError | unknown): never {
 }
 
 function runEffect<A>(
-  serviceLayer: Layer.Layer<MethodologyVersionService>,
-  effect: Effect.Effect<A, MethodologyError, MethodologyVersionService>,
+  serviceLayer: Layer.Layer<MethodologyVersionService | LifecycleService | EligibilityService>,
+  effect: Effect.Effect<
+    A,
+    MethodologyError | LifecycleError,
+    MethodologyVersionService | LifecycleService | EligibilityService
+  >,
 ): Promise<A> {
   return Effect.runPromise(effect.pipe(Effect.provide(serviceLayer))).catch((err) =>
     mapEffectError(err),
   );
 }
 
-export function createMethodologyRouter(serviceLayer: Layer.Layer<MethodologyVersionService>) {
+export function createMethodologyRouter(
+  serviceLayer: Layer.Layer<MethodologyVersionService | LifecycleService | EligibilityService>,
+) {
   return {
     createDraftVersion: protectedProcedure
       .input(createDraftInput)
@@ -194,5 +258,45 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<MethodologyVer
       );
       return events.map(serializeEvent);
     }),
+
+    updateDraftLifecycle: protectedProcedure
+      .input(updateDraftLifecycleInput)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* LifecycleService;
+            return yield* svc.updateDraftLifecycle(
+              {
+                versionId: input.versionId,
+                workUnitTypes: input.workUnitTypes as UpdateDraftLifecycleInput["workUnitTypes"],
+              },
+              actorId,
+            );
+          }),
+        );
+        return {
+          version: serializeVersion(result.version),
+          validation: result.validation,
+        };
+      }),
+
+    getTransitionEligibility: publicProcedure
+      .input(getTransitionEligibilityInput)
+      .handler(async ({ input }) => {
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* EligibilityService;
+            return yield* svc.getTransitionEligibility({
+              versionId: input.versionId,
+              workUnitTypeKey: input.workUnitTypeKey,
+              currentState: input.currentState,
+            });
+          }),
+        );
+        return result as GetTransitionEligibilityOutput;
+      }),
   };
 }
