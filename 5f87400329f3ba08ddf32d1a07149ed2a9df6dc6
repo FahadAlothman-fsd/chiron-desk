@@ -1,0 +1,23 @@
+lefthook.yml
+  2f36b856bd7ea30d 8-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "5f87400329f3ba08ddf32d1a07149ed2a9df6dc6",
+  "prompts": {
+    "2f36b856bd7ea30d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "opencode-transcript-ses_3706e6bc2ffeaY5sb7B3IF4W9H-4fc5dea4-adf5-420b-ad64-1cb3db2a2019",
+        "model": "unknown"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 8,
+      "total_deletions": 0,
+      "accepted_lines": 8,
+      "overriden_lines": 0
+    }
+  }
+}
