@@ -43,7 +43,7 @@ development_status:
   epic-1: in-progress
   1-1-create-methodology-draft-baseline: done
   1-2-define-work-unit-types-and-transition-lifecycle-rules-in-methodology-draft: done
-  1-3-define-workflows-under-work-unit-scope-and-bind-executable-subset-to-transitions: backlog
+  1-3-define-workflows-under-work-unit-scope-and-bind-executable-subset-to-transitions: review
   1-4-publish-validated-methodology-draft-as-immutable-version: backlog
   1-5-pin-project-to-published-methodology-version-and-preserve-pin-lineage: backlog
   epic-1-retrospective: optional
