@@ -16,19 +16,43 @@ import type { GetTransitionEligibilityOutput } from "@chiron/contracts/methodolo
 
 import type {
   CreateDraftVersionInput,
-  UpdateDraftVersionInput,
   ValidationResult,
 } from "@chiron/contracts/methodology/version";
+import type { UpdateDraftWorkflowsInputDto } from "@chiron/contracts/methodology/dto";
 import { Effect, type Layer } from "effect";
 import { z } from "zod";
 import { protectedProcedure, publicProcedure } from "../index";
 
-const definitionSchema = z.object({
-  workUnitTypes: z.array(z.unknown()),
-  agentTypes: z.array(z.unknown()).optional().default([]),
-  transitions: z.array(z.unknown()),
-  allowedWorkflowsByTransition: z.record(z.string(), z.array(z.string())),
+const workflowStepSchema = z.object({
+  key: z.string().min(1),
+  type: z.enum(["form", "agent", "action", "invoke", "branch", "display"]),
+  displayName: z.string().optional(),
+  config: z.unknown().optional(),
 });
+
+const workflowEdgeSchema = z.object({
+  fromStepKey: z.string().min(1).nullable().optional().default(null),
+  toStepKey: z.string().min(1).nullable().optional().default(null),
+  edgeKey: z.string().min(1).optional(),
+  condition: z.unknown().optional(),
+});
+
+const workflowSchema = z.object({
+  key: z.string().min(1),
+  displayName: z.string().optional(),
+  workUnitTypeKey: z.string().min(1).optional(),
+  steps: z.array(workflowStepSchema),
+  edges: z.array(workflowEdgeSchema),
+});
+
+const guidanceSchema = z
+  .object({
+    global: z.unknown().optional(),
+    byWorkUnitType: z.record(z.string(), z.unknown()).default({}),
+    byAgentType: z.record(z.string(), z.unknown()).default({}),
+    byTransition: z.record(z.string(), z.unknown()).default({}),
+  })
+  .optional();
 
 const variableDefinitionSchema = z.object({
   key: z.string().min(1),
@@ -50,18 +74,18 @@ const createDraftInput = z.object({
   methodologyKey: z.string().min(1),
   displayName: z.string().min(1),
   version: z.string().min(1),
-  definition: definitionSchema,
+  workUnitTypes: z.array(z.unknown()),
+  agentTypes: z.array(z.unknown()).optional().default([]),
+  transitions: z.array(z.unknown()),
   factDefinitions: z.array(variableDefinitionSchema).optional(),
   linkTypeDefinitions: z.array(linkTypeDefinitionSchema).optional(),
 });
 
-const updateDraftInput = z.object({
+const updateDraftWorkflowsInput = z.object({
   versionId: z.string().min(1),
-  displayName: z.string().min(1),
-  version: z.string().min(1),
-  definition: definitionSchema,
-  factDefinitions: z.array(variableDefinitionSchema).optional(),
-  linkTypeDefinitions: z.array(linkTypeDefinitionSchema).optional(),
+  workflows: z.array(workflowSchema),
+  transitionWorkflowBindings: z.record(z.string(), z.array(z.string())),
+  guidance: guidanceSchema,
 });
 
 const validateDraftInput = z.object({
@@ -144,7 +168,7 @@ function serializeVersion(v: MethodologyVersionRow) {
     version: v.version,
     status: v.status,
     displayName: v.displayName,
-    definitionJson: v.definitionJson,
+    definitionExtensions: v.definitionExtensions,
     createdAt: v.createdAt.toISOString(),
     retiredAt: v.retiredAt?.toISOString() ?? null,
   };
@@ -175,6 +199,8 @@ function mapEffectError(err: MethodologyError | LifecycleError | unknown): never
       throw new ORPCError("PRECONDITION_FAILED", { message: String(err) });
     case "ValidationDecodeError":
       throw new ORPCError("BAD_REQUEST", { message: String(err) });
+    case "RepositoryError":
+      throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "Repository operation failed" });
     default:
       throw new ORPCError("INTERNAL_SERVER_ERROR", { message: String(err) });
   }
@@ -210,7 +236,13 @@ export function createMethodologyRouter(
                 methodologyKey: input.methodologyKey,
                 displayName: input.displayName,
                 version: input.version,
-                definition: input.definition,
+                definition: {
+                  workUnitTypes: input.workUnitTypes,
+                  agentTypes: input.agentTypes,
+                  transitions: input.transitions,
+                  workflows: [],
+                  transitionWorkflowBindings: {},
+                },
                 factDefinitions: input.factDefinitions,
                 linkTypeDefinitions:
                   input.linkTypeDefinitions as CreateDraftVersionInput["linkTypeDefinitions"],
@@ -225,43 +257,18 @@ export function createMethodologyRouter(
         };
       }),
 
-    updateDraftVersion: protectedProcedure
-      .input(updateDraftInput)
+    validateDraftVersion: protectedProcedure
+      .input(validateDraftInput)
       .handler(async ({ input, context }) => {
         const actorId = context.session.user.id;
-        const result = await runEffect(
+        return runEffect(
           serviceLayer,
           Effect.gen(function* () {
             const svc = yield* MethodologyVersionService;
-            return yield* svc.updateDraftVersion(
-              {
-                versionId: input.versionId,
-                displayName: input.displayName,
-                version: input.version,
-                definition: input.definition,
-                factDefinitions: input.factDefinitions,
-                linkTypeDefinitions:
-                  input.linkTypeDefinitions as UpdateDraftVersionInput["linkTypeDefinitions"],
-              },
-              actorId,
-            );
+            return yield* svc.validateDraftVersion({ versionId: input.versionId }, actorId);
           }),
         );
-        return {
-          version: serializeVersion(result.version),
-          diagnostics: result.diagnostics as ValidationResult,
-        };
       }),
-
-    validateDraftVersion: publicProcedure.input(validateDraftInput).handler(async ({ input }) => {
-      return runEffect(
-        serviceLayer,
-        Effect.gen(function* () {
-          const svc = yield* MethodologyVersionService;
-          return yield* svc.validateDraftVersion({ versionId: input.versionId }, null);
-        }),
-      );
-    }),
 
     getDraftLineage: publicProcedure.input(lineageInput).handler(async ({ input }) => {
       const events = await runEffect(
@@ -297,6 +304,31 @@ export function createMethodologyRouter(
         return {
           version: serializeVersion(result.version),
           validation: result.validation,
+        };
+      }),
+
+    updateDraftWorkflows: protectedProcedure
+      .input(updateDraftWorkflowsInput)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionService;
+            return yield* svc.updateDraftWorkflows(
+              {
+                versionId: input.versionId,
+                workflows: input.workflows,
+                transitionWorkflowBindings: input.transitionWorkflowBindings,
+                guidance: input.guidance,
+              } as UpdateDraftWorkflowsInputDto,
+              actorId,
+            );
+          }),
+        );
+        return {
+          version: serializeVersion(result.version),
+          diagnostics: result.diagnostics as ValidationResult,
         };
       }),
 

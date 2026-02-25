@@ -15,6 +15,7 @@ import {
   type CreateDraftParams,
   type UpdateDraftParams,
   type GetVersionEventsParams,
+  type WorkflowSnapshot,
 } from "@chiron/methodology-engine";
 import { createMethodologyRouter } from "./methodology";
 
@@ -32,6 +33,7 @@ function makeTestRepo(): MethodologyRepository["Type"] {
   >();
   const versions = new Map<string, MethodologyVersionRow>();
   const events: MethodologyVersionEventRow[] = [];
+  const workflowSnapshots = new Map<string, WorkflowSnapshot>();
   let counter = 0;
 
   function nextId(): string {
@@ -69,17 +71,22 @@ function makeTestRepo(): MethodologyRepository["Type"] {
           version: params.version,
           status: "draft",
           displayName: params.displayName,
-          definitionJson: params.definitionJson,
+          definitionExtensions: params.definitionExtensions,
           createdAt: new Date(),
           retiredAt: null,
         };
         versions.set(version.id, version);
+        workflowSnapshots.set(version.id, {
+          workflows: params.workflows,
+          transitionWorkflowBindings: params.transitionWorkflowBindings,
+          guidance: params.guidance,
+        });
         const createdEvent: MethodologyVersionEventRow = {
           id: nextId(),
           methodologyVersionId: version.id,
           eventType: "created",
           actorId: params.actorId,
-          changedFieldsJson: params.definitionJson,
+          changedFieldsJson: params.definitionExtensions,
           diagnosticsJson: null,
           createdAt: new Date(),
         };
@@ -103,9 +110,14 @@ function makeTestRepo(): MethodologyRepository["Type"] {
           ...existing,
           displayName: params.displayName,
           version: params.version,
-          definitionJson: params.definitionJson,
+          definitionExtensions: params.definitionExtensions,
         };
         versions.set(params.versionId, updated);
+        workflowSnapshots.set(params.versionId, {
+          workflows: params.workflows,
+          transitionWorkflowBindings: params.transitionWorkflowBindings,
+          guidance: params.guidance,
+        });
         const updatedEvent: MethodologyVersionEventRow = {
           id: nextId(),
           methodologyVersionId: params.versionId,
@@ -147,6 +159,14 @@ function makeTestRepo(): MethodologyRepository["Type"] {
       }),
 
     findLinkTypeKeys: (_versionId: string) => Effect.succeed([] as readonly string[]),
+    findWorkflowSnapshot: (versionId: string) =>
+      Effect.succeed(
+        workflowSnapshots.get(versionId) ?? {
+          workflows: [],
+          transitionWorkflowBindings: {},
+          guidance: undefined,
+        },
+      ),
   };
 }
 
@@ -159,6 +179,7 @@ function makeServiceLayer() {
     findLifecycleTransitions: () => Effect.succeed([]),
     findFactSchemas: () => Effect.succeed([]),
     findTransitionRequiredLinks: () => Effect.succeed([]),
+    findTransitionWorkflowBindings: () => Effect.succeed([]),
     saveLifecycleDefinition: () => Effect.succeed({} as any),
     recordLifecycleEvent: () => Effect.succeed({} as any),
   } as any);
@@ -174,16 +195,26 @@ const VALID_DEFINITION = {
   workUnitTypes: [{ key: "task" }],
   agentTypes: [],
   transitions: [{ key: "start" }],
-  allowedWorkflowsByTransition: {},
+  workflows: [
+    {
+      key: "default-wf",
+      steps: [{ key: "s1", type: "form" as const }],
+      edges: [
+        { fromStepKey: null, toStepKey: "s1", edgeKey: "entry" },
+        { fromStepKey: "s1", toStepKey: null, edgeKey: "done" },
+      ],
+    },
+  ],
+  transitionWorkflowBindings: { start: ["default-wf"] },
 };
 
 const AUTHENTICATED_CTX = {
   context: {
     session: { user: { id: "test-user-id", name: "Test User", email: "test@example.com" } },
   },
-};
+} as any;
 
-const PUBLIC_CTX = { context: { session: null } };
+const PUBLIC_CTX = { context: { session: null } } as any;
 
 describe("methodology router", () => {
   describe("createDraftVersion", () => {
@@ -196,7 +227,9 @@ describe("methodology router", () => {
           methodologyKey: "test-meth",
           displayName: "Test Methodology",
           version: "1.0.0",
-          definition: VALID_DEFINITION,
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
         },
         AUTHENTICATED_CTX,
       );
@@ -218,11 +251,8 @@ describe("methodology router", () => {
           methodologyKey: "test-meth",
           displayName: "Test",
           version: "1.0.0",
-          definition: {
-            workUnitTypes: [],
-            transitions: [],
-            allowedWorkflowsByTransition: {},
-          },
+          workUnitTypes: [],
+          transitions: [],
         },
         AUTHENTICATED_CTX,
       );
@@ -235,8 +265,31 @@ describe("methodology router", () => {
     });
   });
 
-  describe("updateDraftVersion", () => {
-    it("updates a draft version", async () => {
+  describe("split contract routes", () => {
+    it("createDraftVersion creates draft from lifecycle payload", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const result = await call(
+        router.createDraftVersion,
+        {
+          methodologyKey: "test-meth-v2",
+          displayName: "V2 Methodology",
+          version: "2.0.0",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      expect(result.version).toBeDefined();
+      expect(result.version.status).toBe("draft");
+      expect(result.version.displayName).toBe("V2 Methodology");
+      expect(result.diagnostics).toBeDefined();
+      expect(result.diagnostics.valid).toBe(true);
+    });
+
+    it("updateDraftWorkflows updates workflow/binding subset", async () => {
       const router = createMethodologyRouter(makeServiceLayer());
 
       const created = await call(
@@ -245,24 +298,25 @@ describe("methodology router", () => {
           methodologyKey: "test-meth",
           displayName: "Test",
           version: "1.0.0",
-          definition: VALID_DEFINITION,
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
         },
         AUTHENTICATED_CTX,
       );
 
-      const updated = await call(
-        router.updateDraftVersion,
+      const result = await call(
+        router.updateDraftWorkflows,
         {
           versionId: created.version.id,
-          displayName: "Updated Test",
-          version: "1.0.1",
-          definition: VALID_DEFINITION,
+          workflows: VALID_DEFINITION.workflows,
+          transitionWorkflowBindings: VALID_DEFINITION.transitionWorkflowBindings,
         },
         AUTHENTICATED_CTX,
       );
 
-      expect(updated.version.displayName).toBe("Updated Test");
-      expect(updated.version.version).toBe("1.0.1");
+      expect(result.version.id).toBe(created.version.id);
+      expect(result.diagnostics).toBeDefined();
     });
   });
 
@@ -276,11 +330,8 @@ describe("methodology router", () => {
           methodologyKey: "test-meth",
           displayName: "Test",
           version: "1.0.0",
-          definition: {
-            workUnitTypes: [],
-            transitions: [],
-            allowedWorkflowsByTransition: {},
-          },
+          workUnitTypes: [],
+          transitions: [],
         },
         AUTHENTICATED_CTX,
       );
@@ -288,13 +339,13 @@ describe("methodology router", () => {
       const result1 = await call(
         router.validateDraftVersion,
         { versionId: created.version.id },
-        PUBLIC_CTX,
+        AUTHENTICATED_CTX,
       );
 
       const result2 = await call(
         router.validateDraftVersion,
         { versionId: created.version.id },
-        PUBLIC_CTX,
+        AUTHENTICATED_CTX,
       );
 
       expect(result1.valid).toBe(false);
@@ -302,6 +353,14 @@ describe("methodology router", () => {
       expect(result1.diagnostics.map((d: { code: string }) => d.code)).toEqual(
         result2.diagnostics.map((d: { code: string }) => d.code),
       );
+    });
+
+    it("rejects unauthenticated validateDraftVersion calls", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      await expect(
+        call(router.validateDraftVersion, { versionId: "test-version" }, PUBLIC_CTX),
+      ).rejects.toBeDefined();
     });
   });
 
@@ -315,7 +374,9 @@ describe("methodology router", () => {
           methodologyKey: "test-meth",
           displayName: "Test",
           version: "1.0.0",
-          definition: VALID_DEFINITION,
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
         },
         AUTHENTICATED_CTX,
       );
