@@ -33,7 +33,7 @@ export const methodologyVersions = sqliteTable(
     version: text("version").notNull(),
     status: text("status").notNull().default("draft"),
     displayName: text("display_name").notNull(),
-    definitionJson: text("definition_json", { mode: "json" }),
+    definitionExtensions: text("definition_extensions_json", { mode: "json" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
     retiredAt: integer("retired_at", { mode: "timestamp_ms" }),
   },
@@ -68,7 +68,7 @@ export const methodologyVersionEvents = sqliteTable(
 );
 
 export const methodologyFactDefinitions = sqliteTable(
-  "methodology_variable_definitions",
+  "methodology_fact_definitions",
   {
     id: text("id")
       .primaryKey()
@@ -89,7 +89,7 @@ export const methodologyFactDefinitions = sqliteTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    uniqueIndex("methodology_var_defs_vid_key_idx").on(table.methodologyVersionId, table.key),
+    uniqueIndex("methodology_fact_defs_vid_key_idx").on(table.methodologyVersionId, table.key),
   ],
 );
 
@@ -128,6 +128,7 @@ export const methodologyWorkUnitTypes = sqliteTable(
     key: text("key").notNull(),
     displayName: text("display_name"),
     descriptionJson: text("description_json", { mode: "json" }),
+    guidanceJson: text("guidance_json", { mode: "json" }),
     cardinality: text("cardinality").notNull(),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
@@ -154,6 +155,7 @@ export const methodologyAgentTypes = sqliteTable(
     defaultModelJson: text("default_model_json", { mode: "json" }),
     mcpServersJson: text("mcp_servers_json", { mode: "json" }),
     capabilitiesJson: text("capabilities_json", { mode: "json" }),
+    guidanceJson: text("guidance_json", { mode: "json" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .default(timestampDefault)
@@ -178,6 +180,7 @@ export const methodologyLifecycleStates = sqliteTable(
     key: text("key").notNull(),
     displayName: text("display_name"),
     descriptionJson: text("description_json", { mode: "json" }),
+    guidanceJson: text("guidance_json", { mode: "json" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .default(timestampDefault)
@@ -214,6 +217,7 @@ export const methodologyLifecycleTransitions = sqliteTable(
       .references(() => methodologyLifecycleStates.id, { onDelete: "cascade" }),
     transitionKey: text("transition_key").notNull(),
     gateClass: text("gate_class").notNull(),
+    guidanceJson: text("guidance_json", { mode: "json" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .default(timestampDefault)
@@ -248,6 +252,7 @@ export const methodologyFactSchemas = sqliteTable(
     factType: text("fact_type").notNull(),
     required: integer("required", { mode: "boolean" }).default(true).notNull(),
     defaultValueJson: text("default_value_json", { mode: "json" }),
+    guidanceJson: text("guidance_json", { mode: "json" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .default(timestampDefault)
@@ -279,6 +284,7 @@ export const methodologyTransitionRequiredLinks = sqliteTable(
     linkTypeKey: text("link_type_key").notNull(),
     strength: text("strength").notNull(),
     required: integer("required", { mode: "boolean" }).default(true).notNull(),
+    guidanceJson: text("guidance_json", { mode: "json" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .default(timestampDefault)
@@ -292,5 +298,133 @@ export const methodologyTransitionRequiredLinks = sqliteTable(
       table.linkTypeKey,
     ),
     index("methodology_trl_vid_trans_idx").on(table.methodologyVersionId, table.transitionId),
+  ],
+);
+
+export const methodologyWorkflows = sqliteTable(
+  "methodology_workflows",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    methodologyVersionId: text("methodology_version_id")
+      .notNull()
+      .references(() => methodologyVersions.id, { onDelete: "cascade" }),
+    workUnitTypeId: text("work_unit_type_id").references(() => methodologyWorkUnitTypes.id, {
+      onDelete: "set null",
+    }),
+    key: text("key").notNull(),
+    displayName: text("display_name"),
+    guidanceJson: text("guidance_json", { mode: "json" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .default(timestampDefault)
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("methodology_workflows_vid_key_idx").on(table.methodologyVersionId, table.key),
+    index("methodology_workflows_vid_wut_idx").on(table.methodologyVersionId, table.workUnitTypeId),
+  ],
+);
+
+export const methodologyWorkflowSteps = sqliteTable(
+  "methodology_workflow_steps",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    methodologyVersionId: text("methodology_version_id")
+      .notNull()
+      .references(() => methodologyVersions.id, { onDelete: "cascade" }),
+    workflowId: text("workflow_id")
+      .notNull()
+      .references(() => methodologyWorkflows.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    type: text("type").notNull(),
+    displayName: text("display_name"),
+    configJson: text("config_json", { mode: "json" }),
+    guidanceJson: text("guidance_json", { mode: "json" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .default(timestampDefault)
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("methodology_workflow_steps_wid_key_idx").on(table.workflowId, table.key),
+    index("methodology_workflow_steps_vid_wid_idx").on(
+      table.methodologyVersionId,
+      table.workflowId,
+    ),
+  ],
+);
+
+export const methodologyWorkflowEdges = sqliteTable(
+  "methodology_workflow_edges",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    methodologyVersionId: text("methodology_version_id")
+      .notNull()
+      .references(() => methodologyVersions.id, { onDelete: "cascade" }),
+    workflowId: text("workflow_id")
+      .notNull()
+      .references(() => methodologyWorkflows.id, { onDelete: "cascade" }),
+    fromStepId: text("from_step_id").references(() => methodologyWorkflowSteps.id, {
+      onDelete: "set null",
+    }),
+    toStepId: text("to_step_id").references(() => methodologyWorkflowSteps.id, {
+      onDelete: "set null",
+    }),
+    edgeKey: text("edge_key"),
+    conditionJson: text("condition_json", { mode: "json" }),
+    guidanceJson: text("guidance_json", { mode: "json" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .default(timestampDefault)
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index("methodology_workflow_edges_vid_wid_idx").on(
+      table.methodologyVersionId,
+      table.workflowId,
+    ),
+    index("methodology_workflow_edges_from_step_idx").on(table.fromStepId),
+    index("methodology_workflow_edges_to_step_idx").on(table.toStepId),
+  ],
+);
+
+export const methodologyTransitionWorkflowBindings = sqliteTable(
+  "methodology_transition_workflow_bindings",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    methodologyVersionId: text("methodology_version_id")
+      .notNull()
+      .references(() => methodologyVersions.id, { onDelete: "cascade" }),
+    transitionId: text("transition_id")
+      .notNull()
+      .references(() => methodologyLifecycleTransitions.id, { onDelete: "cascade" }),
+    workflowId: text("workflow_id")
+      .notNull()
+      .references(() => methodologyWorkflows.id, { onDelete: "cascade" }),
+    guidanceJson: text("guidance_json", { mode: "json" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .default(timestampDefault)
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("methodology_twb_vid_transition_workflow_idx").on(
+      table.methodologyVersionId,
+      table.transitionId,
+      table.workflowId,
+    ),
+    index("methodology_twb_vid_transition_idx").on(table.methodologyVersionId, table.transitionId),
   ],
 );

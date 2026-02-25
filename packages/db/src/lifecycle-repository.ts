@@ -1,8 +1,9 @@
 import { and, asc, eq, isNull } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
-import { Data, Effect, Layer } from "effect";
+import { Effect, Layer } from "effect";
 import {
   LifecycleRepository,
+  RepositoryError,
   type SaveLifecycleDefinitionParams,
   type SaveLifecycleResult,
   type AgentTypeRow,
@@ -11,11 +12,14 @@ import {
   type LifecycleTransitionRow,
   type FactSchemaRow,
   type TransitionRequiredLinkRow,
+  type TransitionWorkflowBindingRow,
 } from "@chiron/methodology-engine";
 import type { MethodologyVersionEventRow, MethodologyVersionRow } from "@chiron/methodology-engine";
 import {
   methodologyWorkUnitTypes,
   methodologyAgentTypes,
+  methodologyWorkflows,
+  methodologyTransitionWorkflowBindings,
   methodologyLifecycleStates,
   methodologyLifecycleTransitions,
   methodologyFactSchemas,
@@ -26,15 +30,11 @@ import {
 
 type DB = LibSQLDatabase<Record<string, unknown>>;
 
-class DatabaseError extends Data.TaggedError("DatabaseError")<{
-  readonly cause: unknown;
-}> {}
-
-function dbEffect<A>(fn: () => Promise<A>): Effect.Effect<A> {
+function dbEffect<A>(operation: string, fn: () => Promise<A>): Effect.Effect<A, RepositoryError> {
   return Effect.tryPromise({
     try: fn,
-    catch: (e) => new DatabaseError({ cause: e }),
-  }).pipe(Effect.orDie);
+    catch: (cause) => new RepositoryError({ operation, cause }),
+  });
 }
 
 function toWorkUnitTypeRow(row: typeof methodologyWorkUnitTypes.$inferSelect): WorkUnitTypeRow {
@@ -126,6 +126,28 @@ function toAgentTypeRow(row: typeof methodologyAgentTypes.$inferSelect): AgentTy
   };
 }
 
+function toTransitionWorkflowBindingRow(row: {
+  id: string;
+  methodologyVersionId: string;
+  transitionId: string;
+  transitionKey: string;
+  workflowId: string;
+  workflowKey: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}): TransitionWorkflowBindingRow {
+  return {
+    id: row.id,
+    methodologyVersionId: row.methodologyVersionId,
+    transitionId: row.transitionId,
+    transitionKey: row.transitionKey,
+    workflowId: row.workflowId,
+    workflowKey: row.workflowKey,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
 function toVersionRow(row: typeof methodologyVersions.$inferSelect): MethodologyVersionRow {
   return {
     id: row.id,
@@ -133,7 +155,7 @@ function toVersionRow(row: typeof methodologyVersions.$inferSelect): Methodology
     version: row.version,
     status: row.status,
     displayName: row.displayName,
-    definitionJson: row.definitionJson,
+    definitionExtensions: row.definitionExtensions,
     createdAt: row.createdAt,
     retiredAt: row.retiredAt,
   };
@@ -154,7 +176,7 @@ function toEventRow(row: typeof methodologyVersionEvents.$inferSelect): Methodol
 export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepository> {
   return Layer.succeed(LifecycleRepository, {
     findWorkUnitTypes: (versionId: string) =>
-      dbEffect(async () => {
+      dbEffect("lifecycle.findWorkUnitTypes", async () => {
         const rows = await db
           .select()
           .from(methodologyWorkUnitTypes)
@@ -164,7 +186,7 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
       }),
 
     findLifecycleStates: (versionId: string, workUnitTypeId?: string) =>
-      dbEffect(async () => {
+      dbEffect("lifecycle.findLifecycleStates", async () => {
         const conditions = [eq(methodologyLifecycleStates.methodologyVersionId, versionId)];
         if (workUnitTypeId) {
           conditions.push(eq(methodologyLifecycleStates.workUnitTypeId, workUnitTypeId));
@@ -181,7 +203,7 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
       versionId: string,
       options?: { workUnitTypeId?: string; fromStateId?: string | null; toStateId?: string },
     ) =>
-      dbEffect(async () => {
+      dbEffect("lifecycle.findLifecycleTransitions", async () => {
         let conditions = [eq(methodologyLifecycleTransitions.methodologyVersionId, versionId)];
 
         if (options?.workUnitTypeId) {
@@ -210,7 +232,7 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
       }),
 
     findFactSchemas: (versionId: string, workUnitTypeId?: string) =>
-      dbEffect(async () => {
+      dbEffect("lifecycle.findFactSchemas", async () => {
         const conditions = [eq(methodologyFactSchemas.methodologyVersionId, versionId)];
         if (workUnitTypeId) {
           conditions.push(eq(methodologyFactSchemas.workUnitTypeId, workUnitTypeId));
@@ -224,7 +246,7 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
       }),
 
     findTransitionRequiredLinks: (versionId: string, transitionId?: string) =>
-      dbEffect(async () => {
+      dbEffect("lifecycle.findTransitionRequiredLinks", async () => {
         let conditions = [eq(methodologyTransitionRequiredLinks.methodologyVersionId, versionId)];
 
         if (transitionId) {
@@ -241,7 +263,7 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
       }),
 
     findAgentTypes: (versionId: string) =>
-      dbEffect(async () => {
+      dbEffect("lifecycle.findAgentTypes", async () => {
         const rows = await db
           .select()
           .from(methodologyAgentTypes)
@@ -250,9 +272,83 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
         return rows.map(toAgentTypeRow) as readonly AgentTypeRow[];
       }),
 
+    findTransitionWorkflowBindings: (versionId: string, transitionId?: string) =>
+      dbEffect("lifecycle.findTransitionWorkflowBindings", async () => {
+        const conditions = [
+          eq(methodologyTransitionWorkflowBindings.methodologyVersionId, versionId),
+        ];
+        if (transitionId) {
+          conditions.push(eq(methodologyTransitionWorkflowBindings.transitionId, transitionId));
+        }
+
+        const rows = await db
+          .select({
+            id: methodologyTransitionWorkflowBindings.id,
+            methodologyVersionId: methodologyTransitionWorkflowBindings.methodologyVersionId,
+            transitionId: methodologyTransitionWorkflowBindings.transitionId,
+            transitionKey: methodologyLifecycleTransitions.transitionKey,
+            workflowId: methodologyTransitionWorkflowBindings.workflowId,
+            workflowKey: methodologyWorkflows.key,
+            createdAt: methodologyTransitionWorkflowBindings.createdAt,
+            updatedAt: methodologyTransitionWorkflowBindings.updatedAt,
+          })
+          .from(methodologyTransitionWorkflowBindings)
+          .innerJoin(
+            methodologyLifecycleTransitions,
+            eq(
+              methodologyTransitionWorkflowBindings.transitionId,
+              methodologyLifecycleTransitions.id,
+            ),
+          )
+          .leftJoin(
+            methodologyWorkflows,
+            eq(methodologyTransitionWorkflowBindings.workflowId, methodologyWorkflows.id),
+          )
+          .where(and(...conditions))
+          .orderBy(
+            asc(methodologyLifecycleTransitions.transitionKey),
+            asc(methodologyWorkflows.key),
+            asc(methodologyTransitionWorkflowBindings.id),
+          );
+
+        return rows.map(toTransitionWorkflowBindingRow) as readonly TransitionWorkflowBindingRow[];
+      }),
+
     saveLifecycleDefinition: (params: SaveLifecycleDefinitionParams) =>
-      dbEffect(() =>
+      dbEffect("lifecycle.saveLifecycleDefinition", () =>
         db.transaction(async (tx) => {
+          const existingBindingRows = await tx
+            .select({
+              transitionKey: methodologyLifecycleTransitions.transitionKey,
+              workflowKey: methodologyWorkflows.key,
+            })
+            .from(methodologyTransitionWorkflowBindings)
+            .innerJoin(
+              methodologyLifecycleTransitions,
+              eq(
+                methodologyTransitionWorkflowBindings.transitionId,
+                methodologyLifecycleTransitions.id,
+              ),
+            )
+            .leftJoin(
+              methodologyWorkflows,
+              eq(methodologyTransitionWorkflowBindings.workflowId, methodologyWorkflows.id),
+            )
+            .where(
+              eq(methodologyTransitionWorkflowBindings.methodologyVersionId, params.versionId),
+            );
+
+          const existingBindingsByTransition = new Map<string, string[]>();
+          for (const row of existingBindingRows) {
+            if (!row.workflowKey) {
+              continue;
+            }
+
+            const previous = existingBindingsByTransition.get(row.transitionKey) ?? [];
+            previous.push(row.workflowKey);
+            existingBindingsByTransition.set(row.transitionKey, previous);
+          }
+
           // Delete existing lifecycle data for this version (full replace)
           await tx
             .delete(methodologyTransitionRequiredLinks)
@@ -278,8 +374,16 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
             .delete(methodologyAgentTypes)
             .where(eq(methodologyAgentTypes.methodologyVersionId, params.versionId));
 
+          await tx
+            .delete(methodologyTransitionWorkflowBindings)
+            .where(
+              eq(methodologyTransitionWorkflowBindings.methodologyVersionId, params.versionId),
+            );
+
           // Insert new work unit types
           const workUnitTypeRows: WorkUnitTypeRow[] = [];
+          const transitionIdByKey = new Map<string, string>();
+
           for (const wut of params.workUnitTypes) {
             const wutRows = await tx
               .insert(methodologyWorkUnitTypes)
@@ -378,6 +482,8 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
                 );
               }
 
+              transitionIdByKey.set(transition.transitionKey, transRow.id);
+
               // Insert required links for this transition
               for (const link of transition.requiredLinks ?? []) {
                 await tx.insert(methodologyTransitionRequiredLinks).values({
@@ -402,38 +508,44 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
             );
           }
 
-          const mergedDefinitionJson =
-            typeof existingVersionRow.definitionJson === "object" &&
-            existingVersionRow.definitionJson !== null
-              ? {
-                  ...(existingVersionRow.definitionJson as Record<string, unknown>),
-                  workUnitTypes: params.workUnitTypes,
-                  agentTypes: params.agentTypes,
-                }
-              : {
-                  workUnitTypes: params.workUnitTypes,
-                  agentTypes: params.agentTypes,
-                };
+          const workflowRows = await tx
+            .select({ id: methodologyWorkflows.id, key: methodologyWorkflows.key })
+            .from(methodologyWorkflows)
+            .where(eq(methodologyWorkflows.methodologyVersionId, params.versionId));
+          const workflowIdByKey = new Map(workflowRows.map((row) => [row.key, row.id]));
 
-          const updatedVersionRows = await tx
-            .update(methodologyVersions)
-            .set({ definitionJson: mergedDefinitionJson })
-            .where(eq(methodologyVersions.id, params.versionId))
-            .returning();
-          const updatedVersionRow = updatedVersionRows[0];
-          if (!updatedVersionRow) {
-            throw new Error(
-              `Failed to update definitionJson for methodology version '${params.versionId}'`,
+          for (const [transitionKey, workflowKeys] of existingBindingsByTransition.entries()) {
+            const transitionId = transitionIdByKey.get(transitionKey);
+            if (!transitionId) {
+              continue;
+            }
+
+            const uniqueWorkflowKeys = [...new Set(workflowKeys)].filter(
+              (value) => value.length > 0,
             );
+            for (const workflowKey of uniqueWorkflowKeys) {
+              const workflowId = workflowIdByKey.get(workflowKey);
+              if (!workflowId) {
+                continue;
+              }
+
+              await tx.insert(methodologyTransitionWorkflowBindings).values({
+                methodologyVersionId: params.versionId,
+                transitionId,
+                workflowId,
+                guidanceJson: null,
+              });
+            }
           }
-          const version = toVersionRow(updatedVersionRow);
+
+          const version = toVersionRow(existingVersionRow);
 
           // Record lifecycle updated event
           const eventRows = await tx
             .insert(methodologyVersionEvents)
             .values({
               methodologyVersionId: params.versionId,
-              eventType: "lifecycle_updated",
+              eventType: "updated",
               actorId: params.actorId,
               changedFieldsJson: params.changedFieldsJson,
               diagnosticsJson: params.validationResult,
@@ -441,9 +553,7 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
             .returning();
           const eventRow = eventRows[0];
           if (!eventRow) {
-            throw new Error(
-              `Failed to record lifecycle_updated event for version '${params.versionId}'`,
-            );
+            throw new Error(`Failed to record updated event for version '${params.versionId}'`);
           }
 
           return {
@@ -454,7 +564,7 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
       ),
 
     recordLifecycleEvent: (event: Omit<MethodologyVersionEventRow, "id" | "createdAt">) =>
-      dbEffect(async () => {
+      dbEffect("lifecycle.recordLifecycleEvent", async () => {
         const rows = await db
           .insert(methodologyVersionEvents)
           .values({
