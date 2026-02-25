@@ -3,6 +3,7 @@ import type { WorkUnitTypeDefinition } from "@chiron/contracts/methodology/lifec
 import type { ValidationResult } from "@chiron/contracts/methodology/version";
 import type { MethodologyVersionEventRow, MethodologyVersionRow } from "./repository.js";
 import { Context, Effect } from "effect";
+import type { RepositoryError } from "./errors";
 
 // Row types for lifecycle entities
 export interface WorkUnitTypeRow {
@@ -76,6 +77,17 @@ export interface AgentTypeRow {
   updatedAt: Date;
 }
 
+export interface TransitionWorkflowBindingRow {
+  id: string;
+  methodologyVersionId: string;
+  transitionId: string;
+  transitionKey: string;
+  workflowId: string;
+  workflowKey: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // Parameters for save operations
 export interface SaveLifecycleDefinitionParams {
   versionId: string;
@@ -99,11 +111,13 @@ export class LifecycleRepository extends Context.Tag("LifecycleRepository")<
   LifecycleRepository,
   {
     // Query methods
-    readonly findWorkUnitTypes: (versionId: string) => Effect.Effect<readonly WorkUnitTypeRow[]>;
+    readonly findWorkUnitTypes: (
+      versionId: string,
+    ) => Effect.Effect<readonly WorkUnitTypeRow[], RepositoryError>;
     readonly findLifecycleStates: (
       versionId: string,
       workUnitTypeId?: string,
-    ) => Effect.Effect<readonly LifecycleStateRow[]>;
+    ) => Effect.Effect<readonly LifecycleStateRow[], RepositoryError>;
     readonly findLifecycleTransitions: (
       versionId: string,
       options?: {
@@ -111,25 +125,31 @@ export class LifecycleRepository extends Context.Tag("LifecycleRepository")<
         fromStateId?: string | null;
         toStateId?: string;
       },
-    ) => Effect.Effect<readonly LifecycleTransitionRow[]>;
+    ) => Effect.Effect<readonly LifecycleTransitionRow[], RepositoryError>;
     readonly findFactSchemas: (
       versionId: string,
       workUnitTypeId?: string,
-    ) => Effect.Effect<readonly FactSchemaRow[]>;
+    ) => Effect.Effect<readonly FactSchemaRow[], RepositoryError>;
     readonly findTransitionRequiredLinks: (
       versionId: string,
       transitionId?: string,
-    ) => Effect.Effect<readonly TransitionRequiredLinkRow[]>;
-    readonly findAgentTypes: (versionId: string) => Effect.Effect<readonly AgentTypeRow[]>;
+    ) => Effect.Effect<readonly TransitionRequiredLinkRow[], RepositoryError>;
+    readonly findAgentTypes: (
+      versionId: string,
+    ) => Effect.Effect<readonly AgentTypeRow[], RepositoryError>;
+    readonly findTransitionWorkflowBindings: (
+      versionId: string,
+      transitionId?: string,
+    ) => Effect.Effect<readonly TransitionWorkflowBindingRow[], RepositoryError>;
 
     // Transactional save - only writes if validation passed
     readonly saveLifecycleDefinition: (
       params: SaveLifecycleDefinitionParams,
-    ) => Effect.Effect<SaveLifecycleResult>;
+    ) => Effect.Effect<SaveLifecycleResult, RepositoryError>;
 
     // Event recording for evidence lineage
     readonly recordLifecycleEvent: (
       event: Omit<MethodologyVersionEventRow, "id" | "createdAt">,
-    ) => Effect.Effect<MethodologyVersionEventRow>;
+    ) => Effect.Effect<MethodologyVersionEventRow, RepositoryError>;
   }
 >() {}

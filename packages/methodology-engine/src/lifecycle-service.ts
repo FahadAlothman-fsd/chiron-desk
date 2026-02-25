@@ -1,19 +1,15 @@
 import {
-  WorkUnitTypeDefinition as WorkUnitTypeDefinitionSchema,
   type UpdateDraftLifecycleInput,
   type WorkUnitTypeDefinition,
 } from "@chiron/contracts/methodology/lifecycle";
-import {
-  AgentTypeDefinition as AgentTypeDefinitionSchema,
-  type AgentTypeDefinition,
-} from "@chiron/contracts/methodology/agent";
+import { type AgentTypeDefinition } from "@chiron/contracts/methodology/agent";
 import type { ValidationResult } from "@chiron/contracts/methodology/version";
-import { Context, Effect, Schema } from "effect";
+import { Context, Effect } from "effect";
 import { LifecycleRepository } from "./lifecycle-repository";
 import { MethodologyRepository } from "./repository";
 import { validateLifecycleDefinition } from "./lifecycle-validation";
 import type { MethodologyVersionRow } from "./repository";
-import { ValidationDecodeError, VersionNotDraftError, VersionNotFoundError } from "./errors";
+import { RepositoryError, VersionNotDraftError, VersionNotFoundError } from "./errors";
 
 export interface UpdateDraftLifecycleResult {
   version: MethodologyVersionRow;
@@ -32,7 +28,7 @@ export class LifecycleService extends Context.Tag("LifecycleService")<
       actorId: string,
     ) => Effect.Effect<
       UpdateDraftLifecycleResult,
-      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError
+      VersionNotFoundError | VersionNotDraftError | RepositoryError
     >;
   }
 >() {}
@@ -90,37 +86,195 @@ function computeLifecycleChanges(
   return Object.keys(changes).length > 0 ? changes : null;
 }
 
-const decodeWorkUnitTypes = Schema.decodeUnknown(Schema.Array(WorkUnitTypeDefinitionSchema));
-const decodeAgentTypes = Schema.decodeUnknown(Schema.Array(AgentTypeDefinitionSchema));
+function extractText(value: unknown): string | undefined {
+  if (typeof value !== "object" || value === null) {
+    return undefined;
+  }
 
-function extractPreviousLifecycleDefinition(definitionJson: unknown): Effect.Effect<
+  if (!("text" in value)) {
+    return undefined;
+  }
+
+  const text = (value as { text?: unknown }).text;
+  return typeof text === "string" ? text : undefined;
+}
+
+function asCardinality(value: string): WorkUnitTypeDefinition["cardinality"] {
+  return value === "one_per_project" ? "one_per_project" : "many_per_project";
+}
+
+function asGateClass(value: string): "start_gate" | "completion_gate" {
+  return value === "start_gate" ? "start_gate" : "completion_gate";
+}
+
+function asLinkStrength(value: string): "hard" | "soft" | "context" {
+  if (value === "soft") {
+    return "soft";
+  }
+
+  if (value === "context") {
+    return "context";
+  }
+
+  return "hard";
+}
+
+function asFactType(value: string): "string" | "number" | "boolean" | "json" {
+  if (value === "number") {
+    return "number";
+  }
+
+  if (value === "boolean") {
+    return "boolean";
+  }
+
+  if (value === "json") {
+    return "json";
+  }
+
+  return "string";
+}
+
+function asModelReference(value: unknown): AgentTypeDefinition["defaultModel"] {
+  if (typeof value !== "object" || value === null) {
+    return undefined;
+  }
+
+  const modelReference = value as { provider?: unknown; model?: unknown };
+  if (typeof modelReference.provider !== "string" || typeof modelReference.model !== "string") {
+    return undefined;
+  }
+
+  return {
+    provider: modelReference.provider,
+    model: modelReference.model,
+  };
+}
+
+function asStringArray(value: unknown): readonly string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const items = value.filter((item): item is string => typeof item === "string");
+  return items.length === value.length ? items : undefined;
+}
+
+function loadPreviousLifecycleDefinition(
+  versionId: string,
+  lifecycleRepo: LifecycleRepository["Type"],
+): Effect.Effect<
   {
     workUnitTypes: readonly WorkUnitTypeDefinition[];
     agentTypes: readonly AgentTypeDefinition[];
-  } | null,
-  ValidationDecodeError
+  },
+  RepositoryError
 > {
-  if (typeof definitionJson !== "object" || definitionJson === null) {
-    return Effect.succeed(null);
-  }
-  if (
-    !Object.prototype.hasOwnProperty.call(definitionJson, "workUnitTypes") &&
-    !Object.prototype.hasOwnProperty.call(definitionJson, "agentTypes")
-  ) {
-    return Effect.succeed(null);
-  }
-  const payload = definitionJson as { workUnitTypes?: unknown; agentTypes?: unknown };
-  return Effect.all({
-    workUnitTypes: decodeWorkUnitTypes(payload.workUnitTypes ?? []),
-    agentTypes: decodeAgentTypes(payload.agentTypes ?? []),
-  }).pipe(
-    Effect.mapError(
-      (err) =>
-        new ValidationDecodeError({
-          message: `Invalid existing definitionJson lifecycle payload: ${String(err)}`,
-        }),
-    ),
-  );
+  return Effect.gen(function* () {
+    const [
+      workUnitTypeRows,
+      lifecycleStateRows,
+      transitionRows,
+      factSchemaRows,
+      transitionRequiredLinkRows,
+      agentTypeRows,
+    ] = yield* Effect.all([
+      lifecycleRepo.findWorkUnitTypes(versionId),
+      lifecycleRepo.findLifecycleStates(versionId),
+      lifecycleRepo.findLifecycleTransitions(versionId),
+      lifecycleRepo.findFactSchemas(versionId),
+      lifecycleRepo.findTransitionRequiredLinks(versionId),
+      lifecycleRepo.findAgentTypes(versionId),
+    ]);
+
+    const stateByWorkUnitType = new Map<string, Array<(typeof lifecycleStateRows)[number]>>();
+    const stateKeyById = new Map<string, string>();
+    for (const state of lifecycleStateRows) {
+      const states = stateByWorkUnitType.get(state.workUnitTypeId) ?? [];
+      states.push(state);
+      stateByWorkUnitType.set(state.workUnitTypeId, states);
+      stateKeyById.set(state.id, state.key);
+    }
+
+    const transitionsByWorkUnitType = new Map<string, Array<(typeof transitionRows)[number]>>();
+    for (const transition of transitionRows) {
+      const transitions = transitionsByWorkUnitType.get(transition.workUnitTypeId) ?? [];
+      transitions.push(transition);
+      transitionsByWorkUnitType.set(transition.workUnitTypeId, transitions);
+    }
+
+    const factsByWorkUnitType = new Map<string, Array<(typeof factSchemaRows)[number]>>();
+    for (const factSchema of factSchemaRows) {
+      const facts = factsByWorkUnitType.get(factSchema.workUnitTypeId) ?? [];
+      facts.push(factSchema);
+      factsByWorkUnitType.set(factSchema.workUnitTypeId, facts);
+    }
+
+    const requiredLinksByTransition = new Map<
+      string,
+      Array<(typeof transitionRequiredLinkRows)[number]>
+    >();
+    for (const requiredLink of transitionRequiredLinkRows) {
+      const links = requiredLinksByTransition.get(requiredLink.transitionId) ?? [];
+      links.push(requiredLink);
+      requiredLinksByTransition.set(requiredLink.transitionId, links);
+    }
+
+    const workUnitTypes: WorkUnitTypeDefinition[] = workUnitTypeRows.map((workUnitTypeRow) => ({
+      key: workUnitTypeRow.key,
+      displayName: workUnitTypeRow.displayName ?? undefined,
+      description: extractText(workUnitTypeRow.descriptionJson),
+      cardinality: asCardinality(workUnitTypeRow.cardinality),
+      lifecycleStates: (stateByWorkUnitType.get(workUnitTypeRow.id) ?? []).map((stateRow) => ({
+        key: stateRow.key,
+        displayName: stateRow.displayName ?? undefined,
+        description: extractText(stateRow.descriptionJson),
+      })),
+      lifecycleTransitions: (transitionsByWorkUnitType.get(workUnitTypeRow.id) ?? [])
+        .map((transitionRow) => {
+          const toState = stateKeyById.get(transitionRow.toStateId);
+          if (!toState) {
+            return null;
+          }
+
+          return {
+            transitionKey: transitionRow.transitionKey,
+            fromState:
+              transitionRow.fromStateId === null
+                ? undefined
+                : (stateKeyById.get(transitionRow.fromStateId) ?? undefined),
+            toState,
+            gateClass: asGateClass(transitionRow.gateClass),
+            requiredLinks: (requiredLinksByTransition.get(transitionRow.id) ?? []).map(
+              (linkRow) => ({
+                linkTypeKey: linkRow.linkTypeKey,
+                strength: asLinkStrength(linkRow.strength),
+                required: linkRow.required,
+              }),
+            ),
+          };
+        })
+        .filter((transition): transition is NonNullable<typeof transition> => transition !== null),
+      factSchemas: (factsByWorkUnitType.get(workUnitTypeRow.id) ?? []).map((factSchemaRow) => ({
+        key: factSchemaRow.key,
+        factType: asFactType(factSchemaRow.factType),
+        required: factSchemaRow.required,
+        defaultValue: factSchemaRow.defaultValueJson ?? undefined,
+      })),
+    }));
+
+    const agentTypes: AgentTypeDefinition[] = agentTypeRows.map((agentTypeRow) => ({
+      key: agentTypeRow.key,
+      displayName: agentTypeRow.displayName ?? undefined,
+      description: agentTypeRow.description ?? undefined,
+      persona: agentTypeRow.persona,
+      defaultModel: asModelReference(agentTypeRow.defaultModelJson),
+      mcpServers: asStringArray(agentTypeRow.mcpServersJson),
+      capabilities: asStringArray(agentTypeRow.capabilitiesJson),
+    }));
+
+    return { workUnitTypes, agentTypes };
+  });
 }
 
 export const LifecycleServiceLive = Effect.gen(function* () {
@@ -132,7 +286,7 @@ export const LifecycleServiceLive = Effect.gen(function* () {
     actorId: string,
   ): Effect.Effect<
     UpdateDraftLifecycleResult,
-    VersionNotFoundError | VersionNotDraftError | ValidationDecodeError
+    VersionNotFoundError | VersionNotDraftError | RepositoryError
   > =>
     Effect.gen(function* () {
       // Step 1: Find existing version
@@ -157,7 +311,10 @@ export const LifecycleServiceLive = Effect.gen(function* () {
       );
 
       // Step 4: Compute changed fields for evidence
-      const previousDefinition = yield* extractPreviousLifecycleDefinition(existing.definitionJson);
+      const previousDefinition = yield* loadPreviousLifecycleDefinition(
+        input.versionId,
+        lifecycleRepo,
+      );
       const changedFieldsJson = computeLifecycleChanges(previousDefinition, {
         workUnitTypes: input.workUnitTypes,
         agentTypes: input.agentTypes,
@@ -168,7 +325,7 @@ export const LifecycleServiceLive = Effect.gen(function* () {
         // Record validation failure event for evidence lineage (AC 12)
         yield* lifecycleRepo.recordLifecycleEvent({
           methodologyVersionId: input.versionId,
-          eventType: "lifecycle_validated",
+          eventType: "validated",
           actorId,
           changedFieldsJson,
           diagnosticsJson: validation,

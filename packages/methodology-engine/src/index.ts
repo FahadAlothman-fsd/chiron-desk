@@ -16,7 +16,4 @@ export {
   LifecycleServiceLive,
   type UpdateDraftLifecycleResult,
 } from "./lifecycle-service";
-export {
-  EligibilityService,
-  EligibilityServiceLive,
-} from "./eligibility-service";
+export { EligibilityService, EligibilityServiceLive } from "./eligibility-service";

@@ -6,11 +6,13 @@ import type {
   ValidateDraftVersionInput,
   ValidationResult,
 } from "@chiron/contracts/methodology/version";
+import type { UpdateDraftWorkflowsInputDto } from "@chiron/contracts/methodology/dto";
 import { Context, Effect, Schema } from "effect";
 import { MethodologyVersionDefinition as MethodologyVersionDefinitionSchema } from "@chiron/contracts/methodology/version";
 
 import {
   DuplicateVersionError,
+  RepositoryError,
   ValidationDecodeError,
   VersionNotDraftError,
   VersionNotFoundError,
@@ -35,21 +37,34 @@ export class MethodologyVersionService extends Context.Tag("MethodologyVersionSe
     readonly createDraftVersion: (
       input: CreateDraftVersionInput,
       actorId: string | null,
-    ) => Effect.Effect<CreateDraftResult, DuplicateVersionError | ValidationDecodeError>;
+    ) => Effect.Effect<
+      CreateDraftResult,
+      DuplicateVersionError | ValidationDecodeError | RepositoryError
+    >;
     readonly updateDraftVersion: (
       input: UpdateDraftVersionInput,
       actorId: string | null,
     ) => Effect.Effect<
       UpdateDraftResult,
-      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError
+      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+    >;
+    readonly updateDraftWorkflows: (
+      input: UpdateDraftWorkflowsInputDto,
+      actorId: string | null,
+    ) => Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
     >;
     readonly validateDraftVersion: (
       input: ValidateDraftVersionInput,
       actorId: string | null,
-    ) => Effect.Effect<ValidationResult, VersionNotFoundError | VersionNotDraftError>;
+    ) => Effect.Effect<
+      ValidationResult,
+      VersionNotFoundError | VersionNotDraftError | RepositoryError
+    >;
     readonly getDraftLineage: (
       input: GetDraftLineageInput,
-    ) => Effect.Effect<readonly MethodologyVersionEventRow[]>;
+    ) => Effect.Effect<readonly MethodologyVersionEventRow[], RepositoryError>;
   }
 >() {}
 
@@ -93,13 +108,73 @@ function computeChangedFields(
   return Object.keys(changes).length > 0 ? changes : null;
 }
 
+function toDefinitionExtensions(definition: MethodologyVersionDefinition): unknown {
+  return {
+    workUnitTypes: definition.workUnitTypes,
+    agentTypes: definition.agentTypes,
+    transitions: definition.transitions,
+    guidance:
+      definition.guidance?.global === undefined
+        ? undefined
+        : {
+            global: definition.guidance.global,
+          },
+  };
+}
+
+function mergeGuidance(
+  extensionGuidance: MethodologyVersionDefinition["guidance"] | undefined,
+  snapshotGuidance: MethodologyVersionDefinition["guidance"] | undefined,
+): MethodologyVersionDefinition["guidance"] | undefined {
+  if (!extensionGuidance && !snapshotGuidance) {
+    return undefined;
+  }
+
+  return {
+    global: snapshotGuidance?.global ?? extensionGuidance?.global,
+    byWorkUnitType: {
+      ...extensionGuidance?.byWorkUnitType,
+      ...snapshotGuidance?.byWorkUnitType,
+    },
+    byAgentType: {
+      ...extensionGuidance?.byAgentType,
+      ...snapshotGuidance?.byAgentType,
+    },
+    byTransition: {
+      ...extensionGuidance?.byTransition,
+      ...snapshotGuidance?.byTransition,
+    },
+  };
+}
+
+function mergeDefinitionWithSnapshot(
+  definitionExtensions: unknown,
+  snapshot: {
+    workflows: MethodologyVersionDefinition["workflows"];
+    transitionWorkflowBindings: MethodologyVersionDefinition["transitionWorkflowBindings"];
+    guidance?: MethodologyVersionDefinition["guidance"];
+  },
+): Effect.Effect<MethodologyVersionDefinition, ValidationDecodeError> {
+  return decodeDefinition(definitionExtensions).pipe(
+    Effect.map((definition) => ({
+      ...definition,
+      workflows: snapshot.workflows,
+      transitionWorkflowBindings: snapshot.transitionWorkflowBindings,
+      guidance: mergeGuidance(definition.guidance, snapshot.guidance),
+    })),
+  );
+}
+
 export const MethodologyVersionServiceLive = Effect.gen(function* () {
   const repo = yield* MethodologyRepository;
 
   const createDraftVersion = (
     input: CreateDraftVersionInput,
     actorId: string | null,
-  ): Effect.Effect<CreateDraftResult, DuplicateVersionError | ValidationDecodeError> =>
+  ): Effect.Effect<
+    CreateDraftResult,
+    DuplicateVersionError | ValidationDecodeError | RepositoryError
+  > =>
     Effect.gen(function* () {
       const definition = yield* decodeDefinition(input.definition);
 
@@ -127,7 +202,10 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
         methodologyKey: input.methodologyKey,
         displayName: input.displayName,
         version: input.version,
-        definitionJson: input.definition,
+        definitionExtensions: toDefinitionExtensions(definition),
+        workflows: definition.workflows,
+        transitionWorkflowBindings: definition.transitionWorkflowBindings,
+        guidance: definition.guidance,
         factDefinitions: input.factDefinitions,
         linkTypeDefinitions: input.linkTypeDefinitions,
         actorId,
@@ -142,7 +220,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
     actorId: string | null,
   ): Effect.Effect<
     UpdateDraftResult,
-    VersionNotFoundError | VersionNotDraftError | ValidationDecodeError
+    VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
   > =>
     Effect.gen(function* () {
       const definition = yield* decodeDefinition(input.definition);
@@ -153,6 +231,25 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
       }
       yield* ensureVersionIsDraft(existing);
 
+      const previousSnapshot = yield* repo.findWorkflowSnapshot(existing.id);
+      const previousLegacyDefinition = yield* decodeDefinition(existing.definitionExtensions).pipe(
+        Effect.orElseSucceed(
+          () =>
+            ({
+              workUnitTypes: [],
+              agentTypes: [],
+              transitions: [],
+              workflows: [],
+              transitionWorkflowBindings: {},
+              guidance: undefined,
+            }) satisfies MethodologyVersionDefinition,
+        ),
+      );
+      const previousGuidance = mergeGuidance(
+        previousLegacyDefinition.guidance,
+        previousSnapshot.guidance,
+      );
+
       const timestamp = new Date().toISOString();
       const diagnostics = validateDraftDefinition(definition, timestamp);
 
@@ -160,20 +257,31 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
         {
           displayName: existing.displayName,
           version: existing.version,
-          definitionJson: existing.definitionJson,
+          definitionExtensions: existing.definitionExtensions,
         },
         {
           displayName: input.displayName,
           version: input.version,
-          definitionJson: input.definition,
+          definitionExtensions: toDefinitionExtensions(definition),
         },
       );
+
+      const workflowsChanged =
+        JSON.stringify(previousSnapshot.workflows) !== JSON.stringify(definition.workflows);
+      const transitionBindingsChanged =
+        JSON.stringify(previousSnapshot.transitionWorkflowBindings) !==
+        JSON.stringify(definition.transitionWorkflowBindings);
+      const guidanceChanged =
+        JSON.stringify(previousGuidance) !== JSON.stringify(definition.guidance);
 
       const { version } = yield* repo.updateDraft({
         versionId: input.versionId,
         displayName: input.displayName,
         version: input.version,
-        definitionJson: input.definition,
+        definitionExtensions: toDefinitionExtensions(definition),
+        workflows: definition.workflows,
+        transitionWorkflowBindings: definition.transitionWorkflowBindings,
+        guidance: definition.guidance,
         factDefinitions: input.factDefinitions,
         linkTypeDefinitions: input.linkTypeDefinitions,
         actorId,
@@ -181,13 +289,55 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
         validationDiagnostics: diagnostics,
       });
 
+      if (workflowsChanged) {
+        yield* repo.recordEvent({
+          methodologyVersionId: version.id,
+          eventType: "workflows_updated",
+          actorId,
+          changedFieldsJson: {
+            workflows: { from: previousSnapshot.workflows, to: definition.workflows },
+          },
+          diagnosticsJson: null,
+        });
+      }
+
+      if (transitionBindingsChanged) {
+        yield* repo.recordEvent({
+          methodologyVersionId: version.id,
+          eventType: "transition_bindings_updated",
+          actorId,
+          changedFieldsJson: {
+            transitionWorkflowBindings: {
+              from: previousSnapshot.transitionWorkflowBindings,
+              to: definition.transitionWorkflowBindings,
+            },
+          },
+          diagnosticsJson: null,
+        });
+      }
+
+      if (guidanceChanged) {
+        yield* repo.recordEvent({
+          methodologyVersionId: version.id,
+          eventType: "guidance_updated",
+          actorId,
+          changedFieldsJson: {
+            guidance: { from: previousGuidance, to: definition.guidance },
+          },
+          diagnosticsJson: null,
+        });
+      }
+
       return { version, diagnostics };
     });
 
   const validateDraftVersionFn = (
     input: ValidateDraftVersionInput,
     actorId: string | null,
-  ): Effect.Effect<ValidationResult, VersionNotFoundError | VersionNotDraftError> =>
+  ): Effect.Effect<
+    ValidationResult,
+    VersionNotFoundError | VersionNotDraftError | RepositoryError
+  > =>
     Effect.gen(function* () {
       const existing = yield* repo.findVersionById(input.versionId);
       if (!existing) {
@@ -195,13 +345,19 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
       }
       yield* ensureVersionIsDraft(existing);
 
-      const definition = yield* decodeDefinition(existing.definitionJson).pipe(
+      const snapshot = yield* repo.findWorkflowSnapshot(existing.id);
+      const definition = yield* mergeDefinitionWithSnapshot(
+        existing.definitionExtensions,
+        snapshot,
+      ).pipe(
         Effect.catchAll(() =>
           Effect.succeed({
             workUnitTypes: [],
             agentTypes: [],
             transitions: [],
-            allowedWorkflowsByTransition: {},
+            workflows: snapshot.workflows,
+            transitionWorkflowBindings: snapshot.transitionWorkflowBindings,
+            guidance: snapshot.guidance,
           } satisfies MethodologyVersionDefinition),
         ),
       );
@@ -220,14 +376,61 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
       return diagnostics;
     });
 
+  const updateDraftWorkflows = (
+    input: UpdateDraftWorkflowsInputDto,
+    actorId: string | null,
+  ): Effect.Effect<
+    UpdateDraftResult,
+    VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+  > =>
+    Effect.gen(function* () {
+      const existing = yield* repo.findVersionById(input.versionId);
+      if (!existing) {
+        return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+      }
+
+      yield* ensureVersionIsDraft(existing);
+
+      const baseDefinition = yield* decodeDefinition(existing.definitionExtensions).pipe(
+        Effect.catchAll(() =>
+          Effect.succeed({
+            workUnitTypes: [],
+            agentTypes: [],
+            transitions: [],
+            workflows: [],
+            transitionWorkflowBindings: {},
+            guidance: undefined,
+          } satisfies MethodologyVersionDefinition),
+        ),
+      );
+
+      const nextDefinition: MethodologyVersionDefinition = {
+        ...baseDefinition,
+        workflows: input.workflows,
+        transitionWorkflowBindings: input.transitionWorkflowBindings,
+        guidance: input.guidance,
+      };
+
+      return yield* updateDraftVersion(
+        {
+          versionId: input.versionId,
+          displayName: existing.displayName,
+          version: existing.version,
+          definition: nextDefinition,
+        },
+        actorId,
+      );
+    });
+
   const getDraftLineage = (
     input: GetDraftLineageInput,
-  ): Effect.Effect<readonly MethodologyVersionEventRow[]> =>
+  ): Effect.Effect<readonly MethodologyVersionEventRow[], RepositoryError> =>
     repo.getVersionEvents({ versionId: input.methodologyVersionId });
 
   return MethodologyVersionService.of({
     createDraftVersion,
     updateDraftVersion,
+    updateDraftWorkflows,
     validateDraftVersion: validateDraftVersionFn,
     getDraftLineage,
   });

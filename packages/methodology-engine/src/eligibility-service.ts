@@ -3,11 +3,12 @@ import type {
   GetTransitionEligibilityOutput,
   RequiredLinkEligibility,
   TransitionEligibility,
+  WorkflowEligibilityDiagnostic,
 } from "@chiron/contracts/methodology/eligibility";
 import { Context, Effect } from "effect";
 import { LifecycleRepository } from "./lifecycle-repository";
 import { MethodologyRepository } from "./repository";
-import { VersionNotFoundError } from "./errors";
+import { RepositoryError, VersionNotFoundError } from "./errors";
 
 const ABSENT_STATE = "__absent__";
 const ALLOWED_GATE_CLASSES = new Set(["start_gate", "completion_gate"] as const);
@@ -21,6 +22,75 @@ function isDependencyStrength(value: string): value is RequiredLinkEligibility["
   return ALLOWED_STRENGTHS.has(value as RequiredLinkEligibility["strength"]);
 }
 
+function projectWorkflowEligibility(
+  transitionId: string,
+  transitionKey: string,
+  transitionBindingRows: readonly {
+    transitionId: string;
+    workflowKey: string | null;
+  }[],
+): {
+  eligibleWorkflowKeys: string[];
+  workflowSelectionRequired: boolean;
+  workflowBlocked: boolean;
+  workflowDiagnostics: WorkflowEligibilityDiagnostic[];
+} {
+  const boundRows = transitionBindingRows.filter((row) => row.transitionId === transitionId);
+  const boundWorkflowKeys = [
+    ...new Set(
+      boundRows.map((row) => row.workflowKey).filter((value): value is string => value !== null),
+    ),
+  ].sort();
+  const workflowDiagnostics: WorkflowEligibilityDiagnostic[] = [];
+
+  if (boundRows.length === 0) {
+    workflowDiagnostics.push({
+      code: "NO_WORKFLOW_BOUND",
+      blocking: true,
+      required: `Transition '${transitionKey}' to have one or more workflow bindings`,
+      observed: `Transition '${transitionKey}' has zero workflow bindings`,
+      remediation: `Bind at least one workflow key to transition '${transitionKey}'`,
+    });
+
+    return {
+      eligibleWorkflowKeys: [],
+      workflowSelectionRequired: false,
+      workflowBlocked: true,
+      workflowDiagnostics,
+    };
+  }
+
+  const unresolved = boundRows.filter((row) => row.workflowKey === null);
+  for (const _binding of unresolved) {
+    workflowDiagnostics.push({
+      code: "UNRESOLVED_WORKFLOW_BINDING",
+      blocking: true,
+      required: `Every bound workflow for transition '${transitionKey}' to resolve to a persisted workflow`,
+      observed: `Transition '${transitionKey}' has one or more unresolved workflow bindings`,
+      remediation: `Re-save workflow definitions and transition bindings for transition '${transitionKey}'`,
+    });
+  }
+
+  workflowDiagnostics.sort((a, b) => {
+    const codeCmp = a.code.localeCompare(b.code);
+    if (codeCmp !== 0) {
+      return codeCmp;
+    }
+
+    return a.observed.localeCompare(b.observed);
+  });
+
+  const eligibleWorkflowKeys = boundWorkflowKeys;
+  const workflowBlocked = workflowDiagnostics.length > 0 || eligibleWorkflowKeys.length === 0;
+
+  return {
+    eligibleWorkflowKeys,
+    workflowSelectionRequired: !workflowBlocked && eligibleWorkflowKeys.length > 1,
+    workflowBlocked,
+    workflowDiagnostics,
+  };
+}
+
 /**
  * Service for querying transition eligibility metadata.
  * Returns deterministic eligibility information based on lifecycle definitions (AC 11).
@@ -30,7 +100,7 @@ export class EligibilityService extends Context.Tag("EligibilityService")<
   {
     readonly getTransitionEligibility: (
       input: GetTransitionEligibilityInput,
-    ) => Effect.Effect<GetTransitionEligibilityOutput, VersionNotFoundError>;
+    ) => Effect.Effect<GetTransitionEligibilityOutput, VersionNotFoundError | RepositoryError>;
   }
 >() {}
 
@@ -40,7 +110,7 @@ export const EligibilityServiceLive = Effect.gen(function* () {
 
   const getTransitionEligibility = (
     input: GetTransitionEligibilityInput,
-  ): Effect.Effect<GetTransitionEligibilityOutput, VersionNotFoundError> =>
+  ): Effect.Effect<GetTransitionEligibilityOutput, VersionNotFoundError | RepositoryError> =>
     Effect.gen(function* () {
       // Step 1: Verify version exists
       const version = yield* repo.findVersionById(input.versionId);
@@ -79,6 +149,9 @@ export const EligibilityServiceLive = Effect.gen(function* () {
       });
 
       const transitionRequiredLinks = yield* lifecycleRepo.findTransitionRequiredLinks(
+        input.versionId,
+      );
+      const transitionWorkflowBindings = yield* lifecycleRepo.findTransitionWorkflowBindings(
         input.versionId,
       );
       const stateKeyById = new Map(states.map((s) => [s.id, s.key]));
@@ -122,6 +195,11 @@ export const EligibilityServiceLive = Effect.gen(function* () {
               required: link.required,
             };
           }),
+          ...projectWorkflowEligibility(
+            transition.id,
+            transition.transitionKey,
+            transitionWorkflowBindings,
+          ),
         };
 
         eligibleTransitions.push(eligibility);

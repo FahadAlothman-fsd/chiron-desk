@@ -22,16 +22,22 @@ export class ValidationDecodeError extends Data.TaggedError("ValidationDecodeErr
   readonly message: string;
 }> {}
 
+export class RepositoryError extends Data.TaggedError("RepositoryError")<{
+  readonly operation: string;
+  readonly cause: unknown;
+}> {}
+
 export type MethodologyError =
   | MethodologyNotFoundError
   | VersionNotFoundError
   | VersionNotDraftError
   | DuplicateVersionError
-  | ValidationDecodeError;
+  | ValidationDecodeError
+  | RepositoryError;
 
 export class LifecycleValidationError extends Data.TaggedError("LifecycleValidationError")<{
   readonly versionId: string;
   readonly message: string;
 }> {}
 
-export type LifecycleError = LifecycleValidationError;
+export type LifecycleError = LifecycleValidationError | RepositoryError;

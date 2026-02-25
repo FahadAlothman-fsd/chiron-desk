@@ -8,6 +8,7 @@ import type {
   MethodologyVersionEventRow,
   MethodologyVersionRow,
   UpdateDraftParams,
+  WorkflowSnapshot,
 } from "./repository";
 import { MethodologyRepository } from "./repository";
 import { MethodologyVersionService, MethodologyVersionServiceLive } from "./version-service";
@@ -16,6 +17,7 @@ function makeTestRepo() {
   const definitions: MethodologyDefinitionRow[] = [];
   const versions: MethodologyVersionRow[] = [];
   const events: MethodologyVersionEventRow[] = [];
+  const workflowSnapshots = new Map<string, WorkflowSnapshot>();
   let idCounter = 0;
 
   const nextId = () => {
@@ -54,18 +56,23 @@ function makeTestRepo() {
           version: params.version,
           status: "draft",
           displayName: params.displayName,
-          definitionJson: params.definitionJson,
+          definitionExtensions: params.definitionExtensions,
           createdAt: new Date(),
           retiredAt: null,
         };
         versions.push(version);
+        workflowSnapshots.set(version.id, {
+          workflows: params.workflows,
+          transitionWorkflowBindings: params.transitionWorkflowBindings,
+          guidance: params.guidance,
+        });
 
         const createdEvent: MethodologyVersionEventRow = {
           id: nextId(),
           methodologyVersionId: version.id,
           eventType: "created",
           actorId: params.actorId,
-          changedFieldsJson: params.definitionJson,
+          changedFieldsJson: params.definitionExtensions,
           diagnosticsJson: null,
           createdAt: new Date(),
         };
@@ -93,9 +100,14 @@ function makeTestRepo() {
           ...prev,
           displayName: params.displayName,
           version: params.version,
-          definitionJson: params.definitionJson,
+          definitionExtensions: params.definitionExtensions,
         };
         versions[idx] = updated;
+        workflowSnapshots.set(updated.id, {
+          workflows: params.workflows,
+          transitionWorkflowBindings: params.transitionWorkflowBindings,
+          guidance: params.guidance,
+        });
 
         const updatedEvent: MethodologyVersionEventRow = {
           id: nextId(),
@@ -142,6 +154,14 @@ function makeTestRepo() {
       }),
 
     findLinkTypeKeys: (_versionId: string) => Effect.succeed([] as readonly string[]),
+    findWorkflowSnapshot: (versionId: string) =>
+      Effect.succeed(
+        workflowSnapshots.get(versionId) ?? {
+          workflows: [],
+          transitionWorkflowBindings: {},
+          guidance: undefined,
+        },
+      ),
   });
 }
 
@@ -160,7 +180,17 @@ const VALID_DEFINITION = {
   workUnitTypes: [{ key: "task" }],
   agentTypes: [],
   transitions: [{ key: "start" }],
-  allowedWorkflowsByTransition: { start: ["default-wf"] },
+  workflows: [
+    {
+      key: "default-wf",
+      steps: [{ key: "s1", type: "form" as const }],
+      edges: [
+        { fromStepKey: null, toStepKey: "s1", edgeKey: "entry" },
+        { fromStepKey: "s1", toStepKey: null, edgeKey: "done" },
+      ],
+    },
+  ],
+  transitionWorkflowBindings: { start: ["default-wf"] },
 };
 
 const MINIMAL_INPUT: CreateDraftVersionInput = {
@@ -187,6 +217,13 @@ describe("MethodologyVersionService", () => {
       expect(result.version.version).toBe("1.0.0");
       expect(result.diagnostics.valid).toBe(true);
       expect(result.diagnostics.diagnostics).toHaveLength(0);
+      expect(
+        (result.version.definitionExtensions as { workflows?: unknown }).workflows,
+      ).toBeUndefined();
+      expect(
+        (result.version.definitionExtensions as { transitionWorkflowBindings?: unknown })
+          .transitionWorkflowBindings,
+      ).toBeUndefined();
     });
 
     it("creates methodology definition if none exists for key", async () => {
@@ -235,7 +272,8 @@ describe("MethodologyVersionService", () => {
           workUnitTypes: [],
           agentTypes: [],
           transitions: [],
-          allowedWorkflowsByTransition: {},
+          workflows: [],
+          transitionWorkflowBindings: {},
         },
       };
 
@@ -303,6 +341,9 @@ describe("MethodologyVersionService", () => {
 
       expect(result.version.displayName).toBe("Updated Name");
       expect(result.diagnostics.valid).toBe(true);
+      expect(
+        (result.version.definitionExtensions as { workflows?: unknown }).workflows,
+      ).toBeUndefined();
     });
 
     it("rejects update of non-existent version", async () => {
