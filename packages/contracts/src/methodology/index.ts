@@ -3,4 +3,7 @@ export * from "./agent.js";
 export * from "./fact.js";
 export * from "./dependency.js";
 export * from "./eligibility.js";
+export * from "./dto.js";
+export * from "./domain.js";
+export * from "./projection.js";
 export * from "./version.js";

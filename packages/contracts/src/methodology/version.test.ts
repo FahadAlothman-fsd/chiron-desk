@@ -21,7 +21,8 @@ const validDefinition = {
   workUnitTypes: [],
   agentTypes: [],
   transitions: [],
-  allowedWorkflowsByTransition: {},
+  workflows: [],
+  transitionWorkflowBindings: {},
 };
 
 describe("MethodologyVersionStatus", () => {
@@ -42,7 +43,14 @@ describe("VersionEventType", () => {
   const decode = Schema.decodeUnknownSync(VersionEventType);
 
   it("accepts valid event types", () => {
-    for (const t of ["created", "updated", "validated"]) {
+    for (const t of [
+      "created",
+      "updated",
+      "validated",
+      "workflows_updated",
+      "transition_bindings_updated",
+      "guidance_updated",
+    ]) {
       expect(decode(t)).toBe(t);
     }
   });
@@ -154,20 +162,21 @@ describe("MethodologyVersionDefinition", () => {
     const result = decode(validDefinition);
     expect(result.workUnitTypes).toEqual([]);
     expect(result.transitions).toEqual([]);
-    expect(result.allowedWorkflowsByTransition).toEqual({});
+    expect(result.transitionWorkflowBindings).toEqual({});
   });
 
   it("accepts definition with populated arrays", () => {
     const def = {
       workUnitTypes: [{ key: "task" }, { key: "epic" }],
       transitions: [{ key: "start" }],
-      allowedWorkflowsByTransition: {
+      workflows: [{ key: "review-flow", steps: [{ key: "s1", type: "form" }], edges: [] }],
+      transitionWorkflowBindings: {
         start: ["review-flow", "auto-flow"],
       },
     };
     const result = decode(def);
     expect(result.workUnitTypes).toHaveLength(2);
-    expect(result.allowedWorkflowsByTransition.start).toEqual(["review-flow", "auto-flow"]);
+    expect(result.transitionWorkflowBindings.start).toEqual(["review-flow", "auto-flow"]);
   });
 
   it("rejects definition missing workUnitTypes", () => {
@@ -180,9 +189,10 @@ describe("MethodologyVersionDefinition", () => {
     expect(() => decode(rest)).toThrow();
   });
 
-  it("rejects definition missing allowedWorkflowsByTransition", () => {
-    const { allowedWorkflowsByTransition: _, ...rest } = validDefinition;
-    expect(() => decode(rest)).toThrow();
+  it("accepts definition missing transitionWorkflowBindings", () => {
+    const { transitionWorkflowBindings: _, ...rest } = validDefinition;
+    const result = decode(rest);
+    expect(result.transitionWorkflowBindings).toEqual({});
   });
 });
 
