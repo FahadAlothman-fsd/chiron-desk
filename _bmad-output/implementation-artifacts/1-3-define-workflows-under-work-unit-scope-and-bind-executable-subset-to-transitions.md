@@ -1,6 +1,6 @@
 # Story 1.3: Define Workflows Under Work Unit Scope and Bind Executable Subset to Transitions
 
-Status: review
+Status: done
 
 ## Story
 
@@ -60,8 +60,8 @@ so that reusable draft workflows exist while execution remains policy-controlled
   - [x] Regression tests for Story 1.1 and 1.2 guarantees (auth writes, actor propagation, deterministic diagnostics, zero partial mutation).
 - [x] [AI-Review] Complete split-contract migration by replacing monolithic API write routes with split lifecycle/workflow authoring endpoints as the sole API write interface.
 - [x] [AI-Review] Replace router `serializeVersion` legacy payload exposure to remove `definitionJson` leakage (use `definitionExtensions` envelope naming).
-- [ ] [AI-Review] Persist and round-trip full guidance scopes (`global`, `byWorkUnitType`, `byAgentType`, `byTransition`) across normalized tables; avoid lossy `guidance: undefined` snapshots.
-- [ ] [AI-Review] Add DB integration tests for normalized-source authority and guidance round-trip to prevent drift between write/read paths.
+- [x] [AI-Review] Persist and round-trip full guidance scopes (`global`, `byWorkUnitType`, `byAgentType`, `byTransition`) across normalized tables; avoid lossy `guidance: undefined` snapshots.
+- [x] [AI-Review] Add DB integration tests for normalized-source authority and guidance round-trip to prevent drift between write/read paths.
 - [x] [AI-Review] Harden workflow snapshot reconstruction to fail on unknown step types (no silent coercion fallback).
 
 ## Dev Notes
@@ -274,7 +274,7 @@ openai/gpt-5.3-codex
 ### Completion Notes List
 
 - Story context compiled from epics, PRD, architecture, UX spec, project context, prior story intelligence, and recent git history.
-- Story status set to `review` in story file after implementation validation and synchronized sprint tracker state.
+- Story status set to `done` in story file after implementation validation, hardening completion, and synchronized sprint tracker state.
 - Scope constrained to draft workflow-definition and transition-binding behavior; publish/pin concerns intentionally deferred.
 - Implemented workflow contracts and API schema updates for workflow graph, transition workflow bindings, and layered guidance payload support.
 - Added deterministic workflow/binding validation diagnostics and eligibility workflow projection (selection list + no-binding blocked diagnostics).
@@ -293,6 +293,7 @@ openai/gpt-5.3-codex
 - Added split API procedures (`createDraftVersion`, `updateDraftWorkflows`) and matching router tests to support lifecycle creation plus workflow/binding authoring updates without route version suffixes.
 - Added explicit guard assertions in version-service tests that `definitionExtensions` no longer stores canonical workflow/binding fields.
 - Executed validation commands: `bun check` and focused tests `bun test packages/methodology-engine/src/version-service.test.ts packages/api/src/routers/methodology.test.ts packages/methodology-engine/src/lifecycle-service.test.ts`.
+- Final hardening pass completed with full-suite verification: `bun check` and `bun test` (all passing).
 
 ### File List
 
