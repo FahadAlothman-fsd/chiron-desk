@@ -15,8 +15,14 @@ import {
   type CreateDraftParams,
   type UpdateDraftParams,
   type GetVersionEventsParams,
+  type GetPublicationEvidenceParams,
+  type PublishDraftVersionParams,
+  type PublishFactSchemaRow,
   type WorkflowSnapshot,
+  type RepositoryErrorCode,
 } from "@chiron/methodology-engine";
+import { RepositoryError } from "@chiron/methodology-engine";
+import type { ValidationResult } from "@chiron/contracts/methodology/version";
 import { createMethodologyRouter } from "./methodology";
 
 function makeTestRepo(): MethodologyRepository["Type"] {
@@ -34,6 +40,7 @@ function makeTestRepo(): MethodologyRepository["Type"] {
   const versions = new Map<string, MethodologyVersionRow>();
   const events: MethodologyVersionEventRow[] = [];
   const workflowSnapshots = new Map<string, WorkflowSnapshot>();
+  const factSchemasByVersion = new Map<string, readonly PublishFactSchemaRow[]>();
   let counter = 0;
 
   function nextId(): string {
@@ -81,6 +88,16 @@ function makeTestRepo(): MethodologyRepository["Type"] {
           transitionWorkflowBindings: params.transitionWorkflowBindings,
           guidance: params.guidance,
         });
+        factSchemasByVersion.set(
+          version.id,
+          (params.factDefinitions ?? []).map((fact) => ({
+            key: fact.key,
+            factType: fact.valueType,
+            required: fact.required,
+            defaultValueJson: fact.defaultValue,
+            guidanceJson: null,
+          })),
+        );
         const createdEvent: MethodologyVersionEventRow = {
           id: nextId(),
           methodologyVersionId: version.id,
@@ -118,6 +135,18 @@ function makeTestRepo(): MethodologyRepository["Type"] {
           transitionWorkflowBindings: params.transitionWorkflowBindings,
           guidance: params.guidance,
         });
+        if (params.factDefinitions) {
+          factSchemasByVersion.set(
+            params.versionId,
+            params.factDefinitions.map((fact) => ({
+              key: fact.key,
+              factType: fact.valueType,
+              required: fact.required,
+              defaultValueJson: fact.defaultValue,
+              guidanceJson: null,
+            })),
+          );
+        }
         const updatedEvent: MethodologyVersionEventRow = {
           id: nextId(),
           methodologyVersionId: params.versionId,
@@ -166,6 +195,101 @@ function makeTestRepo(): MethodologyRepository["Type"] {
           transitionWorkflowBindings: {},
           guidance: undefined,
         },
+      ),
+    findFactSchemasByVersionId: (versionId: string) =>
+      Effect.succeed(factSchemasByVersion.get(versionId) ?? []),
+    publishDraftVersion: (params: PublishDraftVersionParams) =>
+      Effect.gen(function* () {
+        const fail = (code: RepositoryErrorCode) =>
+          Effect.fail(
+            new RepositoryError({
+              operation: "api-test.publishDraftVersion",
+              cause: new Error(code),
+              code,
+            }),
+          );
+
+        const current = versions.get(params.versionId);
+        if (!current) {
+          return yield* fail("VERSION_NOT_FOUND");
+        }
+        if (current.status !== "draft") {
+          return yield* fail("PUBLISHED_CONTRACT_IMMUTABLE");
+        }
+
+        const duplicate = [...versions.values()].find(
+          (v) =>
+            v.methodologyId === current.methodologyId &&
+            v.version === params.publishedVersion &&
+            v.id !== current.id,
+        );
+        if (duplicate) {
+          return yield* fail("PUBLISH_VERSION_ALREADY_EXISTS");
+        }
+
+        if (params.publishedVersion === "conflict") {
+          return yield* fail("PUBLISH_CONCURRENT_WRITE_CONFLICT");
+        }
+
+        if (params.publishedVersion === "atomicity-abort") {
+          return yield* fail("PUBLISH_ATOMICITY_GUARD_ABORTED");
+        }
+
+        const updated: MethodologyVersionRow = {
+          ...current,
+          version: params.publishedVersion,
+          status: "active",
+        };
+        versions.set(updated.id, updated);
+
+        const event: MethodologyVersionEventRow = {
+          id: nextId(),
+          methodologyVersionId: updated.id,
+          eventType: "published",
+          actorId: params.actorId,
+          changedFieldsJson: {
+            sourceDraftRef: `draft:${updated.id}`,
+            publishedVersion: params.publishedVersion,
+          },
+          diagnosticsJson: params.validationSummary,
+          createdAt: new Date(),
+        };
+        events.push(event);
+
+        return {
+          version: updated,
+          event,
+        };
+      }),
+    getPublicationEvidence: (params: GetPublicationEvidenceParams) =>
+      Effect.succeed(
+        events
+          .filter(
+            (event) =>
+              event.methodologyVersionId === params.methodologyVersionId &&
+              event.eventType === "published",
+          )
+          .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id))
+          .map((event) => ({
+            actorId: event.actorId,
+            timestamp: event.createdAt.toISOString(),
+            sourceDraftRef:
+              typeof (event.changedFieldsJson as Record<string, unknown> | null)?.sourceDraftRef ===
+              "string"
+                ? ((event.changedFieldsJson as Record<string, unknown>).sourceDraftRef as string)
+                : `draft:${params.methodologyVersionId}`,
+            publishedVersion:
+              typeof (event.changedFieldsJson as Record<string, unknown> | null)
+                ?.publishedVersion === "string"
+                ? ((event.changedFieldsJson as Record<string, unknown>).publishedVersion as string)
+                : "",
+            validationSummary:
+              (event.diagnosticsJson as {
+                valid: boolean;
+                diagnostics: ValidationResult["diagnostics"];
+              } | null) ?? ({ valid: false, diagnostics: [] } satisfies ValidationResult),
+            evidenceRef: event.id,
+          })),
       ),
   };
 }
@@ -305,11 +429,47 @@ describe("methodology router", () => {
         AUTHENTICATED_CTX,
       );
 
-      const result = await call(
+      await call(
         router.updateDraftWorkflows,
         {
           versionId: created.version.id,
           workflows: VALID_DEFINITION.workflows,
+          transitionWorkflowBindings: VALID_DEFINITION.transitionWorkflowBindings,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.updateDraftWorkflows,
+        {
+          versionId: created.version.id,
+          workflows: VALID_DEFINITION.workflows,
+          transitionWorkflowBindings: VALID_DEFINITION.transitionWorkflowBindings,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.updateDraftWorkflows,
+        {
+          versionId: created.version.id,
+          workflows: VALID_DEFINITION.workflows.map((workflow) => ({
+            ...workflow,
+            workUnitTypeKey: "task",
+          })),
+          transitionWorkflowBindings: VALID_DEFINITION.transitionWorkflowBindings,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const result = await call(
+        router.updateDraftWorkflows,
+        {
+          versionId: created.version.id,
+          workflows: VALID_DEFINITION.workflows.map((workflow) => ({
+            ...workflow,
+            workUnitTypeKey: "task",
+          })),
           transitionWorkflowBindings: VALID_DEFINITION.transitionWorkflowBindings,
         },
         AUTHENTICATED_CTX,
@@ -332,6 +492,26 @@ describe("methodology router", () => {
           version: "1.0.0",
           workUnitTypes: [],
           transitions: [],
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.updateDraftWorkflows,
+        {
+          versionId: created.version.id,
+          workflows: VALID_DEFINITION.workflows,
+          transitionWorkflowBindings: VALID_DEFINITION.transitionWorkflowBindings,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.updateDraftWorkflows,
+        {
+          versionId: created.version.id,
+          workflows: VALID_DEFINITION.workflows,
+          transitionWorkflowBindings: VALID_DEFINITION.transitionWorkflowBindings,
         },
         AUTHENTICATED_CTX,
       );
@@ -360,7 +540,7 @@ describe("methodology router", () => {
 
       await expect(
         call(router.validateDraftVersion, { versionId: "test-version" }, PUBLIC_CTX),
-      ).rejects.toBeDefined();
+      ).rejects.toThrow();
     });
   });
 
@@ -390,6 +570,372 @@ describe("methodology router", () => {
       expect(lineage.length).toBeGreaterThanOrEqual(2);
       expect(lineage[0]!.eventType).toBe("created");
       expect(lineage[1]!.eventType).toBe("validated");
+    });
+  });
+
+  describe("publishDraftVersion", () => {
+    it("publishes a draft and returns publication evidence", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const created = await call(
+        router.createDraftVersion,
+        {
+          methodologyKey: "publish-meth",
+          displayName: "Publish Test",
+          version: "0.1.0-draft",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.updateDraftWorkflows,
+        {
+          versionId: created.version.id,
+          workflows: VALID_DEFINITION.workflows.map((workflow) => ({
+            ...workflow,
+            workUnitTypeKey: "task",
+          })),
+          transitionWorkflowBindings: VALID_DEFINITION.transitionWorkflowBindings,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const result = await call(
+        router.publishDraftVersion,
+        {
+          versionId: created.version.id,
+          publishedVersion: "1.0.0",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      expect(result.published).toBe(true);
+      expect(result.version?.status).toBe("active");
+      expect(result.version?.version).toBe("1.0.0");
+      expect(result.evidence?.publishedVersion).toBe("1.0.0");
+      expect(result.evidence?.sourceDraftRef).toMatch(/^draft:/);
+      expect(result.diagnostics.valid).toBe(true);
+    });
+
+    it("returns deterministic duplicate-version diagnostics", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const first = await call(
+        router.createDraftVersion,
+        {
+          methodologyKey: "dup-publish",
+          displayName: "Dup 1",
+          version: "0.1.0-draft-a",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.updateDraftWorkflows,
+        {
+          versionId: first.version.id,
+          workflows: VALID_DEFINITION.workflows,
+          transitionWorkflowBindings: VALID_DEFINITION.transitionWorkflowBindings,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const second = await call(
+        router.createDraftVersion,
+        {
+          methodologyKey: "dup-publish",
+          displayName: "Dup 2",
+          version: "0.1.0-draft-b",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.updateDraftWorkflows,
+        {
+          versionId: second.version.id,
+          workflows: VALID_DEFINITION.workflows,
+          transitionWorkflowBindings: VALID_DEFINITION.transitionWorkflowBindings,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.publishDraftVersion,
+        {
+          versionId: first.version.id,
+          publishedVersion: "1.0.0",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const failA = await call(
+        router.publishDraftVersion,
+        {
+          versionId: second.version.id,
+          publishedVersion: "1.0.0",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const failB = await call(
+        router.publishDraftVersion,
+        {
+          versionId: second.version.id,
+          publishedVersion: "1.0.0",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      expect(failA.published).toBe(false);
+      expect(failA.diagnostics.diagnostics[0]?.code).toBe("PUBLISH_VERSION_ALREADY_EXISTS");
+      expect(
+        failA.diagnostics.diagnostics.map((d: any) => ({
+          code: d.code,
+          scope: d.scope,
+          blocking: d.blocking,
+          required: d.required,
+          observed: d.observed,
+          remediation: d.remediation,
+          evidenceRef: d.evidenceRef,
+        })),
+      ).toEqual(
+        failB.diagnostics.diagnostics.map((d: any) => ({
+          code: d.code,
+          scope: d.scope,
+          blocking: d.blocking,
+          required: d.required,
+          observed: d.observed,
+          remediation: d.remediation,
+          evidenceRef: d.evidenceRef,
+        })),
+      );
+      expect(failA.diagnostics.diagnostics[0]).toHaveProperty("evidenceRef");
+      expect(failA.diagnostics.diagnostics[0]?.evidenceRef).toBeNull();
+    });
+
+    it("returns deterministic concurrent publish conflict diagnostics", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const created = await call(
+        router.createDraftVersion,
+        {
+          methodologyKey: "conflict-meth",
+          displayName: "Conflict",
+          version: "0.1.0-draft",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.updateDraftWorkflows,
+        {
+          versionId: created.version.id,
+          workflows: VALID_DEFINITION.workflows,
+          transitionWorkflowBindings: VALID_DEFINITION.transitionWorkflowBindings,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const failA = await call(
+        router.publishDraftVersion,
+        {
+          versionId: created.version.id,
+          publishedVersion: "conflict",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const failB = await call(
+        router.publishDraftVersion,
+        {
+          versionId: created.version.id,
+          publishedVersion: "conflict",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      expect(failA.published).toBe(false);
+      expect(failA.diagnostics.diagnostics[0]?.code).toBe("PUBLISH_CONCURRENT_WRITE_CONFLICT");
+      expect(
+        failA.diagnostics.diagnostics.map((d: any) => ({
+          code: d.code,
+          scope: d.scope,
+          blocking: d.blocking,
+          required: d.required,
+          observed: d.observed,
+          remediation: d.remediation,
+          evidenceRef: d.evidenceRef,
+        })),
+      ).toEqual(
+        failB.diagnostics.diagnostics.map((d: any) => ({
+          code: d.code,
+          scope: d.scope,
+          blocking: d.blocking,
+          required: d.required,
+          observed: d.observed,
+          remediation: d.remediation,
+          evidenceRef: d.evidenceRef,
+        })),
+      );
+    });
+
+    it("returns deterministic atomicity guard diagnostics", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const created = await call(
+        router.createDraftVersion,
+        {
+          methodologyKey: "atomicity-meth",
+          displayName: "Atomicity",
+          version: "0.1.0-draft",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.updateDraftWorkflows,
+        {
+          versionId: created.version.id,
+          workflows: VALID_DEFINITION.workflows,
+          transitionWorkflowBindings: VALID_DEFINITION.transitionWorkflowBindings,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const result = await call(
+        router.publishDraftVersion,
+        {
+          versionId: created.version.id,
+          publishedVersion: "atomicity-abort",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      expect(result.published).toBe(false);
+      expect(result.diagnostics.diagnostics[0]?.code).toBe("PUBLISH_ATOMICITY_GUARD_ABORTED");
+      expect(result.diagnostics.diagnostics[0]?.scope).toBe("publish.persistence");
+    });
+  });
+
+  describe("getPublicationEvidence", () => {
+    it("returns appended publication evidence", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const created = await call(
+        router.createDraftVersion,
+        {
+          methodologyKey: "evidence-meth",
+          displayName: "Evidence",
+          version: "0.1.0-draft",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.updateDraftWorkflows,
+        {
+          versionId: created.version.id,
+          workflows: VALID_DEFINITION.workflows,
+          transitionWorkflowBindings: VALID_DEFINITION.transitionWorkflowBindings,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.publishDraftVersion,
+        {
+          versionId: created.version.id,
+          publishedVersion: "1.0.0",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const evidence = await call(
+        router.getPublicationEvidence,
+        {
+          methodologyVersionId: created.version.id,
+        },
+        PUBLIC_CTX,
+      );
+
+      expect(evidence).toHaveLength(1);
+      expect(evidence[0]?.publishedVersion).toBe("1.0.0");
+      expect(evidence[0]?.sourceDraftRef).toMatch(/^draft:/);
+    });
+  });
+
+  describe("getPublishedContractByVersionAndWorkUnitType", () => {
+    it("returns workflows and bindings for published version + work unit type", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const created = await call(
+        router.createDraftVersion,
+        {
+          methodologyKey: "query-meth",
+          displayName: "Query",
+          version: "0.1.0-draft",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.updateDraftWorkflows,
+        {
+          versionId: created.version.id,
+          workflows: VALID_DEFINITION.workflows.map((workflow) => ({
+            ...workflow,
+            workUnitTypeKey: "task",
+          })),
+          transitionWorkflowBindings: VALID_DEFINITION.transitionWorkflowBindings,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.publishDraftVersion,
+        {
+          versionId: created.version.id,
+          publishedVersion: "1.0.0",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const result = await call(
+        router.getPublishedContractByVersionAndWorkUnitType,
+        {
+          methodologyKey: "query-meth",
+          publishedVersion: "1.0.0",
+          workUnitTypeKey: "task",
+        },
+        PUBLIC_CTX,
+      );
+
+      expect(result.version.version).toBe("1.0.0");
+      expect(result.workflows).toHaveLength(1);
+      expect(result.workflows[0]?.workUnitTypeKey).toBe("task");
+      expect(Object.keys(result.transitionWorkflowBindings)).toContain("start");
     });
   });
 });

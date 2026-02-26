@@ -4,10 +4,13 @@ import { describe, expect, it } from "vitest";
 import {
   CreateDraftVersionInput,
   GetDraftLineageInput,
+  GetPublicationEvidenceInput,
   LinkStrength,
   MethodologyFactDefinitionInput,
   MethodologyLinkTypeDefinitionInput,
   MethodologyVersionDefinition,
+  PublicationEvidence,
+  PublishDraftVersionInput,
   MethodologyVersionStatus,
   UpdateDraftVersionInput,
   ValidateDraftVersionInput,
@@ -50,6 +53,7 @@ describe("VersionEventType", () => {
       "workflows_updated",
       "transition_bindings_updated",
       "guidance_updated",
+      "published",
     ]) {
       expect(decode(t)).toBe(t);
     }
@@ -64,7 +68,7 @@ describe("VariableValueType", () => {
   const decode = Schema.decodeUnknownSync(VariableValueType);
 
   it("accepts all valid types", () => {
-    for (const t of ["string", "number", "boolean", "date", "json"]) {
+    for (const t of ["string", "number", "boolean", "json"]) {
       expect(decode(t)).toBe(t);
     }
   });
@@ -99,6 +103,7 @@ describe("ValidationDiagnostic", () => {
     observed: "Empty array",
     remediation: "Add at least one work unit type to the definition",
     timestamp: "2026-02-24T12:00:00Z",
+    evidenceRef: null,
   };
 
   it("accepts valid diagnostic with all required fields", () => {
@@ -107,14 +112,19 @@ describe("ValidationDiagnostic", () => {
     expect(result.blocking).toBe(true);
   });
 
-  it("accepts diagnostic with optional evidenceRef", () => {
+  it("accepts diagnostic with evidenceRef", () => {
     const result = decode({ ...validDiagnostic, evidenceRef: "event-123" });
     expect(result.evidenceRef).toBe("event-123");
   });
 
-  it("accepts diagnostic without evidenceRef", () => {
+  it("accepts diagnostic with null evidenceRef", () => {
     const result = decode(validDiagnostic);
-    expect(result.evidenceRef).toBeUndefined();
+    expect(result.evidenceRef).toBeNull();
+  });
+
+  it("rejects diagnostic missing evidenceRef", () => {
+    const { evidenceRef: _evidenceRef, ...withoutEvidenceRef } = validDiagnostic;
+    expect(() => decode(withoutEvidenceRef)).toThrow();
   });
 
   it("rejects diagnostic with empty code", () => {
@@ -145,6 +155,7 @@ describe("ValidationResult", () => {
       observed: "y",
       remediation: "z",
       timestamp: "2026-01-01T00:00:00Z",
+      evidenceRef: null,
     };
     const result = decode({ valid: false, diagnostics: [diag] });
     expect(result.diagnostics).toHaveLength(1);
@@ -403,5 +414,85 @@ describe("GetDraftLineageInput", () => {
 
   it("rejects empty methodologyVersionId", () => {
     expect(() => decode({ methodologyVersionId: "" })).toThrow();
+  });
+});
+
+describe("PublishDraftVersionInput", () => {
+  const decode = Schema.decodeUnknownSync(PublishDraftVersionInput);
+
+  it("accepts valid publish input", () => {
+    const result = decode({ versionId: "ver-123", publishedVersion: "1.0.0" });
+    expect(result.versionId).toBe("ver-123");
+    expect(result.publishedVersion).toBe("1.0.0");
+  });
+
+  it("rejects empty versionId", () => {
+    expect(() => decode({ versionId: "", publishedVersion: "1.0.0" })).toThrow();
+  });
+
+  it("rejects empty publishedVersion", () => {
+    expect(() => decode({ versionId: "ver-123", publishedVersion: "" })).toThrow();
+  });
+});
+
+describe("GetPublicationEvidenceInput", () => {
+  const decode = Schema.decodeUnknownSync(GetPublicationEvidenceInput);
+
+  it("accepts valid methodologyVersionId", () => {
+    const result = decode({ methodologyVersionId: "ver-123" });
+    expect(result.methodologyVersionId).toBe("ver-123");
+  });
+
+  it("rejects empty methodologyVersionId", () => {
+    expect(() => decode({ methodologyVersionId: "" })).toThrow();
+  });
+});
+
+describe("PublicationEvidence", () => {
+  const decode = Schema.decodeUnknownSync(PublicationEvidence);
+
+  it("accepts valid publication evidence", () => {
+    const result = decode({
+      actorId: "user-1",
+      timestamp: "2026-02-25T10:00:00Z",
+      sourceDraftRef: "draft:ver-123",
+      publishedVersion: "1.0.0",
+      validationSummary: {
+        valid: true,
+        diagnostics: [],
+      },
+      evidenceRef: "event-1",
+    });
+
+    expect(result.publishedVersion).toBe("1.0.0");
+    expect(result.validationSummary.valid).toBe(true);
+  });
+
+  it("accepts null actorId", () => {
+    const result = decode({
+      actorId: null,
+      timestamp: "2026-02-25T10:00:00Z",
+      sourceDraftRef: "draft:ver-123",
+      publishedVersion: "1.0.0",
+      validationSummary: {
+        valid: true,
+        diagnostics: [],
+      },
+      evidenceRef: "event-1",
+    });
+
+    expect(result.actorId).toBeNull();
+  });
+
+  it("rejects missing required fields", () => {
+    expect(() =>
+      decode({
+        actorId: "user-1",
+        timestamp: "2026-02-25T10:00:00Z",
+        publishedVersion: "1.0.0",
+        validationSummary: { valid: true, diagnostics: [] },
+        evidenceRef: "event-1",
+      }),
+    ).toThrow();
   });
 });

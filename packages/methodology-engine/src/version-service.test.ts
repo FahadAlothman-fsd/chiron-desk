@@ -1,15 +1,22 @@
-import type { CreateDraftVersionInput } from "@chiron/contracts/methodology/version";
+import type {
+  CreateDraftVersionInput,
+  ValidationResult,
+} from "@chiron/contracts/methodology/version";
 import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 import type {
   CreateDraftParams,
+  PublishFactSchemaRow,
+  GetPublicationEvidenceParams,
   GetVersionEventsParams,
   MethodologyDefinitionRow,
   MethodologyVersionEventRow,
   MethodologyVersionRow,
+  PublishDraftVersionParams,
   UpdateDraftParams,
   WorkflowSnapshot,
 } from "./repository";
+import { RepositoryError, type RepositoryErrorCode } from "./errors";
 import { MethodologyRepository } from "./repository";
 import { MethodologyVersionService, MethodologyVersionServiceLive } from "./version-service";
 
@@ -18,6 +25,7 @@ function makeTestRepo() {
   const versions: MethodologyVersionRow[] = [];
   const events: MethodologyVersionEventRow[] = [];
   const workflowSnapshots = new Map<string, WorkflowSnapshot>();
+  const factSchemasByVersion = new Map<string, readonly PublishFactSchemaRow[]>();
   let idCounter = 0;
 
   const nextId = () => {
@@ -66,6 +74,16 @@ function makeTestRepo() {
           transitionWorkflowBindings: params.transitionWorkflowBindings,
           guidance: params.guidance,
         });
+        factSchemasByVersion.set(
+          version.id,
+          (params.factDefinitions ?? []).map((fact) => ({
+            key: fact.key,
+            factType: fact.valueType,
+            required: fact.required,
+            defaultValueJson: fact.defaultValue,
+            guidanceJson: null,
+          })),
+        );
 
         const createdEvent: MethodologyVersionEventRow = {
           id: nextId(),
@@ -96,6 +114,9 @@ function makeTestRepo() {
       Effect.sync(() => {
         const idx = versions.findIndex((v) => v.id === params.versionId);
         const prev = versions[idx]!;
+        if (prev.status !== "draft") {
+          throw new Error("PUBLISHED_CONTRACT_IMMUTABLE");
+        }
         const updated: MethodologyVersionRow = {
           ...prev,
           displayName: params.displayName,
@@ -108,6 +129,18 @@ function makeTestRepo() {
           transitionWorkflowBindings: params.transitionWorkflowBindings,
           guidance: params.guidance,
         });
+        if (params.factDefinitions) {
+          factSchemasByVersion.set(
+            updated.id,
+            params.factDefinitions.map((fact) => ({
+              key: fact.key,
+              factType: fact.valueType,
+              required: fact.required,
+              defaultValueJson: fact.defaultValue,
+              guidanceJson: null,
+            })),
+          );
+        }
 
         const updatedEvent: MethodologyVersionEventRow = {
           id: nextId(),
@@ -161,6 +194,102 @@ function makeTestRepo() {
           transitionWorkflowBindings: {},
           guidance: undefined,
         },
+      ),
+    findFactSchemasByVersionId: (versionId: string) =>
+      Effect.succeed(factSchemasByVersion.get(versionId) ?? []),
+    publishDraftVersion: (params: PublishDraftVersionParams) =>
+      Effect.gen(function* () {
+        const fail = (code: RepositoryErrorCode) =>
+          Effect.fail(
+            new RepositoryError({
+              operation: "test.publishDraftVersion",
+              cause: new Error(code),
+              code,
+            }),
+          );
+
+        const idx = versions.findIndex((v) => v.id === params.versionId);
+        if (idx < 0) {
+          return yield* fail("VERSION_NOT_FOUND");
+        }
+
+        const current = versions[idx]!;
+        if (current.status !== "draft") {
+          return yield* fail("PUBLISHED_CONTRACT_IMMUTABLE");
+        }
+
+        const duplicate = versions.find(
+          (v) =>
+            v.methodologyId === current.methodologyId &&
+            v.version === params.publishedVersion &&
+            v.id !== current.id,
+        );
+        if (duplicate) {
+          return yield* fail("PUBLISH_VERSION_ALREADY_EXISTS");
+        }
+
+        if (params.publishedVersion === "conflict") {
+          return yield* fail("PUBLISH_CONCURRENT_WRITE_CONFLICT");
+        }
+
+        if (params.publishedVersion === "atomicity-abort") {
+          return yield* fail("PUBLISH_ATOMICITY_GUARD_ABORTED");
+        }
+
+        const updated: MethodologyVersionRow = {
+          ...current,
+          version: params.publishedVersion,
+          status: "active",
+        };
+        versions[idx] = updated;
+
+        const event: MethodologyVersionEventRow = {
+          id: nextId(),
+          methodologyVersionId: updated.id,
+          eventType: "published",
+          actorId: params.actorId,
+          changedFieldsJson: {
+            sourceDraftRef: `draft:${updated.id}`,
+            publishedVersion: params.publishedVersion,
+          },
+          diagnosticsJson: params.validationSummary,
+          createdAt: new Date(),
+        };
+        events.push(event);
+
+        return {
+          version: updated,
+          event,
+        };
+      }),
+    getPublicationEvidence: (params: GetPublicationEvidenceParams) =>
+      Effect.succeed(
+        events
+          .filter(
+            (event) =>
+              event.methodologyVersionId === params.methodologyVersionId &&
+              event.eventType === "published",
+          )
+          .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id))
+          .map((event) => ({
+            actorId: event.actorId,
+            timestamp: event.createdAt.toISOString(),
+            sourceDraftRef:
+              typeof (event.changedFieldsJson as Record<string, unknown> | null)?.sourceDraftRef ===
+              "string"
+                ? ((event.changedFieldsJson as Record<string, unknown>).sourceDraftRef as string)
+                : `draft:${params.methodologyVersionId}`,
+            publishedVersion:
+              typeof (event.changedFieldsJson as Record<string, unknown> | null)
+                ?.publishedVersion === "string"
+                ? ((event.changedFieldsJson as Record<string, unknown>).publishedVersion as string)
+                : "",
+            validationSummary: (event.diagnosticsJson as {
+              valid: boolean;
+              diagnostics: ValidationResult["diagnostics"];
+            } | null) ?? { valid: false, diagnostics: [] },
+            evidenceRef: event.id,
+          })),
       ),
   });
 }
@@ -502,6 +631,321 @@ describe("MethodologyVersionService", () => {
       const eventTypes = events.map((e) => e.eventType);
       expect(eventTypes).toContain("created");
       expect(eventTypes).toContain("validated");
+    });
+  });
+
+  describe("publishDraftVersion", () => {
+    it("publishes a validated draft and appends evidence", async () => {
+      const layer = makeServiceLayer();
+
+      const published = await Effect.runPromise(
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionService;
+          const created = yield* svc.createDraftVersion(
+            {
+              ...MINIMAL_INPUT,
+              version: "0.1.0-draft",
+            },
+            TEST_ACTOR_ID,
+          );
+
+          return yield* svc.publishDraftVersion(
+            {
+              versionId: created.version.id,
+              publishedVersion: "1.0.0",
+            },
+            TEST_ACTOR_ID,
+          );
+        }).pipe(Effect.provide(layer)),
+      );
+
+      expect(published.published).toBe(true);
+      expect(published.version!.status).toBe("active");
+      expect(published.version!.version).toBe("1.0.0");
+      expect(published.evidence!.sourceDraftRef).toMatch(/^draft:/);
+      expect(published.evidence!.publishedVersion).toBe("1.0.0");
+      expect(published.evidence!.validationSummary.valid).toBe(true);
+    });
+
+    it("returns deterministic blocking diagnostics for duplicate published versions", async () => {
+      const layer = makeServiceLayer();
+
+      const result = await Effect.runPromise(
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionService;
+
+          const first = yield* svc.createDraftVersion(
+            {
+              ...MINIMAL_INPUT,
+              methodologyKey: "dup-methodology",
+              version: "0.1.0-draft-a",
+            },
+            TEST_ACTOR_ID,
+          );
+          const second = yield* svc.createDraftVersion(
+            {
+              ...MINIMAL_INPUT,
+              methodologyKey: "dup-methodology",
+              version: "0.1.0-draft-b",
+            },
+            TEST_ACTOR_ID,
+          );
+
+          yield* svc.publishDraftVersion(
+            {
+              versionId: first.version.id,
+              publishedVersion: "1.0.0",
+            },
+            TEST_ACTOR_ID,
+          );
+
+          const firstFailure = yield* svc.publishDraftVersion(
+            {
+              versionId: second.version.id,
+              publishedVersion: "1.0.0",
+            },
+            TEST_ACTOR_ID,
+          );
+          const secondFailure = yield* svc.publishDraftVersion(
+            {
+              versionId: second.version.id,
+              publishedVersion: "1.0.0",
+            },
+            TEST_ACTOR_ID,
+          );
+
+          return { firstFailure, secondFailure };
+        }).pipe(Effect.provide(layer)),
+      );
+
+      expect(result.firstFailure.diagnostics.valid).toBe(false);
+      expect(result.firstFailure.diagnostics.diagnostics[0]?.code).toBe(
+        "PUBLISH_VERSION_ALREADY_EXISTS",
+      );
+      const stableA = result.firstFailure.diagnostics.diagnostics.map((d) => ({
+        code: d.code,
+        scope: d.scope,
+        blocking: d.blocking,
+        required: d.required,
+        observed: d.observed,
+        remediation: d.remediation,
+        evidenceRef: d.evidenceRef,
+      }));
+      const stableB = result.secondFailure.diagnostics.diagnostics.map((d) => ({
+        code: d.code,
+        scope: d.scope,
+        blocking: d.blocking,
+        required: d.required,
+        observed: d.observed,
+        remediation: d.remediation,
+        evidenceRef: d.evidenceRef,
+      }));
+      expect(stableA).toEqual(stableB);
+      expect(result.firstFailure.diagnostics.diagnostics[0]).toHaveProperty("evidenceRef");
+      expect(result.firstFailure.diagnostics.diagnostics[0]?.evidenceRef).toBeNull();
+    });
+
+    it("returns deterministic concurrent publish conflict diagnostics", async () => {
+      const layer = makeServiceLayer();
+
+      const result = await Effect.runPromise(
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionService;
+          const created = yield* svc.createDraftVersion(
+            {
+              ...MINIMAL_INPUT,
+              methodologyKey: "concurrent-methodology",
+              version: "0.1.0-draft",
+            },
+            TEST_ACTOR_ID,
+          );
+
+          const firstFailure = yield* svc.publishDraftVersion(
+            {
+              versionId: created.version.id,
+              publishedVersion: "conflict",
+            },
+            TEST_ACTOR_ID,
+          );
+
+          const secondFailure = yield* svc.publishDraftVersion(
+            {
+              versionId: created.version.id,
+              publishedVersion: "conflict",
+            },
+            TEST_ACTOR_ID,
+          );
+
+          return { firstFailure, secondFailure };
+        }).pipe(Effect.provide(layer)),
+      );
+
+      expect(result.firstFailure.published).toBe(false);
+      expect(result.firstFailure.diagnostics.diagnostics[0]?.code).toBe(
+        "PUBLISH_CONCURRENT_WRITE_CONFLICT",
+      );
+      const stableA = result.firstFailure.diagnostics.diagnostics.map((d) => ({
+        code: d.code,
+        scope: d.scope,
+        blocking: d.blocking,
+        required: d.required,
+        observed: d.observed,
+        remediation: d.remediation,
+        evidenceRef: d.evidenceRef,
+      }));
+      const stableB = result.secondFailure.diagnostics.diagnostics.map((d) => ({
+        code: d.code,
+        scope: d.scope,
+        blocking: d.blocking,
+        required: d.required,
+        observed: d.observed,
+        remediation: d.remediation,
+        evidenceRef: d.evidenceRef,
+      }));
+      expect(stableA).toEqual(stableB);
+    });
+
+    it("returns deterministic atomicity guard diagnostics", async () => {
+      const layer = makeServiceLayer();
+
+      const result = await Effect.runPromise(
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionService;
+          const created = yield* svc.createDraftVersion(
+            {
+              ...MINIMAL_INPUT,
+              methodologyKey: "atomicity-methodology",
+              version: "0.1.0-draft",
+            },
+            TEST_ACTOR_ID,
+          );
+
+          return yield* svc.publishDraftVersion(
+            {
+              versionId: created.version.id,
+              publishedVersion: "atomicity-abort",
+            },
+            TEST_ACTOR_ID,
+          );
+        }).pipe(Effect.provide(layer)),
+      );
+
+      expect(result.published).toBe(false);
+      expect(result.diagnostics.diagnostics[0]?.code).toBe("PUBLISH_ATOMICITY_GUARD_ABORTED");
+      expect(result.diagnostics.diagnostics[0]?.scope).toBe("publish.persistence");
+    });
+
+    it("rejects refs or derived expressions in facts v1", async () => {
+      const layer = makeServiceLayer();
+
+      const result = await Effect.runPromise(
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionService;
+          const created = yield* svc.createDraftVersion(
+            {
+              ...MINIMAL_INPUT,
+              version: "0.3.0-draft",
+              factDefinitions: [
+                {
+                  key: "risk_score",
+                  valueType: "json",
+                  required: true,
+                  defaultValue: { ref: "upstream.score" },
+                },
+              ],
+            },
+            TEST_ACTOR_ID,
+          );
+
+          return yield* svc.publishDraftVersion(
+            {
+              versionId: created.version.id,
+              publishedVersion: "3.0.0",
+            },
+            TEST_ACTOR_ID,
+          );
+        }).pipe(Effect.provide(layer)),
+      );
+
+      expect(result.published).toBe(false);
+      expect(result.diagnostics.valid).toBe(false);
+      expect(result.diagnostics.diagnostics[0]?.code).toBe(
+        "PUBLISH_FACTS_V1_REFS_DERIVED_FORBIDDEN",
+      );
+    });
+  });
+
+  describe("getPublicationEvidence", () => {
+    it("returns append-only publication evidence", async () => {
+      const layer = makeServiceLayer();
+
+      const evidence = await Effect.runPromise(
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionService;
+
+          const created = yield* svc.createDraftVersion(
+            {
+              ...MINIMAL_INPUT,
+              version: "0.2.0-draft",
+            },
+            TEST_ACTOR_ID,
+          );
+
+          yield* svc.publishDraftVersion(
+            {
+              versionId: created.version.id,
+              publishedVersion: "2.0.0",
+            },
+            TEST_ACTOR_ID,
+          );
+
+          return yield* svc.getPublicationEvidence({
+            methodologyVersionId: created.version.id,
+          });
+        }).pipe(Effect.provide(layer)),
+      );
+
+      expect(evidence).toHaveLength(1);
+      expect(evidence[0]?.publishedVersion).toBe("2.0.0");
+      expect(evidence[0]?.sourceDraftRef).toMatch(/^draft:/);
+    });
+  });
+
+  describe("getPublishedContractByVersionAndWorkUnitType", () => {
+    it("resolves published contract by methodology key + version + work unit type", async () => {
+      const layer = makeServiceLayer();
+
+      const result = await Effect.runPromise(
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionService;
+          const created = yield* svc.createDraftVersion(
+            {
+              ...MINIMAL_INPUT,
+              methodologyKey: "query-methodology",
+              version: "0.1.0-draft",
+            },
+            TEST_ACTOR_ID,
+          );
+
+          yield* svc.publishDraftVersion(
+            {
+              versionId: created.version.id,
+              publishedVersion: "1.0.0",
+            },
+            TEST_ACTOR_ID,
+          );
+
+          return yield* svc.getPublishedContractByVersionAndWorkUnitType({
+            methodologyKey: "query-methodology",
+            publishedVersion: "1.0.0",
+            workUnitTypeKey: "task",
+          });
+        }).pipe(Effect.provide(layer)),
+      );
+
+      expect(result.version.version).toBe("1.0.0");
+      expect(result.workflows).toBeDefined();
+      expect(result.transitionWorkflowBindings).toBeDefined();
     });
   });
 });

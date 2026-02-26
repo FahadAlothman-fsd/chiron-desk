@@ -10,10 +10,11 @@ export const VersionEventType = Schema.Literal(
   "workflows_updated",
   "transition_bindings_updated",
   "guidance_updated",
+  "published",
 );
 export type VersionEventType = typeof VersionEventType.Type;
 
-export const VariableValueType = Schema.Literal("string", "number", "boolean", "date", "json");
+export const VariableValueType = Schema.Literal("string", "number", "boolean", "json");
 export type VariableValueType = typeof VariableValueType.Type;
 
 export const LinkStrength = Schema.Literal("hard", "soft", "context");
@@ -82,7 +83,7 @@ export const ValidationDiagnostic = Schema.Struct({
   observed: Schema.String,
   remediation: Schema.String,
   timestamp: Schema.String,
-  evidenceRef: Schema.optional(Schema.String),
+  evidenceRef: Schema.NullOr(Schema.String),
 });
 export type ValidationDiagnostic = typeof ValidationDiagnostic.Type;
 
@@ -169,6 +170,27 @@ export const GetDraftLineageInput = Schema.Struct({
   methodologyVersionId: Schema.NonEmptyString,
 });
 export type GetDraftLineageInput = typeof GetDraftLineageInput.Type;
+
+export const PublishDraftVersionInput = Schema.Struct({
+  versionId: Schema.NonEmptyString,
+  publishedVersion: Schema.NonEmptyString,
+});
+export type PublishDraftVersionInput = typeof PublishDraftVersionInput.Type;
+
+export const GetPublicationEvidenceInput = Schema.Struct({
+  methodologyVersionId: Schema.NonEmptyString,
+});
+export type GetPublicationEvidenceInput = typeof GetPublicationEvidenceInput.Type;
+
+export const PublicationEvidence = Schema.Struct({
+  actorId: Schema.NullOr(Schema.String),
+  timestamp: Schema.String,
+  sourceDraftRef: Schema.NonEmptyString,
+  publishedVersion: Schema.NonEmptyString,
+  validationSummary: ValidationResult,
+  evidenceRef: Schema.NonEmptyString,
+});
+export type PublicationEvidence = typeof PublicationEvidence.Type;
 
 export const MethodologyDefinition = Schema.Struct({
   id: Schema.String,

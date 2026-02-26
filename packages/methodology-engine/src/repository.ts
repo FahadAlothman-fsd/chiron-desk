@@ -1,5 +1,6 @@
 import type {
   CreateDraftVersionInput,
+  PublicationEvidence,
   LayeredGuidance,
   MethodologyVersionDefinition,
   UpdateDraftVersionInput,
@@ -74,10 +75,29 @@ export interface GetVersionEventsParams {
   offset?: number;
 }
 
+export interface PublishDraftVersionParams {
+  versionId: string;
+  publishedVersion: string;
+  actorId: string | null;
+  validationSummary: ValidationResult;
+}
+
+export interface GetPublicationEvidenceParams {
+  methodologyVersionId: string;
+}
+
 export interface WorkflowSnapshot {
   workflows: readonly WorkflowDefinition[];
   transitionWorkflowBindings: MethodologyVersionDefinition["transitionWorkflowBindings"];
   guidance?: LayeredGuidance;
+}
+
+export interface PublishFactSchemaRow {
+  key: string;
+  factType: string;
+  required: boolean;
+  defaultValueJson: unknown;
+  guidanceJson: unknown;
 }
 
 export class MethodologyRepository extends Context.Tag("MethodologyRepository")<
@@ -119,5 +139,18 @@ export class MethodologyRepository extends Context.Tag("MethodologyRepository")<
     readonly findWorkflowSnapshot: (
       versionId: string,
     ) => Effect.Effect<WorkflowSnapshot, RepositoryError>;
+    readonly findFactSchemasByVersionId: (
+      versionId: string,
+    ) => Effect.Effect<readonly PublishFactSchemaRow[], RepositoryError>;
+    readonly publishDraftVersion: (params: PublishDraftVersionParams) => Effect.Effect<
+      {
+        version: MethodologyVersionRow;
+        event: MethodologyVersionEventRow;
+      },
+      RepositoryError
+    >;
+    readonly getPublicationEvidence: (
+      params: GetPublicationEvidenceParams,
+    ) => Effect.Effect<readonly PublicationEvidence[], RepositoryError>;
   }
 >() {}

@@ -363,4 +363,194 @@ describe("methodology repository integration", () => {
       byTransition: { start: { label: "transition" } },
     });
   });
+
+  it("publishes a draft atomically and appends publication evidence", async () => {
+    const created = await runRepo((repo) =>
+      repo.createDraft({
+        methodologyKey: "foundation-methodology",
+        displayName: "Foundation Methodology",
+        version: "0.1.0-draft",
+        definitionExtensions: {
+          workUnitTypes: [{ key: "task" }],
+          agentTypes: [],
+          transitions: [{ key: "start" }],
+        },
+        workflows: [],
+        transitionWorkflowBindings: {},
+        actorId: "user-1",
+        validationDiagnostics: VALIDATION_OK,
+      }),
+    );
+
+    const published = await runRepo((repo) =>
+      repo.publishDraftVersion({
+        versionId: created.version.id,
+        publishedVersion: "1.0.0",
+        actorId: "publisher-1",
+        validationSummary: VALIDATION_OK,
+      }),
+    );
+
+    expect(published.version.status).toBe("active");
+    expect(published.version.version).toBe("1.0.0");
+    expect(published.event.eventType).toBe("published");
+
+    const evidence = await runRepo((repo) =>
+      repo.getPublicationEvidence({ methodologyVersionId: created.version.id }),
+    );
+    expect(evidence).toHaveLength(1);
+    expect(evidence[0]?.publishedVersion).toBe("1.0.0");
+    expect(evidence[0]?.sourceDraftRef).toBe(`draft:${created.version.id}`);
+    expect(evidence[0]?.actorId).toBe("publisher-1");
+    expect(evidence[0]?.validationSummary.valid).toBe(true);
+  });
+
+  it("rejects duplicate published version without additional evidence writes", async () => {
+    const first = await runRepo((repo) =>
+      repo.createDraft({
+        methodologyKey: "foundation-methodology",
+        displayName: "Foundation Methodology",
+        version: "0.1.0-draft-a",
+        definitionExtensions: {
+          workUnitTypes: [{ key: "task" }],
+          agentTypes: [],
+          transitions: [{ key: "start" }],
+        },
+        workflows: [],
+        transitionWorkflowBindings: {},
+        actorId: "user-1",
+        validationDiagnostics: VALIDATION_OK,
+      }),
+    );
+
+    const second = await runRepo((repo) =>
+      repo.createDraft({
+        methodologyKey: "foundation-methodology",
+        displayName: "Foundation Methodology",
+        version: "0.1.0-draft-b",
+        definitionExtensions: {
+          workUnitTypes: [{ key: "task" }],
+          agentTypes: [],
+          transitions: [{ key: "start" }],
+        },
+        workflows: [],
+        transitionWorkflowBindings: {},
+        actorId: "user-1",
+        validationDiagnostics: VALIDATION_OK,
+      }),
+    );
+
+    await runRepo((repo) =>
+      repo.publishDraftVersion({
+        versionId: first.version.id,
+        publishedVersion: "1.0.0",
+        actorId: "publisher-1",
+        validationSummary: VALIDATION_OK,
+      }),
+    );
+
+    await expect(
+      runRepo((repo) =>
+        repo.publishDraftVersion({
+          versionId: second.version.id,
+          publishedVersion: "1.0.0",
+          actorId: "publisher-2",
+          validationSummary: VALIDATION_OK,
+        }),
+      ),
+    ).rejects.toThrow();
+
+    const firstEvidence = await runRepo((repo) =>
+      repo.getPublicationEvidence({ methodologyVersionId: first.version.id }),
+    );
+    const secondEvidence = await runRepo((repo) =>
+      repo.getPublicationEvidence({ methodologyVersionId: second.version.id }),
+    );
+
+    expect(firstEvidence).toHaveLength(1);
+    expect(secondEvidence).toHaveLength(0);
+  });
+
+  it("returns concurrent publish conflict for repeat publish on same draft version", async () => {
+    const created = await runRepo((repo) =>
+      repo.createDraft({
+        methodologyKey: "foundation-methodology",
+        displayName: "Foundation Methodology",
+        version: "0.1.0-draft",
+        definitionExtensions: {
+          workUnitTypes: [{ key: "task" }],
+          agentTypes: [],
+          transitions: [{ key: "start" }],
+        },
+        workflows: [],
+        transitionWorkflowBindings: {},
+        actorId: "user-1",
+        validationDiagnostics: VALIDATION_OK,
+      }),
+    );
+
+    await runRepo((repo) =>
+      repo.publishDraftVersion({
+        versionId: created.version.id,
+        publishedVersion: "1.0.0",
+        actorId: "publisher-1",
+        validationSummary: VALIDATION_OK,
+      }),
+    );
+
+    const conflictError = await runRepo((repo) =>
+      repo.publishDraftVersion({
+        versionId: created.version.id,
+        publishedVersion: "1.0.1",
+        actorId: "publisher-2",
+        validationSummary: VALIDATION_OK,
+      }),
+    ).catch((error) => error);
+
+    expect(String(conflictError)).toContain("PUBLISH_CONCURRENT_WRITE_CONFLICT");
+  });
+
+  it("returns atomicity guard code and preserves draft state on event-write failure", async () => {
+    const created = await runRepo((repo) =>
+      repo.createDraft({
+        methodologyKey: "foundation-methodology",
+        displayName: "Foundation Methodology",
+        version: "0.2.0-draft",
+        definitionExtensions: {
+          workUnitTypes: [{ key: "task" }],
+          agentTypes: [],
+          transitions: [{ key: "start" }],
+        },
+        workflows: [],
+        transitionWorkflowBindings: {},
+        actorId: "user-1",
+        validationDiagnostics: VALIDATION_OK,
+      }),
+    );
+
+    await client.execute("DROP TABLE methodology_version_events");
+
+    const atomicityError = await runRepo((repo) =>
+      repo.publishDraftVersion({
+        versionId: created.version.id,
+        publishedVersion: "1.0.0",
+        actorId: "publisher-1",
+        validationSummary: VALIDATION_OK,
+      }),
+    ).catch((error) => error);
+
+    expect(String(atomicityError)).toContain("PUBLISH_ATOMICITY_GUARD_ABORTED");
+
+    const versionRows = await db
+      .select({ status: methodologyVersions.status })
+      .from(methodologyVersions)
+      .where(eq(methodologyVersions.id, created.version.id));
+    expect(versionRows[0]?.status).toBe("draft");
+
+    const rowCountResult = await client.execute(
+      "SELECT COUNT(*) AS count FROM methodology_versions WHERE id = ? AND status = 'active'",
+      [created.version.id],
+    );
+    expect(Number(rowCountResult.rows[0]?.count ?? 0)).toBe(0);
+  });
 });

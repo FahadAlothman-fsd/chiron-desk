@@ -1,8 +1,12 @@
 import type {
   CreateDraftVersionInput,
+  GetPublicationEvidenceInput,
   GetDraftLineageInput,
   MethodologyVersionDefinition,
+  PublishDraftVersionInput,
+  PublicationEvidence,
   UpdateDraftVersionInput,
+  ValidationDiagnostic,
   ValidateDraftVersionInput,
   ValidationResult,
 } from "@chiron/contracts/methodology/version";
@@ -29,6 +33,25 @@ export interface CreateDraftResult {
 export interface UpdateDraftResult {
   version: MethodologyVersionRow;
   diagnostics: ValidationResult;
+}
+
+export interface PublishDraftResult {
+  published: boolean;
+  diagnostics: ValidationResult;
+  version?: MethodologyVersionRow;
+  evidence?: PublicationEvidence;
+}
+
+export interface GetPublishedContractInput {
+  methodologyKey: string;
+  publishedVersion: string;
+  workUnitTypeKey: string;
+}
+
+export interface PublishedContractQueryResult {
+  version: MethodologyVersionRow;
+  workflows: MethodologyVersionDefinition["workflows"];
+  transitionWorkflowBindings: MethodologyVersionDefinition["transitionWorkflowBindings"];
 }
 
 export class MethodologyVersionService extends Context.Tag("MethodologyVersionService")<
@@ -65,8 +88,108 @@ export class MethodologyVersionService extends Context.Tag("MethodologyVersionSe
     readonly getDraftLineage: (
       input: GetDraftLineageInput,
     ) => Effect.Effect<readonly MethodologyVersionEventRow[], RepositoryError>;
+    readonly publishDraftVersion: (
+      input: PublishDraftVersionInput,
+      actorId: string | null,
+    ) => Effect.Effect<
+      PublishDraftResult,
+      VersionNotFoundError | RepositoryError | ValidationDecodeError
+    >;
+    readonly getPublicationEvidence: (
+      input: GetPublicationEvidenceInput,
+    ) => Effect.Effect<readonly PublicationEvidence[], RepositoryError>;
+    readonly getPublishedContractByVersionAndWorkUnitType: (
+      input: GetPublishedContractInput,
+    ) => Effect.Effect<PublishedContractQueryResult, VersionNotFoundError | RepositoryError>;
   }
 >() {}
+
+const ALLOWED_FACT_TYPES = new Set(["string", "number", "boolean", "json"]);
+
+function sortDiagnostics(
+  diagnostics: readonly ValidationDiagnostic[],
+): readonly ValidationDiagnostic[] {
+  return [...diagnostics].sort((a, b) => {
+    if (a.scope === b.scope) {
+      return a.code.localeCompare(b.code);
+    }
+    return a.scope.localeCompare(b.scope);
+  });
+}
+
+function makePublishDiagnostic(
+  code:
+    | "PUBLISH_FACTS_V1_SCHEMA_INVALID"
+    | "PUBLISH_FACTS_V1_REFS_DERIVED_FORBIDDEN"
+    | "PUBLISH_REQUIRED_CONTRACT_INCOMPLETE"
+    | "PUBLISH_VERSION_ALREADY_EXISTS"
+    | "PUBLISH_CONCURRENT_WRITE_CONFLICT"
+    | "PUBLISHED_CONTRACT_IMMUTABLE"
+    | "PUBLISH_ATOMICITY_GUARD_ABORTED",
+  scope:
+    | "publish.validation.facts"
+    | "publish.validation.contract"
+    | "publish.versioning"
+    | "publish.immutability"
+    | "publish.persistence",
+  timestamp: string,
+  required: string,
+  observed: string,
+  remediation: string,
+): ValidationDiagnostic {
+  return {
+    code,
+    scope,
+    blocking: true,
+    required,
+    observed,
+    remediation,
+    timestamp,
+    evidenceRef: null,
+  };
+}
+
+function isDefaultValueCompatible(factType: string, defaultValue: unknown): boolean {
+  if (defaultValue === null || defaultValue === undefined) {
+    return true;
+  }
+
+  switch (factType) {
+    case "string":
+      return typeof defaultValue === "string";
+    case "number":
+      return typeof defaultValue === "number" && Number.isFinite(defaultValue);
+    case "boolean":
+      return typeof defaultValue === "boolean";
+    case "json":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function hasRefsOrDerived(value: unknown): boolean {
+  if (value === null || value === undefined) {
+    return false;
+  }
+  if (Array.isArray(value)) {
+    return value.some((entry) => hasRefsOrDerived(entry));
+  }
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    if (
+      "ref" in obj ||
+      "refs" in obj ||
+      "derived" in obj ||
+      "derivedFrom" in obj ||
+      "expression" in obj
+    ) {
+      return true;
+    }
+    return Object.values(obj).some((entry) => hasRefsOrDerived(entry));
+  }
+  return false;
+}
 
 function decodeDefinition(
   json: unknown,
@@ -427,11 +550,349 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
   ): Effect.Effect<readonly MethodologyVersionEventRow[], RepositoryError> =>
     repo.getVersionEvents({ versionId: input.methodologyVersionId });
 
+  const publishDraftVersion = (
+    input: PublishDraftVersionInput,
+    actorId: string | null,
+  ): Effect.Effect<
+    PublishDraftResult,
+    VersionNotFoundError | RepositoryError | ValidationDecodeError
+  > =>
+    Effect.gen(function* () {
+      const existing = yield* repo.findVersionById(input.versionId);
+      if (!existing) {
+        return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+      }
+
+      const timestamp = new Date().toISOString();
+
+      if (existing.status !== "draft") {
+        const diagnostics: ValidationResult = {
+          valid: false,
+          diagnostics: [
+            makePublishDiagnostic(
+              "PUBLISHED_CONTRACT_IMMUTABLE",
+              "publish.immutability",
+              timestamp,
+              "draft status",
+              `status=${existing.status}`,
+              "Edit a draft and publish a new version",
+            ),
+          ],
+        };
+        return {
+          published: false,
+          diagnostics,
+        };
+      }
+
+      const snapshot = yield* repo.findWorkflowSnapshot(existing.id);
+      const definition = yield* mergeDefinitionWithSnapshot(
+        existing.definitionExtensions,
+        snapshot,
+      ).pipe(
+        Effect.catchAll(() =>
+          Effect.succeed({
+            workUnitTypes: [],
+            agentTypes: [],
+            transitions: [],
+            workflows: snapshot.workflows,
+            transitionWorkflowBindings: snapshot.transitionWorkflowBindings,
+            guidance: snapshot.guidance,
+          } satisfies MethodologyVersionDefinition),
+        ),
+      );
+
+      const baseValidation = validateDraftDefinition(definition, timestamp);
+      const diagnostics: ValidationDiagnostic[] = [];
+
+      const blockingBase = sortDiagnostics(baseValidation.diagnostics.filter((d) => d.blocking));
+      if (blockingBase.length > 0) {
+        diagnostics.push(
+          makePublishDiagnostic(
+            "PUBLISH_REQUIRED_CONTRACT_INCOMPLETE",
+            "publish.validation.contract",
+            timestamp,
+            "work unit types, transitions, transition workflow bindings, and valid workflow step types",
+            blockingBase.map((d) => `${d.scope}:${d.code}`).join(","),
+            "Resolve blocking contract diagnostics and republish",
+          ),
+        );
+      }
+
+      const missingRequired: string[] = [];
+      if (definition.workUnitTypes.length === 0) {
+        missingRequired.push("workUnitTypes");
+      }
+      if (definition.transitions.length === 0) {
+        missingRequired.push("transitions");
+      }
+      const transitionCount = definition.transitions.length;
+      const bindingCount = Object.keys(definition.transitionWorkflowBindings ?? {}).length;
+      if (transitionCount > 0 && bindingCount < transitionCount) {
+        missingRequired.push("transitionWorkflowBindings");
+      }
+      if (missingRequired.length > 0) {
+        diagnostics.push(
+          makePublishDiagnostic(
+            "PUBLISH_REQUIRED_CONTRACT_INCOMPLETE",
+            "publish.validation.contract",
+            timestamp,
+            "all required contract elements present",
+            missingRequired.sort().join(","),
+            "Complete missing contract elements and republish",
+          ),
+        );
+      }
+
+      const factSchemas = yield* repo.findFactSchemasByVersionId(existing.id);
+      const seenFactKeys = new Set<string>();
+      for (const fact of factSchemas) {
+        if (seenFactKeys.has(fact.key)) {
+          diagnostics.push(
+            makePublishDiagnostic(
+              "PUBLISH_FACTS_V1_SCHEMA_INVALID",
+              "publish.validation.facts",
+              timestamp,
+              "unique fact keys",
+              `duplicate key: ${fact.key}`,
+              "Ensure each fact key is unique per work unit type",
+            ),
+          );
+        }
+        seenFactKeys.add(fact.key);
+
+        if (!ALLOWED_FACT_TYPES.has(fact.factType)) {
+          diagnostics.push(
+            makePublishDiagnostic(
+              "PUBLISH_FACTS_V1_SCHEMA_INVALID",
+              "publish.validation.facts",
+              timestamp,
+              "supported fact type",
+              `${fact.key}:${fact.factType}`,
+              "Use one of string, number, boolean, json",
+            ),
+          );
+        }
+
+        if (!isDefaultValueCompatible(fact.factType, fact.defaultValueJson)) {
+          diagnostics.push(
+            makePublishDiagnostic(
+              "PUBLISH_FACTS_V1_SCHEMA_INVALID",
+              "publish.validation.facts",
+              timestamp,
+              "default value compatible with fact type",
+              `${fact.key}:${JSON.stringify(fact.defaultValueJson)}`,
+              "Set a valid static default for the fact type",
+            ),
+          );
+        }
+
+        if (hasRefsOrDerived(fact.defaultValueJson) || hasRefsOrDerived(fact.guidanceJson)) {
+          diagnostics.push(
+            makePublishDiagnostic(
+              "PUBLISH_FACTS_V1_REFS_DERIVED_FORBIDDEN",
+              "publish.validation.facts",
+              timestamp,
+              "facts v1 static fields with no refs or derived expressions",
+              `fact=${fact.key}`,
+              "Replace refs/derived expressions with static values",
+            ),
+          );
+        }
+      }
+
+      const sortedDiagnostics = sortDiagnostics(diagnostics);
+      if (sortedDiagnostics.length > 0) {
+        return {
+          published: false,
+          diagnostics: {
+            valid: false,
+            diagnostics: sortedDiagnostics,
+          },
+        };
+      }
+
+      const validationSummary: ValidationResult = {
+        valid: true,
+        diagnostics: [],
+      };
+
+      const publishAttempt = yield* Effect.either(
+        repo.publishDraftVersion({
+          versionId: existing.id,
+          publishedVersion: input.publishedVersion,
+          actorId,
+          validationSummary,
+        }),
+      );
+
+      if (publishAttempt._tag === "Left") {
+        const error = publishAttempt.left;
+        const causeCode = error.code;
+
+        if (causeCode === "PUBLISH_VERSION_ALREADY_EXISTS") {
+          return {
+            published: false,
+            diagnostics: {
+              valid: false,
+              diagnostics: [
+                makePublishDiagnostic(
+                  "PUBLISH_VERSION_ALREADY_EXISTS",
+                  "publish.versioning",
+                  timestamp,
+                  "unique published version per methodology",
+                  input.publishedVersion,
+                  "Choose the next available version and retry",
+                ),
+              ],
+            },
+          };
+        }
+
+        if (causeCode === "PUBLISH_CONCURRENT_WRITE_CONFLICT") {
+          return {
+            published: false,
+            diagnostics: {
+              valid: false,
+              diagnostics: [
+                makePublishDiagnostic(
+                  "PUBLISH_CONCURRENT_WRITE_CONFLICT",
+                  "publish.versioning",
+                  timestamp,
+                  "single-writer publish transaction",
+                  "concurrent publish conflict",
+                  "Re-fetch version state and retry",
+                ),
+              ],
+            },
+          };
+        }
+
+        if (causeCode === "PUBLISHED_CONTRACT_IMMUTABLE") {
+          return {
+            published: false,
+            diagnostics: {
+              valid: false,
+              diagnostics: [
+                makePublishDiagnostic(
+                  "PUBLISHED_CONTRACT_IMMUTABLE",
+                  "publish.immutability",
+                  timestamp,
+                  "draft status",
+                  "status changed during publish",
+                  "Edit a draft and publish a new version",
+                ),
+              ],
+            },
+          };
+        }
+
+        if (causeCode === "PUBLISH_ATOMICITY_GUARD_ABORTED") {
+          return {
+            published: false,
+            diagnostics: {
+              valid: false,
+              diagnostics: [
+                makePublishDiagnostic(
+                  "PUBLISH_ATOMICITY_GUARD_ABORTED",
+                  "publish.persistence",
+                  timestamp,
+                  "publish transaction commits snapshot + evidence atomically",
+                  "atomicity guard aborted publish after detecting persistence failure",
+                  "Investigate persistence failure and retry once guard conditions are resolved",
+                ),
+              ],
+            },
+          };
+        }
+
+        return yield* Effect.fail(error);
+      }
+
+      const published = publishAttempt.right;
+
+      const evidence: PublicationEvidence = {
+        actorId,
+        timestamp: published.event.createdAt.toISOString(),
+        sourceDraftRef: `draft:${existing.id}`,
+        publishedVersion: input.publishedVersion,
+        validationSummary,
+        evidenceRef: published.event.id,
+      };
+
+      return {
+        published: true,
+        version: published.version,
+        evidence,
+        diagnostics: validationSummary,
+      };
+    });
+
+  const getPublicationEvidence = (
+    input: GetPublicationEvidenceInput,
+  ): Effect.Effect<readonly PublicationEvidence[], RepositoryError> =>
+    repo.getPublicationEvidence({ methodologyVersionId: input.methodologyVersionId });
+
+  const getPublishedContractByVersionAndWorkUnitType = (
+    input: GetPublishedContractInput,
+  ): Effect.Effect<PublishedContractQueryResult, VersionNotFoundError | RepositoryError> =>
+    Effect.gen(function* () {
+      const definition = yield* repo.findDefinitionByKey(input.methodologyKey);
+      if (!definition) {
+        return yield* Effect.fail(
+          new VersionNotFoundError({
+            versionId: `${input.methodologyKey}@${input.publishedVersion}`,
+          }),
+        );
+      }
+
+      const version = yield* repo.findVersionByMethodologyAndVersion(
+        definition.id,
+        input.publishedVersion,
+      );
+      if (!version) {
+        return yield* Effect.fail(
+          new VersionNotFoundError({
+            versionId: `${input.methodologyKey}@${input.publishedVersion}`,
+          }),
+        );
+      }
+
+      const snapshot = yield* repo.findWorkflowSnapshot(version.id);
+      const workflows = (snapshot.workflows ?? []).filter(
+        (workflow) =>
+          !workflow.workUnitTypeKey || workflow.workUnitTypeKey === input.workUnitTypeKey,
+      );
+      const workflowKeys = new Set(workflows.map((workflow) => workflow.key));
+      const transitionEntries = Object.entries(snapshot.transitionWorkflowBindings ?? {}) as Array<
+        [string, string[]]
+      >;
+      const filteredBindings = new Map<string, string[]>();
+      for (const [transitionKey, boundWorkflowKeys] of transitionEntries) {
+        const filtered = boundWorkflowKeys.filter((workflowKey) => workflowKeys.has(workflowKey));
+        if (filtered.length > 0) {
+          filteredBindings.set(transitionKey, filtered);
+        }
+      }
+      const transitionWorkflowBindings = Object.fromEntries(
+        [...filteredBindings.entries()].sort((a, b) => a[0].localeCompare(b[0])),
+      ) as MethodologyVersionDefinition["transitionWorkflowBindings"];
+
+      return {
+        version,
+        workflows,
+        transitionWorkflowBindings,
+      };
+    });
+
   return MethodologyVersionService.of({
     createDraftVersion,
     updateDraftVersion,
     updateDraftWorkflows,
     validateDraftVersion: validateDraftVersionFn,
     getDraftLineage,
+    publishDraftVersion,
+    getPublicationEvidence,
+    getPublishedContractByVersionAndWorkUnitType,
   });
 });

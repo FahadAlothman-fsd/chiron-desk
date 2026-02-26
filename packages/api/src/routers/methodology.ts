@@ -16,6 +16,8 @@ import type { GetTransitionEligibilityOutput } from "@chiron/contracts/methodolo
 
 import type {
   CreateDraftVersionInput,
+  GetPublicationEvidenceInput,
+  PublishDraftVersionInput,
   ValidationResult,
 } from "@chiron/contracts/methodology/version";
 import type { UpdateDraftWorkflowsInputDto } from "@chiron/contracts/methodology/dto";
@@ -56,7 +58,7 @@ const guidanceSchema = z
 
 const variableDefinitionSchema = z.object({
   key: z.string().min(1),
-  valueType: z.enum(["string", "number", "boolean", "date", "json"]),
+  valueType: z.enum(["string", "number", "boolean", "json"]),
   description: z.string().optional(),
   required: z.boolean(),
   defaultValue: z.unknown().optional(),
@@ -94,6 +96,21 @@ const validateDraftInput = z.object({
 
 const lineageInput = z.object({
   methodologyVersionId: z.string().min(1),
+});
+
+const publishDraftInput = z.object({
+  versionId: z.string().min(1),
+  publishedVersion: z.string().min(1),
+});
+
+const publicationEvidenceInput = z.object({
+  methodologyVersionId: z.string().min(1),
+});
+
+const publishedContractQueryInput = z.object({
+  methodologyKey: z.string().min(1),
+  publishedVersion: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
 });
 
 // Lifecycle definition schemas
@@ -186,6 +203,24 @@ function serializeEvent(e: MethodologyVersionEventRow) {
   };
 }
 
+function serializePublicationEvidence(evidence: {
+  actorId: string | null;
+  timestamp: string;
+  sourceDraftRef: string;
+  publishedVersion: string;
+  validationSummary: ValidationResult;
+  evidenceRef: string;
+}) {
+  return {
+    actorId: evidence.actorId,
+    timestamp: evidence.timestamp,
+    sourceDraftRef: evidence.sourceDraftRef,
+    publishedVersion: evidence.publishedVersion,
+    validationSummary: evidence.validationSummary,
+    evidenceRef: evidence.evidenceRef,
+  };
+}
+
 function mapEffectError(err: MethodologyError | LifecycleError | unknown): never {
   const tag =
     err && typeof err === "object" && "_tag" in err ? (err as { _tag: string })._tag : undefined;
@@ -214,8 +249,11 @@ function runEffect<A>(
     MethodologyVersionService | LifecycleService | EligibilityService
   >,
 ): Promise<A> {
-  return Effect.runPromise(effect.pipe(Effect.provide(serviceLayer))).catch((err) =>
-    mapEffectError(err),
+  return Effect.runPromise(
+    effect.pipe(
+      Effect.provide(serviceLayer),
+      Effect.catchAll((err) => Effect.sync(() => mapEffectError(err))),
+    ),
   );
 }
 
@@ -282,6 +320,70 @@ export function createMethodologyRouter(
       );
       return events.map(serializeEvent);
     }),
+
+    publishDraftVersion: protectedProcedure
+      .input(publishDraftInput)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionService;
+            return yield* svc.publishDraftVersion(
+              {
+                versionId: input.versionId,
+                publishedVersion: input.publishedVersion,
+              } as PublishDraftVersionInput,
+              actorId,
+            );
+          }),
+        );
+
+        return {
+          published: result.published,
+          version: result.version ? serializeVersion(result.version) : null,
+          diagnostics: result.diagnostics as ValidationResult,
+          evidence: result.evidence ? serializePublicationEvidence(result.evidence) : null,
+        };
+      }),
+
+    getPublicationEvidence: publicProcedure
+      .input(publicationEvidenceInput)
+      .handler(async ({ input }) => {
+        const evidence = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionService;
+            return yield* svc.getPublicationEvidence({
+              methodologyVersionId: input.methodologyVersionId,
+            } as GetPublicationEvidenceInput);
+          }),
+        );
+
+        return evidence.map((row) => serializePublicationEvidence(row));
+      }),
+
+    getPublishedContractByVersionAndWorkUnitType: publicProcedure
+      .input(publishedContractQueryInput)
+      .handler(async ({ input }) => {
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionService;
+            return yield* svc.getPublishedContractByVersionAndWorkUnitType({
+              methodologyKey: input.methodologyKey,
+              publishedVersion: input.publishedVersion,
+              workUnitTypeKey: input.workUnitTypeKey,
+            });
+          }),
+        );
+
+        return {
+          version: serializeVersion(result.version),
+          workflows: result.workflows,
+          transitionWorkflowBindings: result.transitionWorkflowBindings,
+        };
+      }),
 
     updateDraftLifecycle: protectedProcedure
       .input(updateDraftLifecycleInput)

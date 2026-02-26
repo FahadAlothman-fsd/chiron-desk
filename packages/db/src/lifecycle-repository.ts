@@ -317,6 +317,19 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
     saveLifecycleDefinition: (params: SaveLifecycleDefinitionParams) =>
       dbEffect("lifecycle.saveLifecycleDefinition", () =>
         db.transaction(async (tx) => {
+          const versionRows = await tx
+            .select({ id: methodologyVersions.id, status: methodologyVersions.status })
+            .from(methodologyVersions)
+            .where(eq(methodologyVersions.id, params.versionId))
+            .limit(1);
+          const versionRow = versionRows[0];
+          if (!versionRow) {
+            throw new Error("VERSION_NOT_FOUND");
+          }
+          if (versionRow.status !== "draft") {
+            throw new Error("PUBLISHED_CONTRACT_IMMUTABLE");
+          }
+
           const existingBindingRows = await tx
             .select({
               transitionKey: methodologyLifecycleTransitions.transitionKey,

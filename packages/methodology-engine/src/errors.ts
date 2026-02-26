@@ -22,9 +22,17 @@ export class ValidationDecodeError extends Data.TaggedError("ValidationDecodeErr
   readonly message: string;
 }> {}
 
+export type RepositoryErrorCode =
+  | "VERSION_NOT_FOUND"
+  | "PUBLISHED_CONTRACT_IMMUTABLE"
+  | "PUBLISH_VERSION_ALREADY_EXISTS"
+  | "PUBLISH_CONCURRENT_WRITE_CONFLICT"
+  | "PUBLISH_ATOMICITY_GUARD_ABORTED";
+
 export class RepositoryError extends Data.TaggedError("RepositoryError")<{
   readonly operation: string;
   readonly cause: unknown;
+  readonly code?: RepositoryErrorCode;
 }> {}
 
 export type MethodologyError =

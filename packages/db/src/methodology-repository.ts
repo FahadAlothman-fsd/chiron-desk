@@ -4,15 +4,20 @@ import { Effect, Layer } from "effect";
 import {
   MethodologyRepository,
   RepositoryError,
+  type RepositoryErrorCode,
   type CreateDraftParams,
+  type GetPublicationEvidenceParams,
   type UpdateDraftParams,
   type GetVersionEventsParams,
   type MethodologyDefinitionRow,
   type MethodologyVersionRow,
   type MethodologyVersionEventRow,
+  type PublishDraftVersionParams,
   type WorkflowSnapshot,
 } from "@chiron/methodology-engine";
 import type {
+  PublicationEvidence,
+  ValidationResult,
   MethodologyVersionDefinition,
   WorkflowDefinition,
 } from "@chiron/contracts/methodology/version";
@@ -29,6 +34,7 @@ import {
   methodologyWorkflowSteps,
   methodologyWorkflowEdges,
   methodologyTransitionWorkflowBindings,
+  methodologyFactSchemas,
 } from "./schema/methodology";
 
 type DB = LibSQLDatabase<Record<string, unknown>>;
@@ -73,6 +79,14 @@ function toEventRow(row: typeof methodologyVersionEvents.$inferSelect): Methodol
 
 /** Default page size for paginated queries. */
 const DEFAULT_EVENT_LIMIT = 100;
+
+const KNOWN_PUBLISH_ERROR_CODES = new Set<RepositoryErrorCode>([
+  "VERSION_NOT_FOUND",
+  "PUBLISHED_CONTRACT_IMMUTABLE",
+  "PUBLISH_VERSION_ALREADY_EXISTS",
+  "PUBLISH_CONCURRENT_WRITE_CONFLICT",
+  "PUBLISH_ATOMICITY_GUARD_ABORTED",
+]);
 
 function asWorkflowStepType(
   value: string,
@@ -431,8 +445,17 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               version: params.version,
               definitionExtensions: params.definitionExtensions,
             })
-            .where(eq(methodologyVersions.id, params.versionId))
+            .where(
+              and(
+                eq(methodologyVersions.id, params.versionId),
+                eq(methodologyVersions.status, "draft"),
+              ),
+            )
             .returning();
+
+          if (versionRows.length === 0) {
+            throw new Error("PUBLISHED_CONTRACT_IMMUTABLE");
+          }
 
           const ver = versionRows[0]!;
 
@@ -736,6 +759,166 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           transitionWorkflowBindings,
           guidance,
         } satisfies WorkflowSnapshot;
+      }),
+
+    findFactSchemasByVersionId: (versionId: string) =>
+      dbEffect("methodology.findFactSchemasByVersionId", async () => {
+        const rows = await db
+          .select({
+            key: methodologyFactSchemas.key,
+            factType: methodologyFactSchemas.factType,
+            required: methodologyFactSchemas.required,
+            defaultValueJson: methodologyFactSchemas.defaultValueJson,
+            guidanceJson: methodologyFactSchemas.guidanceJson,
+          })
+          .from(methodologyFactSchemas)
+          .where(eq(methodologyFactSchemas.methodologyVersionId, versionId))
+          .orderBy(asc(methodologyFactSchemas.key));
+
+        return rows.map((row) => ({
+          key: row.key,
+          factType: row.factType,
+          required: row.required,
+          defaultValueJson: row.defaultValueJson,
+          guidanceJson: row.guidanceJson,
+        }));
+      }),
+
+    publishDraftVersion: (params: PublishDraftVersionParams) =>
+      Effect.tryPromise({
+        try: () =>
+          db.transaction(async (tx) => {
+            const existingRows = await tx
+              .select()
+              .from(methodologyVersions)
+              .where(eq(methodologyVersions.id, params.versionId))
+              .limit(1);
+            const existing = existingRows[0];
+            if (!existing) {
+              throw new Error("VERSION_NOT_FOUND");
+            }
+
+            if (existing.status !== "draft") {
+              throw new Error("PUBLISH_CONCURRENT_WRITE_CONFLICT");
+            }
+
+            const duplicateRows = await tx
+              .select({ id: methodologyVersions.id })
+              .from(methodologyVersions)
+              .where(
+                and(
+                  eq(methodologyVersions.methodologyId, existing.methodologyId),
+                  eq(methodologyVersions.version, params.publishedVersion),
+                ),
+              )
+              .limit(1);
+
+            if (duplicateRows.length > 0 && duplicateRows[0]!.id !== params.versionId) {
+              throw new Error("PUBLISH_VERSION_ALREADY_EXISTS");
+            }
+
+            const versionRows = await tx
+              .update(methodologyVersions)
+              .set({
+                version: params.publishedVersion,
+                status: "active",
+              })
+              .where(
+                and(
+                  eq(methodologyVersions.id, params.versionId),
+                  eq(methodologyVersions.status, "draft"),
+                ),
+              )
+              .returning();
+
+            if (versionRows.length === 0) {
+              throw new Error("PUBLISH_CONCURRENT_WRITE_CONFLICT");
+            }
+
+            const eventRows = await tx
+              .insert(methodologyVersionEvents)
+              .values({
+                methodologyVersionId: params.versionId,
+                eventType: "published",
+                actorId: params.actorId,
+                changedFieldsJson: {
+                  sourceDraftRef: `draft:${params.versionId}`,
+                  publishedVersion: params.publishedVersion,
+                },
+                diagnosticsJson: params.validationSummary,
+              })
+              .returning();
+
+            if (eventRows.length === 0) {
+              throw new Error("PUBLISH_ATOMICITY_GUARD_ABORTED");
+            }
+
+            return {
+              version: toVersionRow(versionRows[0]!),
+              event: toEventRow(eventRows[0]!),
+            };
+          }),
+        catch: (cause) => {
+          if (cause instanceof Error) {
+            if (KNOWN_PUBLISH_ERROR_CODES.has(cause.message as RepositoryErrorCode)) {
+              return new RepositoryError({
+                operation: "methodology.publishDraftVersion",
+                cause,
+                code: cause.message as RepositoryErrorCode,
+              });
+            }
+
+            if (cause.message.includes("methodology_version_events")) {
+              return new RepositoryError({
+                operation: "methodology.publishDraftVersion",
+                cause: new Error("PUBLISH_ATOMICITY_GUARD_ABORTED"),
+                code: "PUBLISH_ATOMICITY_GUARD_ABORTED",
+              });
+            }
+          }
+          return new RepositoryError({ operation: "methodology.publishDraftVersion", cause });
+        },
+      }),
+
+    getPublicationEvidence: (params: GetPublicationEvidenceParams) =>
+      dbEffect("methodology.getPublicationEvidence", async () => {
+        const rows = await db
+          .select()
+          .from(methodologyVersionEvents)
+          .where(
+            and(
+              eq(methodologyVersionEvents.methodologyVersionId, params.methodologyVersionId),
+              eq(methodologyVersionEvents.eventType, "published"),
+            ),
+          )
+          .orderBy(asc(methodologyVersionEvents.createdAt), asc(methodologyVersionEvents.id));
+
+        return rows.map((row) => {
+          const changed =
+            typeof row.changedFieldsJson === "object" && row.changedFieldsJson !== null
+              ? (row.changedFieldsJson as Record<string, unknown>)
+              : {};
+          const diagnostics =
+            typeof row.diagnosticsJson === "object" && row.diagnosticsJson !== null
+              ? (row.diagnosticsJson as ValidationResult)
+              : ({ valid: false, diagnostics: [] } satisfies ValidationResult);
+
+          const sourceDraftRef =
+            typeof changed.sourceDraftRef === "string"
+              ? changed.sourceDraftRef
+              : `draft:${params.methodologyVersionId}`;
+          const publishedVersion =
+            typeof changed.publishedVersion === "string" ? changed.publishedVersion : "";
+
+          return {
+            actorId: row.actorId,
+            timestamp: row.createdAt.toISOString(),
+            sourceDraftRef,
+            publishedVersion,
+            validationSummary: diagnostics,
+            evidenceRef: row.id,
+          } satisfies PublicationEvidence;
+        }) as readonly PublicationEvidence[];
       }),
   });
 }
