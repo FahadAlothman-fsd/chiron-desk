@@ -6,7 +6,11 @@ import {
   RepositoryError,
   type RepositoryErrorCode,
   type CreateDraftParams,
+  type GetProjectPinLineageParams,
   type GetPublicationEvidenceParams,
+  type PinProjectMethodologyVersionParams,
+  type ProjectMethodologyPinEventRow,
+  type ProjectMethodologyPinRow,
   type UpdateDraftParams,
   type GetVersionEventsParams,
   type MethodologyDefinitionRow,
@@ -36,6 +40,12 @@ import {
   methodologyTransitionWorkflowBindings,
   methodologyFactSchemas,
 } from "./schema/methodology";
+import {
+  projectExecutions,
+  projectMethodologyPinEvents,
+  projectMethodologyPins,
+  projects,
+} from "./schema/project";
 
 type DB = LibSQLDatabase<Record<string, unknown>>;
 
@@ -77,6 +87,36 @@ function toEventRow(row: typeof methodologyVersionEvents.$inferSelect): Methodol
   };
 }
 
+function toProjectPinRow(
+  row: typeof projectMethodologyPins.$inferSelect,
+): ProjectMethodologyPinRow {
+  return {
+    projectId: row.projectId,
+    methodologyVersionId: row.methodologyVersionId,
+    methodologyId: row.methodologyId,
+    methodologyKey: row.methodologyKey,
+    publishedVersion: row.publishedVersion,
+    actorId: row.actorId,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+function toProjectPinEventRow(
+  row: typeof projectMethodologyPinEvents.$inferSelect,
+): ProjectMethodologyPinEventRow {
+  return {
+    id: row.id,
+    projectId: row.projectId,
+    eventType: row.eventType,
+    actorId: row.actorId,
+    previousVersion: row.previousVersion,
+    newVersion: row.newVersion,
+    evidenceRef: row.evidenceRef,
+    createdAt: row.createdAt,
+  };
+}
+
 /** Default page size for paginated queries. */
 const DEFAULT_EVENT_LIMIT = 100;
 
@@ -86,6 +126,14 @@ const KNOWN_PUBLISH_ERROR_CODES = new Set<RepositoryErrorCode>([
   "PUBLISH_VERSION_ALREADY_EXISTS",
   "PUBLISH_CONCURRENT_WRITE_CONFLICT",
   "PUBLISH_ATOMICITY_GUARD_ABORTED",
+]);
+
+const KNOWN_PROJECT_PIN_ERROR_CODES = new Set<RepositoryErrorCode>([
+  "PROJECT_PIN_TARGET_VERSION_NOT_FOUND",
+  "PROJECT_PIN_TARGET_VERSION_INCOMPATIBLE",
+  "PROJECT_REPIN_BLOCKED_EXECUTION_HISTORY",
+  "PROJECT_REPIN_REQUIRES_EXISTING_PIN",
+  "PROJECT_PIN_ATOMICITY_GUARD_ABORTED",
 ]);
 
 function asWorkflowStepType(
@@ -878,6 +926,275 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           }
           return new RepositoryError({ operation: "methodology.publishDraftVersion", cause });
         },
+      }),
+
+    findProjectPin: (projectId: string) =>
+      dbEffect("methodology.findProjectPin", async () => {
+        const rows = await db
+          .select()
+          .from(projectMethodologyPins)
+          .where(eq(projectMethodologyPins.projectId, projectId))
+          .limit(1);
+        return rows[0] ? toProjectPinRow(rows[0]) : null;
+      }),
+
+    hasPersistedExecutions: (projectId: string) =>
+      dbEffect("methodology.hasPersistedExecutions", async () => {
+        const rows = await db
+          .select({ id: projectExecutions.id })
+          .from(projectExecutions)
+          .where(eq(projectExecutions.projectId, projectId))
+          .limit(1);
+        return rows.length > 0;
+      }),
+
+    pinProjectMethodologyVersion: (params: PinProjectMethodologyVersionParams) =>
+      Effect.tryPromise({
+        try: () =>
+          db.transaction(async (tx) => {
+            const versionRows = await tx
+              .select()
+              .from(methodologyVersions)
+              .where(eq(methodologyVersions.id, params.methodologyVersionId))
+              .limit(1);
+            const version = versionRows[0];
+            if (!version) {
+              throw new Error("PROJECT_PIN_TARGET_VERSION_NOT_FOUND");
+            }
+            if (version.status !== "active") {
+              throw new Error("PROJECT_PIN_TARGET_VERSION_INCOMPATIBLE");
+            }
+
+            const definitionRows = await tx
+              .select()
+              .from(methodologyDefinitions)
+              .where(eq(methodologyDefinitions.id, version.methodologyId))
+              .limit(1);
+            const definition = definitionRows[0];
+            if (!definition) {
+              throw new Error("PROJECT_PIN_TARGET_VERSION_INCOMPATIBLE");
+            }
+
+            await tx.insert(projects).values({ id: params.projectId }).onConflictDoNothing();
+
+            await tx
+              .insert(projectMethodologyPins)
+              .values({
+                projectId: params.projectId,
+                methodologyVersionId: version.id,
+                methodologyId: version.methodologyId,
+                methodologyKey: definition.key,
+                publishedVersion: params.newVersion,
+                actorId: params.actorId,
+              })
+              .onConflictDoUpdate({
+                target: projectMethodologyPins.projectId,
+                set: {
+                  methodologyVersionId: version.id,
+                  methodologyId: version.methodologyId,
+                  methodologyKey: definition.key,
+                  publishedVersion: params.newVersion,
+                  actorId: params.actorId,
+                  updatedAt: new Date(),
+                },
+              });
+
+            const eventId = crypto.randomUUID();
+            const eventRows = await tx
+              .insert(projectMethodologyPinEvents)
+              .values({
+                id: eventId,
+                projectId: params.projectId,
+                eventType: params.previousVersion ? "repinned" : "pinned",
+                actorId: params.actorId,
+                previousVersion: params.previousVersion,
+                newVersion: params.newVersion,
+                evidenceRef: `project-pin-event:${eventId}`,
+              })
+              .returning();
+
+            if (eventRows.length === 0) {
+              throw new Error("PROJECT_PIN_ATOMICITY_GUARD_ABORTED");
+            }
+
+            const pinRows = await tx
+              .select()
+              .from(projectMethodologyPins)
+              .where(eq(projectMethodologyPins.projectId, params.projectId))
+              .limit(1);
+
+            if (pinRows.length === 0) {
+              throw new Error("PROJECT_PIN_ATOMICITY_GUARD_ABORTED");
+            }
+
+            return {
+              pin: toProjectPinRow(pinRows[0]!),
+              event: toProjectPinEventRow(eventRows[0]!),
+            };
+          }),
+        catch: (cause) => {
+          if (cause instanceof Error) {
+            if (KNOWN_PROJECT_PIN_ERROR_CODES.has(cause.message as RepositoryErrorCode)) {
+              return new RepositoryError({
+                operation: "methodology.pinProjectMethodologyVersion",
+                cause,
+                code: cause.message as RepositoryErrorCode,
+              });
+            }
+
+            if (cause.message.includes("project_methodology_pin_events")) {
+              return new RepositoryError({
+                operation: "methodology.pinProjectMethodologyVersion",
+                cause: new Error("PROJECT_PIN_ATOMICITY_GUARD_ABORTED"),
+                code: "PROJECT_PIN_ATOMICITY_GUARD_ABORTED",
+              });
+            }
+          }
+
+          return new RepositoryError({
+            operation: "methodology.pinProjectMethodologyVersion",
+            cause,
+          });
+        },
+      }),
+
+    repinProjectMethodologyVersion: (params: PinProjectMethodologyVersionParams) =>
+      Effect.tryPromise({
+        try: () =>
+          db.transaction(async (tx) => {
+            const executionRows = await tx
+              .select({ id: projectExecutions.id })
+              .from(projectExecutions)
+              .where(eq(projectExecutions.projectId, params.projectId))
+              .limit(1);
+            if (executionRows.length > 0) {
+              throw new Error("PROJECT_REPIN_BLOCKED_EXECUTION_HISTORY");
+            }
+
+            const existingPinRows = await tx
+              .select({ projectId: projectMethodologyPins.projectId })
+              .from(projectMethodologyPins)
+              .where(eq(projectMethodologyPins.projectId, params.projectId))
+              .limit(1);
+            if (existingPinRows.length === 0) {
+              throw new Error("PROJECT_REPIN_REQUIRES_EXISTING_PIN");
+            }
+
+            const versionRows = await tx
+              .select()
+              .from(methodologyVersions)
+              .where(eq(methodologyVersions.id, params.methodologyVersionId))
+              .limit(1);
+            const version = versionRows[0];
+            if (!version) {
+              throw new Error("PROJECT_PIN_TARGET_VERSION_NOT_FOUND");
+            }
+            if (version.status !== "active") {
+              throw new Error("PROJECT_PIN_TARGET_VERSION_INCOMPATIBLE");
+            }
+
+            const definitionRows = await tx
+              .select()
+              .from(methodologyDefinitions)
+              .where(eq(methodologyDefinitions.id, version.methodologyId))
+              .limit(1);
+            const definition = definitionRows[0];
+            if (!definition) {
+              throw new Error("PROJECT_PIN_TARGET_VERSION_INCOMPATIBLE");
+            }
+
+            await tx.insert(projects).values({ id: params.projectId }).onConflictDoNothing();
+
+            await tx
+              .insert(projectMethodologyPins)
+              .values({
+                projectId: params.projectId,
+                methodologyVersionId: version.id,
+                methodologyId: version.methodologyId,
+                methodologyKey: definition.key,
+                publishedVersion: params.newVersion,
+                actorId: params.actorId,
+              })
+              .onConflictDoUpdate({
+                target: projectMethodologyPins.projectId,
+                set: {
+                  methodologyVersionId: version.id,
+                  methodologyId: version.methodologyId,
+                  methodologyKey: definition.key,
+                  publishedVersion: params.newVersion,
+                  actorId: params.actorId,
+                  updatedAt: new Date(),
+                },
+              });
+
+            const eventId = crypto.randomUUID();
+            const eventRows = await tx
+              .insert(projectMethodologyPinEvents)
+              .values({
+                id: eventId,
+                projectId: params.projectId,
+                eventType: "repinned",
+                actorId: params.actorId,
+                previousVersion: params.previousVersion,
+                newVersion: params.newVersion,
+                evidenceRef: `project-pin-event:${eventId}`,
+              })
+              .returning();
+
+            if (eventRows.length === 0) {
+              throw new Error("PROJECT_PIN_ATOMICITY_GUARD_ABORTED");
+            }
+
+            const pinRows = await tx
+              .select()
+              .from(projectMethodologyPins)
+              .where(eq(projectMethodologyPins.projectId, params.projectId))
+              .limit(1);
+
+            if (pinRows.length === 0) {
+              throw new Error("PROJECT_PIN_ATOMICITY_GUARD_ABORTED");
+            }
+
+            return {
+              pin: toProjectPinRow(pinRows[0]!),
+              event: toProjectPinEventRow(eventRows[0]!),
+            };
+          }),
+        catch: (cause) => {
+          if (cause instanceof Error) {
+            if (KNOWN_PROJECT_PIN_ERROR_CODES.has(cause.message as RepositoryErrorCode)) {
+              return new RepositoryError({
+                operation: "methodology.repinProjectMethodologyVersion",
+                cause,
+                code: cause.message as RepositoryErrorCode,
+              });
+            }
+
+            if (cause.message.includes("project_methodology_pin_events")) {
+              return new RepositoryError({
+                operation: "methodology.repinProjectMethodologyVersion",
+                cause: new Error("PROJECT_PIN_ATOMICITY_GUARD_ABORTED"),
+                code: "PROJECT_PIN_ATOMICITY_GUARD_ABORTED",
+              });
+            }
+          }
+
+          return new RepositoryError({
+            operation: "methodology.repinProjectMethodologyVersion",
+            cause,
+          });
+        },
+      }),
+
+    getProjectPinLineage: (params: GetProjectPinLineageParams) =>
+      dbEffect("methodology.getProjectPinLineage", async () => {
+        const rows = await db
+          .select()
+          .from(projectMethodologyPinEvents)
+          .where(eq(projectMethodologyPinEvents.projectId, params.projectId))
+          .orderBy(asc(projectMethodologyPinEvents.createdAt), asc(projectMethodologyPinEvents.id));
+
+        return rows.map((row) => toProjectPinEventRow(row));
       }),
 
     getPublicationEvidence: (params: GetPublicationEvidenceParams) =>

@@ -3,14 +3,19 @@ import { describe, expect, it } from "vitest";
 
 import {
   CreateDraftVersionInput,
+  GetProjectPinLineageInput,
   GetDraftLineageInput,
   GetPublicationEvidenceInput,
   LinkStrength,
   MethodologyFactDefinitionInput,
+  ProjectMethodologyPinEvent,
+  ProjectMethodologyPinEventType,
   MethodologyLinkTypeDefinitionInput,
   MethodologyVersionDefinition,
+  PinProjectMethodologyVersionInput,
   PublicationEvidence,
   PublishDraftVersionInput,
+  RepinProjectMethodologyVersionInput,
   MethodologyVersionStatus,
   UpdateDraftVersionInput,
   ValidateDraftVersionInput,
@@ -445,6 +450,130 @@ describe("GetPublicationEvidenceInput", () => {
 
   it("rejects empty methodologyVersionId", () => {
     expect(() => decode({ methodologyVersionId: "" })).toThrow();
+  });
+});
+
+describe("ProjectMethodologyPinEventType", () => {
+  const decode = Schema.decodeUnknownSync(ProjectMethodologyPinEventType);
+
+  it("accepts valid event types", () => {
+    expect(decode("pinned")).toBe("pinned");
+    expect(decode("repinned")).toBe("repinned");
+  });
+
+  it("rejects invalid event type", () => {
+    expect(() => decode("updated")).toThrow();
+  });
+});
+
+describe("PinProjectMethodologyVersionInput", () => {
+  const decode = Schema.decodeUnknownSync(PinProjectMethodologyVersionInput);
+
+  it("accepts valid pin input", () => {
+    const result = decode({
+      projectId: "project-1",
+      methodologyKey: "delivery",
+      publishedVersion: "V1",
+    });
+
+    expect(result.projectId).toBe("project-1");
+    expect(result.publishedVersion).toBe("V1");
+  });
+
+  it("rejects empty identifiers", () => {
+    expect(() =>
+      decode({
+        projectId: "",
+        methodologyKey: "delivery",
+        publishedVersion: "V1",
+      }),
+    ).toThrow();
+  });
+});
+
+describe("RepinProjectMethodologyVersionInput", () => {
+  const decode = Schema.decodeUnknownSync(RepinProjectMethodologyVersionInput);
+
+  it("accepts valid repin input", () => {
+    const result = decode({
+      projectId: "project-1",
+      methodologyKey: "delivery",
+      publishedVersion: "V2",
+    });
+
+    expect(result.projectId).toBe("project-1");
+    expect(result.publishedVersion).toBe("V2");
+  });
+
+  it("rejects empty target version", () => {
+    expect(() =>
+      decode({
+        projectId: "project-1",
+        methodologyKey: "delivery",
+        publishedVersion: "",
+      }),
+    ).toThrow();
+  });
+});
+
+describe("GetProjectPinLineageInput", () => {
+  const decode = Schema.decodeUnknownSync(GetProjectPinLineageInput);
+
+  it("accepts valid query input", () => {
+    expect(decode({ projectId: "project-1" }).projectId).toBe("project-1");
+  });
+
+  it("rejects empty projectId", () => {
+    expect(() => decode({ projectId: "" })).toThrow();
+  });
+});
+
+describe("ProjectMethodologyPinEvent", () => {
+  const decode = Schema.decodeUnknownSync(ProjectMethodologyPinEvent);
+
+  it("accepts valid pin event", () => {
+    const result = decode({
+      id: "event-1",
+      projectId: "project-1",
+      eventType: "repinned",
+      actorId: "user-1",
+      previousVersion: "V1",
+      newVersion: "V2",
+      timestamp: "2026-02-26T10:00:00Z",
+      evidenceRef: "project-pin-event:event-1",
+    });
+
+    expect(result.eventType).toBe("repinned");
+    expect(result.previousVersion).toBe("V1");
+  });
+
+  it("allows null previousVersion for initial pin", () => {
+    const result = decode({
+      id: "event-1",
+      projectId: "project-1",
+      eventType: "pinned",
+      actorId: "user-1",
+      previousVersion: null,
+      newVersion: "V1",
+      timestamp: "2026-02-26T10:00:00Z",
+      evidenceRef: "project-pin-event:event-1",
+    });
+
+    expect(result.previousVersion).toBeNull();
+  });
+
+  it("rejects missing audit fields", () => {
+    expect(() =>
+      decode({
+        id: "event-1",
+        projectId: "project-1",
+        eventType: "pinned",
+        actorId: "user-1",
+        previousVersion: null,
+        newVersion: "V1",
+        evidenceRef: "project-pin-event:event-1",
+      }),
+    ).toThrow();
   });
 });
 

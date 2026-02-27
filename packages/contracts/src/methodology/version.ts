@@ -182,6 +182,25 @@ export const GetPublicationEvidenceInput = Schema.Struct({
 });
 export type GetPublicationEvidenceInput = typeof GetPublicationEvidenceInput.Type;
 
+export const PinProjectMethodologyVersionInput = Schema.Struct({
+  projectId: Schema.NonEmptyString,
+  methodologyKey: Schema.NonEmptyString,
+  publishedVersion: Schema.NonEmptyString,
+});
+export type PinProjectMethodologyVersionInput = typeof PinProjectMethodologyVersionInput.Type;
+
+export const RepinProjectMethodologyVersionInput = Schema.Struct({
+  projectId: Schema.NonEmptyString,
+  methodologyKey: Schema.NonEmptyString,
+  publishedVersion: Schema.NonEmptyString,
+});
+export type RepinProjectMethodologyVersionInput = typeof RepinProjectMethodologyVersionInput.Type;
+
+export const GetProjectPinLineageInput = Schema.Struct({
+  projectId: Schema.NonEmptyString,
+});
+export type GetProjectPinLineageInput = typeof GetProjectPinLineageInput.Type;
+
 export const PublicationEvidence = Schema.Struct({
   actorId: Schema.NullOr(Schema.String),
   timestamp: Schema.String,
@@ -191,6 +210,21 @@ export const PublicationEvidence = Schema.Struct({
   evidenceRef: Schema.NonEmptyString,
 });
 export type PublicationEvidence = typeof PublicationEvidence.Type;
+
+export const ProjectMethodologyPinEventType = Schema.Literal("pinned", "repinned");
+export type ProjectMethodologyPinEventType = typeof ProjectMethodologyPinEventType.Type;
+
+export const ProjectMethodologyPinEvent = Schema.Struct({
+  id: Schema.NonEmptyString,
+  projectId: Schema.NonEmptyString,
+  eventType: ProjectMethodologyPinEventType,
+  actorId: Schema.NullOr(Schema.String),
+  previousVersion: Schema.NullOr(Schema.String),
+  newVersion: Schema.NonEmptyString,
+  timestamp: Schema.String,
+  evidenceRef: Schema.NonEmptyString,
+});
+export type ProjectMethodologyPinEvent = typeof ProjectMethodologyPinEvent.Type;
 
 export const MethodologyDefinition = Schema.Struct({
   id: Schema.String,

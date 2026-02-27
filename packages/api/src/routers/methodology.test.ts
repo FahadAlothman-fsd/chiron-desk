@@ -39,8 +39,33 @@ function makeTestRepo(): MethodologyRepository["Type"] {
   >();
   const versions = new Map<string, MethodologyVersionRow>();
   const events: MethodologyVersionEventRow[] = [];
+  const projectPins = new Map<
+    string,
+    {
+      projectId: string;
+      methodologyVersionId: string;
+      methodologyId: string;
+      methodologyKey: string;
+      publishedVersion: string;
+      actorId: string | null;
+      createdAt: Date;
+      updatedAt: Date;
+    }
+  >();
+  const projectPinEvents: Array<{
+    id: string;
+    projectId: string;
+    eventType: "pinned" | "repinned";
+    actorId: string | null;
+    previousVersion: string | null;
+    newVersion: string;
+    evidenceRef: string;
+    createdAt: Date;
+  }> = [];
   const workflowSnapshots = new Map<string, WorkflowSnapshot>();
   const factSchemasByVersion = new Map<string, readonly PublishFactSchemaRow[]>();
+  const executionCountsByProject = new Map<string, number>();
+  executionCountsByProject.set("project-exec-history", 1);
   let counter = 0;
 
   function nextId(): string {
@@ -261,6 +286,130 @@ function makeTestRepo(): MethodologyRepository["Type"] {
           event,
         };
       }),
+    findProjectPin: (projectId: string) => Effect.succeed(projectPins.get(projectId) ?? null),
+    hasPersistedExecutions: (projectId: string) =>
+      Effect.succeed((executionCountsByProject.get(projectId) ?? 0) > 0),
+    pinProjectMethodologyVersion: (params) =>
+      Effect.sync(() => {
+        const version = versions.get(params.methodologyVersionId);
+        if (!version) {
+          throw new RepositoryError({
+            operation: "api-test.pinProjectMethodologyVersion",
+            cause: new Error("PROJECT_PIN_TARGET_VERSION_NOT_FOUND"),
+            code: "PROJECT_PIN_TARGET_VERSION_NOT_FOUND",
+          });
+        }
+
+        const definition = definitions.get(version.methodologyId);
+        if (!definition) {
+          throw new RepositoryError({
+            operation: "api-test.pinProjectMethodologyVersion",
+            cause: new Error("PROJECT_PIN_TARGET_VERSION_INCOMPATIBLE"),
+            code: "PROJECT_PIN_TARGET_VERSION_INCOMPATIBLE",
+          });
+        }
+
+        const now = new Date();
+        const existing = projectPins.get(params.projectId);
+        const pin = {
+          projectId: params.projectId,
+          methodologyVersionId: version.id,
+          methodologyId: version.methodologyId,
+          methodologyKey: definition.key,
+          publishedVersion: params.newVersion,
+          actorId: params.actorId,
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+        };
+        projectPins.set(params.projectId, pin);
+
+        const eventId = nextId();
+        const event = {
+          id: eventId,
+          projectId: params.projectId,
+          eventType: existing ? ("repinned" as const) : ("pinned" as const),
+          actorId: params.actorId,
+          previousVersion: params.previousVersion,
+          newVersion: params.newVersion,
+          evidenceRef: `project-pin-event:${eventId}`,
+          createdAt: now,
+        };
+        projectPinEvents.push(event);
+
+        return { pin, event };
+      }),
+    repinProjectMethodologyVersion: (params) =>
+      Effect.sync(() => {
+        if ((executionCountsByProject.get(params.projectId) ?? 0) > 0) {
+          throw new RepositoryError({
+            operation: "api-test.repinProjectMethodologyVersion",
+            cause: new Error("PROJECT_REPIN_BLOCKED_EXECUTION_HISTORY"),
+            code: "PROJECT_REPIN_BLOCKED_EXECUTION_HISTORY",
+          });
+        }
+
+        const version = versions.get(params.methodologyVersionId);
+        if (!version) {
+          throw new RepositoryError({
+            operation: "api-test.repinProjectMethodologyVersion",
+            cause: new Error("PROJECT_PIN_TARGET_VERSION_NOT_FOUND"),
+            code: "PROJECT_PIN_TARGET_VERSION_NOT_FOUND",
+          });
+        }
+
+        const definition = definitions.get(version.methodologyId);
+        if (!definition) {
+          throw new RepositoryError({
+            operation: "api-test.repinProjectMethodologyVersion",
+            cause: new Error("PROJECT_PIN_TARGET_VERSION_INCOMPATIBLE"),
+            code: "PROJECT_PIN_TARGET_VERSION_INCOMPATIBLE",
+          });
+        }
+
+        const now = new Date();
+        const existing = projectPins.get(params.projectId);
+        if (!existing) {
+          throw new RepositoryError({
+            operation: "api-test.repinProjectMethodologyVersion",
+            cause: new Error("PROJECT_REPIN_REQUIRES_EXISTING_PIN"),
+            code: "PROJECT_REPIN_REQUIRES_EXISTING_PIN",
+          });
+        }
+        const pin = {
+          projectId: params.projectId,
+          methodologyVersionId: version.id,
+          methodologyId: version.methodologyId,
+          methodologyKey: definition.key,
+          publishedVersion: params.newVersion,
+          actorId: params.actorId,
+          createdAt: existing.createdAt,
+          updatedAt: now,
+        };
+        projectPins.set(params.projectId, pin);
+
+        const eventId = nextId();
+        const event = {
+          id: eventId,
+          projectId: params.projectId,
+          eventType: "repinned" as const,
+          actorId: params.actorId,
+          previousVersion: params.previousVersion,
+          newVersion: params.newVersion,
+          evidenceRef: `project-pin-event:${eventId}`,
+          createdAt: now,
+        };
+        projectPinEvents.push(event);
+
+        return { pin, event };
+      }),
+    getProjectPinLineage: ({ projectId }) =>
+      Effect.succeed(
+        projectPinEvents
+          .filter((event) => event.projectId === projectId)
+          .sort(
+            (a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id),
+          ),
+      ),
     getPublicationEvidence: (params: GetPublicationEvidenceParams) =>
       Effect.succeed(
         events
@@ -936,6 +1085,363 @@ describe("methodology router", () => {
       expect(result.workflows).toHaveLength(1);
       expect(result.workflows[0]?.workUnitTypeKey).toBe("task");
       expect(Object.keys(result.transitionWorkflowBindings)).toContain("start");
+    });
+  });
+
+  describe("project methodology pinning", () => {
+    it("pins a project to an explicit published version", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const created = await call(
+        router.createDraftVersion,
+        {
+          methodologyKey: "project-pin-api",
+          displayName: "Project Pin API",
+          version: "0.1.0-draft",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.updateDraftWorkflows,
+        {
+          versionId: created.version.id,
+          workflows: VALID_DEFINITION.workflows,
+          transitionWorkflowBindings: VALID_DEFINITION.transitionWorkflowBindings,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.publishDraftVersion,
+        {
+          versionId: created.version.id,
+          publishedVersion: "1.0.0",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const result = await call(
+        router.pinProjectMethodologyVersion,
+        {
+          projectId: "project-1",
+          methodologyKey: "project-pin-api",
+          publishedVersion: "1.0.0",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      expect(result.pinned).toBe(true);
+      expect(result.diagnostics.valid).toBe(true);
+      expect(result.pin).toBeDefined();
+      expect(result.pin?.publishedVersion).toBe("1.0.0");
+    });
+
+    it("blocks repin when project has persisted execution history", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const v1 = await call(
+        router.createDraftVersion,
+        {
+          methodologyKey: "project-repin-api",
+          displayName: "Project Repin API",
+          version: "0.1.0-draft",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.updateDraftWorkflows,
+        {
+          versionId: v1.version.id,
+          workflows: VALID_DEFINITION.workflows,
+          transitionWorkflowBindings: VALID_DEFINITION.transitionWorkflowBindings,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.publishDraftVersion,
+        {
+          versionId: v1.version.id,
+          publishedVersion: "1.0.0",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const v2 = await call(
+        router.createDraftVersion,
+        {
+          methodologyKey: "project-repin-api",
+          displayName: "Project Repin API v2",
+          version: "0.2.0-draft",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.updateDraftWorkflows,
+        {
+          versionId: v2.version.id,
+          workflows: VALID_DEFINITION.workflows,
+          transitionWorkflowBindings: VALID_DEFINITION.transitionWorkflowBindings,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.publishDraftVersion,
+        {
+          versionId: v2.version.id,
+          publishedVersion: "2.0.0",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.pinProjectMethodologyVersion,
+        {
+          projectId: "project-exec-history",
+          methodologyKey: "project-repin-api",
+          publishedVersion: "1.0.0",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const result = await call(
+        router.repinProjectMethodologyVersion,
+        {
+          projectId: "project-exec-history",
+          methodologyKey: "project-repin-api",
+          publishedVersion: "2.0.0",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      expect(result.repinned).toBe(false);
+      expect(result.diagnostics.valid).toBe(false);
+      expect(result.diagnostics.diagnostics[0]?.code).toBe(
+        "PROJECT_REPIN_BLOCKED_EXECUTION_HISTORY",
+      );
+    });
+
+    it("blocks repin when project does not have an existing pin", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const created = await call(
+        router.createDraftVersion,
+        {
+          methodologyKey: "project-repin-needs-pin-api",
+          displayName: "Project Repin Needs Pin API",
+          version: "0.1.0-draft",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.updateDraftWorkflows,
+        {
+          versionId: created.version.id,
+          workflows: VALID_DEFINITION.workflows,
+          transitionWorkflowBindings: VALID_DEFINITION.transitionWorkflowBindings,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.publishDraftVersion,
+        {
+          versionId: created.version.id,
+          publishedVersion: "1.0.0",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const result = await call(
+        router.repinProjectMethodologyVersion,
+        {
+          projectId: "project-no-pin",
+          methodologyKey: "project-repin-needs-pin-api",
+          publishedVersion: "1.0.0",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      expect(result.repinned).toBe(false);
+      expect(result.diagnostics.valid).toBe(false);
+      expect(result.diagnostics.diagnostics[0]?.code).toBe("PROJECT_REPIN_REQUIRES_EXISTING_PIN");
+    });
+
+    it("returns append-only chronological pin lineage", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const v1 = await call(
+        router.createDraftVersion,
+        {
+          methodologyKey: "project-lineage-api",
+          displayName: "Project Lineage API",
+          version: "0.1.0-draft",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.updateDraftWorkflows,
+        {
+          versionId: v1.version.id,
+          workflows: VALID_DEFINITION.workflows,
+          transitionWorkflowBindings: VALID_DEFINITION.transitionWorkflowBindings,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.publishDraftVersion,
+        {
+          versionId: v1.version.id,
+          publishedVersion: "1.0.0",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const v2 = await call(
+        router.createDraftVersion,
+        {
+          methodologyKey: "project-lineage-api",
+          displayName: "Project Lineage API v2",
+          version: "0.2.0-draft",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.updateDraftWorkflows,
+        {
+          versionId: v2.version.id,
+          workflows: VALID_DEFINITION.workflows,
+          transitionWorkflowBindings: VALID_DEFINITION.transitionWorkflowBindings,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.publishDraftVersion,
+        {
+          versionId: v2.version.id,
+          publishedVersion: "2.0.0",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.pinProjectMethodologyVersion,
+        {
+          projectId: "project-lineage",
+          methodologyKey: "project-lineage-api",
+          publishedVersion: "1.0.0",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.repinProjectMethodologyVersion,
+        {
+          projectId: "project-lineage",
+          methodologyKey: "project-lineage-api",
+          publishedVersion: "2.0.0",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const lineage = await call(
+        router.getProjectPinLineage,
+        { projectId: "project-lineage" },
+        PUBLIC_CTX,
+      );
+
+      expect(lineage).toHaveLength(2);
+      expect(lineage[0]?.eventType).toBe("pinned");
+      expect(lineage[1]?.eventType).toBe("repinned");
+      expect(lineage[1]?.previousVersion).toBe("1.0.0");
+      expect(lineage[1]?.newVersion).toBe("2.0.0");
+    });
+  });
+
+  describe("transition eligibility", () => {
+    it("resolves eligibility against the project's pinned methodology version", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const created = await call(
+        router.createDraftVersion,
+        {
+          methodologyKey: "project-eligibility-pin-api",
+          displayName: "Project Eligibility Pin API",
+          version: "0.1.0-draft",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.updateDraftWorkflows,
+        {
+          versionId: created.version.id,
+          workflows: VALID_DEFINITION.workflows,
+          transitionWorkflowBindings: VALID_DEFINITION.transitionWorkflowBindings,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.publishDraftVersion,
+        {
+          versionId: created.version.id,
+          publishedVersion: "1.0.0",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.pinProjectMethodologyVersion,
+        {
+          projectId: "project-eligibility",
+          methodologyKey: "project-eligibility-pin-api",
+          publishedVersion: "1.0.0",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const result = await call(
+        router.getTransitionEligibility,
+        {
+          projectId: "project-eligibility",
+          workUnitTypeKey: "task",
+        },
+        PUBLIC_CTX,
+      );
+
+      expect(result.workUnitTypeKey).toBe("task");
+      expect(Array.isArray(result.eligibleTransitions)).toBe(true);
     });
   });
 });

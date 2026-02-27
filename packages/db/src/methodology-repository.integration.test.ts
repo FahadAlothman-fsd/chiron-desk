@@ -16,7 +16,8 @@ import {
   methodologyVersions,
   methodologyWorkUnitTypes,
 } from "./schema/methodology";
-import * as schema from "./schema/methodology";
+import { projectExecutions, projectMethodologyPins } from "./schema/project";
+import * as schema from "./schema";
 
 const VALIDATION_OK: ValidationResult = {
   valid: true,
@@ -176,6 +177,37 @@ const SCHEMA_SQL = [
     updated_at INTEGER NOT NULL,
     UNIQUE(methodology_version_id, key)
   )`,
+  `CREATE TABLE projects (
+    id TEXT PRIMARY KEY,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
+  `CREATE TABLE project_methodology_pins (
+    project_id TEXT PRIMARY KEY,
+    methodology_version_id TEXT NOT NULL,
+    methodology_id TEXT NOT NULL,
+    methodology_key TEXT NOT NULL,
+    published_version TEXT NOT NULL,
+    actor_id TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
+  `CREATE TABLE project_methodology_pin_events (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    actor_id TEXT,
+    previous_version TEXT,
+    new_version TEXT NOT NULL,
+    evidence_ref TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  )`,
+  `CREATE TABLE project_executions (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    methodology_version_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  )`,
 ];
 
 describe("methodology repository integration", () => {
@@ -212,6 +244,40 @@ describe("methodology repository integration", () => {
         return yield* fn(repo);
       }).pipe(Effect.provide(createMethodologyRepoLayer(db))),
     );
+
+  const createAndPublishVersion = async (
+    methodologyKey: string,
+    draftVersion: string,
+    publishedVersion: string,
+  ) => {
+    const created = await runRepo((repo) =>
+      repo.createDraft({
+        methodologyKey,
+        displayName: `Methodology ${methodologyKey}`,
+        version: draftVersion,
+        definitionExtensions: {
+          workUnitTypes: [{ key: "task" }],
+          agentTypes: [],
+          transitions: [{ key: "start" }],
+        },
+        workflows: [],
+        transitionWorkflowBindings: {},
+        actorId: "user-1",
+        validationDiagnostics: VALIDATION_OK,
+      }),
+    );
+
+    const published = await runRepo((repo) =>
+      repo.publishDraftVersion({
+        versionId: created.version.id,
+        publishedVersion,
+        actorId: "publisher-1",
+        validationSummary: VALIDATION_OK,
+      }),
+    );
+
+    return published.version;
+  };
 
   it("keeps canonical workflow data out of definition extensions", async () => {
     const created = await runRepo((repo) =>
@@ -552,5 +618,131 @@ describe("methodology repository integration", () => {
       [created.version.id],
     );
     expect(Number(rowCountResult.rows[0]?.count ?? 0)).toBe(0);
+  });
+
+  it("pins and repins project methodology with append-only lineage ordering", async () => {
+    const v1 = await createAndPublishVersion("pin-lineage-methodology", "0.1.0-draft", "1.0.0");
+    const v2 = await createAndPublishVersion("pin-lineage-methodology", "0.2.0-draft", "2.0.0");
+
+    await runRepo((repo) =>
+      repo.pinProjectMethodologyVersion({
+        projectId: "project-lineage",
+        methodologyVersionId: v1.id,
+        actorId: "operator-1",
+        previousVersion: null,
+        newVersion: "1.0.0",
+      }),
+    );
+
+    await runRepo((repo) =>
+      repo.repinProjectMethodologyVersion({
+        projectId: "project-lineage",
+        methodologyVersionId: v2.id,
+        actorId: "operator-2",
+        previousVersion: "1.0.0",
+        newVersion: "2.0.0",
+      }),
+    );
+
+    const lineage = await runRepo((repo) =>
+      repo.getProjectPinLineage({ projectId: "project-lineage" }),
+    );
+
+    expect(lineage).toHaveLength(2);
+    expect(lineage[0]?.eventType).toBe("pinned");
+    expect(lineage[1]?.eventType).toBe("repinned");
+    expect(lineage[1]?.previousVersion).toBe("1.0.0");
+    expect(lineage[1]?.newVersion).toBe("2.0.0");
+    expect(lineage[0]?.evidenceRef).toContain("project-pin-event:");
+    expect(lineage[1]?.evidenceRef).toContain("project-pin-event:");
+  });
+
+  it("blocks repin when project does not have an existing pin", async () => {
+    const v1 = await createAndPublishVersion(
+      "pin-requires-existing-methodology",
+      "0.1.0-draft",
+      "1.0.0",
+    );
+
+    const error = await runRepo((repo) =>
+      repo.repinProjectMethodologyVersion({
+        projectId: "project-no-pin",
+        methodologyVersionId: v1.id,
+        actorId: "operator-1",
+        previousVersion: null,
+        newVersion: "1.0.0",
+      }),
+    ).catch((caught) => caught);
+
+    expect(String(error)).toContain("PROJECT_REPIN_REQUIRES_EXISTING_PIN");
+
+    const pinRows = await db
+      .select()
+      .from(projectMethodologyPins)
+      .where(eq(projectMethodologyPins.projectId, "project-no-pin"));
+    expect(pinRows).toHaveLength(0);
+  });
+
+  it("blocks repin for projects with persisted executions without mutating pin pointer", async () => {
+    const v1 = await createAndPublishVersion("pin-guard-methodology", "0.1.0-draft", "1.0.0");
+    const v2 = await createAndPublishVersion("pin-guard-methodology", "0.2.0-draft", "2.0.0");
+
+    await runRepo((repo) =>
+      repo.pinProjectMethodologyVersion({
+        projectId: "project-exec-guard",
+        methodologyVersionId: v1.id,
+        actorId: "operator-1",
+        previousVersion: null,
+        newVersion: "1.0.0",
+      }),
+    );
+
+    await db.insert(projectExecutions).values({
+      projectId: "project-exec-guard",
+      methodologyVersionId: v1.id,
+    });
+
+    const error = await runRepo((repo) =>
+      repo.repinProjectMethodologyVersion({
+        projectId: "project-exec-guard",
+        methodologyVersionId: v2.id,
+        actorId: "operator-2",
+        previousVersion: "1.0.0",
+        newVersion: "2.0.0",
+      }),
+    ).catch((caught) => caught);
+
+    expect(String(error)).toContain("PROJECT_REPIN_BLOCKED_EXECUTION_HISTORY");
+
+    const pinRows = await db
+      .select()
+      .from(projectMethodologyPins)
+      .where(eq(projectMethodologyPins.projectId, "project-exec-guard"));
+    expect(pinRows).toHaveLength(1);
+    expect(pinRows[0]?.publishedVersion).toBe("1.0.0");
+  });
+
+  it("aborts pin atomically when pin-event persistence fails", async () => {
+    const v1 = await createAndPublishVersion("pin-atomicity-methodology", "0.1.0-draft", "1.0.0");
+
+    await client.execute("DROP TABLE project_methodology_pin_events");
+
+    const error = await runRepo((repo) =>
+      repo.pinProjectMethodologyVersion({
+        projectId: "project-atomicity",
+        methodologyVersionId: v1.id,
+        actorId: "operator-1",
+        previousVersion: null,
+        newVersion: "1.0.0",
+      }),
+    ).catch((caught) => caught);
+
+    expect(String(error)).toContain("PROJECT_PIN_ATOMICITY_GUARD_ABORTED");
+
+    const pinRows = await db
+      .select()
+      .from(projectMethodologyPins)
+      .where(eq(projectMethodologyPins.projectId, "project-atomicity"));
+    expect(pinRows).toHaveLength(0);
   });
 });

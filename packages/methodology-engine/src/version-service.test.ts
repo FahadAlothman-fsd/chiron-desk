@@ -24,8 +24,33 @@ function makeTestRepo() {
   const definitions: MethodologyDefinitionRow[] = [];
   const versions: MethodologyVersionRow[] = [];
   const events: MethodologyVersionEventRow[] = [];
+  const projectPins = new Map<
+    string,
+    {
+      projectId: string;
+      methodologyVersionId: string;
+      methodologyId: string;
+      methodologyKey: string;
+      publishedVersion: string;
+      actorId: string | null;
+      createdAt: Date;
+      updatedAt: Date;
+    }
+  >();
+  const projectPinEvents: Array<{
+    id: string;
+    projectId: string;
+    eventType: "pinned" | "repinned";
+    actorId: string | null;
+    previousVersion: string | null;
+    newVersion: string;
+    evidenceRef: string;
+    createdAt: Date;
+  }> = [];
   const workflowSnapshots = new Map<string, WorkflowSnapshot>();
   const factSchemasByVersion = new Map<string, readonly PublishFactSchemaRow[]>();
+  const executionCountsByProject = new Map<string, number>();
+  executionCountsByProject.set("project-exec-history", 1);
   let idCounter = 0;
 
   const nextId = () => {
@@ -262,6 +287,128 @@ function makeTestRepo() {
           event,
         };
       }),
+    findProjectPin: (projectId: string) => Effect.succeed(projectPins.get(projectId) ?? null),
+    hasPersistedExecutions: (projectId: string) =>
+      Effect.succeed((executionCountsByProject.get(projectId) ?? 0) > 0),
+    pinProjectMethodologyVersion: (params) =>
+      Effect.sync(() => {
+        const version = versions.find((v) => v.id === params.methodologyVersionId);
+        if (!version) {
+          throw new RepositoryError({
+            operation: "test.pinProjectMethodologyVersion",
+            cause: new Error("PROJECT_PIN_TARGET_VERSION_NOT_FOUND"),
+            code: "PROJECT_PIN_TARGET_VERSION_NOT_FOUND",
+          });
+        }
+
+        const definition = definitions.find((d) => d.id === version.methodologyId);
+        if (!definition) {
+          throw new RepositoryError({
+            operation: "test.pinProjectMethodologyVersion",
+            cause: new Error("PROJECT_PIN_TARGET_VERSION_INCOMPATIBLE"),
+            code: "PROJECT_PIN_TARGET_VERSION_INCOMPATIBLE",
+          });
+        }
+
+        const now = new Date();
+        const existing = projectPins.get(params.projectId);
+        const pin = {
+          projectId: params.projectId,
+          methodologyVersionId: version.id,
+          methodologyId: version.methodologyId,
+          methodologyKey: definition.key,
+          publishedVersion: params.newVersion,
+          actorId: params.actorId,
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+        };
+        projectPins.set(params.projectId, pin);
+
+        const event = {
+          id: nextId(),
+          projectId: params.projectId,
+          eventType: existing ? ("repinned" as const) : ("pinned" as const),
+          actorId: params.actorId,
+          previousVersion: params.previousVersion,
+          newVersion: params.newVersion,
+          evidenceRef: `project-pin-event:${params.projectId}:${params.newVersion}`,
+          createdAt: now,
+        };
+        projectPinEvents.push(event);
+
+        return { pin, event };
+      }),
+    repinProjectMethodologyVersion: (params) =>
+      Effect.sync(() => {
+        if ((executionCountsByProject.get(params.projectId) ?? 0) > 0) {
+          throw new RepositoryError({
+            operation: "test.repinProjectMethodologyVersion",
+            cause: new Error("PROJECT_REPIN_BLOCKED_EXECUTION_HISTORY"),
+            code: "PROJECT_REPIN_BLOCKED_EXECUTION_HISTORY",
+          });
+        }
+
+        const version = versions.find((v) => v.id === params.methodologyVersionId);
+        if (!version) {
+          throw new RepositoryError({
+            operation: "test.repinProjectMethodologyVersion",
+            cause: new Error("PROJECT_PIN_TARGET_VERSION_NOT_FOUND"),
+            code: "PROJECT_PIN_TARGET_VERSION_NOT_FOUND",
+          });
+        }
+
+        const definition = definitions.find((d) => d.id === version.methodologyId);
+        if (!definition) {
+          throw new RepositoryError({
+            operation: "test.repinProjectMethodologyVersion",
+            cause: new Error("PROJECT_PIN_TARGET_VERSION_INCOMPATIBLE"),
+            code: "PROJECT_PIN_TARGET_VERSION_INCOMPATIBLE",
+          });
+        }
+
+        const now = new Date();
+        const existing = projectPins.get(params.projectId);
+        if (!existing) {
+          throw new RepositoryError({
+            operation: "test.repinProjectMethodologyVersion",
+            cause: new Error("PROJECT_REPIN_REQUIRES_EXISTING_PIN"),
+            code: "PROJECT_REPIN_REQUIRES_EXISTING_PIN",
+          });
+        }
+        const pin = {
+          projectId: params.projectId,
+          methodologyVersionId: version.id,
+          methodologyId: version.methodologyId,
+          methodologyKey: definition.key,
+          publishedVersion: params.newVersion,
+          actorId: params.actorId,
+          createdAt: existing.createdAt,
+          updatedAt: now,
+        };
+        projectPins.set(params.projectId, pin);
+
+        const event = {
+          id: nextId(),
+          projectId: params.projectId,
+          eventType: "repinned" as const,
+          actorId: params.actorId,
+          previousVersion: params.previousVersion,
+          newVersion: params.newVersion,
+          evidenceRef: `project-pin-event:${params.projectId}:${params.newVersion}`,
+          createdAt: now,
+        };
+        projectPinEvents.push(event);
+
+        return { pin, event };
+      }),
+    getProjectPinLineage: ({ projectId }) =>
+      Effect.succeed(
+        projectPinEvents
+          .filter((event) => event.projectId === projectId)
+          .sort(
+            (a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id),
+          ),
+      ),
     getPublicationEvidence: (params: GetPublicationEvidenceParams) =>
       Effect.succeed(
         events
@@ -722,24 +869,28 @@ describe("MethodologyVersionService", () => {
       expect(result.firstFailure.diagnostics.diagnostics[0]?.code).toBe(
         "PUBLISH_VERSION_ALREADY_EXISTS",
       );
-      const stableA = result.firstFailure.diagnostics.diagnostics.map((d) => ({
-        code: d.code,
-        scope: d.scope,
-        blocking: d.blocking,
-        required: d.required,
-        observed: d.observed,
-        remediation: d.remediation,
-        evidenceRef: d.evidenceRef,
-      }));
-      const stableB = result.secondFailure.diagnostics.diagnostics.map((d) => ({
-        code: d.code,
-        scope: d.scope,
-        blocking: d.blocking,
-        required: d.required,
-        observed: d.observed,
-        remediation: d.remediation,
-        evidenceRef: d.evidenceRef,
-      }));
+      const stableA = result.firstFailure.diagnostics.diagnostics.map(
+        (d: ValidationResult["diagnostics"][number]) => ({
+          code: d.code,
+          scope: d.scope,
+          blocking: d.blocking,
+          required: d.required,
+          observed: d.observed,
+          remediation: d.remediation,
+          evidenceRef: d.evidenceRef,
+        }),
+      );
+      const stableB = result.secondFailure.diagnostics.diagnostics.map(
+        (d: ValidationResult["diagnostics"][number]) => ({
+          code: d.code,
+          scope: d.scope,
+          blocking: d.blocking,
+          required: d.required,
+          observed: d.observed,
+          remediation: d.remediation,
+          evidenceRef: d.evidenceRef,
+        }),
+      );
       expect(stableA).toEqual(stableB);
       expect(result.firstFailure.diagnostics.diagnostics[0]).toHaveProperty("evidenceRef");
       expect(result.firstFailure.diagnostics.diagnostics[0]?.evidenceRef).toBeNull();
@@ -946,6 +1097,304 @@ describe("MethodologyVersionService", () => {
       expect(result.version.version).toBe("1.0.0");
       expect(result.workflows).toBeDefined();
       expect(result.transitionWorkflowBindings).toBeDefined();
+    });
+  });
+
+  describe("project methodology pinning", () => {
+    it("pins project to an existing published methodology version", async () => {
+      const layer = makeServiceLayer();
+
+      const result = await Effect.runPromise(
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionService;
+          const created = yield* svc.createDraftVersion(
+            {
+              ...MINIMAL_INPUT,
+              methodologyKey: "project-pin-methodology",
+              version: "0.1.0-draft",
+            },
+            TEST_ACTOR_ID,
+          );
+
+          yield* svc.publishDraftVersion(
+            {
+              versionId: created.version.id,
+              publishedVersion: "1.0.0",
+            },
+            TEST_ACTOR_ID,
+          );
+
+          return yield* svc.pinProjectMethodologyVersion(
+            {
+              projectId: "project-1",
+              methodologyKey: "project-pin-methodology",
+              publishedVersion: "1.0.0",
+            },
+            TEST_ACTOR_ID,
+          );
+        }).pipe(Effect.provide(layer)),
+      );
+
+      expect(result.pinned).toBe(true);
+      expect(result.diagnostics.valid).toBe(true);
+      expect(result.pin).toBeDefined();
+      expect(result.pin!.projectId).toBe("project-1");
+      expect(result.pin!.publishedVersion).toBe("1.0.0");
+    });
+
+    it("blocks repin when project has persisted executions", async () => {
+      const layer = makeServiceLayer();
+
+      const result = await Effect.runPromise(
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionService;
+
+          const v1 = yield* svc.createDraftVersion(
+            {
+              ...MINIMAL_INPUT,
+              methodologyKey: "repin-guard-methodology",
+              version: "0.1.0-draft",
+            },
+            TEST_ACTOR_ID,
+          );
+          yield* svc.publishDraftVersion(
+            {
+              versionId: v1.version.id,
+              publishedVersion: "1.0.0",
+            },
+            TEST_ACTOR_ID,
+          );
+
+          const v2 = yield* svc.createDraftVersion(
+            {
+              ...MINIMAL_INPUT,
+              methodologyKey: "repin-guard-methodology",
+              version: "0.2.0-draft",
+            },
+            TEST_ACTOR_ID,
+          );
+          yield* svc.publishDraftVersion(
+            {
+              versionId: v2.version.id,
+              publishedVersion: "2.0.0",
+            },
+            TEST_ACTOR_ID,
+          );
+
+          yield* svc.pinProjectMethodologyVersion(
+            {
+              projectId: "project-exec-history",
+              methodologyKey: "repin-guard-methodology",
+              publishedVersion: "1.0.0",
+            },
+            TEST_ACTOR_ID,
+          );
+
+          return yield* svc.repinProjectMethodologyVersion(
+            {
+              projectId: "project-exec-history",
+              methodologyKey: "repin-guard-methodology",
+              publishedVersion: "2.0.0",
+            },
+            TEST_ACTOR_ID,
+          );
+        }).pipe(Effect.provide(layer)),
+      );
+
+      expect(result.repinned).toBe(false);
+      expect(result.diagnostics.valid).toBe(false);
+      expect(result.diagnostics.diagnostics[0]?.code).toBe(
+        "PROJECT_REPIN_BLOCKED_EXECUTION_HISTORY",
+      );
+    });
+
+    it("blocks repin when project does not have an existing pin", async () => {
+      const layer = makeServiceLayer();
+
+      const result = await Effect.runPromise(
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionService;
+
+          const draft = yield* svc.createDraftVersion(
+            {
+              ...MINIMAL_INPUT,
+              methodologyKey: "repin-requires-pin-methodology",
+              version: "0.1.0-draft",
+            },
+            TEST_ACTOR_ID,
+          );
+          yield* svc.publishDraftVersion(
+            {
+              versionId: draft.version.id,
+              publishedVersion: "1.0.0",
+            },
+            TEST_ACTOR_ID,
+          );
+
+          return yield* svc.repinProjectMethodologyVersion(
+            {
+              projectId: "project-no-pin",
+              methodologyKey: "repin-requires-pin-methodology",
+              publishedVersion: "1.0.0",
+            },
+            TEST_ACTOR_ID,
+          );
+        }).pipe(Effect.provide(layer)),
+      );
+
+      expect(result.repinned).toBe(false);
+      expect(result.diagnostics.valid).toBe(false);
+      expect(result.diagnostics.diagnostics[0]?.code).toBe("PROJECT_REPIN_REQUIRES_EXISTING_PIN");
+    });
+
+    it("returns deterministic diagnostics for invalid repin target", async () => {
+      const layer = makeServiceLayer();
+
+      const result = await Effect.runPromise(
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionService;
+
+          const draft = yield* svc.createDraftVersion(
+            {
+              ...MINIMAL_INPUT,
+              methodologyKey: "repin-target-methodology",
+              version: "0.1.0-draft",
+            },
+            TEST_ACTOR_ID,
+          );
+          yield* svc.publishDraftVersion(
+            {
+              versionId: draft.version.id,
+              publishedVersion: "1.0.0",
+            },
+            TEST_ACTOR_ID,
+          );
+
+          yield* svc.pinProjectMethodologyVersion(
+            {
+              projectId: "project-bad-target",
+              methodologyKey: "repin-target-methodology",
+              publishedVersion: "1.0.0",
+            },
+            TEST_ACTOR_ID,
+          );
+
+          const firstFailure = yield* svc.repinProjectMethodologyVersion(
+            {
+              projectId: "project-bad-target",
+              methodologyKey: "repin-target-methodology",
+              publishedVersion: "9.9.9",
+            },
+            TEST_ACTOR_ID,
+          );
+          const secondFailure = yield* svc.repinProjectMethodologyVersion(
+            {
+              projectId: "project-bad-target",
+              methodologyKey: "repin-target-methodology",
+              publishedVersion: "9.9.9",
+            },
+            TEST_ACTOR_ID,
+          );
+
+          return { firstFailure, secondFailure };
+        }).pipe(Effect.provide(layer)),
+      );
+
+      const stableA = result.firstFailure.diagnostics.diagnostics.map((d) => ({
+        code: d.code,
+        scope: d.scope,
+        blocking: d.blocking,
+        required: d.required,
+        observed: d.observed,
+        remediation: d.remediation,
+        evidenceRef: d.evidenceRef,
+      }));
+      const stableB = result.secondFailure.diagnostics.diagnostics.map((d) => ({
+        code: d.code,
+        scope: d.scope,
+        blocking: d.blocking,
+        required: d.required,
+        observed: d.observed,
+        remediation: d.remediation,
+        evidenceRef: d.evidenceRef,
+      }));
+
+      expect(result.firstFailure.repinned).toBe(false);
+      expect(result.firstFailure.diagnostics.diagnostics[0]?.code).toBe(
+        "PROJECT_PIN_TARGET_VERSION_NOT_FOUND",
+      );
+      expect(stableA).toEqual(stableB);
+    });
+
+    it("records append-only pin lineage in chronological order", async () => {
+      const layer = makeServiceLayer();
+
+      const lineage = await Effect.runPromise(
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionService;
+
+          const v1 = yield* svc.createDraftVersion(
+            {
+              ...MINIMAL_INPUT,
+              methodologyKey: "lineage-methodology",
+              version: "0.1.0-draft",
+            },
+            TEST_ACTOR_ID,
+          );
+          yield* svc.publishDraftVersion(
+            {
+              versionId: v1.version.id,
+              publishedVersion: "1.0.0",
+            },
+            TEST_ACTOR_ID,
+          );
+
+          const v2 = yield* svc.createDraftVersion(
+            {
+              ...MINIMAL_INPUT,
+              methodologyKey: "lineage-methodology",
+              version: "0.2.0-draft",
+            },
+            TEST_ACTOR_ID,
+          );
+          yield* svc.publishDraftVersion(
+            {
+              versionId: v2.version.id,
+              publishedVersion: "2.0.0",
+            },
+            TEST_ACTOR_ID,
+          );
+
+          yield* svc.pinProjectMethodologyVersion(
+            {
+              projectId: "project-lineage",
+              methodologyKey: "lineage-methodology",
+              publishedVersion: "1.0.0",
+            },
+            TEST_ACTOR_ID,
+          );
+
+          yield* svc.repinProjectMethodologyVersion(
+            {
+              projectId: "project-lineage",
+              methodologyKey: "lineage-methodology",
+              publishedVersion: "2.0.0",
+            },
+            TEST_ACTOR_ID,
+          );
+
+          return yield* svc.getProjectPinLineage({ projectId: "project-lineage" });
+        }).pipe(Effect.provide(layer)),
+      );
+
+      expect(lineage).toHaveLength(2);
+      expect(lineage[0]?.eventType).toBe("pinned");
+      expect(lineage[1]?.eventType).toBe("repinned");
+      expect(lineage[1]?.previousVersion).toBe("1.0.0");
+      expect(lineage[1]?.newVersion).toBe("2.0.0");
+      expect(lineage[0]?.timestamp.localeCompare(lineage[1]?.timestamp ?? "")).toBeLessThanOrEqual(
+        0,
+      );
     });
   });
 });

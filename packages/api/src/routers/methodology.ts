@@ -16,8 +16,11 @@ import type { GetTransitionEligibilityOutput } from "@chiron/contracts/methodolo
 
 import type {
   CreateDraftVersionInput,
+  GetProjectPinLineageInput,
   GetPublicationEvidenceInput,
+  PinProjectMethodologyVersionInput,
   PublishDraftVersionInput,
+  RepinProjectMethodologyVersionInput,
   ValidationResult,
 } from "@chiron/contracts/methodology/version";
 import type { UpdateDraftWorkflowsInputDto } from "@chiron/contracts/methodology/dto";
@@ -107,6 +110,16 @@ const publicationEvidenceInput = z.object({
   methodologyVersionId: z.string().min(1),
 });
 
+const projectPinInput = z.object({
+  projectId: z.string().min(1),
+  methodologyKey: z.string().min(1),
+  publishedVersion: z.string().min(1),
+});
+
+const projectPinLineageInput = z.object({
+  projectId: z.string().min(1),
+});
+
 const publishedContractQueryInput = z.object({
   methodologyKey: z.string().min(1),
   publishedVersion: z.string().min(1),
@@ -173,7 +186,7 @@ const updateDraftLifecycleInput = z.object({
 });
 
 const getTransitionEligibilityInput = z.object({
-  versionId: z.string().min(1),
+  projectId: z.string().min(1),
   workUnitTypeKey: z.string().min(1),
   currentState: z.string().optional(),
 });
@@ -218,6 +231,28 @@ function serializePublicationEvidence(evidence: {
     publishedVersion: evidence.publishedVersion,
     validationSummary: evidence.validationSummary,
     evidenceRef: evidence.evidenceRef,
+  };
+}
+
+function serializeProjectPinEvent(event: {
+  id: string;
+  projectId: string;
+  eventType: "pinned" | "repinned";
+  actorId: string | null;
+  previousVersion: string | null;
+  newVersion: string;
+  timestamp: string;
+  evidenceRef: string;
+}) {
+  return {
+    id: event.id,
+    projectId: event.projectId,
+    eventType: event.eventType,
+    actorId: event.actorId,
+    previousVersion: event.previousVersion,
+    newVersion: event.newVersion,
+    timestamp: event.timestamp,
+    evidenceRef: event.evidenceRef,
   };
 }
 
@@ -363,6 +398,74 @@ export function createMethodologyRouter(
         return evidence.map((row) => serializePublicationEvidence(row));
       }),
 
+    pinProjectMethodologyVersion: protectedProcedure
+      .input(projectPinInput)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionService;
+            return yield* svc.pinProjectMethodologyVersion(
+              {
+                projectId: input.projectId,
+                methodologyKey: input.methodologyKey,
+                publishedVersion: input.publishedVersion,
+              } as PinProjectMethodologyVersionInput,
+              actorId,
+            );
+          }),
+        );
+
+        return {
+          pinned: result.pinned,
+          diagnostics: result.diagnostics,
+          pin: result.pin ?? null,
+        };
+      }),
+
+    repinProjectMethodologyVersion: protectedProcedure
+      .input(projectPinInput)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionService;
+            return yield* svc.repinProjectMethodologyVersion(
+              {
+                projectId: input.projectId,
+                methodologyKey: input.methodologyKey,
+                publishedVersion: input.publishedVersion,
+              } as RepinProjectMethodologyVersionInput,
+              actorId,
+            );
+          }),
+        );
+
+        return {
+          repinned: result.repinned,
+          diagnostics: result.diagnostics,
+          pin: result.pin ?? null,
+        };
+      }),
+
+    getProjectPinLineage: publicProcedure
+      .input(projectPinLineageInput)
+      .handler(async ({ input }) => {
+        const events = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionService;
+            return yield* svc.getProjectPinLineage({
+              projectId: input.projectId,
+            } as GetProjectPinLineageInput);
+          }),
+        );
+
+        return events.map((event) => serializeProjectPinEvent(event));
+      }),
+
     getPublishedContractByVersionAndWorkUnitType: publicProcedure
       .input(publishedContractQueryInput)
       .handler(async ({ input }) => {
@@ -437,12 +540,25 @@ export function createMethodologyRouter(
     getTransitionEligibility: publicProcedure
       .input(getTransitionEligibilityInput)
       .handler(async ({ input }) => {
+        const pin = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionService;
+            return yield* svc.getProjectMethodologyPin(input.projectId);
+          }),
+        );
+        if (!pin) {
+          throw new ORPCError("NOT_FOUND", {
+            message: `No methodology pin found for project '${input.projectId}'`,
+          });
+        }
+
         const result = await runEffect(
           serviceLayer,
           Effect.gen(function* () {
             const svc = yield* EligibilityService;
             return yield* svc.getTransitionEligibility({
-              versionId: input.versionId,
+              versionId: pin.methodologyVersionId,
               workUnitTypeKey: input.workUnitTypeKey,
               currentState: input.currentState,
             });

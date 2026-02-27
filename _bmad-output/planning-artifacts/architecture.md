@@ -73,8 +73,18 @@ No additional gate class is allowed in this horizon.
   - workflow definition and transition-allowed bindings
   - transition attempts + gate evaluations
   - execution outputs ledger
-  - slot definitions/snapshot versions/heads
-  - variable definitions + values/history
+- slot definitions/snapshot versions/heads
+- variable definitions + values/history
+
+### 5.1) Project Pin Persistence (Decision In Progress)
+
+- Current pointer storage is still under active ADR review while Story 1.5 is prepared.
+- Options being evaluated:
+  - Inline pointer on `projects` (for example `projects.pinnedMethodologyVersionId`).
+  - Dedicated pointer table (`project_methodology_pins`) with one active row per project.
+- Working implementation direction is currently the dedicated pointer table to reduce later migration refactor churn and keep methodology-pin concerns decoupled from project identity.
+- This direction is provisional until ADR/story acceptance criteria are finalized.
+- Independent of pointer placement, append-only pin lineage events and deterministic diagnostics remain mandatory.
 
 ## 6) Workflow Binding Model
 
