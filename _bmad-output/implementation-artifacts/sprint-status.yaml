@@ -1,4 +1,4 @@
-# generated: 2026-02-24 00:57
+# generated: 2026-02-27 00:57
 # project: chiron
 # project_key: NOKEY
 # tracking_system: file-system
@@ -33,20 +33,20 @@
 # - SM typically creates next story after previous one is 'done' to incorporate learnings
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
-generated: 2026-02-24 00:57
+generated: 2026-02-27 00:57
 project: chiron
 project_key: NOKEY
 tracking_system: file-system
 story_location: /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/implementation-artifacts
 
 development_status:
-  epic-1: in-progress
+  epic-1: done
   1-1-create-methodology-draft-baseline: done
   1-2-define-work-unit-types-and-transition-lifecycle-rules-in-methodology-draft: done
   1-3-define-workflows-under-work-unit-scope-and-bind-executable-subset-to-transitions: done
   1-4-publish-validated-methodology-draft-as-immutable-version: done
   1-5-pin-project-to-published-methodology-version-and-preserve-pin-lineage: done
-  epic-1-retrospective: optional
+  epic-1-retrospective: done
   epic-2: backlog
   2-1-build-methodology-workspace-ui-for-draft-authoring-and-validation: backlog
   2-2-build-react-flow-methodology-graph-for-work-unit-transition-and-workflow-binding-management: backlog
