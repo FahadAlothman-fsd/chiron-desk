@@ -269,7 +269,7 @@
   .chiron-panel {
     border: 1px solid color-mix(in srgb, var(--chiron-terrain-2) 58%, transparent);
     background: color-mix(in srgb, var(--chiron-carbon-1) 74%, var(--chiron-winter-1));
-    box-shadow: 10px 10px 0 color-mix(in srgb, var(--chiron-carbon-1) 76%, transparent);
+    box-shadow: none;
     padding: clamp(0.95rem, 1.6vw, 1.35rem);
   }
 
