@@ -6,10 +6,16 @@ import type { AgentTypeDefinition } from "@chiron/contracts/methodology/agent";
 import type { ValidationDiagnostic, ValidationResult } from "@chiron/contracts/methodology/version";
 
 function makeDiagnostic(
-  fields: Omit<ValidationDiagnostic, "timestamp">,
+  fields: Omit<ValidationDiagnostic, "timestamp" | "evidenceRef"> & {
+    evidenceRef?: string | null;
+  },
   timestamp: string,
 ): ValidationDiagnostic {
-  return { ...fields, timestamp };
+  return {
+    ...fields,
+    timestamp,
+    evidenceRef: fields.evidenceRef ?? null,
+  };
 }
 
 // Allowed sets as specified in Story 1.2

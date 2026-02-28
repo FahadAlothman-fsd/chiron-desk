@@ -9,7 +9,7 @@ import {
   SendIcon,
   WorkflowIcon,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 
 import { AppSidebar } from "@/components/app-sidebar";
 import { authClient } from "@/lib/auth-client";
@@ -166,14 +166,18 @@ export default function AppShell({ children }: { children: ReactNode }) {
                   {breadcrumbSegments.map((segment, index) => {
                     const isLast = index === breadcrumbSegments.length - 1;
                     return (
-                      <BreadcrumbItem key={`${segment.href}-${index}`}>
-                        {isLast ? (
-                          <BreadcrumbPage>{segment.label}</BreadcrumbPage>
-                        ) : (
-                          <BreadcrumbLink render={<Link to={segment.href}>{segment.label}</Link>} />
-                        )}
+                      <Fragment key={`${segment.href}-${index}`}>
+                        <BreadcrumbItem>
+                          {isLast ? (
+                            <BreadcrumbPage>{segment.label}</BreadcrumbPage>
+                          ) : (
+                            <BreadcrumbLink
+                              render={<Link to={segment.href}>{segment.label}</Link>}
+                            />
+                          )}
+                        </BreadcrumbItem>
                         {!isLast ? <BreadcrumbSeparator /> : null}
-                      </BreadcrumbItem>
+                      </Fragment>
                     );
                   })}
                 </BreadcrumbList>

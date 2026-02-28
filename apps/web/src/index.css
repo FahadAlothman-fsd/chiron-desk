@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "@xyflow/react/dist/style.css";
 
 @font-face {
   font-family: "Commit Mono";
@@ -235,6 +236,70 @@
 }
 
 @layer utilities {
+  .chiron-cut-frame {
+    --cut-size: 8px;
+    --frame-bg: var(--card);
+    --frame-border: color-mix(in oklab, var(--border) 78%, transparent);
+    --frame-border-strong: color-mix(in oklab, var(--foreground) 26%, var(--border));
+    position: relative;
+    background: var(--frame-bg);
+    border: 1px solid var(--frame-border);
+    clip-path: polygon(
+      var(--cut-size) 0,
+      calc(100% - var(--cut-size)) 0,
+      100% var(--cut-size),
+      100% calc(100% - var(--cut-size)),
+      calc(100% - var(--cut-size)) 100%,
+      var(--cut-size) 100%,
+      0 calc(100% - var(--cut-size)),
+      0 var(--cut-size)
+    );
+  }
+
+  .chiron-cut-frame[data-variant="surface"] {
+    --frame-bg: color-mix(in oklab, var(--background) 86%, var(--card));
+  }
+
+  .chiron-cut-frame[data-variant="interactive"] {
+    transition:
+      border-color 120ms ease,
+      box-shadow 120ms ease;
+  }
+
+  .chiron-cut-frame[data-variant="interactive"]:hover {
+    border-color: var(--frame-border-strong);
+  }
+
+  .chiron-cut-frame[data-variant="interactive"]:focus-visible {
+    outline: 1px solid color-mix(in oklab, var(--ring) 72%, transparent);
+    outline-offset: 1px;
+  }
+
+  .chiron-frame-flat {
+    --frame-bg: color-mix(in oklab, var(--background) 86%, var(--card));
+    --frame-border: color-mix(in oklab, var(--border) 78%, transparent);
+    --frame-corner: color-mix(in oklab, var(--foreground) 26%, var(--border));
+    position: relative;
+    border: 1px solid var(--frame-border);
+    background: var(--frame-bg);
+  }
+
+  .chiron-frame-flat::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    pointer-events: none;
+    background:
+      linear-gradient(var(--frame-corner), var(--frame-corner)) 0 0 / 10px 1px no-repeat,
+      linear-gradient(var(--frame-corner), var(--frame-corner)) 0 0 / 1px 10px no-repeat,
+      linear-gradient(var(--frame-corner), var(--frame-corner)) 100% 0 / 10px 1px no-repeat,
+      linear-gradient(var(--frame-corner), var(--frame-corner)) 100% 0 / 1px 10px no-repeat,
+      linear-gradient(var(--frame-corner), var(--frame-corner)) 0 100% / 10px 1px no-repeat,
+      linear-gradient(var(--frame-corner), var(--frame-corner)) 0 100% / 1px 10px no-repeat,
+      linear-gradient(var(--frame-corner), var(--frame-corner)) 100% 100% / 10px 1px no-repeat,
+      linear-gradient(var(--frame-corner), var(--frame-corner)) 100% 100% / 1px 10px no-repeat;
+  }
+
   .chiron-dashboard-shell {
     min-height: 100dvh;
     background-color: var(--chiron-camo-2);

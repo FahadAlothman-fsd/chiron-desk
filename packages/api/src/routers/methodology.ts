@@ -96,6 +96,10 @@ const validateDraftInput = z.object({
   versionId: z.string().min(1),
 });
 
+const draftProjectionInput = z.object({
+  versionId: z.string().min(1),
+});
+
 const lineageInput = z.object({
   methodologyVersionId: z.string().min(1),
 });
@@ -409,6 +413,16 @@ export function createMethodologyRouter(
           }),
         );
       }),
+
+    getDraftProjection: publicProcedure.input(draftProjectionInput).handler(async ({ input }) => {
+      return runEffect(
+        serviceLayer,
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionService;
+          return yield* svc.getDraftProjection(input.versionId);
+        }),
+      );
+    }),
 
     getDraftLineage: publicProcedure.input(lineageInput).handler(async ({ input }) => {
       const events = await runEffect(

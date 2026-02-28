@@ -87,7 +87,12 @@ const seedUsers = (plan) =>
       db
         .select({ email: schema.user.email })
         .from(schema.user)
-        .where(inArray(schema.user.email, plan.users.map((user) => user.email))),
+        .where(
+          inArray(
+            schema.user.email,
+            plan.users.map((user) => user.email),
+          ),
+        ),
     );
 
     const existingEmails = new Set(existingUsers.map((user) => user.email.toLowerCase()));
@@ -163,13 +168,15 @@ const program = Effect.gen(function* () {
     const errorType = classifySeedError(error);
 
     if (errorType === "missing_tables") {
-      return Console.error("Seed skipped: database schema is missing. Run `bun run db:push` first.").pipe(
-        Effect.as(1),
-      );
+      return Console.error(
+        "Seed skipped: database schema is missing. Run `bun run db:push` first.",
+      ).pipe(Effect.as(1));
     }
 
     if (shouldSkipSeedError(error, options.reset)) {
-      return Console.warn("Seed data already exists. Continuing without changes.").pipe(Effect.as(0));
+      return Console.warn("Seed data already exists. Continuing without changes.").pipe(
+        Effect.as(0),
+      );
     }
 
     return Console.error(`Story seed failed with an unexpected error: ${String(error)}`).pipe(

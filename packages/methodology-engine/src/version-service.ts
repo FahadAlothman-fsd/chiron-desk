@@ -15,6 +15,7 @@ import type {
   ValidationResult,
 } from "@chiron/contracts/methodology/version";
 import type { UpdateDraftWorkflowsInputDto } from "@chiron/contracts/methodology/dto";
+import type { MethodologyVersionProjection } from "@chiron/contracts/methodology/projection";
 import { Context, Effect, Schema } from "effect";
 import { MethodologyVersionDefinition as MethodologyVersionDefinitionSchema } from "@chiron/contracts/methodology/version";
 
@@ -179,6 +180,12 @@ export class MethodologyVersionService extends Context.Tag("MethodologyVersionSe
     readonly getMethodologyDetails: (
       methodologyKey: string,
     ) => Effect.Effect<MethodologyDetails | null, RepositoryError>;
+    readonly getDraftProjection: (
+      versionId: string,
+    ) => Effect.Effect<
+      MethodologyVersionProjection,
+      VersionNotFoundError | ValidationDecodeError | RepositoryError
+    >;
     readonly getPublishedContractByVersionAndWorkUnitType: (
       input: GetPublishedContractInput,
     ) => Effect.Effect<PublishedContractQueryResult, VersionNotFoundError | RepositoryError>;
@@ -411,8 +418,11 @@ function mergeDefinitionWithSnapshot(
   return decodeDefinition(definitionExtensions).pipe(
     Effect.map((definition) => ({
       ...definition,
-      workflows: snapshot.workflows,
-      transitionWorkflowBindings: snapshot.transitionWorkflowBindings,
+      workflows: snapshot.workflows.length > 0 ? snapshot.workflows : definition.workflows,
+      transitionWorkflowBindings:
+        Object.keys(snapshot.transitionWorkflowBindings).length > 0
+          ? snapshot.transitionWorkflowBindings
+          : definition.transitionWorkflowBindings,
       guidance: mergeGuidance(definition.guidance, snapshot.guidance),
     })),
   );
@@ -1360,6 +1370,37 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
       } satisfies MethodologyDetails;
     });
 
+  const getDraftProjection = (
+    versionId: string,
+  ): Effect.Effect<
+    MethodologyVersionProjection,
+    VersionNotFoundError | ValidationDecodeError | RepositoryError
+  > =>
+    Effect.gen(function* () {
+      const version = yield* repo.findVersionById(versionId);
+      if (!version) {
+        return yield* Effect.fail(new VersionNotFoundError({ versionId }));
+      }
+
+      const snapshot = yield* repo.findWorkflowSnapshot(version.id);
+      const definition = yield* mergeDefinitionWithSnapshot(version.definitionExtensions, snapshot);
+
+      return {
+        id: version.id,
+        methodologyId: version.methodologyId,
+        version: version.version,
+        status: version.status as MethodologyVersionProjection["status"],
+        displayName: version.displayName,
+        workUnitTypes: definition.workUnitTypes,
+        agentTypes: definition.agentTypes,
+        transitions: definition.transitions,
+        workflows: definition.workflows,
+        transitionWorkflowBindings: definition.transitionWorkflowBindings,
+        guidance: definition.guidance,
+        definitionExtensions: version.definitionExtensions,
+      } satisfies MethodologyVersionProjection;
+    });
+
   const getPublishedContractByVersionAndWorkUnitType = (
     input: GetPublishedContractInput,
   ): Effect.Effect<PublishedContractQueryResult, VersionNotFoundError | RepositoryError> =>
@@ -1427,6 +1468,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
     createMethodology,
     listMethodologies,
     getMethodologyDetails,
+    getDraftProjection,
     getPublishedContractByVersionAndWorkUnitType,
   });
 });

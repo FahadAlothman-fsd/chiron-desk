@@ -1,6 +1,9 @@
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Data, Effect } from "effect";
 
-export type StorySeedId = "2-1";
+export type StorySeedId = "2-1" | "2-2";
 
 export type StorySeedUser = {
   readonly name: string;
@@ -30,6 +33,176 @@ export type StorySeedPlan = {
   readonly users: readonly StorySeedUser[];
   readonly methodologyDefinitions: readonly StorySeedMethodologyDefinition[];
   readonly methodologyVersions: readonly StorySeedMethodologyVersion[];
+};
+
+type WorkflowSeedDefinition = {
+  readonly key: string;
+  readonly displayName?: string;
+  readonly ownerWorkUnitRef?: string;
+  readonly definitionJson?: {
+    readonly steps?: ReadonlyArray<{
+      readonly id: string;
+      readonly type: string;
+      readonly templateRef?: string;
+      readonly overrides?: Record<string, unknown>;
+    }>;
+  };
+};
+
+type WorkflowDefinitionsSeedFile = {
+  readonly methodologyVersionKey: string;
+  readonly workflows: readonly WorkflowSeedDefinition[];
+};
+
+type TransitionAllowedBinding = {
+  readonly workUnitRef: string;
+  readonly fromState: string;
+  readonly toState: string;
+  readonly allowed: ReadonlyArray<{
+    readonly workflowKey: string;
+  }>;
+};
+
+type TransitionAllowedSeedFile = {
+  readonly bindings: readonly TransitionAllowedBinding[];
+};
+
+const CARDINALITY_BY_WORK_UNIT: Record<string, "one_per_project" | "many_per_project"> = {
+  "WU.SETUP": "one_per_project",
+  "WU.PRODUCT_BRIEF": "one_per_project",
+  "WU.PRD": "one_per_project",
+  "WU.UX_DESIGN": "one_per_project",
+  "WU.ARCHITECTURE": "one_per_project",
+  "WU.BACKLOG": "one_per_project",
+  "WU.IMPLEMENTATION_READINESS": "one_per_project",
+  "WU.PROJECT_CONTEXT": "one_per_project",
+  "WU.TEST_FRAMEWORK": "one_per_project",
+  "WU.TEST_ARCHITECTURE": "one_per_project",
+  "WU.CI_QUALITY": "one_per_project",
+  "WU.BRAINSTORMING": "many_per_project",
+  "WU.FACILITATION_SESSION": "many_per_project",
+  "WU.RESEARCH": "many_per_project",
+  "WU.STORY": "many_per_project",
+  "WU.CHANGE_PROPOSAL": "many_per_project",
+  "WU.RETROSPECTIVE": "many_per_project",
+  "WU.SPRINT_PLAN": "many_per_project",
+  "WU.TECH_SPEC": "many_per_project",
+  "WU.TEST_AUTOMATION": "many_per_project",
+  "WU.TEST_DESIGN": "many_per_project",
+  "WU.TEST_REVIEW": "many_per_project",
+  "WU.TEST_TRACEABILITY": "many_per_project",
+  "WU.NFR_ASSESSMENT": "many_per_project",
+  "WU.DESIGN_FACILITATION": "many_per_project",
+  "WU.STRATEGY_FACILITATION": "many_per_project",
+  "WU.PROBLEM_SOLVING": "many_per_project",
+  "WU.STORYTELLING": "many_per_project",
+  "WU.LEARNING_TRACK": "many_per_project",
+};
+
+const moduleDir = dirname(fileURLToPath(import.meta.url));
+const planningArtifactsDir = resolve(moduleDir, "../../../_bmad-output/planning-artifacts");
+
+const workflowDefinitionsSeed = JSON.parse(
+  readFileSync(resolve(planningArtifactsDir, "chiron-seed-workflow-definitions-v1.json"), "utf8"),
+) as WorkflowDefinitionsSeedFile;
+
+const transitionAllowedSeed = JSON.parse(
+  readFileSync(
+    resolve(planningArtifactsDir, "chiron-seed-transition-allowed-workflows-v1.json"),
+    "utf8",
+  ),
+) as TransitionAllowedSeedFile;
+
+const transitionKeyForBinding = (binding: TransitionAllowedBinding): string =>
+  `${binding.workUnitRef}:${binding.fromState}__to__${binding.toState}`;
+
+const buildStory22DefinitionExtensions = (): Record<string, unknown> => {
+  const workflows = workflowDefinitionsSeed.workflows.map((workflow) => {
+    const steps = (workflow.definitionJson?.steps ?? []).map((step) => ({
+      key: step.id,
+      type: step.type,
+      displayName: step.id,
+      config: {
+        templateRef: step.templateRef ?? null,
+        overrides: step.overrides ?? null,
+      },
+    }));
+
+    const edges = steps.map((step, index) => ({
+      fromStepKey: index === 0 ? null : (steps[index - 1]?.key ?? null),
+      toStepKey: step.key,
+      edgeKey:
+        index === 0 ? `entry-${step.key}` : `${steps[index - 1]?.key ?? "prev"}__${step.key}`,
+    }));
+
+    return {
+      key: workflow.key,
+      displayName: workflow.displayName ?? workflow.key,
+      workUnitTypeKey: workflow.ownerWorkUnitRef ?? null,
+      steps,
+      edges,
+    };
+  });
+
+  const transitionWorkflowBindings = Object.fromEntries(
+    transitionAllowedSeed.bindings.map((binding) => [
+      transitionKeyForBinding(binding),
+      binding.allowed.map((allowed) => allowed.workflowKey).sort(),
+    ]),
+  );
+
+  const workUnitTypes = Object.entries(CARDINALITY_BY_WORK_UNIT)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([workUnitRef, cardinality]) => {
+      const bindings = transitionAllowedSeed.bindings.filter(
+        (binding) => binding.workUnitRef === workUnitRef,
+      );
+
+      const lifecycleStates = new Set<string>();
+      for (const binding of bindings) {
+        if (binding.fromState !== "__absent__") {
+          lifecycleStates.add(binding.fromState);
+        }
+        lifecycleStates.add(binding.toState);
+      }
+
+      return {
+        key: workUnitRef,
+        displayName: workUnitRef,
+        cardinality,
+        lifecycleStates: [...lifecycleStates].sort().map((state) => ({ key: state })),
+        lifecycleTransitions: bindings.map((binding) => ({
+          transitionKey: transitionKeyForBinding(binding),
+          toState: binding.toState,
+          gateClass:
+            binding.fromState === "__absent__"
+              ? "start_gate"
+              : binding.toState === "done"
+                ? "completion_gate"
+                : "state_gate",
+          requiredLinks: [],
+        })),
+        factSchemas: [],
+      };
+    });
+
+  const transitions = transitionAllowedSeed.bindings.map((binding) => ({
+    key: transitionKeyForBinding(binding),
+    fromState: binding.fromState,
+    toState: binding.toState,
+    displayName: `${binding.workUnitRef} ${binding.fromState} -> ${binding.toState}`,
+  }));
+
+  return {
+    workUnitTypes,
+    agentTypes: [],
+    transitions,
+    workflows,
+    transitionWorkflowBindings,
+    guidance: {
+      global: `Canonical ${workflowDefinitionsSeed.methodologyVersionKey} seed for Story 2.2`,
+    },
+  };
 };
 
 const STORY_2_1_PLAN: StorySeedPlan = {
@@ -98,8 +271,41 @@ const STORY_2_1_PLAN: StorySeedPlan = {
   ],
 };
 
+const STORY_2_2_PLAN: StorySeedPlan = {
+  storyId: "2-2",
+  users: [
+    {
+      name: "Chiron Operator",
+      email: "operator@chiron.local",
+      password: "chiron-operator-123",
+    },
+  ],
+  methodologyDefinitions: [
+    {
+      id: "mdef_story_2_2_bmad_v1",
+      key: "bmad.v1",
+      name: "BMAD v1",
+      descriptionJson: {
+        summary: "Canonical BMAD methodology seed for Story 2.2 React Flow authoring scenarios.",
+      },
+    },
+  ],
+  methodologyVersions: [
+    {
+      id: "mver_story_2_2_bmad_v1_draft",
+      methodologyId: "mdef_story_2_2_bmad_v1",
+      version: "v1-draft",
+      status: "draft",
+      displayName: "BMAD v1 Draft",
+      definitionExtensions: buildStory22DefinitionExtensions(),
+      retiredAt: null,
+    },
+  ],
+};
+
 const storySeedPlans: Record<StorySeedId, StorySeedPlan> = {
   "2-1": STORY_2_1_PLAN,
+  "2-2": STORY_2_2_PLAN,
 };
 
 export const availableStorySeedIds = Object.keys(storySeedPlans) as StorySeedId[];

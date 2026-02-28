@@ -5,10 +5,16 @@ import type {
 } from "@chiron/contracts/methodology/version";
 
 function makeDiagnostic(
-  fields: Omit<ValidationDiagnostic, "timestamp">,
+  fields: Omit<ValidationDiagnostic, "timestamp" | "evidenceRef"> & {
+    evidenceRef?: string | null;
+  },
   timestamp: string,
 ): ValidationDiagnostic {
-  return { ...fields, timestamp };
+  return {
+    ...fields,
+    timestamp,
+    evidenceRef: fields.evidenceRef ?? null,
+  };
 }
 
 const ALLOWED_WORKFLOW_STEP_TYPES = new Set([

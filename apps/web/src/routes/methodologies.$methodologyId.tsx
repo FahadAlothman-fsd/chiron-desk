@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
+import { Link, Outlet, createFileRoute, useLocation, useNavigate } from "@tanstack/react-router";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { buildNextDraftInput } from "@/features/methodologies/commands";
@@ -17,7 +17,10 @@ export const Route = createFileRoute("/methodologies/$methodologyId")({
 function MethodologyDetailsRoute() {
   const { methodologyId } = Route.useParams();
   const { orpc, queryClient } = Route.useRouteContext();
+  const location = useLocation();
   const navigate = useNavigate();
+
+  const detailsPath = `/methodologies/${methodologyId}`;
 
   const listQueryOptions = orpc.methodology.listMethodologies.queryOptions();
   const detailsQueryOptions = orpc.methodology.getMethodologyDetails.queryOptions({
@@ -43,6 +46,10 @@ function MethodologyDetailsRoute() {
 
   const details = (detailsQuery.data as MethodologyDetails | undefined) ?? null;
   const latestDraft = details ? selectLatestDraft(details.versions) : null;
+
+  if (location.pathname !== detailsPath) {
+    return <Outlet />;
+  }
 
   return (
     <MethodologyWorkspaceShell

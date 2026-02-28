@@ -1131,6 +1131,39 @@ describe("MethodologyVersionService", () => {
     });
   });
 
+  describe("getDraftProjection", () => {
+    it("returns deterministic draft projection with merged lifecycle and workflow snapshot", async () => {
+      const projection = await runWithService(
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionService;
+          const created = yield* svc.createDraftVersion(MINIMAL_INPUT, "operator-1");
+          return yield* svc.getDraftProjection(created.version.id);
+        }),
+      );
+
+      expect(projection.id.length).toBeGreaterThan(0);
+      expect(projection.status).toBe("draft");
+      expect(projection.displayName).toBe(MINIMAL_INPUT.displayName);
+      expect(projection.workUnitTypes).toHaveLength(1);
+      expect(projection.transitions).toHaveLength(1);
+      expect(projection.workflows).toHaveLength(1);
+      expect(projection.transitionWorkflowBindings.start).toEqual(["default-wf"]);
+    });
+
+    it("returns VersionNotFoundError when projection version does not exist", async () => {
+      const error = await Effect.runPromise(
+        Effect.flip(
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionService;
+            return yield* svc.getDraftProjection("missing-version");
+          }).pipe(Effect.provide(makeServiceLayer())),
+        ),
+      );
+
+      expect(error._tag).toBe("VersionNotFoundError");
+    });
+  });
+
   describe("project methodology pinning", () => {
     it("pins project to an existing published methodology version", async () => {
       const layer = makeServiceLayer();
