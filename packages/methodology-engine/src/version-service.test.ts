@@ -59,7 +59,38 @@ function makeTestRepo() {
   };
 
   return MethodologyRepository.of({
+    listDefinitions: () =>
+      Effect.succeed(
+        [...definitions].sort(
+          (a, b) => a.updatedAt.getTime() - b.updatedAt.getTime() || a.key.localeCompare(b.key),
+        ),
+      ),
+
+    createDefinition: (key: string, displayName: string) =>
+      Effect.sync(() => {
+        const createdAt = new Date();
+        const definition: MethodologyDefinitionRow = {
+          id: nextId(),
+          key,
+          name: displayName,
+          descriptionJson: {},
+          createdAt,
+          updatedAt: createdAt,
+        };
+        definitions.push(definition);
+        return definition;
+      }),
+
     findDefinitionByKey: (key) => Effect.succeed(definitions.find((d) => d.key === key) ?? null),
+
+    listVersionsByMethodologyId: (methodologyId: string) =>
+      Effect.succeed(
+        [...versions]
+          .filter((version) => version.methodologyId === methodologyId)
+          .sort(
+            (a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id),
+          ),
+      ),
 
     findVersionById: (id) => Effect.succeed(versions.find((v) => v.id === id) ?? null),
 

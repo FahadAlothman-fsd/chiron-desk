@@ -5,6 +5,7 @@ import {
   EligibilityServiceLive,
   LifecycleRepository,
   MethodologyRepository,
+  type MethodologyDefinitionRow,
   type CreateDraftParams,
   type GetVersionEventsParams,
   type MethodologyVersionEventRow,
@@ -16,6 +17,15 @@ const VERSION_ID = "version-1";
 const METHODOLOGY_ID = "methodology-1";
 
 function makeMethodologyRepo(definitionExtensions: unknown): MethodologyRepository["Type"] {
+  const definition: MethodologyDefinitionRow = {
+    id: METHODOLOGY_ID,
+    key: "methodology-key",
+    name: "Test",
+    descriptionJson: {},
+    createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+  };
+
   const row: MethodologyVersionRow = {
     id: VERSION_ID,
     methodologyId: METHODOLOGY_ID,
@@ -28,7 +38,11 @@ function makeMethodologyRepo(definitionExtensions: unknown): MethodologyReposito
   };
 
   return {
+    listDefinitions: () => Effect.succeed([definition]),
+    createDefinition: () => Effect.succeed(definition),
     findDefinitionByKey: () => Effect.succeed(null),
+    listVersionsByMethodologyId: (methodologyId: string) =>
+      Effect.succeed(methodologyId === METHODOLOGY_ID ? [row] : []),
     findVersionById: (id: string) => Effect.succeed(id === VERSION_ID ? row : null),
     findVersionByMethodologyAndVersion: () => Effect.succeed(null),
     createDraft: (_params: CreateDraftParams) => Effect.die("not used in test"),
@@ -39,6 +53,14 @@ function makeMethodologyRepo(definitionExtensions: unknown): MethodologyReposito
     findLinkTypeKeys: (_versionId: string) => Effect.succeed([]),
     findWorkflowSnapshot: (_versionId: string) =>
       Effect.succeed({ workflows: [], transitionWorkflowBindings: {}, guidance: undefined }),
+    findFactSchemasByVersionId: (_versionId: string) => Effect.succeed([]),
+    publishDraftVersion: () => Effect.die("not used in test"),
+    findProjectPin: () => Effect.succeed(null),
+    hasPersistedExecutions: () => Effect.succeed(false),
+    pinProjectMethodologyVersion: () => Effect.die("not used in test"),
+    repinProjectMethodologyVersion: () => Effect.die("not used in test"),
+    getProjectPinLineage: () => Effect.succeed([]),
+    getPublicationEvidence: () => Effect.succeed([]),
   };
 }
 

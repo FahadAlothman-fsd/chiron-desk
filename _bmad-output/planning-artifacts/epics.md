@@ -431,86 +431,86 @@ So that project execution remains stable until I explicitly repin.
 
 Deliver a frontend-first operator workbench for methodology and project setup using the Epic 1 backend contract spine, while keeping workflow execution itself deferred to Epic 3+.
 
-### Story 2.1: Build Methodology Workspace UI for Draft Authoring and Validation
+### Story 2.1: Establish Methodology Catalog, Details, and Version Entry Foundation
 
 As an operator,
-I want a visual methodology workspace to create and edit methodology drafts,
-So that I can author contracts and resolve validation issues without using raw API calls.
+I want to browse and create methodologies, then navigate into methodology versions and draft entry points,
+So that I can reliably reach the correct version workspace without using raw API calls.
 
 **Acceptance Criteria:**
 
-**Given** I open the methodology workspace for a draft
+**Given** I open the methodologies page in Epic 2
 **When** the page loads
-**Then** I can view and edit core draft fields (`methodologyKey`, `displayName`, work unit definitions, work-unit fact schemas, transitions, workflow definitions, and transition bindings)
-**And** current draft status is shown as draft (not executable).
+**Then** I can view a deterministic list of available methodologies with basic state summary
+**And** I can open a selected methodology details view from that list.
 
-**Given** I edit work units, transitions, and workflow bindings in the visual editor
-**When** I save changes
-**Then** the UI persists through Epic 1 backend endpoints
-**And** saved state is reloaded deterministically on refresh.
+**Given** I am on the methodologies page
+**When** I create a new methodology
+**Then** the methodology is persisted through Epic 1 backend endpoints
+**And** it appears in the list deterministically after refresh.
 
-**Given** the draft contains validation errors
-**When** validation runs from the workspace
-**Then** actionable diagnostics are rendered in the UI with field-level context
-**And** publish action remains blocked until blocking issues are resolved.
+**Given** I open a methodology details view
+**When** details are rendered
+**Then** I can view methodology metadata and available versions
+**And** I can navigate from details to version-specific draft entry.
 
-**Given** I edit work-unit fact schema entries in the workspace
-**When** I save or validate draft changes
-**Then** the UI enforces Facts v1 constraints (static typed fields, unique keys, valid defaults, no refs/derived expressions)
-**And** failing fact fields are shown with inline validation diagnostics.
+**Given** I am viewing methodology versions for a methodology
+**When** I create a draft version or open an existing draft
+**Then** the UI persists the draft-version action through Epic 1 backend endpoints
+**And** routes me to the methodology version workspace.
 
-**Given** I navigate transition-workflow relationships in the React Flow canvas
-**When** I inspect a transition node
-**Then** I can see which workflows are bound and transition-eligible
-**And** unbound workflows remain visible in catalog context but not as executable options for that transition.
+**Given** I navigate between methodologies, details, versions, and workspace entry points
+**When** I use links, breadcrumbs, or back navigation
+**Then** navigation remains deterministic and keyboard-accessible
+**And** selected methodology and version context is preserved across route transitions.
 
-**Given** I have a valid draft in the workspace
-**When** I choose publish
-**Then** the UI submits publish request and shows immutable-version results with evidence summary
-**And** the workspace clearly indicates that execution runtime flows are not part of Epic 2.
+**Given** methodology and version setup capabilities are visible in Epic 2 foundation views
+**When** I inspect available execution actions
+**Then** runtime execution controls remain visible but disabled with rationale (`Workflow runtime execution unlocks in Epic 3+`)
+**And** the foundation flow focuses on setup and workspace entry, not runtime execution.
 
-### Story 2.2: Build React Flow Methodology Graph for Work Unit, Transition, and Workflow Binding Management
+### Story 2.2: Build Methodology Version Workspace Baseline with React Flow Authoring
 
 As an operator,
-I want a React Flow graph to model work units, transitions, and workflow bindings,
-So that I can configure methodology structure visually and confirm transition-eligible workflow options.
+I want a version workspace to edit methodology contracts with React Flow-assisted authoring,
+So that I can configure work units, facts, transitions, workflows, and bindings in one deterministic UI.
 
 **Acceptance Criteria:**
 
-**Given** a methodology draft is loaded in the workspace
-**When** I open the graph view
-**Then** I can view work unit nodes, transition edges, and workflow nodes with binding state
+**Given** I open a methodology draft version workspace from Story 2.1 navigation
+**When** the workspace loads
+**Then** I can view and edit core draft fields (`methodologyKey`, `displayName`, work unit definitions, work-unit fact schemas, transitions, workflow definitions, and steps)
+**And** the current version status is shown as draft (non-executable).
+
+**Given** I edit work units, transitions, workflows, steps, or transition-workflow bindings in the workspace
+**When** I save changes
+**Then** changes are persisted through Epic 1 backend contracts
+**And** saved state reloads deterministically on refresh.
+
+**Given** a methodology draft is loaded in the React Flow workspace
+**When** I inspect graph context
+**Then** I can view work unit nodes, transition edges, and workflow relationships with binding state
 **And** graph state reflects persisted backend data deterministically.
 
-**Given** I add or edit transition-workflow bindings from the graph
-**When** I save changes
-**Then** binding updates are persisted through Epic 1 backend contracts
-**And** transition-eligible workflows are recalculated and displayed on reload.
-
 **Given** workflows exist under a work unit but are not bound to a transition
-**When** I inspect that transition in the graph
+**When** I inspect that transition in the workspace graph
 **Then** unbound workflows remain visible in catalog context
-**And** only bound workflows are shown as transition-eligible options.
+**And** only bound workflows are shown as transition-eligible options for that transition.
 
-**Given** a transition has one or more eligible workflows
-**When** I open transition actions in Epic 2
-**Then** the execution control is visible but disabled with clear rationale (`Workflow runtime execution unlocks in Epic 3+`)
-**And** the UI still allows binding edits and eligibility inspection.
+**Given** I edit work-unit fact schemas and transition actions in the workspace
+**When** I save or inspect action controls in Epic 2
+**Then** Facts v1 constraints are enforced with actionable diagnostics and execution controls stay visible-but-disabled
+**And** runtime actions include rationale (`Workflow runtime execution unlocks in Epic 3+`) while authoring remains fully usable.
 
-**Given** graph operations produce validation conflicts (unsupported step type, invalid binding target, missing references)
-**When** I request validation
-**Then** diagnostics are shown with node or edge context in the graph UI
-**And** invalid configuration cannot be published until issues are resolved.
-
-### Story 2.3: Deliver Validation, Publish, and Evidence UX for Methodology Contracts
+### Story 2.3: Harden Validation, Publish, and Evidence UX for Methodology Contracts
 
 As an operator,
-I want a clear validation and publish flow with evidence visibility,
+I want a hardened validation and publish flow with evidence visibility on top of the version workspace baseline,
 So that I can safely publish methodology versions and verify audit outcomes from the UI.
 
 **Acceptance Criteria:**
 
-**Given** a methodology draft has unresolved blocking diagnostics
+**Given** a methodology draft in the Story 2.2 workspace has unresolved blocking diagnostics
 **When** I attempt to publish from the UI
 **Then** publish is blocked with actionable diagnostic details grouped by scope (field, work unit, transition, workflow)
 **And** blocking items are linked back to editable UI context.
@@ -543,7 +543,7 @@ So that setup is reproducible and project behavior remains deterministic until e
 
 **Acceptance Criteria:**
 
-**Given** multiple methodologies exist and each has one or more published versions
+**Given** Story 2.1 methodology setup is in place and each methodology has one or more published versions from Story 2.3
 **When** I create a new project from the setup flow
 **Then** I can select a methodology from a list of available methodologies
 **And** I can select a version for the chosen methodology via autocomplete with latest as default.
