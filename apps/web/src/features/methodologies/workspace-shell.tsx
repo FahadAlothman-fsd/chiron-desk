@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 
 import {
   Breadcrumb,
@@ -34,7 +34,7 @@ export function MethodologyWorkspaceShell({
   children,
 }: MethodologyWorkspaceShellProps) {
   return (
-    <main className="space-y-4">
+    <main className="space-y-3">
       <header className="border border-border/80 bg-[#07090b] px-3 py-3 md:px-4">
         <div className="flex items-center gap-2">
           <Breadcrumb>
@@ -43,20 +43,22 @@ export function MethodologyWorkspaceShell({
                 const isLast = index === segments.length - 1;
 
                 return (
-                  <BreadcrumbItem key={`${segment.label}-${index}`}>
-                    {segment.to ? (
-                      <BreadcrumbLink
-                        render={
-                          <Link to={segment.to} params={segment.params}>
-                            {segment.label}
-                          </Link>
-                        }
-                      />
-                    ) : (
-                      <BreadcrumbPage>{segment.label}</BreadcrumbPage>
-                    )}
+                  <Fragment key={`${segment.label}-${index}`}>
+                    <BreadcrumbItem>
+                      {segment.to ? (
+                        <BreadcrumbLink
+                          render={
+                            <Link to={segment.to} params={segment.params}>
+                              {segment.label}
+                            </Link>
+                          }
+                        />
+                      ) : (
+                        <BreadcrumbPage>{segment.label}</BreadcrumbPage>
+                      )}
+                    </BreadcrumbItem>
                     {!isLast ? <BreadcrumbSeparator /> : null}
-                  </BreadcrumbItem>
+                  </Fragment>
                 );
               })}
             </BreadcrumbList>
@@ -73,7 +75,7 @@ export function MethodologyWorkspaceShell({
         </div>
       </header>
 
-      <div className="space-y-4">{children}</div>
+      <div className="space-y-3">{children}</div>
     </main>
   );
 }

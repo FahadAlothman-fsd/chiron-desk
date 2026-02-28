@@ -49,7 +49,7 @@ development_status:
   epic-1-retrospective: done
   epic-2: in-progress
   2-1-build-methodology-workspace-ui-for-draft-authoring-and-validation: done
-  2-2-build-react-flow-methodology-graph-for-work-unit-transition-and-workflow-binding-management: backlog
+  2-2-build-react-flow-methodology-graph-for-work-unit-transition-and-workflow-binding-management: done
   2-3-deliver-validation-publish-and-evidence-ux-for-methodology-contracts: backlog
   2-4-provide-project-creation-and-methodology-pinning-ux-with-pin-lineage-visibility: backlog
   2-5-provide-baseline-operator-visibility-for-methodology-pin-and-diagnostics-state: backlog

@@ -84,4 +84,5 @@ chiron/
 - `bun run db:local`: Start the local SQLite database
 - `bun run check`: Run Oxlint and Oxfmt
 - `cd apps/web && bun run desktop:dev`: Start Tauri desktop app in development
+- `bun run dev:native:attach`: Start Tauri desktop app from repo root, attaching to an already running web dev server (`bun run dev`)
 - `cd apps/web && bun run desktop:build`: Build Tauri desktop app

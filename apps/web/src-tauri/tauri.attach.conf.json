@@ -1,0 +1,6 @@
+{
+  "build": {
+    "beforeDevCommand": "bun -e \"process.exit(0)\"",
+    "devUrl": "http://localhost:3001"
+  }
+}

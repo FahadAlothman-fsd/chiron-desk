@@ -3,41 +3,28 @@
   "ui": "tui",
   "tasks": {
     "build": {
-      "dependsOn": [
-        "^build"
-      ],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        ".env*"
-      ],
-      "outputs": [
-        "dist/**"
-      ]
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": ["dist/**"]
     },
     "lint": {
-      "dependsOn": [
-        "^lint"
-      ]
+      "dependsOn": ["^lint"]
     },
     "check-types": {
-      "dependsOn": [
-        "^check-types"
-      ]
+      "dependsOn": ["^check-types"]
     },
     "test": {
-      "dependsOn": [
-        "^build"
-      ],
-      "inputs": [
-        "src/**",
-        "tests/**"
-      ]
+      "dependsOn": ["^build"],
+      "inputs": ["src/**", "tests/**"]
     },
     "dev": {
       "cache": false,
       "persistent": true
     },
     "dev:native": {
+      "cache": false
+    },
+    "dev:native:attach": {
       "cache": false
     },
     "db:push": {
