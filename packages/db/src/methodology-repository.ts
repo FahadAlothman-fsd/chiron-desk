@@ -351,6 +351,35 @@ async function syncWorkflowGraph(
 
 export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepository> {
   return Layer.succeed(MethodologyRepository, {
+    listDefinitions: () =>
+      dbEffect("methodology.listDefinitions", async () => {
+        const rows = await db
+          .select()
+          .from(methodologyDefinitions)
+          .orderBy(asc(methodologyDefinitions.updatedAt), asc(methodologyDefinitions.key));
+
+        return rows.map((row) => toDefinitionRow(row));
+      }),
+
+    createDefinition: (key: string, displayName: string) =>
+      dbEffect("methodology.createDefinition", async () => {
+        const inserted = await db
+          .insert(methodologyDefinitions)
+          .values({
+            key,
+            name: displayName,
+            descriptionJson: {},
+          })
+          .returning();
+
+        const row = inserted[0];
+        if (!row) {
+          throw new Error("Failed to create methodology definition");
+        }
+
+        return toDefinitionRow(row);
+      }),
+
     findDefinitionByKey: (key: string) =>
       dbEffect("methodology.findDefinitionByKey", async () => {
         const rows = await db
@@ -359,6 +388,17 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           .where(eq(methodologyDefinitions.key, key))
           .limit(1);
         return rows[0] ? toDefinitionRow(rows[0]) : null;
+      }),
+
+    listVersionsByMethodologyId: (methodologyId: string) =>
+      dbEffect("methodology.listVersionsByMethodologyId", async () => {
+        const rows = await db
+          .select()
+          .from(methodologyVersions)
+          .where(eq(methodologyVersions.methodologyId, methodologyId))
+          .orderBy(asc(methodologyVersions.createdAt), asc(methodologyVersions.id));
+
+        return rows.map((row) => toVersionRow(row));
       }),
 
     findVersionById: (id: string) =>

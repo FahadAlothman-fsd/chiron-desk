@@ -74,8 +74,35 @@ function makeTestRepo(): MethodologyRepository["Type"] {
   }
 
   return {
+    listDefinitions: () =>
+      Effect.succeed(
+        [...definitions.values()].sort(
+          (a, b) => a.updatedAt.getTime() - b.updatedAt.getTime() || a.key.localeCompare(b.key),
+        ),
+      ),
+    createDefinition: (key: string, displayName: string) => {
+      const now = new Date();
+      const created = {
+        id: nextId(),
+        key,
+        name: displayName,
+        descriptionJson: {},
+        createdAt: now,
+        updatedAt: now,
+      };
+      definitions.set(created.id, created);
+      return Effect.succeed(created);
+    },
     findDefinitionByKey: (key: string) =>
       Effect.succeed([...definitions.values()].find((d) => d.key === key) ?? null),
+    listVersionsByMethodologyId: (methodologyId: string) =>
+      Effect.succeed(
+        [...versions.values()]
+          .filter((v) => v.methodologyId === methodologyId)
+          .sort(
+            (a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id),
+          ),
+      ),
     findVersionById: (id: string) => Effect.succeed(versions.get(id) ?? null),
     findVersionByMethodologyAndVersion: (methodologyId: string, version: string) =>
       Effect.succeed(
@@ -490,6 +517,125 @@ const AUTHENTICATED_CTX = {
 const PUBLIC_CTX = { context: { session: null } } as any;
 
 describe("methodology router", () => {
+  describe("createMethodology", () => {
+    it("creates methodology definition deterministically", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const created = await call(
+        router.createMethodology,
+        {
+          methodologyKey: "catalog-key",
+          displayName: "Catalog Name",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      expect(created.methodologyKey).toBe("catalog-key");
+      expect(created.displayName).toBe("Catalog Name");
+      expect(created.versions).toHaveLength(0);
+    });
+
+    it("is idempotent for an existing methodology key", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      await call(
+        router.createMethodology,
+        {
+          methodologyKey: "existing-key",
+          displayName: "Existing",
+        },
+        AUTHENTICATED_CTX,
+      );
+      const second = await call(
+        router.createMethodology,
+        {
+          methodologyKey: "existing-key",
+          displayName: "Existing",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      expect(second.methodologyKey).toBe("existing-key");
+      expect(second.versions).toHaveLength(0);
+    });
+  });
+
+  describe("catalog and details routes", () => {
+    it("lists methodologies deterministically with draft and version summary", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      await call(
+        router.createDraftVersion,
+        {
+          methodologyKey: "z-method",
+          displayName: "Zeta Method",
+          version: "0.1.0",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.createDraftVersion,
+        {
+          methodologyKey: "a-method",
+          displayName: "Alpha Method",
+          version: "0.1.0",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const result = await call(router.listMethodologies, {}, PUBLIC_CTX);
+
+      expect(result).toHaveLength(2);
+      expect(result[0]?.methodologyKey).toBe("z-method");
+      expect(result[1]?.methodologyKey).toBe("a-method");
+      expect(result[0]?.availableVersions).toBe(1);
+      expect(result[0]?.hasDraftVersion).toBe(true);
+      expect(typeof result[0]?.updatedAt).toBe("string");
+    });
+
+    it("returns methodology details and versions", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const created = await call(
+        router.createDraftVersion,
+        {
+          methodologyKey: "details-method",
+          displayName: "Details Method",
+          version: "0.1.0",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const details = await call(
+        router.getMethodologyDetails,
+        { methodologyKey: "details-method" },
+        PUBLIC_CTX,
+      );
+      const versions = await call(
+        router.listMethodologyVersions,
+        { methodologyKey: "details-method" },
+        PUBLIC_CTX,
+      );
+
+      expect(details.methodologyKey).toBe("details-method");
+      expect(details.displayName).toBe("Details Method");
+      expect(details.versions).toHaveLength(1);
+      expect(details.versions[0]?.id).toBe(created.version.id);
+      expect(versions).toHaveLength(1);
+      expect(versions[0]?.id).toBe(created.version.id);
+    });
+  });
+
   describe("createDraftVersion", () => {
     it("creates a draft version and returns version + diagnostics", async () => {
       const router = createMethodologyRouter(makeServiceLayer());

@@ -47,8 +47,8 @@ development_status:
   1-4-publish-validated-methodology-draft-as-immutable-version: done
   1-5-pin-project-to-published-methodology-version-and-preserve-pin-lineage: done
   epic-1-retrospective: done
-  epic-2: backlog
-  2-1-build-methodology-workspace-ui-for-draft-authoring-and-validation: backlog
+  epic-2: in-progress
+  2-1-build-methodology-workspace-ui-for-draft-authoring-and-validation: done
   2-2-build-react-flow-methodology-graph-for-work-unit-transition-and-workflow-binding-management: backlog
   2-3-deliver-validation-publish-and-evidence-ux-for-methodology-contracts: backlog
   2-4-provide-project-creation-and-methodology-pinning-ux-with-pin-lineage-visibility: backlog

@@ -84,6 +84,32 @@ export interface PublishedContractQueryResult {
   transitionWorkflowBindings: MethodologyVersionDefinition["transitionWorkflowBindings"];
 }
 
+export interface MethodologyCatalogItem {
+  methodologyId: string;
+  methodologyKey: string;
+  displayName: string;
+  hasDraftVersion: boolean;
+  availableVersions: number;
+  updatedAt: string;
+}
+
+export interface MethodologyDetails {
+  methodologyId: string;
+  methodologyKey: string;
+  displayName: string;
+  descriptionJson: unknown;
+  createdAt: string;
+  updatedAt: string;
+  versions: readonly {
+    id: string;
+    version: string;
+    status: string;
+    displayName: string;
+    createdAt: string;
+    retiredAt: string | null;
+  }[];
+}
+
 export class MethodologyVersionService extends Context.Tag("MethodologyVersionService")<
   MethodologyVersionService,
   {
@@ -142,6 +168,17 @@ export class MethodologyVersionService extends Context.Tag("MethodologyVersionSe
     readonly getProjectMethodologyPin: (
       projectId: string,
     ) => Effect.Effect<ProjectMethodologyPinState | null, RepositoryError>;
+    readonly createMethodology: (
+      methodologyKey: string,
+      displayName: string,
+    ) => Effect.Effect<MethodologyDetails, RepositoryError>;
+    readonly listMethodologies: () => Effect.Effect<
+      readonly MethodologyCatalogItem[],
+      RepositoryError
+    >;
+    readonly getMethodologyDetails: (
+      methodologyKey: string,
+    ) => Effect.Effect<MethodologyDetails | null, RepositoryError>;
     readonly getPublishedContractByVersionAndWorkUnitType: (
       input: GetPublishedContractInput,
     ) => Effect.Effect<PublishedContractQueryResult, VersionNotFoundError | RepositoryError>;
@@ -1226,6 +1263,103 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
   ): Effect.Effect<ProjectMethodologyPinState | null, RepositoryError> =>
     repo.findProjectPin(projectId).pipe(Effect.map((pin) => (pin ? toProjectPinState(pin) : null)));
 
+  const createMethodology = (
+    methodologyKey: string,
+    displayName: string,
+  ): Effect.Effect<MethodologyDetails, RepositoryError> =>
+    Effect.gen(function* () {
+      const existing = yield* repo.findDefinitionByKey(methodologyKey);
+      const definition = existing
+        ? existing
+        : yield* repo.createDefinition(methodologyKey, displayName);
+
+      const versions = yield* repo.listVersionsByMethodologyId(definition.id);
+      const orderedVersions = [...versions].sort(
+        (a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id),
+      );
+
+      return {
+        methodologyId: definition.id,
+        methodologyKey: definition.key,
+        displayName: definition.name,
+        descriptionJson: definition.descriptionJson,
+        createdAt: definition.createdAt.toISOString(),
+        updatedAt: definition.updatedAt.toISOString(),
+        versions: orderedVersions.map((version) => ({
+          id: version.id,
+          version: version.version,
+          status: version.status,
+          displayName: version.displayName,
+          createdAt: version.createdAt.toISOString(),
+          retiredAt: version.retiredAt ? version.retiredAt.toISOString() : null,
+        })),
+      } satisfies MethodologyDetails;
+    });
+
+  const listMethodologies = (): Effect.Effect<readonly MethodologyCatalogItem[], RepositoryError> =>
+    Effect.gen(function* () {
+      const definitions = yield* repo.listDefinitions();
+      const withSummary = yield* Effect.forEach(definitions, (definition) =>
+        repo.listVersionsByMethodologyId(definition.id).pipe(
+          Effect.map((versions) => {
+            const orderedVersions = [...versions].sort(
+              (a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id),
+            );
+            const lastVersion = orderedVersions.at(-1);
+
+            return {
+              methodologyId: definition.id,
+              methodologyKey: definition.key,
+              displayName: definition.name,
+              hasDraftVersion: orderedVersions.some((version) => version.status === "draft"),
+              availableVersions: orderedVersions.length,
+              updatedAt: (lastVersion?.createdAt ?? definition.updatedAt).toISOString(),
+            } satisfies MethodologyCatalogItem;
+          }),
+        ),
+      );
+
+      return [...withSummary].sort((a, b) => {
+        const updatedAtCompare = a.updatedAt.localeCompare(b.updatedAt);
+        if (updatedAtCompare !== 0) {
+          return updatedAtCompare;
+        }
+        return a.methodologyKey.localeCompare(b.methodologyKey);
+      });
+    });
+
+  const getMethodologyDetails = (
+    methodologyKey: string,
+  ): Effect.Effect<MethodologyDetails | null, RepositoryError> =>
+    Effect.gen(function* () {
+      const definition = yield* repo.findDefinitionByKey(methodologyKey);
+      if (!definition) {
+        return null;
+      }
+
+      const versions = yield* repo.listVersionsByMethodologyId(definition.id);
+      const orderedVersions = [...versions].sort(
+        (a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id),
+      );
+
+      return {
+        methodologyId: definition.id,
+        methodologyKey: definition.key,
+        displayName: definition.name,
+        descriptionJson: definition.descriptionJson,
+        createdAt: definition.createdAt.toISOString(),
+        updatedAt: definition.updatedAt.toISOString(),
+        versions: orderedVersions.map((version) => ({
+          id: version.id,
+          version: version.version,
+          status: version.status,
+          displayName: version.displayName,
+          createdAt: version.createdAt.toISOString(),
+          retiredAt: version.retiredAt ? version.retiredAt.toISOString() : null,
+        })),
+      } satisfies MethodologyDetails;
+    });
+
   const getPublishedContractByVersionAndWorkUnitType = (
     input: GetPublishedContractInput,
   ): Effect.Effect<PublishedContractQueryResult, VersionNotFoundError | RepositoryError> =>
@@ -1290,6 +1424,9 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
     repinProjectMethodologyVersion,
     getProjectPinLineage,
     getProjectMethodologyPin,
+    createMethodology,
+    listMethodologies,
+    getMethodologyDetails,
     getPublishedContractByVersionAndWorkUnitType,
   });
 });

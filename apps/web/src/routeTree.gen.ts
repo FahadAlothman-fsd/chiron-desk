@@ -9,10 +9,19 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as MethodologiesRouteImport } from './routes/methodologies'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as MethodologiesMethodologyIdRouteImport } from './routes/methodologies.$methodologyId'
+import { Route as MethodologiesMethodologyIdVersionsRouteImport } from './routes/methodologies.$methodologyId.versions'
+import { Route as MethodologiesMethodologyIdVersionsVersionIdRouteImport } from './routes/methodologies.$methodologyId.versions.$versionId'
 
+const MethodologiesRoute = MethodologiesRouteImport.update({
+  id: '/methodologies',
+  path: '/methodologies',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -28,39 +37,99 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MethodologiesMethodologyIdRoute =
+  MethodologiesMethodologyIdRouteImport.update({
+    id: '/$methodologyId',
+    path: '/$methodologyId',
+    getParentRoute: () => MethodologiesRoute,
+  } as any)
+const MethodologiesMethodologyIdVersionsRoute =
+  MethodologiesMethodologyIdVersionsRouteImport.update({
+    id: '/versions',
+    path: '/versions',
+    getParentRoute: () => MethodologiesMethodologyIdRoute,
+  } as any)
+const MethodologiesMethodologyIdVersionsVersionIdRoute =
+  MethodologiesMethodologyIdVersionsVersionIdRouteImport.update({
+    id: '/$versionId',
+    path: '/$versionId',
+    getParentRoute: () => MethodologiesMethodologyIdVersionsRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/methodologies': typeof MethodologiesRouteWithChildren
+  '/methodologies/$methodologyId': typeof MethodologiesMethodologyIdRouteWithChildren
+  '/methodologies/$methodologyId/versions': typeof MethodologiesMethodologyIdVersionsRouteWithChildren
+  '/methodologies/$methodologyId/versions/$versionId': typeof MethodologiesMethodologyIdVersionsVersionIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/methodologies': typeof MethodologiesRouteWithChildren
+  '/methodologies/$methodologyId': typeof MethodologiesMethodologyIdRouteWithChildren
+  '/methodologies/$methodologyId/versions': typeof MethodologiesMethodologyIdVersionsRouteWithChildren
+  '/methodologies/$methodologyId/versions/$versionId': typeof MethodologiesMethodologyIdVersionsVersionIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/methodologies': typeof MethodologiesRouteWithChildren
+  '/methodologies/$methodologyId': typeof MethodologiesMethodologyIdRouteWithChildren
+  '/methodologies/$methodologyId/versions': typeof MethodologiesMethodologyIdVersionsRouteWithChildren
+  '/methodologies/$methodologyId/versions/$versionId': typeof MethodologiesMethodologyIdVersionsVersionIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/dashboard' | '/login'
+  fullPaths:
+    | '/'
+    | '/dashboard'
+    | '/login'
+    | '/methodologies'
+    | '/methodologies/$methodologyId'
+    | '/methodologies/$methodologyId/versions'
+    | '/methodologies/$methodologyId/versions/$versionId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/login'
-  id: '__root__' | '/' | '/dashboard' | '/login'
+  to:
+    | '/'
+    | '/dashboard'
+    | '/login'
+    | '/methodologies'
+    | '/methodologies/$methodologyId'
+    | '/methodologies/$methodologyId/versions'
+    | '/methodologies/$methodologyId/versions/$versionId'
+  id:
+    | '__root__'
+    | '/'
+    | '/dashboard'
+    | '/login'
+    | '/methodologies'
+    | '/methodologies/$methodologyId'
+    | '/methodologies/$methodologyId/versions'
+    | '/methodologies/$methodologyId/versions/$versionId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
   LoginRoute: typeof LoginRoute
+  MethodologiesRoute: typeof MethodologiesRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/methodologies': {
+      id: '/methodologies'
+      path: '/methodologies'
+      fullPath: '/methodologies'
+      preLoaderRoute: typeof MethodologiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -82,13 +151,77 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/methodologies/$methodologyId': {
+      id: '/methodologies/$methodologyId'
+      path: '/$methodologyId'
+      fullPath: '/methodologies/$methodologyId'
+      preLoaderRoute: typeof MethodologiesMethodologyIdRouteImport
+      parentRoute: typeof MethodologiesRoute
+    }
+    '/methodologies/$methodologyId/versions': {
+      id: '/methodologies/$methodologyId/versions'
+      path: '/versions'
+      fullPath: '/methodologies/$methodologyId/versions'
+      preLoaderRoute: typeof MethodologiesMethodologyIdVersionsRouteImport
+      parentRoute: typeof MethodologiesMethodologyIdRoute
+    }
+    '/methodologies/$methodologyId/versions/$versionId': {
+      id: '/methodologies/$methodologyId/versions/$versionId'
+      path: '/$versionId'
+      fullPath: '/methodologies/$methodologyId/versions/$versionId'
+      preLoaderRoute: typeof MethodologiesMethodologyIdVersionsVersionIdRouteImport
+      parentRoute: typeof MethodologiesMethodologyIdVersionsRoute
+    }
   }
 }
+
+interface MethodologiesMethodologyIdVersionsRouteChildren {
+  MethodologiesMethodologyIdVersionsVersionIdRoute: typeof MethodologiesMethodologyIdVersionsVersionIdRoute
+}
+
+const MethodologiesMethodologyIdVersionsRouteChildren: MethodologiesMethodologyIdVersionsRouteChildren =
+  {
+    MethodologiesMethodologyIdVersionsVersionIdRoute:
+      MethodologiesMethodologyIdVersionsVersionIdRoute,
+  }
+
+const MethodologiesMethodologyIdVersionsRouteWithChildren =
+  MethodologiesMethodologyIdVersionsRoute._addFileChildren(
+    MethodologiesMethodologyIdVersionsRouteChildren,
+  )
+
+interface MethodologiesMethodologyIdRouteChildren {
+  MethodologiesMethodologyIdVersionsRoute: typeof MethodologiesMethodologyIdVersionsRouteWithChildren
+}
+
+const MethodologiesMethodologyIdRouteChildren: MethodologiesMethodologyIdRouteChildren =
+  {
+    MethodologiesMethodologyIdVersionsRoute:
+      MethodologiesMethodologyIdVersionsRouteWithChildren,
+  }
+
+const MethodologiesMethodologyIdRouteWithChildren =
+  MethodologiesMethodologyIdRoute._addFileChildren(
+    MethodologiesMethodologyIdRouteChildren,
+  )
+
+interface MethodologiesRouteChildren {
+  MethodologiesMethodologyIdRoute: typeof MethodologiesMethodologyIdRouteWithChildren
+}
+
+const MethodologiesRouteChildren: MethodologiesRouteChildren = {
+  MethodologiesMethodologyIdRoute: MethodologiesMethodologyIdRouteWithChildren,
+}
+
+const MethodologiesRouteWithChildren = MethodologiesRoute._addFileChildren(
+  MethodologiesRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
   LoginRoute: LoginRoute,
+  MethodologiesRoute: MethodologiesRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

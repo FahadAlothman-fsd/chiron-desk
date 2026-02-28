@@ -14,10 +14,13 @@
     "test": "bunx vitest run",
     "module:wiring-smoke": "bun run src/module-wiring-smoke.ts",
     "db:seed": "DOTENV_CONFIG_PATH=../../apps/server/.env bun run src/seed.mjs",
-    "db:seed:reset": "DOTENV_CONFIG_PATH=../../apps/server/.env bun run src/seed.mjs --reset"
+    "db:seed:reset": "DOTENV_CONFIG_PATH=../../apps/server/.env bun run src/seed.mjs --reset",
+    "db:seed:story": "DOTENV_CONFIG_PATH=../../apps/server/.env bun run src/story-seed.mjs",
+    "db:seed:story:reset": "DOTENV_CONFIG_PATH=../../apps/server/.env bun run src/story-seed.mjs --reset"
   },
   "dependencies": {
     "@chiron/agent-runtime": "workspace:*",
+    "@chiron/auth": "workspace:*",
     "@chiron/ax-engine": "workspace:*",
     "@chiron/contracts": "workspace:*",
     "@chiron/db": "workspace:*",
@@ -33,6 +36,7 @@
     "@effect/platform": "catalog:",
     "@effect/printer": "catalog:",
     "@effect/printer-ansi": "catalog:",
+    "drizzle-orm": "^0.45.1",
     "drizzle-seed": "catalog:",
     "effect": "catalog:"
   },

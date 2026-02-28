@@ -137,9 +137,20 @@ export interface ProjectMethodologyPinEventRow {
 export class MethodologyRepository extends Context.Tag("MethodologyRepository")<
   MethodologyRepository,
   {
+    readonly listDefinitions: () => Effect.Effect<
+      readonly MethodologyDefinitionRow[],
+      RepositoryError
+    >;
+    readonly createDefinition: (
+      key: string,
+      displayName: string,
+    ) => Effect.Effect<MethodologyDefinitionRow, RepositoryError>;
     readonly findDefinitionByKey: (
       key: string,
     ) => Effect.Effect<MethodologyDefinitionRow | null, RepositoryError>;
+    readonly listVersionsByMethodologyId: (
+      methodologyId: string,
+    ) => Effect.Effect<readonly MethodologyVersionRow[], RepositoryError>;
     readonly findVersionById: (
       id: string,
     ) => Effect.Effect<MethodologyVersionRow | null, RepositoryError>;
