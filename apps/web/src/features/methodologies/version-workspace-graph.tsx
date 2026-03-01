@@ -41,6 +41,7 @@ import {
 } from "./version-graph";
 import type {
   MethodologyVersionWorkspaceDraft,
+  WorkspaceFocusTarget,
   WorkspacePersistencePayload,
 } from "./version-workspace";
 
@@ -48,6 +49,8 @@ type VersionWorkspaceGraphProps = {
   draft: MethodologyVersionWorkspaceDraft;
   parsed: WorkspacePersistencePayload;
   onChange: (field: keyof MethodologyVersionWorkspaceDraft, value: string) => void;
+  focusTarget?: WorkspaceFocusTarget | null;
+  focusTargetSequence?: number;
 };
 
 type DraftRecord = Record<string, unknown>;
@@ -328,7 +331,13 @@ function asRecord(value: unknown): DraftRecord | null {
   return value as DraftRecord;
 }
 
-export function VersionWorkspaceGraph({ draft, parsed, onChange }: VersionWorkspaceGraphProps) {
+export function VersionWorkspaceGraph({
+  draft,
+  parsed,
+  onChange,
+  focusTarget,
+  focusTargetSequence,
+}: VersionWorkspaceGraphProps) {
   const [scope, setScope] = useState<GraphScope>({ level: "L1" });
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [isDraggingNode, setIsDraggingNode] = useState(false);
@@ -1325,6 +1334,45 @@ export function VersionWorkspaceGraph({ draft, parsed, onChange }: VersionWorksp
       window.removeEventListener("keydown", onWindowKeyDown);
     };
   }, [scope.level, selectedNodeId, scope]);
+
+  useEffect(() => {
+    if (!focusTarget || focusTargetSequence === undefined) {
+      return;
+    }
+
+    if (focusTarget.level === "L1") {
+      setScope({ level: "L1" });
+    }
+
+    if (focusTarget.level === "L2" && focusTarget.workUnitTypeKey) {
+      setScope({
+        level: "L2",
+        workUnitTypeKey: focusTarget.workUnitTypeKey,
+      });
+    }
+
+    if (focusTarget.level === "L3" && focusTarget.workflowKey) {
+      const workflow = workflows.find((item) => item.key === focusTarget.workflowKey);
+      if (workflow?.workUnitTypeKey) {
+        setScope({
+          level: "L3",
+          workUnitTypeKey: workflow.workUnitTypeKey,
+          workflowKey: focusTarget.workflowKey,
+        });
+      }
+    }
+
+    if (focusTarget.transitionKey) {
+      setSelectedTransitionKey(focusTarget.transitionKey);
+    }
+
+    if (focusTarget.nodeId) {
+      setSelectedNodeId(focusTarget.nodeId);
+      return;
+    }
+
+    setSelectedNodeId(null);
+  }, [focusTarget, focusTargetSequence, workflows]);
 
   return (
     <ReactFlowProvider>

@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   createDraftFromProjection,
+  mapValidationDiagnosticsToWorkspaceDiagnostics,
   parseWorkspaceDraftForPersistence,
   toDeterministicJson,
   type DraftProjectionShape,
@@ -171,4 +172,51 @@ test("workspace edits persist and rebuild deterministic draft state after reload
     reloadedDraft.transitionWorkflowBindingsJson,
     editedDraft.transitionWorkflowBindingsJson,
   );
+});
+
+test("mapValidationDiagnosticsToWorkspaceDiagnostics groups and focuses diagnostics deterministically", () => {
+  const mapped = mapValidationDiagnosticsToWorkspaceDiagnostics([
+    {
+      code: "WF_STEP_TYPE_INVALID",
+      scope: "definition.workflows.wf.prd.form.steps.step_1.type",
+      required: "form|agent|action|invoke|branch|display",
+      observed: "custom",
+      remediation: "Use one of the allowed step types.",
+    },
+    {
+      code: "LIFECYCLE_TO_STATE_UNKNOWN",
+      scope: "workUnitTypes[0].lifecycleTransitions[0].toState",
+      required: "existing lifecycle state",
+      observed: "done",
+      remediation: "Add state or change transition target.",
+    },
+    {
+      code: "BINDING_WORKFLOW_UNKNOWN",
+      scope: "definition.transitionWorkflowBindings.WU.PRD:draft__to__done.wf.unknown",
+      required: "existing workflow key",
+      observed: "wf.unknown",
+      remediation: "Bind to known workflow key.",
+    },
+  ]);
+
+  assert.equal(mapped.length, 3);
+
+  const bindingDiagnostic = mapped.find((diagnostic) =>
+    diagnostic.message.startsWith("BINDING_WORKFLOW_UNKNOWN"),
+  );
+  const transitionDiagnostic = mapped.find((diagnostic) =>
+    diagnostic.message.startsWith("LIFECYCLE_TO_STATE_UNKNOWN"),
+  );
+  const workflowDiagnostic = mapped.find((diagnostic) =>
+    diagnostic.message.startsWith("WF_STEP_TYPE_INVALID"),
+  );
+
+  assert.equal(bindingDiagnostic?.group, "transition");
+  assert.equal(bindingDiagnostic?.field, "transitionWorkflowBindingsJson");
+  assert.equal(transitionDiagnostic?.group, "transition");
+  assert.equal(transitionDiagnostic?.field, "transitionsJson");
+  assert.equal(workflowDiagnostic?.group, "workflow");
+  assert.equal(workflowDiagnostic?.field, "workflowStepsJson");
+  assert.equal(workflowDiagnostic?.focusTarget?.level, "L3");
+  assert.equal(workflowDiagnostic?.focusTarget?.nodeId, "wf:wf.prd.form");
 });

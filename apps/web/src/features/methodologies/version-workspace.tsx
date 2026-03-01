@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { RUNTIME_DEFERRED_RATIONALE } from "./foundation";
 import { VersionWorkspaceGraph } from "./version-workspace-graph";
@@ -20,6 +20,18 @@ export type MethodologyVersionWorkspaceDraft = {
 export type WorkspaceParseDiagnostic = {
   field: keyof MethodologyVersionWorkspaceDraft;
   message: string;
+  blocking?: boolean;
+  group?: "field" | "work unit" | "transition" | "workflow";
+  scope?: string;
+  focusTarget?: WorkspaceFocusTarget;
+};
+
+export type WorkspaceFocusTarget = {
+  level: "L1" | "L2" | "L3";
+  nodeId?: string;
+  workUnitTypeKey?: string;
+  workflowKey?: string;
+  transitionKey?: string;
 };
 
 type MethodologyVersionWorkspaceProps = {
@@ -28,6 +40,28 @@ type MethodologyVersionWorkspaceProps = {
   isSaving: boolean;
   onChange: (field: keyof MethodologyVersionWorkspaceDraft, value: string) => void;
   onSave: () => void;
+};
+
+const FIELD_ELEMENT_IDS: Record<keyof MethodologyVersionWorkspaceDraft, string> = {
+  methodologyKey: "workspace-field-methodologyKey",
+  displayName: "workspace-field-displayName",
+  workUnitTypesJson: "workspace-field-workUnitTypesJson",
+  agentTypesJson: "workspace-field-agentTypesJson",
+  factSchemasJson: "workspace-field-factSchemasJson",
+  transitionsJson: "workspace-field-transitionsJson",
+  workflowsJson: "workspace-field-workflowsJson",
+  workflowStepsJson: "workspace-field-workflowStepsJson",
+  transitionWorkflowBindingsJson: "workspace-field-transitionWorkflowBindingsJson",
+  guidanceJson: "workspace-field-guidanceJson",
+};
+
+const DIAGNOSTIC_GROUP_ORDER = ["field", "work unit", "transition", "workflow"] as const;
+
+const DIAGNOSTIC_GROUP_LABEL: Record<(typeof DIAGNOSTIC_GROUP_ORDER)[number], string> = {
+  field: "Field",
+  "work unit": "Work Unit",
+  transition: "Transition",
+  workflow: "Workflow",
 };
 
 export type DraftProjectionShape = {
@@ -56,6 +90,7 @@ export type WorkspacePersistencePayload = {
 export type ValidationDiagnosticShape = {
   code: string;
   scope: string;
+  blocking?: boolean;
   required?: unknown;
   observed?: unknown;
   remediation?: string;
@@ -218,6 +253,7 @@ function parseJson(
     diagnostics.push({
       field,
       message: "Invalid JSON format. Fix JSON syntax and retry save.",
+      group: "field",
     });
     return null;
   }
@@ -323,42 +359,49 @@ export function parseWorkspaceDraftForPersistence(
     diagnostics.push({
       field: "workUnitTypesJson",
       message: "Expected a JSON array of work unit definitions.",
+      group: "field",
     });
   }
   if (!Array.isArray(agentTypesValue)) {
     diagnostics.push({
       field: "agentTypesJson",
       message: "Expected a JSON array of agent type definitions.",
+      group: "field",
     });
   }
   if (!isUnknownArrayRecord(factSchemasValue)) {
     diagnostics.push({
       field: "factSchemasJson",
       message: "Expected a JSON object map: workUnitKey -> fact schema array.",
+      group: "field",
     });
   }
   if (!Array.isArray(transitionsValue)) {
     diagnostics.push({
       field: "transitionsJson",
       message: "Expected a JSON array of transitions.",
+      group: "field",
     });
   }
   if (!Array.isArray(workflowsValue)) {
     diagnostics.push({
       field: "workflowsJson",
       message: "Expected a JSON array of workflow definitions.",
+      group: "field",
     });
   }
   if (!isUnknownArrayRecord(workflowStepsValue)) {
     diagnostics.push({
       field: "workflowStepsJson",
       message: "Expected a JSON object map: workflowKey -> step array.",
+      group: "field",
     });
   }
   if (!isStringArrayRecord(bindingsValue)) {
     diagnostics.push({
       field: "transitionWorkflowBindingsJson",
       message: "Expected a JSON object map: transitionKey -> workflow key array.",
+      group: "field",
     });
   }
 
@@ -383,14 +426,14 @@ function scopeToWorkspaceField(scope: string): keyof MethodologyVersionWorkspace
   if (scope.includes("factSchemas")) {
     return "factSchemasJson";
   }
+  if (scope.includes("transitionWorkflowBindings")) {
+    return "transitionWorkflowBindingsJson";
+  }
   if (scope.includes("workflow") && scope.includes("step")) {
     return "workflowStepsJson";
   }
   if (scope.includes("workflow") || scope.includes("guidance")) {
     return "workflowsJson";
-  }
-  if (scope.includes("transitionWorkflowBindings")) {
-    return "transitionWorkflowBindingsJson";
   }
   if (scope.includes("transition") || scope.includes("lifecycle")) {
     return "transitionsJson";
@@ -401,6 +444,87 @@ function scopeToWorkspaceField(scope: string): keyof MethodologyVersionWorkspace
   return "displayName";
 }
 
+function deriveDiagnosticGroup(scope: string): "field" | "work unit" | "transition" | "workflow" {
+  if (scope.includes("workflow")) {
+    return "workflow";
+  }
+  if (scope.includes("transition") || scope.includes("lifecycle")) {
+    return "transition";
+  }
+  if (scope.includes("workUnit") || scope.includes("agentTypes") || scope.includes("factSchemas")) {
+    return "work unit";
+  }
+  return "field";
+}
+
+function deriveFocusTarget(scope: string): WorkspaceFocusTarget | undefined {
+  if (scope.startsWith("definition.workflows.")) {
+    const workflowScope = scope.slice("definition.workflows.".length);
+    const workflowKey = workflowScope
+      .replace(/\.steps\..*$/, "")
+      .replace(/\.edges\..*$/, "")
+      .replace(/\.entry$/, "")
+      .replace(/\.terminal$/, "")
+      .trim();
+
+    if (!workflowKey) {
+      return undefined;
+    }
+
+    return {
+      level: "L3",
+      workflowKey,
+      nodeId: `wf:${workflowKey}`,
+    };
+  }
+
+  const transitionScopeMatch = /definition\.transitionWorkflowBindings\.([^.\s]+)/.exec(scope);
+  if (transitionScopeMatch?.[1]) {
+    return {
+      level: "L1",
+      transitionKey: transitionScopeMatch[1],
+    };
+  }
+
+  if (scope.includes("workUnit") || scope.includes("agentTypes") || scope.includes("factSchemas")) {
+    return { level: "L1" };
+  }
+
+  if (scope.includes("transition") || scope.includes("lifecycle")) {
+    return { level: "L1" };
+  }
+
+  return undefined;
+}
+
+function formatValidationDiagnostic(diagnostic: ValidationDiagnosticShape): string {
+  const required = diagnostic.required !== undefined ? JSON.stringify(diagnostic.required) : "n/a";
+  const observed = diagnostic.observed !== undefined ? JSON.stringify(diagnostic.observed) : "n/a";
+  const remediation = diagnostic.remediation ? ` remediation: ${diagnostic.remediation}` : "";
+  return `${diagnostic.code} required: ${required} observed: ${observed}${remediation}`;
+}
+
+function compareDiagnosticsDeterministically(
+  left: WorkspaceParseDiagnostic,
+  right: WorkspaceParseDiagnostic,
+): number {
+  const leftGroup = left.group ?? "field";
+  const rightGroup = right.group ?? "field";
+  if (leftGroup !== rightGroup) {
+    return DIAGNOSTIC_GROUP_ORDER.indexOf(leftGroup) - DIAGNOSTIC_GROUP_ORDER.indexOf(rightGroup);
+  }
+
+  if (left.field !== right.field) {
+    return left.field.localeCompare(right.field);
+  }
+
+  if ((left.scope ?? "") !== (right.scope ?? "")) {
+    return (left.scope ?? "").localeCompare(right.scope ?? "");
+  }
+
+  return left.message.localeCompare(right.message);
+}
+
 export function mapValidationDiagnosticsToWorkspaceDiagnostics(
   input:
     | readonly ValidationDiagnosticShape[]
@@ -408,19 +532,16 @@ export function mapValidationDiagnosticsToWorkspaceDiagnostics(
 ): WorkspaceParseDiagnostic[] {
   const diagnostics = "diagnostics" in input ? input.diagnostics : input;
 
-  return diagnostics.map((diagnostic: ValidationDiagnosticShape) => {
-    const required =
-      diagnostic.required !== undefined ? ` required=${JSON.stringify(diagnostic.required)}` : "";
-    const observed =
-      diagnostic.observed !== undefined ? ` observed=${JSON.stringify(diagnostic.observed)}` : "";
-
-    return {
+  return diagnostics
+    .map((diagnostic: ValidationDiagnosticShape) => ({
       field: scopeToWorkspaceField(diagnostic.scope),
-      message: `${diagnostic.code}:${required}${observed}${
-        diagnostic.remediation ? ` ${diagnostic.remediation}` : ""
-      }`.trim(),
-    };
-  });
+      message: formatValidationDiagnostic(diagnostic),
+      blocking: diagnostic.blocking ?? true,
+      group: deriveDiagnosticGroup(diagnostic.scope),
+      scope: diagnostic.scope,
+      focusTarget: deriveFocusTarget(diagnostic.scope),
+    }))
+    .sort(compareDiagnosticsDeterministically);
 }
 
 export function MethodologyVersionWorkspace({
@@ -433,9 +554,57 @@ export function MethodologyVersionWorkspace({
   const parsedForGraph = useMemo(() => parseWorkspaceDraftForPersistence(draft), [draft]);
   const [showAdvancedJson, setShowAdvancedJson] = useState(false);
   const [showWorkspaceContext, setShowWorkspaceContext] = useState(false);
+  const [focusTarget, setFocusTarget] = useState<WorkspaceFocusTarget | null>(null);
+  const [focusSequence, setFocusSequence] = useState(0);
   const workUnitCount = parsedForGraph.lifecycle.workUnitTypes.length;
   const workflowCount = parsedForGraph.workflows.workflows.length;
   const bindingCount = Object.keys(parsedForGraph.workflows.transitionWorkflowBindings).length;
+
+  const groupedDiagnostics = useMemo(() => {
+    const groups: Record<(typeof DIAGNOSTIC_GROUP_ORDER)[number], WorkspaceParseDiagnostic[]> = {
+      field: [],
+      "work unit": [],
+      transition: [],
+      workflow: [],
+    };
+
+    for (const diagnostic of parseDiagnostics) {
+      groups[diagnostic.group ?? "field"].push(diagnostic);
+    }
+
+    return groups;
+  }, [parseDiagnostics]);
+
+  useEffect(() => {
+    if (parseDiagnostics.length === 0) {
+      setFocusTarget(null);
+      setFocusSequence(0);
+    }
+  }, [parseDiagnostics.length]);
+
+  const focusDiagnosticField = (field: keyof MethodologyVersionWorkspaceDraft) => {
+    if (field === "methodologyKey" || field === "displayName") {
+      setShowWorkspaceContext(true);
+    } else {
+      setShowAdvancedJson(true);
+    }
+
+    const elementId = FIELD_ELEMENT_IDS[field];
+    setTimeout(() => {
+      const element = document.getElementById(elementId);
+      if (element instanceof HTMLElement) {
+        element.focus();
+      }
+    }, 0);
+  };
+
+  const handleDiagnosticFocus = (diagnostic: WorkspaceParseDiagnostic) => {
+    focusDiagnosticField(diagnostic.field);
+    if (diagnostic.focusTarget) {
+      setFocusTarget(diagnostic.focusTarget);
+      setFocusSequence((current) => current + 1);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -467,7 +636,13 @@ export function MethodologyVersionWorkspace({
         </div>
       </section>
 
-      <VersionWorkspaceGraph draft={draft} parsed={parsedForGraph} onChange={onChange} />
+      <VersionWorkspaceGraph
+        draft={draft}
+        parsed={parsedForGraph}
+        onChange={onChange}
+        focusTarget={focusTarget}
+        focusTargetSequence={focusSequence}
+      />
 
       <section className="chiron-frame-flat p-3">
         <div className="flex items-center justify-between gap-3">
@@ -494,6 +669,7 @@ export function MethodologyVersionWorkspace({
                   Methodology Key
                 </span>
                 <input
+                  id={FIELD_ELEMENT_IDS.methodologyKey}
                   aria-label="Methodology Key"
                   className="border border-border/70 bg-background px-2 py-1 text-sm"
                   value={draft.methodologyKey}
@@ -508,6 +684,7 @@ export function MethodologyVersionWorkspace({
                   Display Name
                 </span>
                 <input
+                  id={FIELD_ELEMENT_IDS.displayName}
                   aria-label="Display Name"
                   className="border border-border/70 bg-background px-2 py-1 text-sm"
                   value={draft.displayName}
@@ -566,6 +743,7 @@ export function MethodologyVersionWorkspace({
               </summary>
               <label className="mt-2 flex flex-col gap-2 text-sm">
                 <textarea
+                  id={FIELD_ELEMENT_IDS[field.key]}
                   aria-label={field.label}
                   className="w-full border border-border/70 bg-background px-2 py-1 font-mono text-xs"
                   rows={field.rows ?? 6}
@@ -585,13 +763,39 @@ export function MethodologyVersionWorkspace({
           <p className="text-[0.68rem] uppercase tracking-[0.18em] text-destructive">
             Draft Diagnostics
           </p>
-          <ul className="mt-2 space-y-1 text-xs">
-            {parseDiagnostics.map((diagnostic) => (
-              <li key={`${diagnostic.field}:${diagnostic.message}`}>
-                {diagnostic.field}: {diagnostic.message}
-              </li>
-            ))}
-          </ul>
+          <div className="mt-3 space-y-3">
+            {DIAGNOSTIC_GROUP_ORDER.map((group) => {
+              const diagnostics = groupedDiagnostics[group];
+              if (diagnostics.length === 0) {
+                return null;
+              }
+
+              return (
+                <section key={group} className="chiron-cut-frame px-3 py-2" data-variant="surface">
+                  <p className="text-[0.64rem] uppercase tracking-[0.14em] text-destructive">
+                    {DIAGNOSTIC_GROUP_LABEL[group]} ({diagnostics.length})
+                  </p>
+                  <ul className="mt-2 space-y-1 text-xs">
+                    {diagnostics.map((diagnostic) => (
+                      <li
+                        key={`${diagnostic.group ?? "field"}:${diagnostic.field}:${diagnostic.scope ?? ""}:${diagnostic.message}`}
+                      >
+                        <button
+                          type="button"
+                          className="text-left underline-offset-2 hover:underline"
+                          onClick={() => {
+                            handleDiagnosticFocus(diagnostic);
+                          }}
+                        >
+                          {diagnostic.field}: {diagnostic.message}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              );
+            })}
+          </div>
         </section>
       ) : null}
 

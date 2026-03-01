@@ -535,7 +535,50 @@ So that I can safely publish methodology versions and verify audit outcomes from
 **Then** runtime execution controls remain visible but disabled with rationale (`Workflow runtime execution unlocks in Epic 3+`)
 **And** publish/evidence inspection remains fully usable.
 
-### Story 2.4: Provide Project Creation and Methodology Pinning UX with Pin Lineage Visibility
+### Story 2.4: Implement Rigorous Facts and Variable Type Authoring Across Methodology and Work Units
+
+As an operator,
+I want comprehensive facts and variable authoring for methodology and work-unit scopes with strict type-aware validation,
+So that contract definitions are reliable before publish and remain deterministic after publish.
+
+**Acceptance Criteria:**
+
+**Given** I open a methodology draft workspace after Story 2.3 validation/publish hardening
+**When** I edit methodology-level fact definitions
+**Then** I can create, update, and remove fact definitions with fields (`key`, `valueType`, `required`, `defaultValue`, `description`, `validation`)
+**And** changes persist deterministically through backend contracts without local-state corruption.
+
+**Given** I edit work-unit type definitions in the draft workspace
+**When** I manage work-unit fact schemas
+**Then** I can create, update, and remove fields (`key`, `factType`, `required`, `defaultValue`) per work-unit scope
+**And** key uniqueness and scope constraints are enforced deterministically.
+
+**Given** I select a supported fact/variable type (`string`, `number`, `boolean`, `json`)
+**When** I provide default values
+**Then** the UI renders type-appropriate inputs and validates compatibility inline
+**And** invalid defaults return actionable diagnostics with remediation.
+
+**Given** I save or publish a draft containing fact definitions/schemas
+**When** facts violate contract rules (duplicate keys, unsupported types, reserved keys, invalid defaults)
+**Then** save/publish responses include deterministic structured diagnostics
+**And** publish is blocked on blocking diagnostics with links to exact editable context.
+
+**Given** I attempt to use filesystem-oriented values in facts where supported by validation configuration
+**When** I provide path-like defaults or validation constraints
+**Then** policy checks (path format/normalization/safety constraints configured for the story) execute deterministically
+**And** the UI surfaces actionable diagnostics for unsafe or invalid path inputs.
+
+**Given** a methodology version is published
+**When** I attempt to mutate immutable fact-contract fields from the UI
+**Then** the backend rejects mutation deterministically
+**And** immutable diagnostics are shown without corrupting local or cached state.
+
+**Given** Story 2.4 facts authoring capabilities are visible in Epic 2
+**When** I inspect execution controls
+**Then** runtime execution controls remain visible but disabled with rationale (`Workflow runtime execution unlocks in Epic 3+`)
+**And** facts authoring and validation remain fully usable.
+
+### Story 2.5: Provide Project Creation and Methodology Pinning UX with Pin Lineage Visibility
 
 As an operator,
 I want to create a project and pin it to a published methodology version from the UI,
@@ -588,7 +631,7 @@ So that setup is reproducible and project behavior remains deterministic until e
 **Then** runtime execution controls are visible but disabled with rationale (`Workflow runtime execution unlocks in Epic 3+`)
 **And** pinning and lineage inspection remain fully usable.
 
-### Story 2.5: Provide Baseline Operator Visibility for Methodology, Pin, and Diagnostics State
+### Story 2.6: Provide Baseline Operator Visibility for Methodology, Pin, and Diagnostics State
 
 As an operator,
 I want a baseline visibility panel for methodology and project contract state,
@@ -626,10 +669,10 @@ So that I can verify setup health and evidence status before runtime execution i
 **Then** diagnostics are grouped by context (publish, pin, repin-policy)
 **And** entries include structured fields for actionable remediation (`code`, `scope`, `blocking`, `required`, `observed`, `remediation`, `timestamp`, and evidence reference identifiers).
 
-**Given** setup capabilities from Stories 2.1-2.4 are in place
-**When** I use baseline visibility in Story 2.5
+**Given** setup capabilities from Stories 2.1-2.5 are in place
+**When** I use baseline visibility in Story 2.6
 **Then** the panel consumes existing persisted publish/pin/policy outputs
-**And** Story 2.5 does not introduce new methodology-authoring validation rules.
+**And** Story 2.6 does not introduce new methodology-authoring validation rules.
 
 **Given** no setup diagnostics exist yet for a new project
 **When** I open diagnostics history
