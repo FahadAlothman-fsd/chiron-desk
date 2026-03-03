@@ -44,10 +44,14 @@ export interface FactSchemaRow {
   id: string;
   methodologyVersionId: string;
   workUnitTypeId: string;
+  name: string | null;
   key: string;
   factType: string;
   required: boolean;
+  description: string | null;
   defaultValueJson: unknown;
+  guidanceJson: unknown;
+  validationJson: unknown;
   createdAt: Date;
   updatedAt: Date;
 }

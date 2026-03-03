@@ -58,13 +58,62 @@ const guidanceSchema = z
   })
   .optional();
 
+const factGuidanceSchema = z
+  .object({
+    human: z
+      .object({
+        short: z.string().optional(),
+        long: z.string().optional(),
+        examples: z.array(z.unknown()).default([]),
+      })
+      .optional(),
+    agent: z
+      .object({
+        intent: z.string().optional(),
+        constraints: z.array(z.string()).default([]),
+        examples: z.array(z.unknown()).default([]),
+      })
+      .optional(),
+  })
+  .optional();
+
+const factValidationSchema = z
+  .union([
+    z.object({ kind: z.literal("none") }),
+    z.object({
+      kind: z.literal("path"),
+      path: z.object({
+        pathKind: z.enum(["file", "directory"]),
+        normalization: z
+          .object({
+            mode: z.literal("posix").default("posix"),
+            trimWhitespace: z.boolean().default(true),
+          })
+          .default({ mode: "posix", trimWhitespace: true }),
+        safety: z
+          .object({
+            disallowAbsolute: z.boolean().default(true),
+            preventTraversal: z.boolean().default(true),
+          })
+          .default({ disallowAbsolute: true, preventTraversal: true }),
+      }),
+    }),
+    z.object({
+      kind: z.literal("json-schema"),
+      schemaDialect: z.string().min(1),
+      schema: z.unknown(),
+    }),
+  ])
+  .default({ kind: "none" });
+
 const variableDefinitionSchema = z.object({
+  name: z.string().optional(),
   key: z.string().min(1),
-  valueType: z.enum(["string", "number", "boolean", "json"]),
-  description: z.string().optional(),
-  required: z.boolean(),
+  factType: z.enum(["string", "number", "boolean", "json"]),
   defaultValue: z.unknown().optional(),
-  validation: z.unknown().optional(),
+  description: z.string().optional(),
+  guidance: factGuidanceSchema,
+  validation: factValidationSchema,
 });
 
 const linkTypeDefinitionSchema = z.object({
@@ -90,6 +139,7 @@ const updateDraftWorkflowsInput = z.object({
   workflows: z.array(workflowSchema),
   transitionWorkflowBindings: z.record(z.string(), z.array(z.string())),
   guidance: guidanceSchema,
+  factDefinitions: z.array(variableDefinitionSchema).optional(),
 });
 
 const validateDraftInput = z.object({
@@ -151,10 +201,13 @@ const lifecycleTransitionSchema = z.object({
 });
 
 const factSchemaDefinition = z.object({
+  name: z.string().optional(),
   key: z.string().min(1),
   factType: z.enum(["string", "number", "boolean", "json"]),
-  required: z.boolean().optional(),
   defaultValue: z.unknown().optional(),
+  description: z.string().optional(),
+  guidance: factGuidanceSchema,
+  validation: factValidationSchema,
 });
 
 const workUnitTypeSchema = z.object({
@@ -602,6 +655,7 @@ export function createMethodologyRouter(
           workflows: input.workflows,
           transitionWorkflowBindings: input.transitionWorkflowBindings,
           guidance: input.guidance,
+          factDefinitions: input.factDefinitions,
         };
 
         const result = await runEffect(

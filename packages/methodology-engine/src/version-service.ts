@@ -18,6 +18,7 @@ import type { UpdateDraftWorkflowsInputDto } from "@chiron/contracts/methodology
 import type { MethodologyVersionProjection } from "@chiron/contracts/methodology/projection";
 import { Context, Effect, Schema } from "effect";
 import { MethodologyVersionDefinition as MethodologyVersionDefinitionSchema } from "@chiron/contracts/methodology/version";
+import path from "node:path";
 
 import {
   DuplicateVersionError,
@@ -303,6 +304,65 @@ function isDefaultValueCompatible(factType: string, defaultValue: unknown): bool
     default:
       return false;
   }
+}
+
+function validatePathDefault(
+  value: unknown,
+  config: {
+    disallowAbsolute: boolean;
+    preventTraversal: boolean;
+    trimWhitespace: boolean;
+  },
+): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value !== "string") {
+    return "path validation requires a string default value";
+  }
+
+  const raw = config.trimWhitespace ? value.trim() : value;
+  if (raw.length === 0) {
+    return "path default must not be empty";
+  }
+  if (raw.includes("\0")) {
+    return "path must not include null bytes";
+  }
+
+  const normalized = path.posix.normalize(raw);
+  if (config.disallowAbsolute && path.posix.isAbsolute(normalized)) {
+    return "absolute paths are disallowed";
+  }
+  if (config.preventTraversal && normalized.split("/").includes("..")) {
+    return "path traversal segments ('..') are disallowed";
+  }
+
+  return null;
+}
+
+function isJsonSchemaCompatible(schema: unknown, value: unknown): boolean {
+  if (value === null || value === undefined) {
+    return true;
+  }
+  if (!schema || typeof schema !== "object") {
+    return true;
+  }
+
+  const schemaRecord = schema as Record<string, unknown>;
+  const typeDef = schemaRecord.type;
+  if (typeDef === undefined) {
+    return true;
+  }
+  const acceptedTypes = Array.isArray(typeDef) ? typeDef : [typeDef];
+  const actualType =
+    value === null
+      ? "null"
+      : Array.isArray(value)
+        ? "array"
+        : typeof value === "object"
+          ? "object"
+          : typeof value;
+  return acceptedTypes.some((t) => t === actualType);
 }
 
 function hasRefsOrDerived(value: unknown): boolean {
@@ -680,6 +740,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
           displayName: existing.displayName,
           version: existing.version,
           definition: nextDefinition,
+          factDefinitions: input.factDefinitions,
         },
         actorId,
       );
@@ -825,6 +886,80 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
               "Set a valid static default for the fact type",
             ),
           );
+        }
+
+        const validation =
+          fact.validationJson && typeof fact.validationJson === "object"
+            ? (fact.validationJson as {
+                kind?: string;
+                path?: {
+                  normalization?: { trimWhitespace?: boolean };
+                  safety?: { disallowAbsolute?: boolean; preventTraversal?: boolean };
+                };
+                schema?: unknown;
+              })
+            : null;
+
+        if (validation?.kind === "path") {
+          if (fact.factType !== "string") {
+            diagnostics.push(
+              makePublishDiagnostic(
+                "PUBLISH_FACTS_V1_SCHEMA_INVALID",
+                "publish.validation.facts",
+                timestamp,
+                "path validation only used with string factType",
+                `${fact.key}:${fact.factType}`,
+                "Set factType to string or remove path validation",
+              ),
+            );
+          }
+
+          const pathIssue = validatePathDefault(fact.defaultValueJson, {
+            disallowAbsolute: validation.path?.safety?.disallowAbsolute ?? true,
+            preventTraversal: validation.path?.safety?.preventTraversal ?? true,
+            trimWhitespace: validation.path?.normalization?.trimWhitespace ?? true,
+          });
+
+          if (pathIssue) {
+            diagnostics.push(
+              makePublishDiagnostic(
+                "PUBLISH_FACTS_V1_SCHEMA_INVALID",
+                "publish.validation.facts",
+                timestamp,
+                "default path value compatible with normalization and safety policy",
+                `${fact.key}:${String(fact.defaultValueJson)}`,
+                pathIssue,
+              ),
+            );
+          }
+        }
+
+        if (validation?.kind === "json-schema") {
+          if (fact.factType !== "json") {
+            diagnostics.push(
+              makePublishDiagnostic(
+                "PUBLISH_FACTS_V1_SCHEMA_INVALID",
+                "publish.validation.facts",
+                timestamp,
+                "json-schema validation only used with json factType",
+                `${fact.key}:${fact.factType}`,
+                "Set factType to json or remove json-schema validation",
+              ),
+            );
+          }
+
+          if (!isJsonSchemaCompatible(validation.schema, fact.defaultValueJson)) {
+            diagnostics.push(
+              makePublishDiagnostic(
+                "PUBLISH_FACTS_V1_SCHEMA_INVALID",
+                "publish.validation.facts",
+                timestamp,
+                "json default compatible with configured schema",
+                `${fact.key}:${JSON.stringify(fact.defaultValueJson)}`,
+                "Adjust default value or schema",
+              ),
+            );
+          }
         }
 
         if (hasRefsOrDerived(fact.defaultValueJson) || hasRefsOrDerived(fact.guidanceJson)) {

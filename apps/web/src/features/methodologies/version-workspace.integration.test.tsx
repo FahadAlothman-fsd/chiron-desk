@@ -10,6 +10,7 @@ import {
 const SAMPLE_DRAFT: MethodologyVersionWorkspaceDraft = {
   methodologyKey: "bmad.v1",
   displayName: "BMAD v1 Draft",
+  factDefinitionsJson: toDeterministicJson([]),
   workUnitTypesJson: toDeterministicJson([
     {
       key: "WU.BRIEF",
@@ -77,17 +78,33 @@ describe("methodology version workspace baseline", () => {
     expect(screen.getByLabelText("Methodology Key")).toBeTruthy();
     expect(screen.getByLabelText("Display Name")).toBeTruthy();
 
+    expect(screen.getByText("Fact Authoring Studio")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "+ Add Fact" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "+ Add Schema" })).toBeTruthy();
     expect(
-      screen.getByText("Keep this hidden for normal authoring. Use canvas + inspector first."),
+      screen.getByText(
+        "Structured forms for methodology and work-unit facts. No raw JSON required.",
+      ),
     ).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Show JSON" }));
+  });
 
-    expect(screen.getByLabelText("Work Unit Definitions")).toBeTruthy();
-    expect(screen.getByLabelText("Work-Unit Fact Schemas")).toBeTruthy();
-    expect(screen.getByLabelText("Transitions")).toBeTruthy();
-    expect(screen.getByLabelText("Workflow Definitions")).toBeTruthy();
-    expect(screen.getByLabelText("Workflow Steps")).toBeTruthy();
-    expect(screen.getByLabelText("Workflow-Transition Bindings")).toBeTruthy();
+  it("surfaces parse warnings when fact JSON is invalid instead of silently swallowing", () => {
+    render(
+      <MethodologyVersionWorkspace
+        draft={{
+          ...SAMPLE_DRAFT,
+          factDefinitionsJson: "{",
+        }}
+        parseDiagnostics={[]}
+        isSaving={false}
+        onChange={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/Methodology fact JSON could not be parsed\./)).toBeTruthy();
+    const saveFactsButton = screen.getByRole("button", { name: "Save Facts" }) as HTMLButtonElement;
+    expect(saveFactsButton.disabled).toBe(true);
   });
 
   it("renders runtime controls as visible but disabled with exact rationale", () => {

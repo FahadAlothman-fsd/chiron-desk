@@ -11,6 +11,7 @@ Status: Active reference index for reset and implementation
 - `_bmad-output/planning-artifacts/chiron-frontend-lock-v1-week6.md`
 - `_bmad-output/planning-artifacts/chiron-complete-schemas-v2-week6.md`
 - `_bmad-output/planning-artifacts/chiron-effect-schema-contract-status-week6.md`
+- `_bmad-output/planning-artifacts/chiron-terminology-glossary-v1.md`
 - `_bmad-output/planning-artifacts/prd.md`
 - `_bmad-output/planning-artifacts/architecture.md`
 

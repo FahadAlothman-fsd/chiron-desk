@@ -1,5 +1,8 @@
+import { useForm } from "@tanstack/react-form";
+import { Result } from "better-result";
 import { Button } from "@/components/ui/button";
-import { useEffect, useMemo, useState } from "react";
+import { Input } from "@/components/ui/input";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { RUNTIME_DEFERRED_RATIONALE } from "./foundation";
 import { VersionWorkspaceGraph } from "./version-workspace-graph";
@@ -7,6 +10,7 @@ import { VersionWorkspaceGraph } from "./version-workspace-graph";
 export type MethodologyVersionWorkspaceDraft = {
   methodologyKey: string;
   displayName: string;
+  factDefinitionsJson: string;
   workUnitTypesJson: string;
   agentTypesJson: string;
   factSchemasJson: string;
@@ -45,6 +49,7 @@ type MethodologyVersionWorkspaceProps = {
 const FIELD_ELEMENT_IDS: Record<keyof MethodologyVersionWorkspaceDraft, string> = {
   methodologyKey: "workspace-field-methodologyKey",
   displayName: "workspace-field-displayName",
+  factDefinitionsJson: "workspace-field-factDefinitionsJson",
   workUnitTypesJson: "workspace-field-workUnitTypesJson",
   agentTypesJson: "workspace-field-agentTypesJson",
   factSchemasJson: "workspace-field-factSchemasJson",
@@ -66,6 +71,7 @@ const DIAGNOSTIC_GROUP_LABEL: Record<(typeof DIAGNOSTIC_GROUP_ORDER)[number], st
 
 export type DraftProjectionShape = {
   displayName: string;
+  factDefinitions?: readonly unknown[];
   workUnitTypes: readonly unknown[];
   agentTypes: readonly unknown[];
   transitions: readonly unknown[];
@@ -83,6 +89,7 @@ export type WorkspacePersistencePayload = {
     workflows: unknown[];
     transitionWorkflowBindings: Record<string, string[]>;
     guidance?: unknown;
+    factDefinitions: unknown[];
   };
   diagnostics: WorkspaceParseDiagnostic[];
 };
@@ -96,23 +103,1698 @@ export type ValidationDiagnosticShape = {
   remediation?: string;
 };
 
-type EditorField = {
-  key: keyof MethodologyVersionWorkspaceDraft;
-  label: string;
-  rows?: number;
+type FactTypeValue = "string" | "number" | "boolean" | "json";
+
+type FactEditorValue = {
+  __uiId?: string;
+  name?: string;
+  key: string;
+  factType: FactTypeValue;
+  defaultValue?: unknown;
+  description?: string;
+  guidance?: {
+    human?: {
+      short?: string;
+      long?: string;
+      examples?: string[];
+    };
+    agent?: {
+      intent?: string;
+      constraints?: string[];
+      examples?: string[];
+    };
+  };
+  validation?:
+    | { kind: "none" }
+    | {
+        kind: "path";
+        path: {
+          pathKind: "file" | "directory";
+          normalization: { mode: "posix"; trimWhitespace: boolean };
+          safety: { disallowAbsolute: boolean; preventTraversal: boolean };
+        };
+      }
+    | {
+        kind: "json-schema";
+        schemaDialect: string;
+        schema: unknown;
+      };
 };
 
-const EDITOR_FIELDS: readonly EditorField[] = [
-  { key: "workUnitTypesJson", label: "Work Unit Definitions", rows: 8 },
-  { key: "factSchemasJson", label: "Work-Unit Fact Schemas", rows: 8 },
-  { key: "transitionsJson", label: "Transitions", rows: 6 },
-  { key: "workflowsJson", label: "Workflow Definitions", rows: 10 },
-  { key: "workflowStepsJson", label: "Workflow Steps", rows: 8 },
-  { key: "transitionWorkflowBindingsJson", label: "Workflow-Transition Bindings", rows: 6 },
+type ParsedFactDefinitions = {
+  facts: FactEditorValue[];
+  valid: boolean;
+};
+
+type ParsedFactSchemasMap = {
+  byWorkUnit: Record<string, FactEditorValue[]>;
+  valid: boolean;
+};
+
+const FACT_TYPES: readonly FactTypeValue[] = ["string", "number", "boolean", "json"];
+
+let factEditorIdSequence = 0;
+
+function createFactEditorId(): string {
+  factEditorIdSequence += 1;
+  return `fact-editor-${factEditorIdSequence}`;
+}
+
+function toGuidanceLine(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  return Result.try(() => JSON.stringify(value)).unwrapOr(String(value));
+}
+
+function parseJsonSafely(value: string): unknown {
+  return Result.try(() => JSON.parse(value)).unwrapOr(null);
+}
+
+function toFactEditorValue(input: unknown, fallbackId?: string): FactEditorValue {
+  const value = isRecord(input) ? input : {};
+  const factType = FACT_TYPES.includes(value.factType as FactTypeValue)
+    ? (value.factType as FactTypeValue)
+    : "string";
+
+  const guidanceSource = isRecord(value.guidance) ? value.guidance : {};
+  const humanSource = isRecord(guidanceSource.human) ? guidanceSource.human : {};
+  const agentSource = isRecord(guidanceSource.agent) ? guidanceSource.agent : {};
+
+  const guidance = {
+    human: {
+      short: typeof humanSource.short === "string" ? humanSource.short : undefined,
+      long: typeof humanSource.long === "string" ? humanSource.long : undefined,
+      examples: Array.isArray(humanSource.examples) ? humanSource.examples.map(toGuidanceLine) : [],
+    },
+    agent: {
+      intent: typeof agentSource.intent === "string" ? agentSource.intent : undefined,
+      constraints: Array.isArray(agentSource.constraints)
+        ? agentSource.constraints.map(toGuidanceLine)
+        : [],
+      examples: Array.isArray(agentSource.examples) ? agentSource.examples.map(toGuidanceLine) : [],
+    },
+  };
+
+  let validation: FactEditorValue["validation"] = { kind: "none" };
+  if (
+    isRecord(value.validation) &&
+    value.validation.kind === "path" &&
+    isRecord(value.validation.path)
+  ) {
+    const normalization = isRecord(value.validation.path.normalization)
+      ? value.validation.path.normalization
+      : {};
+    const safety = isRecord(value.validation.path.safety) ? value.validation.path.safety : {};
+
+    validation = {
+      kind: "path",
+      path: {
+        pathKind: value.validation.path.pathKind === "directory" ? "directory" : "file",
+        normalization: {
+          mode: "posix",
+          trimWhitespace: normalization.trimWhitespace !== false,
+        },
+        safety: {
+          disallowAbsolute: safety.disallowAbsolute !== false,
+          preventTraversal: safety.preventTraversal !== false,
+        },
+      },
+    };
+  } else if (isRecord(value.validation) && value.validation.kind === "json-schema") {
+    validation = {
+      kind: "json-schema",
+      schemaDialect:
+        typeof value.validation.schemaDialect === "string"
+          ? value.validation.schemaDialect
+          : "draft-2020-12",
+      schema: value.validation.schema ?? {},
+    };
+  }
+
+  return {
+    __uiId: typeof value.__uiId === "string" ? value.__uiId : (fallbackId ?? createFactEditorId()),
+    name: typeof value.name === "string" ? value.name : undefined,
+    key: typeof value.key === "string" ? value.key : "",
+    factType,
+    defaultValue: value.defaultValue,
+    description: typeof value.description === "string" ? value.description : undefined,
+    guidance,
+    validation,
+  };
+}
+
+function parseFactDefinitions(value: string): FactEditorValue[] {
+  const parsed = parseJsonSafely(value);
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+
+  return parsed.map((item, index) => toFactEditorValue(item, `fact-definition-${index}`));
+}
+
+function parseFactDefinitionsWithStatus(value: string): ParsedFactDefinitions {
+  const parsed = parseJsonSafely(value);
+  if (!Array.isArray(parsed)) {
+    return {
+      facts: [],
+      valid: false,
+    };
+  }
+
+  return {
+    facts: parseFactDefinitions(value),
+    valid: true,
+  };
+}
+
+function parseFactSchemasMap(value: string): Record<string, FactEditorValue[]> {
+  const parsed = parseJsonSafely(value);
+  if (!isRecord(parsed)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(parsed).map(([key, items]) => [
+      key,
+      Array.isArray(items)
+        ? items.map((item, index) => toFactEditorValue(item, `${key}-fact-schema-${index}`))
+        : [],
+    ]),
+  );
+}
+
+function parseFactSchemasMapWithStatus(value: string): ParsedFactSchemasMap {
+  const parsed = parseJsonSafely(value);
+  if (!isRecord(parsed)) {
+    return {
+      byWorkUnit: {},
+      valid: false,
+    };
+  }
+
+  const valid = Object.values(parsed).every((items) => Array.isArray(items));
+
+  return {
+    byWorkUnit: parseFactSchemasMap(value),
+    valid,
+  };
+}
+
+function factDefaultToInputValue(fact: FactEditorValue): string {
+  if (fact.defaultValue === undefined || fact.defaultValue === null) {
+    return "";
+  }
+  if (fact.factType === "json") {
+    return JSON.stringify(fact.defaultValue, null, 2);
+  }
+  return String(fact.defaultValue);
+}
+
+function inputValueToFactDefault(factType: FactTypeValue, rawValue: string): unknown {
+  if (rawValue.trim().length === 0) {
+    return undefined;
+  }
+  if (factType === "string") {
+    return rawValue;
+  }
+  if (factType === "number") {
+    const parsed = Number(rawValue);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  if (factType === "boolean") {
+    if (rawValue === "true") {
+      return true;
+    }
+    if (rawValue === "false") {
+      return false;
+    }
+    return undefined;
+  }
+
+  return Result.try(() => JSON.parse(rawValue)).unwrapOr(undefined);
+}
+
+function linesToTextareaValue(lines: readonly string[]): string {
+  return lines.join("\n");
+}
+
+function textareaValueToLines(value: string): string[] {
+  return value
+    .split(/\r?\n/g)
+    .map((line) => line.trimEnd())
+    .filter((line) => line.trim().length > 0);
+}
+
+function sanitizeFact(fact: FactEditorValue): FactEditorValue {
+  const name = fact.name?.trim();
+  const key = fact.key.trim();
+  const description = fact.description?.trim();
+  const humanShort = fact.guidance?.human?.short?.trim();
+  const humanLong = fact.guidance?.human?.long?.trim();
+  const humanExamples =
+    fact.guidance?.human?.examples?.map((line) => line.trim()).filter((line) => line.length > 0) ??
+    [];
+  const agentIntent = fact.guidance?.agent?.intent?.trim();
+  const agentConstraints =
+    fact.guidance?.agent?.constraints
+      ?.map((line) => line.trim())
+      .filter((line) => line.length > 0) ?? [];
+  const agentExamples =
+    fact.guidance?.agent?.examples?.map((line) => line.trim()).filter((line) => line.length > 0) ??
+    [];
+
+  const guidance =
+    humanShort ||
+    humanLong ||
+    humanExamples.length > 0 ||
+    agentIntent ||
+    agentConstraints.length > 0 ||
+    agentExamples.length > 0
+      ? {
+          human:
+            humanShort || humanLong || humanExamples.length > 0
+              ? {
+                  short: humanShort,
+                  long: humanLong,
+                  examples: humanExamples,
+                }
+              : undefined,
+          agent:
+            agentIntent || agentConstraints.length > 0 || agentExamples.length > 0
+              ? {
+                  intent: agentIntent,
+                  constraints: agentConstraints,
+                  examples: agentExamples,
+                }
+              : undefined,
+        }
+      : undefined;
+
+  const validation = fact.validation ?? { kind: "none" as const };
+
+  return {
+    name: name && name.length > 0 ? name : undefined,
+    key,
+    factType: fact.factType,
+    defaultValue: fact.defaultValue,
+    description: description && description.length > 0 ? description : undefined,
+    guidance,
+    validation,
+  };
+}
+
+function serializeFacts(facts: readonly FactEditorValue[]): string {
+  return toDeterministicJson(facts.map(sanitizeFact));
+}
+
+function factsToSerializable(facts: readonly FactEditorValue[]): unknown[] {
+  return facts.map(sanitizeFact);
+}
+
+function setFactValidationKind(
+  fact: FactEditorValue,
+  kind: "none" | "path" | "json-schema",
+): FactEditorValue {
+  if (kind === "path") {
+    return {
+      ...fact,
+      validation: {
+        kind: "path",
+        path: {
+          pathKind: "file",
+          normalization: { mode: "posix", trimWhitespace: true },
+          safety: { disallowAbsolute: true, preventTraversal: true },
+        },
+      },
+    };
+  }
+
+  if (kind === "json-schema") {
+    return {
+      ...fact,
+      validation: {
+        kind: "json-schema",
+        schemaDialect: "draft-2020-12",
+        schema: {},
+      },
+    };
+  }
+
+  return { ...fact, validation: { kind: "none" } };
+}
+
+type JsonSchemaPropertyType =
+  | "string"
+  | "number"
+  | "integer"
+  | "boolean"
+  | "object"
+  | "array"
+  | "null";
+
+type PropertyValidation = Exclude<FactEditorValue["validation"], undefined>;
+
+const DEFAULT_PATH_VALIDATION: PropertyValidation = {
+  kind: "path",
+  path: {
+    pathKind: "file",
+    normalization: { mode: "posix", trimWhitespace: true },
+    safety: { disallowAbsolute: true, preventTraversal: true },
+  },
+};
+
+function normalizePropertyValidation(input: unknown): PropertyValidation {
+  if (!isRecord(input)) {
+    return { kind: "none" };
+  }
+
+  if (input.kind === "path" && isRecord(input.path)) {
+    const normalization = isRecord(input.path.normalization) ? input.path.normalization : {};
+    const safety = isRecord(input.path.safety) ? input.path.safety : {};
+
+    return {
+      kind: "path",
+      path: {
+        pathKind: input.path.pathKind === "directory" ? "directory" : "file",
+        normalization: {
+          mode: "posix",
+          trimWhitespace: normalization.trimWhitespace !== false,
+        },
+        safety: {
+          disallowAbsolute: safety.disallowAbsolute !== false,
+          preventTraversal: safety.preventTraversal !== false,
+        },
+      },
+    };
+  }
+
+  if (input.kind === "json-schema") {
+    return {
+      kind: "json-schema",
+      schemaDialect:
+        typeof input.schemaDialect === "string" ? input.schemaDialect : "draft-2020-12",
+      schema: input.schema ?? {},
+    };
+  }
+
+  return { kind: "none" };
+}
+
+function setPropertyValidationKind(
+  current: JsonSchemaEditorProperty,
+  kind: "none" | "path" | "json-schema",
+): JsonSchemaEditorProperty {
+  if (kind === "path") {
+    return {
+      ...current,
+      validation: {
+        ...DEFAULT_PATH_VALIDATION,
+      },
+    };
+  }
+
+  if (kind === "json-schema") {
+    return {
+      ...current,
+      validation: {
+        kind: "json-schema",
+        schemaDialect: "draft-2020-12",
+        schema: { type: current.type },
+      },
+    };
+  }
+
+  return {
+    ...current,
+    validation: { kind: "none" },
+  };
+}
+
+function getPropertyValidationWarning(property: JsonSchemaEditorProperty): string | null {
+  if (property.validation.kind === "path" && property.type !== "string") {
+    return "Path validation is only compatible with string properties.";
+  }
+
+  if (
+    property.validation.kind === "json-schema" &&
+    property.type !== "object" &&
+    property.type !== "array"
+  ) {
+    return "json-schema profile is most useful for object/array properties; this selection may be redundant.";
+  }
+
+  return null;
+}
+
+type JsonSchemaEditorProperty = {
+  key: string;
+  type: JsonSchemaPropertyType;
+  required: boolean;
+  operatorDescription: string;
+  agentDescription: string;
+  validation: PropertyValidation;
+  additionalProperties: boolean;
+  properties: JsonSchemaEditorProperty[];
+};
+
+type JsonSchemaEditorState = {
+  rootType: JsonSchemaPropertyType;
+  additionalProperties: boolean;
+  properties: JsonSchemaEditorProperty[];
+};
+
+const JSON_SCHEMA_PROPERTY_TYPES: readonly JsonSchemaPropertyType[] = [
+  "string",
+  "number",
+  "integer",
+  "boolean",
+  "object",
+  "array",
+  "null",
 ];
 
+function normalizeJsonSchemaEditorState(schema: unknown): JsonSchemaEditorState {
+  const schemaRecord = isRecord(schema) ? schema : {};
+  const rootType = JSON_SCHEMA_PROPERTY_TYPES.includes(schemaRecord.type as JsonSchemaPropertyType)
+    ? (schemaRecord.type as JsonSchemaPropertyType)
+    : "object";
+  const additionalProperties = schemaRecord.additionalProperties !== false;
+  const propertiesRecord = isRecord(schemaRecord.properties) ? schemaRecord.properties : {};
+  const requiredSet = new Set(
+    Array.isArray(schemaRecord.required)
+      ? schemaRecord.required.filter((value): value is string => typeof value === "string")
+      : [],
+  );
+
+  const toProperty = (
+    propertyKey: string,
+    propertySchema: unknown,
+    isRequired: boolean,
+  ): JsonSchemaEditorProperty => {
+    const propertyRecord = isRecord(propertySchema) ? propertySchema : {};
+    const propertyType = JSON_SCHEMA_PROPERTY_TYPES.includes(
+      propertyRecord.type as JsonSchemaPropertyType,
+    )
+      ? (propertyRecord.type as JsonSchemaPropertyType)
+      : "string";
+
+    const nestedPropertiesRecord = isRecord(propertyRecord.properties)
+      ? propertyRecord.properties
+      : {};
+    const nestedRequiredSet = new Set(
+      Array.isArray(propertyRecord.required)
+        ? propertyRecord.required.filter((value): value is string => typeof value === "string")
+        : [],
+    );
+
+    const nestedProperties =
+      propertyType === "object"
+        ? Object.entries(nestedPropertiesRecord).map(([nestedKey, nestedSchema]) =>
+            toProperty(nestedKey, nestedSchema, nestedRequiredSet.has(nestedKey)),
+          )
+        : [];
+
+    return {
+      key: propertyKey,
+      type: propertyType,
+      required: isRequired,
+      operatorDescription:
+        typeof propertyRecord.description === "string" ? propertyRecord.description : "",
+      agentDescription:
+        typeof propertyRecord["x-agent-description"] === "string"
+          ? propertyRecord["x-agent-description"]
+          : "",
+      validation: normalizePropertyValidation(propertyRecord["x-validation"]),
+      additionalProperties: propertyRecord.additionalProperties !== false,
+      properties: nestedProperties,
+    };
+  };
+
+  const properties = Object.entries(propertiesRecord).map(([propertyKey, propertySchema]) =>
+    toProperty(propertyKey, propertySchema, requiredSet.has(propertyKey)),
+  );
+
+  return {
+    rootType,
+    additionalProperties,
+    properties,
+  };
+}
+
+function serializeJsonSchemaEditorState(state: JsonSchemaEditorState): Record<string, unknown> {
+  if (state.rootType !== "object") {
+    return {
+      type: state.rootType,
+    };
+  }
+
+  const toSchemaProperty = (
+    property: JsonSchemaEditorProperty,
+  ): [string, Record<string, unknown>] | null => {
+    const propertyKey = property.key.trim();
+    if (!propertyKey) {
+      return null;
+    }
+
+    const propertySchema: Record<string, unknown> = {
+      type: property.type,
+    };
+
+    const operatorDescription = property.operatorDescription.trim();
+    if (operatorDescription) {
+      propertySchema.description = operatorDescription;
+    }
+
+    const agentDescription = property.agentDescription.trim();
+    if (agentDescription) {
+      propertySchema["x-agent-description"] = agentDescription;
+    }
+
+    if (property.validation.kind !== "none") {
+      propertySchema["x-validation"] =
+        property.validation.kind === "json-schema"
+          ? {
+              ...property.validation,
+              schema: isRecord(property.validation.schema)
+                ? property.validation.schema
+                : { type: property.type },
+            }
+          : property.validation;
+    }
+
+    if (property.type === "object") {
+      const nestedEntries = property.properties
+        .map(toSchemaProperty)
+        .filter((entry): entry is [string, Record<string, unknown>] => entry !== null);
+      const nestedRequired = property.properties
+        .filter((entry) => entry.required && entry.key.trim().length > 0)
+        .map((entry) => entry.key.trim());
+
+      propertySchema.additionalProperties = property.additionalProperties;
+      if (nestedEntries.length > 0) {
+        propertySchema.properties = Object.fromEntries(nestedEntries);
+      }
+      if (nestedRequired.length > 0) {
+        propertySchema.required = nestedRequired;
+      }
+    }
+
+    return [propertyKey, propertySchema];
+  };
+
+  const propertiesEntries = state.properties
+    .map(toSchemaProperty)
+    .filter((entry): entry is [string, Record<string, unknown>] => entry !== null);
+  const required: string[] = [];
+
+  for (const property of state.properties) {
+    const propertyKey = property.key.trim();
+    if (!propertyKey) {
+      continue;
+    }
+    if (property.required) {
+      required.push(propertyKey);
+    }
+  }
+
+  const properties = Object.fromEntries(propertiesEntries);
+
+  return {
+    type: "object",
+    additionalProperties: state.additionalProperties,
+    ...(propertiesEntries.length > 0 ? { properties } : {}),
+    ...(required.length > 0 ? { required } : {}),
+  };
+}
+
+function nextJsonSchemaPropertyKey(properties: readonly JsonSchemaEditorProperty[]): string {
+  const usedKeys = new Set(properties.map((property) => property.key.trim()).filter(Boolean));
+  let counter = 1;
+  while (usedKeys.has(`property_${counter}`)) {
+    counter += 1;
+  }
+  return `property_${counter}`;
+}
+
+function createEmptyJsonSchemaProperty(
+  existingProperties: readonly JsonSchemaEditorProperty[],
+): JsonSchemaEditorProperty {
+  return {
+    key: nextJsonSchemaPropertyKey(existingProperties),
+    type: "string",
+    required: false,
+    operatorDescription: "",
+    agentDescription: "",
+    validation: { kind: "none" },
+    additionalProperties: true,
+    properties: [],
+  };
+}
+
+function updateJsonSchemaPropertyAtPath(
+  properties: readonly JsonSchemaEditorProperty[],
+  path: readonly number[],
+  updater: (property: JsonSchemaEditorProperty) => JsonSchemaEditorProperty,
+): JsonSchemaEditorProperty[] {
+  const [head, ...tail] = path;
+  if (head === undefined) {
+    return [...properties];
+  }
+
+  return properties.map((property, index) => {
+    if (index !== head) {
+      return property;
+    }
+
+    if (tail.length === 0) {
+      return updater(property);
+    }
+
+    return {
+      ...property,
+      properties: updateJsonSchemaPropertyAtPath(property.properties, tail, updater),
+    };
+  });
+}
+
+function removeJsonSchemaPropertyAtPath(
+  properties: readonly JsonSchemaEditorProperty[],
+  path: readonly number[],
+): JsonSchemaEditorProperty[] {
+  const [head, ...tail] = path;
+  if (head === undefined) {
+    return [...properties];
+  }
+
+  if (tail.length === 0) {
+    return properties.filter((_, index) => index !== head);
+  }
+
+  return properties.map((property, index) => {
+    if (index !== head) {
+      return property;
+    }
+
+    return {
+      ...property,
+      properties: removeJsonSchemaPropertyAtPath(property.properties, tail),
+    };
+  });
+}
+
+function createEmptyFact(): FactEditorValue {
+  return {
+    __uiId: createFactEditorId(),
+    name: "",
+    key: "",
+    factType: "string",
+    description: "",
+    guidance: {
+      human: {
+        short: "",
+        long: "",
+        examples: [],
+      },
+      agent: {
+        intent: "",
+        constraints: [],
+        examples: [],
+      },
+    },
+    validation: { kind: "none" },
+  };
+}
+
+type FactListSyncProps = {
+  facts: FactEditorValue[];
+  onSync: (facts: FactEditorValue[]) => void;
+};
+
+function FactListSync({ facts, onSync }: FactListSyncProps) {
+  useEffect(() => {
+    onSync(facts);
+  }, [facts, onSync]);
+
+  return null;
+}
+
+type FactListEditorProps = {
+  heading: string;
+  facts: FactEditorValue[];
+  onChange: (nextFacts: FactEditorValue[]) => void;
+  addLabel: string;
+  emptyMessage: string;
+  rowKeyPrefix: string;
+};
+
+function FactListEditor({
+  heading,
+  facts,
+  onChange,
+  addLabel,
+  emptyMessage,
+  rowKeyPrefix,
+}: FactListEditorProps) {
+  const form = useForm({
+    defaultValues: {
+      facts,
+    },
+  });
+  const serializedFacts = useMemo(() => serializeFacts(facts), [facts]);
+  const lastSyncedRef = useRef(serializedFacts);
+
+  useEffect(() => {
+    if (serializedFacts === lastSyncedRef.current) {
+      return;
+    }
+    lastSyncedRef.current = serializedFacts;
+    form.reset({ facts });
+  }, [facts, form, serializedFacts]);
+
+  const syncFacts = (nextFacts: FactEditorValue[]) => {
+    const serialized = serializeFacts(nextFacts);
+    if (serialized === lastSyncedRef.current) {
+      return;
+    }
+    lastSyncedRef.current = serialized;
+    onChange(nextFacts);
+  };
+
+  return (
+    <>
+      <form.Subscribe selector={(state) => state.values.facts}>
+        {(nextFacts) => (
+          <FactListSync facts={(nextFacts as FactEditorValue[]) ?? []} onSync={syncFacts} />
+        )}
+      </form.Subscribe>
+
+      <form.Field name="facts" mode="array">
+        {(factsField) => {
+          const factItems = (factsField.state.value as FactEditorValue[] | undefined) ?? [];
+
+          return (
+            <>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
+                  {heading}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-7 rounded-none px-2 text-xs"
+                  onClick={() => {
+                    factsField.pushValue(createEmptyFact());
+                  }}
+                >
+                  {addLabel}
+                </Button>
+              </div>
+
+              {factItems.length === 0 ? (
+                <p className="text-xs text-muted-foreground">{emptyMessage}</p>
+              ) : (
+                factItems.map((fact, index) => {
+                  const validationKind = fact.validation?.kind ?? "none";
+                  const rowId = fact.__uiId ?? `${rowKeyPrefix}-row-${index}`;
+                  return (
+                    <article key={rowId} className="chiron-frame-flat space-y-2 p-2">
+                      <div className="grid gap-2 md:grid-cols-2">
+                        <form.Field name={`facts[${index}].name` as never}>
+                          {(nameField) => (
+                            <Input
+                              value={(nameField.state.value as string | undefined) ?? ""}
+                              placeholder="Name (human-readable)"
+                              onBlur={nameField.handleBlur}
+                              onChange={(event) => {
+                                nameField.handleChange(() => event.target.value as never);
+                              }}
+                            />
+                          )}
+                        </form.Field>
+                        <form.Field name={`facts[${index}].key` as never}>
+                          {(keyField) => (
+                            <Input
+                              value={(keyField.state.value as string | undefined) ?? ""}
+                              placeholder="fact_key"
+                              onBlur={keyField.handleBlur}
+                              onChange={(event) => {
+                                keyField.handleChange(() => event.target.value as never);
+                              }}
+                            />
+                          )}
+                        </form.Field>
+                      </div>
+
+                      <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+                        <form.Field name={`facts[${index}].factType` as never}>
+                          {(typeField) => (
+                            <select
+                              className="h-8 border border-border/70 bg-background px-2 text-xs"
+                              value={
+                                (typeField.state.value as FactTypeValue | undefined) ?? "string"
+                              }
+                              onBlur={typeField.handleBlur}
+                              onChange={(event) => {
+                                typeField.handleChange(
+                                  () => event.target.value as FactTypeValue as never,
+                                );
+                              }}
+                            >
+                              {FACT_TYPES.map((factType) => (
+                                <option key={factType} value={factType}>
+                                  {factType}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </form.Field>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-8 rounded-none px-2 text-xs"
+                          onClick={() => {
+                            factsField.removeValue(index);
+                          }}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+
+                      <form.Field name={`facts[${index}].defaultValue` as never}>
+                        {(defaultField) => (
+                          <Input
+                            value={factDefaultToInputValue(fact)}
+                            placeholder={
+                              fact.factType === "json" ? "JSON default" : "Default value"
+                            }
+                            onBlur={defaultField.handleBlur}
+                            onChange={(event) => {
+                              defaultField.handleChange(
+                                () =>
+                                  inputValueToFactDefault(
+                                    fact.factType,
+                                    event.target.value,
+                                  ) as never,
+                              );
+                            }}
+                          />
+                        )}
+                      </form.Field>
+
+                      <form.Field name={`facts[${index}].description` as never}>
+                        {(descriptionField) => (
+                          <Input
+                            value={(descriptionField.state.value as string | undefined) ?? ""}
+                            placeholder="Description"
+                            onBlur={descriptionField.handleBlur}
+                            onChange={(event) => {
+                              descriptionField.handleChange(() => event.target.value as never);
+                            }}
+                          />
+                        )}
+                      </form.Field>
+
+                      <div className="space-y-2">
+                        <p className="text-[0.65rem] uppercase tracking-[0.16em] text-muted-foreground">
+                          Guidance (Markdown-Friendly)
+                        </p>
+                        <div className="grid gap-2 md:grid-cols-2">
+                          <form.Field name={`facts[${index}].guidance.human.short` as never}>
+                            {(field) => (
+                              <textarea
+                                className="w-full border border-border/70 bg-background px-2 py-1.5 text-xs"
+                                rows={3}
+                                value={(field.state.value as string | undefined) ?? ""}
+                                placeholder="Human short guidance (markdown)"
+                                onBlur={field.handleBlur}
+                                onChange={(event) => {
+                                  field.handleChange(() => event.target.value as never);
+                                }}
+                              />
+                            )}
+                          </form.Field>
+                          <form.Field name={`facts[${index}].guidance.human.long` as never}>
+                            {(field) => (
+                              <textarea
+                                className="w-full border border-border/70 bg-background px-2 py-1.5 text-xs"
+                                rows={4}
+                                value={(field.state.value as string | undefined) ?? ""}
+                                placeholder="Human long guidance (markdown)"
+                                onBlur={field.handleBlur}
+                                onChange={(event) => {
+                                  field.handleChange(() => event.target.value as never);
+                                }}
+                              />
+                            )}
+                          </form.Field>
+                        </div>
+
+                        <div className="space-y-2">
+                          <form.Field name={`facts[${index}].guidance.agent.intent` as never}>
+                            {(field) => (
+                              <textarea
+                                className="w-full border border-border/70 bg-background px-2 py-1.5 text-xs"
+                                rows={3}
+                                value={(field.state.value as string | undefined) ?? ""}
+                                placeholder="Agent intent (markdown)"
+                                onBlur={field.handleBlur}
+                                onChange={(event) => {
+                                  field.handleChange(() => event.target.value as never);
+                                }}
+                              />
+                            )}
+                          </form.Field>
+
+                          <form.Field name={`facts[${index}].guidance.agent.constraints` as never}>
+                            {(constraintsField) => (
+                              <textarea
+                                className="w-full border border-border/70 bg-background px-2 py-1.5 text-xs"
+                                rows={4}
+                                value={linesToTextareaValue(
+                                  (constraintsField.state.value as string[] | undefined) ?? [],
+                                )}
+                                placeholder="Agent constraints (markdown, one constraint per line)"
+                                onBlur={constraintsField.handleBlur}
+                                onChange={(event) => {
+                                  constraintsField.handleChange(
+                                    () => textareaValueToLines(event.target.value) as never,
+                                  );
+                                }}
+                              />
+                            )}
+                          </form.Field>
+
+                          <form.Field name={`facts[${index}].guidance.human.examples` as never}>
+                            {(humanExamplesField) => (
+                              <textarea
+                                className="w-full border border-border/70 bg-background px-2 py-1.5 text-xs"
+                                rows={4}
+                                value={linesToTextareaValue(
+                                  (humanExamplesField.state.value as string[] | undefined) ?? [],
+                                )}
+                                placeholder="Human examples (markdown, one example per line)"
+                                onBlur={humanExamplesField.handleBlur}
+                                onChange={(event) => {
+                                  humanExamplesField.handleChange(
+                                    () => textareaValueToLines(event.target.value) as never,
+                                  );
+                                }}
+                              />
+                            )}
+                          </form.Field>
+                        </div>
+
+                        <form.Field name={`facts[${index}].guidance.agent.examples` as never}>
+                          {(agentExamplesField) => (
+                            <textarea
+                              className="w-full border border-border/70 bg-background px-2 py-1.5 text-xs"
+                              rows={4}
+                              value={linesToTextareaValue(
+                                (agentExamplesField.state.value as string[] | undefined) ?? [],
+                              )}
+                              placeholder="Agent examples (markdown, one example per line)"
+                              onBlur={agentExamplesField.handleBlur}
+                              onChange={(event) => {
+                                agentExamplesField.handleChange(
+                                  () => textareaValueToLines(event.target.value) as never,
+                                );
+                              }}
+                            />
+                          )}
+                        </form.Field>
+                      </div>
+
+                      <div className="grid gap-2 md:grid-cols-2">
+                        <form.Field name={`facts[${index}].validation` as never}>
+                          {(validationField) => {
+                            const value =
+                              (validationField.state.value as
+                                | FactEditorValue["validation"]
+                                | undefined) ?? ({ kind: "none" } as const);
+                            return (
+                              <select
+                                className="h-8 border border-border/70 bg-background px-2 text-xs"
+                                value={value.kind}
+                                onBlur={validationField.handleBlur}
+                                onChange={(event) => {
+                                  validationField.handleChange(
+                                    () =>
+                                      setFactValidationKind(
+                                        factItems[index] ?? createEmptyFact(),
+                                        event.target.value as "none" | "path" | "json-schema",
+                                      ).validation as never,
+                                  );
+                                }}
+                              >
+                                <option value="none">validation: none</option>
+                                <option value="path">validation: path</option>
+                                <option value="json-schema">validation: json-schema</option>
+                              </select>
+                            );
+                          }}
+                        </form.Field>
+
+                        {validationKind === "path" ? (
+                          <form.Field name={`facts[${index}].validation.path.pathKind` as never}>
+                            {(pathKindField) => (
+                              <select
+                                className="h-8 border border-border/70 bg-background px-2 text-xs"
+                                value={
+                                  (pathKindField.state.value as "file" | "directory" | undefined) ??
+                                  "file"
+                                }
+                                onBlur={pathKindField.handleBlur}
+                                onChange={(event) => {
+                                  pathKindField.handleChange(
+                                    () => event.target.value as "file" | "directory" as never,
+                                  );
+                                }}
+                              >
+                                <option value="file">pathKind: file</option>
+                                <option value="directory">pathKind: directory</option>
+                              </select>
+                            )}
+                          </form.Field>
+                        ) : validationKind === "json-schema" ? (
+                          <form.Field name={`facts[${index}].validation.schemaDialect` as never}>
+                            {(schemaDialectField) => (
+                              <Input
+                                value={(schemaDialectField.state.value as string | undefined) ?? ""}
+                                placeholder="schema dialect"
+                                onBlur={schemaDialectField.handleBlur}
+                                onChange={(event) => {
+                                  schemaDialectField.handleChange(
+                                    () => event.target.value as never,
+                                  );
+                                }}
+                              />
+                            )}
+                          </form.Field>
+                        ) : (
+                          <div className="h-8" />
+                        )}
+                      </div>
+
+                      {validationKind === "path" ? (
+                        <div className="grid gap-2 md:grid-cols-3 text-xs text-muted-foreground">
+                          <label
+                            htmlFor={`${rowId}-trim-whitespace`}
+                            className="flex items-center gap-2"
+                          >
+                            <form.Field
+                              name={
+                                `facts[${index}].validation.path.normalization.trimWhitespace` as never
+                              }
+                            >
+                              {(field) => (
+                                <input
+                                  id={`${rowId}-trim-whitespace`}
+                                  type="checkbox"
+                                  checked={(field.state.value as boolean | undefined) ?? true}
+                                  onBlur={field.handleBlur}
+                                  onChange={(event) => {
+                                    field.handleChange(() => event.target.checked as never);
+                                  }}
+                                />
+                              )}
+                            </form.Field>
+                            Trim whitespace
+                          </label>
+                          <label
+                            htmlFor={`${rowId}-disallow-absolute`}
+                            className="flex items-center gap-2"
+                          >
+                            <form.Field
+                              name={
+                                `facts[${index}].validation.path.safety.disallowAbsolute` as never
+                              }
+                            >
+                              {(field) => (
+                                <input
+                                  id={`${rowId}-disallow-absolute`}
+                                  type="checkbox"
+                                  checked={(field.state.value as boolean | undefined) ?? true}
+                                  onBlur={field.handleBlur}
+                                  onChange={(event) => {
+                                    field.handleChange(() => event.target.checked as never);
+                                  }}
+                                />
+                              )}
+                            </form.Field>
+                            Disallow absolute
+                          </label>
+                          <label
+                            htmlFor={`${rowId}-prevent-traversal`}
+                            className="flex items-center gap-2"
+                          >
+                            <form.Field
+                              name={
+                                `facts[${index}].validation.path.safety.preventTraversal` as never
+                              }
+                            >
+                              {(field) => (
+                                <input
+                                  id={`${rowId}-prevent-traversal`}
+                                  type="checkbox"
+                                  checked={(field.state.value as boolean | undefined) ?? true}
+                                  onBlur={field.handleBlur}
+                                  onChange={(event) => {
+                                    field.handleChange(() => event.target.checked as never);
+                                  }}
+                                />
+                              )}
+                            </form.Field>
+                            Prevent traversal
+                          </label>
+                        </div>
+                      ) : null}
+
+                      {validationKind === "json-schema" ? (
+                        <form.Field name={`facts[${index}].validation.schema` as never}>
+                          {(schemaField) => {
+                            const schemaState = normalizeJsonSchemaEditorState(
+                              schemaField.state.value,
+                            );
+                            const updateSchemaState = (
+                              updater: (state: JsonSchemaEditorState) => JsonSchemaEditorState,
+                            ) => {
+                              const nextState = updater(schemaState);
+                              schemaField.handleChange(
+                                () => serializeJsonSchemaEditorState(nextState) as never,
+                              );
+                            };
+
+                            const renderSchemaProperties = (
+                              properties: JsonSchemaEditorProperty[],
+                              parentPath: number[] = [],
+                            ) =>
+                              properties.map((property, propertyIndex) => {
+                                const propertyPath = [...parentPath, propertyIndex];
+                                const pathKey = propertyPath.join("-");
+                                const propertyValidationWarning =
+                                  getPropertyValidationWarning(property);
+
+                                return (
+                                  <div
+                                    key={`${rowId}-schema-property-${pathKey}`}
+                                    className="space-y-2 border border-border/60 p-2"
+                                    style={{ marginLeft: parentPath.length * 12 }}
+                                  >
+                                    <div className="grid gap-2 md:grid-cols-[1fr_180px_auto_auto]">
+                                      <Input
+                                        value={property.key}
+                                        placeholder="property_key"
+                                        onChange={(event) => {
+                                          updateSchemaState((current) => ({
+                                            ...current,
+                                            properties: updateJsonSchemaPropertyAtPath(
+                                              current.properties,
+                                              propertyPath,
+                                              (entry) => ({ ...entry, key: event.target.value }),
+                                            ),
+                                          }));
+                                        }}
+                                      />
+                                      <select
+                                        className="h-8 border border-border/70 bg-background px-2 text-xs"
+                                        value={property.type}
+                                        onChange={(event) => {
+                                          updateSchemaState((current) => ({
+                                            ...current,
+                                            properties: updateJsonSchemaPropertyAtPath(
+                                              current.properties,
+                                              propertyPath,
+                                              (entry) => ({
+                                                ...entry,
+                                                type: event.target.value as JsonSchemaPropertyType,
+                                                properties:
+                                                  event.target.value === "object"
+                                                    ? entry.properties
+                                                    : [],
+                                                additionalProperties:
+                                                  event.target.value === "object"
+                                                    ? entry.additionalProperties
+                                                    : true,
+                                                validation:
+                                                  entry.validation.kind === "json-schema"
+                                                    ? {
+                                                        ...entry.validation,
+                                                        schema: {
+                                                          type: event.target.value,
+                                                        },
+                                                      }
+                                                    : entry.validation,
+                                              }),
+                                            ),
+                                          }));
+                                        }}
+                                      >
+                                        {JSON_SCHEMA_PROPERTY_TYPES.map((schemaType) => (
+                                          <option key={schemaType} value={schemaType}>
+                                            {schemaType}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                                        <input
+                                          type="checkbox"
+                                          checked={property.required}
+                                          onChange={(event) => {
+                                            updateSchemaState((current) => ({
+                                              ...current,
+                                              properties: updateJsonSchemaPropertyAtPath(
+                                                current.properties,
+                                                propertyPath,
+                                                (entry) => ({
+                                                  ...entry,
+                                                  required: event.target.checked,
+                                                }),
+                                              ),
+                                            }));
+                                          }}
+                                        />
+                                        required
+                                      </label>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="h-8 rounded-none px-2 text-xs"
+                                        onClick={() => {
+                                          updateSchemaState((current) => ({
+                                            ...current,
+                                            properties: removeJsonSchemaPropertyAtPath(
+                                              current.properties,
+                                              propertyPath,
+                                            ),
+                                          }));
+                                        }}
+                                      >
+                                        Remove
+                                      </Button>
+                                    </div>
+
+                                    <div className="grid gap-2 md:grid-cols-2">
+                                      <Input
+                                        value={property.operatorDescription}
+                                        placeholder="Operator description"
+                                        onChange={(event) => {
+                                          updateSchemaState((current) => ({
+                                            ...current,
+                                            properties: updateJsonSchemaPropertyAtPath(
+                                              current.properties,
+                                              propertyPath,
+                                              (entry) => ({
+                                                ...entry,
+                                                operatorDescription: event.target.value,
+                                              }),
+                                            ),
+                                          }));
+                                        }}
+                                      />
+                                      <Input
+                                        value={property.agentDescription}
+                                        placeholder="Agent description"
+                                        onChange={(event) => {
+                                          updateSchemaState((current) => ({
+                                            ...current,
+                                            properties: updateJsonSchemaPropertyAtPath(
+                                              current.properties,
+                                              propertyPath,
+                                              (entry) => ({
+                                                ...entry,
+                                                agentDescription: event.target.value,
+                                              }),
+                                            ),
+                                          }));
+                                        }}
+                                      />
+                                    </div>
+
+                                    <div className="grid gap-2 md:grid-cols-2">
+                                      <select
+                                        className="h-8 border border-border/70 bg-background px-2 text-xs"
+                                        value={property.validation.kind}
+                                        onChange={(event) => {
+                                          updateSchemaState((current) => ({
+                                            ...current,
+                                            properties: updateJsonSchemaPropertyAtPath(
+                                              current.properties,
+                                              propertyPath,
+                                              (entry) =>
+                                                setPropertyValidationKind(
+                                                  entry,
+                                                  event.target.value as
+                                                    | "none"
+                                                    | "path"
+                                                    | "json-schema",
+                                                ),
+                                            ),
+                                          }));
+                                        }}
+                                      >
+                                        <option value="none">property validation: none</option>
+                                        <option value="path">property validation: path</option>
+                                        <option value="json-schema">
+                                          property validation: json-schema
+                                        </option>
+                                      </select>
+
+                                      {property.validation.kind === "path" ? (
+                                        <select
+                                          className="h-8 border border-border/70 bg-background px-2 text-xs"
+                                          value={property.validation.path.pathKind}
+                                          onChange={(event) => {
+                                            updateSchemaState((current) => ({
+                                              ...current,
+                                              properties: updateJsonSchemaPropertyAtPath(
+                                                current.properties,
+                                                propertyPath,
+                                                (entry) =>
+                                                  entry.validation.kind === "path"
+                                                    ? {
+                                                        ...entry,
+                                                        validation: {
+                                                          ...entry.validation,
+                                                          path: {
+                                                            ...entry.validation.path,
+                                                            pathKind: event.target.value as
+                                                              | "file"
+                                                              | "directory",
+                                                          },
+                                                        },
+                                                      }
+                                                    : entry,
+                                              ),
+                                            }));
+                                          }}
+                                        >
+                                          <option value="file">pathKind: file</option>
+                                          <option value="directory">pathKind: directory</option>
+                                        </select>
+                                      ) : property.validation.kind === "json-schema" ? (
+                                        <Input
+                                          value={property.validation.schemaDialect}
+                                          placeholder="schema dialect"
+                                          onChange={(event) => {
+                                            updateSchemaState((current) => ({
+                                              ...current,
+                                              properties: updateJsonSchemaPropertyAtPath(
+                                                current.properties,
+                                                propertyPath,
+                                                (entry) =>
+                                                  entry.validation.kind === "json-schema"
+                                                    ? {
+                                                        ...entry,
+                                                        validation: {
+                                                          ...entry.validation,
+                                                          schemaDialect: event.target.value,
+                                                        },
+                                                      }
+                                                    : entry,
+                                              ),
+                                            }));
+                                          }}
+                                        />
+                                      ) : (
+                                        <div className="h-8" />
+                                      )}
+                                    </div>
+
+                                    {property.validation.kind === "path" ? (
+                                      <div className="grid gap-2 md:grid-cols-3 text-xs text-muted-foreground">
+                                        <label className="flex items-center gap-2">
+                                          <input
+                                            type="checkbox"
+                                            checked={
+                                              property.validation.path.normalization.trimWhitespace
+                                            }
+                                            onChange={(event) => {
+                                              updateSchemaState((current) => ({
+                                                ...current,
+                                                properties: updateJsonSchemaPropertyAtPath(
+                                                  current.properties,
+                                                  propertyPath,
+                                                  (entry) =>
+                                                    entry.validation.kind === "path"
+                                                      ? {
+                                                          ...entry,
+                                                          validation: {
+                                                            ...entry.validation,
+                                                            path: {
+                                                              ...entry.validation.path,
+                                                              normalization: {
+                                                                ...entry.validation.path
+                                                                  .normalization,
+                                                                trimWhitespace:
+                                                                  event.target.checked,
+                                                              },
+                                                            },
+                                                          },
+                                                        }
+                                                      : entry,
+                                                ),
+                                              }));
+                                            }}
+                                          />
+                                          Trim whitespace
+                                        </label>
+                                        <label className="flex items-center gap-2">
+                                          <input
+                                            type="checkbox"
+                                            checked={
+                                              property.validation.path.safety.disallowAbsolute
+                                            }
+                                            onChange={(event) => {
+                                              updateSchemaState((current) => ({
+                                                ...current,
+                                                properties: updateJsonSchemaPropertyAtPath(
+                                                  current.properties,
+                                                  propertyPath,
+                                                  (entry) =>
+                                                    entry.validation.kind === "path"
+                                                      ? {
+                                                          ...entry,
+                                                          validation: {
+                                                            ...entry.validation,
+                                                            path: {
+                                                              ...entry.validation.path,
+                                                              safety: {
+                                                                ...entry.validation.path.safety,
+                                                                disallowAbsolute:
+                                                                  event.target.checked,
+                                                              },
+                                                            },
+                                                          },
+                                                        }
+                                                      : entry,
+                                                ),
+                                              }));
+                                            }}
+                                          />
+                                          Disallow absolute
+                                        </label>
+                                        <label className="flex items-center gap-2">
+                                          <input
+                                            type="checkbox"
+                                            checked={
+                                              property.validation.path.safety.preventTraversal
+                                            }
+                                            onChange={(event) => {
+                                              updateSchemaState((current) => ({
+                                                ...current,
+                                                properties: updateJsonSchemaPropertyAtPath(
+                                                  current.properties,
+                                                  propertyPath,
+                                                  (entry) =>
+                                                    entry.validation.kind === "path"
+                                                      ? {
+                                                          ...entry,
+                                                          validation: {
+                                                            ...entry.validation,
+                                                            path: {
+                                                              ...entry.validation.path,
+                                                              safety: {
+                                                                ...entry.validation.path.safety,
+                                                                preventTraversal:
+                                                                  event.target.checked,
+                                                              },
+                                                            },
+                                                          },
+                                                        }
+                                                      : entry,
+                                                ),
+                                              }));
+                                            }}
+                                          />
+                                          Prevent traversal
+                                        </label>
+                                      </div>
+                                    ) : null}
+
+                                    {propertyValidationWarning ? (
+                                      <p className="text-xs text-amber-300/90">
+                                        {propertyValidationWarning}
+                                      </p>
+                                    ) : null}
+
+                                    {property.type === "object" ? (
+                                      <div className="space-y-2">
+                                        <div className="flex items-center justify-between gap-2">
+                                          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                                            <input
+                                              type="checkbox"
+                                              checked={property.additionalProperties}
+                                              onChange={(event) => {
+                                                updateSchemaState((current) => ({
+                                                  ...current,
+                                                  properties: updateJsonSchemaPropertyAtPath(
+                                                    current.properties,
+                                                    propertyPath,
+                                                    (entry) => ({
+                                                      ...entry,
+                                                      additionalProperties: event.target.checked,
+                                                    }),
+                                                  ),
+                                                }));
+                                              }}
+                                            />
+                                            allow additionalProperties
+                                          </label>
+                                          <Button
+                                            type="button"
+                                            variant="outline"
+                                            className="h-7 rounded-none px-2 text-xs"
+                                            onClick={() => {
+                                              updateSchemaState((current) => ({
+                                                ...current,
+                                                properties: updateJsonSchemaPropertyAtPath(
+                                                  current.properties,
+                                                  propertyPath,
+                                                  (entry) => ({
+                                                    ...entry,
+                                                    properties: [
+                                                      ...entry.properties,
+                                                      createEmptyJsonSchemaProperty(
+                                                        entry.properties,
+                                                      ),
+                                                    ],
+                                                  }),
+                                                ),
+                                              }));
+                                            }}
+                                          >
+                                            + Add Nested Property
+                                          </Button>
+                                        </div>
+
+                                        {property.properties.length === 0 ? (
+                                          <p className="text-xs text-muted-foreground">
+                                            No nested properties.
+                                          </p>
+                                        ) : (
+                                          renderSchemaProperties(property.properties, propertyPath)
+                                        )}
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                );
+                              });
+
+                            return (
+                              <section className="chiron-frame-flat space-y-2 p-2">
+                                <p className="text-[0.62rem] uppercase tracking-[0.14em] text-muted-foreground">
+                                  JSON Schema Builder
+                                </p>
+
+                                <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+                                  <select
+                                    className="h-8 border border-border/70 bg-background px-2 text-xs"
+                                    value={schemaState.rootType}
+                                    onBlur={schemaField.handleBlur}
+                                    onChange={(event) => {
+                                      updateSchemaState((current) => ({
+                                        ...current,
+                                        rootType: event.target.value as JsonSchemaPropertyType,
+                                      }));
+                                    }}
+                                  >
+                                    {JSON_SCHEMA_PROPERTY_TYPES.map((schemaType) => (
+                                      <option key={schemaType} value={schemaType}>
+                                        root type: {schemaType}
+                                      </option>
+                                    ))}
+                                  </select>
+
+                                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    <input
+                                      type="checkbox"
+                                      checked={schemaState.additionalProperties}
+                                      disabled={schemaState.rootType !== "object"}
+                                      onChange={(event) => {
+                                        updateSchemaState((current) => ({
+                                          ...current,
+                                          additionalProperties: event.target.checked,
+                                        }));
+                                      }}
+                                    />
+                                    allow additionalProperties
+                                  </label>
+                                </div>
+
+                                {schemaState.rootType === "object" ? (
+                                  <div className="space-y-2">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <p className="text-[0.62rem] uppercase tracking-[0.14em] text-muted-foreground">
+                                        Properties
+                                      </p>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="h-7 rounded-none px-2 text-xs"
+                                        onClick={() => {
+                                          updateSchemaState((current) => ({
+                                            ...current,
+                                            properties: [
+                                              ...current.properties,
+                                              createEmptyJsonSchemaProperty(current.properties),
+                                            ],
+                                          }));
+                                        }}
+                                      >
+                                        + Add Property
+                                      </Button>
+                                    </div>
+
+                                    {schemaState.properties.length === 0 ? (
+                                      <p className="text-xs text-muted-foreground">
+                                        No properties yet.
+                                      </p>
+                                    ) : (
+                                      renderSchemaProperties(schemaState.properties)
+                                    )}
+                                  </div>
+                                ) : null}
+                              </section>
+                            );
+                          }}
+                        </form.Field>
+                      ) : null}
+                    </article>
+                  );
+                })
+              )}
+            </>
+          );
+        }}
+      </form.Field>
+    </>
+  );
+}
+
 export function toDeterministicJson(input: unknown): string {
-  return JSON.stringify(input, null, 2);
+  return JSON.stringify(toDeterministicValue(input), null, 2);
 }
 
 export function createEmptyMethodologyVersionWorkspaceDraft(
@@ -121,6 +1803,7 @@ export function createEmptyMethodologyVersionWorkspaceDraft(
   return {
     methodologyKey,
     displayName: `${methodologyKey} Draft`,
+    factDefinitionsJson: toDeterministicJson([]),
     workUnitTypesJson: toDeterministicJson([]),
     agentTypesJson: toDeterministicJson([]),
     factSchemasJson: toDeterministicJson({}),
@@ -134,6 +1817,22 @@ export function createEmptyMethodologyVersionWorkspaceDraft(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function toDeterministicValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((entry) => toDeterministicValue(entry));
+  }
+
+  if (!isRecord(value)) {
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => [key, toDeterministicValue(entry)]),
+  );
 }
 
 function isUnknownArrayRecord(value: unknown): value is Record<string, unknown[]> {
@@ -223,6 +1922,9 @@ export function createDraftFromProjection(
   return {
     methodologyKey,
     displayName: projection.displayName,
+    factDefinitionsJson: toDeterministicJson(
+      Array.isArray(projection.factDefinitions) ? projection.factDefinitions : [],
+    ),
     workUnitTypesJson: toDeterministicJson(workUnitTypes),
     agentTypesJson: toDeterministicJson(
       Array.isArray(projection.agentTypes) ? projection.agentTypes : [],
@@ -247,9 +1949,8 @@ function parseJson(
   value: string,
   diagnostics: WorkspaceParseDiagnostic[],
 ): unknown {
-  try {
-    return JSON.parse(value);
-  } catch {
+  const parsedResult = Result.try(() => JSON.parse(value));
+  if (parsedResult.isErr()) {
     diagnostics.push({
       field,
       message: "Invalid JSON format. Fix JSON syntax and retry save.",
@@ -257,6 +1958,8 @@ function parseJson(
     });
     return null;
   }
+
+  return parsedResult.value;
 }
 
 function mergeFactSchemasIntoWorkUnits(
@@ -333,6 +2036,11 @@ export function parseWorkspaceDraftForPersistence(
 ): WorkspacePersistencePayload {
   const diagnostics: WorkspaceParseDiagnostic[] = [];
 
+  const factDefinitionsValue = parseJson(
+    "factDefinitionsJson",
+    draft.factDefinitionsJson,
+    diagnostics,
+  );
   const workUnitTypesValue = parseJson("workUnitTypesJson", draft.workUnitTypesJson, diagnostics);
   const agentTypesValue = parseJson("agentTypesJson", draft.agentTypesJson, diagnostics);
   const factSchemasValue = parseJson("factSchemasJson", draft.factSchemasJson, diagnostics);
@@ -346,6 +2054,7 @@ export function parseWorkspaceDraftForPersistence(
   );
   const guidanceValue = parseJson("guidanceJson", draft.guidanceJson, diagnostics);
 
+  const factDefinitions = Array.isArray(factDefinitionsValue) ? factDefinitionsValue : [];
   const workUnitTypes = Array.isArray(workUnitTypesValue) ? workUnitTypesValue : [];
   const agentTypes = Array.isArray(agentTypesValue) ? agentTypesValue : [];
   const factSchemasByWorkUnit = isUnknownArrayRecord(factSchemasValue) ? factSchemasValue : {};
@@ -355,6 +2064,13 @@ export function parseWorkspaceDraftForPersistence(
   const transitionWorkflowBindings = isStringArrayRecord(bindingsValue) ? bindingsValue : {};
   const guidance = isRecord(guidanceValue) ? guidanceValue : undefined;
 
+  if (!Array.isArray(factDefinitionsValue)) {
+    diagnostics.push({
+      field: "factDefinitionsJson",
+      message: "Expected a JSON array of methodology fact definitions.",
+      group: "field",
+    });
+  }
   if (!Array.isArray(workUnitTypesValue)) {
     diagnostics.push({
       field: "workUnitTypesJson",
@@ -417,12 +2133,16 @@ export function parseWorkspaceDraftForPersistence(
       workflows: mergeWorkflowSteps(workflows, workflowSteps),
       transitionWorkflowBindings,
       guidance,
+      factDefinitions,
     },
     diagnostics,
   };
 }
 
 function scopeToWorkspaceField(scope: string): keyof MethodologyVersionWorkspaceDraft {
+  if (scope.includes("factDefinitions")) {
+    return "factDefinitionsJson";
+  }
   if (scope.includes("factSchemas")) {
     return "factSchemasJson";
   }
@@ -453,6 +2173,9 @@ function deriveDiagnosticGroup(scope: string): "field" | "work unit" | "transiti
   }
   if (scope.includes("workUnit") || scope.includes("agentTypes") || scope.includes("factSchemas")) {
     return "work unit";
+  }
+  if (scope.includes("factDefinitions")) {
+    return "field";
   }
   return "field";
 }
@@ -552,13 +2275,80 @@ export function MethodologyVersionWorkspace({
   onSave,
 }: MethodologyVersionWorkspaceProps) {
   const parsedForGraph = useMemo(() => parseWorkspaceDraftForPersistence(draft), [draft]);
-  const [showAdvancedJson, setShowAdvancedJson] = useState(false);
+  const parsedMethodologyFacts = useMemo(
+    () => parseFactDefinitionsWithStatus(draft.factDefinitionsJson),
+    [draft.factDefinitionsJson],
+  );
+  const parsedWorkUnitFacts = useMemo(
+    () => parseFactSchemasMapWithStatus(draft.factSchemasJson),
+    [draft.factSchemasJson],
+  );
   const [showWorkspaceContext, setShowWorkspaceContext] = useState(false);
   const [focusTarget, setFocusTarget] = useState<WorkspaceFocusTarget | null>(null);
   const [focusSequence, setFocusSequence] = useState(0);
+  const [factsDirty, setFactsDirty] = useState(false);
+  const focusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const workUnitCount = parsedForGraph.lifecycle.workUnitTypes.length;
   const workflowCount = parsedForGraph.workflows.workflows.length;
   const bindingCount = Object.keys(parsedForGraph.workflows.transitionWorkflowBindings).length;
+  const methodologyFacts = parsedMethodologyFacts.facts;
+  const workUnitFactsByKey = parsedWorkUnitFacts.byWorkUnit;
+  const factEditorWarnings = useMemo(() => {
+    const warnings: string[] = [];
+    if (!parsedMethodologyFacts.valid) {
+      warnings.push(
+        "Methodology fact JSON could not be parsed. The editor is showing an empty fallback until you make a valid edit.",
+      );
+    }
+    if (!parsedWorkUnitFacts.valid) {
+      warnings.push(
+        "Work-unit fact schema JSON could not be parsed. The editor is showing empty fallbacks until you make a valid edit.",
+      );
+    }
+
+    return warnings;
+  }, [parsedMethodologyFacts.valid, parsedWorkUnitFacts.valid]);
+  const workUnitKeys = useMemo(
+    () =>
+      parsedForGraph.lifecycle.workUnitTypes
+        .map((workUnit) =>
+          isRecord(workUnit) && typeof workUnit.key === "string" ? workUnit.key : null,
+        )
+        .filter((value): value is string => Boolean(value)),
+    [parsedForGraph.lifecycle.workUnitTypes],
+  );
+  const [activeWorkUnitKey, setActiveWorkUnitKey] = useState<string>("");
+
+  useEffect(() => {
+    if (workUnitKeys.length === 0) {
+      setActiveWorkUnitKey("");
+      return;
+    }
+    if (!activeWorkUnitKey || !workUnitKeys.includes(activeWorkUnitKey)) {
+      setActiveWorkUnitKey(workUnitKeys[0] ?? "");
+    }
+  }, [activeWorkUnitKey, workUnitKeys]);
+
+  const activeWorkUnitFacts = workUnitFactsByKey[activeWorkUnitKey] ?? [];
+
+  const updateMethodologyFacts = (nextFacts: FactEditorValue[]) => {
+    setFactsDirty(true);
+    onChange("factDefinitionsJson", serializeFacts(nextFacts));
+  };
+
+  const updateWorkUnitFacts = (workUnitKey: string, nextFacts: FactEditorValue[]) => {
+    setFactsDirty(true);
+    const nextMap = {
+      ...workUnitFactsByKey,
+      [workUnitKey]: factsToSerializable(nextFacts),
+    };
+    onChange("factSchemasJson", toDeterministicJson(nextMap));
+  };
+
+  const handleSaveFacts = () => {
+    onSave();
+    setFactsDirty(false);
+  };
 
   const groupedDiagnostics = useMemo(() => {
     const groups: Record<(typeof DIAGNOSTIC_GROUP_ORDER)[number], WorkspaceParseDiagnostic[]> = {
@@ -582,19 +2372,32 @@ export function MethodologyVersionWorkspace({
     }
   }, [parseDiagnostics.length]);
 
+  useEffect(() => {
+    return () => {
+      if (focusTimeoutRef.current !== null) {
+        clearTimeout(focusTimeoutRef.current);
+        focusTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
   const focusDiagnosticField = (field: keyof MethodologyVersionWorkspaceDraft) => {
     if (field === "methodologyKey" || field === "displayName") {
       setShowWorkspaceContext(true);
-    } else {
-      setShowAdvancedJson(true);
     }
 
     const elementId = FIELD_ELEMENT_IDS[field];
-    setTimeout(() => {
+    if (focusTimeoutRef.current !== null) {
+      clearTimeout(focusTimeoutRef.current);
+      focusTimeoutRef.current = null;
+    }
+
+    focusTimeoutRef.current = setTimeout(() => {
       const element = document.getElementById(elementId);
       if (element instanceof HTMLElement) {
         element.focus();
       }
+      focusTimeoutRef.current = null;
     }, 0);
   };
 
@@ -607,11 +2410,11 @@ export function MethodologyVersionWorkspace({
   };
 
   return (
-    <div className="space-y-4">
-      <section className="chiron-frame-flat p-3">
+    <div className="space-y-5">
+      <section className="chiron-frame-flat chiron-tone-canvas p-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
+            <p className="chiron-tone-kicker text-[0.68rem] uppercase tracking-[0.18em]">
               Draft / Non-Executable
             </p>
             <p className="mt-2 text-sm text-muted-foreground">
@@ -644,9 +2447,9 @@ export function MethodologyVersionWorkspace({
         focusTargetSequence={focusSequence}
       />
 
-      <section className="chiron-frame-flat p-3">
+      <section className="chiron-frame-flat chiron-tone-context p-3">
         <div className="flex items-center justify-between gap-3">
-          <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
+          <p className="chiron-tone-kicker text-[0.68rem] uppercase tracking-[0.18em]">
             Workspace Context and Runtime
           </p>
           <Button
@@ -695,8 +2498,8 @@ export function MethodologyVersionWorkspace({
               </label>
             </section>
 
-            <section className="chiron-frame-flat p-3">
-              <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
+            <section className="chiron-frame-flat chiron-tone-runtime p-3">
+              <p className="chiron-tone-kicker text-[0.68rem] uppercase tracking-[0.18em]">
                 Runtime
               </p>
               <div className="mt-3 flex items-center gap-3">
@@ -714,48 +2517,96 @@ export function MethodologyVersionWorkspace({
         )}
       </section>
 
-      <section className="space-y-3 border border-border/80 bg-background p-4">
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
-            Advanced Raw Contract JSON
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            className="rounded-none h-8 px-2 text-xs"
-            onClick={() => {
-              setShowAdvancedJson((current) => !current);
-            }}
-          >
-            {showAdvancedJson ? "Hide JSON" : "Show JSON"}
-          </Button>
+      <section className="chiron-frame-flat chiron-tone-contracts space-y-4 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-1">
+            <p className="chiron-tone-kicker font-geist-pixel-grid text-[0.74rem] uppercase tracking-[0.2em]">
+              Fact Authoring Studio
+            </p>
+            <p className="text-[0.62rem] uppercase tracking-[0.16em] text-muted-foreground">
+              {factsDirty ? "Unsaved fact edits" : "Facts synced"}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <p className="text-xs text-muted-foreground">
+              Structured forms for methodology and work-unit facts. No raw JSON required.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-8 rounded-none px-3 text-xs"
+              onClick={handleSaveFacts}
+              disabled={isSaving || !factsDirty || factEditorWarnings.length > 0}
+            >
+              {isSaving ? "Saving..." : "Save Facts"}
+            </Button>
+          </div>
         </div>
 
-        {!showAdvancedJson ? (
-          <p className="text-xs text-muted-foreground">
-            Keep this hidden for normal authoring. Use canvas + inspector first.
-          </p>
-        ) : (
-          EDITOR_FIELDS.map((field) => (
-            <details key={field.key} className="chiron-cut-frame px-3 py-2" data-variant="surface">
-              <summary className="cursor-pointer text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
-                {field.label}
-              </summary>
-              <label className="mt-2 flex flex-col gap-2 text-sm">
-                <textarea
-                  id={FIELD_ELEMENT_IDS[field.key]}
-                  aria-label={field.label}
-                  className="w-full border border-border/70 bg-background px-2 py-1 font-mono text-xs"
-                  rows={field.rows ?? 6}
-                  value={draft[field.key]}
+        {factEditorWarnings.length > 0 ? (
+          <div className="chiron-frame-flat border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+            {factEditorWarnings.map((warning) => (
+              <p key={warning}>{warning}</p>
+            ))}
+          </div>
+        ) : null}
+
+        <div className="grid gap-4 xl:grid-cols-2">
+          <section
+            id={FIELD_ELEMENT_IDS.factDefinitionsJson}
+            className="chiron-frame-flat space-y-3 p-3"
+          >
+            <FactListEditor
+              heading="Methodology Facts"
+              facts={methodologyFacts}
+              onChange={updateMethodologyFacts}
+              addLabel="+ Add Fact"
+              emptyMessage="No methodology facts yet."
+              rowKeyPrefix="methodology-fact"
+            />
+          </section>
+
+          <section
+            id={FIELD_ELEMENT_IDS.factSchemasJson}
+            className="chiron-frame-flat space-y-3 p-3"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
+                Work-Unit Scope
+              </p>
+              <div className="flex items-center gap-2">
+                <select
+                  className="h-7 min-w-36 border border-border/70 bg-background px-2 text-xs"
+                  value={activeWorkUnitKey}
                   onChange={(event) => {
-                    onChange(field.key, event.target.value);
+                    setActiveWorkUnitKey(event.target.value);
                   }}
-                />
-              </label>
-            </details>
-          ))
-        )}
+                >
+                  {workUnitKeys.map((workUnitKey) => (
+                    <option key={workUnitKey} value={workUnitKey}>
+                      {workUnitKey}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {activeWorkUnitKey.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Create a work unit first.</p>
+            ) : (
+              <FactListEditor
+                heading="Work-Unit Fact Schemas"
+                facts={activeWorkUnitFacts}
+                onChange={(nextFacts) => {
+                  updateWorkUnitFacts(activeWorkUnitKey, nextFacts);
+                }}
+                addLabel="+ Add Schema"
+                emptyMessage="No fact schemas for this work unit yet."
+                rowKeyPrefix={`${activeWorkUnitKey}-fact`}
+              />
+            )}
+          </section>
+        </div>
       </section>
 
       {parseDiagnostics.length > 0 ? (
@@ -799,7 +2650,7 @@ export function MethodologyVersionWorkspace({
         </section>
       ) : null}
 
-      <section className="chiron-frame-flat p-3">
+      <section className="chiron-frame-flat chiron-tone-navigation p-3">
         <p className="text-xs text-muted-foreground">
           Save writes draft lifecycle/workflow contracts and reloads deterministic state.
         </p>

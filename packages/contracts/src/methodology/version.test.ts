@@ -217,14 +217,13 @@ describe("MethodologyFactDefinitionInput", () => {
 
   const validVar = {
     key: "priority",
-    valueType: "number" as const,
-    required: true,
+    factType: "number" as const,
   };
 
   it("accepts valid fact definition with required fields", () => {
     const result = decode(validVar);
     expect(result.key).toBe("priority");
-    expect(result.valueType).toBe("number");
+    expect(result.factType).toBe("number");
   });
 
   it("accepts fact definition with all optional fields", () => {
@@ -232,7 +231,7 @@ describe("MethodologyFactDefinitionInput", () => {
       ...validVar,
       description: "Priority level",
       defaultValue: 1,
-      validation: { min: 0, max: 10 },
+      validation: { kind: "none" as const },
     };
     const result = decode(full);
     expect(result.description).toBe("Priority level");
@@ -242,8 +241,8 @@ describe("MethodologyFactDefinitionInput", () => {
     expect(() => decode({ ...validVar, key: "" })).toThrow();
   });
 
-  it("rejects fact definition with invalid valueType", () => {
-    expect(() => decode({ ...validVar, valueType: "array" })).toThrow();
+  it("rejects fact definition with invalid factType", () => {
+    expect(() => decode({ ...validVar, factType: "array" })).toThrow();
   });
 });
 
@@ -307,8 +306,7 @@ describe("CreateDraftVersionInput", () => {
       factDefinitions: [
         {
           key: "priority",
-          valueType: "number",
-          required: true,
+          factType: "number",
         },
       ],
     };
@@ -369,8 +367,7 @@ describe("UpdateDraftVersionInput", () => {
       factDefinitions: [
         {
           key: "priority",
-          valueType: "number",
-          required: true,
+          factType: "number",
         },
       ],
     };

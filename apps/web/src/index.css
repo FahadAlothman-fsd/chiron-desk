@@ -300,6 +300,59 @@
       linear-gradient(var(--frame-corner), var(--frame-corner)) 100% 100% / 1px 10px no-repeat;
   }
 
+  .chiron-tone-kicker {
+    color: var(--section-accent, var(--chiron-camo-1));
+  }
+
+  .chiron-tone-context {
+    --section-accent: color-mix(in oklab, var(--chiron-frost-3) 80%, var(--chiron-fluo-1));
+    --frame-bg: color-mix(in oklab, var(--background) 88%, var(--chiron-frost-2));
+    --frame-border: color-mix(in oklab, var(--border) 58%, var(--chiron-frost-2));
+    --frame-corner: color-mix(in oklab, var(--chiron-frost-3) 52%, var(--chiron-fluo-1));
+  }
+
+  .chiron-tone-publish {
+    --section-accent: color-mix(in oklab, var(--chiron-fluo-3) 88%, var(--chiron-fluo-1));
+    --frame-bg: color-mix(in oklab, var(--background) 85%, var(--chiron-fluo-2));
+    --frame-border: color-mix(in oklab, var(--border) 45%, var(--chiron-fluo-3));
+    --frame-corner: color-mix(in oklab, var(--chiron-fluo-3) 60%, var(--chiron-fluo-1));
+  }
+
+  .chiron-tone-evidence {
+    --section-accent: color-mix(in oklab, var(--chiron-terrain-3) 85%, var(--chiron-fluo-1));
+    --frame-bg: color-mix(in oklab, var(--background) 87%, var(--chiron-terrain-1));
+    --frame-border: color-mix(in oklab, var(--border) 50%, var(--chiron-terrain-2));
+    --frame-corner: color-mix(in oklab, var(--chiron-terrain-3) 55%, var(--chiron-fluo-1));
+  }
+
+  .chiron-tone-navigation {
+    --section-accent: color-mix(in oklab, var(--chiron-dawn-3) 84%, var(--chiron-fluo-1));
+    --frame-bg: color-mix(in oklab, var(--background) 87%, var(--chiron-dawn-1));
+    --frame-border: color-mix(in oklab, var(--border) 56%, var(--chiron-dawn-2));
+    --frame-corner: color-mix(in oklab, var(--chiron-dawn-3) 52%, var(--chiron-fluo-1));
+  }
+
+  .chiron-tone-canvas {
+    --section-accent: color-mix(in oklab, var(--chiron-camo-3) 88%, var(--chiron-fluo-1));
+    --frame-bg: color-mix(in oklab, var(--background) 86%, var(--chiron-camo-2));
+    --frame-border: color-mix(in oklab, var(--border) 58%, var(--chiron-camo-2));
+    --frame-corner: color-mix(in oklab, var(--chiron-camo-3) 48%, var(--chiron-fluo-1));
+  }
+
+  .chiron-tone-contracts {
+    --section-accent: color-mix(in oklab, var(--chiron-alert-3) 84%, var(--chiron-fluo-1));
+    --frame-bg: color-mix(in oklab, var(--background) 88%, var(--chiron-alert-2));
+    --frame-border: color-mix(in oklab, var(--border) 54%, var(--chiron-alert-2));
+    --frame-corner: color-mix(in oklab, var(--chiron-alert-3) 50%, var(--chiron-fluo-1));
+  }
+
+  .chiron-tone-runtime {
+    --section-accent: color-mix(in oklab, var(--chiron-dawn-2) 90%, var(--chiron-fluo-1));
+    --frame-bg: color-mix(in oklab, var(--background) 89%, var(--chiron-dawn-1));
+    --frame-border: color-mix(in oklab, var(--border) 60%, var(--chiron-dawn-2));
+    --frame-corner: color-mix(in oklab, var(--chiron-dawn-2) 48%, var(--chiron-fluo-1));
+  }
+
   .chiron-dashboard-shell {
     min-height: 100dvh;
     background-color: var(--chiron-camo-2);

@@ -2,6 +2,7 @@ import type {
   LifecycleTransition,
   WorkUnitTypeDefinition,
 } from "@chiron/contracts/methodology/lifecycle";
+import path from "node:path";
 import type { AgentTypeDefinition } from "@chiron/contracts/methodology/agent";
 import type { ValidationDiagnostic, ValidationResult } from "@chiron/contracts/methodology/version";
 
@@ -18,12 +19,81 @@ function makeDiagnostic(
   };
 }
 
-// Allowed sets as specified in Story 1.2
+// Allowed sets for methodology lifecycle contract validation.
 const ALLOWED_CARDINALITY = new Set(["one_per_project", "many_per_project"]);
 const ALLOWED_GATE_CLASSES = new Set(["start_gate", "completion_gate"]);
 const ALLOWED_FACT_TYPES = new Set(["string", "number", "boolean", "json"]);
 const ALLOWED_STRENGTHS = new Set(["hard", "soft", "context"]);
 const ABSENT_STATE = "__absent__";
+
+function isDefaultValueCompatible(factType: string, defaultValue: unknown): boolean {
+  switch (factType) {
+    case "string":
+      return typeof defaultValue === "string";
+    case "number":
+      return typeof defaultValue === "number" && Number.isFinite(defaultValue);
+    case "boolean":
+      return typeof defaultValue === "boolean";
+    case "json":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function validatePathDefault(
+  value: unknown,
+  config: {
+    disallowAbsolute: boolean;
+    preventTraversal: boolean;
+    trimWhitespace: boolean;
+  },
+): string | null {
+  if (typeof value !== "string") {
+    return "Path validation requires a string default value";
+  }
+
+  const raw = config.trimWhitespace ? value.trim() : value;
+  if (raw.length === 0) {
+    return "Path default must not be empty";
+  }
+  if (raw.includes("\0")) {
+    return "Path must not include null bytes";
+  }
+
+  const normalized = path.posix.normalize(raw);
+  if (config.disallowAbsolute && path.posix.isAbsolute(normalized)) {
+    return "Absolute paths are not allowed by policy";
+  }
+  if (config.preventTraversal && normalized.split("/").includes("..")) {
+    return "Path traversal segments ('..') are not allowed by policy";
+  }
+
+  return null;
+}
+
+function isJsonSchemaCompatible(schema: unknown, value: unknown): boolean {
+  if (!schema || typeof schema !== "object") {
+    return true;
+  }
+  const schemaRecord = schema as Record<string, unknown>;
+  const typeDef = schemaRecord.type;
+  if (typeDef === undefined) {
+    return true;
+  }
+
+  const acceptedTypes = Array.isArray(typeDef) ? typeDef : [typeDef];
+  const actualType =
+    value === null
+      ? "null"
+      : Array.isArray(value)
+        ? "array"
+        : typeof value === "object"
+          ? "object"
+          : typeof value;
+
+  return acceptedTypes.some((t) => t === actualType);
+}
 
 /**
  * Validate a lifecycle definition for a methodology draft.
@@ -248,33 +318,100 @@ export function validateLifecycleDefinition(
       }
 
       // Validate default value compatibility with fact type
-      if (fact.defaultValue !== undefined && fact.defaultValue !== null) {
-        const defaultType = typeof fact.defaultValue;
-        let typeValid = false;
-        switch (fact.factType) {
-          case "string":
-            typeValid = defaultType === "string";
-            break;
-          case "number":
-            typeValid = defaultType === "number";
-            break;
-          case "boolean":
-            typeValid = defaultType === "boolean";
-            break;
-          case "json":
-            typeValid = true; // Any JSON is valid
-            break;
-        }
-        if (!typeValid) {
+      if (
+        fact.defaultValue !== undefined &&
+        fact.defaultValue !== null &&
+        !isDefaultValueCompatible(fact.factType, fact.defaultValue)
+      ) {
+        diagnostics.push(
+          makeDiagnostic(
+            {
+              code: "INVALID_FACT_DEFAULT",
+              scope: `workUnitTypes[${wutIndex}].factSchemas[${factIndex}].defaultValue`,
+              blocking: true,
+              required: `Default value compatible with fact type '${fact.factType}'`,
+              observed: `${typeof fact.defaultValue} (value: ${JSON.stringify(fact.defaultValue)})`,
+              remediation: `Provide a ${fact.factType} default value`,
+            },
+            timestamp,
+          ),
+        );
+      }
+
+      const validation = fact.validation;
+      if (validation.kind === "path") {
+        if (fact.factType !== "string") {
           diagnostics.push(
             makeDiagnostic(
               {
-                code: "INVALID_FACT_DEFAULT",
+                code: "INVALID_PATH_VALIDATION_KIND",
+                scope: `workUnitTypes[${wutIndex}].factSchemas[${factIndex}].validation.kind`,
+                blocking: true,
+                required: "Path validation is only valid when factType is 'string'",
+                observed: `factType=${fact.factType}`,
+                remediation: "Change factType to 'string' or remove path validation",
+              },
+              timestamp,
+            ),
+          );
+        }
+
+        if (fact.defaultValue !== undefined && fact.defaultValue !== null) {
+          const pathIssue = validatePathDefault(fact.defaultValue, {
+            disallowAbsolute: validation.path.safety.disallowAbsolute,
+            preventTraversal: validation.path.safety.preventTraversal,
+            trimWhitespace: validation.path.normalization.trimWhitespace,
+          });
+          if (pathIssue) {
+            diagnostics.push(
+              makeDiagnostic(
+                {
+                  code: "INVALID_PATH_DEFAULT",
+                  scope: `workUnitTypes[${wutIndex}].factSchemas[${factIndex}].defaultValue`,
+                  blocking: true,
+                  required:
+                    "Default path complies with configured path normalization and safety policy",
+                  observed: String(fact.defaultValue),
+                  remediation: pathIssue,
+                },
+                timestamp,
+              ),
+            );
+          }
+        }
+      }
+
+      if (validation.kind === "json-schema") {
+        if (fact.factType !== "json") {
+          diagnostics.push(
+            makeDiagnostic(
+              {
+                code: "INVALID_JSON_SCHEMA_VALIDATION_KIND",
+                scope: `workUnitTypes[${wutIndex}].factSchemas[${factIndex}].validation.kind`,
+                blocking: true,
+                required: "JSON-schema validation is only valid when factType is 'json'",
+                observed: `factType=${fact.factType}`,
+                remediation: "Change factType to 'json' or remove json-schema validation",
+              },
+              timestamp,
+            ),
+          );
+        }
+
+        if (
+          fact.defaultValue !== undefined &&
+          fact.defaultValue !== null &&
+          !isJsonSchemaCompatible(validation.schema, fact.defaultValue)
+        ) {
+          diagnostics.push(
+            makeDiagnostic(
+              {
+                code: "INVALID_JSON_SCHEMA_DEFAULT",
                 scope: `workUnitTypes[${wutIndex}].factSchemas[${factIndex}].defaultValue`,
                 blocking: true,
-                required: `Default value compatible with fact type '${fact.factType}'`,
-                observed: `${defaultType} (value: ${JSON.stringify(fact.defaultValue)})`,
-                remediation: `Provide a ${fact.factType} default value`,
+                required: "JSON default compatible with configured schema type",
+                observed: JSON.stringify(fact.defaultValue),
+                remediation: `Adjust default value or schemaDialect=${validation.schemaDialect}`,
               },
               timestamp,
             ),

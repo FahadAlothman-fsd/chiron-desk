@@ -1,5 +1,6 @@
 import { Schema } from "effect";
 
+import { MethodologyFactDefinitionInput } from "./fact.js";
 import { LayeredGuidance, WorkflowDefinition } from "./version.js";
 
 export const MethodologyLifecycleAuthoringDto = Schema.Struct({
@@ -27,6 +28,7 @@ export const UpdateDraftWorkflowsInputDto = Schema.Struct({
     value: Schema.Array(Schema.String),
   }),
   guidance: Schema.optional(LayeredGuidance),
+  factDefinitions: Schema.optional(Schema.Array(MethodologyFactDefinitionInput)),
 });
 export type UpdateDraftWorkflowsInputDto = typeof UpdateDraftWorkflowsInputDto.Type;
 

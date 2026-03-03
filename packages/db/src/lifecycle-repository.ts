@@ -86,10 +86,14 @@ function toFactSchemaRow(row: typeof methodologyFactSchemas.$inferSelect): FactS
     id: row.id,
     methodologyVersionId: row.methodologyVersionId,
     workUnitTypeId: row.workUnitTypeId,
+    name: row.name,
     key: row.key,
     factType: row.factType,
     required: row.required,
+    description: row.description,
     defaultValueJson: row.defaultValueJson,
+    guidanceJson: row.guidanceJson,
+    validationJson: row.validationJson,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -430,10 +434,14 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
               await tx.insert(methodologyFactSchemas).values({
                 methodologyVersionId: params.versionId,
                 workUnitTypeId: wutRow.id,
+                name: fact.name ?? null,
                 key: fact.key,
                 factType: fact.factType,
-                required: fact.required ?? true,
+                required: true,
+                description: fact.description ?? null,
                 defaultValueJson: fact.defaultValue ?? null,
+                guidanceJson: fact.guidance ?? null,
+                validationJson: fact.validation ?? null,
               });
             }
           }

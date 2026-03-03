@@ -3,9 +3,11 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { useParamsMock, useRouteContextMock } = vi.hoisted(() => ({
+const { useParamsMock, useRouteContextMock, useSearchMock, useNavigateMock } = vi.hoisted(() => ({
   useParamsMock: vi.fn(),
   useRouteContextMock: vi.fn(),
+  useSearchMock: vi.fn(),
+  useNavigateMock: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -14,44 +16,23 @@ vi.mock("@tanstack/react-router", () => ({
     ...options,
     useParams: useParamsMock,
     useRouteContext: useRouteContextMock,
+    useSearch: useSearchMock,
+    useNavigate: useNavigateMock,
   }),
 }));
 
 vi.mock("@/components/ui/button", () => ({
+  Button: ({ children, ...props }: React.ComponentProps<"button">) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
   buttonVariants: () => "",
 }));
 
 vi.mock("@/features/methodologies/workspace-shell", () => ({
   MethodologyWorkspaceShell: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
-
-vi.mock("@/features/methodologies/version-workspace", async () => {
-  const actual = await vi.importActual<typeof import("@/features/methodologies/version-workspace")>(
-    "@/features/methodologies/version-workspace",
-  );
-
-  return {
-    ...actual,
-    MethodologyVersionWorkspace: ({
-      onSave,
-      parseDiagnostics,
-    }: {
-      onSave: () => void;
-      parseDiagnostics: readonly { message: string }[];
-    }) => (
-      <section>
-        <button type="button" onClick={onSave}>
-          Save Draft
-        </button>
-        <ul>
-          {parseDiagnostics.map((diagnostic) => (
-            <li key={diagnostic.message}>{diagnostic.message}</li>
-          ))}
-        </ul>
-      </section>
-    ),
-  };
-});
 
 import { MethodologyWorkspaceEntryRoute } from "./methodologies.$methodologyId.versions.$versionId";
 
@@ -225,7 +206,10 @@ function createTestContext(options?: {
   };
 }
 
-function renderRoute(context: TestContext) {
+function renderRoute(
+  context: TestContext,
+  options?: { page?: "author" | "publish" | "evidence" | "context" },
+) {
   const tanstackQueryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -241,6 +225,8 @@ function renderRoute(context: TestContext) {
     methodologyId: "equity-core",
     versionId: "draft-v2",
   });
+  useSearchMock.mockReturnValue(options?.page ? { page: options.page } : {});
+  useNavigateMock.mockReturnValue(vi.fn());
   useRouteContextMock.mockReturnValue({
     orpc: context.orpc,
     queryClient: context.queryClient,
@@ -258,6 +244,8 @@ function renderRoute(context: TestContext) {
 beforeEach(() => {
   useParamsMock.mockReset();
   useRouteContextMock.mockReset();
+  useSearchMock.mockReset();
+  useNavigateMock.mockReset();
 });
 
 afterEach(() => {
@@ -279,6 +267,64 @@ describe("methodology version route publish and immutable guards", () => {
     });
   });
 
+  it("ignores duplicate save clicks while a save is already pending", async () => {
+    const context = createTestContext({
+      detailsData: DETAILS_DRAFT,
+    });
+
+    let resolveLifecycle: ((result: { validation: ValidateResult }) => void) | undefined;
+    const lifecyclePending = new Promise<{ validation: ValidateResult }>((resolve) => {
+      resolveLifecycle = resolve;
+    });
+
+    context.spies.updateLifecycleSpy.mockImplementationOnce(async () => lifecyclePending);
+
+    renderRoute(context);
+
+    const saveButton = screen.getByRole("button", { name: "Save Draft" });
+    fireEvent.click(saveButton);
+    fireEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect(context.spies.updateLifecycleSpy).toHaveBeenCalledTimes(1);
+    });
+
+    resolveLifecycle?.({
+      validation: {
+        valid: true,
+        diagnostics: [],
+      },
+    });
+
+    await waitFor(() => {
+      expect(context.spies.updateWorkflowsSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("maps save mutation errors mentioning draft to immutable diagnostics", async () => {
+    const context = createTestContext({
+      detailsData: DETAILS_DRAFT,
+    });
+
+    context.spies.updateLifecycleSpy.mockRejectedValueOnce(new Error("draft is immutable"));
+
+    renderRoute(context);
+
+    fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
+
+    await waitFor(() => {
+      expect(context.spies.updateLifecycleSpy).toHaveBeenCalledTimes(1);
+    });
+
+    expect(context.spies.updateWorkflowsSpy).toHaveBeenCalledTimes(0);
+    expect(
+      screen.getAllByText(
+        (_, element) =>
+          element?.textContent?.includes("State: failed - draft is immutable") ?? false,
+      ).length,
+    ).toBeGreaterThan(0);
+  });
+
   it("does not block publish when validation diagnostics are non-blocking warnings", async () => {
     const context = createTestContext({
       detailsData: DETAILS_DRAFT,
@@ -297,7 +343,7 @@ describe("methodology version route publish and immutable guards", () => {
       },
     });
 
-    renderRoute(context);
+    renderRoute(context, { page: "publish" });
 
     await waitFor(() => {
       expect((screen.getByLabelText("Published Version") as HTMLInputElement).value).toBe("0.2.0");
@@ -330,7 +376,7 @@ describe("methodology version route publish and immutable guards", () => {
       },
     });
 
-    renderRoute(context);
+    renderRoute(context, { page: "publish" });
 
     await waitFor(() => {
       expect((screen.getByLabelText("Published Version") as HTMLInputElement).value).toBe("0.2.0");
@@ -341,8 +387,29 @@ describe("methodology version route publish and immutable guards", () => {
     await waitFor(() => {
       expect(context.spies.publishSpy).toHaveBeenCalledTimes(0);
     });
+  });
 
-    expect(screen.getByText((text) => text.includes("WF_STEP_TYPE_INVALID"))).toBeTruthy();
+  it("surfaces publish failure diagnostics when publish mutation throws", async () => {
+    const context = createTestContext({
+      detailsData: DETAILS_DRAFT,
+    });
+
+    context.spies.publishSpy.mockRejectedValueOnce(new Error("upstream unavailable"));
+
+    renderRoute(context, { page: "publish" });
+
+    await waitFor(() => {
+      expect((screen.getByLabelText("Published Version") as HTMLInputElement).value).toBe("0.2.0");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Publish Immutable Version" }));
+
+    await waitFor(() => {
+      expect(context.spies.publishSpy).toHaveBeenCalledTimes(1);
+    });
+
+    expect(context.spies.invalidateQueriesSpy).toHaveBeenCalledTimes(0);
+    expect(screen.queryByText("Last Publish Result")).toBeNull();
   });
 
   it("renders publication evidence in deterministic order and supports filtering", async () => {
@@ -376,7 +443,7 @@ describe("methodology version route publish and immutable guards", () => {
       ],
     });
 
-    renderRoute(context);
+    renderRoute(context, { page: "evidence" });
 
     await waitFor(() => {
       expect(screen.getByText("ev-c")).toBeTruthy();

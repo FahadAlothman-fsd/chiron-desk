@@ -472,10 +472,12 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           if (params.factDefinitions?.length) {
             const factValues = params.factDefinitions.map((v) => ({
               methodologyVersionId: ver.id,
+              name: v.name ?? null,
               key: v.key,
-              valueType: v.valueType,
+              valueType: v.factType,
               descriptionJson: v.description ?? null,
-              required: v.required,
+              guidanceJson: v.guidance ?? null,
+              required: false,
               defaultValueJson: v.defaultValue ?? null,
               validationJson: v.validation ?? null,
             }));
@@ -563,10 +565,12 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             if (params.factDefinitions.length > 0) {
               const factValues = params.factDefinitions.map((v) => ({
                 methodologyVersionId: ver.id,
+                name: v.name ?? null,
                 key: v.key,
-                valueType: v.valueType,
+                valueType: v.factType,
                 descriptionJson: v.description ?? null,
-                required: v.required,
+                guidanceJson: v.guidance ?? null,
+                required: false,
                 defaultValueJson: v.defaultValue ?? null,
                 validationJson: v.validation ?? null,
               }));
@@ -853,22 +857,28 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
       dbEffect("methodology.findFactSchemasByVersionId", async () => {
         const rows = await db
           .select({
+            name: methodologyFactSchemas.name,
             key: methodologyFactSchemas.key,
             factType: methodologyFactSchemas.factType,
             required: methodologyFactSchemas.required,
+            description: methodologyFactSchemas.description,
             defaultValueJson: methodologyFactSchemas.defaultValueJson,
             guidanceJson: methodologyFactSchemas.guidanceJson,
+            validationJson: methodologyFactSchemas.validationJson,
           })
           .from(methodologyFactSchemas)
           .where(eq(methodologyFactSchemas.methodologyVersionId, versionId))
           .orderBy(asc(methodologyFactSchemas.key));
 
         return rows.map((row) => ({
+          name: row.name,
           key: row.key,
           factType: row.factType,
           required: row.required,
+          description: row.description,
           defaultValueJson: row.defaultValueJson,
           guidanceJson: row.guidanceJson,
+          validationJson: row.validationJson,
         }));
       }),
 

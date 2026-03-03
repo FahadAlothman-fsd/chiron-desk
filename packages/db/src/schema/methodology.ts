@@ -76,9 +76,11 @@ export const methodologyFactDefinitions = sqliteTable(
     methodologyVersionId: text("methodology_version_id")
       .notNull()
       .references(() => methodologyVersions.id, { onDelete: "cascade" }),
+    name: text("name"),
     key: text("key").notNull(),
     valueType: text("value_type").notNull(),
     descriptionJson: text("description_json", { mode: "json" }),
+    guidanceJson: text("guidance_json", { mode: "json" }),
     required: integer("required", { mode: "boolean" }).default(false).notNull(),
     defaultValueJson: text("default_value_json", { mode: "json" }),
     validationJson: text("validation_json", { mode: "json" }),
@@ -248,11 +250,14 @@ export const methodologyFactSchemas = sqliteTable(
     workUnitTypeId: text("work_unit_type_id")
       .notNull()
       .references(() => methodologyWorkUnitTypes.id, { onDelete: "cascade" }),
+    name: text("name"),
     key: text("key").notNull(),
     factType: text("fact_type").notNull(),
     required: integer("required", { mode: "boolean" }).default(true).notNull(),
+    description: text("description"),
     defaultValueJson: text("default_value_json", { mode: "json" }),
     guidanceJson: text("guidance_json", { mode: "json" }),
+    validationJson: text("validation_json", { mode: "json" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .default(timestampDefault)

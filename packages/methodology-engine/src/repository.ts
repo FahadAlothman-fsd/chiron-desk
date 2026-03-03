@@ -105,11 +105,14 @@ export interface WorkflowSnapshot {
 }
 
 export interface PublishFactSchemaRow {
+  name: string | null;
   key: string;
   factType: string;
   required: boolean;
+  description: string | null;
   defaultValueJson: unknown;
   guidanceJson: unknown;
+  validationJson: unknown;
 }
 
 export interface ProjectMethodologyPinRow {

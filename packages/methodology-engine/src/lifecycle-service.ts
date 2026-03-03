@@ -256,10 +256,18 @@ function loadPreviousLifecycleDefinition(
         })
         .filter((transition): transition is NonNullable<typeof transition> => transition !== null),
       factSchemas: (factsByWorkUnitType.get(workUnitTypeRow.id) ?? []).map((factSchemaRow) => ({
+        name: factSchemaRow.name ?? undefined,
         key: factSchemaRow.key,
         factType: asFactType(factSchemaRow.factType),
-        required: factSchemaRow.required,
+        description: factSchemaRow.description ?? undefined,
         defaultValue: factSchemaRow.defaultValueJson ?? undefined,
+        guidance:
+          (factSchemaRow.guidanceJson as
+            | WorkUnitTypeDefinition["factSchemas"][number]["guidance"]
+            | null) ?? undefined,
+        validation: (factSchemaRow.validationJson as
+          | WorkUnitTypeDefinition["factSchemas"][number]["validation"]
+          | null) ?? { kind: "none" },
       })),
     }));
 

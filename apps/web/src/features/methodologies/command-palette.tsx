@@ -1,6 +1,7 @@
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
+import { Result } from "better-result";
 import { useRef, useState } from "react";
 
 import {
@@ -51,15 +52,18 @@ function readRecentCommandIds(): MethodologyCommandId[] {
     return [];
   }
 
-  try {
-    const parsed = JSON.parse(stored) as unknown;
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-    return parsed.filter((value): value is MethodologyCommandId => typeof value === "string");
-  } catch {
+  const parsedResult = Result.try(() => JSON.parse(stored) as unknown);
+  if (parsedResult.isErr()) {
     return [];
   }
+
+  if (!Array.isArray(parsedResult.value)) {
+    return [];
+  }
+
+  return parsedResult.value.filter(
+    (value): value is MethodologyCommandId => typeof value === "string",
+  );
 }
 
 export function MethodologyCommandPalette({

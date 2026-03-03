@@ -66,7 +66,10 @@ export function MethodologyWorkspaceShell({
         </div>
 
         <div className="mt-2 flex items-center justify-between gap-3">
-          <h1 className="text-xl font-semibold uppercase tracking-[0.12em]" tabIndex={-1}>
+          <h1
+            className="font-geist-pixel-square text-xl font-semibold uppercase tracking-[0.12em]"
+            tabIndex={-1}
+          >
             {title}
           </h1>
           <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">

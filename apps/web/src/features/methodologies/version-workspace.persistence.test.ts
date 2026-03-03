@@ -10,6 +10,36 @@ import {
   type MethodologyVersionWorkspaceDraft,
 } from "./version-workspace";
 
+test("toDeterministicJson canonicalizes object keys recursively", () => {
+  const rendered = toDeterministicJson({
+    z: 1,
+    a: {
+      d: 4,
+      c: 3,
+    },
+    b: [{ y: 2, x: 1 }],
+  });
+
+  assert.equal(
+    rendered,
+    [
+      "{",
+      '  "a": {',
+      '    "c": 3,',
+      '    "d": 4',
+      "  },",
+      '  "b": [',
+      "    {",
+      '      "x": 1,',
+      '      "y": 2',
+      "    }",
+      "  ],",
+      '  "z": 1',
+      "}",
+    ].join("\n"),
+  );
+});
+
 test("createDraftFromProjection derives fact-schema and workflow-step editors", () => {
   const projection: DraftProjectionShape = {
     displayName: "BMAD Draft",
@@ -57,6 +87,7 @@ test("parseWorkspaceDraftForPersistence merges fact schemas and workflow steps",
   const draft: MethodologyVersionWorkspaceDraft = {
     methodologyKey: "bmad.v1",
     displayName: "BMAD Draft",
+    factDefinitionsJson: toDeterministicJson([]),
     workUnitTypesJson: toDeterministicJson([
       {
         key: "WU.PRD",
@@ -99,6 +130,7 @@ test("parseWorkspaceDraftForPersistence reports field-level parse diagnostics", 
   const draft: MethodologyVersionWorkspaceDraft = {
     methodologyKey: "bmad.v1",
     displayName: "BMAD Draft",
+    factDefinitionsJson: toDeterministicJson([]),
     workUnitTypesJson: "{",
     factSchemasJson: toDeterministicJson({}),
     transitionsJson: toDeterministicJson([]),

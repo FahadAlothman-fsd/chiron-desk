@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Result } from "better-result";
 import {
   applyNodeChanges,
   Background,
@@ -331,6 +332,19 @@ function asRecord(value: unknown): DraftRecord | null {
   return value as DraftRecord;
 }
 
+function parseJsonUnknown(value: string): unknown | null {
+  return Result.try(() => JSON.parse(value)).unwrapOr(null);
+}
+
+function parseJsonArray(value: string): unknown[] | null {
+  const parsed = parseJsonUnknown(value);
+  return Array.isArray(parsed) ? parsed : null;
+}
+
+function parseJsonRecord(value: string): DraftRecord | null {
+  return asRecord(parseJsonUnknown(value));
+}
+
 export function VersionWorkspaceGraph({
   draft,
   parsed,
@@ -475,15 +489,15 @@ export function VersionWorkspaceGraph({
       return;
     }
 
-    try {
-      const parsedPositions = JSON.parse(persisted) as Record<
-        string,
-        Record<string, { x: number; y: number }>
-      >;
-      setNodePositionsByScope(parsedPositions);
-    } catch {
+    const parsedPositions = parseJsonRecord(persisted);
+    if (!parsedPositions) {
       setNodePositionsByScope({});
+      return;
     }
+
+    setNodePositionsByScope(
+      parsedPositions as Record<string, Record<string, { x: number; y: number }>>,
+    );
   }, [layoutStorageKey]);
 
   useEffect(() => {
@@ -511,50 +525,46 @@ export function VersionWorkspaceGraph({
       : [];
 
   const allTransitions = useMemo<TransitionDraftRow[]>(() => {
-    try {
-      const parsedTransitions = JSON.parse(draft.transitionsJson) as unknown;
-      if (!Array.isArray(parsedTransitions)) {
-        return [];
-      }
-
-      return parsedTransitions
-        .map((entry) => asRecord(entry))
-        .flatMap((entry) => {
-          if (!entry) {
-            return [];
-          }
-
-          const workUnitTypeKey =
-            typeof entry.workUnitTypeKey === "string" ? entry.workUnitTypeKey : "";
-          const transitionKey =
-            typeof entry.transitionKey === "string"
-              ? entry.transitionKey
-              : typeof entry.key === "string"
-                ? entry.key
-                : "";
-
-          if (!workUnitTypeKey || !transitionKey) {
-            return [];
-          }
-
-          return [
-            {
-              workUnitTypeKey,
-              transitionKey,
-              toState: typeof entry.toState === "string" ? entry.toState : undefined,
-              gateClass: typeof entry.gateClass === "string" ? entry.gateClass : undefined,
-            },
-          ];
-        })
-        .sort((a, b) => {
-          if (a.workUnitTypeKey === b.workUnitTypeKey) {
-            return a.transitionKey.localeCompare(b.transitionKey);
-          }
-          return a.workUnitTypeKey.localeCompare(b.workUnitTypeKey);
-        });
-    } catch {
+    const parsedTransitions = parseJsonArray(draft.transitionsJson);
+    if (!parsedTransitions) {
       return [];
     }
+
+    return parsedTransitions
+      .map((entry) => asRecord(entry))
+      .flatMap((entry) => {
+        if (!entry) {
+          return [];
+        }
+
+        const workUnitTypeKey =
+          typeof entry.workUnitTypeKey === "string" ? entry.workUnitTypeKey : "";
+        const transitionKey =
+          typeof entry.transitionKey === "string"
+            ? entry.transitionKey
+            : typeof entry.key === "string"
+              ? entry.key
+              : "";
+
+        if (!workUnitTypeKey || !transitionKey) {
+          return [];
+        }
+
+        return [
+          {
+            workUnitTypeKey,
+            transitionKey,
+            toState: typeof entry.toState === "string" ? entry.toState : undefined,
+            gateClass: typeof entry.gateClass === "string" ? entry.gateClass : undefined,
+          },
+        ];
+      })
+      .sort((a, b) => {
+        if (a.workUnitTypeKey === b.workUnitTypeKey) {
+          return a.transitionKey.localeCompare(b.transitionKey);
+        }
+        return a.workUnitTypeKey.localeCompare(b.workUnitTypeKey);
+      });
   }, [draft.transitionsJson]);
 
   const [viewMode, setViewMode] = useState<ViewMode>("graph");
@@ -845,22 +855,20 @@ export function VersionWorkspaceGraph({
     let toState: string | undefined;
     let gateClass: string | undefined;
 
-    try {
-      const transitions = JSON.parse(draft.transitionsJson) as unknown;
-      if (Array.isArray(transitions)) {
-        const row = transitions
-          .map((entry) => asRecord(entry))
-          .find(
-            (entry) =>
-              entry?.workUnitTypeKey === workUnitTypeKey && entry?.transitionKey === transitionKey,
-          );
-        if (row) {
-          toState = typeof row.toState === "string" ? row.toState : undefined;
-          gateClass = typeof row.gateClass === "string" ? row.gateClass : undefined;
-        }
-      }
-    } catch {
+    const transitions = parseJsonArray(draft.transitionsJson);
+    if (!transitions) {
       return null;
+    }
+
+    const row = transitions
+      .map((entry) => asRecord(entry))
+      .find(
+        (entry) =>
+          entry?.workUnitTypeKey === workUnitTypeKey && entry?.transitionKey === transitionKey,
+      );
+    if (row) {
+      toState = typeof row.toState === "string" ? row.toState : undefined;
+      gateClass = typeof row.gateClass === "string" ? row.gateClass : undefined;
     }
 
     return {
@@ -905,86 +913,74 @@ export function VersionWorkspaceGraph({
     workUnitKey: string,
     updater: (workUnit: DraftRecord) => DraftRecord,
   ) => {
-    try {
-      const parsedWorkUnits = JSON.parse(draft.workUnitTypesJson) as unknown;
-      if (!Array.isArray(parsedWorkUnits)) {
-        return;
-      }
-
-      const nextWorkUnits = parsedWorkUnits.map((entry) => {
-        const record = asRecord(entry);
-        if (!record || record.key !== workUnitKey) {
-          return entry;
-        }
-        return updater(record);
-      });
-
-      onChange("workUnitTypesJson", JSON.stringify(nextWorkUnits, null, 2));
-    } catch {
+    const parsedWorkUnits = parseJsonArray(draft.workUnitTypesJson);
+    if (!parsedWorkUnits) {
       return;
     }
+
+    const nextWorkUnits = parsedWorkUnits.map((entry) => {
+      const record = asRecord(entry);
+      if (!record || record.key !== workUnitKey) {
+        return entry;
+      }
+      return updater(record);
+    });
+
+    onChange("workUnitTypesJson", JSON.stringify(nextWorkUnits, null, 2));
   };
 
   const updateWorkflowDraft = (
     workflowKey: string,
     updater: (workflow: DraftRecord) => DraftRecord,
   ) => {
-    try {
-      const parsedWorkflows = JSON.parse(draft.workflowsJson) as unknown;
-      if (!Array.isArray(parsedWorkflows)) {
-        return;
-      }
-
-      const nextWorkflows = parsedWorkflows.map((entry) => {
-        const record = asRecord(entry);
-        if (!record || record.key !== workflowKey) {
-          return entry;
-        }
-        return updater(record);
-      });
-
-      onChange("workflowsJson", JSON.stringify(nextWorkflows, null, 2));
-    } catch {
+    const parsedWorkflows = parseJsonArray(draft.workflowsJson);
+    if (!parsedWorkflows) {
       return;
     }
+
+    const nextWorkflows = parsedWorkflows.map((entry) => {
+      const record = asRecord(entry);
+      if (!record || record.key !== workflowKey) {
+        return entry;
+      }
+      return updater(record);
+    });
+
+    onChange("workflowsJson", JSON.stringify(nextWorkflows, null, 2));
   };
 
   const createWorkUnit = (preferredKey?: string) => {
-    try {
-      const parsedWorkUnits = JSON.parse(draft.workUnitTypesJson) as unknown;
-      if (!Array.isArray(parsedWorkUnits)) {
-        return false;
-      }
-
-      const existingKeys = parsedWorkUnits
-        .map((entry) => asRecord(entry)?.key)
-        .filter((entry): entry is string => typeof entry === "string");
-      const nextPreferredKey = preferredKey?.trim();
-      if (nextPreferredKey && existingKeys.includes(nextPreferredKey)) {
-        return false;
-      }
-
-      const key = nextPreferredKey || nextNumericSuffixKey("WU.NEW_", existingKeys);
-
-      const nextWorkUnits = [
-        ...parsedWorkUnits,
-        {
-          key,
-          displayName: key,
-          cardinality: "many_per_project",
-          lifecycleStates: [{ key: "draft" }],
-          lifecycleTransitions: [],
-          factSchemas: [],
-        },
-      ];
-
-      onChange("workUnitTypesJson", JSON.stringify(nextWorkUnits, null, 2));
-      setScope({ level: "L2", workUnitTypeKey: key });
-      setSelectedNodeId(`wu:${key}`);
-      return true;
-    } catch {
+    const parsedWorkUnits = parseJsonArray(draft.workUnitTypesJson);
+    if (!parsedWorkUnits) {
       return false;
     }
+
+    const existingKeys = parsedWorkUnits
+      .map((entry) => asRecord(entry)?.key)
+      .filter((entry): entry is string => typeof entry === "string");
+    const nextPreferredKey = preferredKey?.trim();
+    if (nextPreferredKey && existingKeys.includes(nextPreferredKey)) {
+      return false;
+    }
+
+    const key = nextPreferredKey || nextNumericSuffixKey("WU.NEW_", existingKeys);
+
+    const nextWorkUnits = [
+      ...parsedWorkUnits,
+      {
+        key,
+        displayName: key,
+        cardinality: "many_per_project",
+        lifecycleStates: [{ key: "draft" }],
+        lifecycleTransitions: [],
+        factSchemas: [],
+      },
+    ];
+
+    onChange("workUnitTypesJson", JSON.stringify(nextWorkUnits, null, 2));
+    setScope({ level: "L2", workUnitTypeKey: key });
+    setSelectedNodeId(`wu:${key}`);
+    return true;
   };
 
   const createTransition = (preferredKey?: string, preferredWorkUnitKey?: string) => {
@@ -993,43 +989,39 @@ export function VersionWorkspaceGraph({
       return false;
     }
 
-    try {
-      const parsedTransitions = JSON.parse(draft.transitionsJson) as unknown;
-      if (!Array.isArray(parsedTransitions)) {
-        return false;
-      }
-
-      const existingKeys = parsedTransitions
-        .filter((entry) => asRecord(entry)?.workUnitTypeKey === targetWorkUnitKey)
-        .map((entry) => asRecord(entry)?.transitionKey)
-        .filter((entry): entry is string => typeof entry === "string");
-
-      const nextPreferredKey = preferredKey?.trim();
-      if (nextPreferredKey && existingKeys.includes(nextPreferredKey)) {
-        return false;
-      }
-
-      const transitionKey =
-        nextPreferredKey ||
-        nextNumericSuffixKey(`${targetWorkUnitKey}:draft__to__state_`, existingKeys);
-      const nextTransitions = [
-        ...parsedTransitions,
-        {
-          workUnitTypeKey: targetWorkUnitKey,
-          transitionKey,
-          toState: "done",
-          gateClass: "completion_gate",
-          requiredLinks: [],
-        },
-      ];
-
-      onChange("transitionsJson", JSON.stringify(nextTransitions, null, 2));
-      setScope({ level: "L1" });
-      setSelectedNodeId(`transition:${targetWorkUnitKey}:${transitionKey}`);
-      return true;
-    } catch {
+    const parsedTransitions = parseJsonArray(draft.transitionsJson);
+    if (!parsedTransitions) {
       return false;
     }
+
+    const existingKeys = parsedTransitions
+      .filter((entry) => asRecord(entry)?.workUnitTypeKey === targetWorkUnitKey)
+      .map((entry) => asRecord(entry)?.transitionKey)
+      .filter((entry): entry is string => typeof entry === "string");
+
+    const nextPreferredKey = preferredKey?.trim();
+    if (nextPreferredKey && existingKeys.includes(nextPreferredKey)) {
+      return false;
+    }
+
+    const transitionKey =
+      nextPreferredKey ||
+      nextNumericSuffixKey(`${targetWorkUnitKey}:draft__to__state_`, existingKeys);
+    const nextTransitions = [
+      ...parsedTransitions,
+      {
+        workUnitTypeKey: targetWorkUnitKey,
+        transitionKey,
+        toState: "done",
+        gateClass: "completion_gate",
+        requiredLinks: [],
+      },
+    ];
+
+    onChange("transitionsJson", JSON.stringify(nextTransitions, null, 2));
+    setScope({ level: "L1" });
+    setSelectedNodeId(`transition:${targetWorkUnitKey}:${transitionKey}`);
+    return true;
   };
 
   const createWorkflow = (preferredKey?: string, preferredWorkUnitKey?: string) => {
@@ -1038,56 +1030,47 @@ export function VersionWorkspaceGraph({
       return false;
     }
 
-    try {
-      const parsedWorkflows = JSON.parse(draft.workflowsJson) as unknown;
-      if (!Array.isArray(parsedWorkflows)) {
-        return false;
-      }
-
-      const parsedWorkflowSteps = JSON.parse(draft.workflowStepsJson) as unknown;
-      const stepsByWorkflow =
-        typeof parsedWorkflowSteps === "object" && parsedWorkflowSteps !== null
-          ? (parsedWorkflowSteps as Record<string, unknown>)
-          : {};
-
-      const existingKeys = parsedWorkflows
-        .map((entry) => asRecord(entry)?.key)
-        .filter((entry): entry is string => typeof entry === "string");
-      const nextPreferredKey = preferredKey?.trim();
-      if (nextPreferredKey && existingKeys.includes(nextPreferredKey)) {
-        return false;
-      }
-
-      const workflowKey = nextPreferredKey || nextNumericSuffixKey("wf.new.", existingKeys);
-
-      const nextWorkflows = [
-        ...parsedWorkflows,
-        {
-          key: workflowKey,
-          displayName: workflowKey,
-          workUnitTypeKey: targetWorkUnitKey,
-          steps: [],
-          edges: [],
-        },
-      ];
-
-      const nextWorkflowSteps = {
-        ...stepsByWorkflow,
-        [workflowKey]: [],
-      };
-
-      onChange("workflowsJson", JSON.stringify(nextWorkflows, null, 2));
-      onChange("workflowStepsJson", JSON.stringify(nextWorkflowSteps, null, 2));
-      setScope({
-        level: "L3",
-        workUnitTypeKey: targetWorkUnitKey,
-        workflowKey,
-      });
-      setSelectedNodeId(`wf:${workflowKey}`);
-      return true;
-    } catch {
+    const parsedWorkflows = parseJsonArray(draft.workflowsJson);
+    const stepsByWorkflow = parseJsonRecord(draft.workflowStepsJson) ?? {};
+    if (!parsedWorkflows) {
       return false;
     }
+
+    const existingKeys = parsedWorkflows
+      .map((entry) => asRecord(entry)?.key)
+      .filter((entry): entry is string => typeof entry === "string");
+    const nextPreferredKey = preferredKey?.trim();
+    if (nextPreferredKey && existingKeys.includes(nextPreferredKey)) {
+      return false;
+    }
+
+    const workflowKey = nextPreferredKey || nextNumericSuffixKey("wf.new.", existingKeys);
+
+    const nextWorkflows = [
+      ...parsedWorkflows,
+      {
+        key: workflowKey,
+        displayName: workflowKey,
+        workUnitTypeKey: targetWorkUnitKey,
+        steps: [],
+        edges: [],
+      },
+    ];
+
+    const nextWorkflowSteps = {
+      ...stepsByWorkflow,
+      [workflowKey]: [],
+    };
+
+    onChange("workflowsJson", JSON.stringify(nextWorkflows, null, 2));
+    onChange("workflowStepsJson", JSON.stringify(nextWorkflowSteps, null, 2));
+    setScope({
+      level: "L3",
+      workUnitTypeKey: targetWorkUnitKey,
+      workflowKey,
+    });
+    setSelectedNodeId(`wf:${workflowKey}`);
+    return true;
   };
 
   const submitQuickAdd = () => {
@@ -1135,83 +1118,71 @@ export function VersionWorkspaceGraph({
     transitionKey: string,
     updater: (transition: DraftRecord) => DraftRecord,
   ) => {
-    try {
-      const parsedTransitions = JSON.parse(draft.transitionsJson) as unknown;
-      if (!Array.isArray(parsedTransitions)) {
-        return;
-      }
-
-      const nextTransitions = parsedTransitions.map((entry) => {
-        const record = asRecord(entry);
-        if (
-          !record ||
-          record.workUnitTypeKey !== workUnitTypeKey ||
-          record.transitionKey !== transitionKey
-        ) {
-          return entry;
-        }
-
-        return updater(record);
-      });
-
-      onChange("transitionsJson", JSON.stringify(nextTransitions, null, 2));
-    } catch {
+    const parsedTransitions = parseJsonArray(draft.transitionsJson);
+    if (!parsedTransitions) {
       return;
     }
+
+    const nextTransitions = parsedTransitions.map((entry) => {
+      const record = asRecord(entry);
+      if (
+        !record ||
+        record.workUnitTypeKey !== workUnitTypeKey ||
+        record.transitionKey !== transitionKey
+      ) {
+        return entry;
+      }
+
+      return updater(record);
+    });
+
+    onChange("transitionsJson", JSON.stringify(nextTransitions, null, 2));
   };
 
   const addWorkflowStep = (workflowKey: string) => {
-    try {
-      const parsedWorkflowSteps = JSON.parse(draft.workflowStepsJson) as unknown;
-      const stepsByWorkflow =
-        typeof parsedWorkflowSteps === "object" && parsedWorkflowSteps !== null
-          ? (parsedWorkflowSteps as Record<string, unknown>)
-          : {};
+    const stepsByWorkflow = parseJsonRecord(draft.workflowStepsJson) ?? {};
 
-      const currentSteps = Array.isArray(stepsByWorkflow[workflowKey])
-        ? (stepsByWorkflow[workflowKey] as unknown[])
-        : [];
-      const existingStepKeys = currentSteps
-        .map((step) => asRecord(step)?.key)
-        .filter((key): key is string => typeof key === "string");
-      const nextStepKey = nextNumericSuffixKey("step_", existingStepKeys);
+    const currentSteps = Array.isArray(stepsByWorkflow[workflowKey])
+      ? (stepsByWorkflow[workflowKey] as unknown[])
+      : [];
+    const existingStepKeys = currentSteps
+      .map((step) => asRecord(step)?.key)
+      .filter((key): key is string => typeof key === "string");
+    const nextStepKey = nextNumericSuffixKey("step_", existingStepKeys);
 
-      const nextSteps = [...currentSteps, { key: nextStepKey, type: "form" }];
-      const nextStepsByWorkflow = {
-        ...stepsByWorkflow,
-        [workflowKey]: nextSteps,
-      };
+    const nextSteps = [...currentSteps, { key: nextStepKey, type: "form" }];
+    const nextStepsByWorkflow = {
+      ...stepsByWorkflow,
+      [workflowKey]: nextSteps,
+    };
 
-      const parsedWorkflows = JSON.parse(draft.workflowsJson) as unknown;
-      if (!Array.isArray(parsedWorkflows)) {
-        return;
-      }
-
-      const previousStep = existingStepKeys[existingStepKeys.length - 1] ?? null;
-      const nextWorkflows = parsedWorkflows.map((entry) => {
-        const record = asRecord(entry);
-        if (!record || record.key !== workflowKey) {
-          return entry;
-        }
-
-        const edges = Array.isArray(record.edges) ? (record.edges as unknown[]) : [];
-        const nextEdge = {
-          fromStepKey: previousStep,
-          toStepKey: nextStepKey,
-          edgeKey: previousStep ? `${previousStep}__${nextStepKey}` : `entry-${nextStepKey}`,
-        };
-
-        return {
-          ...record,
-          edges: [...edges, nextEdge],
-        };
-      });
-
-      onChange("workflowStepsJson", JSON.stringify(nextStepsByWorkflow, null, 2));
-      onChange("workflowsJson", JSON.stringify(nextWorkflows, null, 2));
-    } catch {
+    const parsedWorkflows = parseJsonArray(draft.workflowsJson);
+    if (!parsedWorkflows) {
       return;
     }
+
+    const previousStep = existingStepKeys[existingStepKeys.length - 1] ?? null;
+    const nextWorkflows = parsedWorkflows.map((entry) => {
+      const record = asRecord(entry);
+      if (!record || record.key !== workflowKey) {
+        return entry;
+      }
+
+      const edges = Array.isArray(record.edges) ? (record.edges as unknown[]) : [];
+      const nextEdge = {
+        fromStepKey: previousStep,
+        toStepKey: nextStepKey,
+        edgeKey: previousStep ? `${previousStep}__${nextStepKey}` : `entry-${nextStepKey}`,
+      };
+
+      return {
+        ...record,
+        edges: [...edges, nextEdge],
+      };
+    });
+
+    onChange("workflowStepsJson", JSON.stringify(nextStepsByWorkflow, null, 2));
+    onChange("workflowsJson", JSON.stringify(nextWorkflows, null, 2));
   };
 
   const updateWorkflowStepDraft = (
@@ -1219,57 +1190,46 @@ export function VersionWorkspaceGraph({
     stepKey: string,
     updater: (step: DraftRecord) => DraftRecord,
   ) => {
-    try {
-      const parsedWorkflowSteps = JSON.parse(draft.workflowStepsJson) as unknown;
-      const stepsByWorkflow =
-        typeof parsedWorkflowSteps === "object" && parsedWorkflowSteps !== null
-          ? (parsedWorkflowSteps as Record<string, unknown>)
-          : {};
+    const stepsByWorkflow = parseJsonRecord(draft.workflowStepsJson) ?? {};
 
-      const currentSteps = Array.isArray(stepsByWorkflow[workflowKey])
-        ? (stepsByWorkflow[workflowKey] as unknown[])
-        : [];
+    const currentSteps = Array.isArray(stepsByWorkflow[workflowKey])
+      ? (stepsByWorkflow[workflowKey] as unknown[])
+      : [];
 
-      const nextSteps = currentSteps.map((entry) => {
-        const record = asRecord(entry);
-        if (!record || record.key !== stepKey) {
-          return entry;
-        }
-        return updater(record);
-      });
+    const nextSteps = currentSteps.map((entry) => {
+      const record = asRecord(entry);
+      if (!record || record.key !== stepKey) {
+        return entry;
+      }
+      return updater(record);
+    });
 
-      onChange(
-        "workflowStepsJson",
-        JSON.stringify(
-          {
-            ...stepsByWorkflow,
-            [workflowKey]: nextSteps,
-          },
-          null,
-          2,
-        ),
-      );
-    } catch {
-      return;
-    }
+    onChange(
+      "workflowStepsJson",
+      JSON.stringify(
+        {
+          ...stepsByWorkflow,
+          [workflowKey]: nextSteps,
+        },
+        null,
+        2,
+      ),
+    );
   };
 
   const onToggleBinding = (transitionKey: string, workflowKey: string, enabled: boolean) => {
     let currentBindings: Record<string, string[]> = {};
-    try {
-      const parsedBindings = JSON.parse(draft.transitionWorkflowBindingsJson) as unknown;
-      if (typeof parsedBindings === "object" && parsedBindings !== null) {
-        currentBindings = Object.fromEntries(
-          Object.entries(parsedBindings).map(([key, value]) => [
-            key,
-            Array.isArray(value)
-              ? value.filter((entry): entry is string => typeof entry === "string")
-              : [],
-          ]),
-        );
-      }
-    } catch {
-      currentBindings = {};
+
+    const parsedBindings = parseJsonRecord(draft.transitionWorkflowBindingsJson);
+    if (parsedBindings) {
+      currentBindings = Object.fromEntries(
+        Object.entries(parsedBindings).map(([key, value]) => [
+          key,
+          Array.isArray(value)
+            ? value.filter((entry): entry is string => typeof entry === "string")
+            : [],
+        ]),
+      );
     }
 
     const nextSet = new Set(currentBindings[transitionKey] ?? []);
