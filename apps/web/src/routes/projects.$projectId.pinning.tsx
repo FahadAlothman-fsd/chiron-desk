@@ -22,6 +22,10 @@ import {
 } from "@/features/methodologies/foundation";
 import { MethodologyWorkspaceShell } from "@/features/methodologies/workspace-shell";
 import { getLatestPublishedVersion } from "@/features/projects/card-avatar-map";
+import {
+  makeTransportFailureDiagnostic,
+  type DeterministicValidationDiagnostic,
+} from "@/features/projects/deterministic-diagnostics";
 import { cn } from "@/lib/utils";
 
 type MethodologyVersion = {
@@ -32,19 +36,10 @@ type MethodologyVersion = {
   createdAt: string;
 };
 
-type ValidationDiagnostic = {
-  code: string;
-  scope: string;
-  blocking: boolean;
-  required: string;
-  observed: string;
-  remediation: string;
-  timestamp: string;
-  evidenceRef: string;
-};
+type ValidationDiagnostic = DeterministicValidationDiagnostic;
 
 function isPublishedVersion(version: MethodologyVersion): boolean {
-  return version.status === "active" || version.status === "published";
+  return version.status === "active";
 }
 
 function formatTimestamp(timestamp: string): string {
@@ -148,8 +143,15 @@ export function ProjectPinningRoute() {
         setLastDiagnostics(result.diagnostics.diagnostics as ValidationDiagnostic[]);
         await queryClient.invalidateQueries({ queryKey: projectQueryOptions.queryKey });
       },
-      onError: () => {
-        setLastDiagnostics(null);
+      onError: (error) => {
+        setLastDiagnostics([
+          makeTransportFailureDiagnostic({
+            code: "PROJECT_REPIN_TRANSPORT_ERROR",
+            scope: "project.repin.transport",
+            evidenceRef: "project-pin-event:transport-repin",
+            error,
+          }),
+        ]);
       },
     }),
   );
@@ -432,10 +434,6 @@ export function ProjectPinningRoute() {
                   : "Repin blocked by deterministic validation"}
               </span>
             </div>
-
-            {repinMutation.error ? (
-              <p className="text-muted-foreground">{repinMutation.error.message}</p>
-            ) : null}
 
             {lastDiagnostics && lastDiagnostics.length > 0 ? (
               <ul className="space-y-2">

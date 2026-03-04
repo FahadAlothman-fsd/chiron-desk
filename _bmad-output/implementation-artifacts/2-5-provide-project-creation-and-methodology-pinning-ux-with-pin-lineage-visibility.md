@@ -1,6 +1,6 @@
 # Story 2.5: Provide Project Creation and Methodology Pinning UX with Pin Lineage Visibility
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -258,6 +258,14 @@ openai/gpt-5.3-codex
 - Polished pinning information hierarchy with explicit `Current pin` snapshot, `Version transition preview`, event-type badges (`PINNED`/`REPINNED`), and more readable lineage metadata chips.
 - Added route-wiring regression coverage to assert `/projects/$projectId/pinning` resolves to pinning workspace, preventing dashboard-content fallback regressions.
 
+### Code Review Summary (2026-03-04)
+
+- Blocking: none remain.
+- Verified: transport/network failures in create and repin now render deterministic diagnostics envelope fields (mapped through `apps/web/src/features/projects/deterministic-diagnostics.ts` and consumed in `apps/web/src/routes/projects.new.tsx` + `apps/web/src/routes/projects.$projectId.pinning.tsx`) instead of raw mutation error text.
+- Verified: published-version filtering now uses canonical `active` status only for project create/repin version eligibility (`apps/web/src/routes/projects.new.tsx`, `apps/web/src/routes/projects.$projectId.pinning.tsx`, `apps/web/src/features/projects/card-avatar-map.ts`).
+- Verified: route split and nested behavior for `/projects/$projectId` and `/projects/$projectId/pinning` are correctly wired (`apps/web/src/routes/projects.$projectId.tsx`, `apps/web/src/routes/projects.$projectId.index.tsx`, `apps/web/src/routes/projects.$projectId.pinning.tsx`, `apps/web/src/routeTree.gen.ts`, `apps/web/src/routes/-projects.pinning-routing.integration.test.tsx`).
+- Verified: Epic 3 runtime execution remains visible-but-disabled with exact rationale copy across project routes (`apps/web/src/features/methodologies/foundation.ts`, `apps/web/src/routes/projects.tsx`, `apps/web/src/routes/projects.new.tsx`, `apps/web/src/routes/projects.$projectId.index.tsx`, `apps/web/src/routes/projects.$projectId.pinning.tsx`).
+
 ### File List
 
 - `packages/methodology-engine/src/repository.ts`
@@ -267,6 +275,7 @@ openai/gpt-5.3-codex
 - `packages/api/src/routers/index.ts`
 - `packages/api/src/routers/methodology.test.ts`
 - `apps/web/src/features/projects/card-avatar-map.ts`
+- `apps/web/src/features/projects/deterministic-diagnostics.ts`
 - `apps/web/src/features/projects/card-avatar-map.integration.test.tsx`
 - `apps/web/src/routes/projects.tsx`
 - `apps/web/src/routes/projects.new.tsx`

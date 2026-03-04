@@ -23,34 +23,79 @@ vi.mock("@/features/methodologies/workspace-shell", () => ({
 
 import { ProjectPinningRoute } from "./projects.$projectId.pinning";
 
-function createHarness() {
+type MethodologyVersionFixture = {
+  id: string;
+  version: string;
+  status: string;
+  displayName: string;
+  createdAt: string;
+  retiredAt: string | null;
+};
+
+type HarnessOptions = {
+  repinImpl?: (input: unknown) => Promise<unknown>;
+  detailsByMethodologyKey?: Record<string, { versions: MethodologyVersionFixture[] }>;
+};
+
+function createHarness(options: HarnessOptions = {}) {
   const invalidateQueriesSpy = vi.fn(async () => undefined);
-  const repinSpy = vi.fn(async (_input?: unknown) => ({
-    repinned: false,
-    diagnostics: {
-      valid: false,
-      diagnostics: [
+  const repinSpy = vi.fn(
+    options.repinImpl ??
+      (async (_input?: unknown) => ({
+        repinned: false,
+        diagnostics: {
+          valid: false,
+          diagnostics: [
+            {
+              code: "PROJECT_REPIN_BLOCKED_EXECUTION_HISTORY",
+              scope: "project.pin",
+              blocking: true,
+              required: "project has no persisted executions",
+              observed: "project has execution history",
+              remediation: "create a new project pinned to desired version",
+              timestamp: "2026-03-03T12:00:00.000Z",
+              evidenceRef: "project-pin-event:test",
+            },
+          ],
+        },
+        pin: {
+          projectId: "project-1",
+          methodologyVersionId: "v1-id",
+          methodologyKey: "bmad.v1",
+          publishedVersion: "1.0.0",
+          actorId: "operator-1",
+          timestamp: "2026-03-03T10:00:00.000Z",
+        },
+      })),
+  );
+
+  const detailsByMethodologyKey: Record<string, { versions: MethodologyVersionFixture[] }> = {
+    "bmad.v1": {
+      versions: [
         {
-          code: "PROJECT_REPIN_BLOCKED_EXECUTION_HISTORY",
-          scope: "project.pin",
-          blocking: true,
-          required: "project has no persisted executions",
-          observed: "project has execution history",
-          remediation: "create a new project pinned to desired version",
-          timestamp: "2026-03-03T12:00:00.000Z",
-          evidenceRef: "project-pin-event:test",
+          id: "v1-id",
+          version: "1.0.0",
+          status: "active",
+          displayName: "BMAD 1.0.0",
+          createdAt: "2026-03-03T10:00:00.000Z",
+          retiredAt: null,
         },
       ],
     },
-    pin: {
-      projectId: "project-1",
-      methodologyVersionId: "v1-id",
-      methodologyKey: "bmad.v1",
-      publishedVersion: "1.0.0",
-      actorId: "operator-1",
-      timestamp: "2026-03-03T10:00:00.000Z",
+    "spiral.v1": {
+      versions: [
+        {
+          id: "spiral-v1-id",
+          version: "1.0.0",
+          status: "active",
+          displayName: "Spiral 1.0.0",
+          createdAt: "2026-03-03T09:00:00.000Z",
+          retiredAt: null,
+        },
+      ],
     },
-  }));
+    ...options.detailsByMethodologyKey,
+  };
 
   const orpc = {
     project: {
@@ -115,49 +160,27 @@ function createHarness() {
       getMethodologyDetails: {
         queryOptions: ({ input }: { input: { methodologyKey: string } }) => ({
           queryKey: ["methodology", "details", input.methodologyKey],
-          queryFn: async () =>
-            input.methodologyKey === "bmad.v1"
-              ? {
-                  versions: [
-                    {
-                      id: "v1-id",
-                      version: "1.0.0",
-                      status: "active",
-                      displayName: "BMAD 1.0.0",
-                      createdAt: "2026-03-03T10:00:00.000Z",
-                      retiredAt: null,
-                    },
-                  ],
-                }
-              : {
-                  versions: [
-                    {
-                      id: "spiral-v1-id",
-                      version: "1.0.0",
-                      status: "active",
-                      displayName: "Spiral 1.0.0",
-                      createdAt: "2026-03-03T09:00:00.000Z",
-                      retiredAt: null,
-                    },
-                  ],
-                },
+          queryFn: async () => ({
+            versions: detailsByMethodologyKey[input.methodologyKey]?.versions ?? [],
+          }),
         }),
       },
       repinProjectMethodologyVersion: {
         mutationOptions: (options?: {
           onSuccess?: (result: unknown) => Promise<void> | void;
-          onError?: () => Promise<void> | void;
+          onError?: (error: unknown) => Promise<void> | void;
         }) => ({
-          mutationFn: async (input: unknown) => {
-            try {
-              const result = await repinSpy(input);
-              await options?.onSuccess?.(result);
-              return result;
-            } catch (error) {
-              await options?.onError?.();
-              throw error;
-            }
-          },
+          mutationFn: (input: unknown) =>
+            repinSpy(input).then(
+              async (result: unknown) => {
+                await options?.onSuccess?.(result);
+                return result;
+              },
+              async (error: unknown) => {
+                await options?.onError?.(error);
+                throw error;
+              },
+            ),
         }),
       },
     },
@@ -246,5 +269,78 @@ describe("project pinning route", () => {
     expect(screen.getByText("Observed:")).toBeTruthy();
     expect(screen.getByText("Remediation:")).toBeTruthy();
     expect(invalidateQueriesSpy).toHaveBeenCalled();
+  });
+
+  it("renders deterministic diagnostics when repin transport fails", async () => {
+    const { queryClient } = createHarness({
+      repinImpl: async () => Promise.reject(new Error("connection reset")),
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ProjectPinningRoute />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByText("Active pin snapshot");
+
+    const repinButton = screen.getByRole("button", {
+      name: "Repin project",
+    }) as HTMLButtonElement;
+    await waitFor(() => {
+      expect(repinButton.disabled).toBe(false);
+    });
+
+    fireEvent.click(repinButton);
+
+    expect(await screen.findByText("PROJECT_REPIN_TRANSPORT_ERROR")).toBeTruthy();
+    expect(screen.getByText("scope: project.repin.transport")).toBeTruthy();
+    expect(screen.getByText(/Observed:/)).toBeTruthy();
+    expect(screen.getByText(/connection reset/)).toBeTruthy();
+    expect(screen.getByText(/evidenceRef:/)).toBeTruthy();
+  });
+
+  it("treats non-active statuses as unpublished for repin selection", async () => {
+    const { queryClient } = createHarness({
+      detailsByMethodologyKey: {
+        "bmad.v1": {
+          versions: [
+            {
+              id: "bmad-v99-id",
+              version: "9.9.0",
+              status: "published",
+              displayName: "BMAD 9.9.0",
+              createdAt: "2026-03-03T11:00:00.000Z",
+              retiredAt: null,
+            },
+          ],
+        },
+      },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ProjectPinningRoute />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByText("Active pin snapshot");
+
+    const methodologyCombobox = screen.getByTestId(
+      "repin-methodology-combobox",
+    ) as HTMLButtonElement;
+    await waitFor(() => {
+      expect(methodologyCombobox.textContent).toContain("bmad.v1");
+    });
+
+    const versionCombobox = screen.getByTestId("repin-version-combobox") as HTMLButtonElement;
+    await waitFor(() => {
+      expect(versionCombobox.disabled).toBe(true);
+    });
+    expect(
+      screen.getByText(
+        "No published versions available for selected methodology. Publish an eligible version first.",
+      ),
+    ).toBeTruthy();
   });
 });

@@ -1,6 +1,6 @@
 # Story 2.3: Deliver Validation, Publish, and Evidence UX for Methodology Contracts
 
-Status: review
+Status: done
 
 ## Story
 
@@ -195,6 +195,14 @@ openai/gpt-5.3-codex
 
 - Ultimate context engine analysis completed - comprehensive developer guide created.
 
+### Code Review Summary (2026-03-04)
+
+- Blocking: none found.
+- Verified: deterministic evidence ordering/filtering and immutable publish evidence rendering are implemented and covered (`apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.tsx`, `apps/web/src/routes/-methodologies.$methodologyId.versions.$versionId.integration.test.tsx`, `packages/api/src/routers/methodology.test.ts`).
+- Verified: publish blocked/success and immutable edit rejection paths are implemented with deterministic diagnostics handling (`apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.tsx`, `apps/web/src/routes/-methodologies.$methodologyId.versions.$versionId.integration.test.tsx`).
+- Verified: Epic 3 runtime boundary remains visible-but-disabled with exact rationale copy (`apps/web/src/features/methodologies/foundation.ts`, `apps/web/src/features/methodologies/version-workspace.tsx`, `apps/web/src/features/methodologies/version-workspace.integration.test.tsx`).
+- Non-blocking: none.
+
 ### File List
 
 - `_bmad-output/implementation-artifacts/2-3-deliver-validation-publish-and-evidence-ux-for-methodology-contracts.md`
@@ -203,7 +211,7 @@ openai/gpt-5.3-codex
 - `apps/web/src/features/methodologies/version-workspace-graph.tsx`
 - `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.tsx`
 - `apps/web/src/features/methodologies/version-workspace.persistence.test.ts`
-- `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.integration.test.tsx`
+- `apps/web/src/routes/-methodologies.$methodologyId.versions.$versionId.integration.test.tsx`
 - `_bmad-output/planning-artifacts/epics.md`
 - `docs/plans/2026-03-01-methodology-version-workspace-direction-design.md`
 - `docs/plans/2026-03-01-story-2-3-diagnostics-first-workspace-implementation-plan.md`

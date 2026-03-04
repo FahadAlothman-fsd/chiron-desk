@@ -23,6 +23,26 @@ vi.mock("@/features/methodologies/workspace-shell", () => ({
 
 import { CreateProjectRoute } from "./projects.new";
 
+type MethodologyVersionFixture = {
+  id: string;
+  version: string;
+  status: string;
+  displayName: string;
+  createdAt: string;
+  retiredAt: string | null;
+};
+
+type HarnessOptions = {
+  createAndPinImpl?: (input: unknown) => Promise<unknown>;
+  detailsByMethodologyKey?: Record<
+    string,
+    {
+      summary: string;
+      versions: MethodologyVersionFixture[];
+    }
+  >;
+};
+
 function comboboxForCard(cardTitle: string): HTMLButtonElement {
   const titleElement = screen.getByText(cardTitle);
   const card = titleElement.closest("label");
@@ -33,24 +53,75 @@ function comboboxForCard(cardTitle: string): HTMLButtonElement {
   return within(card).getByRole("combobox") as HTMLButtonElement;
 }
 
-function createHarness() {
-  const createAndPinSpy = vi.fn(async () => ({
-    project: {
-      id: "project-42",
-      createdAt: "2026-03-03T12:00:00.000Z",
-      updatedAt: "2026-03-03T12:00:00.000Z",
+function createHarness(options: HarnessOptions = {}) {
+  const createAndPinSpy = vi.fn(
+    options.createAndPinImpl ??
+      (async () => ({
+        project: {
+          id: "project-42",
+          createdAt: "2026-03-03T12:00:00.000Z",
+          updatedAt: "2026-03-03T12:00:00.000Z",
+        },
+        pinned: true,
+        diagnostics: { valid: true, diagnostics: [] },
+        pin: {
+          projectId: "project-42",
+          methodologyVersionId: "bmad-v11",
+          methodologyKey: "bmad.v1",
+          publishedVersion: "1.1.0",
+          actorId: "operator-1",
+          timestamp: "2026-03-03T12:00:00.000Z",
+        },
+      })),
+  );
+
+  const detailsByMethodologyKey: Record<
+    string,
+    {
+      summary: string;
+      versions: MethodologyVersionFixture[];
+    }
+  > = {
+    "bmad.v1": {
+      summary: "Structured iterative BMAD delivery.",
+      versions: [
+        {
+          id: "bmad-v10",
+          version: "1.0.0",
+          status: "active",
+          displayName: "BMAD 1.0.0",
+          createdAt: "2026-03-03T09:00:00.000Z",
+          retiredAt: null,
+        },
+        {
+          id: "bmad-v11",
+          version: "1.1.0",
+          status: "active",
+          displayName: "BMAD 1.1.0",
+          createdAt: "2026-03-03T10:00:00.000Z",
+          retiredAt: null,
+        },
+      ],
     },
-    pinned: true,
-    diagnostics: { valid: true, diagnostics: [] },
-    pin: {
-      projectId: "project-42",
-      methodologyVersionId: "bmad-v11",
-      methodologyKey: "bmad.v1",
-      publishedVersion: "1.1.0",
-      actorId: "operator-1",
-      timestamp: "2026-03-03T12:00:00.000Z",
+    "spiral.v1": {
+      summary: "Spiral strategy with milestone loops.",
+      versions: [
+        {
+          id: "spiral-v09",
+          version: "0.9.0",
+          status: "active",
+          displayName: "Spiral 0.9.0",
+          createdAt: "2026-03-03T07:00:00.000Z",
+          retiredAt: null,
+        },
+      ],
     },
-  }));
+    "lean.v1": {
+      summary: "Lean planning baseline.",
+      versions: [],
+    },
+    ...options.detailsByMethodologyKey,
+  };
 
   const invalidateQueriesSpy = vi.fn(async () => undefined);
 
@@ -91,64 +162,37 @@ function createHarness() {
         queryOptions: ({ input }: { input: { methodologyKey: string } }) => ({
           queryKey: ["methodology", "details", input.methodologyKey],
           queryFn: async () => {
-            if (input.methodologyKey === "bmad.v1") {
+            const details = detailsByMethodologyKey[input.methodologyKey];
+            if (!details) {
               return {
-                methodologyId: "m1",
-                methodologyKey: "bmad.v1",
-                displayName: "BMAD v1",
-                descriptionJson: { summary: "Structured iterative BMAD delivery." },
-                createdAt: "2026-03-03T08:00:00.000Z",
-                updatedAt: "2026-03-03T10:00:00.000Z",
-                versions: [
-                  {
-                    id: "bmad-v10",
-                    version: "1.0.0",
-                    status: "active",
-                    displayName: "BMAD 1.0.0",
-                    createdAt: "2026-03-03T09:00:00.000Z",
-                    retiredAt: null,
-                  },
-                  {
-                    id: "bmad-v11",
-                    version: "1.1.0",
-                    status: "active",
-                    displayName: "BMAD 1.1.0",
-                    createdAt: "2026-03-03T10:00:00.000Z",
-                    retiredAt: null,
-                  },
-                ],
-              };
-            }
-
-            if (input.methodologyKey === "spiral.v1") {
-              return {
-                methodologyId: "m2",
-                methodologyKey: "spiral.v1",
-                displayName: "Spiral v1",
-                descriptionJson: { summary: "Spiral strategy with milestone loops." },
-                createdAt: "2026-03-03T06:00:00.000Z",
-                updatedAt: "2026-03-03T09:00:00.000Z",
-                versions: [
-                  {
-                    id: "spiral-v09",
-                    version: "0.9.0",
-                    status: "active",
-                    displayName: "Spiral 0.9.0",
-                    createdAt: "2026-03-03T07:00:00.000Z",
-                    retiredAt: null,
-                  },
-                ],
+                methodologyId: "m0",
+                methodologyKey: input.methodologyKey,
+                displayName: input.methodologyKey,
+                descriptionJson: { summary: "Unknown methodology." },
+                createdAt: "2026-03-03T05:00:00.000Z",
+                updatedAt: "2026-03-03T08:00:00.000Z",
+                versions: [],
               };
             }
 
             return {
-              methodologyId: "m3",
-              methodologyKey: "lean.v1",
-              displayName: "Lean Canvas",
-              descriptionJson: { summary: "Lean planning baseline." },
+              methodologyId:
+                input.methodologyKey === "bmad.v1"
+                  ? "m1"
+                  : input.methodologyKey === "spiral.v1"
+                    ? "m2"
+                    : "m3",
+              methodologyKey: input.methodologyKey,
+              displayName:
+                input.methodologyKey === "bmad.v1"
+                  ? "BMAD v1"
+                  : input.methodologyKey === "spiral.v1"
+                    ? "Spiral v1"
+                    : "Lean Canvas",
+              descriptionJson: { summary: details.summary },
               createdAt: "2026-03-03T05:00:00.000Z",
-              updatedAt: "2026-03-03T08:00:00.000Z",
-              versions: [],
+              updatedAt: "2026-03-03T10:00:00.000Z",
+              versions: details.versions,
             };
           },
         }),
@@ -162,8 +206,21 @@ function createHarness() {
         }),
       },
       createAndPinProject: {
-        mutationOptions: () => ({
-          mutationFn: createAndPinSpy,
+        mutationOptions: (mutationLifecycle?: {
+          onSuccess?: (result: unknown) => Promise<void> | void;
+          onError?: (error: unknown) => Promise<void> | void;
+        }) => ({
+          mutationFn: (input: unknown) =>
+            createAndPinSpy(input).then(
+              async (result: unknown) => {
+                await mutationLifecycle?.onSuccess?.(result);
+                return result;
+              },
+              async (error: unknown) => {
+                await mutationLifecycle?.onError?.(error);
+                throw error;
+              },
+            ),
         }),
       },
     },
@@ -262,7 +319,9 @@ describe("create project route", () => {
       target: { value: "Aurora Atlas 321" },
     });
 
-    const createButton = screen.getByRole("button", { name: "Create and pin project" });
+    const createButton = screen.getByRole("button", {
+      name: "Create and pin project",
+    }) as HTMLButtonElement;
     fireEvent.click(createButton);
 
     await waitFor(() => {
@@ -274,5 +333,76 @@ describe("create project route", () => {
         name: "Aurora Atlas 321",
       });
     });
+  });
+
+  it("renders deterministic diagnostics when create-and-pin transport fails", async () => {
+    const { queryClient } = createHarness({
+      createAndPinImpl: async () => Promise.reject(new Error("gateway timeout")),
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <CreateProjectRoute />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByRole("radio", { name: "Select BMAD v1" });
+
+    fireEvent.change(screen.getByLabelText("Project name"), {
+      target: { value: "Aurora Atlas 321" },
+    });
+
+    fireEvent.click(screen.getByText("BMAD v1"));
+
+    const createButton = screen.getByRole("button", {
+      name: "Create and pin project",
+    }) as HTMLButtonElement;
+    await waitFor(() => {
+      expect(createButton.disabled).toBe(false);
+    });
+
+    fireEvent.click(createButton);
+
+    expect(await screen.findByText("PROJECT_PIN_TRANSPORT_ERROR")).toBeTruthy();
+    expect(screen.getByText("scope: project.pin.transport")).toBeTruthy();
+    expect(screen.getByText(/Observed:/)).toBeTruthy();
+    expect(screen.getByText(/gateway timeout/)).toBeTruthy();
+    expect(screen.getByText(/evidenceRef:/)).toBeTruthy();
+  });
+
+  it("treats non-active statuses as unpublished for methodology selection", async () => {
+    const { queryClient } = createHarness({
+      detailsByMethodologyKey: {
+        "lean.v1": {
+          summary: "Lean planning baseline.",
+          versions: [
+            {
+              id: "lean-v99",
+              version: "9.9.0",
+              status: "published",
+              displayName: "Lean 9.9.0",
+              createdAt: "2026-03-03T10:30:00.000Z",
+              retiredAt: null,
+            },
+          ],
+        },
+      },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <CreateProjectRoute />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByRole("radio", { name: "Select BMAD v1" });
+
+    fireEvent.click(screen.getByText("Lean Canvas"));
+    expect(comboboxForCard("Lean Canvas").disabled).toBe(true);
+    expect(
+      screen.getByText(
+        "No published versions available for selected methodology. Publish an eligible version first.",
+      ),
+    ).toBeTruthy();
   });
 });

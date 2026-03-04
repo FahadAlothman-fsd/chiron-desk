@@ -15,6 +15,10 @@ import {
   getAvatarAssetForMethodologyIndex,
   getLatestPublishedVersion,
 } from "@/features/projects/card-avatar-map";
+import {
+  makeTransportFailureDiagnostic,
+  type DeterministicValidationDiagnostic,
+} from "@/features/projects/deterministic-diagnostics";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -64,23 +68,14 @@ type MethodologyVersion = {
   createdAt: string;
 };
 
-type ValidationDiagnostic = {
-  code: string;
-  scope: string;
-  blocking: boolean;
-  required: string;
-  observed: string;
-  remediation: string;
-  timestamp: string;
-  evidenceRef: string;
-};
+type ValidationDiagnostic = DeterministicValidationDiagnostic;
 
 export const Route = createFileRoute("/projects/new")({
   component: CreateProjectRoute,
 });
 
 function isPublishedVersion(version: MethodologyVersion): boolean {
-  return version.status === "active" || version.status === "published";
+  return version.status === "active";
 }
 
 function extractMethodologyDescription(details: MethodologyDetails | null): string {
@@ -252,8 +247,15 @@ function CreateProjectRoute() {
           params: { projectId: result.project.id },
         });
       },
-      onError: () => {
-        setLastDiagnostics(null);
+      onError: (error) => {
+        setLastDiagnostics([
+          makeTransportFailureDiagnostic({
+            code: "PROJECT_PIN_TRANSPORT_ERROR",
+            scope: "project.pin.transport",
+            evidenceRef: "project-pin-event:transport-create",
+            error,
+          }),
+        ]);
       },
     }),
   );
@@ -545,10 +547,6 @@ function CreateProjectRoute() {
                   : "Pin request blocked by deterministic validation"}
               </span>
             </div>
-
-            {createAndPinMutation.error ? (
-              <p className="text-muted-foreground">{createAndPinMutation.error.message}</p>
-            ) : null}
 
             {lastDiagnostics && lastDiagnostics.length > 0 ? (
               <ul className="space-y-2">
