@@ -598,8 +598,8 @@ So that setup is reproducible and project behavior remains deterministic until e
 
 **Given** I create a new project from setup
 **When** I select or confirm project delivery mode
-**Then** the project persists `project.deliveryMode` as a project fact from a controlled set (`desktop_app`, `web_app`, `api_only`, `cli`, `tui`)
-**And** fact provenance is recorded for downstream gate-condition evaluation.
+**Then** setup-fact persistence (including `project.deliveryMode`) is deferred to methodology-driven `WU.SETUP` workflow `setup-project` in Epic 3
+**And** Story 2.5 remains scoped to create-and-pin UX without hardcoded setup-fact writes.
 
 **Given** a project pinned to `V1`
 **When** version `V2` is published
@@ -644,10 +644,10 @@ So that I can verify setup health and evidence status before runtime execution i
 **Then** I can see active methodology, pinned version, publish state, and last validation status
 **And** values are sourced from persisted backend state.
 
-**Given** project setup facts exist
+**Given** setup workflow execution is not yet enabled in Epic 2
 **When** I inspect project baseline details
-**Then** I can see `project.deliveryMode` and derived UX-requirement status
-**And** both values are queryable as gate-condition inputs.
+**Then** I see setup-facts status as deferred to `WU.SETUP` workflow `setup-project` in Epic 3
+**And** baseline visibility remains read-only for methodology, pin, diagnostics, and work-unit readiness state.
 
 **Given** a selected methodology version contains one or more work unit types
 **When** I inspect work unit visibility in the operator panel
