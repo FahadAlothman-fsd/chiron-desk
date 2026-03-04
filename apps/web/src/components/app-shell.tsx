@@ -1,14 +1,6 @@
 import { Link, Navigate, useRouterState } from "@tanstack/react-router";
 import { useHotkey } from "@tanstack/react-hotkeys";
-import {
-  BookOpenIcon,
-  CommandIcon,
-  HomeIcon,
-  LayoutDashboardIcon,
-  LifeBuoyIcon,
-  SendIcon,
-  WorkflowIcon,
-} from "lucide-react";
+import { CommandIcon } from "lucide-react";
 import { Fragment, useState, type ReactNode } from "react";
 
 import { AppSidebar } from "@/components/app-sidebar";
@@ -24,6 +16,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { MethodologyCommandPalette } from "@/features/methodologies/command-palette";
+import { buildSidebarSections } from "./sidebar-sections";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 
@@ -64,8 +57,6 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
   const pathParts = pathname.split("/").filter(Boolean);
   const methodologyId = pathParts[0] === "methodologies" ? pathParts[1] : undefined;
-  const versionId =
-    pathParts[0] === "methodologies" && pathParts[2] === "versions" ? pathParts[3] : undefined;
 
   const breadcrumbSegments =
     pathParts.length === 0
@@ -78,80 +69,15 @@ export default function AppShell({ children }: { children: ReactNode }) {
           };
         });
 
-  const navMainItems = [
-    {
-      title: "Home",
-      url: "/",
-      icon: <HomeIcon className="size-4" />,
-      isActive: pathname === "/",
-    },
-    {
-      title: "Dashboard",
-      url: "/dashboard",
-      icon: <LayoutDashboardIcon className="size-4" />,
-      isActive: pathname.startsWith("/dashboard"),
-    },
-    {
-      title: "Methodologies",
-      url: "/methodologies",
-      icon: <WorkflowIcon className="size-4" />,
-      isActive: pathname.startsWith("/methodologies"),
-      items: methodologyId
-        ? [
-            {
-              title: "Details",
-              url: `/methodologies/${methodologyId}`,
-            },
-            {
-              title: "Versions",
-              url: `/methodologies/${methodologyId}/versions`,
-            },
-            ...(versionId
-              ? [
-                  {
-                    title: "Workspace Entry",
-                    url: `/methodologies/${methodologyId}/versions/${versionId}`,
-                  },
-                ]
-              : []),
-          ]
-        : [],
-    },
-  ];
-
-  const projectItems = [
-    {
-      name: "Methodologies",
-      url: "/methodologies",
-      icon: <WorkflowIcon className="size-4" />,
-    },
-    {
-      name: "Dashboard",
-      url: "/dashboard",
-      icon: <BookOpenIcon className="size-4" />,
-    },
-  ];
+  const navSections = buildSidebarSections(pathname);
 
   return (
     <SidebarProvider defaultOpen className="min-h-svh w-full bg-[#07090b]">
       <AppSidebar
         title="Operator Workspace"
         subtitle="Methodology Console"
-        navMainItems={navMainItems}
-        projectItems={projectItems}
+        sections={navSections}
         onOpenCommands={() => setIsCommandPaletteOpen(true)}
-        navSecondaryItems={[
-          {
-            title: "Support",
-            url: "/dashboard",
-            icon: <LifeBuoyIcon className="size-4" />,
-          },
-          {
-            title: "Feedback",
-            url: "/",
-            icon: <SendIcon className="size-4" />,
-          },
-        ]}
         className="border-r border-border/80"
       />
 

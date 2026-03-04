@@ -11,6 +11,7 @@ import {
   type PinProjectMethodologyVersionParams,
   type ProjectMethodologyPinEventRow,
   type ProjectMethodologyPinRow,
+  type ProjectRow,
   type UpdateDraftParams,
   type GetVersionEventsParams,
   type MethodologyDefinitionRow,
@@ -114,6 +115,15 @@ function toProjectPinEventRow(
     newVersion: row.newVersion,
     evidenceRef: row.evidenceRef,
     createdAt: row.createdAt,
+  };
+}
+
+function toProjectRow(row: typeof projects.$inferSelect): ProjectRow {
+  return {
+    id: row.id,
+    name: row.name,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
   };
 }
 
@@ -976,6 +986,46 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           }
           return new RepositoryError({ operation: "methodology.publishDraftVersion", cause });
         },
+      }),
+
+    createProject: ({ projectId, name }) =>
+      dbEffect("project.createProject", async () => {
+        await db.insert(projects).values({ id: projectId, name }).onConflictDoNothing({
+          target: projects.id,
+        });
+
+        const row = (
+          await db.select().from(projects).where(eq(projects.id, projectId)).limit(1)
+        )[0];
+
+        if (!row) {
+          throw new RepositoryError({
+            operation: "project.createProject",
+            code: "PROJECT_PIN_ATOMICITY_GUARD_ABORTED",
+            cause: new Error("Unable to read project after create"),
+          });
+        }
+
+        return toProjectRow(row);
+      }),
+
+    listProjects: () =>
+      dbEffect("project.listProjects", async () => {
+        const rows = await db
+          .select()
+          .from(projects)
+          .orderBy(asc(projects.createdAt), asc(projects.id));
+
+        return rows.map((row) => toProjectRow(row));
+      }),
+
+    getProjectById: ({ projectId }) =>
+      dbEffect("project.getProjectById", async () => {
+        const row = (
+          await db.select().from(projects).where(eq(projects.id, projectId)).limit(1)
+        )[0];
+
+        return row ? toProjectRow(row) : null;
       }),
 
     findProjectPin: (projectId: string) =>

@@ -2,6 +2,7 @@ import type { RouterClient } from "@orpc/server";
 
 import { protectedProcedure, publicProcedure } from "../index";
 import { createMethodologyRouter } from "./methodology";
+import { createProjectRouter } from "./project";
 import { Layer } from "effect";
 import {
   MethodologyVersionService,
@@ -35,6 +36,7 @@ export function createAppRouter(
       };
     }),
     methodology: createMethodologyRouter(methodologyServiceLayer),
+    project: createProjectRouter(methodologyServiceLayer),
   };
 }
 export type AppRouter = ReturnType<typeof createAppRouter>;

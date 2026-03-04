@@ -24,6 +24,7 @@ import {
 import { RepositoryError } from "@chiron/methodology-engine";
 import type { ValidationResult } from "@chiron/contracts/methodology/version";
 import { createMethodologyRouter } from "./methodology";
+import { createProjectRouter } from "./project";
 
 function makeTestRepo(): MethodologyRepository["Type"] {
   const definitions = new Map<
@@ -64,6 +65,15 @@ function makeTestRepo(): MethodologyRepository["Type"] {
   }> = [];
   const workflowSnapshots = new Map<string, WorkflowSnapshot>();
   const factSchemasByVersion = new Map<string, readonly PublishFactSchemaRow[]>();
+  const projects = new Map<
+    string,
+    {
+      id: string;
+      name: string;
+      createdAt: Date;
+      updatedAt: Date;
+    }
+  >();
   const executionCountsByProject = new Map<string, number>();
   executionCountsByProject.set("project-exec-history", 1);
   let counter = 0;
@@ -313,6 +323,26 @@ function makeTestRepo(): MethodologyRepository["Type"] {
           event,
         };
       }),
+    createProject: ({ projectId, name }) =>
+      Effect.sync(() => {
+        const now = new Date();
+        const existing = projects.get(projectId);
+        const project = existing ?? {
+          id: projectId,
+          name: name ?? "Untitled Project",
+          createdAt: now,
+          updatedAt: now,
+        };
+        projects.set(projectId, project);
+        return project;
+      }),
+    listProjects: () =>
+      Effect.sync(() =>
+        [...projects.values()].sort(
+          (a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id),
+        ),
+      ),
+    getProjectById: ({ projectId }) => Effect.sync(() => projects.get(projectId) ?? null),
     findProjectPin: (projectId: string) => Effect.succeed(projectPins.get(projectId) ?? null),
     hasPersistedExecutions: (projectId: string) =>
       Effect.succeed((executionCountsByProject.get(projectId) ?? 0) > 0),
@@ -348,6 +378,14 @@ function makeTestRepo(): MethodologyRepository["Type"] {
           createdAt: existing?.createdAt ?? now,
           updatedAt: now,
         };
+        if (!projects.has(params.projectId)) {
+          projects.set(params.projectId, {
+            id: params.projectId,
+            name: "Untitled Project",
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
         projectPins.set(params.projectId, pin);
 
         const eventId = nextId();
@@ -412,6 +450,14 @@ function makeTestRepo(): MethodologyRepository["Type"] {
           createdAt: existing.createdAt,
           updatedAt: now,
         };
+        if (!projects.has(params.projectId)) {
+          projects.set(params.projectId, {
+            id: params.projectId,
+            name: "Untitled Project",
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
         projectPins.set(params.projectId, pin);
 
         const eventId = nextId();
@@ -1528,6 +1574,99 @@ describe("methodology router", () => {
       expect(lineage[1]?.eventType).toBe("repinned");
       expect(lineage[1]?.previousVersion).toBe("1.0.0");
       expect(lineage[1]?.newVersion).toBe("2.0.0");
+    });
+  });
+
+  describe("project router", () => {
+    it("creates and pins a project through backend-authoritative contracts", async () => {
+      const serviceLayer = makeServiceLayer();
+      const router = createProjectRouter(serviceLayer);
+      const methodologyRouter = createMethodologyRouter(serviceLayer);
+      await call(
+        methodologyRouter.createMethodology,
+        {
+          methodologyKey: "equity-method",
+          displayName: "Equity Method",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const draft = await call(
+        methodologyRouter.createDraftVersion,
+        {
+          methodologyKey: "equity-method",
+          displayName: "Equity Method",
+          version: "1.0.0",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        methodologyRouter.validateDraftVersion,
+        {
+          versionId: draft.version.id,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        methodologyRouter.updateDraftWorkflows,
+        {
+          versionId: draft.version.id,
+          workflows: VALID_DEFINITION.workflows,
+          transitionWorkflowBindings: VALID_DEFINITION.transitionWorkflowBindings,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        methodologyRouter.publishDraftVersion,
+        {
+          versionId: draft.version.id,
+          publishedVersion: "1.0.0",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const createResult = await call(
+        router.createAndPinProject,
+        {
+          methodologyKey: "equity-method",
+          publishedVersion: "1.0.0",
+          name: "Aurora Atlas 321",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      expect(createResult.project.id).toBeTruthy();
+      expect(createResult.project.displayName).toBe("Aurora Atlas 321");
+      expect(createResult.pinned).toBe(true);
+      expect(createResult.pin?.publishedVersion).toBe("1.0.0");
+
+      const listed = await call(router.listProjects, {}, PUBLIC_CTX);
+      expect(listed.some((project) => project.id === createResult.project.id)).toBe(true);
+    });
+
+    it("returns deterministic diagnostics when create+pin targets invalid version", async () => {
+      const router = createProjectRouter(makeServiceLayer());
+
+      const createResult = await call(
+        router.createAndPinProject,
+        {
+          methodologyKey: "equity-method",
+          publishedVersion: "9.9.9",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      expect(createResult.pinned).toBe(false);
+      expect(createResult.diagnostics.valid).toBe(false);
+      expect(createResult.diagnostics.diagnostics[0]?.code).toBe(
+        "PROJECT_PIN_TARGET_VERSION_NOT_FOUND",
+      );
     });
   });
 

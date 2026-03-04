@@ -32,6 +32,7 @@ import type {
   MethodologyVersionRow,
   ProjectMethodologyPinEventRow,
   ProjectMethodologyPinRow,
+  ProjectRow,
 } from "./repository";
 import { MethodologyRepository } from "./repository";
 import { validateDraftDefinition } from "./validation";
@@ -112,6 +113,70 @@ export interface MethodologyDetails {
   }[];
 }
 
+export interface ProjectSummary {
+  id: string;
+  displayName: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const PROJECT_NAME_PREFIXES = [
+  "Aegis",
+  "Arcadian",
+  "Astral",
+  "Cinder",
+  "Cobalt",
+  "Eternal",
+  "Golden",
+  "Helios",
+  "Iris",
+  "Luminous",
+  "Mythic",
+  "Obsidian",
+  "Orchid",
+  "Radiant",
+  "Silver",
+  "Velvet",
+] as const;
+
+const PROJECT_NAME_CORE = [
+  "Athena",
+  "Apollo",
+  "Artemis",
+  "Atlas",
+  "Freya",
+  "Hermes",
+  "Hyperion",
+  "Icarus",
+  "Nyx",
+  "Orion",
+  "Perseus",
+  "Selene",
+  "Skadi",
+  "Thalia",
+  "Tyr",
+  "Zephyr",
+] as const;
+
+function hashProjectId(input: string): number {
+  let hash = 2_166_136_261;
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return hash >>> 0;
+}
+
+function generateProjectDisplayName(projectId: string): string {
+  const hash = hashProjectId(projectId);
+  const prefix = PROJECT_NAME_PREFIXES[hash % PROJECT_NAME_PREFIXES.length] ?? "Mythic";
+  const core =
+    PROJECT_NAME_CORE[Math.floor(hash / PROJECT_NAME_PREFIXES.length) % PROJECT_NAME_CORE.length] ??
+    "Atlas";
+  const suffix = ((hash >>> 9) % 90) + 10;
+  return `${prefix} ${core} ${suffix}`;
+}
+
 export class MethodologyVersionService extends Context.Tag("MethodologyVersionService")<
   MethodologyVersionService,
   {
@@ -170,6 +235,14 @@ export class MethodologyVersionService extends Context.Tag("MethodologyVersionSe
     readonly getProjectMethodologyPin: (
       projectId: string,
     ) => Effect.Effect<ProjectMethodologyPinState | null, RepositoryError>;
+    readonly createProject: (
+      projectId: string,
+      name?: string,
+    ) => Effect.Effect<ProjectSummary, RepositoryError>;
+    readonly listProjects: () => Effect.Effect<readonly ProjectSummary[], RepositoryError>;
+    readonly getProjectById: (
+      projectId: string,
+    ) => Effect.Effect<ProjectSummary | null, RepositoryError>;
     readonly createMethodology: (
       methodologyKey: string,
       displayName: string,
@@ -285,6 +358,18 @@ function toProjectPinEvent(event: ProjectMethodologyPinEventRow): ProjectMethodo
     timestamp: event.createdAt.toISOString(),
     evidenceRef: event.evidenceRef,
   };
+}
+
+function toProjectSummary(project: ProjectRow): ProjectSummary {
+  const normalizedName = project.name?.trim() ?? "";
+
+  return {
+    id: project.id,
+    displayName:
+      normalizedName.length > 0 ? normalizedName : generateProjectDisplayName(project.id),
+    createdAt: project.createdAt.toISOString(),
+    updatedAt: project.updatedAt.toISOString(),
+  } satisfies ProjectSummary;
 }
 
 function isDefaultValueCompatible(factType: string, defaultValue: unknown): boolean {
@@ -1408,6 +1493,26 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
   ): Effect.Effect<ProjectMethodologyPinState | null, RepositoryError> =>
     repo.findProjectPin(projectId).pipe(Effect.map((pin) => (pin ? toProjectPinState(pin) : null)));
 
+  const createProject = (
+    projectId: string,
+    name?: string,
+  ): Effect.Effect<ProjectSummary, RepositoryError> =>
+    repo
+      .createProject({ projectId, name })
+      .pipe(Effect.map((project) => toProjectSummary(project)));
+
+  const listProjects = (): Effect.Effect<readonly ProjectSummary[], RepositoryError> =>
+    repo
+      .listProjects()
+      .pipe(Effect.map((projects) => projects.map((project) => toProjectSummary(project))));
+
+  const getProjectById = (
+    projectId: string,
+  ): Effect.Effect<ProjectSummary | null, RepositoryError> =>
+    repo
+      .getProjectById({ projectId })
+      .pipe(Effect.map((project) => (project ? toProjectSummary(project) : null)));
+
   const createMethodology = (
     methodologyKey: string,
     displayName: string,
@@ -1600,6 +1705,9 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
     repinProjectMethodologyVersion,
     getProjectPinLineage,
     getProjectMethodologyPin,
+    createProject,
+    listProjects,
+    getProjectById,
     createMethodology,
     listMethodologies,
     getMethodologyDetails,

@@ -13,6 +13,10 @@ import {
 type ShellSegment = {
   label: string;
   to?:
+    | "/projects"
+    | "/projects/new"
+    | "/projects/$projectId"
+    | "/projects/$projectId/pinning"
     | "/methodologies"
     | "/methodologies/$methodologyId"
     | "/methodologies/$methodologyId/versions"

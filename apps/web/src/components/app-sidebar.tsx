@@ -1,32 +1,42 @@
 import * as React from "react";
 import { Link } from "@tanstack/react-router";
 
-import { NavMain } from "@/components/nav-main";
-import { NavProjects } from "@/components/nav-projects";
-import { NavSecondary } from "@/components/nav-secondary";
 import { NavUser } from "@/components/nav-user";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { CommandIcon, TerminalIcon } from "lucide-react";
 
-type NavMainItem = React.ComponentProps<typeof NavMain>["items"][number];
-type ProjectItem = React.ComponentProps<typeof NavProjects>["projects"][number];
-type SecondaryItem = React.ComponentProps<typeof NavSecondary>["items"][number];
 type UserItem = React.ComponentProps<typeof NavUser>["user"];
+
+export type SidebarNavItem = {
+  label: string;
+  icon?: React.ReactNode;
+  to?: string;
+  disabled?: boolean;
+  badge?: string;
+  isActive?: boolean;
+};
+
+export type SidebarNavSection = {
+  title: string;
+  items: SidebarNavItem[];
+};
 
 type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   title?: string;
   subtitle?: string;
-  navMainItems: NavMainItem[];
-  projectItems: ProjectItem[];
-  navSecondaryItems: SecondaryItem[];
+  sections: SidebarNavSection[];
   user?: UserItem;
   onOpenCommands?: () => void;
 };
@@ -34,9 +44,7 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
 export function AppSidebar({
   title = "Chiron",
   subtitle = "Operator Console",
-  navMainItems,
-  projectItems,
-  navSecondaryItems,
+  sections,
   user,
   onOpenCommands,
   ...props
@@ -73,9 +81,32 @@ export function AppSidebar({
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={navMainItems} />
-        <NavProjects projects={projectItems} />
-        <NavSecondary items={navSecondaryItems} className="mt-auto" />
+        {sections.map((section) => (
+          <SidebarGroup key={section.title}>
+            <SidebarGroupLabel>{section.title}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {section.items.map((item) => (
+                  <SidebarMenuItem key={`${section.title}-${item.label}`}>
+                    {item.to && !item.disabled ? (
+                      <SidebarMenuButton isActive={item.isActive} render={<Link to={item.to} />}>
+                        {item.icon}
+                        <span>{item.label}</span>
+                        {item.badge ? <SidebarMenuBadge>{item.badge}</SidebarMenuBadge> : null}
+                      </SidebarMenuButton>
+                    ) : (
+                      <SidebarMenuButton aria-disabled="true" disabled={item.disabled}>
+                        {item.icon}
+                        <span>{item.label}</span>
+                        {item.badge ? <SidebarMenuBadge>{item.badge}</SidebarMenuBadge> : null}
+                      </SidebarMenuButton>
+                    )}
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={user} />

@@ -52,7 +52,7 @@ development_status:
   2-2-build-react-flow-methodology-graph-for-work-unit-transition-and-workflow-binding-management: done
   2-3-deliver-validation-publish-and-evidence-ux-for-methodology-contracts: review
   2-4-implement-rigorous-facts-and-variable-type-authoring-across-methodology-and-work-units: done
-  2-5-provide-project-creation-and-methodology-pinning-ux-with-pin-lineage-visibility: backlog
+  2-5-provide-project-creation-and-methodology-pinning-ux-with-pin-lineage-visibility: review
   2-6-provide-baseline-operator-visibility-for-methodology-pin-and-diagnostics-state: backlog
   epic-2-retrospective: optional
   epic-3: backlog

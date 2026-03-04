@@ -3,7 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Data, Effect } from "effect";
 
-export type StorySeedId = "2-1" | "2-2";
+export type StorySeedId = "2-1" | "2-2" | "2-5";
 
 export type StorySeedUser = {
   readonly name: string;
@@ -22,7 +22,7 @@ export type StorySeedMethodologyVersion = {
   readonly id: string;
   readonly methodologyId: string;
   readonly version: string;
-  readonly status: "draft" | "published" | "retired";
+  readonly status: "draft" | "active" | "retired";
   readonly displayName: string;
   readonly definitionExtensions: Record<string, unknown>;
   readonly retiredAt: Date | null;
@@ -245,7 +245,7 @@ const STORY_2_1_PLAN: StorySeedPlan = {
       id: "mver_story_2_1_alpha_v1",
       methodologyId: "mdef_story_2_1_alpha",
       version: "v1",
-      status: "published",
+      status: "active",
       displayName: "Story 2.1 Alpha v1",
       definitionExtensions: {},
       retiredAt: null,
@@ -263,7 +263,7 @@ const STORY_2_1_PLAN: StorySeedPlan = {
       id: "mver_story_2_1_beta_v1",
       methodologyId: "mdef_story_2_1_beta",
       version: "v1",
-      status: "published",
+      status: "active",
       displayName: "Story 2.1 Beta v1",
       definitionExtensions: {},
       retiredAt: null,
@@ -303,9 +303,96 @@ const STORY_2_2_PLAN: StorySeedPlan = {
   ],
 };
 
+const STORY_2_5_PLAN: StorySeedPlan = {
+  storyId: "2-5",
+  users: [
+    {
+      name: "Chiron Operator",
+      email: "operator@chiron.local",
+      password: "chiron-operator-123",
+    },
+  ],
+  methodologyDefinitions: [
+    {
+      id: "mdef_story_2_5_bmad_v1",
+      key: "bmad.v1",
+      name: "BMAD v1",
+      descriptionJson: {
+        summary: "Seeded canonical operator methodology for Story 2.5 project creation UX.",
+      },
+    },
+    {
+      id: "mdef_story_2_5_spiral_v1",
+      key: "spiral.v1",
+      name: "Spiral v1",
+      descriptionJson: {
+        summary:
+          "Alternative methodology with multiple published versions for pin selection testing.",
+      },
+    },
+    {
+      id: "mdef_story_2_5_lean_v1",
+      key: "lean.v1",
+      name: "Lean Canvas",
+      descriptionJson: {
+        summary:
+          "Methodology with no published versions to validate blocked create and guidance UX.",
+      },
+    },
+  ],
+  methodologyVersions: [
+    {
+      id: "mver_story_2_5_bmad_v100",
+      methodologyId: "mdef_story_2_5_bmad_v1",
+      version: "1.0.0",
+      status: "active",
+      displayName: "BMAD v1.0.0",
+      definitionExtensions: {},
+      retiredAt: null,
+    },
+    {
+      id: "mver_story_2_5_bmad_v110",
+      methodologyId: "mdef_story_2_5_bmad_v1",
+      version: "1.1.0",
+      status: "active",
+      displayName: "BMAD v1.1.0",
+      definitionExtensions: {},
+      retiredAt: null,
+    },
+    {
+      id: "mver_story_2_5_spiral_v090",
+      methodologyId: "mdef_story_2_5_spiral_v1",
+      version: "0.9.0",
+      status: "active",
+      displayName: "Spiral v0.9.0",
+      definitionExtensions: {},
+      retiredAt: null,
+    },
+    {
+      id: "mver_story_2_5_spiral_v100",
+      methodologyId: "mdef_story_2_5_spiral_v1",
+      version: "1.0.0",
+      status: "active",
+      displayName: "Spiral v1.0.0",
+      definitionExtensions: {},
+      retiredAt: null,
+    },
+    {
+      id: "mver_story_2_5_bmad_v200_draft",
+      methodologyId: "mdef_story_2_5_bmad_v1",
+      version: "2.0.0-draft",
+      status: "draft",
+      displayName: "BMAD v2.0.0 Draft",
+      definitionExtensions: {},
+      retiredAt: null,
+    },
+  ],
+};
+
 const storySeedPlans: Record<StorySeedId, StorySeedPlan> = {
   "2-1": STORY_2_1_PLAN,
   "2-2": STORY_2_2_PLAN,
+  "2-5": STORY_2_5_PLAN,
 };
 
 export const availableStorySeedIds = Object.keys(storySeedPlans) as StorySeedId[];

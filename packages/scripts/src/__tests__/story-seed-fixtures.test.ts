@@ -51,11 +51,28 @@ describe("story seed fixtures", () => {
     expect(cardinalityByKey["WU.BRAINSTORMING"]).toBe("many_per_project");
   });
 
+  it("returns Story 2.5 seed with multiple methodologies and active versions", () => {
+    const plan = Effect.runSync(getStorySeedPlan("2-5"));
+
+    expect(plan.storyId).toBe("2-5");
+    expect(plan.methodologyDefinitions).toHaveLength(3);
+
+    const activeVersions = plan.methodologyVersions.filter(
+      (version) => version.status === "active",
+    );
+    expect(activeVersions).toHaveLength(4);
+
+    const activeByMethodology = Object.groupBy(activeVersions, (version) => version.methodologyId);
+    expect(activeByMethodology["mdef_story_2_5_bmad_v1"] ?? []).toHaveLength(2);
+    expect(activeByMethodology["mdef_story_2_5_spiral_v1"] ?? []).toHaveLength(2);
+    expect(activeByMethodology["mdef_story_2_5_lean_v1"] ?? []).toHaveLength(0);
+  });
+
   it("returns an Effect error for unknown story", () => {
     const error = Effect.runSync(Effect.flip(getStorySeedPlan("999")));
 
     expect(error._tag).toBe("StorySeedNotFoundError");
     expect(error.storyId).toBe("999");
-    expect(error.availableStorySeedIds).toEqual(["2-1", "2-2"]);
+    expect(error.availableStorySeedIds).toEqual(["2-1", "2-2", "2-5"]);
   });
 });
