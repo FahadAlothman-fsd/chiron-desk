@@ -8,6 +8,7 @@ export const projects = sqliteTable("projects", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
+  name: text("name"),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(timestampDefault),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" })
     .notNull()

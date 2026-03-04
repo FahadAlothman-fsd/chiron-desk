@@ -137,6 +137,13 @@ export interface ProjectMethodologyPinEventRow {
   createdAt: Date;
 }
 
+export interface ProjectRow {
+  id: string;
+  name: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export class MethodologyRepository extends Context.Tag("MethodologyRepository")<
   MethodologyRepository,
   {
@@ -222,6 +229,14 @@ export class MethodologyRepository extends Context.Tag("MethodologyRepository")<
     readonly getProjectPinLineage: (
       params: GetProjectPinLineageParams,
     ) => Effect.Effect<readonly ProjectMethodologyPinEventRow[], RepositoryError>;
+    readonly createProject: (params: {
+      projectId: string;
+      name?: string;
+    }) => Effect.Effect<ProjectRow, RepositoryError>;
+    readonly listProjects: () => Effect.Effect<readonly ProjectRow[], RepositoryError>;
+    readonly getProjectById: (params: {
+      projectId: string;
+    }) => Effect.Effect<ProjectRow | null, RepositoryError>;
     readonly getPublicationEvidence: (
       params: GetPublicationEvidenceParams,
     ) => Effect.Effect<readonly PublicationEvidence[], RepositoryError>;

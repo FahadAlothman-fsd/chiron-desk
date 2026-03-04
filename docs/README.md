@@ -26,6 +26,7 @@ Use these files for current architecture and planning decisions.
 - `docs/architecture/workflow-versioning.md` - Workflow definition versioning vs execution revision model
 - `docs/architecture/git-context-variables.md` - First-class git context variable model
 - `docs/architecture/branching-strategy.md` - Branching strategy baseline and constraints
+- `docs/architecture/frontend-better-result-guidelines.md` - Frontend error-handling conventions using better-result
 - `docs/architecture/workflow-diagram-ui-react-flow.md` - Diagram UI direction using React Flow
 - `docs/architecture/pm-workflow-artifact-bridge-consideration.md` - Consideration document for linking PM entities, workflows, and evidence
 - `docs/architecture/bmad-e2e-workflow-notes.md` - Session reference with integrated corrections for BMAD-style end-to-end workflow configs
