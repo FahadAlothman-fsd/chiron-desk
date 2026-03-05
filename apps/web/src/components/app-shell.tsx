@@ -1,7 +1,6 @@
 import { Link, Navigate, useRouterState } from "@tanstack/react-router";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { useQuery } from "@tanstack/react-query";
-import { CommandIcon } from "lucide-react";
 import { Fragment, useState, type ReactNode } from "react";
 
 import { AppSidebar } from "@/components/app-sidebar";
@@ -21,6 +20,8 @@ import { buildSidebarSections } from "./sidebar-sections";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { orpc } from "@/utils/orpc";
+
+const CHIRON_BRAND_ICON = "/visuals/chiron-brand/asset-41.svg";
 
 function toLabel(value: string): string {
   return value.replaceAll("-", " ").replace(/\b\w/g, (match) => match.toUpperCase());
@@ -154,7 +155,12 @@ export default function AppShell({ children }: { children: ReactNode }) {
                 className="rounded-none uppercase tracking-[0.12em]"
                 onClick={() => setIsCommandPaletteOpen(true)}
               >
-                <CommandIcon className="size-3.5" />
+                <img
+                  src={CHIRON_BRAND_ICON}
+                  alt=""
+                  aria-hidden="true"
+                  className="size-3.5 object-contain"
+                />
                 Commands
                 <span className="text-[0.62rem] text-muted-foreground">Ctrl/Cmd+K</span>
               </Button>

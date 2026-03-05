@@ -24,9 +24,19 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { CheckIcon, ChevronsUpDownIcon, CommandIcon, FolderIcon, TerminalIcon } from "lucide-react";
+import { CheckIcon, ChevronsUpDownIcon } from "lucide-react";
 
 type UserItem = React.ComponentProps<typeof NavUser>["user"];
+
+const CHIRON_BRAND_ICON = "/visuals/chiron-brand/asset-41.svg";
+
+function SidebarScopeIcon() {
+  return (
+    <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
+      <img src={CHIRON_BRAND_ICON} alt="" aria-hidden="true" className="size-4 object-contain" />
+    </div>
+  );
+}
 
 export type SidebarNavItem = {
   label: string;
@@ -104,9 +114,7 @@ export function AppSidebar({
                 size="lg"
                 render={<Link to="/methodologies" aria-label="Open methodology console" />}
               >
-                <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                  <TerminalIcon className="size-4" />
-                </div>
+                <SidebarScopeIcon />
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium uppercase tracking-[0.08em]">{title}</span>
                   <span className="truncate text-xs uppercase tracking-[0.08em]">{subtitle}</span>
@@ -121,9 +129,7 @@ export function AppSidebar({
                 <PopoverTrigger
                   render={
                     <SidebarMenuButton size="lg" type="button" className="w-full">
-                      <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                        <FolderIcon className="size-4" />
-                      </div>
+                      <SidebarScopeIcon />
                       <div className="grid flex-1 text-left text-sm leading-tight">
                         <span className="truncate font-medium uppercase tracking-[0.08em]">
                           {currentProjectLabel}
@@ -190,9 +196,7 @@ export function AppSidebar({
                 <PopoverTrigger
                   render={
                     <SidebarMenuButton size="lg" type="button" className="w-full">
-                      <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                        <TerminalIcon className="size-4" />
-                      </div>
+                      <SidebarScopeIcon />
                       <div className="grid flex-1 text-left text-sm leading-tight">
                         <span className="truncate font-medium uppercase tracking-[0.08em]">
                           {currentMethodologyLabel}
@@ -259,7 +263,6 @@ export function AppSidebar({
           {onOpenCommands ? (
             <SidebarMenuItem>
               <SidebarMenuButton onClick={onOpenCommands} tooltip="Open command palette">
-                <CommandIcon className="size-4" />
                 <span>Commands</span>
                 <span className="ml-auto text-[0.65rem] uppercase tracking-[0.12em] text-muted-foreground">
                   Ctrl/Cmd+K
