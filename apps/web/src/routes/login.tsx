@@ -24,7 +24,7 @@ function RouteComponent() {
         />
 
         <Card
-          frame="cut-thick"
+          frame="cut-heavy"
           tone="runtime"
           corner="subtle"
           className="relative z-10 w-full max-w-md bg-[color-mix(in_srgb,var(--chiron-carbon-1)_74%,var(--chiron-alert-2))] shadow-[0_0_40px_color-mix(in_srgb,var(--chiron-fluo-3)_16%,transparent)]"
@@ -64,7 +64,7 @@ function RouteComponent() {
         </div>
 
         <Card
-          frame="cut-thick"
+          frame="cut-heavy"
           tone="navigation"
           corner="subtle"
           className="relative z-20 mx-10 mb-10 mt-auto bg-[color-mix(in_srgb,var(--chiron-carbon-1)_74%,var(--chiron-winter-1))]"

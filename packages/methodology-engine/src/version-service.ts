@@ -549,6 +549,10 @@ function mergeGuidance(
       ...extensionGuidance?.byTransition,
       ...snapshotGuidance?.byTransition,
     },
+    byWorkflow: {
+      ...extensionGuidance?.byWorkflow,
+      ...snapshotGuidance?.byWorkflow,
+    },
   };
 }
 
@@ -1624,6 +1628,14 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
 
       const snapshot = yield* repo.findWorkflowSnapshot(version.id);
       const definition = yield* mergeDefinitionWithSnapshot(version.definitionExtensions, snapshot);
+      const definitionExtensionsRecord =
+        version.definitionExtensions && typeof version.definitionExtensions === "object"
+          ? (version.definitionExtensions as Record<string, unknown>)
+          : null;
+      const factDefinitions =
+        definitionExtensionsRecord && Array.isArray(definitionExtensionsRecord.factDefinitions)
+          ? definitionExtensionsRecord.factDefinitions
+          : [];
 
       return {
         id: version.id,
@@ -1637,6 +1649,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
         workflows: definition.workflows,
         transitionWorkflowBindings: definition.transitionWorkflowBindings,
         guidance: definition.guidance,
+        factDefinitions,
         definitionExtensions: version.definitionExtensions,
       } satisfies MethodologyVersionProjection;
     });

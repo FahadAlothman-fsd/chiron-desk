@@ -11,6 +11,7 @@ import type { BaselinePreview } from "@/features/projects/baseline-visibility";
 const transitionsSearchSchema = z.object({
   q: z.string().optional().default(""),
   status: z.enum(["all", "eligible", "blocked", "future"]).optional().default("all"),
+  workUnitTypeKey: z.string().optional(),
 });
 
 export const Route = createFileRoute("/projects/$projectId/transitions")({
@@ -25,9 +26,12 @@ function ProjectTransitionsRoute() {
   const { orpc } = Route.useRouteContext();
 
   const projectQuery = useQuery(
-    orpc.project.getProjectDetails.queryOptions({ input: { projectId } }),
+    orpc.project.getProjectDetails.queryOptions({
+      input: { projectId, workUnitTypeKey: search.workUnitTypeKey },
+    }),
   );
   const baselinePreview = (projectQuery.data?.baselinePreview ?? null) as BaselinePreview | null;
+  const workUnitOptions = baselinePreview?.projectionSummary?.workUnits ?? [];
 
   const transitions = baselinePreview?.transitionPreview.transitions ?? [];
 
@@ -57,7 +61,7 @@ function ProjectTransitionsRoute() {
         { label: "Transitions" },
       ]}
     >
-      <section className="grid gap-3 md:grid-cols-[1fr_auto]">
+      <section className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
         <Input
           value={search.q}
           onChange={(event) =>
@@ -65,6 +69,25 @@ function ProjectTransitionsRoute() {
           }
           placeholder="Filter transitions by key or reason"
         />
+        <select
+          value={search.workUnitTypeKey ?? baselinePreview?.transitionPreview.workUnitTypeKey ?? ""}
+          onChange={(event) =>
+            navigate({
+              search: {
+                ...search,
+                workUnitTypeKey: event.target.value || undefined,
+              },
+              replace: true,
+            })
+          }
+          className="border border-border/80 bg-background px-3 py-2 text-sm"
+        >
+          {workUnitOptions.map((workUnit) => (
+            <option key={workUnit.workUnitTypeKey} value={workUnit.workUnitTypeKey}>
+              {workUnit.workUnitTypeKey}
+            </option>
+          ))}
+        </select>
         <select
           value={search.status}
           onChange={(event) =>
@@ -107,6 +130,38 @@ function ProjectTransitionsRoute() {
                 <p className="text-xs text-muted-foreground">
                   reason: {transition.statusReasonCode}
                 </p>
+                {transition.guidance !== undefined && transition.guidance !== null ? (
+                  <div className="mt-2 border border-border/70 bg-background/60 p-2 text-xs text-muted-foreground">
+                    <p className="font-medium text-foreground">Transition guidance</p>
+                    <pre className="mt-1 whitespace-pre-wrap font-mono text-xs">
+                      {typeof transition.guidance === "string"
+                        ? transition.guidance
+                        : JSON.stringify(transition.guidance, null, 2)}
+                    </pre>
+                  </div>
+                ) : null}
+                {transition.workflows.length > 0 ? (
+                  <ul className="mt-2 space-y-2">
+                    {transition.workflows.map((workflow) => (
+                      <li
+                        key={`${transition.transitionKey}-${workflow.workflowKey}`}
+                        className="border border-border/70 bg-background/60 p-2 text-xs"
+                      >
+                        <p className="font-medium">workflow: {workflow.workflowKey}</p>
+                        {workflow.guidance !== undefined && workflow.guidance !== null ? (
+                          <>
+                            <p className="mt-1 text-muted-foreground">Workflow guidance</p>
+                            <pre className="mt-1 whitespace-pre-wrap font-mono text-xs text-muted-foreground">
+                              {typeof workflow.guidance === "string"
+                                ? workflow.guidance
+                                : JSON.stringify(workflow.guidance, null, 2)}
+                            </pre>
+                          </>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
               </li>
             ))}
           </ul>

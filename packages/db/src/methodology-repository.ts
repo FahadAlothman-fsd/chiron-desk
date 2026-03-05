@@ -261,7 +261,7 @@ async function syncWorkflowGraph(
         workUnitTypeId: workUnitTypeKey ? (workUnitTypeIdByKey.get(workUnitTypeKey) ?? null) : null,
         key: workflowKey,
         displayName: workflowDisplayName,
-        guidanceJson: null,
+        guidanceJson: guidance?.byWorkflow?.[workflowKey] ?? null,
       })
       .returning();
     const workflowRow = workflowRows[0];
@@ -690,6 +690,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               key: methodologyWorkflows.key,
               displayName: methodologyWorkflows.displayName,
               workUnitTypeKey: methodologyWorkUnitTypes.key,
+              guidanceJson: methodologyWorkflows.guidanceJson,
             })
             .from(methodologyWorkflows)
             .leftJoin(
@@ -804,6 +805,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
         const guidanceByWorkUnitType: Record<string, unknown> = {};
         const guidanceByAgentType: Record<string, unknown> = {};
         const guidanceByTransition: Record<string, unknown> = {};
+        const guidanceByWorkflow: Record<string, unknown> = {};
         for (const bindingRow of bindingRows) {
           const current = transitionWorkflowBindings[bindingRow.transitionKey] ?? [];
           current.push(bindingRow.workflowKey);
@@ -830,6 +832,12 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           }
         }
 
+        for (const row of workflowRows) {
+          if (row.guidanceJson !== null && row.guidanceJson !== undefined) {
+            guidanceByWorkflow[row.key] = row.guidanceJson;
+          }
+        }
+
         const versionExtension = versionRows[0]?.definitionExtensions;
         const globalGuidance =
           typeof versionExtension === "object" &&
@@ -847,12 +855,14 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           Object.keys(guidanceByTransition).length > 0 ||
           Object.keys(guidanceByWorkUnitType).length > 0 ||
           Object.keys(guidanceByAgentType).length > 0 ||
+          Object.keys(guidanceByWorkflow).length > 0 ||
           globalGuidance !== undefined
             ? {
                 global: globalGuidance,
                 byWorkUnitType: guidanceByWorkUnitType,
                 byAgentType: guidanceByAgentType,
                 byTransition: guidanceByTransition,
+                byWorkflow: guidanceByWorkflow,
               }
             : undefined;
 

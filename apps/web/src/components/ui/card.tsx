@@ -13,9 +13,10 @@ const cardVariants = cva(
       },
       frame: {
         default: "ring-foreground/10 bg-card ring-1",
-        flat: "chiron-frame-flat",
+        flat: "chiron-frame-flat overflow-visible",
         cut: "chiron-cut-frame",
-        "cut-thick": "chiron-cut-frame-thick",
+        "cut-thick": "chiron-cut-frame-thick overflow-visible",
+        "cut-heavy": "chiron-cut-frame-heavy overflow-visible",
         none: "",
       },
       tone: {

@@ -221,6 +221,13 @@ openai/gpt-5.3-codex
 - Code-review fixes: fact preview `missing` semantics now depend on both requiredness and actual preview value nullability.
 - Code-review fixes: diagnostics history now includes persisted pin/repin lineage-derived context rows (`pin`, `repin-policy`) with deterministic structured fields.
 - Code-review fixes: dashboard integration coverage now asserts keyboard-focusable `aria-disabled` workflow controls and rationale visibility.
+- Post-story polish: introduced Chiron brand asset `asset-41` across shell/login surfaces, refreshed favicon + desktop icon outputs, and aligned login right-panel composition around centered avatar + bottom command deck.
+- Post-story polish: added stronger card frame option (`cut-heavy`) and corrected corner alignment clipping by allowing cut/flat frame overlays to render on-border.
+- Post-story enhancement: added work-unit context selector to dashboard/transitions/work-units project pages so baseline preview can switch beyond default `WU.SETUP` context.
+- Post-story enhancement: expanded baseline preview guidance surfacing for work-unit, transition, workflow, and agent scopes (including `byWorkflow` support and richer seeded guidance maps).
+- Post-story enhancement: upgraded project agents page from a plain list to prime-asset card grid + details dialog with structured guidance badges and project/methodology context metadata.
+- Post-story enhancement: seeded `WU.SETUP` fact schemas (`projectType`, `deliveryMode`) plus methodology-level `projectRepo` fact definition, and projected methodology-level facts into project facts read model (`__PROJECT__` scope).
+- Retrospective note: story seed runner currently persists methodology versions via `definition_extensions_json`; normalized methodology graph tables remain unhydrated in this script path and should be addressed in a dedicated seed/runtime alignment follow-up.
 
 ### File List
 
@@ -240,6 +247,11 @@ openai/gpt-5.3-codex
 - `apps/web/src/routes/index.tsx`
 - `packages/api/src/routers/project.ts`
 - `packages/api/src/routers/methodology.test.ts`
+- `packages/api/src/routers/methodology.ts`
+- `packages/contracts/src/methodology/projection.ts`
+- `packages/contracts/src/methodology/version.ts`
+- `packages/db/src/methodology-repository.ts`
+- `packages/methodology-engine/src/version-service.ts`
 - `packages/scripts/src/story-seed-fixtures.ts`
 - `apps/web/src/features/projects/baseline-visibility.tsx`
 - `apps/web/src/features/projects/status-visual.tsx`
@@ -251,6 +263,7 @@ openai/gpt-5.3-codex
 - `apps/web/src/routes/projects.$projectId.agents.tsx`
 - `apps/web/src/routes/-projects.$projectId.integration.test.tsx`
 - `apps/web/src/routes/-projects.$projectId.pinning.integration.test.tsx`
+- `apps/web/src/routes/login.tsx`
 - `apps/web/public/visuals/chiron-status/asset-34.svg`
 - `apps/web/public/visuals/chiron-status/asset-13.svg`
 - `docs/plans/2026-03-04-project-switcher-project-dashboard-lists-design.md`

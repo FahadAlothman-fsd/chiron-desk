@@ -17,6 +17,7 @@ export const MethodologyVersionProjection = Schema.Struct({
     value: Schema.Array(Schema.String),
   }),
   guidance: Schema.optional(LayeredGuidance),
+  factDefinitions: Schema.optional(Schema.Array(Schema.Unknown)),
   definitionExtensions: Schema.optional(Schema.Unknown),
 });
 export type MethodologyVersionProjection = typeof MethodologyVersionProjection.Type;

@@ -29,6 +29,7 @@ export type BaselineTransition = {
   gateClass: "start_gate" | "completion_gate";
   status: TransitionPreviewStatus;
   statusReasonCode: string;
+  guidance?: unknown;
   requiredLinks: Array<{ linkTypeKey: string; strength?: string; required?: boolean }>;
   diagnostics: ValidationDiagnostic[];
   workflows: Array<{
@@ -36,6 +37,7 @@ export type BaselineTransition = {
     enabled: false;
     disabledReason: string;
     helperText: string;
+    guidance?: unknown;
   }>;
 };
 
@@ -53,8 +55,8 @@ export type BaselinePreview = {
     transitions: BaselineTransition[];
   };
   projectionSummary?: {
-    workUnits: string[];
-    agents: string[];
+    workUnits: Array<{ workUnitTypeKey: string; guidance?: unknown }>;
+    agents: Array<{ agentTypeKey: string; guidance?: unknown }>;
     transitions: Array<{
       transitionKey: string;
       workUnitTypeKey: string | null;
@@ -120,10 +122,30 @@ function formatWorkUnitLabel(transitionKey: string): string {
     : transitionKey;
 }
 
+function formatGuidance(guidance: unknown): string {
+  if (typeof guidance === "string") {
+    return guidance;
+  }
+
+  if (guidance === null || guidance === undefined) {
+    return "No guidance provided.";
+  }
+
+  try {
+    return JSON.stringify(guidance, null, 2);
+  } catch {
+    return String(guidance);
+  }
+}
+
 export function BaselineVisibilitySection({
   baselinePreview,
+  selectedWorkUnitTypeKey,
+  onSelectWorkUnitType,
 }: {
   baselinePreview: BaselinePreview | null;
+  selectedWorkUnitTypeKey?: string;
+  onSelectWorkUnitType?: (workUnitTypeKey: string) => void;
 }) {
   const [showFuturePaths, setShowFuturePaths] = useState(false);
 
@@ -139,18 +161,40 @@ export function BaselineVisibilitySection({
 
   return (
     <section className="space-y-4 border border-border/80 bg-background p-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
           Baseline visibility
         </p>
-        <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-          <input
-            type="checkbox"
-            checked={showFuturePaths}
-            onChange={(event) => setShowFuturePaths(event.target.checked)}
-          />
-          Show future paths
-        </label>
+        <div className="flex flex-wrap items-center gap-3">
+          {baselinePreview?.projectionSummary?.workUnits &&
+          baselinePreview.projectionSummary.workUnits.length > 0 &&
+          onSelectWorkUnitType ? (
+            <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+              Work unit context
+              <select
+                className="border border-border/70 bg-background px-2 py-1 text-xs"
+                value={
+                  selectedWorkUnitTypeKey ?? baselinePreview.transitionPreview.workUnitTypeKey ?? ""
+                }
+                onChange={(event) => onSelectWorkUnitType(event.target.value)}
+              >
+                {baselinePreview.projectionSummary.workUnits.map((workUnit) => (
+                  <option key={workUnit.workUnitTypeKey} value={workUnit.workUnitTypeKey}>
+                    {workUnit.workUnitTypeKey}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={showFuturePaths}
+              onChange={(event) => setShowFuturePaths(event.target.checked)}
+            />
+            Show future paths
+          </label>
+        </div>
       </div>
 
       {!baselinePreview ? (
@@ -197,6 +241,20 @@ export function BaselineVisibilitySection({
               Transition readiness preview (
               {baselinePreview.transitionPreview.workUnitTypeKey ?? "n/a"})
             </p>
+            {baselinePreview.transitionPreview.workUnitTypeKey ? (
+              <div className="border border-border/70 bg-background/60 p-2 text-xs text-muted-foreground">
+                <p className="font-medium text-foreground">Work unit guidance</p>
+                <pre className="mt-1 whitespace-pre-wrap font-mono text-xs">
+                  {formatGuidance(
+                    baselinePreview.projectionSummary?.workUnits.find(
+                      (workUnit) =>
+                        workUnit.workUnitTypeKey ===
+                        baselinePreview.transitionPreview.workUnitTypeKey,
+                    )?.guidance,
+                  )}
+                </pre>
+              </div>
+            ) : null}
             {transitionRows.length === 0 ? (
               <p className="text-sm text-muted-foreground">No transitions in current view.</p>
             ) : (
@@ -237,6 +295,14 @@ export function BaselineVisibilitySection({
                           <p className="text-muted-foreground">
                             reason: {formatReasonLabel(transition.statusReasonCode)}
                           </p>
+                          {transition.guidance !== undefined && transition.guidance !== null ? (
+                            <div className="mt-1 border border-border/70 bg-background/60 p-2 text-xs text-muted-foreground">
+                              <p className="font-medium text-foreground">Transition guidance</p>
+                              <pre className="mt-1 whitespace-pre-wrap font-mono text-xs">
+                                {formatGuidance(transition.guidance)}
+                              </pre>
+                            </div>
+                          ) : null}
                         </div>
                         <TransitionStatusBadge status={transition.status} />
                       </div>
@@ -266,6 +332,14 @@ export function BaselineVisibilitySection({
                               <span className="text-muted-foreground">
                                 {workflow.disabledReason}
                               </span>
+                              {workflow.guidance !== undefined && workflow.guidance !== null ? (
+                                <div className="w-full border border-border/70 bg-background/60 p-2 text-xs text-muted-foreground">
+                                  <p className="font-medium text-foreground">Workflow guidance</p>
+                                  <pre className="mt-1 whitespace-pre-wrap font-mono text-xs">
+                                    {formatGuidance(workflow.guidance)}
+                                  </pre>
+                                </div>
+                              ) : null}
                             </li>
                           ))}
                         </ul>

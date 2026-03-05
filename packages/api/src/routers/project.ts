@@ -23,6 +23,7 @@ const createAndPinProjectInput = z.object({
 
 const getProjectDetailsInput = z.object({
   projectId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1).optional(),
 });
 
 const runtimeDeferredReason = "Workflow runtime execution unlocks in Epic 3+" as const;
@@ -84,6 +85,7 @@ export function createProjectRouter(
 
   type ProjectionTransition = {
     key: string;
+    guidance?: unknown;
     workUnitTypeKey?: string;
     fromState?: string;
     toState: string;
@@ -98,13 +100,33 @@ export function createProjectRouter(
   type DraftProjection = {
     workUnitTypes: Array<{
       key: string;
+      guidance?: unknown;
       factSchemas?: ProjectionFactSchema[];
+    }>;
+    workflows?: Array<{
+      key: string;
+      guidance?: unknown;
     }>;
     agentTypes?: Array<{
       key: string;
+      guidance?: unknown;
     }>;
     transitions: ProjectionTransition[];
     transitionWorkflowBindings?: Record<string, string[]>;
+    guidance?: {
+      byWorkUnitType?: Record<string, unknown>;
+      byAgentType?: Record<string, unknown>;
+      byTransition?: Record<string, unknown>;
+      byWorkflow?: Record<string, unknown>;
+    };
+    factDefinitions?: Array<{
+      key: string;
+      factType: ProjectionFactSchema["factType"];
+      required?: boolean;
+      defaultValue?: unknown;
+      guidance?: unknown;
+      description?: string;
+    }>;
   };
 
   return {
@@ -184,13 +206,20 @@ export function createProjectRouter(
             )) as DraftProjection | null;
 
             const setupWorkUnitKeys = new Set(["WU.SETUP", "project_setup", "setup"]);
+            const requestedWorkUnitType = input.workUnitTypeKey
+              ? (draftProjection?.workUnitTypes.find(
+                  (workUnitType) => workUnitType.key === input.workUnitTypeKey,
+                ) ?? null)
+              : null;
             const activeWorkUnitType =
+              requestedWorkUnitType ??
               draftProjection?.workUnitTypes.find((workUnitType) =>
                 setupWorkUnitKeys.has(workUnitType.key),
               ) ??
               draftProjection?.workUnitTypes[0] ??
               null;
             const activeWorkUnitTypeKey = activeWorkUnitType?.key ?? null;
+            const layeredGuidance = draftProjection?.guidance;
             const requiredFacts = (activeWorkUnitType?.factSchemas ?? []).filter((factSchema) =>
               Boolean(factSchema.required),
             );
@@ -229,17 +258,23 @@ export function createProjectRouter(
                 })
               : null;
 
+            const resolveTransitionWorkUnitTypeKey = (transition: ProjectionTransition) => {
+              if (transition.workUnitTypeKey) {
+                return transition.workUnitTypeKey;
+              }
+
+              return transition.key.includes(":")
+                ? (transition.key.split(":", 2)[0] ?? null)
+                : null;
+            };
+
             const transitionDefinitions = (draftProjection?.transitions ?? [])
               .filter((transition) => {
                 if (!activeWorkUnitTypeKey) {
                   return false;
                 }
 
-                const transitionWorkUnitTypeKey = transition.workUnitTypeKey
-                  ? transition.workUnitTypeKey
-                  : transition.key.includes(":")
-                    ? (transition.key.split(":", 2)[0] ?? null)
-                    : null;
+                const transitionWorkUnitTypeKey = resolveTransitionWorkUnitTypeKey(transition);
 
                 if (!transitionWorkUnitTypeKey) {
                   return true;
@@ -325,6 +360,8 @@ export function createProjectRouter(
                   ? missingRequiredFactDiagnostics
                   : []),
               ];
+              const transitionGuidance =
+                transition.guidance ?? layeredGuidance?.byTransition?.[transition.key] ?? null;
 
               return {
                 transitionKey: transition.key,
@@ -340,13 +377,24 @@ export function createProjectRouter(
                 ),
                 status,
                 statusReasonCode,
+                guidance: transitionGuidance,
                 diagnostics,
-                workflows: workflowKeys.map((workflowKey) => ({
-                  workflowKey,
-                  enabled: false,
-                  disabledReason: runtimeDeferredReason,
-                  helperText: "Execution is enabled in Epic 3 after start-gate preflight.",
-                })),
+                workflows: workflowKeys.map((workflowKey) => {
+                  const workflowDefinition = draftProjection?.workflows?.find(
+                    (workflow) => workflow.key === workflowKey,
+                  );
+
+                  return {
+                    workflowKey,
+                    enabled: false,
+                    disabledReason: runtimeDeferredReason,
+                    helperText: "Execution is enabled in Epic 3 after start-gate preflight.",
+                    guidance:
+                      workflowDefinition?.guidance ??
+                      layeredGuidance?.byWorkflow?.[workflowKey] ??
+                      null,
+                  };
+                }),
               };
             });
 
@@ -412,11 +460,36 @@ export function createProjectRouter(
               },
               projectionSummary: {
                 workUnits: (draftProjection?.workUnitTypes ?? [])
-                  .map((workUnitType) => workUnitType.key)
-                  .sort((a, b) => a.localeCompare(b)),
+                  .map((workUnitType) => ({
+                    workUnitTypeKey: workUnitType.key,
+                    guidance:
+                      workUnitType.guidance ??
+                      layeredGuidance?.byWorkUnitType?.[workUnitType.key] ??
+                      (draftProjection?.transitions ?? [])
+                        .filter((transition) => {
+                          const transitionWorkUnitTypeKey =
+                            resolveTransitionWorkUnitTypeKey(transition);
+                          return transitionWorkUnitTypeKey
+                            ? transitionWorkUnitTypeKey === workUnitType.key
+                            : (draftProjection?.workUnitTypes.length ?? 0) === 1;
+                        })
+                        .map(
+                          (transition) =>
+                            transition.guidance ??
+                            layeredGuidance?.byTransition?.[transition.key] ??
+                            null,
+                        )
+                        .find((guidance) => guidance !== null && guidance !== undefined) ??
+                      null,
+                  }))
+                  .sort((a, b) => a.workUnitTypeKey.localeCompare(b.workUnitTypeKey)),
                 agents: (draftProjection?.agentTypes ?? [])
-                  .map((agentType) => agentType.key)
-                  .sort((a, b) => a.localeCompare(b)),
+                  .map((agentType) => ({
+                    agentTypeKey: agentType.key,
+                    guidance:
+                      agentType.guidance ?? layeredGuidance?.byAgentType?.[agentType.key] ?? null,
+                  }))
+                  .sort((a, b) => a.agentTypeKey.localeCompare(b.agentTypeKey)),
                 transitions: (draftProjection?.transitions ?? [])
                   .map((transition) => ({
                     transitionKey: transition.key,
@@ -438,6 +511,15 @@ export function createProjectRouter(
                       type: factSchema.factType,
                       required: Boolean(factSchema.required),
                       defaultValue: factSchema.defaultValue ?? null,
+                    })),
+                  )
+                  .concat(
+                    (draftProjection?.factDefinitions ?? []).map((factDefinition) => ({
+                      workUnitTypeKey: "__PROJECT__",
+                      key: factDefinition.key,
+                      type: factDefinition.factType,
+                      required: Boolean(factDefinition.required),
+                      defaultValue: factDefinition.defaultValue ?? null,
                     })),
                   )
                   .sort((a, b) =>

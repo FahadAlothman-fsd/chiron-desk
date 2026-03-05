@@ -74,6 +74,9 @@ export const LayeredGuidance = Schema.Struct({
   byTransition: Schema.optionalWith(Schema.Record({ key: Schema.String, value: Schema.Unknown }), {
     default: () => ({}),
   }),
+  byWorkflow: Schema.optionalWith(Schema.Record({ key: Schema.String, value: Schema.Unknown }), {
+    default: () => ({}),
+  }),
 });
 export type LayeredGuidance = typeof LayeredGuidance.Type;
 

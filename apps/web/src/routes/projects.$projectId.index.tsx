@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { ArrowRightIcon } from "lucide-react";
+import { z } from "zod";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,7 +15,12 @@ import {
 } from "@/features/projects/baseline-visibility";
 import { MethodologyWorkspaceShell } from "@/features/methodologies/workspace-shell";
 
+const dashboardSearchSchema = z.object({
+  workUnitTypeKey: z.string().min(1).optional(),
+});
+
 export const Route = createFileRoute("/projects/$projectId/")({
+  validateSearch: (search) => dashboardSearchSchema.parse(search),
   component: ProjectDashboardRoute,
 });
 
@@ -29,11 +35,13 @@ function formatTimestamp(timestamp: string): string {
 
 export function ProjectDashboardRoute() {
   const { projectId } = Route.useParams();
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
   const { orpc } = Route.useRouteContext();
 
   const projectQuery = useQuery(
     orpc.project.getProjectDetails.queryOptions({
-      input: { projectId },
+      input: { projectId, workUnitTypeKey: search.workUnitTypeKey },
     }),
   );
 
@@ -149,6 +157,16 @@ export function ProjectDashboardRoute() {
 
       <BaselineVisibilitySection
         baselinePreview={(projectQuery.data?.baselinePreview ?? null) as BaselinePreview | null}
+        selectedWorkUnitTypeKey={search.workUnitTypeKey}
+        onSelectWorkUnitType={(workUnitTypeKey) => {
+          navigate({
+            search: {
+              ...search,
+              workUnitTypeKey,
+            },
+            replace: true,
+          });
+        }}
       />
 
       <section className="border border-border/80 bg-background p-4">

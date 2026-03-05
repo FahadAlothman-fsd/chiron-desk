@@ -1626,6 +1626,21 @@ describe("methodology router", () => {
           versionId: draft.version.id,
           workflows: VALID_DEFINITION.workflows,
           transitionWorkflowBindings: VALID_DEFINITION.transitionWorkflowBindings,
+          guidance: {
+            byWorkUnitType: {
+              task: {
+                intent: "Deliver implementation artifacts for the selected project scope.",
+              },
+            },
+            byTransition: {
+              start: {
+                intent: "Start task flow when setup prerequisites are complete.",
+              },
+            },
+            byWorkflow: {
+              "default-wf": "Capture required task details before execution handoff.",
+            },
+          },
         },
         AUTHENTICATED_CTX,
       );
@@ -1754,6 +1769,123 @@ describe("methodology router", () => {
       expect(details.baselinePreview?.diagnosticsHistory.pin.length).toBeGreaterThan(0);
       expect(details.baselinePreview?.diagnosticsHistory["repin-policy"]).toEqual([]);
       expect(Array.isArray(details.baselinePreview?.evidenceTimeline)).toBe(true);
+    });
+
+    it("supports selecting work-unit context in baseline preview", async () => {
+      const serviceLayer = makeServiceLayer();
+      const router = createProjectRouter(serviceLayer);
+      const methodologyRouter = createMethodologyRouter(serviceLayer);
+
+      await call(
+        methodologyRouter.createMethodology,
+        {
+          methodologyKey: "preview-context-select",
+          displayName: "Preview Context Select",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const draft = await call(
+        methodologyRouter.createDraftVersion,
+        {
+          methodologyKey: "preview-context-select",
+          displayName: "Preview Context Select",
+          version: "1.0.0",
+          workUnitTypes: [{ key: "WU.SETUP" }, { key: "task" }],
+          transitions: [
+            {
+              key: "setup:start",
+              workUnitTypeKey: "WU.SETUP",
+              fromState: "__absent__",
+              toState: "done",
+              gateClass: "start_gate",
+            },
+            {
+              key: "task:start",
+              workUnitTypeKey: "task",
+              fromState: "__absent__",
+              toState: "ready",
+              gateClass: "start_gate",
+            },
+          ],
+          agentTypes: [],
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        methodologyRouter.updateDraftWorkflows,
+        {
+          versionId: draft.version.id,
+          workflows: [
+            {
+              key: "setup-workflow",
+              workUnitTypeKey: "WU.SETUP",
+              steps: [{ key: "s1", type: "form" as const }],
+              edges: [
+                { fromStepKey: null, toStepKey: "s1", edgeKey: "entry" },
+                { fromStepKey: "s1", toStepKey: null, edgeKey: "done" },
+              ],
+            },
+            {
+              key: "task-workflow",
+              workUnitTypeKey: "task",
+              steps: [{ key: "s2", type: "form" as const }],
+              edges: [
+                { fromStepKey: null, toStepKey: "s2", edgeKey: "entry" },
+                { fromStepKey: "s2", toStepKey: null, edgeKey: "done" },
+              ],
+            },
+          ],
+          transitionWorkflowBindings: {
+            "setup:start": ["setup-workflow"],
+            "task:start": ["task-workflow"],
+          },
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        methodologyRouter.publishDraftVersion,
+        {
+          versionId: draft.version.id,
+          publishedVersion: "1.0.0",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const createResult = await call(
+        router.createAndPinProject,
+        {
+          methodologyKey: "preview-context-select",
+          publishedVersion: "1.0.0",
+          name: "Preview Context Select Project",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const defaultDetails = await call(
+        router.getProjectDetails,
+        {
+          projectId: createResult.project.id,
+        },
+        PUBLIC_CTX,
+      );
+
+      const taskDetails = await call(
+        router.getProjectDetails,
+        {
+          projectId: createResult.project.id,
+          workUnitTypeKey: "task",
+        },
+        PUBLIC_CTX,
+      );
+
+      expect(defaultDetails.baselinePreview?.transitionPreview.workUnitTypeKey).toBe("WU.SETUP");
+      expect(taskDetails.baselinePreview?.transitionPreview.workUnitTypeKey).toBe("task");
+      expect(taskDetails.baselinePreview?.transitionPreview.transitions[0]?.transitionKey).toBe(
+        "task:start",
+      );
     });
 
     it("derives preview current state, fact missing semantics, and pin/repin diagnostics contexts", async () => {

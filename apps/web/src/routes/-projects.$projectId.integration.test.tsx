@@ -3,16 +3,22 @@ import { cleanup, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { useRouteContextMock, useParamsMock } = vi.hoisted(() => ({
-  useRouteContextMock: vi.fn(),
-  useParamsMock: vi.fn(),
-}));
+const { useRouteContextMock, useParamsMock, useSearchMock, useNavigateMock, navigateMock } =
+  vi.hoisted(() => ({
+    useRouteContextMock: vi.fn(),
+    useParamsMock: vi.fn(),
+    useSearchMock: vi.fn(),
+    useNavigateMock: vi.fn(),
+    navigateMock: vi.fn(),
+  }));
 
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (options: Record<string, unknown>) => ({
     ...options,
     useRouteContext: useRouteContextMock,
     useParams: useParamsMock,
+    useSearch: useSearchMock,
+    useNavigate: useNavigateMock,
   }),
   Link: ({ to, children }: { to: string; children: ReactNode }) => <a href={to}>{children}</a>,
 }));
@@ -64,6 +70,9 @@ function createHarness() {
                     gateClass: "start_gate",
                     status: "blocked",
                     statusReasonCode: "MISSING_PREVIEW_PREREQUISITE_FACT",
+                    guidance: {
+                      intent: "Initialize project prerequisites before first handoff.",
+                    },
                     requiredLinks: [],
                     diagnostics: [],
                     workflows: [
@@ -72,6 +81,7 @@ function createHarness() {
                         enabled: false,
                         disabledReason: "Workflow runtime execution unlocks in Epic 3+",
                         helperText: "Execution is enabled in Epic 3 after start-gate preflight.",
+                        guidance: "Collect and normalize baseline project facts before execution.",
                       },
                     ],
                   },
@@ -87,6 +97,28 @@ function createHarness() {
                     workflows: [],
                   },
                 ],
+              },
+              projectionSummary: {
+                workUnits: [
+                  {
+                    workUnitTypeKey: "WU.SETUP",
+                    guidance: {
+                      intent: "Prepare project context and prerequisite facts.",
+                    },
+                  },
+                  {
+                    workUnitTypeKey: "WU.BUILD",
+                    guidance: "Produce implementation outputs after setup readiness.",
+                  },
+                ],
+                agents: [
+                  {
+                    agentTypeKey: "project-agent",
+                    guidance: "Coordinate project-level setup and handoff orchestration.",
+                  },
+                ],
+                transitions: [],
+                facts: [],
               },
               facts: [
                 {
@@ -139,6 +171,9 @@ function createHarness() {
   });
 
   useParamsMock.mockReturnValue({ projectId: "project-1" });
+  useSearchMock.mockReturnValue({});
+  useNavigateMock.mockReturnValue(navigateMock);
+  navigateMock.mockReset();
   useRouteContextMock.mockReturnValue({
     orpc,
     queryClient,
@@ -204,6 +239,13 @@ describe("project dashboard route", () => {
     futureToggle.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
     expect(await screen.findByText("future-path")).toBeTruthy();
+    expect(screen.getByText(/Prepare project context and prerequisite facts\./)).toBeTruthy();
+    expect(
+      screen.getByText(/Initialize project prerequisites before first handoff\./),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/Collect and normalize baseline project facts before execution\./),
+    ).toBeTruthy();
     expect(screen.getByText("PUBLISH_CONTRACT_WARNING")).toBeTruthy();
     expect(screen.getByText("context: publish")).toBeTruthy();
     expect(screen.getByText("blocking: no")).toBeTruthy();

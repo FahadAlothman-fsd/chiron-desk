@@ -117,6 +117,16 @@ const transitionKeyForBinding = (binding: TransitionAllowedBinding): string =>
   `${binding.workUnitRef}:${binding.fromState}__to__${binding.toState}`;
 
 const buildStory22DefinitionExtensions = (): Record<string, unknown> => {
+  const toReadableLabel = (value: string): string =>
+    value
+      .replace(/^WU\./, "")
+      .replace(/__+/g, " ")
+      .replace(/[._:]+/g, " ")
+      .toLowerCase()
+      .split(" ")
+      .filter(Boolean)
+      .join(" ");
+
   const workflows = workflowDefinitionsSeed.workflows.map((workflow) => {
     const steps = (workflow.definitionJson?.steps ?? []).map((step) => ({
       key: step.id,
@@ -194,7 +204,31 @@ const buildStory22DefinitionExtensions = (): Record<string, unknown> => {
                 : "state_gate",
           requiredLinks: [],
         })),
-        factSchemas: [],
+        factSchemas:
+          workUnitRef === "WU.SETUP"
+            ? [
+                {
+                  key: "projectType",
+                  factType: "string",
+                  required: true,
+                  defaultValue: "greenfield",
+                  description:
+                    "Project classification used to choose setup guidance and workflow path.",
+                  guidance:
+                    "Set to greenfield, migration, or maintenance so setup behavior is deterministic.",
+                },
+                {
+                  key: "deliveryMode",
+                  factType: "string",
+                  required: true,
+                  defaultValue: "iterative",
+                  description:
+                    "Delivery cadence used by setup and handoff workflows in project context.",
+                  guidance:
+                    "Use iterative for staged rollout; use fixed for a single locked delivery pass.",
+                },
+              ]
+            : [],
       };
     });
 
@@ -213,6 +247,129 @@ const buildStory22DefinitionExtensions = (): Record<string, unknown> => {
     displayName: `${binding.workUnitRef} ${binding.fromState} -> ${binding.toState}`,
   }));
 
+  const guidanceByWorkUnitType = Object.fromEntries(
+    workUnitTypes.map((workUnitType) => {
+      const bindings = transitionAllowedSeed.bindings.filter(
+        (binding) => binding.workUnitRef === workUnitType.key,
+      );
+      const startTargets = bindings
+        .filter((binding) => binding.fromState === "__absent__")
+        .map((binding) => binding.toState)
+        .sort();
+      const completionTargets = [...new Set(bindings.map((binding) => binding.toState))].sort();
+      const relatedWorkflows = workflows
+        .filter((workflow) => workflow.workUnitTypeKey === workUnitType.key)
+        .map((workflow) => workflow.key)
+        .sort();
+
+      const guidance = [
+        `Scope: ${toReadableLabel(workUnitType.key)}.`,
+        startTargets.length > 0
+          ? `Entry path: move from absent to ${startTargets.join(", ")} when this track starts.`
+          : "Entry path: no start transition is currently defined.",
+        `Observed target states: ${completionTargets.join(", ") || "none"}.`,
+        relatedWorkflows.length > 0
+          ? `Primary workflows: ${relatedWorkflows.join(", ")}.`
+          : "Primary workflows: none currently bound.",
+      ].join(" ");
+
+      return [workUnitType.key, guidance];
+    }),
+  );
+
+  const guidanceByTransition = Object.fromEntries(
+    transitionAllowedSeed.bindings.map((binding) => {
+      const transitionKey = transitionKeyForBinding(binding);
+      const allowedWorkflowKeys = binding.allowed.map((allowed) => allowed.workflowKey).sort();
+      const fromDescription =
+        binding.fromState === "__absent__"
+          ? "when no instance state exists yet"
+          : `when current state is ${binding.fromState}`;
+
+      return [
+        transitionKey,
+        [
+          `Use this transition ${fromDescription}.`,
+          `Outcome: ${binding.workUnitRef} moves to ${binding.toState}.`,
+          allowedWorkflowKeys.length > 0
+            ? `Preferred workflows: ${allowedWorkflowKeys.join(", ")}.`
+            : "Preferred workflows: none currently bound.",
+        ].join(" "),
+      ];
+    }),
+  );
+
+  const guidanceByWorkflow = Object.fromEntries(
+    workflowDefinitionsSeed.workflows.map((workflow) => {
+      const owner = workflow.ownerWorkUnitRef ?? "unscoped";
+      const usedByTransitions = transitionAllowedSeed.bindings
+        .filter((binding) =>
+          binding.allowed.some((allowed) => allowed.workflowKey === workflow.key),
+        )
+        .map((binding) => transitionKeyForBinding(binding))
+        .sort();
+
+      return [
+        workflow.key,
+        [
+          `Workflow scope: ${toReadableLabel(owner)}.`,
+          usedByTransitions.length > 0
+            ? `Used by transitions: ${usedByTransitions.join(", ")}.`
+            : "Used by transitions: none currently declared.",
+          "Use this workflow to capture deterministic evidence before state progression.",
+        ].join(" "),
+      ];
+    }),
+  );
+
+  const guidanceByAgentType = Object.fromEntries(
+    agentTypeKeys.map((agentTypeKey) => {
+      const workflowUsage = workflowDefinitionsSeed.workflows
+        .map((workflow) => {
+          const matchingSteps = (workflow.definitionJson?.steps ?? []).filter(
+            (step) => step.overrides?.agentId === agentTypeKey,
+          );
+
+          if (matchingSteps.length === 0) {
+            return null;
+          }
+
+          return {
+            workflowKey: workflow.key,
+            workUnitTypeKey: workflow.ownerWorkUnitRef ?? "unscoped",
+            stepTypes: [...new Set(matchingSteps.map((step) => step.type))],
+          };
+        })
+        .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+
+      const workflowKeys = workflowUsage.map((entry) => entry.workflowKey).sort();
+      const workUnitKeys = [...new Set(workflowUsage.map((entry) => entry.workUnitTypeKey))].sort();
+      const stepTypes = [...new Set(workflowUsage.flatMap((entry) => entry.stepTypes))].sort();
+
+      const tags = [
+        ...workUnitKeys.map((key) => toReadableLabel(key).replaceAll(" ", "-")),
+        ...stepTypes,
+      ].slice(0, 6);
+
+      return [
+        agentTypeKey,
+        {
+          role: agentTypeKey,
+          purpose:
+            workUnitKeys.length > 0
+              ? `Primary scope: ${workUnitKeys.map((key) => toReadableLabel(key)).join(", ")}.`
+              : "Primary scope: unscoped methodology support.",
+          whenToUse:
+            workflowKeys.length > 0
+              ? `Use when executing ${workflowKeys.slice(0, 4).join(", ")} with deterministic evidence capture.`
+              : "Use for methodology guidance where no explicit workflow binding exists.",
+          tags,
+          workflows: workflowKeys,
+        },
+      ];
+    }),
+  );
+
   return {
     workUnitTypes,
     agentTypes: agentTypeKeys.map((key) => ({ key, displayName: key })),
@@ -221,7 +378,22 @@ const buildStory22DefinitionExtensions = (): Record<string, unknown> => {
     transitionWorkflowBindings,
     guidance: {
       global: `Canonical ${workflowDefinitionsSeed.methodologyVersionKey} seed for Story 2.2`,
+      byWorkUnitType: guidanceByWorkUnitType,
+      byAgentType: guidanceByAgentType,
+      byTransition: guidanceByTransition,
+      byWorkflow: guidanceByWorkflow,
     },
+    factDefinitions: [
+      {
+        key: "projectRepo",
+        factType: "string",
+        required: true,
+        defaultValue: "github.com/chiron/sample-repo",
+        description: "Primary repository path used by agent prompts and tool invocations.",
+        guidance:
+          "Set to the canonical repository identifier for this project so templates and execution prompts resolve correctly.",
+      },
+    ],
   };
 };
 

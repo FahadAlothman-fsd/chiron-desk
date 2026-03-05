@@ -55,6 +55,7 @@ const guidanceSchema = z
     byWorkUnitType: z.record(z.string(), z.unknown()).default({}),
     byAgentType: z.record(z.string(), z.unknown()).default({}),
     byTransition: z.record(z.string(), z.unknown()).default({}),
+    byWorkflow: z.record(z.string(), z.unknown()).default({}),
   })
   .optional();
 
