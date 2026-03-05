@@ -17,9 +17,9 @@ type ValidationDiagnostic = {
   blocking: boolean;
   required: string;
   observed: string;
-  remediation: string;
+  remediation: string | null;
   timestamp: string;
-  evidenceRef: string;
+  evidenceRef: string | null;
 };
 
 export type BaselineTransition = {
@@ -255,6 +255,11 @@ export function BaselineVisibilitySection({
                                 className="rounded-none"
                                 aria-disabled="true"
                                 onClick={(event) => event.preventDefault()}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter" || event.key === " ") {
+                                    event.preventDefault();
+                                  }
+                                }}
                               >
                                 Execute (Epic 3+)
                               </Button>
@@ -330,6 +335,20 @@ export function BaselineVisibilitySection({
                         <p className="font-medium">{diagnostic.code}</p>
                         <p className="text-muted-foreground">context: {context}</p>
                         <p className="text-muted-foreground">scope: {diagnostic.scope}</p>
+                        <p className="text-muted-foreground">
+                          blocking: {diagnostic.blocking ? "yes" : "no"}
+                        </p>
+                        <p className="text-muted-foreground">required: {diagnostic.required}</p>
+                        <p className="text-muted-foreground">observed: {diagnostic.observed}</p>
+                        <p className="text-muted-foreground">
+                          remediation: {diagnostic.remediation ?? "-"}
+                        </p>
+                        <p className="text-muted-foreground">
+                          timestamp: {formatTimestamp(diagnostic.timestamp)}
+                        </p>
+                        <p className="text-muted-foreground">
+                          evidenceRef: {diagnostic.evidenceRef ?? "-"}
+                        </p>
                       </li>
                     )),
                 )}

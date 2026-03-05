@@ -1751,9 +1751,180 @@ describe("methodology router", () => {
         details.baselinePreview?.transitionPreview.transitions[0]?.statusReasonCode,
       ).toBeTruthy();
       expect(details.baselinePreview?.diagnosticsHistory.publish).toBeTruthy();
-      expect(details.baselinePreview?.diagnosticsHistory.pin).toEqual([]);
+      expect(details.baselinePreview?.diagnosticsHistory.pin.length).toBeGreaterThan(0);
       expect(details.baselinePreview?.diagnosticsHistory["repin-policy"]).toEqual([]);
       expect(Array.isArray(details.baselinePreview?.evidenceTimeline)).toBe(true);
+    });
+
+    it("derives preview current state, fact missing semantics, and pin/repin diagnostics contexts", async () => {
+      const serviceLayer = makeServiceLayer();
+      const router = createProjectRouter(serviceLayer);
+      const methodologyRouter = createMethodologyRouter(serviceLayer);
+
+      await call(
+        methodologyRouter.createMethodology,
+        {
+          methodologyKey: "preview-contract-check",
+          displayName: "Preview Contract Check",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const firstDraft = await call(
+        methodologyRouter.createDraftVersion,
+        {
+          methodologyKey: "preview-contract-check",
+          displayName: "Preview Contract Check",
+          version: "1.0.0-draft",
+          workUnitTypes: [
+            {
+              key: "task",
+              factSchemas: [
+                {
+                  key: "deliveryMode",
+                  factType: "string",
+                  required: true,
+                  defaultValue: "guided",
+                },
+              ],
+            },
+          ],
+          transitions: [
+            {
+              key: "task:advance",
+              toState: "done",
+              fromState: "ready",
+              gateClass: "completion_gate",
+            },
+          ],
+          agentTypes: [],
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        methodologyRouter.updateDraftWorkflows,
+        {
+          versionId: firstDraft.version.id,
+          workflows: [
+            {
+              key: "task-workflow",
+              workUnitTypeKey: "task",
+              steps: [{ key: "s1", type: "form" as const }],
+              edges: [
+                { fromStepKey: null, toStepKey: "s1", edgeKey: "entry" },
+                { fromStepKey: "s1", toStepKey: null, edgeKey: "done" },
+              ],
+            },
+          ],
+          transitionWorkflowBindings: { "task:advance": ["task-workflow"] },
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        methodologyRouter.publishDraftVersion,
+        {
+          versionId: firstDraft.version.id,
+          publishedVersion: "1.0.0",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const secondDraft = await call(
+        methodologyRouter.createDraftVersion,
+        {
+          methodologyKey: "preview-contract-check",
+          displayName: "Preview Contract Check",
+          version: "2.0.0-draft",
+          workUnitTypes: [
+            {
+              key: "task",
+              factSchemas: [
+                {
+                  key: "deliveryMode",
+                  factType: "string",
+                  required: true,
+                  defaultValue: "guided",
+                },
+              ],
+            },
+          ],
+          transitions: [
+            {
+              key: "task:advance",
+              toState: "done",
+              fromState: "ready",
+              gateClass: "completion_gate",
+            },
+          ],
+          agentTypes: [],
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        methodologyRouter.updateDraftWorkflows,
+        {
+          versionId: secondDraft.version.id,
+          workflows: [
+            {
+              key: "task-workflow",
+              workUnitTypeKey: "task",
+              steps: [{ key: "s1", type: "form" as const }],
+              edges: [
+                { fromStepKey: null, toStepKey: "s1", edgeKey: "entry" },
+                { fromStepKey: "s1", toStepKey: null, edgeKey: "done" },
+              ],
+            },
+          ],
+          transitionWorkflowBindings: { "task:advance": ["task-workflow"] },
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        methodologyRouter.publishDraftVersion,
+        {
+          versionId: secondDraft.version.id,
+          publishedVersion: "2.0.0",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const createResult = await call(
+        router.createAndPinProject,
+        {
+          methodologyKey: "preview-contract-check",
+          publishedVersion: "1.0.0",
+          name: "Preview Contract Project",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        methodologyRouter.repinProjectMethodologyVersion,
+        {
+          projectId: createResult.project.id,
+          methodologyKey: "preview-contract-check",
+          publishedVersion: "2.0.0",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const details = await call(
+        router.getProjectDetails,
+        {
+          projectId: createResult.project.id,
+        },
+        PUBLIC_CTX,
+      );
+
+      expect(details.baselinePreview?.transitionPreview.currentState).toBe("ready");
+      expect(details.baselinePreview?.facts[0]?.key).toBe("deliveryMode");
+      expect(details.baselinePreview?.facts[0]?.missing).toBe(false);
+      expect(details.baselinePreview?.diagnosticsHistory.pin.length).toBeGreaterThan(0);
+      expect(details.baselinePreview?.diagnosticsHistory["repin-policy"].length).toBeGreaterThan(0);
     });
   });
 

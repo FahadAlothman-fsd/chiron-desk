@@ -101,7 +101,18 @@ function createHarness() {
                 },
               ],
               diagnosticsHistory: {
-                publish: [],
+                publish: [
+                  {
+                    code: "PUBLISH_CONTRACT_WARNING",
+                    scope: "publish.validation",
+                    blocking: false,
+                    required: "Published contract passes static validation",
+                    observed: "Non-blocking warning",
+                    remediation: "Review warning guidance before promotion.",
+                    timestamp: "2026-03-03T12:01:00.000Z",
+                    evidenceRef: "publish-evidence-1",
+                  },
+                ],
                 pin: [],
                 "repin-policy": [],
               },
@@ -193,8 +204,31 @@ describe("project dashboard route", () => {
     futureToggle.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
     expect(await screen.findByText("future-path")).toBeTruthy();
+    expect(screen.getByText("PUBLISH_CONTRACT_WARNING")).toBeTruthy();
+    expect(screen.getByText("context: publish")).toBeTruthy();
+    expect(screen.getByText("blocking: no")).toBeTruthy();
+    expect(screen.getByText("required: Published contract passes static validation")).toBeTruthy();
+    expect(screen.getByText("observed: Non-blocking warning")).toBeTruthy();
+    expect(screen.getByText("remediation: Review warning guidance before promotion.")).toBeTruthy();
+    expect(screen.getByText("evidenceRef: publish-evidence-1")).toBeTruthy();
+  });
+
+  it("keeps transition workflow controls focusable with aria-disabled rationale", async () => {
+    const { queryClient } = createHarness();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ProjectDashboardRoute />
+      </QueryClientProvider>,
+    );
+
+    const action = await screen.findByRole("button", { name: "Execute (Epic 3+)" });
+    action.focus();
+
+    expect(action).toBe(document.activeElement);
+    expect(action.getAttribute("aria-disabled")).toBe("true");
     expect(
-      screen.getByText("No diagnostics yet. Diagnostics appear after publish/pin/policy checks."),
-    ).toBeTruthy();
+      screen.getAllByText("Workflow runtime execution unlocks in Epic 3+").length,
+    ).toBeGreaterThan(0);
   });
 });

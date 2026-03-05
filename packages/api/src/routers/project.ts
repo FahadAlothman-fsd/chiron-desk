@@ -249,6 +249,15 @@ export function createProjectRouter(
               })
               .sort((a, b) => a.key.localeCompare(b.key));
 
+            const currentState =
+              eligibleTransitions.find(
+                (transition) => transition.fromState && transition.fromState.length > 0,
+              )?.fromState ??
+              transitionDefinitions.find(
+                (transition) => transition.fromState && transition.fromState.length > 0,
+              )?.fromState ??
+              "__absent__";
+
             const transitions = transitionDefinitions.map((transition) => {
               const eligibility = eligibilityByTransition.get(transition.key);
               const draftBoundWorkflowKeys =
@@ -349,6 +358,32 @@ export function createProjectRouter(
               })),
             );
 
+            const pinDiagnostics = lineage
+              .filter((event) => event.eventType === "pinned")
+              .map((event) => ({
+                code: "PROJECT_PIN_EVENT_RECORDED",
+                scope: `project.${input.projectId}.pin`,
+                blocking: false,
+                required: "Pin lineage event is persisted.",
+                observed: `Pinned ${event.newVersion}`,
+                remediation: null,
+                timestamp: event.timestamp,
+                evidenceRef: event.evidenceRef,
+              }));
+
+            const repinPolicyDiagnostics = lineage
+              .filter((event) => event.eventType === "repinned")
+              .map((event) => ({
+                code: "PROJECT_REPIN_POLICY_EVENT_RECORDED",
+                scope: `project.${input.projectId}.repin-policy`,
+                blocking: false,
+                required: "Repin policy checks passed before repin lineage event.",
+                observed: `Repinned ${event.previousVersion ?? "unknown"} -> ${event.newVersion}`,
+                remediation: null,
+                timestamp: event.timestamp,
+                evidenceRef: event.evidenceRef,
+              }));
+
             return {
               isPreview: true,
               summary: {
@@ -372,7 +407,7 @@ export function createProjectRouter(
               },
               transitionPreview: {
                 workUnitTypeKey: activeWorkUnitTypeKey,
-                currentState: "__absent__",
+                currentState,
                 transitions,
               },
               projectionSummary: {
@@ -412,11 +447,12 @@ export function createProjectRouter(
                   ),
               },
               facts: (activeWorkUnitType?.factSchemas ?? []).map((factSchema) => {
-                const missing = Boolean(factSchema.required);
+                const value = factSchema.defaultValue ?? null;
+                const missing = Boolean(factSchema.required) && value == null;
                 return {
                   key: factSchema.key,
                   type: factSchema.factType,
-                  value: factSchema.defaultValue ?? null,
+                  value,
                   required: Boolean(factSchema.required),
                   missing,
                   indicator: missing ? "blocking" : "ok",
@@ -426,8 +462,8 @@ export function createProjectRouter(
               }),
               diagnosticsHistory: {
                 publish: publishDiagnostics,
-                pin: [],
-                "repin-policy": [],
+                pin: pinDiagnostics,
+                "repin-policy": repinPolicyDiagnostics,
               },
               evidenceTimeline: [
                 ...publicationEvidence.map((evidence) => ({

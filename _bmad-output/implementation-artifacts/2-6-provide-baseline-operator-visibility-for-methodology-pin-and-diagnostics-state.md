@@ -1,6 +1,6 @@
 # Story 2.6: Provide Baseline Operator Visibility for Methodology, Pin, and Diagnostics State
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -216,6 +216,11 @@ openai/gpt-5.3-codex
 - Updated baseline preview fallback logic so setup transition/workflow appears as available in seeded preview scenarios (draft binding fallback) while keeping project facts empty/read-only.
 - `bun run check`, `bun run check-types`, targeted API/web tests, and Playwright route checks all pass for Story 2.6 flow.
 - Note: DB migration meta deletions/changes visible in git status are user-side workspace changes and were not introduced as part of Story 2.6 implementation.
+- Code-review fixes: baseline diagnostics history now renders full contract fields (`blocking`, `required`, `observed`, `remediation`, `timestamp`, `evidenceRef`) in the dashboard panel.
+- Code-review fixes: baseline preview now derives `transitionPreview.currentState` from eligibility/transition data instead of hardcoding `__absent__`.
+- Code-review fixes: fact preview `missing` semantics now depend on both requiredness and actual preview value nullability.
+- Code-review fixes: diagnostics history now includes persisted pin/repin lineage-derived context rows (`pin`, `repin-policy`) with deterministic structured fields.
+- Code-review fixes: dashboard integration coverage now asserts keyboard-focusable `aria-disabled` workflow controls and rationale visibility.
 
 ### File List
 
@@ -254,3 +259,36 @@ openai/gpt-5.3-codex
 - `docs/plans/2026-03-04-story-2-6-dashboard-first-baseline-visibility-implementation-plan.md`
 - `docs/plans/2026-03-05-epic-2-preview-setup-transition-facts-agents-design.md`
 - `docs/plans/2026-03-05-epic-2-preview-setup-transition-facts-agents-implementation-plan.md`
+
+## Senior Developer Review (AI)
+
+### Review Date
+
+- 2026-03-05
+
+### Reviewer
+
+- OpenCode (openai/gpt-5.3-codex)
+
+### Findings Summary
+
+- Resolved diagnostics contract rendering gap in baseline visibility UI.
+- Resolved transition preview current-state derivation from project/methodology context.
+- Resolved preview fact missing-state semantics to avoid required-always-missing behavior.
+- Resolved pin/repin diagnostics context history by deriving deterministic rows from persisted lineage events.
+- Added accessibility regression coverage for focusable `aria-disabled` runtime controls.
+
+### Verification
+
+- `bun run --cwd packages/api test 'src/routers/methodology.test.ts'`
+- `bun run --cwd apps/web test 'src/routes/-projects.$projectId.integration.test.tsx'`
+- `bun run --cwd apps/web test 'src/routes/-projects.$projectId.pinning.integration.test.tsx'`
+- `bun run check-types`
+
+### Outcome
+
+- Approved. Story promoted from `review` to `done`.
+
+### Change Log
+
+- 2026-03-05: Applied code-review remediation updates across API/web baseline preview and regression tests; re-verified targeted suites and workspace type-check.
