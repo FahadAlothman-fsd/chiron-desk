@@ -1,13 +1,5 @@
 {
   "version": "7",
   "dialect": "turso",
-  "entries": [
-    {
-      "idx": 0,
-      "version": "6",
-      "when": 1772580761943,
-      "tag": "0000_big_vulcan",
-      "breakpoints": true
-    }
-  ]
+  "entries": []
 }
