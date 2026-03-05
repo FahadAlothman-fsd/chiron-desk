@@ -8,6 +8,10 @@ import {
   RUNTIME_DEFERRED_RATIONALE,
   getDeterministicState,
 } from "@/features/methodologies/foundation";
+import {
+  BaselineVisibilitySection,
+  type BaselinePreview,
+} from "@/features/projects/baseline-visibility";
 import { MethodologyWorkspaceShell } from "@/features/methodologies/workspace-shell";
 
 export const Route = createFileRoute("/projects/$projectId/")({
@@ -142,6 +146,10 @@ export function ProjectDashboardRoute() {
           </div>
         ) : null}
       </section>
+
+      <BaselineVisibilitySection
+        baselinePreview={(projectQuery.data?.baselinePreview ?? null) as BaselinePreview | null}
+      />
 
       <section className="border border-border/80 bg-background p-4">
         <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">Runtime</p>

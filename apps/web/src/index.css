@@ -275,6 +275,88 @@
     outline-offset: 1px;
   }
 
+  .chiron-cut-frame-thick {
+    --frame-bg: color-mix(in oklab, var(--background) 82%, var(--card));
+    --frame-border: color-mix(in oklab, var(--foreground) 10%, var(--border));
+    --frame-corner: color-mix(in oklab, var(--foreground) 34%, var(--border));
+    position: relative;
+    background: var(--frame-bg);
+    border: 1px solid var(--frame-border);
+    isolation: isolate;
+  }
+
+  .chiron-cut-frame-thick::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.08;
+    background: repeating-linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--foreground) 8%, transparent) 0 1px,
+      transparent 1px 8px
+    );
+  }
+
+  .chiron-cut-frame-thick::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background:
+      linear-gradient(var(--frame-corner), var(--frame-corner)) 0 0 / 14px 1px no-repeat,
+      linear-gradient(var(--frame-corner), var(--frame-corner)) 0 0 / 1px 14px no-repeat,
+      linear-gradient(var(--frame-corner), var(--frame-corner)) 100% 0 / 14px 1px no-repeat,
+      linear-gradient(var(--frame-corner), var(--frame-corner)) 100% 0 / 1px 14px no-repeat,
+      linear-gradient(var(--frame-corner), var(--frame-corner)) 0 100% / 14px 1px no-repeat,
+      linear-gradient(var(--frame-corner), var(--frame-corner)) 0 100% / 1px 14px no-repeat,
+      linear-gradient(var(--frame-corner), var(--frame-corner)) 100% 100% / 14px 1px no-repeat,
+      linear-gradient(var(--frame-corner), var(--frame-corner)) 100% 100% / 1px 14px no-repeat;
+  }
+
+  .chiron-corner-default {
+    --frame-corner: color-mix(in oklab, var(--foreground) 34%, var(--border));
+  }
+
+  .chiron-corner-white {
+    --frame-corner: color-mix(in oklab, white 88%, var(--foreground));
+  }
+
+  .chiron-corner-subtle {
+    --frame-corner: color-mix(in oklab, var(--foreground) 22%, var(--border));
+  }
+
+  .chiron-texture-canvas {
+    position: relative;
+    isolation: isolate;
+    background-color: #07090b;
+  }
+
+  .chiron-texture-canvas::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(color-mix(in oklab, var(--foreground) 8%, transparent) 1px, transparent 1px) 0
+        0 / 40px 40px,
+      linear-gradient(
+          90deg,
+          color-mix(in oklab, var(--foreground) 8%, transparent) 1px,
+          transparent 1px
+        )
+        0 0 / 40px 40px,
+      repeating-linear-gradient(
+        135deg,
+        color-mix(in oklab, var(--foreground) 10%, transparent) 0 1px,
+        transparent 1px 7px
+      );
+    opacity: 0.2;
+  }
+
   .chiron-frame-flat {
     --frame-bg: color-mix(in oklab, var(--background) 86%, var(--card));
     --frame-border: color-mix(in oklab, var(--border) 78%, transparent);
@@ -525,11 +607,45 @@
     transform: translateY(8px);
     animation: chiron-reveal-up 460ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
   }
+
+  .chiron-transition-flow-arrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: color-mix(in oklab, var(--foreground) 76%, transparent);
+  }
+
+  .chiron-transition-flow-line {
+    width: 1.5rem;
+    height: 1px;
+    background: linear-gradient(
+      to right,
+      color-mix(in oklab, var(--foreground) 14%, transparent),
+      color-mix(in oklab, var(--foreground) 54%, transparent)
+    );
+  }
+
+  .chiron-transition-flow-icon {
+    animation: chiron-flow-pulse 1.35s ease-in-out infinite;
+  }
 }
 
 @keyframes chiron-reveal-up {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes chiron-flow-pulse {
+  0%,
+  100% {
+    transform: translateX(0);
+    opacity: 0.6;
+  }
+
+  50% {
+    transform: translateX(2px);
+    opacity: 1;
   }
 }

@@ -1,6 +1,6 @@
 # Story 2.6: Provide Baseline Operator Visibility for Methodology, Pin, and Diagnostics State
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -26,32 +26,32 @@ so that I can verify setup health and evidence status before runtime execution i
 
 ## Tasks / Subtasks
 
-- [ ] Build baseline visibility read model aggregation over existing persisted sources (AC: 1, 2, 3, 4, 5, 6, 7, 9)
-  - [ ] Reuse existing methodology and project pin lineage APIs to compose active methodology/version/publish/validation state.
-  - [ ] Add or extend project-facing read endpoints only where aggregation is missing, while preserving backend authority and deterministic contract shapes.
-  - [ ] Ensure diagnostics grouping supports `publish`, `pin`, and `repin-policy` contexts with stable fields.
-  - [ ] Ensure read-only fact provenance retrieval path exists for preview (`sourceExecutionId`, `updatedAt`) without introducing write paths.
-- [ ] Implement operator baseline visibility panels in project routes (AC: 1, 3, 4, 5, 6, 8, 9, 10, 11)
-  - [ ] Render baseline summary card for methodology/pin/publish/validation status sourced from persisted backend responses.
-  - [ ] Render work-unit transition metadata and transition-scoped eligibility/readiness context.
-  - [ ] Render workflow list for each transition with a disabled per-workflow action button and exact rationale copy.
-  - [ ] Add `Show future paths` toggle (default off) to reveal `future` transitions without changing status semantics.
-  - [ ] Render fact + provenance details and warning/blocking indicators for missing required facts.
-  - [ ] Render diagnostics history with explicit empty-state handling for new projects.
-- [ ] Preserve Epic 2 boundary and reuse constraints (AC: 2, 7, 10)
-  - [ ] Keep setup-fact writes out of scope (deferred to Epic 3 `WU.SETUP/setup-project`).
-  - [ ] Keep runtime controls visible but disabled with exact copy `Workflow runtime execution unlocks in Epic 3+`.
-  - [ ] Reuse existing persisted outputs from Stories 2.1-2.5; no new methodology-authoring validation rule systems.
-- [ ] Enforce deterministic UX and accessibility contracts (AC: 6, 8, 10, 11)
-  - [ ] Keep blocked vs failed semantics distinct and actionable.
-  - [ ] Keep command/visual parity where actions are exposed.
-  - [ ] Ensure keyboard navigation, focus handling, and non-color-only status communication.
-- [ ] Add verification coverage for read model, UI behavior, and regressions (AC: 1-11)
-  - [ ] Add API tests for any new project baseline visibility endpoints or enriched read payloads.
-  - [ ] Add web integration tests for deterministic diagnostics/evidence rendering, empty-state messaging, and disabled runtime control rationale.
-  - [ ] Add responsive + keyboard interaction checks for baseline visibility panels on supported desktop breakpoints.
-  - [ ] Add fixtures for `WU.SETUP` preview with `project.deliveryMode` present/absent to verify blocked vs eligible preview semantics and reason codes.
-  - [ ] Run `bun check`, `bun check-types`, and targeted `bun run test` scopes for touched packages.
+- [x] Build baseline visibility read model aggregation over existing persisted sources (AC: 1, 2, 3, 4, 5, 6, 7, 9)
+  - [x] Reuse existing methodology and project pin lineage APIs to compose active methodology/version/publish/validation state.
+  - [x] Add or extend project-facing read endpoints only where aggregation is missing, while preserving backend authority and deterministic contract shapes.
+  - [x] Ensure diagnostics grouping supports `publish`, `pin`, and `repin-policy` contexts with stable fields.
+  - [x] Ensure read-only fact provenance retrieval path exists for preview (`sourceExecutionId`, `updatedAt`) without introducing write paths.
+- [x] Implement operator baseline visibility panels in project routes (AC: 1, 3, 4, 5, 6, 8, 9, 10, 11)
+  - [x] Render baseline summary card for methodology/pin/publish/validation status sourced from persisted backend responses.
+  - [x] Render work-unit transition metadata and transition-scoped eligibility/readiness context.
+  - [x] Render workflow list for each transition with a disabled per-workflow action button and exact rationale copy.
+  - [x] Add `Show future paths` toggle (default off) to reveal `future` transitions without changing status semantics.
+  - [x] Render fact + provenance details and warning/blocking indicators for missing required facts.
+  - [x] Render diagnostics history with explicit empty-state handling for new projects.
+- [x] Preserve Epic 2 boundary and reuse constraints (AC: 2, 7, 10)
+  - [x] Keep setup-fact writes out of scope (deferred to Epic 3 `WU.SETUP/setup-project`).
+  - [x] Keep runtime controls visible but disabled with exact copy `Workflow runtime execution unlocks in Epic 3+`.
+  - [x] Reuse existing persisted outputs from Stories 2.1-2.5; no new methodology-authoring validation rule systems.
+- [x] Enforce deterministic UX and accessibility contracts (AC: 6, 8, 10, 11)
+  - [x] Keep blocked vs failed semantics distinct and actionable.
+  - [x] Keep command/visual parity where actions are exposed.
+  - [x] Ensure keyboard navigation, focus handling, and non-color-only status communication.
+- [x] Add verification coverage for read model, UI behavior, and regressions (AC: 1-11)
+  - [x] Add API tests for any new project baseline visibility endpoints or enriched read payloads.
+  - [x] Add web integration tests for deterministic diagnostics/evidence rendering, empty-state messaging, and disabled runtime control rationale.
+  - [x] Add responsive + keyboard interaction checks for baseline visibility panels on supported desktop breakpoints.
+  - [x] Add fixtures for `WU.SETUP` preview with `project.deliveryMode` present/absent to verify blocked vs eligible preview semantics and reason codes.
+  - [x] Run `bun check`, `bun check-types`, and targeted `bun run test` scopes for touched packages.
 
 ## Dev Notes
 
@@ -184,21 +184,73 @@ openai/gpt-5.3-codex
 
 ### Debug Log References
 
-- `git log -5 --pretty=format:'%h %ad %s' --date=short`
-- `bun pm view @tanstack/react-query version`
-- `bun pm view @tanstack/react-router version`
-- `bun pm view @orpc/client version`
-- `bun pm view hono version`
-- `bun pm view effect version`
-- `bun pm view drizzle-orm version`
-- `bun pm view better-auth version`
+- `bun run --cwd packages/api test "src/routers/methodology.test.ts"`
+- `bun run --cwd apps/web test 'src/routes/-projects.$projectId.integration.test.tsx'`
+- `bun run --cwd apps/web test 'src/routes/-projects.$projectId.pinning.integration.test.tsx'`
+- `bun run --cwd apps/web test "src/components/app-shell.sidebar-sections.integration.test.tsx" "src/components/app-sidebar.integration.test.tsx"`
+- `bun run check-types`
+- `bun run check`
+- `bunx oxfmt --write 'apps/web/src/routes/projects.$projectId.pinning.tsx' 'apps/web/src/routes/-projects.$projectId.pinning.integration.test.tsx'`
+- `bun run --cwd apps/web test 'src/routes/-projects.$projectId.pinning.integration.test.tsx'`
+- `bun run --cwd packages/scripts db:seed:story -- --story=2-5`
+- `bun run --cwd packages/scripts db:seed:story -- --story=2-6`
+- `bunx --bun shadcn@latest registry add @cult-ui`
+- `bunx --bun shadcn@latest registry add @elements`
+- `bunx --bun shadcn@latest registry add @kokonutui`
+- Playwright MCP verification: login, project switcher, dashboard baseline, facts/work-units/transitions/agents routes.
 
 ### Completion Notes List
 
-- Generated comprehensive ready-for-dev story context for Story 2.6 with explicit Epic 2 boundary constraints.
-- Incorporated Story 2.6 acceptance criteria, prior-story continuity from 2.5, architecture guardrails, UX deterministic/a11y requirements, and project context constraints.
-- Added implementation and testing task breakdown mapped to AC coverage to guide `dev-story` execution.
+- Extended `project.getProjectDetails` with additive `baselinePreview` read model (`isPreview: true`) that composes pinned methodology summary, transition preview statuses/reason codes, grouped diagnostics contexts, fact provenance fields, and deterministic evidence timeline while preserving read-only Epic 2 behavior.
+- Shifted Story 2.6 IA to dashboard-first visibility: baseline summary, transition readiness preview, fact provenance, diagnostics empty-state/contract rendering, and evidence timeline now render on the project dashboard route.
+- Kept pinning route focused on pin-management concerns (active pin snapshot, repin controls, lineage) and added a lightweight pointer back to dashboard readiness visibility.
+- Added centralized status visual mapping helper and vendored Chiron glyph assets `asset-34.svg` and `asset-13.svg` under `apps/web/public/visuals/chiron-status/`.
+- Added API regression test for baseline preview composition, expanded dashboard integration coverage for readiness rendering/future toggle/reason codes, and updated pinning integration coverage for route-scope split.
+- Updated story seed fixture for Story 2.5 BMAD versions to include lifecycle/workflow definition extensions and reseeded story data so setup/readiness preview is available in Story 2.6.
+- Added Story 2.6 seed alias and seed-content enrichments: `2-6` seed plan, derived `agentTypes`, and transition metadata (`workUnitTypeKey`, `gateClass`, `requiredLinks`) for richer project context pages.
+- Added project-scoped operator pages and sidebar IA extensions: `/projects/$projectId/facts`, `/projects/$projectId/work-units`, `/projects/$projectId/transitions`, `/projects/$projectId/agents` with URL-backed filters and dynamic `Project Context` sidebar links.
+- Added contextual sidebar header behavior: system scope shows `Operator Workspace`, project scope shows searchable project selector, methodology scope shows searchable methodology selector.
+- Added home/index route replacement (from Better T Stack placeholder) to substantive operator index snippets for Projects, Methodologies, Workflow Preview, and System Health.
+- Added tokenized primitive enhancements (CVA variants for card/popover/command), textured mono canvas utilities, corner-color variants, and transition flow visualization with arrow-based state display.
+- Tuned future-path UX: transition list becomes scrollable when `Show future paths` is enabled to prevent page overgrowth.
+- Updated baseline preview fallback logic so setup transition/workflow appears as available in seeded preview scenarios (draft binding fallback) while keeping project facts empty/read-only.
+- `bun run check`, `bun run check-types`, targeted API/web tests, and Playwright route checks all pass for Story 2.6 flow.
+- Note: DB migration meta deletions/changes visible in git status are user-side workspace changes and were not introduced as part of Story 2.6 implementation.
 
 ### File List
 
 - `_bmad-output/implementation-artifacts/2-6-provide-baseline-operator-visibility-for-methodology-pin-and-diagnostics-state.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `apps/web/components.json`
+- `apps/web/src/components/app-shell.tsx`
+- `apps/web/src/components/app-sidebar.tsx`
+- `apps/web/src/components/sidebar-sections.tsx`
+- `apps/web/src/components/app-shell.sidebar-sections.integration.test.tsx`
+- `apps/web/src/components/app-sidebar.integration.test.tsx`
+- `apps/web/src/components/ui/card.tsx`
+- `apps/web/src/components/ui/command.tsx`
+- `apps/web/src/components/ui/popover.tsx`
+- `apps/web/src/index.css`
+- `apps/web/src/routeTree.gen.ts`
+- `apps/web/src/routes/index.tsx`
+- `packages/api/src/routers/project.ts`
+- `packages/api/src/routers/methodology.test.ts`
+- `packages/scripts/src/story-seed-fixtures.ts`
+- `apps/web/src/features/projects/baseline-visibility.tsx`
+- `apps/web/src/features/projects/status-visual.tsx`
+- `apps/web/src/routes/projects.$projectId.pinning.tsx`
+- `apps/web/src/routes/projects.$projectId.index.tsx`
+- `apps/web/src/routes/projects.$projectId.facts.tsx`
+- `apps/web/src/routes/projects.$projectId.work-units.tsx`
+- `apps/web/src/routes/projects.$projectId.transitions.tsx`
+- `apps/web/src/routes/projects.$projectId.agents.tsx`
+- `apps/web/src/routes/-projects.$projectId.integration.test.tsx`
+- `apps/web/src/routes/-projects.$projectId.pinning.integration.test.tsx`
+- `apps/web/public/visuals/chiron-status/asset-34.svg`
+- `apps/web/public/visuals/chiron-status/asset-13.svg`
+- `docs/plans/2026-03-04-project-switcher-project-dashboard-lists-design.md`
+- `docs/plans/2026-03-04-project-switcher-project-dashboard-lists-implementation-plan.md`
+- `docs/plans/2026-03-04-story-2-6-dashboard-first-baseline-visibility-design.md`
+- `docs/plans/2026-03-04-story-2-6-dashboard-first-baseline-visibility-implementation-plan.md`
+- `docs/plans/2026-03-05-epic-2-preview-setup-transition-facts-agents-design.md`
+- `docs/plans/2026-03-05-epic-2-preview-setup-transition-facts-agents-implementation-plan.md`

@@ -2,8 +2,38 @@
 
 import * as React from "react";
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
+import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
+
+const popoverContentVariants = cva(
+  "z-50 flex origin-(--transform-origin) flex-col rounded-none text-xs text-popover-foreground shadow-md outline-hidden duration-100 data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+  {
+    variants: {
+      size: {
+        sm: "w-64 gap-2 p-2",
+        default: "w-72 gap-2.5 p-2.5",
+        lg: "w-96 gap-3 p-3",
+      },
+      frame: {
+        default: "bg-popover ring-1 ring-foreground/10",
+        flat: "chiron-frame-flat",
+        cut: "chiron-cut-frame",
+      },
+      tone: {
+        default: "",
+        context: "chiron-tone-context",
+        navigation: "chiron-tone-navigation",
+        publish: "chiron-tone-publish",
+      },
+    },
+    defaultVariants: {
+      size: "default",
+      frame: "default",
+      tone: "default",
+    },
+  },
+);
 
 function Popover({ ...props }: PopoverPrimitive.Root.Props) {
   return <PopoverPrimitive.Root data-slot="popover" {...props} />;
@@ -19,9 +49,13 @@ function PopoverContent({
   alignOffset = 0,
   side = "bottom",
   sideOffset = 4,
+  size,
+  frame,
+  tone,
   ...props
 }: PopoverPrimitive.Popup.Props &
-  Pick<PopoverPrimitive.Positioner.Props, "align" | "alignOffset" | "side" | "sideOffset">) {
+  Pick<PopoverPrimitive.Positioner.Props, "align" | "alignOffset" | "side" | "sideOffset"> &
+  VariantProps<typeof popoverContentVariants>) {
   return (
     <PopoverPrimitive.Portal>
       <PopoverPrimitive.Positioner
@@ -33,10 +67,10 @@ function PopoverContent({
       >
         <PopoverPrimitive.Popup
           data-slot="popover-content"
-          className={cn(
-            "z-50 flex w-72 origin-(--transform-origin) flex-col gap-2.5 rounded-none bg-popover p-2.5 text-xs text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-hidden duration-100 data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
-            className,
-          )}
+          data-size={size}
+          data-frame={frame}
+          data-tone={tone}
+          className={cn(popoverContentVariants({ size, frame, tone }), className)}
           {...props}
         />
       </PopoverPrimitive.Positioner>

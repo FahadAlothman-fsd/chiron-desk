@@ -254,6 +254,25 @@ export function ProjectPinningRoute() {
         ) : null}
       </section>
 
+      <section className="space-y-2 border border-border/80 bg-background p-4">
+        <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
+          Readiness visibility
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Baseline methodology, transition readiness, diagnostics, and evidence are shown on the
+          project dashboard.
+        </p>
+        <Link
+          to="/projects/$projectId"
+          params={{ projectId }}
+          className={
+            buttonVariants({ variant: "outline" }) + " rounded-none uppercase tracking-[0.12em]"
+          }
+        >
+          Open readiness baseline
+        </Link>
+      </section>
+
       <section className="space-y-3 border border-border/80 bg-background p-4">
         <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
           Repin configuration

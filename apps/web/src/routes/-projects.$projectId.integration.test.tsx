@@ -45,6 +45,75 @@ function createHarness() {
               timestamp: "2026-03-03T12:00:00.000Z",
             },
             lineage: [],
+            baselinePreview: {
+              summary: {
+                methodologyKey: "spiral.v1",
+                pinnedVersion: "1.0.0",
+                publishState: "published",
+                validationStatus: "pass",
+                setupFactsStatus: "Deferred to WU.SETUP/setup-project in Epic 3.",
+              },
+              transitionPreview: {
+                workUnitTypeKey: "WU.SETUP",
+                currentState: "__absent__",
+                transitions: [
+                  {
+                    transitionKey: "start",
+                    fromState: "__absent__",
+                    toState: "done",
+                    gateClass: "start_gate",
+                    status: "blocked",
+                    statusReasonCode: "MISSING_PREVIEW_PREREQUISITE_FACT",
+                    requiredLinks: [],
+                    diagnostics: [],
+                    workflows: [
+                      {
+                        workflowKey: "setup-project",
+                        enabled: false,
+                        disabledReason: "Workflow runtime execution unlocks in Epic 3+",
+                        helperText: "Execution is enabled in Epic 3 after start-gate preflight.",
+                      },
+                    ],
+                  },
+                  {
+                    transitionKey: "future-path",
+                    fromState: "done",
+                    toState: "verified",
+                    gateClass: "completion_gate",
+                    status: "future",
+                    statusReasonCode: "FUTURE_NOT_IN_CURRENT_CONTEXT",
+                    requiredLinks: [],
+                    diagnostics: [],
+                    workflows: [],
+                  },
+                ],
+              },
+              facts: [
+                {
+                  key: "deliveryMode",
+                  type: "string",
+                  value: null,
+                  required: true,
+                  missing: true,
+                  indicator: "blocking",
+                  sourceExecutionId: null,
+                  updatedAt: null,
+                },
+              ],
+              diagnosticsHistory: {
+                publish: [],
+                pin: [],
+                "repin-policy": [],
+              },
+              evidenceTimeline: [
+                {
+                  kind: "pin",
+                  actor: "operator-1",
+                  timestamp: "2026-03-03T12:00:00.000Z",
+                  reference: "project-pin-event:event-1",
+                },
+              ],
+            },
           }),
         }),
       },
@@ -88,7 +157,7 @@ describe("project dashboard route", () => {
     expect(await screen.findByText("Project overview")).toBeTruthy();
     expect(await screen.findByText("Aurora Orion 123")).toBeTruthy();
     expect(screen.getByText("Active methodology pin")).toBeTruthy();
-    expect(await screen.findByText("spiral.v1")).toBeTruthy();
+    expect((await screen.findAllByText("spiral.v1")).length).toBeGreaterThan(0);
 
     const managePinningLink = screen.getByRole("link", { name: "Open pinning workspace" });
     expect(managePinningLink.getAttribute("href")).toBe("/projects/$projectId/pinning");
@@ -104,5 +173,28 @@ describe("project dashboard route", () => {
     );
 
     expect(await screen.findByText("Workflow runtime execution unlocks in Epic 3+")).toBeTruthy();
+  });
+
+  it("renders baseline readiness visibility on dashboard", async () => {
+    const { queryClient } = createHarness();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ProjectDashboardRoute />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("Baseline visibility")).toBeTruthy();
+    expect(await screen.findByText("Transition readiness preview (WU.SETUP)")).toBeTruthy();
+    expect(await screen.findByText("reason: Missing Preview Prerequisite Fact")).toBeTruthy();
+    expect(screen.queryByText("future-path")).toBeNull();
+
+    const futureToggle = screen.getByLabelText("Show future paths");
+    futureToggle.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    expect(await screen.findByText("future-path")).toBeTruthy();
+    expect(
+      screen.getByText("No diagnostics yet. Diagnostics appear after publish/pin/policy checks."),
+    ).toBeTruthy();
   });
 });

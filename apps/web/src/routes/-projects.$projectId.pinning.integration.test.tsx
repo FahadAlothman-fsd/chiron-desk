@@ -35,6 +35,7 @@ type MethodologyVersionFixture = {
 type HarnessOptions = {
   repinImpl?: (input: unknown) => Promise<unknown>;
   detailsByMethodologyKey?: Record<string, { versions: MethodologyVersionFixture[] }>;
+  baselinePreview?: Record<string, unknown> | null;
 };
 
 function createHarness(options: HarnessOptions = {}) {
@@ -129,6 +130,81 @@ function createHarness(options: HarnessOptions = {}) {
                 evidenceRef: "project-pin-event:event-1",
               },
             ],
+            baselinePreview: options.baselinePreview ?? {
+              summary: {
+                methodologyKey: "bmad.v1",
+                pinnedVersion: "1.0.0",
+                publishState: "published",
+                validationStatus: "pass",
+                setupFactsStatus: "Deferred to WU.SETUP/setup-project in Epic 3.",
+              },
+              transitionPreview: {
+                workUnitTypeKey: "task",
+                currentState: "__absent__",
+                transitions: [
+                  {
+                    transitionKey: "start",
+                    fromState: "__absent__",
+                    toState: "new",
+                    gateClass: "start_gate",
+                    status: "blocked",
+                    statusReasonCode: "MISSING_PREVIEW_PREREQUISITE_FACT",
+                    requiredLinks: [],
+                    diagnostics: [],
+                    workflows: [
+                      {
+                        workflowKey: "default-wf",
+                        enabled: false,
+                        disabledReason: "Workflow runtime execution unlocks in Epic 3+",
+                        helperText: "Execution is enabled in Epic 3 after start-gate preflight.",
+                      },
+                    ],
+                  },
+                  {
+                    transitionKey: "complete",
+                    fromState: "new",
+                    toState: "done",
+                    gateClass: "completion_gate",
+                    status: "future",
+                    statusReasonCode: "FUTURE_NOT_IN_CURRENT_CONTEXT",
+                    requiredLinks: [],
+                    diagnostics: [],
+                    workflows: [],
+                  },
+                ],
+              },
+              facts: [
+                {
+                  key: "deliveryMode",
+                  type: "string",
+                  value: null,
+                  required: true,
+                  missing: true,
+                  indicator: "blocking",
+                  sourceExecutionId: null,
+                  updatedAt: null,
+                },
+              ],
+              diagnosticsHistory: {
+                publish: [],
+                pin: [],
+                "repin-policy": [],
+              },
+              evidenceTimeline: [
+                {
+                  kind: "publish",
+                  actor: "operator-1",
+                  timestamp: "2026-03-03T09:00:00.000Z",
+                  reference: "publication-evidence:test",
+                },
+                {
+                  kind: "pin",
+                  actor: "operator-1",
+                  timestamp: "2026-03-03T10:00:00.000Z",
+                  reference: "project-pin-event:event-1",
+                },
+              ],
+            },
           }),
         }),
       },
@@ -342,5 +418,20 @@ describe("project pinning route", () => {
         "No published versions available for selected methodology. Publish an eligible version first.",
       ),
     ).toBeTruthy();
+  });
+
+  it("keeps readiness visibility on dashboard and pinning focused on pin management", async () => {
+    const { queryClient } = createHarness();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ProjectPinningRoute />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("Readiness visibility")).toBeTruthy();
+    expect(screen.getByText("Open readiness baseline")).toBeTruthy();
+    expect(screen.queryByText("Baseline visibility")).toBeNull();
+    expect(screen.queryByText(/Transition readiness preview/i)).toBeNull();
   });
 });

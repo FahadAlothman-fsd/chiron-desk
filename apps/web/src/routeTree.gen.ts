@@ -18,7 +18,11 @@ import { Route as ProjectsNewRouteImport } from './routes/projects.new'
 import { Route as ProjectsProjectIdRouteImport } from './routes/projects.$projectId'
 import { Route as MethodologiesMethodologyIdRouteImport } from './routes/methodologies.$methodologyId'
 import { Route as ProjectsProjectIdIndexRouteImport } from './routes/projects.$projectId.index'
+import { Route as ProjectsProjectIdWorkUnitsRouteImport } from './routes/projects.$projectId.work-units'
+import { Route as ProjectsProjectIdTransitionsRouteImport } from './routes/projects.$projectId.transitions'
 import { Route as ProjectsProjectIdPinningRouteImport } from './routes/projects.$projectId.pinning'
+import { Route as ProjectsProjectIdFactsRouteImport } from './routes/projects.$projectId.facts'
+import { Route as ProjectsProjectIdAgentsRouteImport } from './routes/projects.$projectId.agents'
 import { Route as MethodologiesMethodologyIdVersionsRouteImport } from './routes/methodologies.$methodologyId.versions'
 import { Route as MethodologiesMethodologyIdVersionsVersionIdRouteImport } from './routes/methodologies.$methodologyId.versions.$versionId'
 
@@ -68,12 +72,34 @@ const ProjectsProjectIdIndexRoute = ProjectsProjectIdIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ProjectsProjectIdRoute,
 } as any)
+const ProjectsProjectIdWorkUnitsRoute =
+  ProjectsProjectIdWorkUnitsRouteImport.update({
+    id: '/work-units',
+    path: '/work-units',
+    getParentRoute: () => ProjectsProjectIdRoute,
+  } as any)
+const ProjectsProjectIdTransitionsRoute =
+  ProjectsProjectIdTransitionsRouteImport.update({
+    id: '/transitions',
+    path: '/transitions',
+    getParentRoute: () => ProjectsProjectIdRoute,
+  } as any)
 const ProjectsProjectIdPinningRoute =
   ProjectsProjectIdPinningRouteImport.update({
     id: '/pinning',
     path: '/pinning',
     getParentRoute: () => ProjectsProjectIdRoute,
   } as any)
+const ProjectsProjectIdFactsRoute = ProjectsProjectIdFactsRouteImport.update({
+  id: '/facts',
+  path: '/facts',
+  getParentRoute: () => ProjectsProjectIdRoute,
+} as any)
+const ProjectsProjectIdAgentsRoute = ProjectsProjectIdAgentsRouteImport.update({
+  id: '/agents',
+  path: '/agents',
+  getParentRoute: () => ProjectsProjectIdRoute,
+} as any)
 const MethodologiesMethodologyIdVersionsRoute =
   MethodologiesMethodologyIdVersionsRouteImport.update({
     id: '/versions',
@@ -97,7 +123,11 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
   '/projects/new': typeof ProjectsNewRoute
   '/methodologies/$methodologyId/versions': typeof MethodologiesMethodologyIdVersionsRouteWithChildren
+  '/projects/$projectId/agents': typeof ProjectsProjectIdAgentsRoute
+  '/projects/$projectId/facts': typeof ProjectsProjectIdFactsRoute
   '/projects/$projectId/pinning': typeof ProjectsProjectIdPinningRoute
+  '/projects/$projectId/transitions': typeof ProjectsProjectIdTransitionsRoute
+  '/projects/$projectId/work-units': typeof ProjectsProjectIdWorkUnitsRoute
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
   '/methodologies/$methodologyId/versions/$versionId': typeof MethodologiesMethodologyIdVersionsVersionIdRoute
 }
@@ -110,7 +140,11 @@ export interface FileRoutesByTo {
   '/methodologies/$methodologyId': typeof MethodologiesMethodologyIdRouteWithChildren
   '/projects/new': typeof ProjectsNewRoute
   '/methodologies/$methodologyId/versions': typeof MethodologiesMethodologyIdVersionsRouteWithChildren
+  '/projects/$projectId/agents': typeof ProjectsProjectIdAgentsRoute
+  '/projects/$projectId/facts': typeof ProjectsProjectIdFactsRoute
   '/projects/$projectId/pinning': typeof ProjectsProjectIdPinningRoute
+  '/projects/$projectId/transitions': typeof ProjectsProjectIdTransitionsRoute
+  '/projects/$projectId/work-units': typeof ProjectsProjectIdWorkUnitsRoute
   '/projects/$projectId': typeof ProjectsProjectIdIndexRoute
   '/methodologies/$methodologyId/versions/$versionId': typeof MethodologiesMethodologyIdVersionsVersionIdRoute
 }
@@ -125,7 +159,11 @@ export interface FileRoutesById {
   '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
   '/projects/new': typeof ProjectsNewRoute
   '/methodologies/$methodologyId/versions': typeof MethodologiesMethodologyIdVersionsRouteWithChildren
+  '/projects/$projectId/agents': typeof ProjectsProjectIdAgentsRoute
+  '/projects/$projectId/facts': typeof ProjectsProjectIdFactsRoute
   '/projects/$projectId/pinning': typeof ProjectsProjectIdPinningRoute
+  '/projects/$projectId/transitions': typeof ProjectsProjectIdTransitionsRoute
+  '/projects/$projectId/work-units': typeof ProjectsProjectIdWorkUnitsRoute
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
   '/methodologies/$methodologyId/versions/$versionId': typeof MethodologiesMethodologyIdVersionsVersionIdRoute
 }
@@ -141,7 +179,11 @@ export interface FileRouteTypes {
     | '/projects/$projectId'
     | '/projects/new'
     | '/methodologies/$methodologyId/versions'
+    | '/projects/$projectId/agents'
+    | '/projects/$projectId/facts'
     | '/projects/$projectId/pinning'
+    | '/projects/$projectId/transitions'
+    | '/projects/$projectId/work-units'
     | '/projects/$projectId/'
     | '/methodologies/$methodologyId/versions/$versionId'
   fileRoutesByTo: FileRoutesByTo
@@ -154,7 +196,11 @@ export interface FileRouteTypes {
     | '/methodologies/$methodologyId'
     | '/projects/new'
     | '/methodologies/$methodologyId/versions'
+    | '/projects/$projectId/agents'
+    | '/projects/$projectId/facts'
     | '/projects/$projectId/pinning'
+    | '/projects/$projectId/transitions'
+    | '/projects/$projectId/work-units'
     | '/projects/$projectId'
     | '/methodologies/$methodologyId/versions/$versionId'
   id:
@@ -168,7 +214,11 @@ export interface FileRouteTypes {
     | '/projects/$projectId'
     | '/projects/new'
     | '/methodologies/$methodologyId/versions'
+    | '/projects/$projectId/agents'
+    | '/projects/$projectId/facts'
     | '/projects/$projectId/pinning'
+    | '/projects/$projectId/transitions'
+    | '/projects/$projectId/work-units'
     | '/projects/$projectId/'
     | '/methodologies/$methodologyId/versions/$versionId'
   fileRoutesById: FileRoutesById
@@ -246,11 +296,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsProjectIdIndexRouteImport
       parentRoute: typeof ProjectsProjectIdRoute
     }
+    '/projects/$projectId/work-units': {
+      id: '/projects/$projectId/work-units'
+      path: '/work-units'
+      fullPath: '/projects/$projectId/work-units'
+      preLoaderRoute: typeof ProjectsProjectIdWorkUnitsRouteImport
+      parentRoute: typeof ProjectsProjectIdRoute
+    }
+    '/projects/$projectId/transitions': {
+      id: '/projects/$projectId/transitions'
+      path: '/transitions'
+      fullPath: '/projects/$projectId/transitions'
+      preLoaderRoute: typeof ProjectsProjectIdTransitionsRouteImport
+      parentRoute: typeof ProjectsProjectIdRoute
+    }
     '/projects/$projectId/pinning': {
       id: '/projects/$projectId/pinning'
       path: '/pinning'
       fullPath: '/projects/$projectId/pinning'
       preLoaderRoute: typeof ProjectsProjectIdPinningRouteImport
+      parentRoute: typeof ProjectsProjectIdRoute
+    }
+    '/projects/$projectId/facts': {
+      id: '/projects/$projectId/facts'
+      path: '/facts'
+      fullPath: '/projects/$projectId/facts'
+      preLoaderRoute: typeof ProjectsProjectIdFactsRouteImport
+      parentRoute: typeof ProjectsProjectIdRoute
+    }
+    '/projects/$projectId/agents': {
+      id: '/projects/$projectId/agents'
+      path: '/agents'
+      fullPath: '/projects/$projectId/agents'
+      preLoaderRoute: typeof ProjectsProjectIdAgentsRouteImport
       parentRoute: typeof ProjectsProjectIdRoute
     }
     '/methodologies/$methodologyId/versions': {
@@ -313,12 +391,20 @@ const MethodologiesRouteWithChildren = MethodologiesRoute._addFileChildren(
 )
 
 interface ProjectsProjectIdRouteChildren {
+  ProjectsProjectIdAgentsRoute: typeof ProjectsProjectIdAgentsRoute
+  ProjectsProjectIdFactsRoute: typeof ProjectsProjectIdFactsRoute
   ProjectsProjectIdPinningRoute: typeof ProjectsProjectIdPinningRoute
+  ProjectsProjectIdTransitionsRoute: typeof ProjectsProjectIdTransitionsRoute
+  ProjectsProjectIdWorkUnitsRoute: typeof ProjectsProjectIdWorkUnitsRoute
   ProjectsProjectIdIndexRoute: typeof ProjectsProjectIdIndexRoute
 }
 
 const ProjectsProjectIdRouteChildren: ProjectsProjectIdRouteChildren = {
+  ProjectsProjectIdAgentsRoute: ProjectsProjectIdAgentsRoute,
+  ProjectsProjectIdFactsRoute: ProjectsProjectIdFactsRoute,
   ProjectsProjectIdPinningRoute: ProjectsProjectIdPinningRoute,
+  ProjectsProjectIdTransitionsRoute: ProjectsProjectIdTransitionsRoute,
+  ProjectsProjectIdWorkUnitsRoute: ProjectsProjectIdWorkUnitsRoute,
   ProjectsProjectIdIndexRoute: ProjectsProjectIdIndexRoute,
 }
 

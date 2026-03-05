@@ -1,9 +1,11 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { forwardRef, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AppSidebar, type SidebarNavSection } from "./app-sidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
+
+const navigateMock = vi.fn();
 
 vi.mock("@tanstack/react-router", () => ({
   Link: forwardRef<HTMLAnchorElement, { to: string; children?: ReactNode }>(
@@ -13,6 +15,7 @@ vi.mock("@tanstack/react-router", () => ({
       </a>
     ),
   ),
+  useNavigate: () => navigateMock,
 }));
 
 vi.mock("@/components/nav-user", () => ({
@@ -48,6 +51,7 @@ const sections: SidebarNavSection[] = [
 describe("AppSidebar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    navigateMock.mockReset();
     Object.defineProperty(window, "matchMedia", {
       writable: true,
       value: vi.fn().mockImplementation((query: string) => ({
@@ -60,6 +64,11 @@ describe("AppSidebar", () => {
         removeEventListener: vi.fn(),
         dispatchEvent: vi.fn(),
       })),
+    });
+    Object.defineProperty(window.HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      writable: true,
+      value: vi.fn(),
     });
   });
 
@@ -111,5 +120,57 @@ describe("AppSidebar", () => {
     expect(transitionButton.getAttribute("aria-disabled")).toBe("true");
 
     expect(screen.getAllByText("Epic 3+").length).toBe(3);
+  });
+
+  it("renders searchable project switcher and navigates on selection", () => {
+    render(
+      <SidebarProvider>
+        <AppSidebar
+          sections={sections}
+          scope="project"
+          projectSwitcher={{
+            currentProjectId: "proj-1",
+            currentProjectName: "Verdant Harbor 349",
+            projects: [
+              { id: "proj-1", displayName: "Verdant Harbor 349" },
+              { id: "proj-2", displayName: "Cinder Summit 886" },
+            ],
+          }}
+        />
+      </SidebarProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Verdant Harbor 349/i }));
+    expect(screen.getByPlaceholderText("Search projects...")).toBeTruthy();
+
+    fireEvent.click(screen.getByText("Cinder Summit 886"));
+
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: "/projects/$projectId",
+      params: { projectId: "proj-2" },
+    });
+  });
+
+  it("renders methodology scope selector and hides operator workspace banner", () => {
+    render(
+      <SidebarProvider>
+        <AppSidebar
+          sections={sections}
+          scope="methodology"
+          methodologySwitcher={{
+            currentMethodologyId: "bmad.v1",
+            currentMethodologyName: "BMAD",
+            methodologies: [
+              { methodologyKey: "bmad.v1", displayName: "BMAD" },
+              { methodologyKey: "spiral.v1", displayName: "Spiral" },
+            ],
+          }}
+        />
+      </SidebarProvider>,
+    );
+
+    expect(screen.queryByText("Operator Workspace")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /BMAD/i }));
+    expect(screen.getByPlaceholderText("Search methodologies...")).toBeTruthy();
   });
 });

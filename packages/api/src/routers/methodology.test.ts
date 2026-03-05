@@ -154,10 +154,14 @@ function makeTestRepo(): MethodologyRepository["Type"] {
           version.id,
           (params.factDefinitions ?? []).map((fact) => ({
             key: fact.key,
-            factType: fact.valueType,
-            required: fact.required,
+            factType: fact.factType,
+            name: fact.name ?? fact.key,
+            description: fact.description ?? "",
+            required:
+              "required" in fact ? Boolean((fact as { required?: boolean }).required) : false,
             defaultValueJson: fact.defaultValue,
             guidanceJson: null,
+            validationJson: null,
           })),
         );
         const createdEvent: MethodologyVersionEventRow = {
@@ -202,10 +206,14 @@ function makeTestRepo(): MethodologyRepository["Type"] {
             params.versionId,
             params.factDefinitions.map((fact) => ({
               key: fact.key,
-              factType: fact.valueType,
-              required: fact.required,
+              factType: fact.factType,
+              name: fact.name ?? fact.key,
+              description: fact.description ?? "",
+              required:
+                "required" in fact ? Boolean((fact as { required?: boolean }).required) : false,
               defaultValueJson: fact.defaultValue,
               guidanceJson: null,
+              validationJson: null,
             })),
           );
         }
@@ -1667,6 +1675,85 @@ describe("methodology router", () => {
       expect(createResult.diagnostics.diagnostics[0]?.code).toBe(
         "PROJECT_PIN_TARGET_VERSION_NOT_FOUND",
       );
+    });
+
+    it("composes additive baseline preview on project details", async () => {
+      const serviceLayer = makeServiceLayer();
+      const router = createProjectRouter(serviceLayer);
+      const methodologyRouter = createMethodologyRouter(serviceLayer);
+
+      await call(
+        methodologyRouter.createMethodology,
+        {
+          methodologyKey: "preview-method",
+          displayName: "Preview Method",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const draft = await call(
+        methodologyRouter.createDraftVersion,
+        {
+          methodologyKey: "preview-method",
+          displayName: "Preview Method",
+          version: "1.0.0",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        methodologyRouter.updateDraftWorkflows,
+        {
+          versionId: draft.version.id,
+          workflows: VALID_DEFINITION.workflows,
+          transitionWorkflowBindings: VALID_DEFINITION.transitionWorkflowBindings,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        methodologyRouter.publishDraftVersion,
+        {
+          versionId: draft.version.id,
+          publishedVersion: "1.0.0",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const createResult = await call(
+        router.createAndPinProject,
+        {
+          methodologyKey: "preview-method",
+          publishedVersion: "1.0.0",
+          name: "Preview Project",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const details = await call(
+        router.getProjectDetails,
+        {
+          projectId: createResult.project.id,
+        },
+        PUBLIC_CTX,
+      );
+
+      expect(details.project.id).toBe(createResult.project.id);
+      expect(details.baselinePreview?.isPreview).toBe(true);
+      expect(details.baselinePreview?.summary.methodologyKey).toBe("preview-method");
+      expect(details.baselinePreview?.summary.pinnedVersion).toBe("1.0.0");
+      expect(details.baselinePreview?.summary.setupFactsStatus).toContain("WU.SETUP/setup-project");
+      expect(details.baselinePreview?.transitionPreview.workUnitTypeKey).toBe("task");
+      expect(
+        details.baselinePreview?.transitionPreview.transitions[0]?.statusReasonCode,
+      ).toBeTruthy();
+      expect(details.baselinePreview?.diagnosticsHistory.publish).toBeTruthy();
+      expect(details.baselinePreview?.diagnosticsHistory.pin).toEqual([]);
+      expect(details.baselinePreview?.diagnosticsHistory["repin-policy"]).toEqual([]);
+      expect(Array.isArray(details.baselinePreview?.evidenceTimeline)).toBe(true);
     });
   });
 

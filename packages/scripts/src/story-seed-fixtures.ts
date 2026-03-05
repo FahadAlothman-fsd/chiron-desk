@@ -3,7 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Data, Effect } from "effect";
 
-export type StorySeedId = "2-1" | "2-2" | "2-5";
+export type StorySeedId = "2-1" | "2-2" | "2-5" | "2-6";
 
 export type StorySeedUser = {
   readonly name: string;
@@ -151,6 +151,18 @@ const buildStory22DefinitionExtensions = (): Record<string, unknown> => {
     ]),
   );
 
+  const agentTypeKeys = [
+    ...new Set(
+      workflowDefinitionsSeed.workflows.flatMap((workflow) =>
+        (workflow.definitionJson?.steps ?? [])
+          .map((step) => step.overrides?.agentId)
+          .filter(
+            (agentId): agentId is string => typeof agentId === "string" && agentId.length > 0,
+          ),
+      ),
+    ),
+  ].sort((a, b) => a.localeCompare(b));
+
   const workUnitTypes = Object.entries(CARDINALITY_BY_WORK_UNIT)
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([workUnitRef, cardinality]) => {
@@ -188,14 +200,22 @@ const buildStory22DefinitionExtensions = (): Record<string, unknown> => {
 
   const transitions = transitionAllowedSeed.bindings.map((binding) => ({
     key: transitionKeyForBinding(binding),
+    workUnitTypeKey: binding.workUnitRef,
     fromState: binding.fromState,
     toState: binding.toState,
+    gateClass:
+      binding.fromState === "__absent__"
+        ? "start_gate"
+        : binding.toState === "done"
+          ? "completion_gate"
+          : "state_gate",
+    requiredLinks: [],
     displayName: `${binding.workUnitRef} ${binding.fromState} -> ${binding.toState}`,
   }));
 
   return {
     workUnitTypes,
-    agentTypes: [],
+    agentTypes: agentTypeKeys.map((key) => ({ key, displayName: key })),
     transitions,
     workflows,
     transitionWorkflowBindings,
@@ -347,7 +367,7 @@ const STORY_2_5_PLAN: StorySeedPlan = {
       version: "1.0.0",
       status: "active",
       displayName: "BMAD v1.0.0",
-      definitionExtensions: {},
+      definitionExtensions: buildStory22DefinitionExtensions(),
       retiredAt: null,
     },
     {
@@ -356,7 +376,7 @@ const STORY_2_5_PLAN: StorySeedPlan = {
       version: "1.1.0",
       status: "active",
       displayName: "BMAD v1.1.0",
-      definitionExtensions: {},
+      definitionExtensions: buildStory22DefinitionExtensions(),
       retiredAt: null,
     },
     {
@@ -383,16 +403,22 @@ const STORY_2_5_PLAN: StorySeedPlan = {
       version: "2.0.0-draft",
       status: "draft",
       displayName: "BMAD v2.0.0 Draft",
-      definitionExtensions: {},
+      definitionExtensions: buildStory22DefinitionExtensions(),
       retiredAt: null,
     },
   ],
+};
+
+const STORY_2_6_PLAN: StorySeedPlan = {
+  ...STORY_2_5_PLAN,
+  storyId: "2-6",
 };
 
 const storySeedPlans: Record<StorySeedId, StorySeedPlan> = {
   "2-1": STORY_2_1_PLAN,
   "2-2": STORY_2_2_PLAN,
   "2-5": STORY_2_5_PLAN,
+  "2-6": STORY_2_6_PLAN,
 };
 
 export const availableStorySeedIds = Object.keys(storySeedPlans) as StorySeedId[];

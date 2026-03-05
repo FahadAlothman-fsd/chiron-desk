@@ -1,5 +1,6 @@
 import { Link, Navigate, useRouterState } from "@tanstack/react-router";
 import { useHotkey } from "@tanstack/react-hotkeys";
+import { useQuery } from "@tanstack/react-query";
 import { CommandIcon } from "lucide-react";
 import { Fragment, useState, type ReactNode } from "react";
 
@@ -19,6 +20,7 @@ import { MethodologyCommandPalette } from "@/features/methodologies/command-pale
 import { buildSidebarSections } from "./sidebar-sections";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { orpc } from "@/utils/orpc";
 
 function toLabel(value: string): string {
   return value.replaceAll("-", " ").replace(/\b\w/g, (match) => match.toUpperCase());
@@ -30,6 +32,29 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
+  const pathParts = pathname.split("/").filter(Boolean);
+  const methodologyId = pathParts[0] === "methodologies" ? pathParts[1] : undefined;
+  const projectId =
+    pathParts[0] === "projects" && pathParts[1] && pathParts[1] !== "new" ? pathParts[1] : null;
+  const projectsQuery = useQuery({
+    ...orpc.project.listProjects.queryOptions(),
+    enabled: Boolean(session?.user),
+  });
+  const projects = projectsQuery.data ?? [];
+  const currentProject = projectId ? projects.find((project) => project.id === projectId) : null;
+  const methodologiesQuery = useQuery({
+    ...orpc.methodology.listMethodologies.queryOptions(),
+    enabled: Boolean(session?.user),
+  });
+  const methodologies = methodologiesQuery.data ?? [];
+  const currentMethodology = methodologyId
+    ? methodologies.find((item) => item.methodologyKey === methodologyId)
+    : null;
+  const sidebarScope: "system" | "project" | "methodology" = projectId
+    ? "project"
+    : pathname.startsWith("/methodologies")
+      ? "methodology"
+      : "system";
 
   useHotkey("Mod+K", (event) => {
     event.preventDefault();
@@ -55,9 +80,6 @@ export default function AppShell({ children }: { children: ReactNode }) {
     return <Navigate to="/login" />;
   }
 
-  const pathParts = pathname.split("/").filter(Boolean);
-  const methodologyId = pathParts[0] === "methodologies" ? pathParts[1] : undefined;
-
   const breadcrumbSegments =
     pathParts.length === 0
       ? [{ label: "Home", href: "/" }]
@@ -72,16 +94,30 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const navSections = buildSidebarSections(pathname);
 
   return (
-    <SidebarProvider defaultOpen className="min-h-svh w-full bg-[#07090b]">
+    <SidebarProvider
+      defaultOpen
+      className="chiron-texture-canvas min-h-svh w-full [&>*]:relative [&>*]:z-10"
+    >
       <AppSidebar
         title="Operator Workspace"
         subtitle="Methodology Console"
+        scope={sidebarScope}
         sections={navSections}
+        projectSwitcher={{
+          currentProjectId: projectId,
+          currentProjectName: currentProject?.displayName ?? null,
+          projects,
+        }}
+        methodologySwitcher={{
+          currentMethodologyId: methodologyId ?? null,
+          currentMethodologyName: currentMethodology?.displayName ?? null,
+          methodologies,
+        }}
         onOpenCommands={() => setIsCommandPaletteOpen(true)}
         className="border-r border-border/80"
       />
 
-      <SidebarInset className="min-w-0 bg-[#07090b]">
+      <SidebarInset className="chiron-texture-canvas min-w-0">
         <header className="border-b border-border/80 px-3 py-3 md:px-4">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -127,7 +163,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <div className="space-y-4 p-3 md:p-4">{children}</div>
+        <div className="relative z-10 space-y-4 p-3 md:p-4">{children}</div>
       </SidebarInset>
 
       <MethodologyCommandPalette

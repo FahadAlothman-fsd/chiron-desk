@@ -10,12 +10,14 @@ describe("buildSidebarSections", () => {
       "Workspace",
       "Methodology Authoring",
       "Project Operations",
+      "Project Context",
       "Planned",
     ]);
 
     const workspace = sections[0];
     const methodologyAuthoring = sections[1];
     const projectOperations = sections[2];
+    const projectContext = sections[3];
 
     expect(workspace?.items[0]).toEqual(
       expect.objectContaining({ label: "Home", to: "/", isActive: false }),
@@ -28,6 +30,32 @@ describe("buildSidebarSections", () => {
     );
     expect(projectOperations?.items[0]).toEqual(
       expect.objectContaining({ label: "Projects", to: "/projects", isActive: true }),
+    );
+    expect(projectContext?.items[0]).toEqual(
+      expect.objectContaining({ label: "Overview", to: "/projects/abc", isActive: true }),
+    );
+    expect(projectContext?.items[1]).toEqual(
+      expect.objectContaining({ label: "Pinning", to: "/projects/abc/pinning", isActive: false }),
+    );
+    expect(projectContext?.items[2]).toEqual(
+      expect.objectContaining({ label: "Facts", to: "/projects/abc/facts", isActive: false }),
+    );
+    expect(projectContext?.items[3]).toEqual(
+      expect.objectContaining({
+        label: "Work Units",
+        to: "/projects/abc/work-units",
+        isActive: false,
+      }),
+    );
+    expect(projectContext?.items[4]).toEqual(
+      expect.objectContaining({
+        label: "Transitions",
+        to: "/projects/abc/transitions",
+        isActive: false,
+      }),
+    );
+    expect(projectContext?.items[5]).toEqual(
+      expect.objectContaining({ label: "Agents", to: "/projects/abc/agents", isActive: false }),
     );
   });
 
