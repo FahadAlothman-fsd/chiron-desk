@@ -1,5 +1,6 @@
 import { Command, Options } from "@effect/cli";
 import { Effect } from "effect";
+import { Result } from "better-result";
 
 const [{ db, schema }, { reset: drizzleReset, seed }, { classifySeedError, shouldSkipSeedError }] =
   await Promise.all([
@@ -26,19 +27,27 @@ const handleFailure = (error, stage, shouldReset) => {
 
 const runSeed = async (shouldReset) => {
   if (shouldReset) {
-    try {
-      await drizzleReset(db, schema);
+    const resetResult = await Result.tryPromise({
+      try: async () => drizzleReset(db, schema),
+      catch: (error) => error,
+    });
+
+    if (resetResult.isErr()) {
+      handleFailure(resetResult.error, "reset", shouldReset);
+    } else {
       console.log("[seed] database reset complete");
-    } catch (error) {
-      handleFailure(error, "reset", shouldReset);
     }
   }
 
-  try {
-    await seed(db, schema);
+  const seedResult = await Result.tryPromise({
+    try: async () => seed(db, schema),
+    catch: (error) => error,
+  });
+
+  if (seedResult.isOk()) {
     console.log("[seed] drizzle-seed completed");
-  } catch (error) {
-    const skipped = handleFailure(error, "seed", shouldReset);
+  } else {
+    const skipped = handleFailure(seedResult.error, "seed", shouldReset);
 
     if (skipped) {
       return;

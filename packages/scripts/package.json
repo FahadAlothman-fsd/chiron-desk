@@ -36,6 +36,7 @@
     "@effect/platform": "catalog:",
     "@effect/printer": "catalog:",
     "@effect/printer-ansi": "catalog:",
+    "better-result": "^2.7.0",
     "drizzle-orm": "^0.45.1",
     "drizzle-seed": "catalog:",
     "effect": "catalog:"
