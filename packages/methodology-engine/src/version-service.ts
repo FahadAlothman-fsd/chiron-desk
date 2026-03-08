@@ -35,6 +35,7 @@ import type {
   ProjectRow,
 } from "./repository";
 import { MethodologyRepository } from "./repository";
+import { LifecycleRepository } from "./lifecycle-repository";
 import { validateDraftDefinition } from "./validation";
 
 export interface CreateDraftResult {
@@ -481,6 +482,212 @@ function decodeDefinition(
   );
 }
 
+const ALLOWED_CARDINALITY = new Set(["one_per_project", "many_per_project"]);
+
+function asCardinality(value: unknown): "one_per_project" | "many_per_project" {
+  return typeof value === "string" && ALLOWED_CARDINALITY.has(value)
+    ? (value as "one_per_project" | "many_per_project")
+    : "one_per_project";
+}
+
+const ALLOWED_GATE_CLASSES = new Set(["start_gate", "completion_gate"]);
+
+function asGateClass(value: unknown): "start_gate" | "completion_gate" {
+  return typeof value === "string" && ALLOWED_GATE_CLASSES.has(value)
+    ? (value as "start_gate" | "completion_gate")
+    : "start_gate";
+}
+
+const ALLOWED_LINK_STRENGTH = new Set(["required", "optional"]);
+
+function asLinkStrength(value: unknown): "required" | "optional" {
+  return typeof value === "string" && ALLOWED_LINK_STRENGTH.has(value)
+    ? (value as "required" | "optional")
+    : "required";
+}
+
+const ALLOWED_CANONICAL_FACT_TYPES = new Set(["string", "number", "boolean", "json"]);
+
+function asCanonicalFactType(value: unknown): "string" | "number" | "boolean" | "json" {
+  return typeof value === "string" && ALLOWED_CANONICAL_FACT_TYPES.has(value)
+    ? (value as "string" | "number" | "boolean" | "json")
+    : "string";
+}
+
+function extractText(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function asModelReference(value: unknown): { provider: string; model: string } | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const record = value as Record<string, unknown>;
+  if (typeof record.provider !== "string" || typeof record.model !== "string") {
+    return undefined;
+  }
+  return { provider: record.provider, model: record.model };
+}
+
+function asStringArray(value: unknown): readonly string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  return value.filter((entry): entry is string => typeof entry === "string");
+}
+
+function loadCanonicalLifecycleDefinition(
+  versionId: string,
+  lifecycleRepo: LifecycleRepository["Type"],
+): Effect.Effect<
+  {
+    workUnitTypes: MethodologyVersionDefinition["workUnitTypes"];
+    agentTypes: MethodologyVersionDefinition["agentTypes"];
+    transitions: MethodologyVersionDefinition["transitions"];
+  },
+  RepositoryError
+> {
+  return Effect.gen(function* () {
+    const [
+      workUnitTypeRows,
+      stateRows,
+      transitionRows,
+      factSchemaRows,
+      requiredLinkRows,
+      agentRows,
+    ] = yield* Effect.all([
+      lifecycleRepo.findWorkUnitTypes(versionId),
+      lifecycleRepo.findLifecycleStates(versionId),
+      lifecycleRepo.findLifecycleTransitions(versionId),
+      lifecycleRepo.findFactSchemas(versionId),
+      lifecycleRepo.findTransitionRequiredLinks(versionId),
+      lifecycleRepo.findAgentTypes(versionId),
+    ]);
+
+    const statesByWorkUnit = new Map<string, Array<(typeof stateRows)[number]>>();
+    const stateKeyById = new Map<string, string>();
+    for (const state of stateRows) {
+      stateKeyById.set(state.id, state.key);
+      const bucket = statesByWorkUnit.get(state.workUnitTypeId) ?? [];
+      statesByWorkUnit.set(state.workUnitTypeId, [...bucket, state]);
+    }
+
+    const transitionsByWorkUnit = new Map<string, Array<(typeof transitionRows)[number]>>();
+    const requiredLinksByTransition = new Map<string, Array<(typeof requiredLinkRows)[number]>>();
+    for (const transition of transitionRows) {
+      const transitionBucket = transitionsByWorkUnit.get(transition.workUnitTypeId) ?? [];
+      transitionsByWorkUnit.set(transition.workUnitTypeId, [...transitionBucket, transition]);
+
+      requiredLinksByTransition.set(
+        transition.id,
+        requiredLinkRows.filter((link) => link.transitionId === transition.id),
+      );
+    }
+
+    const factsByWorkUnit = new Map<string, Array<(typeof factSchemaRows)[number]>>();
+    for (const schema of factSchemaRows) {
+      const bucket = factsByWorkUnit.get(schema.workUnitTypeId) ?? [];
+      factsByWorkUnit.set(schema.workUnitTypeId, [...bucket, schema]);
+    }
+
+    const workUnitTypes = [...workUnitTypeRows]
+      .sort((a, b) => a.key.localeCompare(b.key))
+      .map((workUnit) => {
+        const states = [...(statesByWorkUnit.get(workUnit.id) ?? [])].sort((a, b) =>
+          a.key.localeCompare(b.key),
+        );
+        const transitions = [...(transitionsByWorkUnit.get(workUnit.id) ?? [])].sort((a, b) =>
+          a.transitionKey.localeCompare(b.transitionKey),
+        );
+        const factSchemas = [...(factsByWorkUnit.get(workUnit.id) ?? [])].sort((a, b) =>
+          a.key.localeCompare(b.key),
+        );
+
+        return {
+          key: workUnit.key,
+          displayName: extractText(workUnit.displayName),
+          description: workUnit.descriptionJson,
+          cardinality: asCardinality(workUnit.cardinality),
+          lifecycleStates: states.map((state) => ({
+            key: state.key,
+            displayName: extractText(state.displayName),
+            description: state.descriptionJson,
+          })),
+          lifecycleTransitions: transitions.map((transition) => ({
+            transitionKey: transition.transitionKey,
+            fromState:
+              transition.fromStateId && stateKeyById.has(transition.fromStateId)
+                ? (stateKeyById.get(transition.fromStateId) ?? "")
+                : "__absent__",
+            toState: stateKeyById.get(transition.toStateId) ?? "",
+            gateClass: asGateClass(transition.gateClass),
+            requiredLinks: (requiredLinksByTransition.get(transition.id) ?? [])
+              .sort((a, b) => a.id.localeCompare(b.id))
+              .map((link) => ({
+                linkTypeKey: link.linkTypeKey,
+                strength: asLinkStrength(link.strength),
+                required: link.required,
+              })),
+          })),
+          factSchemas: factSchemas.map((fact) => ({
+            name: extractText(fact.name),
+            key: fact.key,
+            factType: asCanonicalFactType(fact.factType),
+            required: fact.required,
+            description: extractText(fact.description),
+            defaultValue: fact.defaultValueJson,
+            guidance: fact.guidanceJson,
+            validation: fact.validationJson,
+          })),
+        };
+      });
+
+    const agentTypes = [...agentRows]
+      .sort((a, b) => a.key.localeCompare(b.key))
+      .map((agent) => ({
+        key: agent.key,
+        displayName: extractText(agent.displayName),
+        description: extractText(agent.description),
+        persona: agent.persona,
+        defaultModel: asModelReference(agent.defaultModelJson),
+        mcpServers: asStringArray(agent.mcpServersJson),
+        capabilities: asStringArray(agent.capabilitiesJson),
+      }));
+
+    const transitions = workUnitTypes.flatMap((workUnit) =>
+      (workUnit.lifecycleTransitions ?? []).map((transition) => ({
+        key: transition.transitionKey,
+        transitionKey: transition.transitionKey,
+        workUnitTypeKey: workUnit.key,
+        fromState: transition.fromState,
+        toState: transition.toState,
+        gateClass: transition.gateClass,
+        requiredLinks: transition.requiredLinks,
+      })),
+    );
+
+    return {
+      workUnitTypes,
+      agentTypes,
+      transitions,
+    };
+  });
+}
+
+function resolveLifecycleDefinition(
+  version: MethodologyVersionRow,
+  lifecycleRepo: LifecycleRepository["Type"],
+): Effect.Effect<
+  {
+    workUnitTypes: MethodologyVersionDefinition["workUnitTypes"];
+    agentTypes: MethodologyVersionDefinition["agentTypes"];
+    transitions: MethodologyVersionDefinition["transitions"];
+  },
+  RepositoryError
+> {
+  return loadCanonicalLifecycleDefinition(version.id, lifecycleRepo);
+}
+
 function ensureVersionIsDraft(
   version: MethodologyVersionRow,
 ): Effect.Effect<MethodologyVersionRow, VersionNotDraftError> {
@@ -556,29 +763,9 @@ function mergeGuidance(
   };
 }
 
-function mergeDefinitionWithSnapshot(
-  definitionExtensions: unknown,
-  snapshot: {
-    workflows: MethodologyVersionDefinition["workflows"];
-    transitionWorkflowBindings: MethodologyVersionDefinition["transitionWorkflowBindings"];
-    guidance?: MethodologyVersionDefinition["guidance"];
-  },
-): Effect.Effect<MethodologyVersionDefinition, ValidationDecodeError> {
-  return decodeDefinition(definitionExtensions).pipe(
-    Effect.map((definition) => ({
-      ...definition,
-      workflows: snapshot.workflows.length > 0 ? snapshot.workflows : definition.workflows,
-      transitionWorkflowBindings:
-        Object.keys(snapshot.transitionWorkflowBindings).length > 0
-          ? snapshot.transitionWorkflowBindings
-          : definition.transitionWorkflowBindings,
-      guidance: mergeGuidance(definition.guidance, snapshot.guidance),
-    })),
-  );
-}
-
 export const MethodologyVersionServiceLive = Effect.gen(function* () {
   const repo = yield* MethodologyRepository;
+  const lifecycleRepo = yield* LifecycleRepository;
 
   const createDraftVersion = (
     input: CreateDraftVersionInput,
@@ -644,23 +831,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
       yield* ensureVersionIsDraft(existing);
 
       const previousSnapshot = yield* repo.findWorkflowSnapshot(existing.id);
-      const previousLegacyDefinition = yield* decodeDefinition(existing.definitionExtensions).pipe(
-        Effect.orElseSucceed(
-          () =>
-            ({
-              workUnitTypes: [],
-              agentTypes: [],
-              transitions: [],
-              workflows: [],
-              transitionWorkflowBindings: {},
-              guidance: undefined,
-            }) satisfies MethodologyVersionDefinition,
-        ),
-      );
-      const previousGuidance = mergeGuidance(
-        previousLegacyDefinition.guidance,
-        previousSnapshot.guidance,
-      );
+      const previousGuidance = previousSnapshot.guidance;
 
       const timestamp = new Date().toISOString();
       const diagnostics = validateDraftDefinition(definition, timestamp);
@@ -758,21 +929,15 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
       yield* ensureVersionIsDraft(existing);
 
       const snapshot = yield* repo.findWorkflowSnapshot(existing.id);
-      const definition = yield* mergeDefinitionWithSnapshot(
-        existing.definitionExtensions,
-        snapshot,
-      ).pipe(
-        Effect.catchAll(() =>
-          Effect.succeed({
-            workUnitTypes: [],
-            agentTypes: [],
-            transitions: [],
-            workflows: snapshot.workflows,
-            transitionWorkflowBindings: snapshot.transitionWorkflowBindings,
-            guidance: snapshot.guidance,
-          } satisfies MethodologyVersionDefinition),
-        ),
-      );
+      const lifecycleDefinition = yield* resolveLifecycleDefinition(existing, lifecycleRepo);
+      const definition: MethodologyVersionDefinition = {
+        workUnitTypes: lifecycleDefinition.workUnitTypes,
+        agentTypes: lifecycleDefinition.agentTypes,
+        transitions: lifecycleDefinition.transitions,
+        workflows: snapshot.workflows,
+        transitionWorkflowBindings: snapshot.transitionWorkflowBindings,
+        guidance: snapshot.guidance,
+      };
 
       const timestamp = new Date().toISOString();
       const diagnostics = validateDraftDefinition(definition, timestamp);
@@ -803,24 +968,16 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
 
       yield* ensureVersionIsDraft(existing);
 
-      const baseDefinition = yield* decodeDefinition(existing.definitionExtensions).pipe(
-        Effect.catchAll(() =>
-          Effect.succeed({
-            workUnitTypes: [],
-            agentTypes: [],
-            transitions: [],
-            workflows: [],
-            transitionWorkflowBindings: {},
-            guidance: undefined,
-          } satisfies MethodologyVersionDefinition),
-        ),
-      );
+      const snapshot = yield* repo.findWorkflowSnapshot(existing.id);
+      const lifecycleDefinition = yield* resolveLifecycleDefinition(existing, lifecycleRepo);
 
       const nextDefinition: MethodologyVersionDefinition = {
-        ...baseDefinition,
+        workUnitTypes: lifecycleDefinition.workUnitTypes,
+        agentTypes: lifecycleDefinition.agentTypes,
+        transitions: lifecycleDefinition.transitions,
         workflows: input.workflows,
         transitionWorkflowBindings: input.transitionWorkflowBindings,
-        guidance: input.guidance,
+        guidance: mergeGuidance(snapshot.guidance, input.guidance),
       };
 
       return yield* updateDraftVersion(
@@ -876,21 +1033,15 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
       }
 
       const snapshot = yield* repo.findWorkflowSnapshot(existing.id);
-      const definition = yield* mergeDefinitionWithSnapshot(
-        existing.definitionExtensions,
-        snapshot,
-      ).pipe(
-        Effect.catchAll(() =>
-          Effect.succeed({
-            workUnitTypes: [],
-            agentTypes: [],
-            transitions: [],
-            workflows: snapshot.workflows,
-            transitionWorkflowBindings: snapshot.transitionWorkflowBindings,
-            guidance: snapshot.guidance,
-          } satisfies MethodologyVersionDefinition),
-        ),
-      );
+      const lifecycleDefinition = yield* resolveLifecycleDefinition(existing, lifecycleRepo);
+      const definition: MethodologyVersionDefinition = {
+        workUnitTypes: lifecycleDefinition.workUnitTypes,
+        agentTypes: lifecycleDefinition.agentTypes,
+        transitions: lifecycleDefinition.transitions,
+        workflows: snapshot.workflows,
+        transitionWorkflowBindings: snapshot.transitionWorkflowBindings,
+        guidance: snapshot.guidance,
+      };
 
       const baseValidation = validateDraftDefinition(definition, timestamp);
       const diagnostics: ValidationDiagnostic[] = [];
@@ -1627,15 +1778,18 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
       }
 
       const snapshot = yield* repo.findWorkflowSnapshot(version.id);
-      const definition = yield* mergeDefinitionWithSnapshot(version.definitionExtensions, snapshot);
-      const definitionExtensionsRecord =
-        version.definitionExtensions && typeof version.definitionExtensions === "object"
-          ? (version.definitionExtensions as Record<string, unknown>)
-          : null;
-      const factDefinitions =
-        definitionExtensionsRecord && Array.isArray(definitionExtensionsRecord.factDefinitions)
-          ? definitionExtensionsRecord.factDefinitions
-          : [];
+      const lifecycleDefinition = yield* resolveLifecycleDefinition(version, lifecycleRepo);
+      const factDefinitionsRows = yield* repo.findFactDefinitionsByVersionId(version.id);
+      const factDefinitions = factDefinitionsRows.map((fact) => ({
+        name: fact.name,
+        key: fact.key,
+        factType: fact.valueType,
+        required: fact.required,
+        description: fact.descriptionJson,
+        guidance: fact.guidanceJson,
+        defaultValue: fact.defaultValueJson,
+        validation: fact.validationJson,
+      }));
 
       return {
         id: version.id,
@@ -1643,14 +1797,13 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
         version: version.version,
         status: version.status as MethodologyVersionProjection["status"],
         displayName: version.displayName,
-        workUnitTypes: definition.workUnitTypes,
-        agentTypes: definition.agentTypes,
-        transitions: definition.transitions,
-        workflows: definition.workflows,
-        transitionWorkflowBindings: definition.transitionWorkflowBindings,
-        guidance: definition.guidance,
+        workUnitTypes: lifecycleDefinition.workUnitTypes,
+        agentTypes: lifecycleDefinition.agentTypes,
+        transitions: lifecycleDefinition.transitions,
+        workflows: snapshot.workflows,
+        transitionWorkflowBindings: snapshot.transitionWorkflowBindings,
+        guidance: snapshot.guidance,
         factDefinitions,
-        definitionExtensions: version.definitionExtensions,
       } satisfies MethodologyVersionProjection;
     });
 

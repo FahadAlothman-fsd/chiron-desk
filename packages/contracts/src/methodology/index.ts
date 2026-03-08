@@ -7,3 +7,4 @@ export * from "./dto.js";
 export * from "./domain.js";
 export * from "./projection.js";
 export * from "./version.js";
+export * from "./canonical-authority.js";

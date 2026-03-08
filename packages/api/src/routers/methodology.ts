@@ -264,7 +264,6 @@ function serializeVersion(v: MethodologyVersionRow) {
     version: v.version,
     status: v.status,
     displayName: v.displayName,
-    definitionExtensions: v.definitionExtensions,
     createdAt: v.createdAt.toISOString(),
     retiredAt: v.retiredAt?.toISOString() ?? null,
   };

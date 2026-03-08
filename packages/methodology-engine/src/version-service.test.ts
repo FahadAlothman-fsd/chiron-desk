@@ -6,10 +6,12 @@ import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 import type {
   CreateDraftParams,
+  MethodologyFactDefinitionRow,
   PublishFactSchemaRow,
   GetPublicationEvidenceParams,
   GetVersionEventsParams,
   MethodologyDefinitionRow,
+  ProjectRow,
   MethodologyVersionEventRow,
   MethodologyVersionRow,
   PublishDraftVersionParams,
@@ -17,6 +19,15 @@ import type {
   WorkflowSnapshot,
 } from "./repository";
 import { RepositoryError, type RepositoryErrorCode } from "./errors";
+import {
+  LifecycleRepository,
+  type AgentTypeRow,
+  type FactSchemaRow,
+  type LifecycleStateRow,
+  type LifecycleTransitionRow,
+  type TransitionRequiredLinkRow,
+  type WorkUnitTypeRow,
+} from "./lifecycle-repository";
 import { MethodologyRepository } from "./repository";
 import { MethodologyVersionService, MethodologyVersionServiceLive } from "./version-service";
 
@@ -49,6 +60,62 @@ function makeTestRepo() {
   }> = [];
   const workflowSnapshots = new Map<string, WorkflowSnapshot>();
   const factSchemasByVersion = new Map<string, readonly PublishFactSchemaRow[]>();
+  const factDefinitionsByVersion = new Map<string, readonly MethodologyFactDefinitionRow[]>();
+  const projects = new Map<string, ProjectRow>();
+  const lifecycleDataByVersion = new Map<
+    string,
+    {
+      workUnitTypes: Array<{
+        id: string;
+        key: string;
+        displayName: string | null;
+        descriptionJson: unknown;
+        cardinality: string;
+      }>;
+      lifecycleStates: Array<{
+        id: string;
+        workUnitTypeId: string;
+        key: string;
+        displayName: string | null;
+        descriptionJson: unknown;
+      }>;
+      lifecycleTransitions: Array<{
+        id: string;
+        workUnitTypeId: string;
+        transitionKey: string;
+        fromStateId: string | null;
+        toStateId: string;
+        gateClass: string;
+      }>;
+      factSchemas: Array<{
+        workUnitTypeId: string;
+        name: string | null;
+        key: string;
+        factType: string;
+        required: boolean;
+        description: string | null;
+        defaultValueJson: unknown;
+        guidanceJson: unknown;
+        validationJson: unknown;
+      }>;
+      transitionRequiredLinks: Array<{
+        id: string;
+        transitionId: string;
+        linkTypeKey: string;
+        strength: string;
+        required: boolean;
+      }>;
+      agentTypes: Array<{
+        key: string;
+        displayName: string | null;
+        description: string | null;
+        persona: string;
+        defaultModelJson: unknown;
+        mcpServersJson: unknown;
+        capabilitiesJson: unknown;
+      }>;
+    }
+  >();
   const executionCountsByProject = new Map<string, number>();
   executionCountsByProject.set("project-exec-history", 1);
   let idCounter = 0;
@@ -58,7 +125,193 @@ function makeTestRepo() {
     return `test-id-${idCounter}`;
   };
 
-  return MethodologyRepository.of({
+  const asRecord = (value: unknown): Record<string, unknown> =>
+    value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+
+  const buildLifecycleData = (versionId: string, definition: unknown) => {
+    const record = asRecord(definition);
+    const workUnitTypesInput = Array.isArray(record.workUnitTypes) ? record.workUnitTypes : [];
+    const transitionsInput = Array.isArray(record.transitions) ? record.transitions : [];
+    const agentTypesInput = Array.isArray(record.agentTypes) ? record.agentTypes : [];
+
+    const workUnitTypes = workUnitTypesInput.map((entry, index) => {
+      const item = asRecord(entry);
+      const key = typeof item.key === "string" && item.key.length > 0 ? item.key : `wu-${index}`;
+      return {
+        id: `${versionId}:wut:${key}`,
+        key,
+        displayName: typeof item.displayName === "string" ? item.displayName : null,
+        descriptionJson: item.description ?? null,
+        cardinality:
+          item.cardinality === "many_per_project" ? "many_per_project" : "one_per_project",
+      };
+    });
+
+    const workUnitIdByKey = new Map(workUnitTypes.map((wut) => [wut.key, wut.id]));
+
+    const lifecycleStates: Array<{
+      id: string;
+      workUnitTypeId: string;
+      key: string;
+      displayName: string | null;
+      descriptionJson: unknown;
+    }> = [];
+    const stateIdByWorkUnitAndKey = new Map<string, string>();
+    const stateEnsured = new Set<string>();
+    const ensureState = (workUnitTypeId: string, stateKey: string) => {
+      if (!stateKey || stateKey === "__absent__") return null;
+      const composite = `${workUnitTypeId}:${stateKey}`;
+      if (stateEnsured.has(composite)) {
+        return stateIdByWorkUnitAndKey.get(composite) ?? null;
+      }
+      stateEnsured.add(composite);
+      const id = `${versionId}:state:${stateKey}`;
+      stateIdByWorkUnitAndKey.set(composite, id);
+      lifecycleStates.push({
+        id,
+        workUnitTypeId,
+        key: stateKey,
+        displayName: null,
+        descriptionJson: null,
+      });
+      return id;
+    };
+
+    const lifecycleTransitions: Array<{
+      id: string;
+      workUnitTypeId: string;
+      transitionKey: string;
+      fromStateId: string | null;
+      toStateId: string;
+      gateClass: string;
+    }> = [];
+    const transitionRequiredLinks: Array<{
+      id: string;
+      transitionId: string;
+      linkTypeKey: string;
+      strength: string;
+      required: boolean;
+    }> = [];
+
+    const inferredWorkUnitKey = workUnitTypes[0]?.key ?? "task";
+
+    transitionsInput.forEach((entry, index) => {
+      const transition = asRecord(entry);
+      const transitionKey =
+        typeof transition.transitionKey === "string"
+          ? transition.transitionKey
+          : typeof transition.key === "string"
+            ? transition.key
+            : `transition-${index}`;
+      const workUnitTypeKey =
+        typeof transition.workUnitTypeKey === "string"
+          ? transition.workUnitTypeKey
+          : inferredWorkUnitKey;
+      const workUnitTypeId =
+        workUnitIdByKey.get(workUnitTypeKey) ?? `${versionId}:wut:${workUnitTypeKey}`;
+      const fromState =
+        typeof transition.fromState === "string" ? transition.fromState : "__absent__";
+      const toState = typeof transition.toState === "string" ? transition.toState : "done";
+      const fromStateId = ensureState(workUnitTypeId, fromState);
+      const toStateId = ensureState(workUnitTypeId, toState) ?? `${versionId}:state:done`;
+      const gateClass =
+        transition.gateClass === "completion_gate" ? "completion_gate" : "start_gate";
+      const transitionId = `${versionId}:transition:${transitionKey}`;
+
+      lifecycleTransitions.push({
+        id: transitionId,
+        workUnitTypeId,
+        transitionKey,
+        fromStateId,
+        toStateId,
+        gateClass,
+      });
+
+      const requiredLinks = Array.isArray(transition.requiredLinks) ? transition.requiredLinks : [];
+      requiredLinks.forEach((link, linkIndex) => {
+        const linkRecord = asRecord(link);
+        transitionRequiredLinks.push({
+          id: `${transitionId}:link:${linkIndex}`,
+          transitionId,
+          linkTypeKey:
+            typeof linkRecord.linkTypeKey === "string" ? linkRecord.linkTypeKey : "default",
+          strength: linkRecord.strength === "optional" ? "optional" : "required",
+          required: linkRecord.required !== false,
+        });
+      });
+    });
+
+    if (lifecycleTransitions.length === 0 && workUnitTypes.length > 0) {
+      const workUnitType = workUnitTypes[0]!;
+      const toStateId = ensureState(workUnitType.id, "done") ?? `${versionId}:state:done`;
+      lifecycleTransitions.push({
+        id: `${versionId}:transition:start`,
+        workUnitTypeId: workUnitType.id,
+        transitionKey: "start",
+        fromStateId: null,
+        toStateId,
+        gateClass: "start_gate",
+      });
+    }
+
+    const factSchemas: Array<{
+      workUnitTypeId: string;
+      name: string | null;
+      key: string;
+      factType: string;
+      required: boolean;
+      description: string | null;
+      defaultValueJson: unknown;
+      guidanceJson: unknown;
+      validationJson: unknown;
+    }> = [];
+
+    workUnitTypesInput.forEach((entry, index) => {
+      const workUnit = asRecord(entry);
+      const key =
+        typeof workUnit.key === "string" && workUnit.key.length > 0 ? workUnit.key : `wu-${index}`;
+      const workUnitTypeId = workUnitIdByKey.get(key) ?? `${versionId}:wut:${key}`;
+      const factSchemaInput = Array.isArray(workUnit.factSchemas) ? workUnit.factSchemas : [];
+      factSchemaInput.forEach((fact) => {
+        const factRecord = asRecord(fact);
+        factSchemas.push({
+          workUnitTypeId,
+          name: typeof factRecord.name === "string" ? factRecord.name : null,
+          key: typeof factRecord.key === "string" ? factRecord.key : "fact",
+          factType: typeof factRecord.factType === "string" ? factRecord.factType : "string",
+          required: factRecord.required === true,
+          description: typeof factRecord.description === "string" ? factRecord.description : null,
+          defaultValueJson: factRecord.defaultValue ?? null,
+          guidanceJson: factRecord.guidance ?? null,
+          validationJson: factRecord.validation ?? { kind: "none" },
+        });
+      });
+    });
+
+    const agentTypes = agentTypesInput.map((entry, index) => {
+      const agent = asRecord(entry);
+      return {
+        key: typeof agent.key === "string" ? agent.key : `agent-${index}`,
+        displayName: typeof agent.displayName === "string" ? agent.displayName : null,
+        description: typeof agent.description === "string" ? agent.description : null,
+        persona: typeof agent.persona === "string" ? agent.persona : "",
+        defaultModelJson: agent.defaultModel ?? null,
+        mcpServersJson: agent.mcpServers ?? null,
+        capabilitiesJson: agent.capabilities ?? null,
+      };
+    });
+
+    return {
+      workUnitTypes,
+      lifecycleStates,
+      lifecycleTransitions,
+      factSchemas,
+      transitionRequiredLinks,
+      agentTypes,
+    };
+  };
+
+  const repo = MethodologyRepository.of({
     listDefinitions: () =>
       Effect.succeed(
         [...definitions].sort(
@@ -125,6 +378,10 @@ function makeTestRepo() {
           retiredAt: null,
         };
         versions.push(version);
+        lifecycleDataByVersion.set(
+          version.id,
+          buildLifecycleData(version.id, params.definitionExtensions),
+        );
         workflowSnapshots.set(version.id, {
           workflows: params.workflows,
           transitionWorkflowBindings: params.transitionWorkflowBindings,
@@ -133,11 +390,27 @@ function makeTestRepo() {
         factSchemasByVersion.set(
           version.id,
           (params.factDefinitions ?? []).map((fact) => ({
+            name: fact.name ?? null,
             key: fact.key,
-            factType: fact.valueType,
-            required: fact.required,
-            defaultValueJson: fact.defaultValue,
-            guidanceJson: null,
+            factType: fact.factType,
+            required: false,
+            description: fact.description ?? null,
+            defaultValueJson: fact.defaultValue ?? null,
+            guidanceJson: fact.guidance ?? null,
+            validationJson: fact.validation,
+          })),
+        );
+        factDefinitionsByVersion.set(
+          version.id,
+          (params.factDefinitions ?? []).map((fact) => ({
+            name: fact.name ?? null,
+            key: fact.key,
+            valueType: fact.factType,
+            required: false,
+            descriptionJson: fact.description ?? null,
+            guidanceJson: fact.guidance ?? null,
+            defaultValueJson: fact.defaultValue ?? null,
+            validationJson: fact.validation,
           })),
         );
 
@@ -180,6 +453,10 @@ function makeTestRepo() {
           definitionExtensions: params.definitionExtensions,
         };
         versions[idx] = updated;
+        lifecycleDataByVersion.set(
+          updated.id,
+          buildLifecycleData(updated.id, params.definitionExtensions),
+        );
         workflowSnapshots.set(updated.id, {
           workflows: params.workflows,
           transitionWorkflowBindings: params.transitionWorkflowBindings,
@@ -189,11 +466,27 @@ function makeTestRepo() {
           factSchemasByVersion.set(
             updated.id,
             params.factDefinitions.map((fact) => ({
+              name: fact.name ?? null,
               key: fact.key,
-              factType: fact.valueType,
-              required: fact.required,
-              defaultValueJson: fact.defaultValue,
-              guidanceJson: null,
+              factType: fact.factType,
+              required: false,
+              description: fact.description ?? null,
+              defaultValueJson: fact.defaultValue ?? null,
+              guidanceJson: fact.guidance ?? null,
+              validationJson: fact.validation,
+            })),
+          );
+          factDefinitionsByVersion.set(
+            updated.id,
+            params.factDefinitions.map((fact) => ({
+              name: fact.name ?? null,
+              key: fact.key,
+              valueType: fact.factType,
+              required: false,
+              descriptionJson: fact.description ?? null,
+              guidanceJson: fact.guidance ?? null,
+              defaultValueJson: fact.defaultValue ?? null,
+              validationJson: fact.validation,
             })),
           );
         }
@@ -253,6 +546,8 @@ function makeTestRepo() {
       ),
     findFactSchemasByVersionId: (versionId: string) =>
       Effect.succeed(factSchemasByVersion.get(versionId) ?? []),
+    findFactDefinitionsByVersionId: (versionId: string) =>
+      Effect.succeed(factDefinitionsByVersion.get(versionId) ?? []),
     publishDraftVersion: (params: PublishDraftVersionParams) =>
       Effect.gen(function* () {
         const fail = (code: RepositoryErrorCode) =>
@@ -440,6 +735,25 @@ function makeTestRepo() {
             (a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id),
           ),
       ),
+    createProject: ({ projectId, name }) =>
+      Effect.sync(() => {
+        const now = new Date();
+        const project: ProjectRow = {
+          id: projectId,
+          name: name ?? null,
+          createdAt: now,
+          updatedAt: now,
+        };
+        projects.set(projectId, project);
+        return project;
+      }),
+    listProjects: () =>
+      Effect.succeed(
+        [...projects.values()].sort(
+          (a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id),
+        ),
+      ),
+    getProjectById: ({ projectId }) => Effect.succeed(projects.get(projectId) ?? null),
     getPublicationEvidence: (params: GetPublicationEvidenceParams) =>
       Effect.succeed(
         events
@@ -470,13 +784,158 @@ function makeTestRepo() {
           })),
       ),
   });
+
+  const lifecycleRepo = LifecycleRepository.of({
+    findWorkUnitTypes: (versionId: string) => {
+      const now = new Date();
+      const rows: WorkUnitTypeRow[] = (
+        lifecycleDataByVersion.get(versionId)?.workUnitTypes ?? []
+      ).map((row) => ({
+        id: row.id,
+        methodologyVersionId: versionId,
+        key: row.key,
+        displayName: row.displayName,
+        descriptionJson: row.descriptionJson,
+        cardinality: row.cardinality,
+        createdAt: now,
+        updatedAt: now,
+      }));
+      return Effect.succeed(rows);
+    },
+    findLifecycleStates: (versionId: string, workUnitTypeId?: string) =>
+      Effect.sync(() => {
+        const now = new Date();
+        const rows: LifecycleStateRow[] = (
+          lifecycleDataByVersion.get(versionId)?.lifecycleStates ?? []
+        )
+          .filter((row) => !workUnitTypeId || row.workUnitTypeId === workUnitTypeId)
+          .map((row) => ({
+            id: row.id,
+            methodologyVersionId: versionId,
+            workUnitTypeId: row.workUnitTypeId,
+            key: row.key,
+            displayName: row.displayName,
+            descriptionJson: row.descriptionJson,
+            createdAt: now,
+            updatedAt: now,
+          }));
+        return rows;
+      }),
+    findLifecycleTransitions: (versionId: string, options?: { workUnitTypeId?: string }) =>
+      Effect.sync(() => {
+        const now = new Date();
+        const rows: LifecycleTransitionRow[] = (
+          lifecycleDataByVersion.get(versionId)?.lifecycleTransitions ?? []
+        )
+          .filter(
+            (row) => !options?.workUnitTypeId || row.workUnitTypeId === options.workUnitTypeId,
+          )
+          .map((row) => ({
+            id: row.id,
+            methodologyVersionId: versionId,
+            workUnitTypeId: row.workUnitTypeId,
+            transitionKey: row.transitionKey,
+            fromStateId: row.fromStateId,
+            toStateId: row.toStateId,
+            gateClass: row.gateClass,
+            createdAt: now,
+            updatedAt: now,
+          }));
+        return rows;
+      }),
+    findFactSchemas: (versionId: string, workUnitTypeId?: string) =>
+      Effect.sync(() => {
+        const now = new Date();
+        const rows: FactSchemaRow[] = (lifecycleDataByVersion.get(versionId)?.factSchemas ?? [])
+          .filter((row) => !workUnitTypeId || row.workUnitTypeId === workUnitTypeId)
+          .map((row) => ({
+            id: `${versionId}:fact-schema:${row.workUnitTypeId}:${row.key}`,
+            methodologyVersionId: versionId,
+            workUnitTypeId: row.workUnitTypeId,
+            name: row.name,
+            key: row.key,
+            factType: row.factType,
+            required: row.required,
+            description: row.description,
+            defaultValueJson: row.defaultValueJson,
+            guidanceJson: row.guidanceJson,
+            validationJson: row.validationJson,
+            createdAt: now,
+            updatedAt: now,
+          }));
+        return rows;
+      }),
+    findTransitionRequiredLinks: (versionId: string, transitionId?: string) =>
+      Effect.sync(() => {
+        const now = new Date();
+        const rows: TransitionRequiredLinkRow[] = (
+          lifecycleDataByVersion.get(versionId)?.transitionRequiredLinks ?? []
+        )
+          .filter((row) => !transitionId || row.transitionId === transitionId)
+          .map((row) => ({
+            id: row.id,
+            methodologyVersionId: versionId,
+            transitionId: row.transitionId,
+            linkTypeKey: row.linkTypeKey,
+            strength: row.strength,
+            required: row.required,
+            createdAt: now,
+            updatedAt: now,
+          }));
+        return rows;
+      }),
+    findAgentTypes: (versionId: string) =>
+      Effect.sync(() => {
+        const now = new Date();
+        const rows: AgentTypeRow[] = (lifecycleDataByVersion.get(versionId)?.agentTypes ?? []).map(
+          (row) => ({
+            id: `${versionId}:agent:${row.key}`,
+            methodologyVersionId: versionId,
+            key: row.key,
+            displayName: row.displayName,
+            description: row.description,
+            persona: row.persona,
+            defaultModelJson: row.defaultModelJson,
+            mcpServersJson: row.mcpServersJson,
+            capabilitiesJson: row.capabilitiesJson,
+            createdAt: now,
+            updatedAt: now,
+          }),
+        );
+        return rows;
+      }),
+    findTransitionWorkflowBindings: () => Effect.succeed([]),
+    saveLifecycleDefinition: () =>
+      Effect.fail(
+        new RepositoryError({
+          operation: "test.saveLifecycleDefinition",
+          code: "INTERNAL" as RepositoryErrorCode,
+          cause: null,
+        }),
+      ),
+    recordLifecycleEvent: () =>
+      Effect.fail(
+        new RepositoryError({
+          operation: "test.recordLifecycleEvent",
+          code: "INTERNAL" as RepositoryErrorCode,
+          cause: null,
+        }),
+      ),
+  });
+
+  return { repo, lifecycleRepo };
 }
 
 function makeServiceLayer() {
-  const repo = makeTestRepo();
+  const { repo, lifecycleRepo } = makeTestRepo();
   const repoLayer = Layer.succeed(MethodologyRepository, repo);
+  const lifecycleRepoLayer = Layer.succeed(LifecycleRepository, lifecycleRepo);
   const serviceLayer = Layer.effect(MethodologyVersionService, MethodologyVersionServiceLive);
-  return Layer.merge(repoLayer, Layer.provide(serviceLayer, repoLayer));
+  return Layer.mergeAll(
+    repoLayer,
+    lifecycleRepoLayer,
+    Layer.provide(serviceLayer, Layer.merge(repoLayer, lifecycleRepoLayer)),
+  );
 }
 
 function runWithService<A, E>(effect: Effect.Effect<A, E, MethodologyVersionService>) {
@@ -602,8 +1061,8 @@ describe("MethodologyVersionService", () => {
         factDefinitions: [
           {
             key: "effort",
-            valueType: "number" as const,
-            required: true,
+            factType: "number" as const,
+            validation: { kind: "none" as const },
           },
         ],
         linkTypeDefinitions: [
@@ -1030,9 +1489,9 @@ describe("MethodologyVersionService", () => {
               factDefinitions: [
                 {
                   key: "risk_score",
-                  valueType: "json",
-                  required: true,
+                  factType: "json",
                   defaultValue: { ref: "upstream.score" },
+                  validation: { kind: "none" as const },
                 },
               ],
             },
@@ -1148,6 +1607,37 @@ describe("MethodologyVersionService", () => {
       expect(projection.transitions).toHaveLength(1);
       expect(projection.workflows).toHaveLength(1);
       expect(projection.transitionWorkflowBindings.start).toEqual(["default-wf"]);
+    });
+
+    it("sources methodology fact definitions from canonical repository rows", async () => {
+      const projection = await runWithService(
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionService;
+          const created = yield* svc.createDraftVersion(
+            {
+              ...MINIMAL_INPUT,
+              factDefinitions: [
+                {
+                  key: "effort",
+                  factType: "number",
+                  defaultValue: 3,
+                  validation: { kind: "none" },
+                },
+              ],
+            },
+            TEST_ACTOR_ID,
+          );
+
+          return yield* svc.getDraftProjection(created.version.id);
+        }),
+      );
+
+      expect(projection.factDefinitions ?? []).toHaveLength(1);
+      expect(projection.factDefinitions?.[0]).toMatchObject({
+        key: "effort",
+        factType: "number",
+        defaultValue: 3,
+      });
     });
 
     it("returns VersionNotFoundError when projection version does not exist", async () => {

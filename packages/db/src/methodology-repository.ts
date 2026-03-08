@@ -17,6 +17,7 @@ import {
   type MethodologyDefinitionRow,
   type MethodologyVersionRow,
   type MethodologyVersionEventRow,
+  type MethodologyFactDefinitionRow,
   type PublishDraftVersionParams,
   type WorkflowSnapshot,
 } from "@chiron/methodology-engine";
@@ -900,6 +901,26 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           guidanceJson: row.guidanceJson,
           validationJson: row.validationJson,
         }));
+      }),
+
+    findFactDefinitionsByVersionId: (versionId: string) =>
+      dbEffect("methodology.findFactDefinitionsByVersionId", async () => {
+        const rows = await db
+          .select({
+            name: methodologyFactDefinitions.name,
+            key: methodologyFactDefinitions.key,
+            valueType: methodologyFactDefinitions.valueType,
+            required: methodologyFactDefinitions.required,
+            descriptionJson: methodologyFactDefinitions.descriptionJson,
+            guidanceJson: methodologyFactDefinitions.guidanceJson,
+            defaultValueJson: methodologyFactDefinitions.defaultValueJson,
+            validationJson: methodologyFactDefinitions.validationJson,
+          })
+          .from(methodologyFactDefinitions)
+          .where(eq(methodologyFactDefinitions.methodologyVersionId, versionId))
+          .orderBy(asc(methodologyFactDefinitions.key));
+
+        return rows as readonly MethodologyFactDefinitionRow[];
       }),
 
     publishDraftVersion: (params: PublishDraftVersionParams) =>

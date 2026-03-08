@@ -140,6 +140,61 @@ type CompletionCondition =
 - `required` tools participate in completion conditions; optional tools do not block completion.
 - `requiresApproval` gates execution via approval service.
 
+### Session Work Unit Attachment (Design Proposal)
+
+Goal:
+- Let an agent session attach to a target work unit instance for focused context retrieval and CRUD operations without repeating `workUnitInstanceId` on every tool call.
+
+Why:
+- Reduces repetitive tool payloads (`workUnitInstanceId + domain selector + operation params`).
+- Improves agent ergonomics and lowers tool-call token overhead.
+- Makes "current focus" explicit during long multi-step sessions.
+
+Proposed MCP tool surface:
+
+```ts
+type AttachWorkUnitInput = {
+  workUnitInstanceId: string
+  mode?: "read-only" | "read-write"
+  reason?: string
+}
+
+type AttachWorkUnitOutput = {
+  attachedWorkUnitInstanceId: string
+  attachedAt: string
+  mode: "read-only" | "read-write"
+}
+
+type DetachWorkUnitInput = {
+  reason?: string
+}
+
+type SessionAttachmentState = {
+  attachedWorkUnitInstanceId: string | null
+  mode: "read-only" | "read-write" | null
+}
+```
+
+Behavior contract:
+- `session.attach_work_unit` sets session-scoped attachment state.
+- `session.detach_work_unit` clears attachment state.
+- Work-unit scoped tools MAY omit `workUnitInstanceId` when attachment exists.
+- If both are provided, explicit `workUnitInstanceId` wins and is logged as an override.
+- Attachment is session-local (not global), expires when session ends, and is auditable.
+
+Safety and authorization rules:
+- Attachment must pass normal access control checks for that work unit instance.
+- `read-only` attachment blocks mutation tools.
+- Mutating tools require `read-write` attachment or explicit id + approval policy.
+- Cross-project attachment is disallowed unless explicitly enabled by policy.
+
+Separation of concerns:
+- Attachment target can differ from the work unit currently executing the agent step.
+- This enables guidance flows where the agent is running in one execution context while inspecting/updating a related work unit context intentionally.
+
+Diagnostics:
+- Deterministic errors for `ATTACHMENT_NOT_SET`, `ATTACHMENT_FORBIDDEN`, `ATTACHMENT_MODE_READ_ONLY`, `ATTACHMENT_NOT_FOUND`, and `ATTACHMENT_CROSS_PROJECT_BLOCKED`.
+
 ### Completion
 
 - Completion conditions are evaluated as an array; any condition satisfied completes the step.

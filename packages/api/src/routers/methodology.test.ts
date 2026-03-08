@@ -268,6 +268,7 @@ function makeTestRepo(): MethodologyRepository["Type"] {
       ),
     findFactSchemasByVersionId: (versionId: string) =>
       Effect.succeed(factSchemasByVersion.get(versionId) ?? []),
+    findFactDefinitionsByVersionId: () => Effect.succeed([]),
     publishDraftVersion: (params: PublishDraftVersionParams) =>
       Effect.gen(function* () {
         const fail = (code: RepositoryErrorCode) =>
@@ -527,16 +528,34 @@ function makeTestRepo(): MethodologyRepository["Type"] {
 function makeServiceLayer() {
   const repo = makeTestRepo();
   const repoLayer = Layer.succeed(MethodologyRepository, repo);
-  const lifecycleRepoLayer = Layer.succeed(LifecycleRepository, {
-    findWorkUnitTypes: () => Effect.succeed([]),
-    findLifecycleStates: () => Effect.succeed([]),
-    findLifecycleTransitions: () => Effect.succeed([]),
-    findFactSchemas: () => Effect.succeed([]),
-    findTransitionRequiredLinks: () => Effect.succeed([]),
-    findTransitionWorkflowBindings: () => Effect.succeed([]),
-    saveLifecycleDefinition: () => Effect.succeed({} as any),
-    recordLifecycleEvent: () => Effect.succeed({} as any),
-  } as any);
+  const lifecycleRepoLayer = Layer.succeed(
+    LifecycleRepository,
+    LifecycleRepository.of({
+      findWorkUnitTypes: () => Effect.succeed([]),
+      findLifecycleStates: () => Effect.succeed([]),
+      findLifecycleTransitions: () => Effect.succeed([]),
+      findFactSchemas: () => Effect.succeed([]),
+      findTransitionRequiredLinks: () => Effect.succeed([]),
+      findAgentTypes: () => Effect.succeed([]),
+      findTransitionWorkflowBindings: () => Effect.succeed([]),
+      saveLifecycleDefinition: () =>
+        Effect.fail(
+          new RepositoryError({
+            operation: "api-test.saveLifecycleDefinition",
+            code: "INTERNAL" as RepositoryErrorCode,
+            cause: null,
+          }),
+        ),
+      recordLifecycleEvent: () =>
+        Effect.fail(
+          new RepositoryError({
+            operation: "api-test.recordLifecycleEvent",
+            code: "INTERNAL" as RepositoryErrorCode,
+            cause: null,
+          }),
+        ),
+    }),
+  );
   const allRepos = Layer.mergeAll(repoLayer, lifecycleRepoLayer);
   return Layer.mergeAll(
     Layer.provide(Layer.effect(MethodologyVersionService, MethodologyVersionServiceLive), allRepos),
@@ -564,11 +583,31 @@ const VALID_DEFINITION = {
 
 const AUTHENTICATED_CTX = {
   context: {
-    session: { user: { id: "test-user-id", name: "Test User", email: "test@example.com" } },
+    session: {
+      session: {
+        id: "test-session-id",
+        createdAt: new Date(0),
+        updatedAt: new Date(0),
+        userId: "test-user-id",
+        expiresAt: new Date("2099-01-01T00:00:00.000Z"),
+        token: "test-token",
+        ipAddress: null,
+        userAgent: null,
+      },
+      user: {
+        id: "test-user-id",
+        name: "Test User",
+        email: "test@example.com",
+        createdAt: new Date(0),
+        updatedAt: new Date(0),
+        emailVerified: true,
+        image: null,
+      },
+    },
   },
-} as any;
+};
 
-const PUBLIC_CTX = { context: { session: null } } as any;
+const PUBLIC_CTX = { context: { session: null } };
 
 describe("methodology router", () => {
   describe("createMethodology", () => {

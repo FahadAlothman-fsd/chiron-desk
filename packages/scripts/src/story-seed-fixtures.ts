@@ -201,7 +201,7 @@ const buildStory22DefinitionExtensions = (): Record<string, unknown> => {
               ? "start_gate"
               : binding.toState === "done"
                 ? "completion_gate"
-                : "state_gate",
+                : "completion_gate",
           requiredLinks: [],
         })),
         factSchemas:
@@ -242,7 +242,7 @@ const buildStory22DefinitionExtensions = (): Record<string, unknown> => {
         ? "start_gate"
         : binding.toState === "done"
           ? "completion_gate"
-          : "state_gate",
+          : "completion_gate",
     requiredLinks: [],
     displayName: `${binding.workUnitRef} ${binding.fromState} -> ${binding.toState}`,
   }));

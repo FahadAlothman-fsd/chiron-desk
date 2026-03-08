@@ -242,7 +242,6 @@ export const MethodologyVersion = Schema.Struct({
   version: Schema.String,
   status: MethodologyVersionStatus,
   displayName: Schema.String,
-  definitionExtensions: Schema.Unknown,
   createdAt: Schema.DateFromSelf,
   retiredAt: Schema.NullOr(Schema.DateFromSelf),
 });

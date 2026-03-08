@@ -115,6 +115,17 @@ export interface PublishFactSchemaRow {
   validationJson: unknown;
 }
 
+export interface MethodologyFactDefinitionRow {
+  name: string | null;
+  key: string;
+  valueType: string;
+  required: boolean;
+  descriptionJson: unknown;
+  guidanceJson: unknown;
+  defaultValueJson: unknown;
+  validationJson: unknown;
+}
+
 export interface ProjectMethodologyPinRow {
   projectId: string;
   methodologyVersionId: string;
@@ -197,6 +208,9 @@ export class MethodologyRepository extends Context.Tag("MethodologyRepository")<
     readonly findFactSchemasByVersionId: (
       versionId: string,
     ) => Effect.Effect<readonly PublishFactSchemaRow[], RepositoryError>;
+    readonly findFactDefinitionsByVersionId: (
+      versionId: string,
+    ) => Effect.Effect<readonly MethodologyFactDefinitionRow[], RepositoryError>;
     readonly publishDraftVersion: (params: PublishDraftVersionParams) => Effect.Effect<
       {
         version: MethodologyVersionRow;
