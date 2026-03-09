@@ -11,7 +11,7 @@ import {
   type LifecycleStateRow,
   type LifecycleTransitionRow,
   type FactSchemaRow,
-  type TransitionRequiredLinkRow,
+  type TransitionConditionSetRow,
   type TransitionWorkflowBindingRow,
 } from "@chiron/methodology-engine";
 import type { MethodologyVersionEventRow, MethodologyVersionRow } from "@chiron/methodology-engine";
@@ -22,8 +22,8 @@ import {
   methodologyTransitionWorkflowBindings,
   methodologyLifecycleStates,
   methodologyLifecycleTransitions,
+  methodologyTransitionConditionSets,
   methodologyFactSchemas,
-  methodologyTransitionRequiredLinks,
   methodologyVersions,
   methodologyVersionEvents,
 } from "./schema/methodology";
@@ -99,16 +99,18 @@ function toFactSchemaRow(row: typeof methodologyFactSchemas.$inferSelect): FactS
   };
 }
 
-function toTransitionRequiredLinkRow(
-  row: typeof methodologyTransitionRequiredLinks.$inferSelect,
-): TransitionRequiredLinkRow {
+function toTransitionConditionSetRow(
+  row: typeof methodologyTransitionConditionSets.$inferSelect,
+): TransitionConditionSetRow {
   return {
     id: row.id,
     methodologyVersionId: row.methodologyVersionId,
     transitionId: row.transitionId,
-    linkTypeKey: row.linkTypeKey,
-    strength: row.strength,
-    required: row.required,
+    key: row.key,
+    phase: row.phase,
+    mode: row.mode,
+    groupsJson: row.groupsJson,
+    guidanceJson: row.guidanceJson,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -248,22 +250,25 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
           .orderBy(asc(methodologyFactSchemas.key));
         return rows.map(toFactSchemaRow) as readonly FactSchemaRow[];
       }),
-
-    findTransitionRequiredLinks: (versionId: string, transitionId?: string) =>
-      dbEffect("lifecycle.findTransitionRequiredLinks", async () => {
-        let conditions = [eq(methodologyTransitionRequiredLinks.methodologyVersionId, versionId)];
+    findTransitionConditionSets: (versionId: string, transitionId?: string) =>
+      dbEffect("lifecycle.findTransitionConditionSets", async () => {
+        const conditions = [eq(methodologyTransitionConditionSets.methodologyVersionId, versionId)];
 
         if (transitionId) {
-          conditions.push(eq(methodologyTransitionRequiredLinks.transitionId, transitionId));
+          conditions.push(eq(methodologyTransitionConditionSets.transitionId, transitionId));
         }
 
         const rows = await db
           .select()
-          .from(methodologyTransitionRequiredLinks)
+          .from(methodologyTransitionConditionSets)
           .where(and(...conditions))
-          .orderBy(asc(methodologyTransitionRequiredLinks.linkTypeKey));
+          .orderBy(
+            asc(methodologyTransitionConditionSets.transitionId),
+            asc(methodologyTransitionConditionSets.phase),
+            asc(methodologyTransitionConditionSets.key),
+          );
 
-        return rows.map(toTransitionRequiredLinkRow) as readonly TransitionRequiredLinkRow[];
+        return rows.map(toTransitionConditionSetRow) as readonly TransitionConditionSetRow[];
       }),
 
     findAgentTypes: (versionId: string) =>
@@ -368,8 +373,8 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
 
           // Delete existing lifecycle data for this version (full replace)
           await tx
-            .delete(methodologyTransitionRequiredLinks)
-            .where(eq(methodologyTransitionRequiredLinks.methodologyVersionId, params.versionId));
+            .delete(methodologyTransitionConditionSets)
+            .where(eq(methodologyTransitionConditionSets.methodologyVersionId, params.versionId));
 
           await tx
             .delete(methodologyLifecycleTransitions)
@@ -440,7 +445,7 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
                 required: true,
                 description: fact.description ?? null,
                 defaultValueJson: fact.defaultValue ?? null,
-                guidanceJson: fact.guidance ?? null,
+                guidanceJson: (fact.guidance ?? null) as unknown,
                 validationJson: fact.validation ?? null,
               });
             }
@@ -505,14 +510,15 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
 
               transitionIdByKey.set(transition.transitionKey, transRow.id);
 
-              // Insert required links for this transition
-              for (const link of transition.requiredLinks ?? []) {
-                await tx.insert(methodologyTransitionRequiredLinks).values({
+              for (const conditionSet of transition.conditionSets) {
+                await tx.insert(methodologyTransitionConditionSets).values({
                   methodologyVersionId: params.versionId,
                   transitionId: transRow.id,
-                  linkTypeKey: link.linkTypeKey,
-                  strength: link.strength ?? "hard",
-                  required: link.required ?? true,
+                  key: conditionSet.key,
+                  phase: conditionSet.phase,
+                  mode: conditionSet.mode,
+                  groupsJson: conditionSet.groups,
+                  guidanceJson: conditionSet.guidance ?? null,
                 });
               }
             }

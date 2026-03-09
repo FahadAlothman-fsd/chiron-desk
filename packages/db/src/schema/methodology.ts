@@ -157,6 +157,8 @@ export const methodologyAgentTypes = sqliteTable(
     defaultModelJson: text("default_model_json", { mode: "json" }),
     mcpServersJson: text("mcp_servers_json", { mode: "json" }),
     capabilitiesJson: text("capabilities_json", { mode: "json" }),
+    promptTemplateJson: text("prompt_template_json", { mode: "json" }),
+    promptTemplateVersion: integer("prompt_template_version").default(1).notNull(),
     guidanceJson: text("guidance_json", { mode: "json" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
@@ -274,8 +276,8 @@ export const methodologyFactSchemas = sqliteTable(
   ],
 );
 
-export const methodologyTransitionRequiredLinks = sqliteTable(
-  "methodology_transition_required_links",
+export const methodologyTransitionConditionSets = sqliteTable(
+  "methodology_transition_condition_sets",
   {
     id: text("id")
       .primaryKey()
@@ -286,9 +288,10 @@ export const methodologyTransitionRequiredLinks = sqliteTable(
     transitionId: text("transition_id")
       .notNull()
       .references(() => methodologyLifecycleTransitions.id, { onDelete: "cascade" }),
-    linkTypeKey: text("link_type_key").notNull(),
-    strength: text("strength").notNull(),
-    required: integer("required", { mode: "boolean" }).default(true).notNull(),
+    key: text("key").notNull(),
+    phase: text("phase").notNull(),
+    mode: text("mode").notNull().default("all"),
+    groupsJson: text("groups_json", { mode: "json" }).notNull(),
     guidanceJson: text("guidance_json", { mode: "json" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
@@ -297,12 +300,13 @@ export const methodologyTransitionRequiredLinks = sqliteTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    uniqueIndex("methodology_trl_vid_trans_link_idx").on(
+    uniqueIndex("methodology_tcs_vid_transition_phase_key_idx").on(
       table.methodologyVersionId,
       table.transitionId,
-      table.linkTypeKey,
+      table.phase,
+      table.key,
     ),
-    index("methodology_trl_vid_trans_idx").on(table.methodologyVersionId, table.transitionId),
+    index("methodology_tcs_vid_transition_idx").on(table.methodologyVersionId, table.transitionId),
   ],
 );
 
@@ -320,7 +324,10 @@ export const methodologyWorkflows = sqliteTable(
     }),
     key: text("key").notNull(),
     displayName: text("display_name"),
+    metadataJson: text("metadata_json", { mode: "json" }),
     guidanceJson: text("guidance_json", { mode: "json" }),
+    inputContractJson: text("input_contract_json", { mode: "json" }),
+    outputContractJson: text("output_contract_json", { mode: "json" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .default(timestampDefault)
