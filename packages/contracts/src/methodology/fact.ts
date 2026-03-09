@@ -1,24 +1,18 @@
 import { Schema } from "effect";
 
+export const MarkdownContent = Schema.Struct({ markdown: Schema.String });
+export type MarkdownContent = typeof MarkdownContent.Type;
+
+export const AudienceMarkdownJson = Schema.Struct({
+  human: MarkdownContent,
+  agent: MarkdownContent,
+});
+export type AudienceMarkdownJson = typeof AudienceMarkdownJson.Type;
+
 export const FactType = Schema.Literal("string", "number", "boolean", "json");
 export type FactType = typeof FactType.Type;
 
-export const FactGuidance = Schema.Struct({
-  human: Schema.optional(
-    Schema.Struct({
-      short: Schema.optional(Schema.String),
-      long: Schema.optional(Schema.String),
-      examples: Schema.optionalWith(Schema.Array(Schema.Unknown), { default: () => [] }),
-    }),
-  ),
-  agent: Schema.optional(
-    Schema.Struct({
-      intent: Schema.optional(Schema.String),
-      constraints: Schema.optionalWith(Schema.Array(Schema.String), { default: () => [] }),
-      examples: Schema.optionalWith(Schema.Array(Schema.Unknown), { default: () => [] }),
-    }),
-  ),
-});
+export const FactGuidance = AudienceMarkdownJson;
 export type FactGuidance = typeof FactGuidance.Type;
 
 export const PathKind = Schema.Literal("file", "directory");
@@ -76,7 +70,7 @@ export const MethodologyFactDefinitionInput = Schema.Struct({
   key: Schema.NonEmptyString,
   factType: FactType,
   defaultValue: Schema.optional(Schema.Unknown),
-  description: Schema.optional(Schema.String),
+  description: Schema.optional(AudienceMarkdownJson),
   guidance: Schema.optional(FactGuidance),
   validation: Schema.optionalWith(FactValidation, { default: () => ({ kind: "none" as const }) }),
 });

@@ -1,5 +1,6 @@
 import { Schema } from "effect";
 import {
+  AudienceMarkdownJson,
   FactType,
   MethodologyFactDefinitionInput as MethodologyFactDefinitionInputSchema,
   type FactType as FactTypeType,
@@ -37,11 +38,52 @@ export const WorkflowStepType = Schema.Literal(
 );
 export type WorkflowStepType = typeof WorkflowStepType.Type;
 
+export const GuidanceJson = AudienceMarkdownJson;
+export type GuidanceJson = typeof GuidanceJson.Type;
+
+export const WorkflowMetadataValue = Schema.Union(
+  Schema.String,
+  Schema.Number,
+  Schema.Boolean,
+  Schema.Array(Schema.String),
+);
+export type WorkflowMetadataValue = typeof WorkflowMetadataValue.Type;
+
+export const WorkflowMetadata = Schema.Record({ key: Schema.String, value: WorkflowMetadataValue });
+export type WorkflowMetadata = typeof WorkflowMetadata.Type;
+
+export const WorkflowFactReference = Schema.Struct({
+  factKey: Schema.NonEmptyString,
+  displayName: Schema.String,
+  required: Schema.optionalWith(Schema.Boolean, { default: () => false }),
+  validation: Schema.optional(Schema.Unknown),
+});
+export type WorkflowFactReference = typeof WorkflowFactReference.Type;
+
+export const WorkflowInputContract = Schema.Struct({
+  kind: Schema.Literal("workflow-io.v1"),
+  inputs: Schema.Array(WorkflowFactReference),
+});
+export type WorkflowInputContract = typeof WorkflowInputContract.Type;
+
+export const WorkflowOutputContract = Schema.Struct({
+  kind: Schema.Literal("workflow-io.v1"),
+  outputs: Schema.Array(
+    Schema.Struct({
+      factKey: Schema.NonEmptyString,
+      displayName: Schema.String,
+      validation: Schema.optional(Schema.Unknown),
+    }),
+  ),
+});
+export type WorkflowOutputContract = typeof WorkflowOutputContract.Type;
+
 export const WorkflowStep = Schema.Struct({
   key: Schema.NonEmptyString,
   type: WorkflowStepType,
   displayName: Schema.optional(Schema.String),
   config: Schema.optional(Schema.Unknown),
+  guidance: Schema.optional(GuidanceJson),
 });
 export type WorkflowStep = typeof WorkflowStep.Type;
 
@@ -57,6 +99,10 @@ export const WorkflowDefinition = Schema.Struct({
   key: Schema.NonEmptyString,
   displayName: Schema.optional(Schema.String),
   workUnitTypeKey: Schema.optional(Schema.NonEmptyString),
+  metadata: Schema.optional(WorkflowMetadata),
+  guidance: Schema.optional(GuidanceJson),
+  inputContract: Schema.optional(WorkflowInputContract),
+  outputContract: Schema.optional(WorkflowOutputContract),
   steps: Schema.Array(WorkflowStep),
   edges: Schema.Array(WorkflowEdge),
 });
