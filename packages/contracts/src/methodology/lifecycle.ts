@@ -15,19 +15,45 @@ export const LifecycleState = Schema.Struct({
 });
 export type LifecycleState = typeof LifecycleState.Type;
 
-export const TransitionRequiredLink = Schema.Struct({
-  linkTypeKey: Schema.NonEmptyString,
-  strength: Schema.optional(Schema.Literal("hard", "soft", "context")),
+export const TransitionCondition = Schema.Struct({
+  kind: Schema.NonEmptyString,
   required: Schema.optionalWith(Schema.Boolean, { default: () => true }),
+  config: Schema.Unknown,
+  rationale: Schema.optional(Schema.String),
 });
-export type TransitionRequiredLink = typeof TransitionRequiredLink.Type;
+export type TransitionCondition = typeof TransitionCondition.Type;
+
+export const TransitionConditionGroupMode = Schema.Literal("all", "any");
+export type TransitionConditionGroupMode = typeof TransitionConditionGroupMode.Type;
+
+export const TransitionConditionGroup = Schema.Struct({
+  key: Schema.NonEmptyString,
+  mode: TransitionConditionGroupMode,
+  conditions: Schema.Array(TransitionCondition),
+});
+export type TransitionConditionGroup = typeof TransitionConditionGroup.Type;
+
+export const TransitionConditionSetPhase = Schema.Literal("start", "completion");
+export type TransitionConditionSetPhase = typeof TransitionConditionSetPhase.Type;
+
+export const TransitionConditionSetMode = Schema.Literal("all", "any");
+export type TransitionConditionSetMode = typeof TransitionConditionSetMode.Type;
+
+export const TransitionConditionSet = Schema.Struct({
+  key: Schema.NonEmptyString,
+  phase: TransitionConditionSetPhase,
+  mode: TransitionConditionSetMode,
+  groups: Schema.Array(TransitionConditionGroup),
+  guidance: Schema.optional(Schema.String),
+});
+export type TransitionConditionSet = typeof TransitionConditionSet.Type;
 
 export const LifecycleTransition = Schema.Struct({
   transitionKey: Schema.NonEmptyString,
   fromState: Schema.optional(Schema.String), // null/undefined = __absent__
   toState: Schema.NonEmptyString,
   gateClass: GateClass,
-  requiredLinks: Schema.Array(TransitionRequiredLink),
+  conditionSets: Schema.Array(TransitionConditionSet),
 });
 export type LifecycleTransition = typeof LifecycleTransition.Type;
 

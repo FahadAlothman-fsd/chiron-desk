@@ -1,13 +1,6 @@
 import { Schema } from "effect";
 import { GateClass } from "./lifecycle.js";
-import { DependencyStrength } from "./dependency.js";
-
-export const RequiredLinkEligibility = Schema.Struct({
-  linkTypeKey: Schema.NonEmptyString,
-  strength: DependencyStrength,
-  required: Schema.Boolean,
-});
-export type RequiredLinkEligibility = typeof RequiredLinkEligibility.Type;
+import { TransitionConditionSet } from "./lifecycle.js";
 
 export const WorkflowEligibilityDiagnostic = Schema.Struct({
   code: Schema.NonEmptyString,
@@ -23,7 +16,7 @@ export const TransitionEligibility = Schema.Struct({
   fromState: Schema.String,
   toState: Schema.NonEmptyString,
   gateClass: GateClass,
-  requiredLinks: Schema.Array(RequiredLinkEligibility),
+  conditionSets: Schema.Array(TransitionConditionSet),
   eligibleWorkflowKeys: Schema.Array(Schema.NonEmptyString),
   workflowSelectionRequired: Schema.Boolean,
   workflowBlocked: Schema.Boolean,
