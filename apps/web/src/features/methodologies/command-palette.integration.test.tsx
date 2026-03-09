@@ -175,9 +175,25 @@ describe("MethodologyCommandPalette integration", () => {
       methodologyKey: "equity-core",
       displayName: "Equity Core Draft 2",
       version: "0.2.0",
-      workUnitTypes: [{ key: "task" }],
-      transitions: [{ key: "start" }],
+      workUnitTypes: [
+        {
+          key: "task",
+          cardinality: "one_per_project",
+          lifecycleStates: [{ key: "done" }],
+          lifecycleTransitions: [
+            {
+              transitionKey: "start",
+              fromState: "__absent__",
+              toState: "done",
+              gateClass: "start_gate",
+              conditionSets: [],
+            },
+          ],
+          factSchemas: [],
+        },
+      ],
       agentTypes: [],
+      artifactTemplates: [],
     });
 
     await waitFor(() => {
