@@ -1,4 +1,5 @@
-import { describe, it, expect } from "bun:test";
+// @ts-nocheck
+import { describe, it, expect } from "vitest";
 import { validateLifecycleDefinition } from "./lifecycle-validation";
 import type { AgentTypeDefinition } from "@chiron/contracts/methodology/agent";
 import type { WorkUnitTypeDefinition } from "@chiron/contracts/methodology/lifecycle";
@@ -43,14 +44,14 @@ describe("lifecycle-validation", () => {
               fromState: "todo",
               toState: "done",
               gateClass: "completion_gate",
-              requiredLinks: [],
+              conditionSets: [],
             },
             {
               transitionKey: "complete", // Duplicate
               fromState: "todo",
               toState: "done",
               gateClass: "completion_gate",
-              requiredLinks: [],
+              conditionSets: [],
             },
           ],
           factSchemas: [],
@@ -78,7 +79,7 @@ describe("lifecycle-validation", () => {
               fromState: "undefined_state", // Undefined
               toState: "done",
               gateClass: "completion_gate",
-              requiredLinks: [],
+              conditionSets: [],
             },
           ],
           factSchemas: [],
@@ -108,7 +109,7 @@ describe("lifecycle-validation", () => {
               fromState: "todo",
               toState: "undefined_state", // Undefined
               gateClass: "completion_gate",
-              requiredLinks: [],
+              conditionSets: [],
             },
           ],
           factSchemas: [],
@@ -170,8 +171,8 @@ describe("lifecycle-validation", () => {
           lifecycleStates: [{ key: "active", displayName: "Active" }],
           lifecycleTransitions: [],
           factSchemas: [
-            { key: "priority", factType: "string", required: true },
-            { key: "priority", factType: "number", required: true }, // Duplicate
+            { key: "priority", factType: "string", required: true, validation: { kind: "none" } },
+            { key: "priority", factType: "number", required: true, validation: { kind: "none" } }, // Duplicate
           ],
         },
       ];
@@ -190,7 +191,7 @@ describe("lifecycle-validation", () => {
           lifecycleStates: [{ key: "active", displayName: "Active" }],
           lifecycleTransitions: [],
           factSchemas: [
-            { key: "data", factType: "array", required: true }, // Invalid type
+            { key: "data", factType: "array", required: true, validation: { kind: "none" } }, // Invalid type
           ],
         },
       ] as WorkUnitTypeDefinition[];
@@ -216,6 +217,7 @@ describe("lifecycle-validation", () => {
                 key: "field",
                 factType: factType as "string" | "number" | "boolean" | "json",
                 required: true,
+                validation: { kind: "none" },
               },
             ],
           },
@@ -246,7 +248,7 @@ describe("lifecycle-validation", () => {
               fromState: "todo",
               toState: "done",
               gateClass: "invalid_gate", // Invalid
-              requiredLinks: [],
+              conditionSets: [],
             },
           ],
           factSchemas: [],
@@ -277,7 +279,7 @@ describe("lifecycle-validation", () => {
                 fromState: "todo",
                 toState: "done",
                 gateClass: gateClass as "start_gate" | "completion_gate",
-                requiredLinks: [],
+                conditionSets: [],
               },
             ],
             factSchemas: [],
@@ -309,7 +311,7 @@ describe("lifecycle-validation", () => {
               fromState: "active",
               toState: "__absent__", // Invalid direction
               gateClass: "completion_gate",
-              requiredLinks: [],
+              conditionSets: [],
             },
           ],
           factSchemas: [],
@@ -336,7 +338,7 @@ describe("lifecycle-validation", () => {
               fromState: undefined, // __absent__
               toState: "active",
               gateClass: "start_gate",
-              requiredLinks: [],
+              conditionSets: [],
             },
           ],
           factSchemas: [],
@@ -367,11 +369,11 @@ describe("lifecycle-validation", () => {
               fromState: "undefined_ref", // Undefined
               toState: "state1",
               gateClass: "invalid_gate", // Invalid
-              requiredLinks: [],
+              conditionSets: [],
             },
           ],
           factSchemas: [
-            { key: "fact1", factType: "invalid", required: true }, // Invalid
+            { key: "fact1", factType: "invalid", required: true, validation: { kind: "none" } }, // Invalid
           ],
         },
         {
@@ -471,36 +473,46 @@ describe("lifecycle-validation", () => {
               fromState: undefined, // __absent__ -> backlog
               toState: "backlog",
               gateClass: "start_gate",
-              requiredLinks: [],
+              conditionSets: [],
             },
             {
               transitionKey: "pickup",
               fromState: "backlog",
               toState: "in_progress",
               gateClass: "start_gate",
-              requiredLinks: [],
+              conditionSets: [],
             },
             {
               transitionKey: "submit",
               fromState: "in_progress",
               toState: "review",
               gateClass: "completion_gate",
-              requiredLinks: [],
+              conditionSets: [],
             },
             {
               transitionKey: "approve",
               fromState: "review",
               toState: "done",
               gateClass: "completion_gate",
-              requiredLinks: [],
+              conditionSets: [],
             },
           ],
           factSchemas: [
-            { key: "title", factType: "string", required: true },
-            { key: "description", factType: "string", required: false },
-            { key: "priority", factType: "number", required: true },
-            { key: "metadata", factType: "json", required: false },
-            { key: "is_urgent", factType: "boolean", required: false },
+            { key: "title", factType: "string", required: true, validation: { kind: "none" } },
+            {
+              key: "description",
+              factType: "string",
+              required: false,
+              validation: { kind: "none" },
+            },
+            { key: "priority", factType: "number", required: true, validation: { kind: "none" } },
+            { key: "metadata", factType: "json", required: false, validation: { kind: "none" } },
+            {
+              key: "is_urgent",
+              factType: "boolean",
+              required: false,
+              validation: { kind: "none" },
+            },
           ],
         },
       ];
