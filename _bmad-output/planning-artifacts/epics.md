@@ -741,6 +741,11 @@ So that Epic 3 execution work starts from coherent boundaries without `definitio
 
 Deliver the full `WU.PROJECT_CONTEXT` onboarding flow through segmented runtime slices, while proving execution-layer resilience and gate evidence quality required for G3 promotion.
 
+Epic 3 additionally establishes canonical artifact persistence primitives for this slice:
+- artifact templates catalog (`artifact_templates`)
+- work-unit artifact slots (`work_unit_artifact_slots`)
+- append-only artifact snapshots (`work_unit_artifact_snapshots`)
+
 ### Story 3.1: Add Design-Time Workflow Builder Enhancements for Runtime Authoring
 
 As an operator,
@@ -754,8 +759,8 @@ So that methodology guidance and runtime behavior are modeled consistently befor
 - `nfrRefs`: `NFR1`, `NFR5`
 - `adrRefs`: `ADR-EF-B01`, `ADR-EF-B02`, `ADR-EF-03`, `ADR-EF-06`
 - `gateRefs`: `G3`
-- `evidenceRefs`: `builder-graph-config-log`, `step-type-node-shape-log`, `branch-multi-edge-log`, `form-builder-authoring-log`, `agent-config-authoring-log`, `action-type-authoring-log`, `display-plate-edit-log`
-- `diagnosticRefs`: `builder-validation-diagnostics`, `step-config-schema-diagnostics`, `form-config-validation-diagnostics`, `agent-config-validation-diagnostics`
+- `evidenceRefs`: `builder-graph-config-log`, `step-type-node-shape-log`, `branch-multi-edge-log`, `form-builder-authoring-log`, `agent-config-authoring-log`, `action-type-authoring-log`, `artifact-template-authoring-log`, `display-plate-edit-log`
+- `diagnosticRefs`: `builder-validation-diagnostics`, `step-config-schema-diagnostics`, `form-config-validation-diagnostics`, `agent-config-validation-diagnostics`, `artifact-template-config-diagnostics`
 
 **Acceptance Criteria:**
 
@@ -784,6 +789,11 @@ So that methodology guidance and runtime behavior are modeled consistently befor
 **When** I select action kinds
 **Then** I can choose from the currently supported onboarding action kinds used in this slice
 **And** unsupported/new action kinds are explicitly deferred to later stories with deterministic validation errors.
+
+**Given** I configure artifact behavior for onboarding outputs
+**When** I open artifact configuration
+**Then** I can select an artifact template and bind it to a work-unit artifact slot
+**And** template and slot references are validated against canonical tables before save.
 
 **Given** I edit a `display` step
 **When** I open content editing
@@ -908,8 +918,8 @@ So that greenfield onboarding produces auditable outputs.
 - `nfrRefs`: `NFR1`, `NFR2`, `NFR5`
 - `adrRefs`: `ADR-EF-B01`, `ADR-EF-B02`, `ADR-EF-01`, `ADR-EF-03`, `ADR-EF-06`
 - `gateRefs`: `G3`
-- `evidenceRefs`: `greenfield-path-capture-log`, `bootstrap-artifact-snapshot-log`, `git-bootstrap-evidence-log`, `greenfield-summary-render-log`
-- `diagnosticRefs`: `path-validation-diagnostics`, `action-side-effect-diagnostics`, `display-render-diagnostics`
+- `evidenceRefs`: `greenfield-path-capture-log`, `bootstrap-artifact-snapshot-log`, `artifact-slot-binding-log`, `artifact-template-resolution-log`, `git-bootstrap-evidence-log`, `greenfield-summary-render-log`
+- `diagnosticRefs`: `path-validation-diagnostics`, `action-side-effect-diagnostics`, `artifact-persistence-diagnostics`, `display-render-diagnostics`
 
 **Acceptance Criteria:**
 
@@ -920,6 +930,11 @@ So that greenfield onboarding produces auditable outputs.
 **Given** greenfield paths are valid
 **When** `greenfield.bootstrap.action` executes
 **Then** git init-if-missing, bootstrap snapshot persistence, and commit evidence are performed deterministically.
+
+**Given** bootstrap snapshot persistence runs
+**When** artifact write is committed
+**Then** output is written through canonical `work_unit_artifact_slots` and append-only `work_unit_artifact_snapshots`
+**And** template rendering source is recorded from canonical `artifact_templates`.
 
 **Given** bootstrap action completed
 **When** `greenfield.summary.show` renders
@@ -976,8 +991,8 @@ So that onboarding can complete with deterministic generated context artifacts.
 - `nfrRefs`: `NFR1`, `NFR2`
 - `adrRefs`: `ADR-EF-B01`, `ADR-EF-B02`, `ADR-EF-01`, `ADR-EF-03`, `ADR-EF-04`, `ADR-EF-06`
 - `gateRefs`: `G3`
-- `evidenceRefs`: `same-work-unit-invoke-log`, `invoke-io-mapping-log`, `generate-context-subworkflow-log`, `artifact-snapshot-log`, `traceability-output-log`
-- `diagnosticRefs`: `invoke-contract-diagnostics`, `subworkflow-failure-diagnostics`, `io-mapping-diagnostics`
+- `evidenceRefs`: `same-work-unit-invoke-log`, `invoke-io-mapping-log`, `generate-context-subworkflow-log`, `artifact-snapshot-log`, `artifact-slot-binding-log`, `traceability-output-log`
+- `diagnosticRefs`: `invoke-contract-diagnostics`, `subworkflow-failure-diagnostics`, `io-mapping-diagnostics`, `artifact-template-resolution-diagnostics`
 
 **Acceptance Criteria:**
 
@@ -992,6 +1007,11 @@ So that onboarding can complete with deterministic generated context artifacts.
 **Given** sub-workflow executes
 **When** `inputs.confirm -> context.generate -> artifact.snapshot.save -> result.show` completes
 **Then** artifact snapshot and traceability outputs are persisted and mapped back to parent context.
+
+**Given** `artifact.snapshot.save` executes
+**When** generated context is persisted
+**Then** snapshot persistence uses canonical artifact slot and snapshot tables
+**And** snapshot metadata includes template reference, slot key, and lineage identifiers.
 
 **Given** sub-workflow fails
 **When** `onChildError=fail` applies
@@ -1026,6 +1046,11 @@ So that execution state remains consistent and observable.
 **Given** replay/retry is triggered for an onboarding attempt
 **When** idempotency boundaries are evaluated
 **Then** duplicate side effects are prevented and diagnostics remain deterministic.
+
+**Given** an onboarding step replays after artifact persistence
+**When** idempotency checks run
+**Then** duplicate artifact snapshots are prevented for the same idempotency boundary
+**And** deterministic diagnostics identify whether snapshot reuse or append is applied.
 
 **Given** runtime recovery scenarios execute
 **When** evidence is inspected
