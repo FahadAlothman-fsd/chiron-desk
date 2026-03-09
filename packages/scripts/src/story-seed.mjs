@@ -4,6 +4,10 @@ import { Console, Effect } from "effect";
 
 import { auth } from "@chiron/auth";
 import { db, schema } from "@chiron/db";
+import {
+  METHODOLOGY_CANONICAL_TABLE_SEED_ORDER,
+  methodologyCanonicalTableSeedRows,
+} from "./seed/methodology/index.ts";
 
 import { classifySeedError, shouldSkipSeedError } from "./seed-error-handling.ts";
 import { formatStorySeedNotFoundError, getStorySeedPlan } from "./story-seed-fixtures.ts";
@@ -11,7 +15,7 @@ import { formatStorySeedNotFoundError, getStorySeedPlan } from "./story-seed-fix
 const parseArgs = (args) => {
   const reset = args.includes("--reset") || args.includes("-r");
   const storyArg = args.find((arg) => arg.startsWith("--story="));
-  const storyId = storyArg ? storyArg.slice("--story=".length) : "2-1";
+  const storyId = storyArg ? storyArg.slice("--story=".length) : "2-7";
 
   return { reset, storyId };
 };
@@ -67,15 +71,66 @@ const upsertMethodologyVersions = (plan) => {
       .onConflictDoUpdate({
         target: [schema.methodologyVersions.methodologyId, schema.methodologyVersions.version],
         set: {
+          id: sql`excluded.id`,
           status: sql`excluded.status`,
           displayName: sql`excluded.display_name`,
-          definitionExtensions: sql`excluded.definition_extensions_json`,
+          definitionExtensions: sql`json('{}')`,
           retiredAt: sql`excluded.retired_at`,
           updatedAt: sql`CURRENT_TIMESTAMP`,
         },
       }),
   ).pipe(Effect.asVoid);
 };
+
+const CANONICAL_TABLES = {
+  methodology_work_unit_types: schema.methodologyWorkUnitTypes,
+  methodology_agent_types: schema.methodologyAgentTypes,
+  methodology_lifecycle_states: schema.methodologyLifecycleStates,
+  methodology_lifecycle_transitions: schema.methodologyLifecycleTransitions,
+  methodology_transition_condition_sets: schema.methodologyTransitionConditionSets,
+  methodology_transition_required_links: schema.methodologyTransitionRequiredLinks,
+  methodology_fact_schemas: schema.methodologyFactSchemas,
+  methodology_link_type_definitions: schema.methodologyLinkTypeDefinitions,
+  methodology_workflows: schema.methodologyWorkflows,
+  methodology_workflow_steps: schema.methodologyWorkflowSteps,
+  methodology_workflow_edges: schema.methodologyWorkflowEdges,
+  methodology_transition_workflow_bindings: schema.methodologyTransitionWorkflowBindings,
+  methodology_fact_definitions: schema.methodologyFactDefinitions,
+};
+
+const seedCanonicalMethodologyTables = (plan) =>
+  Effect.gen(function* () {
+    const versionIds = plan.methodologyVersions.map((version) => version.id);
+
+    yield* Effect.forEach(
+      [...METHODOLOGY_CANONICAL_TABLE_SEED_ORDER].reverse(),
+      (tableName) =>
+        tryDb(`clear_${tableName}`, () => {
+          const table = CANONICAL_TABLES[tableName];
+          return db.delete(table).where(inArray(table.methodologyVersionId, versionIds));
+        }).pipe(Effect.asVoid),
+      { discard: true },
+    );
+
+    yield* Effect.forEach(
+      METHODOLOGY_CANONICAL_TABLE_SEED_ORDER,
+      (tableName) => {
+        const table = CANONICAL_TABLES[tableName];
+        const rows = methodologyCanonicalTableSeedRows[tableName].filter((row) =>
+          versionIds.includes(row.methodologyVersionId),
+        );
+
+        if (rows.length === 0) {
+          return Effect.void;
+        }
+
+        return tryDb(`insert_${tableName}`, () => db.insert(table).values(rows)).pipe(
+          Effect.asVoid,
+        );
+      },
+      { discard: true },
+    );
+  });
 
 const seedUsers = (plan) =>
   Effect.gen(function* () {
@@ -150,6 +205,7 @@ const program = Effect.gen(function* () {
 
   yield* upsertMethodologyDefinitions(plan);
   yield* upsertMethodologyVersions(plan);
+  yield* seedCanonicalMethodologyTables(plan);
   yield* seedUsers(plan);
 
   yield* Console.log(`Story seed '${plan.storyId}' applied successfully.`);
