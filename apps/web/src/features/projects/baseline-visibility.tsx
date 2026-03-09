@@ -30,7 +30,13 @@ export type BaselineTransition = {
   status: TransitionPreviewStatus;
   statusReasonCode: string;
   guidance?: unknown;
-  requiredLinks: Array<{ linkTypeKey: string; strength?: string; required?: boolean }>;
+  conditionSets: Array<{
+    key: string;
+    phase: "start" | "completion";
+    mode: "all" | "any";
+    groups: unknown[];
+    guidance?: string;
+  }>;
   diagnostics: ValidationDiagnostic[];
   workflows: Array<{
     workflowKey: string;

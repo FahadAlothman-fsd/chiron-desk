@@ -136,7 +136,8 @@ function createHarness(options: HarnessOptions = {}) {
                 pinnedVersion: "1.0.0",
                 publishState: "published",
                 validationStatus: "pass",
-                setupFactsStatus: "Deferred to WU.SETUP/setup-project in Epic 3.",
+                setupFactsStatus:
+                  "Deferred to WU.PROJECT_CONTEXT/document-project runtime execution in Epic 3.",
               },
               transitionPreview: {
                 workUnitTypeKey: "task",
@@ -149,7 +150,7 @@ function createHarness(options: HarnessOptions = {}) {
                     gateClass: "start_gate",
                     status: "blocked",
                     statusReasonCode: "MISSING_PREVIEW_PREREQUISITE_FACT",
-                    requiredLinks: [],
+                    conditionSets: [],
                     diagnostics: [],
                     workflows: [
                       {
@@ -167,7 +168,7 @@ function createHarness(options: HarnessOptions = {}) {
                     gateClass: "completion_gate",
                     status: "future",
                     statusReasonCode: "FUTURE_NOT_IN_CURRENT_CONTEXT",
-                    requiredLinks: [],
+                    conditionSets: [],
                     diagnostics: [],
                     workflows: [],
                   },

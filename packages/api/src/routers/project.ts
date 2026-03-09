@@ -4,15 +4,13 @@ import { ORPCError } from "@orpc/server";
 import { Effect, Layer } from "effect";
 import { z } from "zod";
 
-import type {
-  EligibilityService,
-  MethodologyError,
-  MethodologyVersionService,
-} from "@chiron/methodology-engine";
+import type { EligibilityService, MethodologyVersionService } from "@chiron/methodology-engine";
 import {
   EligibilityService as EligibilityServiceTag,
   MethodologyVersionService as MethodologyVersionServiceTag,
 } from "@chiron/methodology-engine";
+import type { ProjectContextService } from "@chiron/project-context";
+import { ProjectContextService as ProjectContextServiceTag } from "@chiron/project-context";
 import { protectedProcedure, publicProcedure } from "../index";
 
 const createAndPinProjectInput = z.object({
@@ -42,7 +40,7 @@ function toValidationStatus(
   return summary.diagnostics.some((diagnostic) => diagnostic.blocking) ? "fail" : "warn";
 }
 
-function mapEffectError(err: MethodologyError | unknown): never {
+function mapEffectError(err: unknown): never {
   const tag =
     err && typeof err === "object" && "_tag" in err ? (err as { _tag: string })._tag : undefined;
 
@@ -61,10 +59,10 @@ function mapEffectError(err: MethodologyError | unknown): never {
   }
 }
 
-function runEffect<A, R extends MethodologyVersionService | EligibilityService>(
-  serviceLayer: Layer.Layer<R>,
-  effect: Effect.Effect<A, MethodologyError, R>,
-): Promise<A> {
+function runEffect<
+  A,
+  R extends MethodologyVersionService | EligibilityService | ProjectContextService,
+>(serviceLayer: Layer.Layer<R>, effect: Effect.Effect<A, unknown, R>): Promise<A> {
   return Effect.runPromise(
     effect.pipe(
       Effect.provide(serviceLayer),
@@ -74,7 +72,7 @@ function runEffect<A, R extends MethodologyVersionService | EligibilityService>(
 }
 
 export function createProjectRouter(
-  serviceLayer: Layer.Layer<MethodologyVersionService | EligibilityService>,
+  serviceLayer: Layer.Layer<MethodologyVersionService | EligibilityService | ProjectContextService>,
 ) {
   type ProjectionFactSchema = {
     key: string;
@@ -90,10 +88,12 @@ export function createProjectRouter(
     fromState?: string;
     toState: string;
     gateClass: "start_gate" | "completion_gate";
-    requiredLinks?: Array<{
-      linkTypeKey: string;
-      strength?: "hard" | "soft" | "context";
-      required?: boolean;
+    conditionSets?: Array<{
+      key: string;
+      phase: "start" | "completion";
+      mode: "all" | "any";
+      groups: unknown[];
+      guidance?: string;
     }>;
   };
 
@@ -134,8 +134,8 @@ export function createProjectRouter(
       return runEffect(
         serviceLayer,
         Effect.gen(function* () {
-          const svc = yield* MethodologyVersionServiceTag;
-          return yield* svc.listProjects();
+          const projectSvc = yield* ProjectContextServiceTag;
+          return yield* projectSvc.listProjects();
         }),
       );
     }),
@@ -146,10 +146,10 @@ export function createProjectRouter(
         return runEffect(
           serviceLayer,
           Effect.gen(function* () {
-            const svc = yield* MethodologyVersionServiceTag;
+            const projectSvc = yield* ProjectContextServiceTag;
             const projectId = randomUUID();
-            const project = yield* svc.createProject(projectId, input.name);
-            const result = yield* svc.pinProjectMethodologyVersion(
+            const project = yield* projectSvc.createProject(projectId, input.name);
+            const result = yield* projectSvc.pinProjectMethodologyVersion(
               {
                 projectId,
                 methodologyKey: input.methodologyKey,
@@ -170,11 +170,14 @@ export function createProjectRouter(
 
     getProjectDetails: publicProcedure.input(getProjectDetailsInput).handler(async ({ input }) => {
       return runEffect(
-        serviceLayer as Layer.Layer<MethodologyVersionService | EligibilityService>,
+        serviceLayer as Layer.Layer<
+          MethodologyVersionService | EligibilityService | ProjectContextService
+        >,
         Effect.gen(function* () {
-          const svc = yield* MethodologyVersionServiceTag;
+          const projectSvc = yield* ProjectContextServiceTag;
+          const methodologySvc = yield* MethodologyVersionServiceTag;
           const eligibilitySvc = yield* EligibilityServiceTag;
-          const project = yield* svc.getProjectById(input.projectId);
+          const project = yield* projectSvc.getProjectById(input.projectId);
 
           if (!project) {
             throw new ORPCError("NOT_FOUND", {
@@ -182,30 +185,32 @@ export function createProjectRouter(
             });
           }
 
-          const pin = yield* svc.getProjectMethodologyPin(input.projectId);
-          const lineage = yield* svc.getProjectPinLineage({ projectId: input.projectId });
+          const pin = yield* projectSvc.getProjectMethodologyPin(input.projectId);
+          const lineage = yield* projectSvc.getProjectPinLineage({ projectId: input.projectId });
 
           const baselinePreview = yield* Effect.gen(function* () {
             if (!pin) {
               return null;
             }
 
-            const methodologyDetails = yield* svc.getMethodologyDetails(pin.methodologyKey);
+            const methodologyDetails = yield* methodologySvc.getMethodologyDetails(
+              pin.methodologyKey,
+            );
             const versionDetails =
               methodologyDetails?.versions.find(
                 (version) => version.id === pin.methodologyVersionId,
               ) ?? null;
-            const publicationEvidence = yield* svc.getPublicationEvidence({
+            const publicationEvidence = yield* methodologySvc.getPublicationEvidence({
               methodologyVersionId: pin.methodologyVersionId,
             });
             const latestPublicationEvidence = publicationEvidence.at(-1) ?? null;
             const draftProjection = (yield* Effect.catchTag(
-              svc.getDraftProjection(pin.methodologyVersionId),
+              methodologySvc.getDraftProjection(pin.methodologyVersionId),
               "ValidationDecodeError",
               () => Effect.succeed(null),
             )) as DraftProjection | null;
 
-            const setupWorkUnitKeys = new Set(["WU.SETUP", "project_setup", "setup"]);
+            const projectContextWorkUnitKey = "WU.PROJECT_CONTEXT";
             const requestedWorkUnitType = input.workUnitTypeKey
               ? (draftProjection?.workUnitTypes.find(
                   (workUnitType) => workUnitType.key === input.workUnitTypeKey,
@@ -213,8 +218,8 @@ export function createProjectRouter(
               : null;
             const activeWorkUnitType =
               requestedWorkUnitType ??
-              draftProjection?.workUnitTypes.find((workUnitType) =>
-                setupWorkUnitKeys.has(workUnitType.key),
+              draftProjection?.workUnitTypes.find(
+                (workUnitType) => workUnitType.key === projectContextWorkUnitKey,
               ) ??
               draftProjection?.workUnitTypes[0] ??
               null;
@@ -235,7 +240,7 @@ export function createProjectRouter(
             }));
             const shouldBlockOnMissingFacts =
               missingRequiredFactDiagnostics.length > 0 &&
-              !setupWorkUnitKeys.has(activeWorkUnitTypeKey ?? "");
+              activeWorkUnitTypeKey !== projectContextWorkUnitKey;
 
             const eligibleTransitions = activeWorkUnitTypeKey
               ? (yield* eligibilitySvc.getTransitionEligibility({
@@ -251,7 +256,7 @@ export function createProjectRouter(
             );
 
             const publishedContract = activeWorkUnitTypeKey
-              ? yield* svc.getPublishedContractByVersionAndWorkUnitType({
+              ? yield* methodologySvc.getPublishedContractByVersionAndWorkUnitType({
                   methodologyKey: pin.methodologyKey,
                   publishedVersion: pin.publishedVersion,
                   workUnitTypeKey: activeWorkUnitTypeKey,
@@ -368,11 +373,13 @@ export function createProjectRouter(
                 fromState: eligibility?.fromState ?? transition.fromState ?? null,
                 toState: eligibility?.toState ?? transition.toState,
                 gateClass: eligibility?.gateClass ?? transition.gateClass,
-                requiredLinks: (eligibility?.requiredLinks ?? transition.requiredLinks ?? []).map(
-                  (link) => ({
-                    linkTypeKey: link.linkTypeKey,
-                    strength: link.strength,
-                    required: link.required,
+                conditionSets: (eligibility?.conditionSets ?? transition.conditionSets ?? []).map(
+                  (conditionSet) => ({
+                    key: conditionSet.key,
+                    phase: conditionSet.phase,
+                    mode: conditionSet.mode,
+                    groups: conditionSet.groups,
+                    guidance: conditionSet.guidance,
                   }),
                 ),
                 status,
@@ -407,30 +414,39 @@ export function createProjectRouter(
             );
 
             const pinDiagnostics = lineage
-              .filter((event) => event.eventType === "pinned")
-              .map((event) => ({
-                code: "PROJECT_PIN_EVENT_RECORDED",
-                scope: `project.${input.projectId}.pin`,
-                blocking: false,
-                required: "Pin lineage event is persisted.",
-                observed: `Pinned ${event.newVersion}`,
-                remediation: null,
-                timestamp: event.timestamp,
-                evidenceRef: event.evidenceRef,
-              }));
+              .filter((event: { eventType: string }) => event.eventType === "pinned")
+              .map(
+                (event: { newVersion: string; timestamp: string; evidenceRef: string | null }) => ({
+                  code: "PROJECT_PIN_EVENT_RECORDED",
+                  scope: `project.${input.projectId}.pin`,
+                  blocking: false,
+                  required: "Pin lineage event is persisted.",
+                  observed: `Pinned ${event.newVersion}`,
+                  remediation: null,
+                  timestamp: event.timestamp,
+                  evidenceRef: event.evidenceRef,
+                }),
+              );
 
             const repinPolicyDiagnostics = lineage
-              .filter((event) => event.eventType === "repinned")
-              .map((event) => ({
-                code: "PROJECT_REPIN_POLICY_EVENT_RECORDED",
-                scope: `project.${input.projectId}.repin-policy`,
-                blocking: false,
-                required: "Repin policy checks passed before repin lineage event.",
-                observed: `Repinned ${event.previousVersion ?? "unknown"} -> ${event.newVersion}`,
-                remediation: null,
-                timestamp: event.timestamp,
-                evidenceRef: event.evidenceRef,
-              }));
+              .filter((event: { eventType: string }) => event.eventType === "repinned")
+              .map(
+                (event: {
+                  previousVersion: string | null;
+                  newVersion: string;
+                  timestamp: string;
+                  evidenceRef: string | null;
+                }) => ({
+                  code: "PROJECT_REPIN_POLICY_EVENT_RECORDED",
+                  scope: `project.${input.projectId}.repin-policy`,
+                  blocking: false,
+                  required: "Repin policy checks passed before repin lineage event.",
+                  observed: `Repinned ${event.previousVersion ?? "unknown"} -> ${event.newVersion}`,
+                  remediation: null,
+                  timestamp: event.timestamp,
+                  evidenceRef: event.evidenceRef,
+                }),
+              );
 
             return {
               isPreview: true,
@@ -451,7 +467,8 @@ export function createProjectRouter(
                       }
                     : null,
                 ),
-                setupFactsStatus: "Deferred to WU.SETUP/setup-project in Epic 3.",
+                setupFactsStatus:
+                  "Deferred to WU.PROJECT_CONTEXT/document-project runtime execution in Epic 3.",
               },
               transitionPreview: {
                 workUnitTypeKey: activeWorkUnitTypeKey,
@@ -554,12 +571,19 @@ export function createProjectRouter(
                   timestamp: evidence.timestamp,
                   reference: evidence.evidenceRef,
                 })),
-                ...lineage.map((event) => ({
-                  kind: event.eventType === "pinned" ? ("pin" as const) : ("repin" as const),
-                  actor: event.actorId,
-                  timestamp: event.timestamp,
-                  reference: event.evidenceRef,
-                })),
+                ...lineage.map(
+                  (event: {
+                    eventType: string;
+                    actorId: string | null;
+                    timestamp: string;
+                    evidenceRef: string | null;
+                  }) => ({
+                    kind: event.eventType === "pinned" ? ("pin" as const) : ("repin" as const),
+                    actor: event.actorId,
+                    timestamp: event.timestamp,
+                    reference: event.evidenceRef,
+                  }),
+                ),
               ].sort((a, b) =>
                 a.timestamp === b.timestamp
                   ? `${a.kind}:${a.reference}`.localeCompare(`${b.kind}:${b.reference}`)

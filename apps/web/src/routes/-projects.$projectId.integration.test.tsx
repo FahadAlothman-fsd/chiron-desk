@@ -57,10 +57,11 @@ function createHarness() {
                 pinnedVersion: "1.0.0",
                 publishState: "published",
                 validationStatus: "pass",
-                setupFactsStatus: "Deferred to WU.SETUP/setup-project in Epic 3.",
+                setupFactsStatus:
+                  "Deferred to WU.PROJECT_CONTEXT/document-project runtime execution in Epic 3.",
               },
               transitionPreview: {
-                workUnitTypeKey: "WU.SETUP",
+                workUnitTypeKey: "WU.PROJECT_CONTEXT",
                 currentState: "__absent__",
                 transitions: [
                   {
@@ -73,11 +74,18 @@ function createHarness() {
                     guidance: {
                       intent: "Initialize project prerequisites before first handoff.",
                     },
-                    requiredLinks: [],
+                    conditionSets: [
+                      {
+                        key: "gate.activate.wu.project_context",
+                        phase: "start",
+                        mode: "all",
+                        groups: [],
+                      },
+                    ],
                     diagnostics: [],
                     workflows: [
                       {
-                        workflowKey: "setup-project",
+                        workflowKey: "document-project",
                         enabled: false,
                         disabledReason: "Workflow runtime execution unlocks in Epic 3+",
                         helperText: "Execution is enabled in Epic 3 after start-gate preflight.",
@@ -92,7 +100,7 @@ function createHarness() {
                     gateClass: "completion_gate",
                     status: "future",
                     statusReasonCode: "FUTURE_NOT_IN_CURRENT_CONTEXT",
-                    requiredLinks: [],
+                    conditionSets: [],
                     diagnostics: [],
                     workflows: [],
                   },
@@ -101,7 +109,7 @@ function createHarness() {
               projectionSummary: {
                 workUnits: [
                   {
-                    workUnitTypeKey: "WU.SETUP",
+                    workUnitTypeKey: "WU.PROJECT_CONTEXT",
                     guidance: {
                       intent: "Prepare project context and prerequisite facts.",
                     },
@@ -231,7 +239,9 @@ describe("project dashboard route", () => {
     );
 
     expect(await screen.findByText("Baseline visibility")).toBeTruthy();
-    expect(await screen.findByText("Transition readiness preview (WU.SETUP)")).toBeTruthy();
+    expect(
+      await screen.findByText("Transition readiness preview (WU.PROJECT_CONTEXT)"),
+    ).toBeTruthy();
     expect(await screen.findByText("reason: Missing Preview Prerequisite Fact")).toBeTruthy();
     expect(screen.queryByText("future-path")).toBeNull();
 
