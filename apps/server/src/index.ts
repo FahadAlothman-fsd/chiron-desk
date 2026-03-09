@@ -11,9 +11,18 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { streamSSE } from "hono/streaming";
-import { db, createMethodologyRepoLayer, createLifecycleRepoLayer } from "@chiron/db";
+import {
+  db,
+  createMethodologyRepoLayer,
+  createLifecycleRepoLayer,
+  createProjectContextRepoLayer,
+} from "@chiron/db";
 
-const appRouter = createAppRouter(createMethodologyRepoLayer(db), createLifecycleRepoLayer(db));
+const appRouter = createAppRouter(
+  createMethodologyRepoLayer(db),
+  createLifecycleRepoLayer(db),
+  createProjectContextRepoLayer(db),
+);
 
 const app = new Hono();
 

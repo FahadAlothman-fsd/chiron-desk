@@ -14,3 +14,4 @@ export { schema };
 
 export { createMethodologyRepoLayer } from "./methodology-repository";
 export { createLifecycleRepoLayer } from "./lifecycle-repository";
+export { createProjectContextRepoLayer } from "./project-context-repository";

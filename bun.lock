@@ -118,6 +118,7 @@
         "@chiron/db": "workspace:*",
         "@chiron/env": "workspace:*",
         "@chiron/methodology-engine": "workspace:*",
+        "@chiron/project-context": "workspace:*",
         "@orpc/client": "catalog:",
         "@orpc/openapi": "catalog:",
         "@orpc/server": "catalog:",
@@ -179,6 +180,7 @@
         "@chiron/contracts": "workspace:*",
         "@chiron/env": "workspace:*",
         "@chiron/methodology-engine": "workspace:*",
+        "@chiron/project-context": "workspace:*",
         "@libsql/client": "catalog:",
         "dotenv": "catalog:",
         "drizzle-orm": "^0.45.1",
@@ -227,6 +229,19 @@
         "@chiron/config": "workspace:*",
         "typescript": "catalog:",
         "vitest": "catalog:",
+      },
+    },
+    "packages/project-context": {
+      "name": "@chiron/project-context",
+      "version": "0.0.0",
+      "dependencies": {
+        "@chiron/contracts": "workspace:*",
+        "@chiron/methodology-engine": "workspace:*",
+        "effect": "^3.17.13",
+      },
+      "devDependencies": {
+        "typescript": "^5.9.2",
+        "vitest": "^3.2.4",
       },
     },
     "packages/provider-registry": {
@@ -450,6 +465,8 @@
     "@chiron/event-bus": ["@chiron/event-bus@workspace:packages/event-bus"],
 
     "@chiron/methodology-engine": ["@chiron/methodology-engine@workspace:packages/methodology-engine"],
+
+    "@chiron/project-context": ["@chiron/project-context@workspace:packages/project-context"],
 
     "@chiron/provider-registry": ["@chiron/provider-registry@workspace:packages/provider-registry"],
 

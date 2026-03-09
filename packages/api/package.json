@@ -18,6 +18,7 @@
     "@chiron/db": "workspace:*",
     "@chiron/env": "workspace:*",
     "@chiron/methodology-engine": "workspace:*",
+    "@chiron/project-context": "workspace:*",
     "@orpc/client": "catalog:",
     "@orpc/openapi": "catalog:",
     "@orpc/server": "catalog:",
