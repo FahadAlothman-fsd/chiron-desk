@@ -306,7 +306,7 @@ export function buildNextDraftInput(details: MethodologyDetails, methodologyKey:
     displayName: `${details.displayName} Draft ${nextIndex}`,
     version: `0.${nextIndex}.0`,
     workUnitTypes: [...DEFAULT_DEFINITION.workUnitTypes],
-    transitions: [...DEFAULT_DEFINITION.transitions],
     agentTypes: [...DEFAULT_DEFINITION.agentTypes],
+    artifactTemplates: [...DEFAULT_DEFINITION.artifactTemplates],
   };
 }

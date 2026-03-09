@@ -84,9 +84,25 @@ export function selectLatestDraft(
 }
 
 export const DEFAULT_DEFINITION = {
-  workUnitTypes: [{ key: "task" }],
-  transitions: [{ key: "start" }],
+  workUnitTypes: [
+    {
+      key: "task",
+      cardinality: "one_per_project",
+      lifecycleStates: [{ key: "done" }],
+      lifecycleTransitions: [
+        {
+          transitionKey: "start",
+          fromState: "__absent__",
+          toState: "done",
+          gateClass: "start_gate",
+          conditionSets: [],
+        },
+      ],
+      factSchemas: [],
+    },
+  ],
   agentTypes: [],
+  artifactTemplates: [],
   workflows: [
     {
       key: "default-wf",

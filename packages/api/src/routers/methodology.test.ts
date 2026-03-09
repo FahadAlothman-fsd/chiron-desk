@@ -20,13 +20,21 @@ import {
   type PublishFactSchemaRow,
   type WorkflowSnapshot,
   type RepositoryErrorCode,
+  type WorkUnitTypeRow,
+  type LifecycleStateRow,
+  type LifecycleTransitionRow,
+  type FactSchemaRow,
+  type TransitionConditionSetRow,
+  type AgentTypeRow,
+  type TransitionWorkflowBindingRow,
 } from "@chiron/methodology-engine";
 import { RepositoryError } from "@chiron/methodology-engine";
+import { ProjectContextRepository, ProjectContextServiceLive } from "@chiron/project-context";
 import type { ValidationResult } from "@chiron/contracts/methodology/version";
 import { createMethodologyRouter } from "./methodology";
 import { createProjectRouter } from "./project";
 
-function makeTestRepo(): MethodologyRepository["Type"] {
+function makeTestRepo(): MethodologyRepository["Type"] & ProjectContextRepository["Type"] {
   const definitions = new Map<
     string,
     {
@@ -528,46 +536,375 @@ function makeTestRepo(): MethodologyRepository["Type"] {
 function makeServiceLayer() {
   const repo = makeTestRepo();
   const repoLayer = Layer.succeed(MethodologyRepository, repo);
+  const buildDate = () => new Date("2026-01-01T00:00:00.000Z");
+  const lifecycleDataByVersion = new Map<
+    string,
+    {
+      workUnitTypes: WorkUnitTypeRow[];
+      states: LifecycleStateRow[];
+      transitions: LifecycleTransitionRow[];
+      transitionConditionSets: TransitionConditionSetRow[];
+      transitionWorkflowBindings: TransitionWorkflowBindingRow[];
+      factSchemas: FactSchemaRow[];
+      agentTypes: AgentTypeRow[];
+    }
+  >();
+
+  const asRecord = (value: unknown): Record<string, unknown> =>
+    typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+
+  const buildLifecycleData = (
+    versionId: string,
+    workUnitTypesInput: readonly unknown[],
+    agentTypesInput: readonly unknown[],
+  ) => {
+    const workUnitTypes = workUnitTypesInput
+      .map(asRecord)
+      .filter((workUnit) => typeof workUnit.key === "string" && workUnit.key.length > 0)
+      .map((workUnit) => {
+        const workUnitKey = workUnit.key as string;
+        return {
+          id: `${versionId}:wut:${workUnitKey}`,
+          methodologyVersionId: versionId,
+          key: workUnitKey,
+          displayName: typeof workUnit.displayName === "string" ? workUnit.displayName : null,
+          descriptionJson: workUnit.description ?? null,
+          cardinality:
+            workUnit.cardinality === "many_per_project" ? "many_per_project" : "one_per_project",
+          createdAt: buildDate(),
+          updatedAt: buildDate(),
+        };
+      });
+
+    const workUnitIdByKey = new Map(
+      workUnitTypes.map((workUnit) => [String(workUnit.key), workUnit.id]),
+    );
+    const states: LifecycleStateRow[] = [];
+    const transitions: LifecycleTransitionRow[] = [];
+    const transitionConditionSets: TransitionConditionSetRow[] = [];
+    const factSchemas: FactSchemaRow[] = [];
+    const ensureState = (workUnitTypeId: string, stateKey: string) => {
+      const existing = states.find(
+        (state) => state.workUnitTypeId === workUnitTypeId && state.key === stateKey,
+      );
+      if (existing) {
+        return String(existing.id);
+      }
+      const stateId = `${workUnitTypeId}:state:${stateKey}`;
+      states.push({
+        id: stateId,
+        methodologyVersionId: versionId,
+        workUnitTypeId,
+        key: stateKey,
+        displayName: stateKey,
+        descriptionJson: null,
+        createdAt: buildDate(),
+        updatedAt: buildDate(),
+      });
+      return stateId;
+    };
+
+    for (const workUnit of workUnitTypesInput.map(asRecord)) {
+      const workUnitKey = typeof workUnit.key === "string" ? workUnit.key : null;
+      if (!workUnitKey) {
+        continue;
+      }
+
+      const workUnitTypeId = workUnitIdByKey.get(workUnitKey) ?? `${versionId}:wut:${workUnitKey}`;
+
+      const lifecycleStates = Array.isArray(workUnit.lifecycleStates)
+        ? workUnit.lifecycleStates
+        : [];
+      for (const state of lifecycleStates.map(asRecord)) {
+        if (typeof state.key === "string") {
+          ensureState(workUnitTypeId, state.key);
+        }
+      }
+
+      const lifecycleTransitions = Array.isArray(workUnit.lifecycleTransitions)
+        ? workUnit.lifecycleTransitions
+        : [];
+      for (const [transitionIndex, transitionInput] of lifecycleTransitions.entries()) {
+        const transition = asRecord(transitionInput);
+        const transitionKey =
+          typeof transition.transitionKey === "string"
+            ? transition.transitionKey
+            : typeof transition.key === "string"
+              ? transition.key
+              : `transition-${transitionIndex}`;
+        const fromStateKey =
+          typeof transition.fromState === "string" ? transition.fromState : "__absent__";
+        const toStateKey = typeof transition.toState === "string" ? transition.toState : "done";
+        const transitionId = `${versionId}:transition:${transitionKey}`;
+
+        transitions.push({
+          id: transitionId,
+          methodologyVersionId: versionId,
+          workUnitTypeId,
+          fromStateId:
+            fromStateKey === "__absent__" ? null : ensureState(workUnitTypeId, fromStateKey),
+          toStateId: ensureState(workUnitTypeId, toStateKey),
+          transitionKey,
+          gateClass: transition.gateClass === "completion_gate" ? "completion_gate" : "start_gate",
+          createdAt: buildDate(),
+          updatedAt: buildDate(),
+        });
+
+        const conditionSets = Array.isArray(transition.conditionSets)
+          ? transition.conditionSets
+          : [];
+        for (const [conditionSetIndex, conditionSetInput] of conditionSets.entries()) {
+          const conditionSet = asRecord(conditionSetInput);
+          transitionConditionSets.push({
+            id: `${transitionId}:condition-set:${conditionSetIndex}`,
+            methodologyVersionId: versionId,
+            transitionId,
+            key:
+              typeof conditionSet.key === "string"
+                ? conditionSet.key
+                : `condition-set-${conditionSetIndex}`,
+            phase: conditionSet.phase === "completion" ? "completion" : "start",
+            mode: conditionSet.mode === "any" ? "any" : "all",
+            groupsJson: Array.isArray(conditionSet.groups) ? conditionSet.groups : [],
+            guidanceJson: typeof conditionSet.guidance === "string" ? conditionSet.guidance : null,
+            createdAt: buildDate(),
+            updatedAt: buildDate(),
+          });
+        }
+      }
+
+      const workUnitFacts = Array.isArray(workUnit.factSchemas) ? workUnit.factSchemas : [];
+      for (const factInput of workUnitFacts) {
+        const fact = asRecord(factInput);
+        if (typeof fact.key !== "string") {
+          continue;
+        }
+        factSchemas.push({
+          id: `${versionId}:fact:${workUnitKey}:${fact.key}`,
+          methodologyVersionId: versionId,
+          workUnitTypeId,
+          name: typeof fact.name === "string" ? fact.name : null,
+          key: fact.key,
+          factType: typeof fact.factType === "string" ? fact.factType : "string",
+          required: Boolean(fact.required),
+          description: typeof fact.description === "string" ? fact.description : null,
+          defaultValueJson: fact.defaultValue ?? null,
+          guidanceJson: fact.guidance ?? null,
+          validationJson: fact.validation ?? null,
+          createdAt: buildDate(),
+          updatedAt: buildDate(),
+        });
+      }
+    }
+
+    const agentTypes = agentTypesInput
+      .map(asRecord)
+      .filter((agentType) => typeof agentType.key === "string" && agentType.key.length > 0)
+      .map((agentType) => ({
+        id: `${versionId}:agent:${agentType.key as string}`,
+        methodologyVersionId: versionId,
+        key: agentType.key as string,
+        displayName: typeof agentType.displayName === "string" ? agentType.displayName : null,
+        description: typeof agentType.description === "string" ? agentType.description : null,
+        persona: typeof agentType.persona === "string" ? agentType.persona : "",
+        defaultModelJson:
+          typeof agentType.defaultModel === "object" && agentType.defaultModel !== null
+            ? agentType.defaultModel
+            : null,
+        mcpServersJson: Array.isArray(agentType.mcpServers) ? agentType.mcpServers : [],
+        capabilitiesJson: Array.isArray(agentType.capabilities) ? agentType.capabilities : [],
+        createdAt: buildDate(),
+        updatedAt: buildDate(),
+      }));
+
+    const transitionWorkflowBindings: TransitionWorkflowBindingRow[] = transitions.map(
+      (transition) => ({
+        id: `${versionId}:binding:${transition.transitionKey}:default-wf`,
+        methodologyVersionId: versionId,
+        transitionId: transition.id,
+        transitionKey: transition.transitionKey,
+        workflowId: `${versionId}:workflow:default-wf`,
+        workflowKey: "default-wf",
+        createdAt: buildDate(),
+        updatedAt: buildDate(),
+      }),
+    );
+
+    return {
+      workUnitTypes,
+      states,
+      transitions,
+      transitionConditionSets,
+      transitionWorkflowBindings,
+      factSchemas,
+      agentTypes,
+    } as const;
+  };
+
+  const loadLifecycleRows = (versionId: string) =>
+    Effect.succeed(
+      lifecycleDataByVersion.get(versionId) ?? {
+        workUnitTypes: [],
+        states: [],
+        transitions: [],
+        transitionConditionSets: [],
+        transitionWorkflowBindings: [],
+        factSchemas: [],
+        agentTypes: [],
+      },
+    );
+
   const lifecycleRepoLayer = Layer.succeed(
     LifecycleRepository,
     LifecycleRepository.of({
-      findWorkUnitTypes: () => Effect.succeed([]),
-      findLifecycleStates: () => Effect.succeed([]),
-      findLifecycleTransitions: () => Effect.succeed([]),
-      findFactSchemas: () => Effect.succeed([]),
-      findTransitionRequiredLinks: () => Effect.succeed([]),
-      findAgentTypes: () => Effect.succeed([]),
-      findTransitionWorkflowBindings: () => Effect.succeed([]),
-      saveLifecycleDefinition: () =>
-        Effect.fail(
-          new RepositoryError({
-            operation: "api-test.saveLifecycleDefinition",
-            code: "INTERNAL" as RepositoryErrorCode,
-            cause: null,
+      findWorkUnitTypes: (versionId: string) =>
+        Effect.map(loadLifecycleRows(versionId), (rows) => rows.workUnitTypes),
+      findLifecycleStates: (versionId: string, workUnitTypeId?: string) =>
+        Effect.map(loadLifecycleRows(versionId), (rows) =>
+          rows.states.filter((state) =>
+            workUnitTypeId ? state.workUnitTypeId === workUnitTypeId : true,
+          ),
+        ),
+      findLifecycleTransitions: (
+        versionId: string,
+        options?: { workUnitTypeId?: string; fromStateId?: string | null; toStateId?: string },
+      ) =>
+        Effect.map(loadLifecycleRows(versionId), (rows) =>
+          rows.transitions.filter((transition) => {
+            if (options?.workUnitTypeId && transition.workUnitTypeId !== options.workUnitTypeId) {
+              return false;
+            }
+            if (
+              options &&
+              "fromStateId" in options &&
+              transition.fromStateId !== options.fromStateId
+            ) {
+              return false;
+            }
+            if (options?.toStateId && transition.toStateId !== options.toStateId) {
+              return false;
+            }
+            return true;
           }),
         ),
-      recordLifecycleEvent: () =>
-        Effect.fail(
-          new RepositoryError({
-            operation: "api-test.recordLifecycleEvent",
-            code: "INTERNAL" as RepositoryErrorCode,
-            cause: null,
-          }),
+      findFactSchemas: (versionId: string) =>
+        Effect.map(loadLifecycleRows(versionId), (rows) => rows.factSchemas),
+      findTransitionConditionSets: (versionId: string, transitionId?: string) =>
+        Effect.map(loadLifecycleRows(versionId), (rows) =>
+          rows.transitionConditionSets.filter((conditionSet) =>
+            transitionId ? conditionSet.transitionId === transitionId : true,
+          ),
         ),
+      findAgentTypes: (versionId: string) =>
+        Effect.map(loadLifecycleRows(versionId), (rows) => rows.agentTypes),
+      findTransitionWorkflowBindings: (versionId: string, transitionId?: string) =>
+        Effect.map(loadLifecycleRows(versionId), (rows) =>
+          rows.transitionWorkflowBindings.filter((binding) =>
+            transitionId ? binding.transitionId === transitionId : true,
+          ),
+        ),
+      saveLifecycleDefinition: (params) =>
+        Effect.flatMap(repo.findVersionById(params.versionId), (version) =>
+          version
+            ? Effect.sync(() => {
+                lifecycleDataByVersion.set(
+                  params.versionId,
+                  buildLifecycleData(params.versionId, params.workUnitTypes, params.agentTypes),
+                );
+                return { version, events: [] };
+              })
+            : Effect.fail(
+                new RepositoryError({
+                  operation: "api-test.saveLifecycleDefinition",
+                  code: "NOT_FOUND" as RepositoryErrorCode,
+                  cause: params.versionId,
+                }),
+              ),
+        ),
+      recordLifecycleEvent: (event) =>
+        Effect.succeed({
+          ...event,
+          id: `lifecycle-event-${event.methodologyVersionId}`,
+          createdAt: buildDate(),
+        }),
     }),
   );
-  const allRepos = Layer.mergeAll(repoLayer, lifecycleRepoLayer);
+  const projectRepo = repo as ProjectContextRepository["Type"];
+  const projectContextRepoLayer = Layer.succeed(ProjectContextRepository, projectRepo);
+  const allRepos = Layer.mergeAll(repoLayer, lifecycleRepoLayer, projectContextRepoLayer);
   return Layer.mergeAll(
     Layer.provide(Layer.effect(MethodologyVersionService, MethodologyVersionServiceLive), allRepos),
     Layer.provide(Layer.effect(LifecycleService, LifecycleServiceLive), allRepos),
     Layer.provide(Layer.effect(EligibilityService, EligibilityServiceLive), allRepos),
+    Layer.provide(ProjectContextServiceLive, allRepos),
   );
 }
 
 const VALID_DEFINITION = {
-  workUnitTypes: [{ key: "task" }],
+  workUnitTypes: [
+    {
+      key: "task",
+      cardinality: "one_per_project" as const,
+      lifecycleStates: [{ key: "done" }],
+      lifecycleTransitions: [
+        {
+          transitionKey: "start",
+          fromState: "__absent__",
+          toState: "done",
+          gateClass: "start_gate" as const,
+          conditionSets: [
+            {
+              key: "gate.activate.task",
+              phase: "start" as const,
+              mode: "all" as const,
+              groups: [
+                {
+                  key: "group.workflow",
+                  mode: "all" as const,
+                  conditions: [
+                    {
+                      kind: "transition.workflowBinding.present",
+                      config: { workUnitTypeKey: "task", transitionKey: "start" },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      factSchemas: [],
+    },
+  ],
   agentTypes: [],
-  transitions: [{ key: "start" }],
+  transitions: [
+    {
+      key: "start",
+      workUnitTypeKey: "task",
+      fromState: "__absent__",
+      toState: "done",
+      gateClass: "start_gate" as const,
+      conditionSets: [
+        {
+          key: "gate.activate.task",
+          phase: "start" as const,
+          mode: "all" as const,
+          groups: [
+            {
+              key: "group.workflow",
+              mode: "all" as const,
+              conditions: [
+                {
+                  kind: "transition.workflowBinding.present",
+                  config: { workUnitTypeKey: "task", transitionKey: "start" },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  ],
   workflows: [
     {
       key: "default-wf",
@@ -752,6 +1089,26 @@ describe("methodology router", () => {
       expect(result.diagnostics).toBeDefined();
       expect(result.diagnostics.valid).toBe(true);
       expect(typeof result.version.createdAt).toBe("string");
+    });
+
+    it("accepts canonical lifecycle payload without top-level transitions", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const result = await call(
+        router.createDraftVersion,
+        {
+          methodologyKey: "canonical-create",
+          displayName: "Canonical Create",
+          version: "1.0.0",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      expect(result.version).toBeDefined();
+      expect(result.version.status).toBe("draft");
+      expect(result.diagnostics.valid).toBe(true);
     });
 
     it("returns blocking diagnostics for empty definition arrays", async () => {
@@ -1799,7 +2156,9 @@ describe("methodology router", () => {
       expect(details.baselinePreview?.isPreview).toBe(true);
       expect(details.baselinePreview?.summary.methodologyKey).toBe("preview-method");
       expect(details.baselinePreview?.summary.pinnedVersion).toBe("1.0.0");
-      expect(details.baselinePreview?.summary.setupFactsStatus).toContain("WU.SETUP/setup-project");
+      expect(details.baselinePreview?.summary.setupFactsStatus).toContain(
+        "WU.PROJECT_CONTEXT/document-project",
+      );
       expect(details.baselinePreview?.transitionPreview.workUnitTypeKey).toBe("task");
       expect(
         details.baselinePreview?.transitionPreview.transitions[0]?.statusReasonCode,
@@ -1830,11 +2189,11 @@ describe("methodology router", () => {
           methodologyKey: "preview-context-select",
           displayName: "Preview Context Select",
           version: "1.0.0",
-          workUnitTypes: [{ key: "WU.SETUP" }, { key: "task" }],
+          workUnitTypes: [{ key: "WU.PROJECT_CONTEXT" }, { key: "task" }],
           transitions: [
             {
               key: "setup:start",
-              workUnitTypeKey: "WU.SETUP",
+              workUnitTypeKey: "WU.PROJECT_CONTEXT",
               fromState: "__absent__",
               toState: "done",
               gateClass: "start_gate",
@@ -1845,6 +2204,26 @@ describe("methodology router", () => {
               fromState: "__absent__",
               toState: "ready",
               gateClass: "start_gate",
+              conditionSets: [
+                {
+                  key: "gate.activate.task",
+                  phase: "start",
+                  mode: "all",
+                  groups: [
+                    {
+                      key: "workflow-binding",
+                      mode: "all",
+                      conditions: [
+                        {
+                          kind: "transition.workflowBinding.present",
+                          required: true,
+                          config: { workUnitTypeKey: "task", transitionKey: "task:start" },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
             },
           ],
           agentTypes: [],
@@ -1859,7 +2238,7 @@ describe("methodology router", () => {
           workflows: [
             {
               key: "setup-workflow",
-              workUnitTypeKey: "WU.SETUP",
+              workUnitTypeKey: "WU.PROJECT_CONTEXT",
               steps: [{ key: "s1", type: "form" as const }],
               edges: [
                 { fromStepKey: null, toStepKey: "s1", edgeKey: "entry" },
@@ -1920,10 +2299,35 @@ describe("methodology router", () => {
         PUBLIC_CTX,
       );
 
-      expect(defaultDetails.baselinePreview?.transitionPreview.workUnitTypeKey).toBe("WU.SETUP");
+      expect(defaultDetails.baselinePreview?.transitionPreview.workUnitTypeKey).toBe(
+        "WU.PROJECT_CONTEXT",
+      );
       expect(taskDetails.baselinePreview?.transitionPreview.workUnitTypeKey).toBe("task");
       expect(taskDetails.baselinePreview?.transitionPreview.transitions[0]?.transitionKey).toBe(
         "task:start",
+      );
+      expect(taskDetails.baselinePreview?.transitionPreview.transitions[0]?.conditionSets).toEqual([
+        {
+          key: "gate.activate.task",
+          phase: "start",
+          mode: "all",
+          groups: [
+            {
+              key: "workflow-binding",
+              mode: "all",
+              conditions: [
+                {
+                  kind: "transition.workflowBinding.present",
+                  required: true,
+                  config: { workUnitTypeKey: "task", transitionKey: "task:start" },
+                },
+              ],
+            },
+          ],
+        },
+      ]);
+      expect(taskDetails.baselinePreview?.summary.setupFactsStatus).toBe(
+        "Deferred to WU.PROJECT_CONTEXT/document-project runtime execution in Epic 3.",
       );
     });
 
@@ -2156,6 +2560,25 @@ describe("methodology router", () => {
 
       expect(result.workUnitTypeKey).toBe("task");
       expect(Array.isArray(result.eligibleTransitions)).toBe(true);
+      expect(result.eligibleTransitions[0]?.conditionSets).toEqual([
+        {
+          key: "gate.activate.task",
+          phase: "start",
+          mode: "all",
+          groups: [
+            {
+              key: "group.workflow",
+              mode: "all",
+              conditions: [
+                {
+                  kind: "transition.workflowBinding.present",
+                  config: { workUnitTypeKey: "task", transitionKey: "start" },
+                },
+              ],
+            },
+          ],
+        },
+      ]);
     });
   });
 });

@@ -11,6 +11,10 @@ import {
   EligibilityService,
   type LifecycleError,
 } from "@chiron/methodology-engine";
+import {
+  ProjectContextService,
+  type ProjectContextService as ProjectContextServiceType,
+} from "@chiron/project-context";
 import type { UpdateDraftLifecycleInput } from "@chiron/contracts/methodology/lifecycle";
 
 import type {
@@ -21,6 +25,7 @@ import type {
   PublishDraftVersionInput,
   RepinProjectMethodologyVersionInput,
   ValidationResult,
+  ProjectMethodologyPinEvent,
 } from "@chiron/contracts/methodology/version";
 import type { UpdateDraftWorkflowsInputDto } from "@chiron/contracts/methodology/dto";
 import { Effect, type Layer } from "effect";
@@ -59,22 +64,19 @@ const guidanceSchema = z
   })
   .optional();
 
+const markdownAudienceSchema = z.object({ markdown: z.string() });
+
+const audienceMarkdownJsonSchema = z
+  .object({
+    human: markdownAudienceSchema,
+    agent: markdownAudienceSchema,
+  })
+  .optional();
+
 const factGuidanceSchema = z
   .object({
-    human: z
-      .object({
-        short: z.string().optional(),
-        long: z.string().optional(),
-        examples: z.array(z.unknown()).default([]),
-      })
-      .optional(),
-    agent: z
-      .object({
-        intent: z.string().optional(),
-        constraints: z.array(z.string()).default([]),
-        examples: z.array(z.unknown()).default([]),
-      })
-      .optional(),
+    human: markdownAudienceSchema,
+    agent: markdownAudienceSchema,
   })
   .optional();
 
@@ -112,7 +114,7 @@ const variableDefinitionSchema = z.object({
   key: z.string().min(1),
   factType: z.enum(["string", "number", "boolean", "json"]),
   defaultValue: z.unknown().optional(),
-  description: z.string().optional(),
+  description: audienceMarkdownJsonSchema,
   guidance: factGuidanceSchema,
   validation: factValidationSchema,
 });
@@ -130,7 +132,7 @@ const createDraftInput = z.object({
   version: z.string().min(1),
   workUnitTypes: z.array(z.unknown()),
   agentTypes: z.array(z.unknown()).optional().default([]),
-  transitions: z.array(z.unknown()),
+  transitions: z.array(z.unknown()).optional().default([]),
   factDefinitions: z.array(variableDefinitionSchema).optional(),
   linkTypeDefinitions: z.array(linkTypeDefinitionSchema).optional(),
 });
@@ -187,10 +189,25 @@ const lifecycleStateSchema = z.object({
   description: z.string().optional(),
 });
 
-const transitionRequiredLinkSchema = z.object({
-  linkTypeKey: z.string().min(1),
-  strength: z.enum(["hard", "soft", "context"]).optional(),
+const transitionConditionSchema = z.object({
+  kind: z.string().min(1),
   required: z.boolean().optional(),
+  config: z.unknown(),
+  rationale: z.string().optional(),
+});
+
+const transitionConditionGroupSchema = z.object({
+  key: z.string().min(1),
+  mode: z.enum(["all", "any"]),
+  conditions: z.array(transitionConditionSchema),
+});
+
+const transitionConditionSetSchema = z.object({
+  key: z.string().min(1),
+  phase: z.enum(["start", "completion"]),
+  mode: z.enum(["all", "any"]),
+  groups: z.array(transitionConditionGroupSchema),
+  guidance: z.string().optional(),
 });
 
 const lifecycleTransitionSchema = z.object({
@@ -198,7 +215,7 @@ const lifecycleTransitionSchema = z.object({
   fromState: z.string().optional(), // undefined/null = __absent__
   toState: z.string().min(1),
   gateClass: z.enum(["start_gate", "completion_gate"]),
-  requiredLinks: z.array(transitionRequiredLinkSchema),
+  conditionSets: z.array(transitionConditionSetSchema),
 });
 
 const factSchemaDefinition = z.object({
@@ -342,23 +359,27 @@ function mapEffectError(err: MethodologyError | LifecycleError | unknown): never
 }
 
 function runEffect<A>(
-  serviceLayer: Layer.Layer<MethodologyVersionService | LifecycleService | EligibilityService>,
+  serviceLayer: Layer.Layer<
+    MethodologyVersionService | LifecycleService | EligibilityService | ProjectContextServiceType
+  >,
   effect: Effect.Effect<
     A,
-    MethodologyError | LifecycleError,
-    MethodologyVersionService | LifecycleService | EligibilityService
+    MethodologyError | LifecycleError | unknown,
+    MethodologyVersionService | LifecycleService | EligibilityService | ProjectContextServiceType
   >,
 ): Promise<A> {
   return Effect.runPromise(
     effect.pipe(
-      Effect.provide(serviceLayer),
+      Effect.provide(serviceLayer as Layer.Layer<any>),
       Effect.catchAll((err) => Effect.sync(() => mapEffectError(err))),
-    ),
+    ) as Effect.Effect<A, never, never>,
   );
 }
 
 export function createMethodologyRouter(
-  serviceLayer: Layer.Layer<MethodologyVersionService | LifecycleService | EligibilityService>,
+  serviceLayer: Layer.Layer<
+    MethodologyVersionService | LifecycleService | EligibilityService | ProjectContextServiceType
+  >,
 ) {
   return {
     createMethodology: protectedProcedure
@@ -546,7 +567,7 @@ export function createMethodologyRouter(
         const result = await runEffect(
           serviceLayer,
           Effect.gen(function* () {
-            const svc = yield* MethodologyVersionService;
+            const svc = yield* ProjectContextService;
             return yield* svc.pinProjectMethodologyVersion(pinPayload, actorId);
           }),
         );
@@ -571,7 +592,7 @@ export function createMethodologyRouter(
         const result = await runEffect(
           serviceLayer,
           Effect.gen(function* () {
-            const svc = yield* MethodologyVersionService;
+            const svc = yield* ProjectContextService;
             return yield* svc.repinProjectMethodologyVersion(repinPayload, actorId);
           }),
         );
@@ -589,7 +610,7 @@ export function createMethodologyRouter(
         const events = await runEffect(
           serviceLayer,
           Effect.gen(function* () {
-            const svc = yield* MethodologyVersionService;
+            const svc = yield* ProjectContextService;
             const projectLineagePayload: GetProjectPinLineageInput = {
               projectId: input.projectId,
             };
@@ -598,7 +619,7 @@ export function createMethodologyRouter(
           }),
         );
 
-        return events.map((event) => serializeProjectPinEvent(event));
+        return events.map((event: ProjectMethodologyPinEvent) => serializeProjectPinEvent(event));
       }),
 
     getPublishedContractByVersionAndWorkUnitType: publicProcedure
@@ -677,7 +698,7 @@ export function createMethodologyRouter(
         const pin = await runEffect(
           serviceLayer,
           Effect.gen(function* () {
-            const svc = yield* MethodologyVersionService;
+            const svc = yield* ProjectContextService;
             return yield* svc.getProjectMethodologyPin(input.projectId);
           }),
         );
