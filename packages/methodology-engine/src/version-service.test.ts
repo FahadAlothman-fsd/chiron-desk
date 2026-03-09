@@ -11,7 +11,6 @@ import type {
   GetPublicationEvidenceParams,
   GetVersionEventsParams,
   MethodologyDefinitionRow,
-  ProjectRow,
   MethodologyVersionEventRow,
   MethodologyVersionRow,
   PublishDraftVersionParams,
@@ -25,7 +24,7 @@ import {
   type FactSchemaRow,
   type LifecycleStateRow,
   type LifecycleTransitionRow,
-  type TransitionRequiredLinkRow,
+  type TransitionConditionSetRow,
   type WorkUnitTypeRow,
 } from "./lifecycle-repository";
 import { MethodologyRepository } from "./repository";
@@ -35,33 +34,9 @@ function makeTestRepo() {
   const definitions: MethodologyDefinitionRow[] = [];
   const versions: MethodologyVersionRow[] = [];
   const events: MethodologyVersionEventRow[] = [];
-  const projectPins = new Map<
-    string,
-    {
-      projectId: string;
-      methodologyVersionId: string;
-      methodologyId: string;
-      methodologyKey: string;
-      publishedVersion: string;
-      actorId: string | null;
-      createdAt: Date;
-      updatedAt: Date;
-    }
-  >();
-  const projectPinEvents: Array<{
-    id: string;
-    projectId: string;
-    eventType: "pinned" | "repinned";
-    actorId: string | null;
-    previousVersion: string | null;
-    newVersion: string;
-    evidenceRef: string;
-    createdAt: Date;
-  }> = [];
   const workflowSnapshots = new Map<string, WorkflowSnapshot>();
   const factSchemasByVersion = new Map<string, readonly PublishFactSchemaRow[]>();
   const factDefinitionsByVersion = new Map<string, readonly MethodologyFactDefinitionRow[]>();
-  const projects = new Map<string, ProjectRow>();
   const lifecycleDataByVersion = new Map<
     string,
     {
@@ -98,12 +73,14 @@ function makeTestRepo() {
         guidanceJson: unknown;
         validationJson: unknown;
       }>;
-      transitionRequiredLinks: Array<{
+      transitionConditionSets: Array<{
         id: string;
         transitionId: string;
-        linkTypeKey: string;
-        strength: string;
-        required: boolean;
+        key: string;
+        phase: string;
+        mode: string;
+        groupsJson: unknown;
+        guidanceJson: unknown;
       }>;
       agentTypes: Array<{
         key: string;
@@ -116,8 +93,6 @@ function makeTestRepo() {
       }>;
     }
   >();
-  const executionCountsByProject = new Map<string, number>();
-  executionCountsByProject.set("project-exec-history", 1);
   let idCounter = 0;
 
   const nextId = () => {
@@ -128,12 +103,11 @@ function makeTestRepo() {
   const asRecord = (value: unknown): Record<string, unknown> =>
     value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 
-  const buildLifecycleData = (versionId: string, definition: unknown) => {
-    const record = asRecord(definition);
-    const workUnitTypesInput = Array.isArray(record.workUnitTypes) ? record.workUnitTypes : [];
-    const transitionsInput = Array.isArray(record.transitions) ? record.transitions : [];
-    const agentTypesInput = Array.isArray(record.agentTypes) ? record.agentTypes : [];
-
+  const buildLifecycleData = (
+    versionId: string,
+    workUnitTypesInput: readonly unknown[],
+    agentTypesInput: readonly unknown[],
+  ) => {
     const workUnitTypes = workUnitTypesInput.map((entry, index) => {
       const item = asRecord(entry);
       const key = typeof item.key === "string" && item.key.length > 0 ? item.key : `wu-${index}`;
@@ -185,58 +159,79 @@ function makeTestRepo() {
       toStateId: string;
       gateClass: string;
     }> = [];
-    const transitionRequiredLinks: Array<{
+    const transitionConditionSets: Array<{
       id: string;
       transitionId: string;
-      linkTypeKey: string;
-      strength: string;
-      required: boolean;
+      key: string;
+      phase: string;
+      mode: string;
+      groupsJson: unknown;
+      guidanceJson: unknown;
     }> = [];
 
-    const inferredWorkUnitKey = workUnitTypes[0]?.key ?? "task";
+    workUnitTypesInput.forEach((entry, index) => {
+      const workUnit = asRecord(entry);
+      const key =
+        typeof workUnit.key === "string" && workUnit.key.length > 0 ? workUnit.key : `wu-${index}`;
+      const workUnitTypeId = workUnitIdByKey.get(key) ?? `${versionId}:wut:${key}`;
 
-    transitionsInput.forEach((entry, index) => {
-      const transition = asRecord(entry);
-      const transitionKey =
-        typeof transition.transitionKey === "string"
-          ? transition.transitionKey
-          : typeof transition.key === "string"
-            ? transition.key
-            : `transition-${index}`;
-      const workUnitTypeKey =
-        typeof transition.workUnitTypeKey === "string"
-          ? transition.workUnitTypeKey
-          : inferredWorkUnitKey;
-      const workUnitTypeId =
-        workUnitIdByKey.get(workUnitTypeKey) ?? `${versionId}:wut:${workUnitTypeKey}`;
-      const fromState =
-        typeof transition.fromState === "string" ? transition.fromState : "__absent__";
-      const toState = typeof transition.toState === "string" ? transition.toState : "done";
-      const fromStateId = ensureState(workUnitTypeId, fromState);
-      const toStateId = ensureState(workUnitTypeId, toState) ?? `${versionId}:state:done`;
-      const gateClass =
-        transition.gateClass === "completion_gate" ? "completion_gate" : "start_gate";
-      const transitionId = `${versionId}:transition:${transitionKey}`;
-
-      lifecycleTransitions.push({
-        id: transitionId,
-        workUnitTypeId,
-        transitionKey,
-        fromStateId,
-        toStateId,
-        gateClass,
+      const lifecycleStateInput = Array.isArray(workUnit.lifecycleStates)
+        ? workUnit.lifecycleStates
+        : [];
+      lifecycleStateInput.forEach((state) => {
+        const stateRecord = asRecord(state);
+        if (typeof stateRecord.key === "string") {
+          ensureState(workUnitTypeId, stateRecord.key);
+        }
       });
 
-      const requiredLinks = Array.isArray(transition.requiredLinks) ? transition.requiredLinks : [];
-      requiredLinks.forEach((link, linkIndex) => {
-        const linkRecord = asRecord(link);
-        transitionRequiredLinks.push({
-          id: `${transitionId}:link:${linkIndex}`,
-          transitionId,
-          linkTypeKey:
-            typeof linkRecord.linkTypeKey === "string" ? linkRecord.linkTypeKey : "default",
-          strength: linkRecord.strength === "optional" ? "optional" : "required",
-          required: linkRecord.required !== false,
+      const transitionInput = Array.isArray(workUnit.lifecycleTransitions)
+        ? workUnit.lifecycleTransitions
+        : [];
+      transitionInput.forEach((entry, transitionIndex) => {
+        const transition = asRecord(entry);
+        const transitionKey =
+          typeof transition.transitionKey === "string"
+            ? transition.transitionKey
+            : typeof transition.key === "string"
+              ? transition.key
+              : `transition-${transitionIndex}`;
+        const fromState =
+          typeof transition.fromState === "string" ? transition.fromState : "__absent__";
+        const toState = typeof transition.toState === "string" ? transition.toState : "done";
+        const fromStateId = ensureState(workUnitTypeId, fromState);
+        const toStateId = ensureState(workUnitTypeId, toState) ?? `${versionId}:state:done`;
+        const gateClass =
+          transition.gateClass === "completion_gate" ? "completion_gate" : "start_gate";
+        const transitionId = `${versionId}:transition:${transitionKey}`;
+
+        lifecycleTransitions.push({
+          id: transitionId,
+          workUnitTypeId,
+          transitionKey,
+          fromStateId,
+          toStateId,
+          gateClass,
+        });
+
+        const conditionSets = Array.isArray(transition.conditionSets)
+          ? transition.conditionSets
+          : [];
+        conditionSets.forEach((conditionSet, conditionSetIndex) => {
+          const conditionSetRecord = asRecord(conditionSet);
+          transitionConditionSets.push({
+            id: `${transitionId}:condition-set:${conditionSetIndex}`,
+            transitionId,
+            key:
+              typeof conditionSetRecord.key === "string"
+                ? conditionSetRecord.key
+                : `condition-set-${conditionSetIndex}`,
+            phase: conditionSetRecord.phase === "completion" ? "completion" : "start",
+            mode: conditionSetRecord.mode === "any" ? "any" : "all",
+            groupsJson: Array.isArray(conditionSetRecord.groups) ? conditionSetRecord.groups : [],
+            guidanceJson:
+              typeof conditionSetRecord.guidance === "string" ? conditionSetRecord.guidance : null,
+          });
         });
       });
     });
@@ -306,7 +301,7 @@ function makeTestRepo() {
       lifecycleStates,
       lifecycleTransitions,
       factSchemas,
-      transitionRequiredLinks,
+      transitionConditionSets,
       agentTypes,
     };
   };
@@ -378,10 +373,6 @@ function makeTestRepo() {
           retiredAt: null,
         };
         versions.push(version);
-        lifecycleDataByVersion.set(
-          version.id,
-          buildLifecycleData(version.id, params.definitionExtensions),
-        );
         workflowSnapshots.set(version.id, {
           workflows: params.workflows,
           transitionWorkflowBindings: params.transitionWorkflowBindings,
@@ -453,10 +444,6 @@ function makeTestRepo() {
           definitionExtensions: params.definitionExtensions,
         };
         versions[idx] = updated;
-        lifecycleDataByVersion.set(
-          updated.id,
-          buildLifecycleData(updated.id, params.definitionExtensions),
-        );
         workflowSnapshots.set(updated.id, {
           workflows: params.workflows,
           transitionWorkflowBindings: params.transitionWorkflowBindings,
@@ -613,147 +600,6 @@ function makeTestRepo() {
           event,
         };
       }),
-    findProjectPin: (projectId: string) => Effect.succeed(projectPins.get(projectId) ?? null),
-    hasPersistedExecutions: (projectId: string) =>
-      Effect.succeed((executionCountsByProject.get(projectId) ?? 0) > 0),
-    pinProjectMethodologyVersion: (params) =>
-      Effect.sync(() => {
-        const version = versions.find((v) => v.id === params.methodologyVersionId);
-        if (!version) {
-          throw new RepositoryError({
-            operation: "test.pinProjectMethodologyVersion",
-            cause: new Error("PROJECT_PIN_TARGET_VERSION_NOT_FOUND"),
-            code: "PROJECT_PIN_TARGET_VERSION_NOT_FOUND",
-          });
-        }
-
-        const definition = definitions.find((d) => d.id === version.methodologyId);
-        if (!definition) {
-          throw new RepositoryError({
-            operation: "test.pinProjectMethodologyVersion",
-            cause: new Error("PROJECT_PIN_TARGET_VERSION_INCOMPATIBLE"),
-            code: "PROJECT_PIN_TARGET_VERSION_INCOMPATIBLE",
-          });
-        }
-
-        const now = new Date();
-        const existing = projectPins.get(params.projectId);
-        const pin = {
-          projectId: params.projectId,
-          methodologyVersionId: version.id,
-          methodologyId: version.methodologyId,
-          methodologyKey: definition.key,
-          publishedVersion: params.newVersion,
-          actorId: params.actorId,
-          createdAt: existing?.createdAt ?? now,
-          updatedAt: now,
-        };
-        projectPins.set(params.projectId, pin);
-
-        const event = {
-          id: nextId(),
-          projectId: params.projectId,
-          eventType: existing ? ("repinned" as const) : ("pinned" as const),
-          actorId: params.actorId,
-          previousVersion: params.previousVersion,
-          newVersion: params.newVersion,
-          evidenceRef: `project-pin-event:${params.projectId}:${params.newVersion}`,
-          createdAt: now,
-        };
-        projectPinEvents.push(event);
-
-        return { pin, event };
-      }),
-    repinProjectMethodologyVersion: (params) =>
-      Effect.sync(() => {
-        if ((executionCountsByProject.get(params.projectId) ?? 0) > 0) {
-          throw new RepositoryError({
-            operation: "test.repinProjectMethodologyVersion",
-            cause: new Error("PROJECT_REPIN_BLOCKED_EXECUTION_HISTORY"),
-            code: "PROJECT_REPIN_BLOCKED_EXECUTION_HISTORY",
-          });
-        }
-
-        const version = versions.find((v) => v.id === params.methodologyVersionId);
-        if (!version) {
-          throw new RepositoryError({
-            operation: "test.repinProjectMethodologyVersion",
-            cause: new Error("PROJECT_PIN_TARGET_VERSION_NOT_FOUND"),
-            code: "PROJECT_PIN_TARGET_VERSION_NOT_FOUND",
-          });
-        }
-
-        const definition = definitions.find((d) => d.id === version.methodologyId);
-        if (!definition) {
-          throw new RepositoryError({
-            operation: "test.repinProjectMethodologyVersion",
-            cause: new Error("PROJECT_PIN_TARGET_VERSION_INCOMPATIBLE"),
-            code: "PROJECT_PIN_TARGET_VERSION_INCOMPATIBLE",
-          });
-        }
-
-        const now = new Date();
-        const existing = projectPins.get(params.projectId);
-        if (!existing) {
-          throw new RepositoryError({
-            operation: "test.repinProjectMethodologyVersion",
-            cause: new Error("PROJECT_REPIN_REQUIRES_EXISTING_PIN"),
-            code: "PROJECT_REPIN_REQUIRES_EXISTING_PIN",
-          });
-        }
-        const pin = {
-          projectId: params.projectId,
-          methodologyVersionId: version.id,
-          methodologyId: version.methodologyId,
-          methodologyKey: definition.key,
-          publishedVersion: params.newVersion,
-          actorId: params.actorId,
-          createdAt: existing.createdAt,
-          updatedAt: now,
-        };
-        projectPins.set(params.projectId, pin);
-
-        const event = {
-          id: nextId(),
-          projectId: params.projectId,
-          eventType: "repinned" as const,
-          actorId: params.actorId,
-          previousVersion: params.previousVersion,
-          newVersion: params.newVersion,
-          evidenceRef: `project-pin-event:${params.projectId}:${params.newVersion}`,
-          createdAt: now,
-        };
-        projectPinEvents.push(event);
-
-        return { pin, event };
-      }),
-    getProjectPinLineage: ({ projectId }) =>
-      Effect.succeed(
-        projectPinEvents
-          .filter((event) => event.projectId === projectId)
-          .sort(
-            (a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id),
-          ),
-      ),
-    createProject: ({ projectId, name }) =>
-      Effect.sync(() => {
-        const now = new Date();
-        const project: ProjectRow = {
-          id: projectId,
-          name: name ?? null,
-          createdAt: now,
-          updatedAt: now,
-        };
-        projects.set(projectId, project);
-        return project;
-      }),
-    listProjects: () =>
-      Effect.succeed(
-        [...projects.values()].sort(
-          (a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id),
-        ),
-      ),
-    getProjectById: ({ projectId }) => Effect.succeed(projects.get(projectId) ?? null),
     getPublicationEvidence: (params: GetPublicationEvidenceParams) =>
       Effect.succeed(
         events
@@ -865,20 +711,22 @@ function makeTestRepo() {
           }));
         return rows;
       }),
-    findTransitionRequiredLinks: (versionId: string, transitionId?: string) =>
+    findTransitionConditionSets: (versionId: string, transitionId?: string) =>
       Effect.sync(() => {
         const now = new Date();
-        const rows: TransitionRequiredLinkRow[] = (
-          lifecycleDataByVersion.get(versionId)?.transitionRequiredLinks ?? []
+        const rows: TransitionConditionSetRow[] = (
+          lifecycleDataByVersion.get(versionId)?.transitionConditionSets ?? []
         )
           .filter((row) => !transitionId || row.transitionId === transitionId)
           .map((row) => ({
             id: row.id,
             methodologyVersionId: versionId,
             transitionId: row.transitionId,
-            linkTypeKey: row.linkTypeKey,
-            strength: row.strength,
-            required: row.required,
+            key: row.key,
+            phase: row.phase,
+            mode: row.mode,
+            groupsJson: row.groupsJson,
+            guidanceJson: row.guidanceJson,
             createdAt: now,
             updatedAt: now,
           }));
@@ -905,14 +753,24 @@ function makeTestRepo() {
         return rows;
       }),
     findTransitionWorkflowBindings: () => Effect.succeed([]),
-    saveLifecycleDefinition: () =>
-      Effect.fail(
-        new RepositoryError({
-          operation: "test.saveLifecycleDefinition",
-          code: "INTERNAL" as RepositoryErrorCode,
-          cause: null,
-        }),
-      ),
+    saveLifecycleDefinition: (params) =>
+      Effect.sync(() => {
+        const version = versions.find((row) => row.id === params.versionId);
+        if (!version) {
+          throw new RepositoryError({
+            operation: "test.saveLifecycleDefinition",
+            code: "NOT_FOUND" as RepositoryErrorCode,
+            cause: params.versionId,
+          });
+        }
+
+        lifecycleDataByVersion.set(
+          params.versionId,
+          buildLifecycleData(params.versionId, params.workUnitTypes, params.agentTypes),
+        );
+
+        return { version, events: [] };
+      }),
     recordLifecycleEvent: () =>
       Effect.fail(
         new RepositoryError({
@@ -943,9 +801,76 @@ function runWithService<A, E>(effect: Effect.Effect<A, E, MethodologyVersionServ
 }
 
 const VALID_DEFINITION = {
-  workUnitTypes: [{ key: "task" }],
+  workUnitTypes: [
+    {
+      key: "task",
+      cardinality: "one_per_project" as const,
+      lifecycleStates: [{ key: "done" }],
+      lifecycleTransitions: [
+        {
+          transitionKey: "start",
+          fromState: "__absent__",
+          toState: "done",
+          gateClass: "start_gate" as const,
+          conditionSets: [
+            {
+              key: "gate.activate.task",
+              phase: "start" as const,
+              mode: "all" as const,
+              groups: [
+                {
+                  key: "group.workflow",
+                  mode: "all" as const,
+                  conditions: [
+                    {
+                      kind: "transition.workflowBinding.present",
+                      config: {
+                        workUnitTypeKey: "task",
+                        transitionKey: "start",
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      factSchemas: [],
+    },
+  ],
   agentTypes: [],
-  transitions: [{ key: "start" }],
+  transitions: [
+    {
+      key: "start",
+      workUnitTypeKey: "task",
+      fromState: "__absent__",
+      toState: "done",
+      gateClass: "start_gate" as const,
+      conditionSets: [
+        {
+          key: "gate.activate.task",
+          phase: "start" as const,
+          mode: "all" as const,
+          groups: [
+            {
+              key: "group.workflow",
+              mode: "all" as const,
+              conditions: [
+                {
+                  kind: "transition.workflowBinding.present",
+                  config: {
+                    workUnitTypeKey: "task",
+                    transitionKey: "start",
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  ],
   workflows: [
     {
       key: "default-wf",
@@ -989,6 +914,15 @@ describe("MethodologyVersionService", () => {
       expect(
         (result.version.definitionExtensions as { transitionWorkflowBindings?: unknown })
           .transitionWorkflowBindings,
+      ).toBeUndefined();
+      expect(
+        (result.version.definitionExtensions as { workUnitTypes?: unknown }).workUnitTypes,
+      ).toBeUndefined();
+      expect(
+        (result.version.definitionExtensions as { agentTypes?: unknown }).agentTypes,
+      ).toBeUndefined();
+      expect(
+        (result.version.definitionExtensions as { transitions?: unknown }).transitions,
       ).toBeUndefined();
     });
 
@@ -1109,6 +1043,15 @@ describe("MethodologyVersionService", () => {
       expect(result.diagnostics.valid).toBe(true);
       expect(
         (result.version.definitionExtensions as { workflows?: unknown }).workflows,
+      ).toBeUndefined();
+      expect(
+        (result.version.definitionExtensions as { workUnitTypes?: unknown }).workUnitTypes,
+      ).toBeUndefined();
+      expect(
+        (result.version.definitionExtensions as { agentTypes?: unknown }).agentTypes,
+      ).toBeUndefined();
+      expect(
+        (result.version.definitionExtensions as { transitions?: unknown }).transitions,
       ).toBeUndefined();
     });
 
@@ -1651,304 +1594,6 @@ describe("MethodologyVersionService", () => {
       );
 
       expect(error._tag).toBe("VersionNotFoundError");
-    });
-  });
-
-  describe("project methodology pinning", () => {
-    it("pins project to an existing published methodology version", async () => {
-      const layer = makeServiceLayer();
-
-      const result = await Effect.runPromise(
-        Effect.gen(function* () {
-          const svc = yield* MethodologyVersionService;
-          const created = yield* svc.createDraftVersion(
-            {
-              ...MINIMAL_INPUT,
-              methodologyKey: "project-pin-methodology",
-              version: "0.1.0-draft",
-            },
-            TEST_ACTOR_ID,
-          );
-
-          yield* svc.publishDraftVersion(
-            {
-              versionId: created.version.id,
-              publishedVersion: "1.0.0",
-            },
-            TEST_ACTOR_ID,
-          );
-
-          return yield* svc.pinProjectMethodologyVersion(
-            {
-              projectId: "project-1",
-              methodologyKey: "project-pin-methodology",
-              publishedVersion: "1.0.0",
-            },
-            TEST_ACTOR_ID,
-          );
-        }).pipe(Effect.provide(layer)),
-      );
-
-      expect(result.pinned).toBe(true);
-      expect(result.diagnostics.valid).toBe(true);
-      expect(result.pin).toBeDefined();
-      expect(result.pin!.projectId).toBe("project-1");
-      expect(result.pin!.publishedVersion).toBe("1.0.0");
-    });
-
-    it("blocks repin when project has persisted executions", async () => {
-      const layer = makeServiceLayer();
-
-      const result = await Effect.runPromise(
-        Effect.gen(function* () {
-          const svc = yield* MethodologyVersionService;
-
-          const v1 = yield* svc.createDraftVersion(
-            {
-              ...MINIMAL_INPUT,
-              methodologyKey: "repin-guard-methodology",
-              version: "0.1.0-draft",
-            },
-            TEST_ACTOR_ID,
-          );
-          yield* svc.publishDraftVersion(
-            {
-              versionId: v1.version.id,
-              publishedVersion: "1.0.0",
-            },
-            TEST_ACTOR_ID,
-          );
-
-          const v2 = yield* svc.createDraftVersion(
-            {
-              ...MINIMAL_INPUT,
-              methodologyKey: "repin-guard-methodology",
-              version: "0.2.0-draft",
-            },
-            TEST_ACTOR_ID,
-          );
-          yield* svc.publishDraftVersion(
-            {
-              versionId: v2.version.id,
-              publishedVersion: "2.0.0",
-            },
-            TEST_ACTOR_ID,
-          );
-
-          yield* svc.pinProjectMethodologyVersion(
-            {
-              projectId: "project-exec-history",
-              methodologyKey: "repin-guard-methodology",
-              publishedVersion: "1.0.0",
-            },
-            TEST_ACTOR_ID,
-          );
-
-          return yield* svc.repinProjectMethodologyVersion(
-            {
-              projectId: "project-exec-history",
-              methodologyKey: "repin-guard-methodology",
-              publishedVersion: "2.0.0",
-            },
-            TEST_ACTOR_ID,
-          );
-        }).pipe(Effect.provide(layer)),
-      );
-
-      expect(result.repinned).toBe(false);
-      expect(result.diagnostics.valid).toBe(false);
-      expect(result.diagnostics.diagnostics[0]?.code).toBe(
-        "PROJECT_REPIN_BLOCKED_EXECUTION_HISTORY",
-      );
-    });
-
-    it("blocks repin when project does not have an existing pin", async () => {
-      const layer = makeServiceLayer();
-
-      const result = await Effect.runPromise(
-        Effect.gen(function* () {
-          const svc = yield* MethodologyVersionService;
-
-          const draft = yield* svc.createDraftVersion(
-            {
-              ...MINIMAL_INPUT,
-              methodologyKey: "repin-requires-pin-methodology",
-              version: "0.1.0-draft",
-            },
-            TEST_ACTOR_ID,
-          );
-          yield* svc.publishDraftVersion(
-            {
-              versionId: draft.version.id,
-              publishedVersion: "1.0.0",
-            },
-            TEST_ACTOR_ID,
-          );
-
-          return yield* svc.repinProjectMethodologyVersion(
-            {
-              projectId: "project-no-pin",
-              methodologyKey: "repin-requires-pin-methodology",
-              publishedVersion: "1.0.0",
-            },
-            TEST_ACTOR_ID,
-          );
-        }).pipe(Effect.provide(layer)),
-      );
-
-      expect(result.repinned).toBe(false);
-      expect(result.diagnostics.valid).toBe(false);
-      expect(result.diagnostics.diagnostics[0]?.code).toBe("PROJECT_REPIN_REQUIRES_EXISTING_PIN");
-    });
-
-    it("returns deterministic diagnostics for invalid repin target", async () => {
-      const layer = makeServiceLayer();
-
-      const result = await Effect.runPromise(
-        Effect.gen(function* () {
-          const svc = yield* MethodologyVersionService;
-
-          const draft = yield* svc.createDraftVersion(
-            {
-              ...MINIMAL_INPUT,
-              methodologyKey: "repin-target-methodology",
-              version: "0.1.0-draft",
-            },
-            TEST_ACTOR_ID,
-          );
-          yield* svc.publishDraftVersion(
-            {
-              versionId: draft.version.id,
-              publishedVersion: "1.0.0",
-            },
-            TEST_ACTOR_ID,
-          );
-
-          yield* svc.pinProjectMethodologyVersion(
-            {
-              projectId: "project-bad-target",
-              methodologyKey: "repin-target-methodology",
-              publishedVersion: "1.0.0",
-            },
-            TEST_ACTOR_ID,
-          );
-
-          const firstFailure = yield* svc.repinProjectMethodologyVersion(
-            {
-              projectId: "project-bad-target",
-              methodologyKey: "repin-target-methodology",
-              publishedVersion: "9.9.9",
-            },
-            TEST_ACTOR_ID,
-          );
-          const secondFailure = yield* svc.repinProjectMethodologyVersion(
-            {
-              projectId: "project-bad-target",
-              methodologyKey: "repin-target-methodology",
-              publishedVersion: "9.9.9",
-            },
-            TEST_ACTOR_ID,
-          );
-
-          return { firstFailure, secondFailure };
-        }).pipe(Effect.provide(layer)),
-      );
-
-      const stableA = result.firstFailure.diagnostics.diagnostics.map((d) => ({
-        code: d.code,
-        scope: d.scope,
-        blocking: d.blocking,
-        required: d.required,
-        observed: d.observed,
-        remediation: d.remediation,
-        evidenceRef: d.evidenceRef,
-      }));
-      const stableB = result.secondFailure.diagnostics.diagnostics.map((d) => ({
-        code: d.code,
-        scope: d.scope,
-        blocking: d.blocking,
-        required: d.required,
-        observed: d.observed,
-        remediation: d.remediation,
-        evidenceRef: d.evidenceRef,
-      }));
-
-      expect(result.firstFailure.repinned).toBe(false);
-      expect(result.firstFailure.diagnostics.diagnostics[0]?.code).toBe(
-        "PROJECT_PIN_TARGET_VERSION_NOT_FOUND",
-      );
-      expect(stableA).toEqual(stableB);
-    });
-
-    it("records append-only pin lineage in chronological order", async () => {
-      const layer = makeServiceLayer();
-
-      const lineage = await Effect.runPromise(
-        Effect.gen(function* () {
-          const svc = yield* MethodologyVersionService;
-
-          const v1 = yield* svc.createDraftVersion(
-            {
-              ...MINIMAL_INPUT,
-              methodologyKey: "lineage-methodology",
-              version: "0.1.0-draft",
-            },
-            TEST_ACTOR_ID,
-          );
-          yield* svc.publishDraftVersion(
-            {
-              versionId: v1.version.id,
-              publishedVersion: "1.0.0",
-            },
-            TEST_ACTOR_ID,
-          );
-
-          const v2 = yield* svc.createDraftVersion(
-            {
-              ...MINIMAL_INPUT,
-              methodologyKey: "lineage-methodology",
-              version: "0.2.0-draft",
-            },
-            TEST_ACTOR_ID,
-          );
-          yield* svc.publishDraftVersion(
-            {
-              versionId: v2.version.id,
-              publishedVersion: "2.0.0",
-            },
-            TEST_ACTOR_ID,
-          );
-
-          yield* svc.pinProjectMethodologyVersion(
-            {
-              projectId: "project-lineage",
-              methodologyKey: "lineage-methodology",
-              publishedVersion: "1.0.0",
-            },
-            TEST_ACTOR_ID,
-          );
-
-          yield* svc.repinProjectMethodologyVersion(
-            {
-              projectId: "project-lineage",
-              methodologyKey: "lineage-methodology",
-              publishedVersion: "2.0.0",
-            },
-            TEST_ACTOR_ID,
-          );
-
-          return yield* svc.getProjectPinLineage({ projectId: "project-lineage" });
-        }).pipe(Effect.provide(layer)),
-      );
-
-      expect(lineage).toHaveLength(2);
-      expect(lineage[0]?.eventType).toBe("pinned");
-      expect(lineage[1]?.eventType).toBe("repinned");
-      expect(lineage[1]?.previousVersion).toBe("1.0.0");
-      expect(lineage[1]?.newVersion).toBe("2.0.0");
-      expect(lineage[0]?.timestamp.localeCompare(lineage[1]?.timestamp ?? "")).toBeLessThanOrEqual(
-        0,
-      );
     });
   });
 });

@@ -43,6 +43,39 @@ function readTransitionKey(value: unknown): string | null {
   return null;
 }
 
+function collectCanonicalTransitionKeys(
+  definition: MethodologyVersionDefinition,
+): readonly string[] {
+  const topLevel = definition.transitions
+    .map(readTransitionKey)
+    .filter((k): k is string => k !== null);
+  if (topLevel.length > 0) {
+    return topLevel;
+  }
+
+  const nested: string[] = [];
+  for (const workUnit of definition.workUnitTypes) {
+    if (!workUnit || typeof workUnit !== "object") {
+      continue;
+    }
+
+    const lifecycleTransitions = Array.isArray(
+      (workUnit as Record<string, unknown>).lifecycleTransitions,
+    )
+      ? ((workUnit as Record<string, unknown>).lifecycleTransitions as unknown[])
+      : [];
+
+    for (const transition of lifecycleTransitions) {
+      const key = readTransitionKey(transition);
+      if (key !== null) {
+        nested.push(key);
+      }
+    }
+  }
+
+  return nested;
+}
+
 function normalizeBindings(
   definition: MethodologyVersionDefinition,
 ): Record<string, readonly string[]> {
@@ -76,7 +109,9 @@ export function validateDraftDefinition(
       ),
     );
   }
-  if (definition.transitions.length === 0) {
+  const transitionKeys = collectCanonicalTransitionKeys(definition);
+
+  if (transitionKeys.length === 0) {
     diagnostics.push(
       makeDiagnostic(
         {
@@ -91,13 +126,11 @@ export function validateDraftDefinition(
       ),
     );
   }
-  const transitionKeys = new Set(
-    definition.transitions.map(readTransitionKey).filter((k): k is string => k !== null),
-  );
+  const transitionKeySet = new Set(transitionKeys);
   const bindingMap = normalizeBindings(definition);
   const bindingKeys = Object.keys(bindingMap).sort();
   for (const key of bindingKeys) {
-    if (transitionKeys.size > 0 && !transitionKeys.has(key)) {
+    if (transitionKeySet.size > 0 && !transitionKeySet.has(key)) {
       diagnostics.push(
         makeDiagnostic(
           {

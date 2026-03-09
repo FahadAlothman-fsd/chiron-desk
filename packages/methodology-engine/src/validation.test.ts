@@ -10,6 +10,43 @@ const BASE_DEFINITION = {
 } as const;
 
 describe("validateDraftDefinition", () => {
+  it("accepts canonical nested lifecycle transitions without top-level transitions", () => {
+    const definition = {
+      workUnitTypes: [
+        {
+          key: "task",
+          lifecycleStates: [{ key: "done" }],
+          lifecycleTransitions: [
+            {
+              transitionKey: "start",
+              fromState: "__absent__",
+              toState: "done",
+              gateClass: "start_gate",
+              conditionSets: [],
+            },
+          ],
+          factSchemas: [],
+        },
+      ],
+      agentTypes: [],
+      transitions: [],
+      transitionWorkflowBindings: { start: ["wf-a"] },
+      workflows: [
+        {
+          key: "wf-a",
+          steps: [{ key: "s1", type: "form" }],
+          edges: [],
+        },
+      ],
+    } as unknown as MethodologyVersionDefinition;
+
+    const result = validateDraftDefinition(definition, "2026-01-01T00:00:00.000Z");
+    const codes = result.diagnostics.map((d) => d.code);
+
+    expect(codes).not.toContain("EMPTY_TRANSITIONS");
+    expect(codes).not.toContain("UNRESOLVED_TRANSITION_BINDING");
+  });
+
   it("returns a blocking diagnostic for unsupported workflow step types", () => {
     const definition = {
       ...BASE_DEFINITION,
