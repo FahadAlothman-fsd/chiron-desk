@@ -95,8 +95,11 @@ function extractText(value: unknown): string | undefined {
     return undefined;
   }
 
-  const text = (value as { text?: unknown }).text;
-  return typeof text === "string" ? text : undefined;
+  if (typeof value.text === "string") {
+    return value.text;
+  }
+
+  return undefined;
 }
 
 function asCardinality(value: string): WorkUnitTypeDefinition["cardinality"] {
@@ -105,18 +108,6 @@ function asCardinality(value: string): WorkUnitTypeDefinition["cardinality"] {
 
 function asGateClass(value: string): "start_gate" | "completion_gate" {
   return value === "start_gate" ? "start_gate" : "completion_gate";
-}
-
-function asLinkStrength(value: string): "hard" | "soft" | "context" {
-  if (value === "soft") {
-    return "soft";
-  }
-
-  if (value === "context") {
-    return "context";
-  }
-
-  return "hard";
 }
 
 function asFactType(value: string): "string" | "number" | "boolean" | "json" {
@@ -176,14 +167,14 @@ function loadPreviousLifecycleDefinition(
       lifecycleStateRows,
       transitionRows,
       factSchemaRows,
-      transitionRequiredLinkRows,
+      transitionConditionSetRows,
       agentTypeRows,
     ] = yield* Effect.all([
       lifecycleRepo.findWorkUnitTypes(versionId),
       lifecycleRepo.findLifecycleStates(versionId),
       lifecycleRepo.findLifecycleTransitions(versionId),
       lifecycleRepo.findFactSchemas(versionId),
-      lifecycleRepo.findTransitionRequiredLinks(versionId),
+      lifecycleRepo.findTransitionConditionSets(versionId),
       lifecycleRepo.findAgentTypes(versionId),
     ]);
 
@@ -210,14 +201,14 @@ function loadPreviousLifecycleDefinition(
       factsByWorkUnitType.set(factSchema.workUnitTypeId, facts);
     }
 
-    const requiredLinksByTransition = new Map<
+    const conditionSetsByTransition = new Map<
       string,
-      Array<(typeof transitionRequiredLinkRows)[number]>
+      Array<(typeof transitionConditionSetRows)[number]>
     >();
-    for (const requiredLink of transitionRequiredLinkRows) {
-      const links = requiredLinksByTransition.get(requiredLink.transitionId) ?? [];
-      links.push(requiredLink);
-      requiredLinksByTransition.set(requiredLink.transitionId, links);
+    for (const conditionSet of transitionConditionSetRows) {
+      const conditionSets = conditionSetsByTransition.get(conditionSet.transitionId) ?? [];
+      conditionSets.push(conditionSet);
+      conditionSetsByTransition.set(conditionSet.transitionId, conditionSets);
     }
 
     const workUnitTypes: WorkUnitTypeDefinition[] = workUnitTypeRows.map((workUnitTypeRow) => ({
@@ -245,11 +236,21 @@ function loadPreviousLifecycleDefinition(
                 : (stateKeyById.get(transitionRow.fromStateId) ?? undefined),
             toState,
             gateClass: asGateClass(transitionRow.gateClass),
-            requiredLinks: (requiredLinksByTransition.get(transitionRow.id) ?? []).map(
-              (linkRow) => ({
-                linkTypeKey: linkRow.linkTypeKey,
-                strength: asLinkStrength(linkRow.strength),
-                required: linkRow.required,
+            conditionSets: (conditionSetsByTransition.get(transitionRow.id) ?? []).map(
+              (conditionSetRow) => ({
+                key: conditionSetRow.key,
+                phase:
+                  conditionSetRow.phase === "completion"
+                    ? ("completion" as const)
+                    : ("start" as const),
+                mode: conditionSetRow.mode === "any" ? ("any" as const) : ("all" as const),
+                groups: Array.isArray(conditionSetRow.groupsJson)
+                  ? (conditionSetRow.groupsJson as WorkUnitTypeDefinition["lifecycleTransitions"][number]["conditionSets"][number]["groups"])
+                  : [],
+                guidance:
+                  typeof conditionSetRow.guidanceJson === "string"
+                    ? conditionSetRow.guidanceJson
+                    : undefined,
               }),
             ),
           };

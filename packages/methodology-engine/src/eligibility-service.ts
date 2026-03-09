@@ -1,7 +1,6 @@
 import type {
   GetTransitionEligibilityInput,
   GetTransitionEligibilityOutput,
-  RequiredLinkEligibility,
   TransitionEligibility,
   WorkflowEligibilityDiagnostic,
 } from "@chiron/contracts/methodology/eligibility";
@@ -12,14 +11,9 @@ import { RepositoryError, VersionNotFoundError } from "./errors";
 
 const ABSENT_STATE = "__absent__";
 const ALLOWED_GATE_CLASSES = new Set(["start_gate", "completion_gate"] as const);
-const ALLOWED_STRENGTHS = new Set(["hard", "soft", "context"] as const);
 
 function isGateClass(value: string): value is TransitionEligibility["gateClass"] {
   return ALLOWED_GATE_CLASSES.has(value as TransitionEligibility["gateClass"]);
-}
-
-function isDependencyStrength(value: string): value is RequiredLinkEligibility["strength"] {
-  return ALLOWED_STRENGTHS.has(value as RequiredLinkEligibility["strength"]);
 }
 
 function projectWorkflowEligibility(
@@ -148,7 +142,7 @@ export const EligibilityServiceLive = Effect.gen(function* () {
         fromStateId: currentStateId, // NULL = __absent__, defined = specific state
       });
 
-      const transitionRequiredLinks = yield* lifecycleRepo.findTransitionRequiredLinks(
+      const transitionConditionSets = yield* lifecycleRepo.findTransitionConditionSets(
         input.versionId,
       );
       const transitionWorkflowBindings = yield* lifecycleRepo.findTransitionWorkflowBindings(
@@ -173,9 +167,9 @@ export const EligibilityServiceLive = Effect.gen(function* () {
           );
         }
 
-        const requiredLinks = transitionRequiredLinks
-          .filter((link) => link.transitionId === transition.id)
-          .sort((a, b) => a.linkTypeKey.localeCompare(b.linkTypeKey));
+        const conditionSets = transitionConditionSets
+          .filter((conditionSet) => conditionSet.transitionId === transition.id)
+          .sort((a, b) => a.key.localeCompare(b.key));
 
         // Map to eligibility format
         const eligibility: TransitionEligibility = {
@@ -183,18 +177,14 @@ export const EligibilityServiceLive = Effect.gen(function* () {
           fromState: currentStateKey,
           toState: toStateKey,
           gateClass: transition.gateClass,
-          requiredLinks: requiredLinks.map((link): RequiredLinkEligibility => {
-            if (!isDependencyStrength(link.strength)) {
-              throw new Error(
-                `Transition '${transition.transitionKey}' has invalid link strength '${link.strength}' for linkType '${link.linkTypeKey}'`,
-              );
-            }
-            return {
-              linkTypeKey: link.linkTypeKey,
-              strength: link.strength,
-              required: link.required,
-            };
-          }),
+          conditionSets: conditionSets.map((conditionSet) => ({
+            key: conditionSet.key,
+            phase: conditionSet.phase === "completion" ? "completion" : "start",
+            mode: conditionSet.mode === "any" ? "any" : "all",
+            groups: Array.isArray(conditionSet.groupsJson) ? conditionSet.groupsJson : [],
+            guidance:
+              typeof conditionSet.guidanceJson === "string" ? conditionSet.guidanceJson : undefined,
+          })),
           ...projectWorkflowEligibility(
             transition.id,
             transition.transitionKey,

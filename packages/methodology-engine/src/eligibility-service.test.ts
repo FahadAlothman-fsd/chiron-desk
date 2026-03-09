@@ -55,7 +55,6 @@ function makeMethodologyRepo(definitionExtensions: unknown): MethodologyReposito
       Effect.succeed({ workflows: [], transitionWorkflowBindings: {}, guidance: undefined }),
     findFactSchemasByVersionId: (_versionId: string) => Effect.succeed([]),
     publishDraftVersion: () => Effect.die("not used in test"),
-    findProjectPin: () => Effect.succeed(null),
     hasPersistedExecutions: () => Effect.succeed(false),
     pinProjectMethodologyVersion: () => Effect.die("not used in test"),
     repinProjectMethodologyVersion: () => Effect.die("not used in test"),
@@ -121,7 +120,33 @@ function makeLifecycleRepo(
         },
       ]),
     findFactSchemas: (_versionId: string, _workUnitTypeId?: string) => Effect.succeed([]),
-    findTransitionRequiredLinks: (_versionId: string, _transitionId?: string) => Effect.succeed([]),
+    findTransitionConditionSets: (_versionId: string, _transitionId?: string) =>
+      Effect.succeed([
+        {
+          id: "cs-1",
+          methodologyVersionId: VERSION_ID,
+          transitionId: "tr-1",
+          key: "gate.activate.task",
+          phase: "start",
+          mode: "all",
+          groupsJson: [
+            {
+              key: "workflow-binding",
+              mode: "all",
+              conditions: [
+                {
+                  kind: "transition.workflowBinding.present",
+                  required: true,
+                  config: { workUnitTypeKey: "task", transitionKey: "start" },
+                },
+              ],
+            },
+          ],
+          guidanceJson: "Workflow binding must exist.",
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+          updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+        },
+      ]),
     findAgentTypes: (_versionId: string) => Effect.succeed([]),
     findTransitionWorkflowBindings: (_versionId: string, _transitionId?: string) =>
       Effect.succeed(transitionWorkflowBindings),
@@ -206,6 +231,27 @@ describe("EligibilityService workflow projection", () => {
     expect(transition["eligibleWorkflowKeys"]).toEqual(["wf-a", "wf-b"]);
     expect(transition["workflowSelectionRequired"]).toBe(true);
     expect(transition["workflowBlocked"]).toBe(false);
+    expect(transition["conditionSets"]).toEqual([
+      {
+        key: "gate.activate.task",
+        phase: "start",
+        mode: "all",
+        groups: [
+          {
+            key: "workflow-binding",
+            mode: "all",
+            conditions: [
+              {
+                kind: "transition.workflowBinding.present",
+                required: true,
+                config: { workUnitTypeKey: "task", transitionKey: "start" },
+              },
+            ],
+          },
+        ],
+        guidance: "Workflow binding must exist.",
+      },
+    ]);
   });
 
   it("blocks transitions with deterministic diagnostics when no workflows are bound", async () => {

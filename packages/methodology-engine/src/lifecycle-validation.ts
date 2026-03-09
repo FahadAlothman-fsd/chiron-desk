@@ -23,7 +23,6 @@ function makeDiagnostic(
 const ALLOWED_CARDINALITY = new Set(["one_per_project", "many_per_project"]);
 const ALLOWED_GATE_CLASSES = new Set(["start_gate", "completion_gate"]);
 const ALLOWED_FACT_TYPES = new Set(["string", "number", "boolean", "json"]);
-const ALLOWED_STRENGTHS = new Set(["hard", "soft", "context"]);
 const ABSENT_STATE = "__absent__";
 
 function isDefaultValueCompatible(factType: string, defaultValue: unknown): boolean {
@@ -103,7 +102,7 @@ function isJsonSchemaCompatible(schema: unknown, value: unknown): boolean {
 export function validateLifecycleDefinition(
   workUnitTypes: readonly WorkUnitTypeDefinition[],
   timestamp: string,
-  definedLinkTypeKeys?: readonly string[],
+  _definedLinkTypeKeys?: readonly string[],
   agentTypes: readonly AgentTypeDefinition[] = [],
 ): ValidationResult {
   const diagnostics: ValidationDiagnostic[] = [];
@@ -412,47 +411,6 @@ export function validateLifecycleDefinition(
                 required: "JSON default compatible with configured schema type",
                 observed: JSON.stringify(fact.defaultValue),
                 remediation: `Adjust default value or schemaDialect=${validation.schemaDialect}`,
-              },
-              timestamp,
-            ),
-          );
-        }
-      }
-    }
-  }
-
-  // AC 8: Validate dependency requirements (requiredLinks)
-  for (const [wutIndex, wut] of workUnitTypes.entries()) {
-    for (const [transIndex, trans] of wut.lifecycleTransitions.entries()) {
-      for (const [linkIndex, link] of trans.requiredLinks.entries()) {
-        // Validate linkTypeKey exists in defined link types
-        if (definedLinkTypeKeys !== undefined && !definedLinkTypeKeys.includes(link.linkTypeKey)) {
-          diagnostics.push(
-            makeDiagnostic(
-              {
-                code: "UNDEFINED_LINK_TYPE",
-                scope: `workUnitTypes[${wutIndex}].lifecycleTransitions[${transIndex}].requiredLinks[${linkIndex}].linkTypeKey`,
-                blocking: true,
-                required: `One of defined link types`,
-                observed: link.linkTypeKey,
-                remediation: "Use a defined link type key from the methodology version",
-              },
-              timestamp,
-            ),
-          );
-        }
-
-        // Validate strength values
-        if (link.strength !== undefined && !ALLOWED_STRENGTHS.has(link.strength)) {
-          diagnostics.push(
-            makeDiagnostic(
-              {
-                code: "INVALID_LINK_STRENGTH",
-                scope: `workUnitTypes[${wutIndex}].lifecycleTransitions[${transIndex}].requiredLinks[${linkIndex}].strength`,
-                blocking: true,
-                required: `One of: ${Array.from(ALLOWED_STRENGTHS).join(", ")}`,
-                observed: link.strength,
-                remediation: "Use 'hard', 'soft', or 'context'",
               },
               timestamp,
             ),
