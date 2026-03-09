@@ -2,6 +2,7 @@ export * from "./methodology-work-unit-types.seed";
 export * from "./methodology-agent-types.seed";
 export * from "./methodology-lifecycle-states.seed";
 export * from "./methodology-lifecycle-transitions.seed";
+export * from "./methodology-transition-condition-sets.seed";
 export * from "./methodology-transition-required-links.seed";
 export * from "./methodology-fact-schemas.seed";
 export * from "./methodology-fact-definitions.seed";

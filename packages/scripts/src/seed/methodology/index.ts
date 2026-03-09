@@ -4,8 +4,8 @@ import {
   methodologyFactSchemaSeedRows,
   methodologyLifecycleStateSeedRows,
   methodologyLifecycleTransitionSeedRows,
+  methodologyTransitionConditionSetSeedRows,
   methodologyLinkTypeDefinitionSeedRows,
-  methodologyTransitionRequiredLinkSeedRows,
   methodologyTransitionWorkflowBindingSeedRows,
   methodologyWorkUnitTypeSeedRows,
   methodologyWorkflowEdgeSeedRows,
@@ -21,7 +21,7 @@ export const METHODOLOGY_CANONICAL_TABLE_SEED_ORDER = [
   "methodology_agent_types",
   "methodology_lifecycle_states",
   "methodology_lifecycle_transitions",
-  "methodology_transition_required_links",
+  "methodology_transition_condition_sets",
   "methodology_fact_schemas",
   "methodology_link_type_definitions",
   "methodology_workflows",
@@ -36,7 +36,7 @@ export const methodologyCanonicalTableSeedRows = {
   methodology_agent_types: methodologyAgentTypeSeedRows,
   methodology_lifecycle_states: methodologyLifecycleStateSeedRows,
   methodology_lifecycle_transitions: methodologyLifecycleTransitionSeedRows,
-  methodology_transition_required_links: methodologyTransitionRequiredLinkSeedRows,
+  methodology_transition_condition_sets: methodologyTransitionConditionSetSeedRows,
   methodology_fact_schemas: methodologyFactSchemaSeedRows,
   methodology_link_type_definitions: methodologyLinkTypeDefinitionSeedRows,
   methodology_workflows: methodologyWorkflowSeedRows,
@@ -47,5 +47,5 @@ export const methodologyCanonicalTableSeedRows = {
 } as const;
 
 export const methodologySeedSlices = {
-  setup: setupSeedMetadata,
+  project_context: setupSeedMetadata,
 } as const;
