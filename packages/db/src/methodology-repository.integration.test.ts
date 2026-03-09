@@ -4,11 +4,13 @@ import { rmSync } from "node:fs";
 import { createClient, type Client } from "@libsql/client";
 import type { ValidationResult } from "@chiron/contracts/methodology/version";
 import { MethodologyRepository } from "@chiron/methodology-engine";
+import { ProjectContextRepository } from "@chiron/project-context";
 import { Effect } from "effect";
 import { eq } from "drizzle-orm";
 import { drizzle, type LibSQLDatabase } from "drizzle-orm/libsql";
 
 import { createMethodologyRepoLayer } from "./methodology-repository";
+import { createProjectContextRepoLayer } from "./project-context-repository";
 import {
   methodologyAgentTypes,
   methodologyLifecycleStates,
@@ -75,6 +77,8 @@ const SCHEMA_SQL = [
     default_model_json TEXT,
     mcp_servers_json TEXT,
     capabilities_json TEXT,
+    prompt_template_json TEXT,
+    prompt_template_version INTEGER NOT NULL DEFAULT 1,
     guidance_json TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
@@ -246,6 +250,26 @@ describe("methodology repository integration", () => {
       }).pipe(Effect.provide(createMethodologyRepoLayer(db))),
     );
 
+  const runRepoError = <E>(
+    fn: (repo: MethodologyRepository["Type"]) => Effect.Effect<unknown, E>,
+  ): Promise<E> =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const repo = yield* MethodologyRepository;
+        return yield* Effect.flip(fn(repo));
+      }).pipe(Effect.provide(createMethodologyRepoLayer(db))),
+    );
+
+  const runProjectRepo = <A>(
+    fn: (repo: ProjectContextRepository["Type"]) => Effect.Effect<A, unknown>,
+  ): Promise<A> =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const repo = yield* ProjectContextRepository;
+        return yield* fn(repo);
+      }).pipe(Effect.provide(createProjectContextRepoLayer(db))),
+    );
+
   const createAndPublishVersion = async (
     methodologyKey: string,
     draftVersion: string,
@@ -256,11 +280,7 @@ describe("methodology repository integration", () => {
         methodologyKey,
         displayName: `Methodology ${methodologyKey}`,
         version: draftVersion,
-        definitionExtensions: {
-          workUnitTypes: [{ key: "task" }],
-          agentTypes: [],
-          transitions: [{ key: "start" }],
-        },
+        definitionExtensions: {},
         workflows: [],
         transitionWorkflowBindings: {},
         actorId: "user-1",
@@ -280,17 +300,83 @@ describe("methodology repository integration", () => {
     return published.version;
   };
 
+  it("rejects forbidden canonical keys in draft create definition extensions", async () => {
+    const error = await runRepoError((repo) =>
+      repo.createDraft({
+        methodologyKey: "forbidden-methodology",
+        displayName: "Forbidden Methodology",
+        version: "0.1.0",
+        definitionExtensions: {
+          workUnitTypes: [{ key: "task" }],
+          transitions: [{ key: "start" }],
+        },
+        workflows: [],
+        transitionWorkflowBindings: {},
+        actorId: "user-1",
+        validationDiagnostics: VALIDATION_OK,
+      }),
+    );
+
+    expect(error).toMatchObject({
+      _tag: "RepositoryError",
+      code: "FORBIDDEN_EXTENSION_KEYS",
+      cause: {
+        diagnosticRef: "forbidden-extension-keys-diagnostics",
+        scope: "definition_extensions_json",
+        forbiddenKeys: ["workUnitTypes", "transitions"],
+      },
+    });
+  });
+
+  it("rejects forbidden canonical keys in draft update definition extensions", async () => {
+    const created = await runRepo((repo) =>
+      repo.createDraft({
+        methodologyKey: "forbidden-update-methodology",
+        displayName: "Forbidden Update Methodology",
+        version: "0.1.0",
+        definitionExtensions: {},
+        workflows: [],
+        transitionWorkflowBindings: {},
+        actorId: "user-1",
+        validationDiagnostics: VALIDATION_OK,
+      }),
+    );
+
+    const error = await runRepoError((repo) =>
+      repo.updateDraft({
+        versionId: created.version.id,
+        displayName: "Forbidden Update Methodology",
+        version: "0.1.1",
+        definitionExtensions: {
+          agentTypes: [],
+          linkTypeDefinitions: [],
+        },
+        workflows: [],
+        transitionWorkflowBindings: {},
+        actorId: "user-1",
+        changedFieldsJson: { changed: true },
+        validationDiagnostics: VALIDATION_OK,
+      }),
+    );
+
+    expect(error).toMatchObject({
+      _tag: "RepositoryError",
+      code: "FORBIDDEN_EXTENSION_KEYS",
+      cause: {
+        diagnosticRef: "forbidden-extension-keys-diagnostics",
+        scope: "definition_extensions_json",
+        forbiddenKeys: ["agentTypes", "linkTypeDefinitions"],
+      },
+    });
+  });
+
   it("keeps canonical workflow data out of definition extensions", async () => {
     const created = await runRepo((repo) =>
       repo.createDraft({
         methodologyKey: "foundation-methodology",
         displayName: "Foundation Methodology",
         version: "1.0.0",
-        definitionExtensions: {
-          workUnitTypes: [],
-          agentTypes: [],
-          transitions: [],
-        },
+        definitionExtensions: {},
         workflows: [],
         transitionWorkflowBindings: {},
         actorId: "user-1",
@@ -368,6 +454,7 @@ describe("methodology repository integration", () => {
       byWorkUnitType: { task: { label: "wut" } },
       byAgentType: { analyst: { label: "agent" } },
       byTransition: { start: { label: "transition" } },
+      byWorkflow: {},
     };
 
     await runRepo((repo) =>
@@ -376,9 +463,6 @@ describe("methodology repository integration", () => {
         displayName: "Foundation Methodology",
         version: "1.0.1",
         definitionExtensions: {
-          workUnitTypes: [],
-          agentTypes: [],
-          transitions: [],
           guidance: { global: guidance.global },
         },
         workflows: [
@@ -428,6 +512,7 @@ describe("methodology repository integration", () => {
       byWorkUnitType: { task: { label: "wut" } },
       byAgentType: { analyst: { label: "agent" } },
       byTransition: { start: { label: "transition" } },
+      byWorkflow: {},
     });
   });
 
@@ -437,11 +522,7 @@ describe("methodology repository integration", () => {
         methodologyKey: "foundation-methodology",
         displayName: "Foundation Methodology",
         version: "0.1.0-draft",
-        definitionExtensions: {
-          workUnitTypes: [{ key: "task" }],
-          agentTypes: [],
-          transitions: [{ key: "start" }],
-        },
+        definitionExtensions: {},
         workflows: [],
         transitionWorkflowBindings: {},
         actorId: "user-1",
@@ -478,11 +559,7 @@ describe("methodology repository integration", () => {
         methodologyKey: "foundation-methodology",
         displayName: "Foundation Methodology",
         version: "0.1.0-draft-a",
-        definitionExtensions: {
-          workUnitTypes: [{ key: "task" }],
-          agentTypes: [],
-          transitions: [{ key: "start" }],
-        },
+        definitionExtensions: {},
         workflows: [],
         transitionWorkflowBindings: {},
         actorId: "user-1",
@@ -495,11 +572,7 @@ describe("methodology repository integration", () => {
         methodologyKey: "foundation-methodology",
         displayName: "Foundation Methodology",
         version: "0.1.0-draft-b",
-        definitionExtensions: {
-          workUnitTypes: [{ key: "task" }],
-          agentTypes: [],
-          transitions: [{ key: "start" }],
-        },
+        definitionExtensions: {},
         workflows: [],
         transitionWorkflowBindings: {},
         actorId: "user-1",
@@ -544,11 +617,7 @@ describe("methodology repository integration", () => {
         methodologyKey: "foundation-methodology",
         displayName: "Foundation Methodology",
         version: "0.1.0-draft",
-        definitionExtensions: {
-          workUnitTypes: [{ key: "task" }],
-          agentTypes: [],
-          transitions: [{ key: "start" }],
-        },
+        definitionExtensions: {},
         workflows: [],
         transitionWorkflowBindings: {},
         actorId: "user-1",
@@ -583,11 +652,7 @@ describe("methodology repository integration", () => {
         methodologyKey: "foundation-methodology",
         displayName: "Foundation Methodology",
         version: "0.2.0-draft",
-        definitionExtensions: {
-          workUnitTypes: [{ key: "task" }],
-          agentTypes: [],
-          transitions: [{ key: "start" }],
-        },
+        definitionExtensions: {},
         workflows: [],
         transitionWorkflowBindings: {},
         actorId: "user-1",
@@ -625,7 +690,7 @@ describe("methodology repository integration", () => {
     const v1 = await createAndPublishVersion("pin-lineage-methodology", "0.1.0-draft", "1.0.0");
     const v2 = await createAndPublishVersion("pin-lineage-methodology", "0.2.0-draft", "2.0.0");
 
-    await runRepo((repo) =>
+    await runProjectRepo((repo) =>
       repo.pinProjectMethodologyVersion({
         projectId: "project-lineage",
         methodologyVersionId: v1.id,
@@ -635,7 +700,7 @@ describe("methodology repository integration", () => {
       }),
     );
 
-    await runRepo((repo) =>
+    await runProjectRepo((repo) =>
       repo.repinProjectMethodologyVersion({
         projectId: "project-lineage",
         methodologyVersionId: v2.id,
@@ -645,7 +710,7 @@ describe("methodology repository integration", () => {
       }),
     );
 
-    const lineage = await runRepo((repo) =>
+    const lineage = await runProjectRepo((repo) =>
       repo.getProjectPinLineage({ projectId: "project-lineage" }),
     );
 
@@ -665,7 +730,7 @@ describe("methodology repository integration", () => {
       "1.0.0",
     );
 
-    const error = await runRepo((repo) =>
+    const error = await runProjectRepo((repo) =>
       repo.repinProjectMethodologyVersion({
         projectId: "project-no-pin",
         methodologyVersionId: v1.id,
@@ -688,7 +753,7 @@ describe("methodology repository integration", () => {
     const v1 = await createAndPublishVersion("pin-guard-methodology", "0.1.0-draft", "1.0.0");
     const v2 = await createAndPublishVersion("pin-guard-methodology", "0.2.0-draft", "2.0.0");
 
-    await runRepo((repo) =>
+    await runProjectRepo((repo) =>
       repo.pinProjectMethodologyVersion({
         projectId: "project-exec-guard",
         methodologyVersionId: v1.id,
@@ -703,7 +768,7 @@ describe("methodology repository integration", () => {
       methodologyVersionId: v1.id,
     });
 
-    const error = await runRepo((repo) =>
+    const error = await runProjectRepo((repo) =>
       repo.repinProjectMethodologyVersion({
         projectId: "project-exec-guard",
         methodologyVersionId: v2.id,
@@ -728,7 +793,7 @@ describe("methodology repository integration", () => {
 
     await client.execute("DROP TABLE project_methodology_pin_events");
 
-    const error = await runRepo((repo) =>
+    const error = await runProjectRepo((repo) =>
       repo.pinProjectMethodologyVersion({
         projectId: "project-atomicity",
         methodologyVersionId: v1.id,
