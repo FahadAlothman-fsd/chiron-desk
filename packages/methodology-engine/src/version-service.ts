@@ -1,14 +1,10 @@
 import type {
   CreateDraftVersionInput,
-  GetProjectPinLineageInput,
   GetPublicationEvidenceInput,
   GetDraftLineageInput,
   MethodologyVersionDefinition,
-  PinProjectMethodologyVersionInput,
-  ProjectMethodologyPinEvent,
   PublishDraftVersionInput,
   PublicationEvidence,
-  RepinProjectMethodologyVersionInput,
   UpdateDraftVersionInput,
   ValidationDiagnostic,
   ValidateDraftVersionInput,
@@ -27,15 +23,9 @@ import {
   VersionNotDraftError,
   VersionNotFoundError,
 } from "./errors";
-import type {
-  MethodologyVersionEventRow,
-  MethodologyVersionRow,
-  ProjectMethodologyPinEventRow,
-  ProjectMethodologyPinRow,
-  ProjectRow,
-} from "./repository";
+import type { MethodologyVersionEventRow, MethodologyVersionRow } from "./repository";
 import { MethodologyRepository } from "./repository";
-import { LifecycleRepository } from "./lifecycle-repository";
+import { LifecycleRepository, type SaveLifecycleDefinitionParams } from "./lifecycle-repository";
 import { validateDraftDefinition } from "./validation";
 
 export interface CreateDraftResult {
@@ -53,27 +43,6 @@ export interface PublishDraftResult {
   diagnostics: ValidationResult;
   version?: MethodologyVersionRow;
   evidence?: PublicationEvidence;
-}
-
-export interface ProjectMethodologyPinState {
-  projectId: string;
-  methodologyVersionId: string;
-  methodologyKey: string;
-  publishedVersion: string;
-  actorId: string | null;
-  timestamp: string;
-}
-
-export interface PinProjectMethodologyVersionResult {
-  pinned: boolean;
-  diagnostics: ValidationResult;
-  pin?: ProjectMethodologyPinState;
-}
-
-export interface RepinProjectMethodologyVersionResult {
-  repinned: boolean;
-  diagnostics: ValidationResult;
-  pin?: ProjectMethodologyPinState;
 }
 
 export interface GetPublishedContractInput {
@@ -112,70 +81,6 @@ export interface MethodologyDetails {
     createdAt: string;
     retiredAt: string | null;
   }[];
-}
-
-export interface ProjectSummary {
-  id: string;
-  displayName: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-const PROJECT_NAME_PREFIXES = [
-  "Aegis",
-  "Arcadian",
-  "Astral",
-  "Cinder",
-  "Cobalt",
-  "Eternal",
-  "Golden",
-  "Helios",
-  "Iris",
-  "Luminous",
-  "Mythic",
-  "Obsidian",
-  "Orchid",
-  "Radiant",
-  "Silver",
-  "Velvet",
-] as const;
-
-const PROJECT_NAME_CORE = [
-  "Athena",
-  "Apollo",
-  "Artemis",
-  "Atlas",
-  "Freya",
-  "Hermes",
-  "Hyperion",
-  "Icarus",
-  "Nyx",
-  "Orion",
-  "Perseus",
-  "Selene",
-  "Skadi",
-  "Thalia",
-  "Tyr",
-  "Zephyr",
-] as const;
-
-function hashProjectId(input: string): number {
-  let hash = 2_166_136_261;
-  for (let index = 0; index < input.length; index += 1) {
-    hash ^= input.charCodeAt(index);
-    hash = Math.imul(hash, 16_777_619);
-  }
-  return hash >>> 0;
-}
-
-function generateProjectDisplayName(projectId: string): string {
-  const hash = hashProjectId(projectId);
-  const prefix = PROJECT_NAME_PREFIXES[hash % PROJECT_NAME_PREFIXES.length] ?? "Mythic";
-  const core =
-    PROJECT_NAME_CORE[Math.floor(hash / PROJECT_NAME_PREFIXES.length) % PROJECT_NAME_CORE.length] ??
-    "Atlas";
-  const suffix = ((hash >>> 9) % 90) + 10;
-  return `${prefix} ${core} ${suffix}`;
 }
 
 export class MethodologyVersionService extends Context.Tag("MethodologyVersionService")<
@@ -222,28 +127,6 @@ export class MethodologyVersionService extends Context.Tag("MethodologyVersionSe
     readonly getPublicationEvidence: (
       input: GetPublicationEvidenceInput,
     ) => Effect.Effect<readonly PublicationEvidence[], RepositoryError>;
-    readonly pinProjectMethodologyVersion: (
-      input: PinProjectMethodologyVersionInput,
-      actorId: string | null,
-    ) => Effect.Effect<PinProjectMethodologyVersionResult, RepositoryError>;
-    readonly repinProjectMethodologyVersion: (
-      input: RepinProjectMethodologyVersionInput,
-      actorId: string | null,
-    ) => Effect.Effect<RepinProjectMethodologyVersionResult, RepositoryError>;
-    readonly getProjectPinLineage: (
-      input: GetProjectPinLineageInput,
-    ) => Effect.Effect<readonly ProjectMethodologyPinEvent[], RepositoryError>;
-    readonly getProjectMethodologyPin: (
-      projectId: string,
-    ) => Effect.Effect<ProjectMethodologyPinState | null, RepositoryError>;
-    readonly createProject: (
-      projectId: string,
-      name?: string,
-    ) => Effect.Effect<ProjectSummary, RepositoryError>;
-    readonly listProjects: () => Effect.Effect<readonly ProjectSummary[], RepositoryError>;
-    readonly getProjectById: (
-      projectId: string,
-    ) => Effect.Effect<ProjectSummary | null, RepositoryError>;
     readonly createMethodology: (
       methodologyKey: string,
       displayName: string,
@@ -310,67 +193,6 @@ function makePublishDiagnostic(
     timestamp,
     evidenceRef: null,
   };
-}
-
-function makeProjectPinDiagnostic(
-  code:
-    | "PROJECT_PIN_TARGET_VERSION_NOT_FOUND"
-    | "PROJECT_PIN_TARGET_VERSION_INCOMPATIBLE"
-    | "PROJECT_REPIN_BLOCKED_EXECUTION_HISTORY"
-    | "PROJECT_REPIN_REQUIRES_EXISTING_PIN"
-    | "PROJECT_PIN_ATOMICITY_GUARD_ABORTED",
-  scope: "project.pin.target" | "project.repin.policy" | "project.pin.persistence",
-  timestamp: string,
-  required: string,
-  observed: string,
-  remediation: string,
-): ValidationDiagnostic {
-  return {
-    code,
-    scope,
-    blocking: true,
-    required,
-    observed,
-    remediation,
-    timestamp,
-    evidenceRef: null,
-  };
-}
-
-function toProjectPinState(pin: ProjectMethodologyPinRow): ProjectMethodologyPinState {
-  return {
-    projectId: pin.projectId,
-    methodologyVersionId: pin.methodologyVersionId,
-    methodologyKey: pin.methodologyKey,
-    publishedVersion: pin.publishedVersion,
-    actorId: pin.actorId,
-    timestamp: pin.updatedAt.toISOString(),
-  };
-}
-
-function toProjectPinEvent(event: ProjectMethodologyPinEventRow): ProjectMethodologyPinEvent {
-  return {
-    id: event.id,
-    projectId: event.projectId,
-    eventType: event.eventType,
-    actorId: event.actorId,
-    previousVersion: event.previousVersion,
-    newVersion: event.newVersion,
-    timestamp: event.createdAt.toISOString(),
-    evidenceRef: event.evidenceRef,
-  };
-}
-
-function toProjectSummary(project: ProjectRow): ProjectSummary {
-  const normalizedName = project.name?.trim() ?? "";
-
-  return {
-    id: project.id,
-    displayName:
-      normalizedName.length > 0 ? normalizedName : generateProjectDisplayName(project.id),
-    createdAt: project.createdAt.toISOString(),
-    updatedAt: project.updatedAt.toISOString(),
-  } satisfies ProjectSummary;
 }
 
 function isDefaultValueCompatible(factType: string, defaultValue: unknown): boolean {
@@ -498,14 +320,6 @@ function asGateClass(value: unknown): "start_gate" | "completion_gate" {
     : "start_gate";
 }
 
-const ALLOWED_LINK_STRENGTH = new Set(["required", "optional"]);
-
-function asLinkStrength(value: unknown): "required" | "optional" {
-  return typeof value === "string" && ALLOWED_LINK_STRENGTH.has(value)
-    ? (value as "required" | "optional")
-    : "required";
-}
-
 const ALLOWED_CANONICAL_FACT_TYPES = new Set(["string", "number", "boolean", "json"]);
 
 function asCanonicalFactType(value: unknown): "string" | "number" | "boolean" | "json" {
@@ -553,14 +367,14 @@ function loadCanonicalLifecycleDefinition(
       stateRows,
       transitionRows,
       factSchemaRows,
-      requiredLinkRows,
+      conditionSetRows,
       agentRows,
     ] = yield* Effect.all([
       lifecycleRepo.findWorkUnitTypes(versionId),
       lifecycleRepo.findLifecycleStates(versionId),
       lifecycleRepo.findLifecycleTransitions(versionId),
       lifecycleRepo.findFactSchemas(versionId),
-      lifecycleRepo.findTransitionRequiredLinks(versionId),
+      lifecycleRepo.findTransitionConditionSets(versionId),
       lifecycleRepo.findAgentTypes(versionId),
     ]);
 
@@ -573,14 +387,14 @@ function loadCanonicalLifecycleDefinition(
     }
 
     const transitionsByWorkUnit = new Map<string, Array<(typeof transitionRows)[number]>>();
-    const requiredLinksByTransition = new Map<string, Array<(typeof requiredLinkRows)[number]>>();
+    const conditionSetsByTransition = new Map<string, Array<(typeof conditionSetRows)[number]>>();
     for (const transition of transitionRows) {
       const transitionBucket = transitionsByWorkUnit.get(transition.workUnitTypeId) ?? [];
       transitionsByWorkUnit.set(transition.workUnitTypeId, [...transitionBucket, transition]);
 
-      requiredLinksByTransition.set(
+      conditionSetsByTransition.set(
         transition.id,
-        requiredLinkRows.filter((link) => link.transitionId === transition.id),
+        conditionSetRows.filter((conditionSet) => conditionSet.transitionId === transition.id),
       );
     }
 
@@ -621,12 +435,28 @@ function loadCanonicalLifecycleDefinition(
                 : "__absent__",
             toState: stateKeyById.get(transition.toStateId) ?? "",
             gateClass: asGateClass(transition.gateClass),
-            requiredLinks: (requiredLinksByTransition.get(transition.id) ?? [])
-              .sort((a, b) => a.id.localeCompare(b.id))
-              .map((link) => ({
-                linkTypeKey: link.linkTypeKey,
-                strength: asLinkStrength(link.strength),
-                required: link.required,
+            conditionSets: (conditionSetsByTransition.get(transition.id) ?? [])
+              .sort((a, b) => a.key.localeCompare(b.key))
+              .map((conditionSet) => ({
+                key: conditionSet.key,
+                phase: conditionSet.phase === "completion" ? "completion" : ("start" as const),
+                mode: conditionSet.mode === "any" ? "any" : ("all" as const),
+                groups: Array.isArray(conditionSet.groupsJson)
+                  ? (conditionSet.groupsJson as Array<{
+                      key: string;
+                      mode: "all" | "any";
+                      conditions: Array<{
+                        kind: string;
+                        required?: boolean;
+                        config: unknown;
+                        rationale?: string;
+                      }>;
+                    }>)
+                  : [],
+                guidance:
+                  typeof conditionSet.guidanceJson === "string"
+                    ? conditionSet.guidanceJson
+                    : undefined,
               })),
           })),
           factSchemas: factSchemas.map((fact) => ({
@@ -662,7 +492,7 @@ function loadCanonicalLifecycleDefinition(
         fromState: transition.fromState,
         toState: transition.toState,
         gateClass: transition.gateClass,
-        requiredLinks: transition.requiredLinks,
+        conditionSets: transition.conditionSets,
       })),
     );
 
@@ -722,15 +552,155 @@ function computeChangedFields(
 
 function toDefinitionExtensions(definition: MethodologyVersionDefinition): unknown {
   return {
-    workUnitTypes: definition.workUnitTypes,
-    agentTypes: definition.agentTypes,
-    transitions: definition.transitions,
     guidance:
       definition.guidance?.global === undefined
         ? undefined
         : {
             global: definition.guidance.global,
           },
+  };
+}
+
+function toCanonicalLifecycleSaveInput(
+  definition: MethodologyVersionDefinition,
+): Pick<SaveLifecycleDefinitionParams, "workUnitTypes" | "agentTypes"> {
+  type MutableLifecycleState = { key: string; displayName?: string; description?: string };
+  type MutableLifecycleTransition = {
+    transitionKey: string;
+    fromState?: string;
+    toState: string;
+    gateClass: "start_gate" | "completion_gate";
+    conditionSets: Array<
+      SaveLifecycleDefinitionParams["workUnitTypes"][number]["lifecycleTransitions"][number]["conditionSets"][number]
+    >;
+  };
+  type MutableFactSchema =
+    SaveLifecycleDefinitionParams["workUnitTypes"][number]["factSchemas"][number];
+  type MutableWorkUnitType = {
+    key: string;
+    displayName?: string;
+    description?: string;
+    cardinality: "one_per_project" | "many_per_project";
+    lifecycleStates: MutableLifecycleState[];
+    lifecycleTransitions: MutableLifecycleTransition[];
+    factSchemas: MutableFactSchema[];
+  };
+
+  const workUnitInputs = Array.isArray(definition.workUnitTypes)
+    ? (definition.workUnitTypes as Array<Record<string, unknown>>)
+    : [];
+  const transitionInputs = Array.isArray(definition.transitions)
+    ? (definition.transitions as Array<Record<string, unknown>>)
+    : [];
+
+  const workUnitTypes: MutableWorkUnitType[] = workUnitInputs
+    .filter((workUnit) => typeof workUnit.key === "string" && workUnit.key.length > 0)
+    .map((workUnit) => ({
+      key: workUnit.key as string,
+      displayName: typeof workUnit.displayName === "string" ? workUnit.displayName : undefined,
+      description: typeof workUnit.description === "string" ? workUnit.description : undefined,
+      cardinality:
+        workUnit.cardinality === "many_per_project" ? "many_per_project" : "one_per_project",
+      lifecycleStates: Array.isArray(workUnit.lifecycleStates)
+        ? (workUnit.lifecycleStates as MutableLifecycleState[])
+        : [],
+      lifecycleTransitions: Array.isArray(workUnit.lifecycleTransitions)
+        ? (workUnit.lifecycleTransitions as MutableLifecycleTransition[])
+        : [],
+      factSchemas: Array.isArray(workUnit.factSchemas)
+        ? (workUnit.factSchemas as MutableFactSchema[])
+        : [],
+    }));
+
+  const workUnitTypeByKey = new Map(workUnitTypes.map((workUnit) => [workUnit.key, workUnit]));
+
+  const ensureWorkUnitType = (key: string) => {
+    const existing = workUnitTypeByKey.get(key);
+    if (existing) {
+      return existing;
+    }
+
+    const created: MutableWorkUnitType = {
+      key,
+      cardinality: "one_per_project",
+      lifecycleStates: [],
+      lifecycleTransitions: [],
+      factSchemas: [],
+    };
+    workUnitTypes.push(created);
+    workUnitTypeByKey.set(key, created);
+    return created;
+  };
+
+  const ensureState = (workUnitType: MutableWorkUnitType, stateKey: string) => {
+    if (
+      workUnitType.lifecycleStates.some(
+        (state) =>
+          state.key === stateKey || (stateKey === "__absent__" && state.key === "__absent__"),
+      )
+    ) {
+      return;
+    }
+    if (stateKey === "__absent__") {
+      return;
+    }
+    workUnitType.lifecycleStates.push({ key: stateKey });
+  };
+
+  for (const transition of transitionInputs) {
+    const transitionKey =
+      typeof transition.transitionKey === "string"
+        ? transition.transitionKey
+        : typeof transition.key === "string"
+          ? transition.key
+          : null;
+    if (!transitionKey) {
+      continue;
+    }
+
+    const inferredWorkUnitTypeKey = transitionKey.includes(":")
+      ? (transitionKey.split(":", 1)[0] ?? null)
+      : null;
+    const workUnitTypeKey =
+      (typeof transition.workUnitTypeKey === "string" ? transition.workUnitTypeKey : null) ??
+      (typeof transition.workUnitType === "string" ? transition.workUnitType : null) ??
+      inferredWorkUnitTypeKey ??
+      workUnitTypes[0]?.key;
+
+    if (!workUnitTypeKey) {
+      continue;
+    }
+
+    const workUnitType = ensureWorkUnitType(workUnitTypeKey);
+    const fromState =
+      typeof transition.fromState === "string" ? transition.fromState : "__absent__";
+    const toState = typeof transition.toState === "string" ? transition.toState : "done";
+
+    ensureState(workUnitType, fromState);
+    ensureState(workUnitType, toState);
+
+    if (
+      workUnitType.lifecycleTransitions.some(
+        (candidate) => candidate.transitionKey === transitionKey,
+      )
+    ) {
+      continue;
+    }
+
+    workUnitType.lifecycleTransitions.push({
+      transitionKey,
+      fromState,
+      toState,
+      gateClass: transition.gateClass === "completion_gate" ? "completion_gate" : "start_gate",
+      conditionSets: Array.isArray(transition.conditionSets)
+        ? (transition.conditionSets as MutableLifecycleTransition["conditionSets"])
+        : [],
+    });
+  }
+
+  return {
+    workUnitTypes: workUnitTypes as SaveLifecycleDefinitionParams["workUnitTypes"],
+    agentTypes: definition.agentTypes as SaveLifecycleDefinitionParams["agentTypes"],
   };
 }
 
@@ -796,6 +766,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
 
       const timestamp = new Date().toISOString();
       const diagnostics = validateDraftDefinition(definition, timestamp);
+      const lifecycleInput = toCanonicalLifecycleSaveInput(definition);
 
       const { version } = yield* repo.createDraft({
         methodologyKey: input.methodologyKey,
@@ -809,6 +780,23 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
         linkTypeDefinitions: input.linkTypeDefinitions,
         actorId,
         validationDiagnostics: diagnostics,
+      });
+
+      yield* lifecycleRepo.saveLifecycleDefinition({
+        versionId: version.id,
+        workUnitTypes: lifecycleInput.workUnitTypes,
+        agentTypes: lifecycleInput.agentTypes,
+        actorId,
+        validationResult: diagnostics,
+        changedFieldsJson: {
+          lifecycle: {
+            from: null,
+            to: {
+              workUnitTypes: definition.workUnitTypes,
+              agentTypes: definition.agentTypes,
+            },
+          },
+        },
       });
 
       return { version, diagnostics };
@@ -835,6 +823,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
 
       const timestamp = new Date().toISOString();
       const diagnostics = validateDraftDefinition(definition, timestamp);
+      const lifecycleInput = toCanonicalLifecycleSaveInput(definition);
 
       const changedFieldsJson = computeChangedFields(
         {
@@ -870,6 +859,23 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
         actorId,
         changedFieldsJson,
         validationDiagnostics: diagnostics,
+      });
+
+      yield* lifecycleRepo.saveLifecycleDefinition({
+        versionId: input.versionId,
+        workUnitTypes: lifecycleInput.workUnitTypes,
+        agentTypes: lifecycleInput.agentTypes,
+        actorId,
+        validationResult: diagnostics,
+        changedFieldsJson: {
+          lifecycle: {
+            from: null,
+            to: {
+              workUnitTypes: definition.workUnitTypes,
+              agentTypes: definition.agentTypes,
+            },
+          },
+        },
       });
 
       if (workflowsChanged) {
@@ -1348,326 +1354,6 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
   ): Effect.Effect<readonly PublicationEvidence[], RepositoryError> =>
     repo.getPublicationEvidence({ methodologyVersionId: input.methodologyVersionId });
 
-  const pinProjectMethodologyVersion = (
-    input: PinProjectMethodologyVersionInput,
-    actorId: string | null,
-  ): Effect.Effect<PinProjectMethodologyVersionResult, RepositoryError> =>
-    Effect.gen(function* () {
-      const timestamp = new Date().toISOString();
-      const definition = yield* repo.findDefinitionByKey(input.methodologyKey);
-      if (!definition) {
-        return {
-          pinned: false,
-          diagnostics: {
-            valid: false,
-            diagnostics: [
-              makeProjectPinDiagnostic(
-                "PROJECT_PIN_TARGET_VERSION_NOT_FOUND",
-                "project.pin.target",
-                timestamp,
-                "existing published methodology version",
-                `${input.methodologyKey}@${input.publishedVersion}`,
-                "Select an existing published version and retry",
-              ),
-            ],
-          },
-        };
-      }
-
-      const target = yield* repo.findVersionByMethodologyAndVersion(
-        definition.id,
-        input.publishedVersion,
-      );
-
-      if (!target) {
-        return {
-          pinned: false,
-          diagnostics: {
-            valid: false,
-            diagnostics: [
-              makeProjectPinDiagnostic(
-                "PROJECT_PIN_TARGET_VERSION_NOT_FOUND",
-                "project.pin.target",
-                timestamp,
-                "existing published methodology version",
-                `${input.methodologyKey}@${input.publishedVersion}`,
-                "Select an existing published version and retry",
-              ),
-            ],
-          },
-        };
-      }
-
-      if (target.status !== "active") {
-        return {
-          pinned: false,
-          diagnostics: {
-            valid: false,
-            diagnostics: [
-              makeProjectPinDiagnostic(
-                "PROJECT_PIN_TARGET_VERSION_INCOMPATIBLE",
-                "project.pin.target",
-                timestamp,
-                "active published methodology version",
-                `${input.methodologyKey}@${input.publishedVersion} status=${target.status}`,
-                "Select a compatible published version for the methodology",
-              ),
-            ],
-          },
-        };
-      }
-
-      const currentPin = yield* repo.findProjectPin(input.projectId);
-      const pinWrite = yield* repo
-        .pinProjectMethodologyVersion({
-          projectId: input.projectId,
-          methodologyVersionId: target.id,
-          actorId,
-          previousVersion: currentPin?.publishedVersion ?? null,
-          newVersion: target.version,
-        })
-        .pipe(
-          Effect.catchAll((error) => {
-            if (error.code === "PROJECT_PIN_ATOMICITY_GUARD_ABORTED") {
-              return Effect.succeed({
-                pin: null,
-                diagnostics: {
-                  valid: false,
-                  diagnostics: [
-                    makeProjectPinDiagnostic(
-                      "PROJECT_PIN_ATOMICITY_GUARD_ABORTED",
-                      "project.pin.persistence",
-                      timestamp,
-                      "pin pointer and lineage event committed atomically",
-                      "transaction aborted due to persistence guard",
-                      "Investigate persistence failure and retry once resolved",
-                    ),
-                  ],
-                },
-              } as const);
-            }
-            return Effect.fail(error);
-          }),
-        );
-
-      if ("diagnostics" in pinWrite) {
-        return {
-          pinned: false,
-          diagnostics: pinWrite.diagnostics,
-        };
-      }
-
-      return {
-        pinned: true,
-        diagnostics: { valid: true, diagnostics: [] },
-        pin: toProjectPinState(pinWrite.pin),
-      };
-    });
-
-  const repinProjectMethodologyVersion = (
-    input: RepinProjectMethodologyVersionInput,
-    actorId: string | null,
-  ): Effect.Effect<RepinProjectMethodologyVersionResult, RepositoryError> =>
-    Effect.gen(function* () {
-      const timestamp = new Date().toISOString();
-      const definition = yield* repo.findDefinitionByKey(input.methodologyKey);
-      if (!definition) {
-        return {
-          repinned: false,
-          diagnostics: {
-            valid: false,
-            diagnostics: [
-              makeProjectPinDiagnostic(
-                "PROJECT_PIN_TARGET_VERSION_NOT_FOUND",
-                "project.pin.target",
-                timestamp,
-                "existing published methodology version",
-                `${input.methodologyKey}@${input.publishedVersion}`,
-                "Select an existing published version and retry",
-              ),
-            ],
-          },
-        };
-      }
-
-      const target = yield* repo.findVersionByMethodologyAndVersion(
-        definition.id,
-        input.publishedVersion,
-      );
-
-      if (!target) {
-        return {
-          repinned: false,
-          diagnostics: {
-            valid: false,
-            diagnostics: [
-              makeProjectPinDiagnostic(
-                "PROJECT_PIN_TARGET_VERSION_NOT_FOUND",
-                "project.pin.target",
-                timestamp,
-                "existing published methodology version",
-                `${input.methodologyKey}@${input.publishedVersion}`,
-                "Select an existing published version and retry",
-              ),
-            ],
-          },
-        };
-      }
-
-      if (target.status !== "active") {
-        return {
-          repinned: false,
-          diagnostics: {
-            valid: false,
-            diagnostics: [
-              makeProjectPinDiagnostic(
-                "PROJECT_PIN_TARGET_VERSION_INCOMPATIBLE",
-                "project.pin.target",
-                timestamp,
-                "active published methodology version",
-                `${input.methodologyKey}@${input.publishedVersion} status=${target.status}`,
-                "Select a compatible published version for the methodology",
-              ),
-            ],
-          },
-        };
-      }
-
-      const hasExecutions = yield* repo.hasPersistedExecutions(input.projectId);
-      if (hasExecutions) {
-        return {
-          repinned: false,
-          diagnostics: {
-            valid: false,
-            diagnostics: [
-              makeProjectPinDiagnostic(
-                "PROJECT_REPIN_BLOCKED_EXECUTION_HISTORY",
-                "project.repin.policy",
-                timestamp,
-                "project without persisted executions",
-                "persisted executions detected",
-                "Use migration workflow when available in later epic scope",
-              ),
-            ],
-          },
-        };
-      }
-
-      const currentPin = yield* repo.findProjectPin(input.projectId);
-      if (!currentPin) {
-        return {
-          repinned: false,
-          diagnostics: {
-            valid: false,
-            diagnostics: [
-              makeProjectPinDiagnostic(
-                "PROJECT_REPIN_REQUIRES_EXISTING_PIN",
-                "project.repin.policy",
-                timestamp,
-                "project with an existing pinned methodology version",
-                "no current project methodology pin found",
-                "Pin the project to a published version before attempting repin",
-              ),
-            ],
-          },
-        };
-      }
-      const repinWrite = yield* repo
-        .repinProjectMethodologyVersion({
-          projectId: input.projectId,
-          methodologyVersionId: target.id,
-          actorId,
-          previousVersion: currentPin.publishedVersion,
-          newVersion: target.version,
-        })
-        .pipe(
-          Effect.catchAll((error) => {
-            if (error.code === "PROJECT_REPIN_REQUIRES_EXISTING_PIN") {
-              return Effect.succeed({
-                pin: null,
-                diagnostics: {
-                  valid: false,
-                  diagnostics: [
-                    makeProjectPinDiagnostic(
-                      "PROJECT_REPIN_REQUIRES_EXISTING_PIN",
-                      "project.repin.policy",
-                      timestamp,
-                      "project with an existing pinned methodology version",
-                      "no current project methodology pin found",
-                      "Pin the project to a published version before attempting repin",
-                    ),
-                  ],
-                },
-              } as const);
-            }
-            if (error.code === "PROJECT_PIN_ATOMICITY_GUARD_ABORTED") {
-              return Effect.succeed({
-                pin: null,
-                diagnostics: {
-                  valid: false,
-                  diagnostics: [
-                    makeProjectPinDiagnostic(
-                      "PROJECT_PIN_ATOMICITY_GUARD_ABORTED",
-                      "project.pin.persistence",
-                      timestamp,
-                      "pin pointer and lineage event committed atomically",
-                      "transaction aborted due to persistence guard",
-                      "Investigate persistence failure and retry once resolved",
-                    ),
-                  ],
-                },
-              } as const);
-            }
-            return Effect.fail(error);
-          }),
-        );
-
-      if ("diagnostics" in repinWrite) {
-        return {
-          repinned: false,
-          diagnostics: repinWrite.diagnostics,
-        };
-      }
-
-      return {
-        repinned: true,
-        diagnostics: { valid: true, diagnostics: [] },
-        pin: toProjectPinState(repinWrite.pin),
-      };
-    });
-
-  const getProjectPinLineage = (
-    input: GetProjectPinLineageInput,
-  ): Effect.Effect<readonly ProjectMethodologyPinEvent[], RepositoryError> =>
-    repo
-      .getProjectPinLineage({ projectId: input.projectId })
-      .pipe(Effect.map((events) => events.map((event) => toProjectPinEvent(event))));
-
-  const getProjectMethodologyPin = (
-    projectId: string,
-  ): Effect.Effect<ProjectMethodologyPinState | null, RepositoryError> =>
-    repo.findProjectPin(projectId).pipe(Effect.map((pin) => (pin ? toProjectPinState(pin) : null)));
-
-  const createProject = (
-    projectId: string,
-    name?: string,
-  ): Effect.Effect<ProjectSummary, RepositoryError> =>
-    repo
-      .createProject({ projectId, name })
-      .pipe(Effect.map((project) => toProjectSummary(project)));
-
-  const listProjects = (): Effect.Effect<readonly ProjectSummary[], RepositoryError> =>
-    repo
-      .listProjects()
-      .pipe(Effect.map((projects) => projects.map((project) => toProjectSummary(project))));
-
-  const getProjectById = (
-    projectId: string,
-  ): Effect.Effect<ProjectSummary | null, RepositoryError> =>
-    repo
-      .getProjectById({ projectId })
-      .pipe(Effect.map((project) => (project ? toProjectSummary(project) : null)));
-
   const createMethodology = (
     methodologyKey: string,
     displayName: string,
@@ -1867,13 +1553,6 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
     getDraftLineage,
     publishDraftVersion,
     getPublicationEvidence,
-    pinProjectMethodologyVersion,
-    repinProjectMethodologyVersion,
-    getProjectPinLineage,
-    getProjectMethodologyPin,
-    createProject,
-    listProjects,
-    getProjectById,
     createMethodology,
     listMethodologies,
     getMethodologyDetails,

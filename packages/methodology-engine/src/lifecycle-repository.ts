@@ -56,13 +56,15 @@ export interface FactSchemaRow {
   updatedAt: Date;
 }
 
-export interface TransitionRequiredLinkRow {
+export interface TransitionConditionSetRow {
   id: string;
   methodologyVersionId: string;
   transitionId: string;
-  linkTypeKey: string;
-  strength: string;
-  required: boolean;
+  key: string;
+  phase: string;
+  mode: string;
+  groupsJson: unknown;
+  guidanceJson: unknown;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -97,7 +99,7 @@ export interface SaveLifecycleDefinitionParams {
   versionId: string;
   workUnitTypes: readonly WorkUnitTypeDefinition[];
   agentTypes: readonly AgentTypeDefinition[];
-  actorId: string;
+  actorId: string | null;
   validationResult: ValidationResult;
   changedFieldsJson: unknown;
 }
@@ -134,10 +136,10 @@ export class LifecycleRepository extends Context.Tag("LifecycleRepository")<
       versionId: string,
       workUnitTypeId?: string,
     ) => Effect.Effect<readonly FactSchemaRow[], RepositoryError>;
-    readonly findTransitionRequiredLinks: (
+    readonly findTransitionConditionSets: (
       versionId: string,
       transitionId?: string,
-    ) => Effect.Effect<readonly TransitionRequiredLinkRow[], RepositoryError>;
+    ) => Effect.Effect<readonly TransitionConditionSetRow[], RepositoryError>;
     readonly findAgentTypes: (
       versionId: string,
     ) => Effect.Effect<readonly AgentTypeRow[], RepositoryError>;

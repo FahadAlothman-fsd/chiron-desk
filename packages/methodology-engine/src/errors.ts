@@ -24,6 +24,7 @@ export class ValidationDecodeError extends Data.TaggedError("ValidationDecodeErr
 
 export type RepositoryErrorCode =
   | "VERSION_NOT_FOUND"
+  | "FORBIDDEN_EXTENSION_KEYS"
   | "PUBLISHED_CONTRACT_IMMUTABLE"
   | "PUBLISH_VERSION_ALREADY_EXISTS"
   | "PUBLISH_CONCURRENT_WRITE_CONFLICT"
