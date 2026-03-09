@@ -146,11 +146,6 @@ type ParsedFactDefinitions = {
   valid: boolean;
 };
 
-type ParsedFactSchemasMap = {
-  byWorkUnit: Record<string, FactEditorValue[]>;
-  valid: boolean;
-};
-
 const FACT_TYPES: readonly FactTypeValue[] = ["string", "number", "boolean", "json"];
 
 let factEditorIdSequence = 0;
@@ -266,39 +261,6 @@ function parseFactDefinitionsWithStatus(value: string): ParsedFactDefinitions {
   return {
     facts: parseFactDefinitions(value),
     valid: true,
-  };
-}
-
-function parseFactSchemasMap(value: string): Record<string, FactEditorValue[]> {
-  const parsed = parseJsonSafely(value);
-  if (!isRecord(parsed)) {
-    return {};
-  }
-
-  return Object.fromEntries(
-    Object.entries(parsed).map(([key, items]) => [
-      key,
-      Array.isArray(items)
-        ? items.map((item, index) => toFactEditorValue(item, `${key}-fact-schema-${index}`))
-        : [],
-    ]),
-  );
-}
-
-function parseFactSchemasMapWithStatus(value: string): ParsedFactSchemasMap {
-  const parsed = parseJsonSafely(value);
-  if (!isRecord(parsed)) {
-    return {
-      byWorkUnit: {},
-      valid: false,
-    };
-  }
-
-  const valid = Object.values(parsed).every((items) => Array.isArray(items));
-
-  return {
-    byWorkUnit: parseFactSchemasMap(value),
-    valid,
   };
 }
 
@@ -1885,6 +1847,61 @@ function extractStepsByWorkflow(workflows: readonly unknown[]): Record<string, u
   return Object.fromEntries(entries);
 }
 
+function extractWorkflowRowsFromWorkUnits(workUnitTypes: readonly unknown[]): unknown[] {
+  const rows: unknown[] = [];
+
+  for (const workUnitType of workUnitTypes) {
+    if (!isRecord(workUnitType) || typeof workUnitType.key !== "string") {
+      continue;
+    }
+
+    const workflows = Array.isArray(workUnitType.workflows) ? workUnitType.workflows : [];
+    for (const workflow of workflows) {
+      if (!isRecord(workflow)) {
+        continue;
+      }
+
+      rows.push({
+        workUnitTypeKey: workUnitType.key,
+        ...workflow,
+      });
+    }
+  }
+
+  return rows;
+}
+
+function extractTransitionWorkflowBindingsByTransition(
+  workUnitTypes: readonly unknown[],
+): Record<string, string[]> {
+  const entries: Array<[string, string[]]> = [];
+
+  for (const workUnitType of workUnitTypes) {
+    if (!isRecord(workUnitType)) {
+      continue;
+    }
+
+    const transitions = Array.isArray(workUnitType.lifecycleTransitions)
+      ? workUnitType.lifecycleTransitions
+      : [];
+    for (const transition of transitions) {
+      if (!isRecord(transition) || typeof transition.transitionKey !== "string") {
+        continue;
+      }
+
+      const allowedWorkflowKeys = Array.isArray(transition.allowedWorkflowKeys)
+        ? transition.allowedWorkflowKeys.filter(
+            (entry): entry is string => typeof entry === "string",
+          )
+        : [];
+
+      entries.push([transition.transitionKey, [...allowedWorkflowKeys].sort()]);
+    }
+  }
+
+  return Object.fromEntries(entries);
+}
+
 function extractTransitionRows(workUnitTypes: readonly unknown[]): unknown[] {
   const rows: unknown[] = [];
 
@@ -1912,12 +1929,86 @@ function extractTransitionRows(workUnitTypes: readonly unknown[]): unknown[] {
   return rows;
 }
 
+function mergeWorkflowDataIntoWorkUnits(
+  workUnitTypes: readonly unknown[],
+  workflows: readonly unknown[],
+  stepsByWorkflow: Record<string, unknown[]>,
+  transitionWorkflowBindings: Record<string, string[]>,
+): unknown[] {
+  const workflowsByWorkUnit = new Map<string, unknown[]>();
+
+  for (const workflow of workflows) {
+    if (!isRecord(workflow) || typeof workflow.workUnitTypeKey !== "string") {
+      continue;
+    }
+
+    const existing = workflowsByWorkUnit.get(workflow.workUnitTypeKey) ?? [];
+    existing.push({
+      ...workflow,
+      steps:
+        typeof workflow.key === "string"
+          ? (stepsByWorkflow[workflow.key] ?? [])
+          : (workflow.steps ?? []),
+    });
+    workflowsByWorkUnit.set(workflow.workUnitTypeKey, existing);
+  }
+
+  return workUnitTypes.map((workUnitType) => {
+    if (!isRecord(workUnitType) || typeof workUnitType.key !== "string") {
+      return workUnitType;
+    }
+
+    const lifecycleTransitions = Array.isArray(workUnitType.lifecycleTransitions)
+      ? workUnitType.lifecycleTransitions.map((transition) => {
+          if (!isRecord(transition) || typeof transition.transitionKey !== "string") {
+            return transition;
+          }
+
+          if (
+            Array.isArray(transition.allowedWorkflowKeys) &&
+            transition.allowedWorkflowKeys.length > 0
+          ) {
+            return transition;
+          }
+
+          return {
+            ...transition,
+            allowedWorkflowKeys: transitionWorkflowBindings[transition.transitionKey] ?? [],
+          };
+        })
+      : [];
+
+    if (Array.isArray(workUnitType.workflows) && workUnitType.workflows.length > 0) {
+      return {
+        ...workUnitType,
+        lifecycleTransitions,
+      };
+    }
+
+    return {
+      ...workUnitType,
+      lifecycleTransitions,
+      workflows: workflowsByWorkUnit.get(workUnitType.key) ?? [],
+    };
+  });
+}
+
 export function createDraftFromProjection(
   methodologyKey: string,
   projection: DraftProjectionShape,
 ): MethodologyVersionWorkspaceDraft {
   const workUnitTypes = Array.isArray(projection.workUnitTypes) ? projection.workUnitTypes : [];
   const workflows = Array.isArray(projection.workflows) ? projection.workflows : [];
+  const enrichedWorkUnitTypes = mergeWorkflowDataIntoWorkUnits(
+    workUnitTypes,
+    workflows,
+    extractStepsByWorkflow(workflows),
+    Object.fromEntries(
+      Object.entries(projection.transitionWorkflowBindings ?? {}).map(
+        ([transitionKey, workflowKeys]) => [transitionKey, [...workflowKeys]],
+      ),
+    ),
+  );
 
   return {
     methodologyKey,
@@ -1925,20 +2016,18 @@ export function createDraftFromProjection(
     factDefinitionsJson: toDeterministicJson(
       Array.isArray(projection.factDefinitions) ? projection.factDefinitions : [],
     ),
-    workUnitTypesJson: toDeterministicJson(workUnitTypes),
+    workUnitTypesJson: toDeterministicJson(enrichedWorkUnitTypes),
     agentTypesJson: toDeterministicJson(
       Array.isArray(projection.agentTypes) ? projection.agentTypes : [],
     ),
-    factSchemasJson: toDeterministicJson(extractFactSchemasByWorkUnit(workUnitTypes)),
-    transitionsJson: toDeterministicJson(extractTransitionRows(workUnitTypes)),
-    workflowsJson: toDeterministicJson(workflows),
-    workflowStepsJson: toDeterministicJson(extractStepsByWorkflow(workflows)),
+    factSchemasJson: toDeterministicJson(extractFactSchemasByWorkUnit(enrichedWorkUnitTypes)),
+    transitionsJson: toDeterministicJson(extractTransitionRows(enrichedWorkUnitTypes)),
+    workflowsJson: toDeterministicJson(extractWorkflowRowsFromWorkUnits(enrichedWorkUnitTypes)),
+    workflowStepsJson: toDeterministicJson(
+      extractStepsByWorkflow(extractWorkflowRowsFromWorkUnits(enrichedWorkUnitTypes)),
+    ),
     transitionWorkflowBindingsJson: toDeterministicJson(
-      Object.fromEntries(
-        Object.entries(projection.transitionWorkflowBindings ?? {}).map(
-          ([transitionKey, workflowKeys]) => [transitionKey, [...workflowKeys]],
-        ),
-      ),
+      extractTransitionWorkflowBindingsByTransition(enrichedWorkUnitTypes),
     ),
     guidanceJson: toDeterministicJson(projection.guidance ?? {}),
   };
@@ -1971,25 +2060,13 @@ function mergeFactSchemasIntoWorkUnits(
       return workUnitType;
     }
 
-    return {
-      ...workUnitType,
-      factSchemas: factSchemasByWorkUnit[workUnitType.key] ?? [],
-    };
-  });
-}
-
-function mergeWorkflowSteps(
-  workflows: readonly unknown[],
-  stepsByWorkflow: Record<string, unknown[]>,
-): unknown[] {
-  return workflows.map((workflow) => {
-    if (!isRecord(workflow) || typeof workflow.key !== "string") {
-      return workflow;
+    if (Array.isArray(workUnitType.factSchemas) && workUnitType.factSchemas.length > 0) {
+      return workUnitType;
     }
 
     return {
-      ...workflow,
-      steps: stepsByWorkflow[workflow.key] ?? [],
+      ...workUnitType,
+      factSchemas: factSchemasByWorkUnit[workUnitType.key] ?? [],
     };
   });
 }
@@ -2016,6 +2093,13 @@ function mergeTransitionsIntoWorkUnits(
 
   return workUnitTypes.map((workUnitType) => {
     if (!isRecord(workUnitType) || typeof workUnitType.key !== "string") {
+      return workUnitType;
+    }
+
+    if (
+      Array.isArray(workUnitType.lifecycleTransitions) &&
+      workUnitType.lifecycleTransitions.length > 0
+    ) {
       return workUnitType;
     }
 
@@ -2063,6 +2147,15 @@ export function parseWorkspaceDraftForPersistence(
   const workflowSteps = isUnknownArrayRecord(workflowStepsValue) ? workflowStepsValue : {};
   const transitionWorkflowBindings = isStringArrayRecord(bindingsValue) ? bindingsValue : {};
   const guidance = isRecord(guidanceValue) ? guidanceValue : undefined;
+  const canonicalWorkUnitTypes = mergeWorkflowDataIntoWorkUnits(
+    mergeTransitionsIntoWorkUnits(
+      mergeFactSchemasIntoWorkUnits(workUnitTypes, factSchemasByWorkUnit),
+      transitions,
+    ),
+    workflows,
+    workflowSteps,
+    transitionWorkflowBindings,
+  );
 
   if (!Array.isArray(factDefinitionsValue)) {
     diagnostics.push({
@@ -2123,15 +2216,13 @@ export function parseWorkspaceDraftForPersistence(
 
   return {
     lifecycle: {
-      workUnitTypes: mergeTransitionsIntoWorkUnits(
-        mergeFactSchemasIntoWorkUnits(workUnitTypes, factSchemasByWorkUnit),
-        transitions,
-      ),
+      workUnitTypes: canonicalWorkUnitTypes,
       agentTypes,
     },
     workflows: {
-      workflows: mergeWorkflowSteps(workflows, workflowSteps),
-      transitionWorkflowBindings,
+      workflows: extractWorkflowRowsFromWorkUnits(canonicalWorkUnitTypes),
+      transitionWorkflowBindings:
+        extractTransitionWorkflowBindingsByTransition(canonicalWorkUnitTypes),
       guidance,
       factDefinitions,
     },
@@ -2279,10 +2370,6 @@ export function MethodologyVersionWorkspace({
     () => parseFactDefinitionsWithStatus(draft.factDefinitionsJson),
     [draft.factDefinitionsJson],
   );
-  const parsedWorkUnitFacts = useMemo(
-    () => parseFactSchemasMapWithStatus(draft.factSchemasJson),
-    [draft.factSchemasJson],
-  );
   const [showWorkspaceContext, setShowWorkspaceContext] = useState(false);
   const [focusTarget, setFocusTarget] = useState<WorkspaceFocusTarget | null>(null);
   const [focusSequence, setFocusSequence] = useState(0);
@@ -2292,7 +2379,20 @@ export function MethodologyVersionWorkspace({
   const workflowCount = parsedForGraph.workflows.workflows.length;
   const bindingCount = Object.keys(parsedForGraph.workflows.transitionWorkflowBindings).length;
   const methodologyFacts = parsedMethodologyFacts.facts;
-  const workUnitFactsByKey = parsedWorkUnitFacts.byWorkUnit;
+  const workUnitFactsByKey = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(extractFactSchemasByWorkUnit(parsedForGraph.lifecycle.workUnitTypes)).map(
+          ([workUnitKey, facts]) => [
+            workUnitKey,
+            facts.map((fact, index) =>
+              toFactEditorValue(fact, `${workUnitKey}-fact-schema-${index}`),
+            ),
+          ],
+        ),
+      ) as Record<string, FactEditorValue[]>,
+    [parsedForGraph.lifecycle.workUnitTypes],
+  );
   const factEditorWarnings = useMemo(() => {
     const warnings: string[] = [];
     if (!parsedMethodologyFacts.valid) {
@@ -2300,14 +2400,14 @@ export function MethodologyVersionWorkspace({
         "Methodology fact JSON could not be parsed. The editor is showing an empty fallback until you make a valid edit.",
       );
     }
-    if (!parsedWorkUnitFacts.valid) {
+    if (parseDiagnostics.some((diagnostic) => diagnostic.field === "factSchemasJson")) {
       warnings.push(
-        "Work-unit fact schema JSON could not be parsed. The editor is showing empty fallbacks until you make a valid edit.",
+        "Work-unit fact schema JSON is out of sync with canonical work-unit data. The editor is rendering canonical work-unit facts until you save.",
       );
     }
 
     return warnings;
-  }, [parsedMethodologyFacts.valid, parsedWorkUnitFacts.valid]);
+  }, [parseDiagnostics, parsedMethodologyFacts.valid]);
   const workUnitKeys = useMemo(
     () =>
       parsedForGraph.lifecycle.workUnitTypes
@@ -2338,11 +2438,25 @@ export function MethodologyVersionWorkspace({
 
   const updateWorkUnitFacts = (workUnitKey: string, nextFacts: FactEditorValue[]) => {
     setFactsDirty(true);
-    const nextMap = {
-      ...workUnitFactsByKey,
-      [workUnitKey]: factsToSerializable(nextFacts),
-    };
-    onChange("factSchemasJson", toDeterministicJson(nextMap));
+    const parsedWorkUnits = parseJsonSafely(draft.workUnitTypesJson);
+    if (!Array.isArray(parsedWorkUnits)) {
+      return;
+    }
+
+    const nextWorkUnits = parsedWorkUnits.map((entry) => {
+      if (!isRecord(entry) || entry.key !== workUnitKey) {
+        return entry;
+      }
+
+      return {
+        ...entry,
+        factSchemas: factsToSerializable(nextFacts),
+      };
+    });
+
+    const nextFactSchemaMap = extractFactSchemasByWorkUnit(nextWorkUnits);
+    onChange("workUnitTypesJson", toDeterministicJson(nextWorkUnits));
+    onChange("factSchemasJson", toDeterministicJson(nextFactSchemaMap));
   };
 
   const handleSaveFacts = () => {
