@@ -166,15 +166,15 @@ describe("methodology version facts route", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add Fact" }));
     expect((await screen.findAllByText("Contract")).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("Guidance").length).toBeGreaterThanOrEqual(1);
-    fireEvent.change(screen.getByLabelText("Display name"), {
+    fireEvent.change(screen.getByLabelText("Display Name"), {
       target: { value: "Workspace Root" },
     });
-    fireEvent.change(screen.getByLabelText("Fact key"), { target: { value: "workspace_root" } });
-    expect(screen.getByLabelText("Validation type")).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Validation type"), { target: { value: "path" } });
-    expect(screen.getByLabelText("Path kind")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Fact Key"), { target: { value: "workspace_root" } });
+    expect(screen.getByLabelText("Validation Type")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Validation Type"), { target: { value: "path" } });
+    expect(screen.getByLabelText("Path Kind")).toBeTruthy();
     expect(screen.getByLabelText("Trim whitespace")).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Validation type"), {
+    fireEvent.change(screen.getByLabelText("Validation Type"), {
       target: { value: "allowed-values" },
     });
     expect(screen.getByLabelText("Allowed value input")).toBeTruthy();
@@ -189,7 +189,7 @@ describe("methodology version facts route", () => {
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     expect(await screen.findByLabelText("Human markdown")).toBeTruthy();
     expect(screen.getByLabelText("Agent markdown")).toBeTruthy();
-    expect(screen.queryByLabelText("Validation type")).toBeNull();
+    expect(screen.queryByLabelText("Validation Type")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(await screen.findByText("Workspace Root")).toBeTruthy();

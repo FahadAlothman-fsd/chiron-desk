@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { rmSync } from "node:fs";
 import { createClient, type Client } from "@libsql/client";

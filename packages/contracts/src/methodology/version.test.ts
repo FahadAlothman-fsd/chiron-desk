@@ -229,12 +229,18 @@ describe("MethodologyFactDefinitionInput", () => {
   it("accepts fact definition with all optional fields", () => {
     const full = {
       ...validVar,
-      description: "Priority level",
+      description: {
+        human: { markdown: "Priority level" },
+        agent: { markdown: "Priority level for agent" },
+      },
       defaultValue: 1,
       validation: { kind: "none" as const },
     };
     const result = decode(full);
-    expect(result.description).toBe("Priority level");
+    expect(result.description).toEqual({
+      human: { markdown: "Priority level" },
+      agent: { markdown: "Priority level for agent" },
+    });
   });
 
   it("rejects fact definition with empty key", () => {

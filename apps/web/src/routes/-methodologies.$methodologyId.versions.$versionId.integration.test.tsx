@@ -14,6 +14,7 @@ vi.mock("@tanstack/react-router", () => ({
   Link: ({ children }: { children: ReactNode }) => <a href="/">{children}</a>,
   createFileRoute: () => (options: Record<string, unknown>) => ({
     ...options,
+    useLocation: useLocationMock,
     useParams: useParamsMock,
     useRouteContext: useRouteContextMock,
     useSearch: useSearchMock,
