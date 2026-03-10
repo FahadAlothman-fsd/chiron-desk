@@ -1,0 +1,25 @@
+apps/web/src/components/ui/dialog.tsx
+  84b4fd2c543c69f3 53-54,57,78-79
+apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.facts.tsx
+  84b4fd2c543c69f3 3-8,10,19-20,198-239,241-279,281-305,307-324,326-351,354-432,434-439,441-444,446-448,451-496,498-551,554-594,765-812,814-816,818-821,823-831,833-935
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "e24e151893aec8c1443e5d1064e2d3293dfac578",
+  "prompts": {
+    "84b4fd2c543c69f3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_327e5f0f7ffeKtKgXYDpudH8ai",
+        "model": "opencode/gemini-3-flash"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 1622,
+      "total_deletions": 1470,
+      "accepted_lines": 861,
+      "overriden_lines": 2
+    }
+  }
+}
