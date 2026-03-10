@@ -88,6 +88,24 @@ describe("methodology version workspace baseline", () => {
     ).toBeTruthy();
   });
 
+  it("uses simplified guidance fields and supports allowed-values validation in fact editors", () => {
+    render(
+      <MethodologyVersionWorkspace
+        draft={SAMPLE_DRAFT}
+        parseDiagnostics={[]}
+        isSaving={false}
+        onChange={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Add Fact" }));
+
+    expect(screen.getByPlaceholderText("Human markdown")).toBeTruthy();
+    expect(screen.getByPlaceholderText("Agent markdown")).toBeTruthy();
+    expect(screen.getByRole("option", { name: "validation: allowed values" })).toBeTruthy();
+  });
+
   it("surfaces parse warnings when fact JSON is invalid instead of silently swallowing", () => {
     render(
       <MethodologyVersionWorkspace

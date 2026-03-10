@@ -1,6 +1,13 @@
 import { useForm } from "@tanstack/react-form";
 import { Result } from "better-result";
 import { Button } from "@/components/ui/button";
+import { AllowedValuesChipEditor } from "./fact-editor-controls";
+import {
+  createAllowedValuesValidation,
+  getAllowedValues,
+  getUiValidationKind,
+  normalizeFactValidation,
+} from "./fact-validation";
 import { Input } from "@/components/ui/input";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -103,9 +110,9 @@ export type ValidationDiagnosticShape = {
   remediation?: string;
 };
 
-type FactTypeValue = "string" | "number" | "boolean" | "json";
+export type FactTypeValue = "string" | "number" | "boolean" | "json";
 
-type FactEditorValue = {
+export type FactEditorValue = {
   __uiId?: string;
   name?: string;
   key: string;
@@ -240,7 +247,7 @@ function toFactEditorValue(input: unknown, fallbackId?: string): FactEditorValue
   };
 }
 
-function parseFactDefinitions(value: string): FactEditorValue[] {
+export function parseFactDefinitions(value: string): FactEditorValue[] {
   const parsed = parseJsonSafely(value);
   if (!Array.isArray(parsed)) {
     return [];
@@ -298,17 +305,6 @@ function inputValueToFactDefault(factType: FactTypeValue, rawValue: string): unk
   return Result.try(() => JSON.parse(rawValue)).unwrapOr(undefined);
 }
 
-function linesToTextareaValue(lines: readonly string[]): string {
-  return lines.join("\n");
-}
-
-function textareaValueToLines(value: string): string[] {
-  return value
-    .split(/\r?\n/g)
-    .map((line) => line.trimEnd())
-    .filter((line) => line.trim().length > 0);
-}
-
 function sanitizeFact(fact: FactEditorValue): FactEditorValue {
   const name = fact.name?.trim();
   const key = fact.key.trim();
@@ -354,7 +350,7 @@ function sanitizeFact(fact: FactEditorValue): FactEditorValue {
         }
       : undefined;
 
-  const validation = fact.validation ?? { kind: "none" as const };
+  const validation = normalizeFactValidation(fact.validation) as FactEditorValue["validation"];
 
   return {
     name: name && name.length > 0 ? name : undefined,
@@ -367,7 +363,7 @@ function sanitizeFact(fact: FactEditorValue): FactEditorValue {
   };
 }
 
-function serializeFacts(facts: readonly FactEditorValue[]): string {
+export function serializeFacts(facts: readonly FactEditorValue[]): string {
   return toDeterministicJson(facts.map(sanitizeFact));
 }
 
@@ -377,7 +373,7 @@ function factsToSerializable(facts: readonly FactEditorValue[]): unknown[] {
 
 function setFactValidationKind(
   fact: FactEditorValue,
-  kind: "none" | "path" | "json-schema",
+  kind: "none" | "path" | "json-schema" | "allowed-values",
 ): FactEditorValue {
   if (kind === "path") {
     return {
@@ -401,6 +397,13 @@ function setFactValidationKind(
         schemaDialect: "draft-2020-12",
         schema: {},
       },
+    };
+  }
+
+  if (kind === "allowed-values") {
+    return {
+      ...fact,
+      validation: createAllowedValuesValidation([]) as never,
     };
   }
 
@@ -766,7 +769,7 @@ function removeJsonSchemaPropertyAtPath(
   });
 }
 
-function createEmptyFact(): FactEditorValue {
+export function createEmptyFact(): FactEditorValue {
   return {
     __uiId: createFactEditorId(),
     name: "",
@@ -811,7 +814,7 @@ type FactListEditorProps = {
   rowKeyPrefix: string;
 };
 
-function FactListEditor({
+export function FactListEditor({
   heading,
   facts,
   onChange,
@@ -878,7 +881,7 @@ function FactListEditor({
                 <p className="text-xs text-muted-foreground">{emptyMessage}</p>
               ) : (
                 factItems.map((fact, index) => {
-                  const validationKind = fact.validation?.kind ?? "none";
+                  const validationKind = getUiValidationKind(fact.validation);
                   const rowId = fact.__uiId ?? `${rowKeyPrefix}-row-${index}`;
                   return (
                     <article key={rowId} className="chiron-frame-flat space-y-2 p-2">
@@ -989,7 +992,7 @@ function FactListEditor({
                                 className="w-full border border-border/70 bg-background px-2 py-1.5 text-xs"
                                 rows={3}
                                 value={(field.state.value as string | undefined) ?? ""}
-                                placeholder="Human short guidance (markdown)"
+                                placeholder="Human markdown"
                                 onBlur={field.handleBlur}
                                 onChange={(event) => {
                                   field.handleChange(() => event.target.value as never);
@@ -997,30 +1000,13 @@ function FactListEditor({
                               />
                             )}
                           </form.Field>
-                          <form.Field name={`facts[${index}].guidance.human.long` as never}>
-                            {(field) => (
-                              <textarea
-                                className="w-full border border-border/70 bg-background px-2 py-1.5 text-xs"
-                                rows={4}
-                                value={(field.state.value as string | undefined) ?? ""}
-                                placeholder="Human long guidance (markdown)"
-                                onBlur={field.handleBlur}
-                                onChange={(event) => {
-                                  field.handleChange(() => event.target.value as never);
-                                }}
-                              />
-                            )}
-                          </form.Field>
-                        </div>
-
-                        <div className="space-y-2">
                           <form.Field name={`facts[${index}].guidance.agent.intent` as never}>
                             {(field) => (
                               <textarea
                                 className="w-full border border-border/70 bg-background px-2 py-1.5 text-xs"
-                                rows={3}
+                                rows={4}
                                 value={(field.state.value as string | undefined) ?? ""}
-                                placeholder="Agent intent (markdown)"
+                                placeholder="Agent markdown"
                                 onBlur={field.handleBlur}
                                 onChange={(event) => {
                                   field.handleChange(() => event.target.value as never);
@@ -1028,64 +1014,7 @@ function FactListEditor({
                               />
                             )}
                           </form.Field>
-
-                          <form.Field name={`facts[${index}].guidance.agent.constraints` as never}>
-                            {(constraintsField) => (
-                              <textarea
-                                className="w-full border border-border/70 bg-background px-2 py-1.5 text-xs"
-                                rows={4}
-                                value={linesToTextareaValue(
-                                  (constraintsField.state.value as string[] | undefined) ?? [],
-                                )}
-                                placeholder="Agent constraints (markdown, one constraint per line)"
-                                onBlur={constraintsField.handleBlur}
-                                onChange={(event) => {
-                                  constraintsField.handleChange(
-                                    () => textareaValueToLines(event.target.value) as never,
-                                  );
-                                }}
-                              />
-                            )}
-                          </form.Field>
-
-                          <form.Field name={`facts[${index}].guidance.human.examples` as never}>
-                            {(humanExamplesField) => (
-                              <textarea
-                                className="w-full border border-border/70 bg-background px-2 py-1.5 text-xs"
-                                rows={4}
-                                value={linesToTextareaValue(
-                                  (humanExamplesField.state.value as string[] | undefined) ?? [],
-                                )}
-                                placeholder="Human examples (markdown, one example per line)"
-                                onBlur={humanExamplesField.handleBlur}
-                                onChange={(event) => {
-                                  humanExamplesField.handleChange(
-                                    () => textareaValueToLines(event.target.value) as never,
-                                  );
-                                }}
-                              />
-                            )}
-                          </form.Field>
                         </div>
-
-                        <form.Field name={`facts[${index}].guidance.agent.examples` as never}>
-                          {(agentExamplesField) => (
-                            <textarea
-                              className="w-full border border-border/70 bg-background px-2 py-1.5 text-xs"
-                              rows={4}
-                              value={linesToTextareaValue(
-                                (agentExamplesField.state.value as string[] | undefined) ?? [],
-                              )}
-                              placeholder="Agent examples (markdown, one example per line)"
-                              onBlur={agentExamplesField.handleBlur}
-                              onChange={(event) => {
-                                agentExamplesField.handleChange(
-                                  () => textareaValueToLines(event.target.value) as never,
-                                );
-                              }}
-                            />
-                          )}
-                        </form.Field>
                       </div>
 
                       <div className="grid gap-2 md:grid-cols-2">
@@ -1105,13 +1034,18 @@ function FactListEditor({
                                     () =>
                                       setFactValidationKind(
                                         factItems[index] ?? createEmptyFact(),
-                                        event.target.value as "none" | "path" | "json-schema",
+                                        event.target.value as
+                                          | "none"
+                                          | "path"
+                                          | "json-schema"
+                                          | "allowed-values",
                                       ).validation as never,
                                   );
                                 }}
                               >
                                 <option value="none">validation: none</option>
                                 <option value="path">validation: path</option>
+                                <option value="allowed-values">validation: allowed values</option>
                                 <option value="json-schema">validation: json-schema</option>
                               </select>
                             );
@@ -1154,6 +1088,8 @@ function FactListEditor({
                               />
                             )}
                           </form.Field>
+                        ) : validationKind === "allowed-values" ? (
+                          <div className="h-8" />
                         ) : (
                           <div className="h-8" />
                         )}
@@ -1233,7 +1169,24 @@ function FactListEditor({
                         </div>
                       ) : null}
 
-                      {validationKind === "json-schema" ? (
+                      {validationKind === "allowed-values" ? (
+                        <form.Field name={`facts[${index}].validation` as never}>
+                          {(validationField) => {
+                            const values = getAllowedValues(validationField.state.value);
+
+                            return (
+                              <AllowedValuesChipEditor
+                                values={values}
+                                onChange={(nextValues) => {
+                                  validationField.handleChange(
+                                    () => createAllowedValuesValidation(nextValues) as never,
+                                  );
+                                }}
+                              />
+                            );
+                          }}
+                        </form.Field>
+                      ) : validationKind === "json-schema" ? (
                         <form.Field name={`facts[${index}].validation.schema` as never}>
                           {(schemaField) => {
                             const schemaState = normalizeJsonSchemaEditorState(
