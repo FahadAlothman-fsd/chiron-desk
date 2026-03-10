@@ -304,6 +304,11 @@ openai/gpt-5.4
 - `bun run --cwd packages/methodology-engine test -- src/version-service.test.ts src/validation.test.ts`
 - `bun run --cwd packages/methodology-engine test -- src/lifecycle-validation.test.ts src/version-service.test.ts src/eligibility-service.test.ts`
 - `bunx vitest run "src/components/app-sidebar.integration.test.tsx" "src/components/app-shell.sidebar-sections.integration.test.tsx" "src/routes/methodologies.$methodologyId.integration.test.tsx" "src/routes/methodologies.$methodologyId.versions.integration.test.tsx"`
+- `bunx vitest run 'src/features/methodologies/version-label.test.ts' 'src/components/app-sidebar.integration.test.tsx' 'src/components/app-shell.sidebar-sections.integration.test.tsx' 'src/routes/methodologies.$methodologyId.integration.test.tsx' 'src/routes/methodologies.$methodologyId.versions.integration.test.tsx' 'src/routes/methodologies.$methodologyId.versions.$versionId.integration.test.tsx' 'src/routes/methodologies.$methodologyId.versions.$versionId.facts.integration.test.tsx'`
+- `bunx vitest run 'src/routes/methodologies.$methodologyId.versions.$versionId.facts.integration.test.tsx' 'src/features/methodologies/version-workspace.integration.test.tsx'`
+- `bunx vitest run 'src/components/app-sidebar.integration.test.tsx' 'src/components/app-shell.sidebar-sections.integration.test.tsx' 'src/routes/methodologies.$methodologyId.integration.test.tsx' 'src/routes/methodologies.$methodologyId.versions.integration.test.tsx' 'src/routes/methodologies.$methodologyId.versions.$versionId.integration.test.tsx' 'src/routes/methodologies.$methodologyId.versions.$versionId.facts.integration.test.tsx' 'src/features/methodologies/version-workspace.integration.test.tsx'`
+- `Playwright MCP: http://localhost:3001/methodologies/bmad.v1/versions/mver_bmad_project_context_only_draft`
+- `Playwright MCP: http://localhost:3001/methodologies/bmad.v1/versions/mver_bmad_project_context_only_draft/facts`
 
 ### Completion Notes List
 
@@ -338,6 +343,17 @@ openai/gpt-5.4
 - Verified the live `/projects/new` flow via Playwright after seed and shell fixes: BMAD v1 published version selection works, project creation and pinning succeed, and the app lands on the new project dashboard with the expected methodology pin.
 - Assessed renaming `methodology_fact_schemas` and deferred the physical rename to a follow-up (target candidate: 3.1) so the next agent can execute it as a focused migration once naming is finalized. Blast radius identified across DB schema (`packages/db/src/schema/methodology.ts`), lifecycle and methodology repositories (`packages/db/src/lifecycle-repository.ts`, `packages/db/src/methodology-repository.ts`), contracts (`packages/contracts/src/methodology/fact.ts`, `packages/contracts/src/methodology/lifecycle.ts`), seed exports (`packages/scripts/src/seed/methodology/index.ts`, `packages/scripts/src/seed/methodology/tables/methodology-fact-schemas.seed.ts`, `packages/scripts/src/story-seed.mjs`), frontend methodology workspace files (`apps/web/src/features/methodologies/**`), and a broad set of tests/docs. Recommendation: keep domain language aligned now (`workUnitFacts` vs `methodologyFacts`), then perform one explicit rename/reset pass later rather than mixing the table rename into ongoing model cleanup.
 - Assessed legacy `required` on methodology fact definitions and deferred its physical removal to the same follow-up migration track. Current seed/model semantics already treat it as non-authoritative (`required: false` for the seeded methodology facts, with transition condition sets carrying real requiredness), but the column/field still exists in schema, repository mapping, preview logic, contracts, and tests. Recommendation: remove it later in one explicit cleanup pass alongside the fact-schema naming migration instead of mixing that churn into current 2.7 testing.
+- Documented and executed two implementation plans for the UI/UX work that grew around this story: `docs/plans/2026-03-10-methodology-facts-dialog-crud-implementation-plan.md` and `docs/plans/2026-03-10-methodology-version-scoped-sidebar-implementation-plan.md`.
+- Reworked the methodology shell IA so methodology-wide navigation is grouped under `Overview` while version-bound authoring is grouped under the selected version label, with explicit `Workspace` and version-scoped `Facts` navigation.
+- Moved methodology facts from the misleading methodology-level route into the version-scoped route `/methodologies/:methodologyId/versions/:versionId/facts`, and fixed the parent version route to render nested child pages instead of always forcing the workspace body.
+- Reused the facts inventory on the methodology dashboard as a read-only overview, with the actionable CRUD surface moved to the version-scoped facts page.
+- Added version-aware shell labeling and draft-explicit sidebar/version-switcher labels so version-scoped authoring context is visible while navigating the methodology shell.
+- Implemented dialog-driven facts CRUD on the version-scoped facts page: data grid with guidance/actions affordances, create/edit flow, guidance viewer, delete confirmation, generic success toasts, and query invalidation/refetch after successful saves.
+- Redesigned the facts dialog to use TanStack Form, a workspace-style `Contract` / `Guidance` stepper, thinner shell-consistent framed sections, and validation controls in the first step.
+- Simplified facts guidance authoring to `Human markdown` and `Agent markdown`, and aligned the older inline workspace fact editor toward the same field language so the form model no longer diverges as sharply between pages.
+- Added typed `allowed values` editing with chip-style controls and keyboard support (`Enter` to add, `Backspace` to remove the last chip) on both the dialog and the inline workspace editor.
+- Normalized legacy rule-shaped `allowed values` validation into canonical JSON Schema `enum` validation under the hood, while preserving a friendlier `allowed values` mode in the UI.
+- Verified the sidebar/version-shell changes, version-scoped facts route, dialog CRUD behavior, and workspace editor alignment with fresh targeted Vitest suites and live Playwright browser checks during the session; one late dialog-positioning regression remained under active follow-up after the main feature set was committed.
 
 ### File List
 
@@ -354,6 +370,10 @@ openai/gpt-5.4
 - `apps/web/src/features/methodologies/version-workspace.persistence.test.ts`
 - `apps/web/src/features/methodologies/version-workspace.integration.test.tsx`
 - `apps/web/src/features/methodologies/command-palette.integration.test.tsx`
+- `apps/web/src/features/methodologies/fact-editor-controls.tsx`
+- `apps/web/src/features/methodologies/fact-validation.ts`
+- `apps/web/src/features/methodologies/version-label.ts`
+- `apps/web/src/features/methodologies/version-label.test.ts`
 - `apps/web/src/components/app-shell.tsx`
 - `apps/web/src/components/app-sidebar.tsx`
 - `apps/web/src/components/sidebar-sections.tsx`
@@ -363,8 +383,12 @@ openai/gpt-5.4
 - `apps/web/src/components/app-shell.sidebar-sections.integration.test.tsx`
 - `apps/web/src/routes/methodologies.$methodologyId.tsx`
 - `apps/web/src/routes/methodologies.$methodologyId.versions.tsx`
+- `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.tsx`
+- `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.facts.tsx`
 - `apps/web/src/routes/methodologies.$methodologyId.integration.test.tsx`
 - `apps/web/src/routes/methodologies.$methodologyId.versions.integration.test.tsx`
+- `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.integration.test.tsx`
+- `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.facts.integration.test.tsx`
 - `apps/web/public/visuals/context-switcher/system-asset-16.svg`
 - `apps/web/public/visuals/context-switcher/methodology-asset-08.svg`
 - `apps/web/public/visuals/context-switcher/project-asset-05.svg`
@@ -391,5 +415,7 @@ openai/gpt-5.4
 - `packages/scripts/src/__tests__/methodology-seed-integrity.test.ts`
 - `packages/scripts/src/story-seed.mjs`
 - `apps/server/src/index.ts`
+- `apps/web/package.json`
+- `bun.lock`
 - `_bmad-output/implementation-artifacts/sprint-status.yaml`
 - `_bmad-output/implementation-artifacts/2-7-enforce-canonical-methodology-persistence-and-establish-project-context-module-boundary.md`

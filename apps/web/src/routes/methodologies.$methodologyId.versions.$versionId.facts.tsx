@@ -1,6 +1,13 @@
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { Result } from "better-result";
 import { useEffect, useMemo, useState } from "react";
@@ -9,7 +16,18 @@ import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { AllowedValuesChipEditor } from "@/features/methodologies/fact-editor-controls";
 import {
   createAllowedValuesValidation,
@@ -55,11 +73,6 @@ type FactEditorFormValues = {
   allowedValues: string;
   jsonSchema: string;
 };
-
-const fieldClassName =
-  "h-9 border border-border/70 bg-background px-3 text-sm text-foreground outline-none rounded-none";
-const textareaClassName =
-  "min-h-28 border border-border/70 bg-background px-3 py-2 text-sm text-foreground outline-none rounded-none";
 
 function factToFormValues(fact: FactEditorValue): FactEditorFormValues {
   const validation = fact.validation as
@@ -182,359 +195,403 @@ function FactEditorDialog({
   });
 
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
-      <DialogPrimitive.Portal>
-        <DialogPrimitive.Backdrop className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm" />
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <DialogPrimitive.Popup className="chiron-cut-frame-thin max-h-[calc(100dvh-3rem)] w-[min(46rem,calc(100vw-2rem))] overflow-y-auto bg-background p-4 outline-none">
-            <form
-              className="space-y-4"
-              onSubmit={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                void form.handleSubmit();
-              }}
-            >
-              <div className="space-y-2">
-                <DialogPrimitive.Title className="text-base font-semibold uppercase tracking-[0.08em]">
-                  {isEditing ? "Edit Fact" : "Add Fact"}
-                </DialogPrimitive.Title>
-                <div className="flex items-center gap-2">
-                  {(
-                    [
-                      ["contract", "Contract"],
-                      ["guidance", "Guidance"],
-                    ] as const
-                  ).map(([stepValue, label], index) => {
-                    const active = step === stepValue;
-                    return (
-                      <div key={stepValue} className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          className={
-                            active
-                              ? "chiron-frame-flat px-3 py-1 text-xs uppercase tracking-[0.14em]"
-                              : "border border-border/70 px-3 py-1 text-xs uppercase tracking-[0.14em] text-muted-foreground"
-                          }
-                          onClick={() => setStep(stepValue)}
-                        >
-                          {label}
-                        </button>
-                        {index === 0 ? (
-                          <span className="text-xs text-muted-foreground">/</span>
-                        ) : null}
-                      </div>
-                    );
-                  })}
-                </div>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="chiron-cut-frame-thick w-[min(72rem,calc(100vw-2rem))] p-8 sm:max-w-none sm:p-10">
+        <form
+          className="flex flex-col gap-12"
+          onSubmit={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            void form.handleSubmit();
+          }}
+        >
+          <div className="flex flex-col gap-10">
+            <DialogHeader className="gap-4">
+              <DialogTitle className="text-base font-semibold uppercase tracking-[0.08em]">
+                {isEditing ? "Edit Fact" : "Add Fact"}
+              </DialogTitle>
+              <div className="flex items-center gap-2">
+                {(
+                  [
+                    ["contract", "Contract"],
+                    ["guidance", "Guidance"],
+                  ] as const
+                ).map(([stepValue, label], index) => {
+                  const active = step === stepValue;
+                  return (
+                    <div key={stepValue} className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className={
+                          active
+                            ? "chiron-frame-flat px-3 py-1 text-xs uppercase tracking-[0.14em]"
+                            : "border border-border/70 px-3 py-1 text-xs uppercase tracking-[0.14em] text-muted-foreground"
+                        }
+                        onClick={() => setStep(stepValue)}
+                      >
+                        {label}
+                      </button>
+                      {index === 0 ? (
+                        <span className="text-xs text-muted-foreground">/</span>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
+            </DialogHeader>
 
-              {step === "contract" ? (
-                <Card
-                  frame="flat"
-                  tone="contracts"
-                  className="rounded-none border-0 bg-transparent shadow-none"
-                >
-                  <CardHeader className="pb-3">
-                    <div className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                      Contract
+            {step === "contract" ? (
+              <div className="grid grid-cols-2 gap-x-10 gap-y-6">
+                <form.Field name="displayName">
+                  {(field) => (
+                    <div className="space-y-2">
+                      <Label
+                        htmlFor={field.name}
+                        className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                      >
+                        Display Name
+                      </Label>
+                      <Input
+                        id={field.name}
+                        className="rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em] placeholder:text-muted-foreground/50"
+                        value={field.state.value}
+                        onBlur={field.handleBlur}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                      />
                     </div>
-                  </CardHeader>
-                  <CardContent className="grid gap-3">
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <form.Field name="displayName">
-                        {(field) => (
-                          <label className="grid gap-1 text-xs uppercase tracking-[0.12em] text-muted-foreground">
-                            Display name
-                            <input
-                              className={fieldClassName}
-                              value={field.state.value}
-                              onChange={(event) => field.handleChange(event.target.value)}
-                            />
-                          </label>
-                        )}
-                      </form.Field>
-                      <form.Field name="factKey">
-                        {(field) => (
-                          <label className="grid gap-1 text-xs uppercase tracking-[0.12em] text-muted-foreground">
-                            Fact key
-                            <input
-                              className={fieldClassName}
-                              value={field.state.value}
-                              onChange={(event) => field.handleChange(event.target.value)}
-                            />
-                          </label>
-                        )}
-                      </form.Field>
+                  )}
+                </form.Field>
+                <form.Field name="factKey">
+                  {(field) => (
+                    <div className="space-y-2">
+                      <Label
+                        htmlFor={field.name}
+                        className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                      >
+                        Fact Key
+                      </Label>
+                      <Input
+                        id={field.name}
+                        className="rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em] placeholder:text-muted-foreground/50"
+                        value={field.state.value}
+                        onBlur={field.handleBlur}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                      />
                     </div>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <form.Field name="factType">
-                        {(field) => (
-                          <label className="grid gap-1 text-xs uppercase tracking-[0.12em] text-muted-foreground">
-                            Fact type
-                            <select
-                              aria-label="Fact type"
-                              className={fieldClassName}
-                              value={field.state.value}
-                              onChange={(event) =>
-                                field.handleChange(
-                                  event.target.value as FactEditorValue["factType"],
-                                )
-                              }
-                            >
-                              <option value="string">string</option>
-                              <option value="number">number</option>
-                              <option value="boolean">boolean</option>
-                              <option value="json">json</option>
-                            </select>
-                          </label>
-                        )}
-                      </form.Field>
-                      <form.Field name="defaultValue">
-                        {(field) => (
-                          <label className="grid gap-1 text-xs uppercase tracking-[0.12em] text-muted-foreground">
-                            Default value
-                            <input
-                              className={fieldClassName}
-                              value={field.state.value}
-                              onChange={(event) => field.handleChange(event.target.value)}
-                            />
-                          </label>
-                        )}
-                      </form.Field>
+                  )}
+                </form.Field>
+                <form.Field name="factType">
+                  {(field) => (
+                    <div className="space-y-2">
+                      <Label
+                        htmlFor={field.name}
+                        className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                      >
+                        Fact Type
+                      </Label>
+                      <Select
+                        value={field.state.value}
+                        onValueChange={(v) => field.handleChange(v as FactEditorValue["factType"])}
+                      >
+                        <SelectTrigger className="h-9 rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]">
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-none border-border/70 bg-background text-xs">
+                          <SelectItem value="string">string</SelectItem>
+                          <SelectItem value="number">number</SelectItem>
+                          <SelectItem value="boolean">boolean</SelectItem>
+                          <SelectItem value="json">json</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                    <form.Field name="validationType">
-                      {(field) => (
-                        <label className="grid gap-1 text-xs uppercase tracking-[0.12em] text-muted-foreground">
-                          Validation type
-                          <select
-                            aria-label="Validation type"
-                            className={fieldClassName}
-                            value={field.state.value}
-                            onChange={(event) =>
-                              field.handleChange(
-                                event.target.value as FactEditorFormValues["validationType"],
-                              )
-                            }
-                          >
-                            <option value="none">none</option>
-                            <option value="path">path</option>
-                            <option value="allowed-values">allowed values</option>
-                            <option value="json-schema">json schema</option>
-                          </select>
-                        </label>
-                      )}
-                    </form.Field>
-                    <form.Subscribe selector={(state) => state.values.validationType}>
-                      {(validationType) =>
-                        validationType === "path" ? (
-                          <Card
-                            frame="flat"
-                            tone="contracts"
-                            className="rounded-none border-0 bg-transparent shadow-none"
-                          >
-                            <CardContent className="grid gap-3 px-0 pb-0">
-                              <form.Field name="pathKind">
+                  )}
+                </form.Field>
+                <form.Field name="defaultValue">
+                  {(field) => (
+                    <div className="space-y-2">
+                      <Label
+                        htmlFor={field.name}
+                        className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                      >
+                        Default Value
+                      </Label>
+                      <Input
+                        id={field.name}
+                        className="rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em] placeholder:text-muted-foreground/50"
+                        value={field.state.value}
+                        onBlur={field.handleBlur}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                      />
+                    </div>
+                  )}
+                </form.Field>
+                <div className="col-span-2 space-y-6">
+                  <form.Field name="validationType">
+                    {(field) => (
+                      <div className="space-y-2">
+                        <Label
+                          htmlFor={field.name}
+                          className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                        >
+                          Validation Type
+                        </Label>
+                        <Select
+                          value={field.state.value}
+                          onValueChange={(v) =>
+                            field.handleChange(v as FactEditorFormValues["validationType"])
+                          }
+                        >
+                          <SelectTrigger className="h-9 rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]">
+                            <SelectValue placeholder="Select validation" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-none border-border/70 bg-background text-xs">
+                            <SelectItem value="none">none</SelectItem>
+                            <SelectItem value="path">path</SelectItem>
+                            <SelectItem value="allowed-values">allowed-values</SelectItem>
+                            <SelectItem value="json-schema">json-schema</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </form.Field>
+
+                  <form.Subscribe selector={(state) => state.values.validationType}>
+                    {(validationType) =>
+                      validationType === "path" ? (
+                        <Card
+                          frame="flat"
+                          tone="contracts"
+                          className="rounded-none border-0 bg-background/30 p-4 shadow-none"
+                        >
+                          <div className="grid gap-6">
+                            <form.Field name="pathKind">
+                              {(field) => (
+                                <div className="space-y-2">
+                                  <Label
+                                    htmlFor={field.name}
+                                    className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                                  >
+                                    Path Kind
+                                  </Label>
+                                  <Select
+                                    value={field.state.value}
+                                    onValueChange={(v) =>
+                                      field.handleChange(v as "file" | "directory")
+                                    }
+                                  >
+                                    <SelectTrigger className="h-9 rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]">
+                                      <SelectValue placeholder="Select kind" />
+                                    </SelectTrigger>
+                                    <SelectContent className="rounded-none border-border/70 bg-background text-xs">
+                                      <SelectItem value="file">file</SelectItem>
+                                      <SelectItem value="directory">directory</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              )}
+                            </form.Field>
+                            <div className="flex flex-wrap gap-x-8 gap-y-4">
+                              <form.Field name="trimWhitespace">
                                 {(field) => (
-                                  <label className="grid gap-1 text-xs uppercase tracking-[0.12em] text-muted-foreground">
-                                    Path kind
-                                    <select
-                                      aria-label="Path kind"
-                                      className={fieldClassName}
-                                      value={field.state.value}
-                                      onChange={(event) =>
-                                        field.handleChange(
-                                          event.target.value as "file" | "directory",
-                                        )
+                                  <div className="flex items-center gap-2">
+                                    <Checkbox
+                                      id={field.name}
+                                      checked={field.state.value}
+                                      onCheckedChange={(checked) =>
+                                        field.handleChange(checked === true)
                                       }
+                                    />
+                                    <Label
+                                      htmlFor={field.name}
+                                      className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground"
                                     >
-                                      <option value="file">file</option>
-                                      <option value="directory">directory</option>
-                                    </select>
-                                  </label>
+                                      Trim Whitespace
+                                    </Label>
+                                  </div>
                                 )}
                               </form.Field>
-                              <div className="grid gap-2 md:grid-cols-3">
-                                <form.Field name="trimWhitespace">
-                                  {(field) => (
-                                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                                      <input
-                                        aria-label="Trim whitespace"
-                                        type="checkbox"
-                                        checked={field.state.value}
-                                        onChange={(event) =>
-                                          field.handleChange(event.target.checked)
-                                        }
-                                      />
-                                      Trim whitespace
-                                    </label>
-                                  )}
-                                </form.Field>
-                                <form.Field name="disallowAbsolute">
-                                  {(field) => (
-                                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                                      <input
-                                        aria-label="Disallow absolute"
-                                        type="checkbox"
-                                        checked={field.state.value}
-                                        onChange={(event) =>
-                                          field.handleChange(event.target.checked)
-                                        }
-                                      />
-                                      Disallow absolute
-                                    </label>
-                                  )}
-                                </form.Field>
-                                <form.Field name="preventTraversal">
-                                  {(field) => (
-                                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                                      <input
-                                        aria-label="Prevent traversal"
-                                        type="checkbox"
-                                        checked={field.state.value}
-                                        onChange={(event) =>
-                                          field.handleChange(event.target.checked)
-                                        }
-                                      />
-                                      Prevent traversal
-                                    </label>
-                                  )}
-                                </form.Field>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ) : validationType === "allowed-values" ? (
-                          <form.Field name="allowedValues">
-                            {(field) => (
-                              <div className="grid gap-1 text-xs uppercase tracking-[0.12em] text-muted-foreground">
-                                <span>Allowed values</span>
-                                <AllowedValuesChipEditor
-                                  values={field.state.value
-                                    .split(/\r?\n/g)
-                                    .map((value) => value.trim())
-                                    .filter((value) => value.length > 0)}
-                                  onChange={(values) => field.handleChange(values.join("\n"))}
-                                />
-                              </div>
-                            )}
-                          </form.Field>
-                        ) : validationType === "json-schema" ? (
-                          <form.Field name="jsonSchema">
-                            {(field) => (
-                              <label className="grid gap-1 text-xs uppercase tracking-[0.12em] text-muted-foreground">
-                                JSON schema
-                                <textarea
-                                  aria-label="JSON schema"
-                                  className={textareaClassName}
-                                  value={field.state.value}
-                                  onChange={(event) => field.handleChange(event.target.value)}
-                                />
-                              </label>
-                            )}
-                          </form.Field>
-                        ) : null
-                      }
-                    </form.Subscribe>
-                  </CardContent>
-                </Card>
-              ) : (
-                <Card
-                  frame="flat"
-                  tone="context"
-                  className="rounded-none border-0 bg-transparent shadow-none"
-                >
-                  <CardHeader className="pb-3">
-                    <div className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                      Guidance
+                              <form.Field name="disallowAbsolute">
+                                {(field) => (
+                                  <div className="flex items-center gap-2">
+                                    <Checkbox
+                                      id={field.name}
+                                      checked={field.state.value}
+                                      onCheckedChange={(checked) =>
+                                        field.handleChange(checked === true)
+                                      }
+                                    />
+                                    <Label
+                                      htmlFor={field.name}
+                                      className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground"
+                                    >
+                                      Disallow Absolute
+                                    </Label>
+                                  </div>
+                                )}
+                              </form.Field>
+                              <form.Field name="preventTraversal">
+                                {(field) => (
+                                  <div className="flex items-center gap-2">
+                                    <Checkbox
+                                      id={field.name}
+                                      checked={field.state.value}
+                                      onCheckedChange={(checked) =>
+                                        field.handleChange(checked === true)
+                                      }
+                                    />
+                                    <Label
+                                      htmlFor={field.name}
+                                      className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground"
+                                    >
+                                      Prevent Traversal
+                                    </Label>
+                                  </div>
+                                )}
+                              </form.Field>
+                            </div>
+                          </div>
+                        </Card>
+                      ) : validationType === "allowed-values" ? (
+                        <form.Field name="allowedValues">
+                          {(field) => (
+                            <div className="space-y-2">
+                              <Label className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                                Allowed Values
+                              </Label>
+                              <AllowedValuesChipEditor
+                                values={field.state.value
+                                  .split(/\r?\n/g)
+                                  .map((value) => value.trim())
+                                  .filter((value) => value.length > 0)}
+                                onChange={(values) => field.handleChange(values.join("\n"))}
+                              />
+                            </div>
+                          )}
+                        </form.Field>
+                      ) : validationType === "json-schema" ? (
+                        <form.Field name="jsonSchema">
+                          {(field) => (
+                            <div className="space-y-2">
+                              <Label
+                                htmlFor={field.name}
+                                className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                              >
+                                JSON Schema
+                              </Label>
+                              <Textarea
+                                id={field.name}
+                                className="min-h-[10rem] resize-none rounded-none border-border/70 bg-background/50 p-3 text-xs tracking-[0.04em] placeholder:text-muted-foreground/50"
+                                value={field.state.value}
+                                onBlur={field.handleBlur}
+                                onChange={(e) => field.handleChange(e.target.value)}
+                              />
+                            </div>
+                          )}
+                        </form.Field>
+                      ) : null
+                    }
+                  </form.Subscribe>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-x-10 gap-y-6">
+                <form.Field name="description">
+                  {(field) => (
+                    <div className="col-span-2 space-y-2">
+                      <Label
+                        htmlFor={field.name}
+                        className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                      >
+                        Description
+                      </Label>
+                      <Textarea
+                        id={field.name}
+                        className="min-h-[6rem] resize-none rounded-none border-border/70 bg-background/50 p-3 text-xs tracking-[0.04em] placeholder:text-muted-foreground/50"
+                        value={field.state.value}
+                        onBlur={field.handleBlur}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                      />
                     </div>
-                  </CardHeader>
-                  <CardContent className="grid gap-3">
-                    <form.Field name="description">
-                      {(field) => (
-                        <label className="grid gap-1 text-xs uppercase tracking-[0.12em] text-muted-foreground">
-                          Description
-                          <textarea
-                            className={textareaClassName}
-                            value={field.state.value}
-                            onChange={(event) => field.handleChange(event.target.value)}
-                          />
-                        </label>
-                      )}
-                    </form.Field>
-                    <form.Field name="humanMarkdown">
-                      {(field) => (
-                        <label className="grid gap-1 text-xs uppercase tracking-[0.12em] text-muted-foreground">
-                          Human markdown
-                          <textarea
-                            aria-label="Human markdown"
-                            className={textareaClassName}
-                            value={field.state.value}
-                            onChange={(event) => field.handleChange(event.target.value)}
-                          />
-                        </label>
-                      )}
-                    </form.Field>
-                    <form.Field name="agentMarkdown">
-                      {(field) => (
-                        <label className="grid gap-1 text-xs uppercase tracking-[0.12em] text-muted-foreground">
-                          Agent markdown
-                          <textarea
-                            aria-label="Agent markdown"
-                            className={textareaClassName}
-                            value={field.state.value}
-                            onChange={(event) => field.handleChange(event.target.value)}
-                          />
-                        </label>
-                      )}
-                    </form.Field>
-                  </CardContent>
-                </Card>
-              )}
-
-              <Card
-                frame="flat"
-                tone="navigation"
-                className="rounded-none border-0 bg-transparent shadow-none"
-              >
-                <CardFooter className="justify-end gap-2 pt-0">
-                  <Button
-                    variant="outline"
-                    className="rounded-none"
-                    type="button"
-                    onClick={() => onOpenChange(false)}
-                  >
-                    Cancel
-                  </Button>
-                  {step === "guidance" ? (
-                    <Button
-                      variant="outline"
-                      className="rounded-none"
-                      type="button"
-                      onClick={() => setStep("contract")}
-                    >
-                      Back
-                    </Button>
-                  ) : null}
-                  {step === "contract" ? (
-                    <Button
-                      className="rounded-none"
-                      type="button"
-                      onClick={() => setStep("guidance")}
-                    >
-                      Next
-                    </Button>
-                  ) : (
-                    <Button className="rounded-none" type="submit">
-                      Save
-                    </Button>
                   )}
-                </CardFooter>
-              </Card>
-            </form>
-          </DialogPrimitive.Popup>
-        </div>
-      </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
+                </form.Field>
+                <form.Field name="humanMarkdown">
+                  {(field) => (
+                    <div className="space-y-2">
+                      <Label
+                        htmlFor={field.name}
+                        className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                      >
+                        Human Guidance
+                      </Label>
+                      <Textarea
+                        id={field.name}
+                        className="min-h-[14rem] resize-none rounded-none border-border/70 bg-background/50 p-3 text-xs tracking-[0.04em] placeholder:text-muted-foreground/50"
+                        value={field.state.value}
+                        onBlur={field.handleBlur}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                      />
+                    </div>
+                  )}
+                </form.Field>
+                <form.Field name="agentMarkdown">
+                  {(field) => (
+                    <div className="space-y-2">
+                      <Label
+                        htmlFor={field.name}
+                        className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                      >
+                        Agent Guidance
+                      </Label>
+                      <Textarea
+                        id={field.name}
+                        className="min-h-[14rem] resize-none rounded-none border-border/70 bg-background/50 p-3 text-xs tracking-[0.04em] placeholder:text-muted-foreground/50"
+                        value={field.state.value}
+                        onBlur={field.handleBlur}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                      />
+                    </div>
+                  )}
+                </form.Field>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="sm:justify-end sm:gap-4 sm:px-0">
+            <Button
+              variant="outline"
+              className="rounded-none px-6"
+              type="button"
+              onClick={() => onOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            {step === "guidance" ? (
+              <Button
+                variant="outline"
+                className="rounded-none px-6"
+                type="button"
+                onClick={() => setStep("contract")}
+              >
+                Back
+              </Button>
+            ) : null}
+            {step === "contract" ? (
+              <Button
+                className="rounded-none px-8"
+                type="button"
+                onClick={() => setStep("guidance")}
+              >
+                Next
+              </Button>
+            ) : (
+              <Button className="rounded-none px-8" type="submit">
+                Save
+              </Button>
+            )}
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -705,180 +762,176 @@ export function MethodologyVersionFactsRoute() {
   };
 
   return (
-    <MethodologyWorkspaceShell
-      title="Methodology Facts"
-      stateLabel={
-        detailsQuery.isLoading || draftQuery.isLoading
-          ? "loading"
-          : detailsQuery.isError || draftQuery.isError
-            ? "failed"
-            : "success"
-      }
-      segments={[
-        { label: "Methodologies", to: "/methodologies" },
-        { label: methodologyId, to: "/methodologies/$methodologyId", params: { methodologyId } },
-        {
-          label: "Versions",
-          to: "/methodologies/$methodologyId/versions",
-          params: { methodologyId },
-        },
-        {
-          label: currentVersion?.displayName ?? versionId,
-          to: "/methodologies/$methodologyId/versions/$versionId",
-          params: { methodologyId, versionId },
-        },
-        { label: "Facts" },
-      ]}
-    >
-      {detailsQuery.isLoading ? <p className="text-sm">Loading methodology facts...</p> : null}
-      {detailsQuery.isError ? (
-        <p className="text-sm">State: failed - Unable to load methodology details.</p>
-      ) : null}
+    <>
+      <MethodologyWorkspaceShell
+        title="Methodology Facts"
+        stateLabel={
+          detailsQuery.isLoading || draftQuery.isLoading
+            ? "loading"
+            : detailsQuery.isError || draftQuery.isError
+              ? "failed"
+              : "success"
+        }
+        segments={[
+          { label: "Methodologies", to: "/methodologies" },
+          { label: methodologyId, to: "/methodologies/$methodologyId", params: { methodologyId } },
+          {
+            label: "Versions",
+            to: "/methodologies/$methodologyId/versions",
+            params: { methodologyId },
+          },
+          {
+            label: currentVersion?.displayName ?? versionId,
+            to: "/methodologies/$methodologyId/versions/$versionId",
+            params: { methodologyId, versionId },
+          },
+          { label: "Facts" },
+        ]}
+      >
+        {detailsQuery.isLoading ? <p className="text-sm">Loading methodology facts...</p> : null}
+        {detailsQuery.isError ? (
+          <p className="text-sm">State: failed - Unable to load methodology details.</p>
+        ) : null}
 
-      {details ? (
-        <div className="space-y-4">
-          <section className="border border-border/80 bg-background p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
-                  Methodology Facts
-                </p>
-                <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
-                  Fact Inventory
-                </p>
-                <h2 className="mt-2 text-xl font-semibold uppercase tracking-[0.08em]">
-                  {details.displayName}
-                </h2>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Editing contract for {currentVersion?.displayName ?? versionId}.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" className="rounded-none" onClick={openCreateDialog}>
-                  Add Fact
-                </Button>
-                <Link
-                  to="/methodologies/$methodologyId/versions/$versionId"
-                  params={{ methodologyId, versionId }}
-                  className={buttonVariants({ size: "sm", variant: "outline" })}
-                >
-                  Open Workspace
-                </Link>
-                <Link
-                  to="/methodologies/$methodologyId/versions"
-                  params={{ methodologyId }}
-                  className={buttonVariants({ size: "sm", variant: "outline" })}
-                >
-                  Open Versions
-                </Link>
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <MethodologyFactsInventory
-                facts={facts}
-                onViewGuidance={setGuidanceFactId}
-                onEditFact={openEditDialog}
-                onDeleteFact={setDeleteFactId}
-              />
-            </div>
-          </section>
-
-          <FactEditorDialog
-            key={`${editingFactId ?? "new"}-${editorOpen ? "open" : "closed"}`}
-            open={editorOpen}
-            onOpenChange={setEditorOpen}
-            initialFact={editorFact}
-            isEditing={editingFactId !== null}
-            onSave={saveEditorFact}
-          />
-
-          <DialogPrimitive.Root
-            open={guidanceFactId !== null}
-            onOpenChange={(open) => {
-              if (!open) {
-                setGuidanceFactId(null);
-              }
-            }}
-          >
-            <DialogPrimitive.Portal>
-              <DialogPrimitive.Backdrop className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm" />
-              <DialogPrimitive.Popup className="fixed top-1/2 left-1/2 z-50 w-[min(38rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 border border-border/80 bg-background p-4 shadow-lg outline-none">
-                <DialogPrimitive.Title className="text-base font-semibold uppercase tracking-[0.08em]">
-                  Guidance
-                </DialogPrimitive.Title>
-                <DialogPrimitive.Description className="mt-2 text-xs text-muted-foreground">
-                  Review the stored methodology guidance before editing.
-                </DialogPrimitive.Description>
-                <div className="mt-4 space-y-4 text-sm">
-                  <section className="space-y-2">
-                    <h3 className="text-xs uppercase tracking-[0.12em] text-muted-foreground">
-                      Human
-                    </h3>
-                    <div className="border border-border/70 p-3 text-sm leading-6">
-                      {guidanceHuman ? (
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{guidanceHuman}</ReactMarkdown>
-                      ) : (
-                        "-"
-                      )}
-                    </div>
-                  </section>
-                  <section className="space-y-2">
-                    <h3 className="text-xs uppercase tracking-[0.12em] text-muted-foreground">
-                      Agent
-                    </h3>
-                    <div className="border border-border/70 p-3 text-sm leading-6">
-                      {guidanceAgent ? (
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{guidanceAgent}</ReactMarkdown>
-                      ) : (
-                        "-"
-                      )}
-                    </div>
-                  </section>
+        {details ? (
+          <div className="space-y-4">
+            <section className="border border-border/80 bg-background p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
+                    Methodology Facts
+                  </p>
+                  <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
+                    Fact Inventory
+                  </p>
+                  <h2 className="mt-2 text-xl font-semibold uppercase tracking-[0.08em]">
+                    {details.displayName}
+                  </h2>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Editing contract for {currentVersion?.displayName ?? versionId}.
+                  </p>
                 </div>
-                <div className="mt-4 flex justify-end">
-                  <Button className="rounded-none" onClick={() => setGuidanceFactId(null)}>
-                    Close
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" className="rounded-none" onClick={openCreateDialog}>
+                    Add Fact
                   </Button>
-                </div>
-              </DialogPrimitive.Popup>
-            </DialogPrimitive.Portal>
-          </DialogPrimitive.Root>
-
-          <DialogPrimitive.Root
-            open={deleteFactId !== null}
-            onOpenChange={(open) => {
-              if (!open) {
-                setDeleteFactId(null);
-              }
-            }}
-          >
-            <DialogPrimitive.Portal>
-              <DialogPrimitive.Backdrop className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm" />
-              <DialogPrimitive.Popup className="fixed top-1/2 left-1/2 z-50 w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 border border-border/80 bg-background p-4 shadow-lg outline-none">
-                <DialogPrimitive.Title className="text-base font-semibold uppercase tracking-[0.08em]">
-                  Delete Fact
-                </DialogPrimitive.Title>
-                <DialogPrimitive.Description className="mt-2 text-sm text-muted-foreground">
-                  This will remove this fact from the methodology contract.
-                </DialogPrimitive.Description>
-                <div className="mt-4 flex justify-end gap-2">
-                  <Button
-                    variant="outline"
-                    className="rounded-none"
-                    onClick={() => setDeleteFactId(null)}
+                  <Link
+                    to="/methodologies/$methodologyId/versions/$versionId"
+                    params={{ methodologyId, versionId }}
+                    className={buttonVariants({ size: "sm", variant: "outline" })}
                   >
-                    Cancel
-                  </Button>
-                  <Button className="rounded-none" onClick={() => void deleteFact()}>
-                    Delete
-                  </Button>
+                    Open Workspace
+                  </Link>
+                  <Link
+                    to="/methodologies/$methodologyId/versions"
+                    params={{ methodologyId }}
+                    className={buttonVariants({ size: "sm", variant: "outline" })}
+                  >
+                    Open Versions
+                  </Link>
                 </div>
-              </DialogPrimitive.Popup>
-            </DialogPrimitive.Portal>
-          </DialogPrimitive.Root>
-        </div>
-      ) : null}
-    </MethodologyWorkspaceShell>
+              </div>
+
+              <div className="mt-4">
+                <MethodologyFactsInventory
+                  facts={facts}
+                  onViewGuidance={setGuidanceFactId}
+                  onEditFact={openEditDialog}
+                  onDeleteFact={setDeleteFactId}
+                />
+              </div>
+            </section>
+          </div>
+        ) : null}
+      </MethodologyWorkspaceShell>
+
+      <FactEditorDialog
+        key={`${editingFactId ?? "new"}-${editorOpen ? "open" : "closed"}`}
+        open={editorOpen}
+        onOpenChange={setEditorOpen}
+        initialFact={editorFact}
+        isEditing={editingFactId !== null}
+        onSave={saveEditorFact}
+      />
+
+      <Dialog
+        open={guidanceFactId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setGuidanceFactId(null);
+          }
+        }}
+      >
+        <DialogContent className="chiron-cut-frame-thick w-[min(38rem,calc(100vw-2rem))] p-6 sm:max-w-none">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold uppercase tracking-[0.08em]">
+              Guidance
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Review the stored methodology guidance before editing.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 text-sm">
+            <section className="space-y-2">
+              <h3 className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Human</h3>
+              <div className="border border-border/70 p-3 text-sm leading-6">
+                {guidanceHuman ? (
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{guidanceHuman}</ReactMarkdown>
+                ) : (
+                  "-"
+                )}
+              </div>
+            </section>
+            <section className="space-y-2">
+              <h3 className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Agent</h3>
+              <div className="border border-border/70 p-3 text-sm leading-6">
+                {guidanceAgent ? (
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{guidanceAgent}</ReactMarkdown>
+                ) : (
+                  "-"
+                )}
+              </div>
+            </section>
+          </div>
+          <DialogFooter>
+            <Button className="rounded-none" onClick={() => setGuidanceFactId(null)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={deleteFactId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteFactId(null);
+          }
+        }}
+      >
+        <DialogContent className="chiron-cut-frame-thick w-[min(28rem,calc(100vw-2rem))] p-6 sm:max-w-none">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold uppercase tracking-[0.08em]">
+              Delete Fact
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              This will remove this fact from the methodology contract.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              className="rounded-none"
+              onClick={() => setDeleteFactId(null)}
+            >
+              Cancel
+            </Button>
+            <Button className="rounded-none" onClick={() => void deleteFact()}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
