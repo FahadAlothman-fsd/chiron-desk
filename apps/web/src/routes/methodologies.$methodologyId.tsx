@@ -14,7 +14,7 @@ export const Route = createFileRoute("/methodologies/$methodologyId")({
   component: MethodologyDetailsRoute,
 });
 
-function MethodologyDetailsRoute() {
+export function MethodologyDetailsRoute() {
   const { methodologyId } = Route.useParams();
   const { orpc, queryClient } = Route.useRouteContext();
   const location = useLocation();
@@ -87,7 +87,7 @@ function MethodologyDetailsRoute() {
           <section className="border border-border/80 bg-background p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
-                Version Entry
+                Quick Actions
               </p>
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -127,13 +127,9 @@ function MethodologyDetailsRoute() {
               </div>
             </div>
 
-            <ul className="mt-3 space-y-2">
-              {details.versions.map((version) => (
-                <li key={version.id} className="border border-border/70 px-3 py-2 text-sm">
-                  {version.displayName} ({version.version}) - {version.status}
-                </li>
-              ))}
-            </ul>
+            <div className="mt-3 text-xs text-muted-foreground">
+              Manage version history from the dedicated Versions page.
+            </div>
           </section>
 
           <section className="border border-border/80 bg-background p-4">

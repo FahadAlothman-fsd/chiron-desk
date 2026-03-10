@@ -51,9 +51,22 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const currentMethodology = methodologyId
     ? methodologies.find((item) => item.methodologyKey === methodologyId)
     : null;
+  const versionId =
+    pathParts[0] === "methodologies" && pathParts[2] === "versions" ? pathParts[3] : null;
+  const methodologyDetailsQuery = useQuery({
+    ...orpc.methodology.getMethodologyDetails.queryOptions({
+      input: { methodologyKey: methodologyId ?? "" },
+    }),
+    enabled: Boolean(session?.user && methodologyId),
+  });
+  const methodologyVersions = methodologyDetailsQuery.data?.versions ?? [];
+  const showMethodologyVersionSelector = Boolean(methodologyId && methodologyVersions.length > 0);
+  const currentVersion = versionId
+    ? methodologyVersions.find((version) => version.id === versionId)
+    : null;
   const sidebarScope: "system" | "project" | "methodology" = projectId
     ? "project"
-    : pathname.startsWith("/methodologies")
+    : methodologyId
       ? "methodology"
       : "system";
 
@@ -92,7 +105,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
           };
         });
 
-  const navSections = buildSidebarSections(pathname);
+  const navSections = buildSidebarSections(pathname, sidebarScope, {
+    projectId,
+    methodologyId,
+  });
 
   return (
     <SidebarProvider
@@ -113,6 +129,22 @@ export default function AppShell({ children }: { children: ReactNode }) {
           currentMethodologyId: methodologyId ?? null,
           currentMethodologyName: currentMethodology?.displayName ?? null,
           methodologies,
+        }}
+        methodologyVersionSwitcher={{
+          currentVersionId: showMethodologyVersionSelector ? (versionId ?? null) : null,
+          currentVersionLabel: showMethodologyVersionSelector
+            ? (currentVersion?.displayName ??
+              currentVersion?.version ??
+              methodologyVersions[0]?.displayName ??
+              null)
+            : null,
+          methodologyId: showMethodologyVersionSelector ? (methodologyId ?? null) : null,
+          versions: showMethodologyVersionSelector
+            ? methodologyVersions.map((version) => ({
+                id: version.id,
+                displayName: version.displayName,
+              }))
+            : [],
         }}
         onOpenCommands={() => setIsCommandPaletteOpen(true)}
         className="border-r border-border/80"

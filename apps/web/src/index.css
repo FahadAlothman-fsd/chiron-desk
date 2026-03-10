@@ -316,6 +316,33 @@
       linear-gradient(var(--frame-corner), var(--frame-corner)) 100% 100% / 1px 14px no-repeat;
   }
 
+  .chiron-cut-frame-thin {
+    --frame-bg: color-mix(in oklab, var(--background) 84%, var(--card));
+    --frame-border: color-mix(in oklab, var(--foreground) 8%, var(--border));
+    --frame-corner: color-mix(in oklab, var(--foreground) 18%, var(--border));
+    position: relative;
+    background: var(--frame-bg);
+    border: 1px solid var(--frame-border);
+    isolation: isolate;
+  }
+
+  .chiron-cut-frame-thin::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    z-index: 1;
+    pointer-events: none;
+    background:
+      linear-gradient(var(--frame-corner), var(--frame-corner)) 0 0 / 9px 1px no-repeat,
+      linear-gradient(var(--frame-corner), var(--frame-corner)) 0 0 / 1px 9px no-repeat,
+      linear-gradient(var(--frame-corner), var(--frame-corner)) 100% 0 / 9px 1px no-repeat,
+      linear-gradient(var(--frame-corner), var(--frame-corner)) 100% 0 / 1px 9px no-repeat,
+      linear-gradient(var(--frame-corner), var(--frame-corner)) 0 100% / 9px 1px no-repeat,
+      linear-gradient(var(--frame-corner), var(--frame-corner)) 0 100% / 1px 9px no-repeat,
+      linear-gradient(var(--frame-corner), var(--frame-corner)) 100% 100% / 9px 1px no-repeat,
+      linear-gradient(var(--frame-corner), var(--frame-corner)) 100% 100% / 1px 9px no-repeat;
+  }
+
   .chiron-cut-frame-heavy {
     --frame-bg: color-mix(in oklab, var(--background) 80%, var(--card));
     --frame-border: color-mix(in oklab, var(--foreground) 14%, var(--border));

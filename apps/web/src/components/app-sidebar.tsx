@@ -33,10 +33,31 @@ const CHIRON_BRAND_ICON = "/visuals/chiron-brand/asset-41.svg";
 function SidebarScopeIcon() {
   return (
     <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-      <img src={CHIRON_BRAND_ICON} alt="" aria-hidden="true" className="size-4 object-contain" />
+      <img src={CHIRON_BRAND_ICON} alt="" aria-hidden="true" className="size-8 object-contain" />
     </div>
   );
 }
+
+const CONTEXT_MODES = [
+  {
+    key: "system",
+    label: "System",
+    assetSrc: "/visuals/context-switcher/system-asset-16.svg",
+    to: "/",
+  },
+  {
+    key: "methodology",
+    label: "Methodology",
+    assetSrc: "/visuals/context-switcher/methodology-asset-08.svg",
+    to: "/methodologies",
+  },
+  {
+    key: "project",
+    label: "Project",
+    assetSrc: "/visuals/context-switcher/project-asset-05.svg",
+    to: "/projects",
+  },
+] as const;
 
 export type SidebarNavItem = {
   label: string;
@@ -75,6 +96,15 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
       displayName: string;
     }>;
   };
+  methodologyVersionSwitcher?: {
+    currentVersionId?: string | null;
+    currentVersionLabel?: string | null;
+    methodologyId?: string | null;
+    versions: ReadonlyArray<{
+      id: string;
+      displayName: string;
+    }>;
+  };
 };
 
 export function AppSidebar({
@@ -86,11 +116,14 @@ export function AppSidebar({
   onOpenCommands,
   projectSwitcher,
   methodologySwitcher,
+  methodologyVersionSwitcher,
   ...props
 }: AppSidebarProps) {
   const navigate = useNavigate();
   const [isProjectSwitcherOpen, setIsProjectSwitcherOpen] = React.useState(false);
   const [isMethodologySwitcherOpen, setIsMethodologySwitcherOpen] = React.useState(false);
+  const [isMethodologyVersionSwitcherOpen, setIsMethodologyVersionSwitcherOpen] =
+    React.useState(false);
 
   const currentProjectLabel =
     projectSwitcher?.currentProjectName ??
@@ -103,11 +136,49 @@ export function AppSidebar({
     methodologySwitcher?.currentMethodologyName ??
     methodologySwitcher?.currentMethodologyId ??
     "Select methodology";
+  const currentMethodologyVersionLabel =
+    methodologyVersionSwitcher?.currentVersionLabel ??
+    methodologyVersionSwitcher?.currentVersionId ??
+    "Select version";
 
   return (
     <Sidebar variant="sidebar" {...props}>
       <SidebarHeader>
         <SidebarMenu>
+          <SidebarMenuItem>
+            <div className="grid grid-cols-3 gap-1 px-2 pb-2">
+              {CONTEXT_MODES.map((mode) => {
+                const active = scope === mode.key;
+
+                return (
+                  <SidebarMenuButton
+                    key={mode.key}
+                    type="button"
+                    isActive={active}
+                    tooltip={mode.label}
+                    aria-label={`${mode.label} context`}
+                    className="h-auto flex-col gap-1 px-1 py-2 opacity-90"
+                    onClick={() => {
+                      if (!active) {
+                        void navigate({ to: mode.to });
+                      }
+                    }}
+                  >
+                    <img
+                      src={mode.assetSrc}
+                      alt=""
+                      aria-hidden="true"
+                      className="size-7 object-contain"
+                    />
+                    <span className="text-[0.55rem] uppercase tracking-[0.12em] text-muted-foreground">
+                      {mode.label}
+                    </span>
+                  </SidebarMenuButton>
+                );
+              })}
+            </div>
+          </SidebarMenuItem>
+
           {scope === "system" ? (
             <SidebarMenuItem>
               <SidebarMenuButton
@@ -192,72 +263,164 @@ export function AppSidebar({
 
           {scope === "methodology" ? (
             <SidebarMenuItem>
-              <Popover open={isMethodologySwitcherOpen} onOpenChange={setIsMethodologySwitcherOpen}>
-                <PopoverTrigger
-                  render={
-                    <SidebarMenuButton size="lg" type="button" className="w-full">
-                      <SidebarScopeIcon />
-                      <div className="grid flex-1 text-left text-sm leading-tight">
-                        <span className="truncate font-medium uppercase tracking-[0.08em]">
-                          {currentMethodologyLabel}
-                        </span>
-                        <span className="truncate text-xs uppercase tracking-[0.08em] text-muted-foreground">
-                          Methodology scope
-                        </span>
-                      </div>
-                      <ChevronsUpDownIcon className="ml-auto size-4 text-muted-foreground" />
-                    </SidebarMenuButton>
-                  }
-                />
-                <PopoverContent
-                  side="right"
-                  align="start"
-                  frame="cut"
-                  tone="navigation"
-                  className="w-80 p-0"
-                >
-                  <Command tone="navigation" density="compact" frame="default">
-                    <CommandInput density="compact" placeholder="Search methodologies..." />
-                    <CommandList>
-                      <CommandEmpty>No methodologies found.</CommandEmpty>
-                      <CommandGroup heading="Methodologies">
-                        {(methodologySwitcher?.methodologies ?? []).map((methodology) => {
-                          const isCurrent =
-                            methodology.methodologyKey ===
-                            methodologySwitcher?.currentMethodologyId;
-
-                          return (
-                            <CommandItem
-                              key={methodology.methodologyKey}
-                              value={`${methodology.displayName} ${methodology.methodologyKey}`}
-                              density="compact"
-                              onSelect={() => {
-                                setIsMethodologySwitcherOpen(false);
-                                if (!isCurrent) {
-                                  void navigate({
-                                    to: "/methodologies/$methodologyId",
-                                    params: { methodologyId: methodology.methodologyKey },
-                                  });
-                                }
-                              }}
-                            >
-                              <div className="grid min-w-0 flex-1 gap-0.5">
-                                <span className="truncate font-medium">
-                                  {methodology.displayName}
-                                </span>
-                                <span className="truncate text-[0.68rem] uppercase tracking-[0.08em] text-muted-foreground">
-                                  {methodology.methodologyKey}
-                                </span>
+              <div className="chiron-frame-cut bg-sidebar-accent/25 p-3.5">
+                <div className="flex gap-3">
+                  <div className="shrink-0 pt-0.5">
+                    <SidebarScopeIcon />
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <Popover
+                      open={isMethodologySwitcherOpen}
+                      onOpenChange={setIsMethodologySwitcherOpen}
+                    >
+                      <PopoverTrigger
+                        render={
+                          <SidebarMenuButton
+                            size="lg"
+                            type="button"
+                            className="h-auto w-full justify-between px-0 py-0 hover:bg-transparent data-[active=true]:bg-transparent rounded-none"
+                          >
+                            <div className="min-w-0 text-left">
+                              <div className="truncate text-sm font-medium uppercase tracking-[0.08em]">
+                                {currentMethodologyLabel}
                               </div>
-                              {isCurrent ? <CheckIcon className="size-3.5" /> : null}
-                            </CommandItem>
-                          );
-                        })}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+                              <div className="truncate text-[0.58rem] uppercase tracking-[0.16em] text-muted-foreground/80">
+                                Methodology
+                              </div>
+                            </div>
+                            <ChevronsUpDownIcon className="size-4 shrink-0 text-muted-foreground/80" />
+                          </SidebarMenuButton>
+                        }
+                      />
+                      <PopoverContent
+                        side="right"
+                        align="start"
+                        frame="cut-thin"
+                        tone="navigation"
+                        className="w-80 p-0 border border-border/80 shadow-none overflow-visible"
+                      >
+                        <Command tone="navigation" density="compact" frame="default">
+                          <CommandInput density="compact" placeholder="Search methodologies..." />
+                          <CommandList>
+                            <CommandEmpty>No methodologies found.</CommandEmpty>
+                            <CommandGroup heading="Methodologies">
+                              {(methodologySwitcher?.methodologies ?? []).map((methodology) => {
+                                const isCurrent =
+                                  methodology.methodologyKey ===
+                                  methodologySwitcher?.currentMethodologyId;
+
+                                return (
+                                  <CommandItem
+                                    key={methodology.methodologyKey}
+                                    value={`${methodology.displayName} ${methodology.methodologyKey}`}
+                                    density="compact"
+                                    onSelect={() => {
+                                      setIsMethodologySwitcherOpen(false);
+                                      if (!isCurrent) {
+                                        void navigate({
+                                          to: "/methodologies/$methodologyId",
+                                          params: { methodologyId: methodology.methodologyKey },
+                                        });
+                                      }
+                                    }}
+                                  >
+                                    <div className="grid min-w-0 flex-1 gap-0.5">
+                                      <span className="truncate font-medium">
+                                        {methodology.displayName}
+                                      </span>
+                                      <span className="truncate text-[0.68rem] uppercase tracking-[0.08em] text-muted-foreground">
+                                        {methodology.methodologyKey}
+                                      </span>
+                                    </div>
+                                    {isCurrent ? <CheckIcon className="size-3.5" /> : null}
+                                  </CommandItem>
+                                );
+                              })}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+
+                    {methodologyVersionSwitcher?.methodologyId ? (
+                      <Popover
+                        open={isMethodologyVersionSwitcherOpen}
+                        onOpenChange={setIsMethodologyVersionSwitcherOpen}
+                      >
+                        <PopoverTrigger
+                          render={
+                            <SidebarMenuButton
+                              size="sm"
+                              type="button"
+                              className="h-auto w-full justify-between border border-border/35 px-2 py-1 hover:bg-sidebar-accent/15 data-[active=true]:bg-sidebar-accent/15 rounded-none opacity-80"
+                            >
+                              <div className="min-w-0 text-left">
+                                <div className="truncate text-[0.48rem] uppercase tracking-[0.16em] text-muted-foreground/65">
+                                  Version
+                                </div>
+                                <div className="truncate text-[0.68rem] font-medium uppercase tracking-[0.08em] text-foreground/75">
+                                  {currentMethodologyVersionLabel}
+                                </div>
+                              </div>
+                              <ChevronsUpDownIcon className="size-3 shrink-0 text-muted-foreground/65" />
+                            </SidebarMenuButton>
+                          }
+                        />
+                        <PopoverContent
+                          side="right"
+                          align="start"
+                          frame="cut-thin"
+                          tone="navigation"
+                          className="w-72 p-0 border border-border/80 shadow-none overflow-visible"
+                        >
+                          <Command tone="navigation" density="compact" frame="default">
+                            <CommandInput density="compact" placeholder="Search versions..." />
+                            <CommandList>
+                              <CommandEmpty>No versions found.</CommandEmpty>
+                              <CommandGroup heading="Versions">
+                                {methodologyVersionSwitcher.versions.map((version) => {
+                                  const isCurrent =
+                                    version.id === methodologyVersionSwitcher.currentVersionId;
+                                  return (
+                                    <CommandItem
+                                      key={version.id}
+                                      value={`${version.displayName} ${version.id}`}
+                                      density="compact"
+                                      onSelect={() => {
+                                        setIsMethodologyVersionSwitcherOpen(false);
+                                        if (!isCurrent) {
+                                          void navigate({
+                                            to: "/methodologies/$methodologyId/versions/$versionId",
+                                            params: {
+                                              methodologyId:
+                                                methodologyVersionSwitcher.methodologyId!,
+                                              versionId: version.id,
+                                            },
+                                          });
+                                        }
+                                      }}
+                                    >
+                                      <div className="grid min-w-0 flex-1 gap-0.5">
+                                        <span className="truncate font-medium">
+                                          {version.displayName}
+                                        </span>
+                                        <span className="truncate text-[0.68rem] uppercase tracking-[0.08em] text-muted-foreground">
+                                          {version.id}
+                                        </span>
+                                      </div>
+                                      {isCurrent ? <CheckIcon className="size-3.5" /> : null}
+                                    </CommandItem>
+                                  );
+                                })}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
             </SidebarMenuItem>
           ) : null}
           {onOpenCommands ? (

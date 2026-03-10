@@ -30,6 +30,7 @@
     "@tanstack/react-hotkeys": "catalog:",
     "@tanstack/react-query": "^5.90.12",
     "@tanstack/react-router": "^1.141.1",
+    "@tanstack/react-table": "^8.21.3",
     "@xyflow/react": "catalog:",
     "better-auth": "catalog:",
     "better-result": "^2.7.0",

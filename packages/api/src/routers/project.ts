@@ -53,6 +53,7 @@ function mapEffectError(err: unknown): never {
     case "ValidationDecodeError":
       throw new ORPCError("BAD_REQUEST", { message: String(err) });
     case "RepositoryError":
+      console.error("[project-route][repository-error]", err);
       throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "Repository operation failed" });
     default:
       throw new ORPCError("INTERNAL_SERVER_ERROR", { message: String(err) });

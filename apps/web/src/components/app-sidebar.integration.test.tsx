@@ -24,26 +24,13 @@ vi.mock("@/components/nav-user", () => ({
 
 const sections: SidebarNavSection[] = [
   {
-    title: "Workspace",
+    title: "System",
     items: [
       { label: "Home", to: "/", isActive: true },
-      { label: "Dashboard", to: "/dashboard" },
-    ],
-  },
-  {
-    title: "Methodology Authoring",
-    items: [{ label: "Methodologies", to: "/methodologies" }],
-  },
-  {
-    title: "Project Operations",
-    items: [{ label: "Projects", to: "/projects" }],
-  },
-  {
-    title: "Planned",
-    items: [
-      { label: "Runtime Execution", disabled: true, badge: "Epic 3+" },
-      { label: "Setup Workflow", disabled: true, badge: "Epic 3+" },
-      { label: "Transition Runs", disabled: true, badge: "Epic 3+" },
+      { label: "Methodologies", to: "/methodologies" },
+      { label: "Projects", to: "/projects" },
+      { label: "Harnesses", disabled: true },
+      { label: "Settings", disabled: true },
     ],
   },
 ];
@@ -76,53 +63,43 @@ describe("AppSidebar", () => {
     cleanup();
   });
 
-  it("renders static sections and route-correct enabled links", () => {
+  it("renders system navigation items", () => {
     render(
       <SidebarProvider>
         <AppSidebar sections={sections} />
       </SidebarProvider>,
     );
 
-    expect(screen.getByText("Workspace")).toBeTruthy();
-    expect(screen.getByText("Methodology Authoring")).toBeTruthy();
-    expect(screen.getByText("Project Operations")).toBeTruthy();
-    expect(screen.getByText("Planned")).toBeTruthy();
+    expect(screen.getAllByText("System").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole("button", { name: /System context/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Methodology context/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Project context/i })).toBeTruthy();
 
     expect(screen.getByRole("link", { name: "Home" }).getAttribute("href")).toBe("/");
-    expect(screen.getByRole("link", { name: "Dashboard" }).getAttribute("href")).toBe("/dashboard");
     expect(screen.getByRole("link", { name: "Methodologies" }).getAttribute("href")).toBe(
       "/methodologies",
     );
     expect(screen.getByRole("link", { name: "Projects" }).getAttribute("href")).toBe("/projects");
   });
 
-  it("renders planned items as disabled non-links with Epic 3+ badges", () => {
+  it("renders system-only deferred items as disabled non-links", () => {
     render(
       <SidebarProvider>
         <AppSidebar sections={sections} />
       </SidebarProvider>,
     );
 
-    expect(screen.queryByRole("link", { name: "Runtime Execution" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "Setup Workflow" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "Transition Runs" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Harnesses" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Settings" })).toBeNull();
 
-    const runtimeButton = screen.getByRole("button", {
-      name: /Runtime Execution/,
-    }) as HTMLButtonElement;
-    const setupButton = screen.getByRole("button", { name: /Setup Workflow/ }) as HTMLButtonElement;
-    const transitionButton = screen.getByRole("button", {
-      name: /Transition Runs/,
-    }) as HTMLButtonElement;
+    const harnessesButton = screen.getByRole("button", { name: /Harnesses/ }) as HTMLButtonElement;
+    const settingsButton = screen.getByRole("button", { name: /Settings/ }) as HTMLButtonElement;
 
-    expect(runtimeButton.getAttribute("aria-disabled")).toBe("true");
-    expect(setupButton.getAttribute("aria-disabled")).toBe("true");
-    expect(transitionButton.getAttribute("aria-disabled")).toBe("true");
-
-    expect(screen.getAllByText("Epic 3+").length).toBe(3);
+    expect(harnessesButton.getAttribute("aria-disabled")).toBe("true");
+    expect(settingsButton.getAttribute("aria-disabled")).toBe("true");
   });
 
-  it("renders searchable project switcher and navigates on selection", () => {
+  it("renders project scope selector and navigates on selection", () => {
     render(
       <SidebarProvider>
         <AppSidebar
@@ -151,7 +128,7 @@ describe("AppSidebar", () => {
     });
   });
 
-  it("renders methodology scope selector and hides operator workspace banner", () => {
+  it("renders methodology scope selector and hides old operator workspace banner", () => {
     render(
       <SidebarProvider>
         <AppSidebar
@@ -165,6 +142,15 @@ describe("AppSidebar", () => {
               { methodologyKey: "spiral.v1", displayName: "Spiral" },
             ],
           }}
+          methodologyVersionSwitcher={{
+            currentVersionId: "draft-v2",
+            currentVersionLabel: "Draft v2",
+            methodologyId: "bmad.v1",
+            versions: [
+              { id: "draft-v2", displayName: "Draft v2" },
+              { id: "draft-v3", displayName: "Draft v3" },
+            ],
+          }}
         />
       </SidebarProvider>,
     );
@@ -172,5 +158,21 @@ describe("AppSidebar", () => {
     expect(screen.queryByText("Operator Workspace")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /BMAD/i }));
     expect(screen.getByPlaceholderText("Search methodologies...")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Draft v2/i }));
+    expect(screen.getByPlaceholderText("Search versions...")).toBeTruthy();
+  });
+
+  it("switches app context from the top-level context buttons", () => {
+    render(
+      <SidebarProvider>
+        <AppSidebar sections={sections} scope="system" />
+      </SidebarProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Methodology context/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Project context/i }));
+
+    expect(navigateMock).toHaveBeenNthCalledWith(1, { to: "/methodologies" });
+    expect(navigateMock).toHaveBeenNthCalledWith(2, { to: "/projects" });
   });
 });

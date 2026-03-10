@@ -94,6 +94,8 @@ export function MethodologyWorkspaceEntryRoute() {
   }, [detailsQuery.data, versionId]);
 
   const immutableVersion = currentVersion ? currentVersion.status !== "draft" : false;
+  const effectiveWorkspacePage =
+    immutableVersion && workspacePage === "publish" ? "context" : workspacePage;
 
   useEffect(() => {
     if (!draftQuery.data) {
@@ -409,7 +411,7 @@ export function MethodologyWorkspaceEntryRoute() {
         </div>
       </section>
 
-      {workspacePage === "context" ? (
+      {effectiveWorkspacePage === "context" ? (
         <details className="chiron-frame-flat chiron-tone-context p-3" open>
           <summary className="chiron-tone-kicker cursor-pointer text-[0.68rem] uppercase tracking-[0.18em]">
             Workspace Context
@@ -455,7 +457,7 @@ export function MethodologyWorkspaceEntryRoute() {
         </section>
       ) : null}
 
-      {workspacePage === "publish" ? (
+      {effectiveWorkspacePage === "publish" ? (
         <section className="chiron-frame-flat chiron-tone-publish p-4 space-y-3">
           <p className="chiron-tone-kicker text-[0.68rem] uppercase tracking-[0.18em]">
             Publish Methodology Version
@@ -479,16 +481,26 @@ export function MethodologyWorkspaceEntryRoute() {
             <button
               type="button"
               className="inline-flex h-9 items-center justify-center border border-border/70 px-3 text-sm"
-              disabled={publishMutation.isPending || validateDraftMutation.isPending}
+              disabled={
+                immutableVersion || publishMutation.isPending || validateDraftMutation.isPending
+              }
               onClick={() => {
                 void handlePublish();
               }}
             >
               {publishMutation.isPending || validateDraftMutation.isPending
                 ? "Publishing..."
-                : "Publish Immutable Version"}
+                : immutableVersion
+                  ? "Published Versions Are Read Only"
+                  : "Publish Immutable Version"}
             </button>
           </div>
+          {immutableVersion ? (
+            <p className="text-xs text-muted-foreground">
+              Published versions are immutable. Create a draft to make changes or publish a new
+              version.
+            </p>
+          ) : null}
           {publishResult ? (
             <div className="chiron-cut-frame px-3 py-2" data-variant="surface">
               <p className="text-[0.64rem] uppercase tracking-[0.14em] text-muted-foreground">
@@ -508,7 +520,7 @@ export function MethodologyWorkspaceEntryRoute() {
         </section>
       ) : null}
 
-      {workspacePage === "evidence" ? (
+      {effectiveWorkspacePage === "evidence" ? (
         <section className="chiron-frame-flat chiron-tone-evidence p-4 space-y-3">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <p className="chiron-tone-kicker text-[0.68rem] uppercase tracking-[0.18em]">
@@ -592,7 +604,7 @@ export function MethodologyWorkspaceEntryRoute() {
         </div>
       </details>
 
-      {workspacePage === "author" ? (
+      {effectiveWorkspacePage === "author" ? (
         <MethodologyVersionWorkspace
           draft={draft}
           parseDiagnostics={parseDiagnostics}

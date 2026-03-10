@@ -12,9 +12,10 @@ describe("story seed fixtures", () => {
     expect(plan.methodologyDefinitions[0]?.key).toBe("bmad.v1");
     expect(plan.methodologyVersions).toHaveLength(1);
 
-    const draft = plan.methodologyVersions[0];
-    expect(draft?.status).toBe("draft");
-    expect(draft?.displayName).toBe("BMAD v1 Draft");
+    const published = plan.methodologyVersions[0];
+
+    expect(published?.status).toBe("active");
+    expect(published?.displayName).toBe("BMAD v1");
   });
 
   it("returns an Effect error for unknown story", () => {

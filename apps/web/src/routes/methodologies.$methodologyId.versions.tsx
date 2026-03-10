@@ -1,12 +1,15 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
 import { Link, Outlet, createFileRoute, useLocation, useNavigate } from "@tanstack/react-router";
 
 import { Button, buttonVariants } from "@/components/ui/button";
+import { DataGrid } from "@/components/data-grid";
 import { buildNextDraftInput } from "@/features/methodologies/commands";
 import {
   RUNTIME_DEFERRED_RATIONALE,
   selectLatestDraft,
   type MethodologyDetails,
+  type MethodologyVersionSummary,
 } from "@/features/methodologies/foundation";
 import { MethodologyWorkspaceShell } from "@/features/methodologies/workspace-shell";
 
@@ -14,7 +17,7 @@ export const Route = createFileRoute("/methodologies/$methodologyId/versions")({
   component: MethodologyVersionsRoute,
 });
 
-function MethodologyVersionsRoute() {
+export function MethodologyVersionsRoute() {
   const { methodologyId } = Route.useParams();
   const { orpc, queryClient } = Route.useRouteContext();
   const location = useLocation();
@@ -49,6 +52,39 @@ function MethodologyVersionsRoute() {
 
   const details = (detailsQuery.data as MethodologyDetails | undefined) ?? null;
   const latestDraft = details ? selectLatestDraft(details.versions) : null;
+
+  const columns: ColumnDef<MethodologyVersionSummary>[] = [
+    {
+      accessorKey: "displayName",
+      header: "Display Name",
+    },
+    {
+      accessorKey: "version",
+      header: "Version",
+    },
+    {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => row.original.status,
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      cell: ({ row }) => {
+        const version = row.original;
+        return (
+          <Link
+            to="/methodologies/$methodologyId/versions/$versionId"
+            params={{ methodologyId, versionId: version.id }}
+            search={{ page: version.status === "draft" ? undefined : "context" }}
+            className={buttonVariants({ size: "sm", variant: "outline" })}
+          >
+            {version.status === "draft" ? "Open Workspace Entry" : "Open Version Details"}
+          </Link>
+        );
+      },
+    },
+  ];
 
   if (location.pathname !== versionsPath) {
     return <Outlet />;
@@ -124,24 +160,13 @@ function MethodologyVersionsRoute() {
                 Version Ledger
               </p>
             </div>
-            <ul className="space-y-2 p-4">
-              {details.versions.map((version) => (
-                <li key={version.id} className="border border-border/70 p-3 text-sm">
-                  <div className="grid gap-2 md:grid-cols-[1fr_auto] md:items-center">
-                    <p>
-                      {version.displayName} ({version.version}) - {version.status}
-                    </p>
-                    <Link
-                      to="/methodologies/$methodologyId/versions/$versionId"
-                      params={{ methodologyId, versionId: version.id }}
-                      className={buttonVariants({ size: "sm", variant: "outline" })}
-                    >
-                      Open Workspace Entry
-                    </Link>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <div className="p-4">
+              <DataGrid
+                columns={columns}
+                data={[...details.versions]}
+                emptyLabel="No versions found."
+              />
+            </div>
           </section>
 
           <section className="border border-border/80 bg-background p-4">

@@ -1,127 +1,152 @@
 import {
   BookOpenIcon,
-  CommandIcon,
+  FolderKanbanIcon,
   HomeIcon,
   LayoutDashboardIcon,
-  WorkflowIcon,
+  PackageIcon,
+  PinIcon,
+  SettingsIcon,
+  WaypointsIcon,
+  WrenchIcon,
 } from "lucide-react";
 
 import type { SidebarNavSection } from "@/components/app-sidebar";
 
-export function buildSidebarSections(pathname: string): SidebarNavSection[] {
-  const pathParts = pathname.split("/").filter(Boolean);
-  const projectId =
-    pathParts[0] === "projects" && pathParts[1] && pathParts[1] !== "new" ? pathParts[1] : null;
+export type SidebarScopeMode = "system" | "methodology" | "project";
 
-  const sections: SidebarNavSection[] = [
+type SidebarContext = {
+  projectId?: string | null;
+  methodologyId?: string | null;
+};
+
+export function buildSidebarSections(
+  pathname: string,
+  scope: SidebarScopeMode,
+  context: SidebarContext = {},
+): SidebarNavSection[] {
+  const projectId = context.projectId ?? null;
+  const methodologyId = context.methodologyId ?? null;
+
+  if (scope === "system") {
+    return [
+      {
+        title: "System",
+        items: [
+          {
+            label: "Home",
+            to: "/",
+            icon: <HomeIcon className="size-4" />,
+            isActive: pathname === "/",
+          },
+          {
+            label: "Methodologies",
+            to: "/methodologies",
+            icon: <WaypointsIcon className="size-4" />,
+            isActive: pathname.startsWith("/methodologies"),
+          },
+          {
+            label: "Projects",
+            to: "/projects",
+            icon: <FolderKanbanIcon className="size-4" />,
+            isActive: pathname.startsWith("/projects"),
+          },
+          {
+            label: "Harnesses",
+            icon: <WrenchIcon className="size-4" />,
+            disabled: true,
+          },
+          {
+            label: "Settings",
+            icon: <SettingsIcon className="size-4" />,
+            disabled: true,
+          },
+        ],
+      },
+    ];
+  }
+
+  if (scope === "methodology") {
+    return [
+      {
+        title: "Methodology",
+        items: [
+          {
+            label: "Dashboard",
+            to: methodologyId ? `/methodologies/${methodologyId}` : "/methodologies",
+            icon: <LayoutDashboardIcon className="size-4" />,
+            isActive:
+              methodologyId !== null
+                ? pathname === `/methodologies/${methodologyId}`
+                : pathname === "/methodologies",
+          },
+          {
+            label: "Versions",
+            to: methodologyId ? `/methodologies/${methodologyId}/versions` : "/methodologies",
+            icon: <PackageIcon className="size-4" />,
+            isActive:
+              methodologyId !== null
+                ? pathname.startsWith(`/methodologies/${methodologyId}/versions`)
+                : false,
+          },
+          {
+            label: "Methodology Facts",
+            icon: <BookOpenIcon className="size-4" />,
+            disabled: true,
+          },
+          {
+            label: "Work Units",
+            icon: <WaypointsIcon className="size-4" />,
+            disabled: true,
+          },
+          {
+            label: "Artifact Templates",
+            icon: <FolderKanbanIcon className="size-4" />,
+            disabled: true,
+          },
+        ],
+      },
+    ];
+  }
+
+  return [
     {
-      title: "Workspace",
+      title: "Project",
       items: [
-        {
-          label: "Home",
-          to: "/",
-          icon: <HomeIcon className="size-4" />,
-          isActive: pathname === "/",
-        },
         {
           label: "Dashboard",
-          to: "/dashboard",
+          to: projectId ? `/projects/${projectId}` : "/projects",
           icon: <LayoutDashboardIcon className="size-4" />,
-          isActive: pathname.startsWith("/dashboard"),
+          isActive: projectId ? pathname === `/projects/${projectId}` : pathname === "/projects",
         },
-      ],
-    },
-    {
-      title: "Methodology Authoring",
-      items: [
         {
-          label: "Methodologies",
-          to: "/methodologies",
-          icon: <WorkflowIcon className="size-4" />,
-          isActive: pathname.startsWith("/methodologies"),
-        },
-      ],
-    },
-    {
-      title: "Project Operations",
-      items: [
-        {
-          label: "Projects",
-          to: "/projects",
+          label: "Project Facts",
+          to: projectId ? `/projects/${projectId}/facts` : "/projects",
           icon: <BookOpenIcon className="size-4" />,
-          isActive: pathname.startsWith("/projects"),
-        },
-      ],
-    },
-    ...(projectId
-      ? [
-          {
-            title: "Project Context",
-            items: [
-              {
-                label: "Overview",
-                to: `/projects/${projectId}`,
-                icon: <LayoutDashboardIcon className="size-4" />,
-                isActive: pathname === `/projects/${projectId}`,
-              },
-              {
-                label: "Pinning",
-                to: `/projects/${projectId}/pinning`,
-                icon: <WorkflowIcon className="size-4" />,
-                isActive: pathname.startsWith(`/projects/${projectId}/pinning`),
-              },
-              {
-                label: "Facts",
-                to: `/projects/${projectId}/facts`,
-                icon: <BookOpenIcon className="size-4" />,
-                isActive: pathname.startsWith(`/projects/${projectId}/facts`),
-              },
-              {
-                label: "Work Units",
-                icon: <WorkflowIcon className="size-4" />,
-                to: `/projects/${projectId}/work-units`,
-                isActive: pathname.startsWith(`/projects/${projectId}/work-units`),
-              },
-              {
-                label: "Transitions",
-                icon: <CommandIcon className="size-4" />,
-                to: `/projects/${projectId}/transitions`,
-                isActive: pathname.startsWith(`/projects/${projectId}/transitions`),
-              },
-              {
-                label: "Agents",
-                icon: <HomeIcon className="size-4" />,
-                to: `/projects/${projectId}/agents`,
-                isActive: pathname.startsWith(`/projects/${projectId}/agents`),
-              },
-            ],
-          },
-        ]
-      : []),
-    {
-      title: "Planned",
-      items: [
-        {
-          label: "Runtime Execution",
-          icon: <CommandIcon className="size-4" />,
-          disabled: true,
-          badge: "Epic 3+",
+          isActive: projectId ? pathname.startsWith(`/projects/${projectId}/facts`) : false,
         },
         {
-          label: "Setup Workflow",
-          icon: <WorkflowIcon className="size-4" />,
-          disabled: true,
-          badge: "Epic 3+",
+          label: "Work Units",
+          to: projectId ? `/projects/${projectId}/work-units` : "/projects",
+          icon: <WaypointsIcon className="size-4" />,
+          isActive: projectId ? pathname.startsWith(`/projects/${projectId}/work-units`) : false,
         },
         {
-          label: "Transition Runs",
-          icon: <LayoutDashboardIcon className="size-4" />,
+          label: "Artifacts",
+          icon: <FolderKanbanIcon className="size-4" />,
           disabled: true,
-          badge: "Epic 3+",
+        },
+        {
+          label: "Runs / History",
+          icon: <PackageIcon className="size-4" />,
+          disabled: true,
+        },
+        {
+          label: "Pin / Methodology",
+          to: projectId ? `/projects/${projectId}/pinning` : "/projects",
+          icon: <PinIcon className="size-4" />,
+          isActive: projectId ? pathname.startsWith(`/projects/${projectId}/pinning`) : false,
         },
       ],
     },
   ];
-
-  return sections;
 }

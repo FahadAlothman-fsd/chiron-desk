@@ -88,7 +88,6 @@ const CANONICAL_TABLES = {
   methodology_lifecycle_states: schema.methodologyLifecycleStates,
   methodology_lifecycle_transitions: schema.methodologyLifecycleTransitions,
   methodology_transition_condition_sets: schema.methodologyTransitionConditionSets,
-  methodology_transition_required_links: schema.methodologyTransitionRequiredLinks,
   methodology_fact_schemas: schema.methodologyFactSchemas,
   methodology_link_type_definitions: schema.methodologyLinkTypeDefinitions,
   methodology_workflows: schema.methodologyWorkflows,

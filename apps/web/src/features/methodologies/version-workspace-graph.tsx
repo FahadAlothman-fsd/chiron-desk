@@ -583,6 +583,12 @@ export function VersionWorkspaceGraph({
   }, [graphProjection.nodes, nodePositionsByScope, scopeStorageKey]);
 
   const [editableNodes, setEditableNodes] = useState<Node[]>(projectedNodesWithPositions);
+  const [workUnitInspectorTab, setWorkUnitInspectorTab] = useState<
+    "overview" | "facts" | "transitions" | "workflows"
+  >("overview");
+  const [workflowInspectorTab, setWorkflowInspectorTab] = useState<"overview" | "io" | "steps">(
+    "overview",
+  );
 
   useEffect(() => {
     if (isDraggingNode) {
@@ -911,6 +917,13 @@ export function VersionWorkspaceGraph({
     return workflows.find((workflow) => workflow.key === key) ?? null;
   }, [selectedNodeId, workflows]);
 
+  const activeWorkflow =
+    selectedWorkflow ??
+    selectedWorkflowForScope ??
+    (scope.level === "L3"
+      ? (workflows.find((workflow) => workflow.key === scope.workflowKey) ?? null)
+      : null);
+
   const selectedTransition = useMemo(() => {
     if (!selectedNodeId || !selectedNodeId.startsWith("transition:")) {
       return null;
@@ -969,6 +982,29 @@ export function VersionWorkspaceGraph({
     };
   }, [scope, selectedNodeId, workflows]);
 
+  useEffect(() => {
+    if (selectedStep) {
+      setWorkUnitInspectorTab("workflows");
+      setWorkflowInspectorTab("steps");
+      return;
+    }
+
+    if (selectedWorkflow || activeWorkflow) {
+      setWorkUnitInspectorTab("workflows");
+      setWorkflowInspectorTab("overview");
+      return;
+    }
+
+    if (selectedTransition) {
+      setWorkUnitInspectorTab("transitions");
+      return;
+    }
+
+    if (selectedWorkUnit) {
+      setWorkUnitInspectorTab("overview");
+    }
+  }, [activeWorkflow, selectedStep, selectedTransition, selectedWorkflow, selectedWorkUnit]);
+
   const updateWorkUnitDraft = (
     workUnitKey: string,
     updater: (workUnit: DraftRecord) => DraftRecord,
@@ -1015,20 +1051,33 @@ export function VersionWorkspaceGraph({
     workflowKey: string,
     updater: (workflow: DraftRecord) => DraftRecord,
   ) => {
-    const parsedWorkflows = parseJsonArray(draft.workflowsJson);
-    if (!parsedWorkflows) {
+    const parsedWorkUnits = parseJsonArray(draft.workUnitTypesJson);
+    if (!parsedWorkUnits) {
       return;
     }
 
-    const nextWorkflows = parsedWorkflows.map((entry) => {
+    const nextWorkUnits = parsedWorkUnits.map((entry) => {
       const record = asRecord(entry);
-      if (!record || record.key !== workflowKey) {
+      if (!record) {
         return entry;
       }
-      return updater(record);
+
+      const workflows = Array.isArray(record.workflows) ? record.workflows : [];
+      return {
+        ...record,
+        workflows: workflows.map((workflow) => {
+          const workflowRecord = asRecord(workflow);
+          if (!workflowRecord || workflowRecord.key !== workflowKey) {
+            return workflow;
+          }
+
+          return updater(workflowRecord);
+        }),
+      };
     });
 
-    onChange("workflowsJson", JSON.stringify(nextWorkflows, null, 2));
+    onChange("workUnitTypesJson", JSON.stringify(nextWorkUnits, null, 2));
+    syncWorkflowMirrors(nextWorkUnits);
   };
 
   const createWorkUnit = (preferredKey?: string) => {
@@ -1511,10 +1560,11 @@ export function VersionWorkspaceGraph({
                 variant={scope.level === "L2" ? "default" : "ghost"}
                 className="rounded-none h-8 px-3 text-xs border-l border-border/70"
                 onClick={() => {
-                  if (!currentWorkUnitKey) {
+                  const targetWorkUnitKey = selectedWorkUnit?.key ?? currentWorkUnitKey;
+                  if (!targetWorkUnitKey) {
                     return;
                   }
-                  setScope({ level: "L2", workUnitTypeKey: currentWorkUnitKey });
+                  setScope({ level: "L2", workUnitTypeKey: targetWorkUnitKey });
                   setSelectedNodeId(null);
                 }}
               >
@@ -1525,13 +1575,21 @@ export function VersionWorkspaceGraph({
                 variant={scope.level === "L3" ? "default" : "ghost"}
                 className="rounded-none h-8 px-3 text-xs border-l border-border/70"
                 onClick={() => {
-                  if (!currentWorkUnitKey || !workflowsForCurrentWorkUnit[0]) {
+                  const targetWorkUnitKey = selectedWorkUnit?.key ?? currentWorkUnitKey;
+                  if (!targetWorkUnitKey) {
+                    return;
+                  }
+                  const targetWorkflows = workflows
+                    .filter((workflow) => workflow.workUnitTypeKey === targetWorkUnitKey)
+                    .map((workflow) => workflow.key)
+                    .sort();
+                  if (!targetWorkflows[0]) {
                     return;
                   }
                   setScope({
                     level: "L3",
-                    workUnitTypeKey: currentWorkUnitKey,
-                    workflowKey: workflowsForCurrentWorkUnit[0],
+                    workUnitTypeKey: targetWorkUnitKey,
+                    workflowKey: targetWorkflows[0],
                   });
                   setSelectedNodeId(null);
                 }}
@@ -2153,66 +2211,203 @@ export function VersionWorkspaceGraph({
             {selectedWorkUnit ? (
               <div className="space-y-3 text-xs">
                 <p className="uppercase tracking-[0.14em] text-muted-foreground">Work Unit</p>
-                <label className="flex flex-col gap-1">
-                  <span className="text-muted-foreground">Display Name</span>
-                  <input
-                    className="border border-border/70 bg-background px-2 py-1 text-sm"
-                    value={selectedWorkUnit.displayName ?? selectedWorkUnit.key}
-                    onChange={(event) => {
-                      updateWorkUnitDraft(selectedWorkUnit.key, (record) => ({
-                        ...record,
-                        displayName: event.target.value,
-                      }));
-                    }}
-                  />
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-muted-foreground">Cardinality</span>
-                  <select
-                    className="border border-border/70 bg-background px-2 py-1 text-sm"
-                    value={
-                      (selectedWorkUnit.cardinality as string | undefined) ?? "many_per_project"
-                    }
-                    onChange={(event) => {
-                      updateWorkUnitDraft(selectedWorkUnit.key, (record) => ({
-                        ...record,
-                        cardinality: event.target.value,
-                      }));
-                    }}
+                <div className="grid grid-cols-4 gap-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={workUnitInspectorTab === "overview" ? "default" : "outline"}
+                    aria-label="Overview Tab"
+                    onClick={() => setWorkUnitInspectorTab("overview")}
                   >
-                    <option value="one_per_project">ONE</option>
-                    <option value="many_per_project">MANY</option>
-                  </select>
-                </label>
+                    Overview
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={workUnitInspectorTab === "facts" ? "default" : "outline"}
+                    aria-label="Facts Tab"
+                    onClick={() => setWorkUnitInspectorTab("facts")}
+                  >
+                    Facts
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={workUnitInspectorTab === "transitions" ? "default" : "outline"}
+                    aria-label="Transitions Tab"
+                    onClick={() => setWorkUnitInspectorTab("transitions")}
+                  >
+                    Transitions
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={workUnitInspectorTab === "workflows" ? "default" : "outline"}
+                    aria-label="Workflows Tab"
+                    onClick={() => setWorkUnitInspectorTab("workflows")}
+                  >
+                    Workflows
+                  </Button>
+                </div>
+                {workUnitInspectorTab === "overview" ? (
+                  <>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-muted-foreground">Display Name</span>
+                      <input
+                        className="border border-border/70 bg-background px-2 py-1 text-sm"
+                        value={selectedWorkUnit.displayName ?? selectedWorkUnit.key}
+                        onChange={(event) => {
+                          updateWorkUnitDraft(selectedWorkUnit.key, (record) => ({
+                            ...record,
+                            displayName: event.target.value,
+                          }));
+                        }}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-muted-foreground">Cardinality</span>
+                      <select
+                        className="border border-border/70 bg-background px-2 py-1 text-sm"
+                        value={
+                          (selectedWorkUnit.cardinality as string | undefined) ?? "many_per_project"
+                        }
+                        onChange={(event) => {
+                          updateWorkUnitDraft(selectedWorkUnit.key, (record) => ({
+                            ...record,
+                            cardinality: event.target.value,
+                          }));
+                        }}
+                      >
+                        <option value="one_per_project">ONE</option>
+                        <option value="many_per_project">MANY</option>
+                      </select>
+                    </label>
+                  </>
+                ) : null}
+                {workUnitInspectorTab === "facts" ? (
+                  <p className="text-muted-foreground">
+                    Edit work-unit facts from the work-unit facts panel in the main methodology
+                    workspace.
+                  </p>
+                ) : null}
+                {workUnitInspectorTab === "transitions" && !selectedTransition ? (
+                  <p className="text-muted-foreground">
+                    Select a transition node to edit transition details.
+                  </p>
+                ) : null}
+                {workUnitInspectorTab === "workflows" && !selectedWorkflow ? (
+                  <p className="text-muted-foreground">
+                    Select a workflow node to edit workflow details.
+                  </p>
+                ) : null}
               </div>
             ) : null}
 
-            {selectedWorkflow ? (
+            {activeWorkflow ? (
               <div className="space-y-3 text-xs">
                 <p className="uppercase tracking-[0.14em] text-muted-foreground">Workflow</p>
-                <label className="flex flex-col gap-1">
-                  <span className="text-muted-foreground">Display Name</span>
-                  <input
-                    className="border border-border/70 bg-background px-2 py-1 text-sm"
-                    value={selectedWorkflow.displayName ?? selectedWorkflow.key}
-                    onChange={(event) => {
-                      updateWorkflowDraft(selectedWorkflow.key, (record) => ({
-                        ...record,
-                        displayName: event.target.value,
-                      }));
+                <div className="grid grid-cols-3 gap-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={workflowInspectorTab === "overview" ? "default" : "outline"}
+                    aria-label="Workflow Overview Tab"
+                    onClick={() => setWorkflowInspectorTab("overview")}
+                  >
+                    Overview
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={workflowInspectorTab === "io" ? "default" : "outline"}
+                    aria-label="IO Contract Tab"
+                    onClick={() => setWorkflowInspectorTab("io")}
+                  >
+                    IO Contract
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={workflowInspectorTab === "steps" ? "default" : "outline"}
+                    aria-label="Steps Tab"
+                    onClick={() => setWorkflowInspectorTab("steps")}
+                  >
+                    Steps
+                  </Button>
+                </div>
+                {workflowInspectorTab === "overview" ? (
+                  <label className="flex flex-col gap-1">
+                    <span className="text-muted-foreground">Display Name</span>
+                    <input
+                      className="border border-border/70 bg-background px-2 py-1 text-sm"
+                      value={activeWorkflow.displayName ?? activeWorkflow.key}
+                      onChange={(event) => {
+                        updateWorkflowDraft(activeWorkflow.key, (record) => ({
+                          ...record,
+                          displayName: event.target.value,
+                        }));
+                      }}
+                    />
+                  </label>
+                ) : null}
+                {workflowInspectorTab === "io" ? (
+                  <div className="space-y-3">
+                    <label className="flex flex-col gap-1">
+                      <span className="text-muted-foreground">Workflow Input Contract</span>
+                      <textarea
+                        aria-label="Workflow Input Contract"
+                        className="min-h-28 border border-border/70 bg-background px-2 py-1 font-mono text-xs"
+                        value={JSON.stringify(
+                          activeWorkflow.inputContract ?? { kind: "workflow-io.v1", inputs: [] },
+                          null,
+                          2,
+                        )}
+                        onChange={(event) => {
+                          try {
+                            const nextValue = JSON.parse(event.target.value) as DraftRecord;
+                            updateWorkflowDraft(activeWorkflow.key, (record) => ({
+                              ...record,
+                              inputContract: nextValue,
+                            }));
+                          } catch {}
+                        }}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-muted-foreground">Workflow Output Contract</span>
+                      <textarea
+                        aria-label="Workflow Output Contract"
+                        className="min-h-28 border border-border/70 bg-background px-2 py-1 font-mono text-xs"
+                        value={JSON.stringify(
+                          activeWorkflow.outputContract ?? { kind: "workflow-io.v1", outputs: [] },
+                          null,
+                          2,
+                        )}
+                        onChange={(event) => {
+                          try {
+                            const nextValue = JSON.parse(event.target.value) as DraftRecord;
+                            updateWorkflowDraft(activeWorkflow.key, (record) => ({
+                              ...record,
+                              outputContract: nextValue,
+                            }));
+                          } catch {}
+                        }}
+                      />
+                    </label>
+                  </div>
+                ) : null}
+                {workflowInspectorTab === "steps" ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-none h-8 px-2 text-xs"
+                    onClick={() => {
+                      addWorkflowStep(activeWorkflow.key);
                     }}
-                  />
-                </label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="rounded-none h-8 px-2 text-xs"
-                  onClick={() => {
-                    addWorkflowStep(selectedWorkflow.key);
-                  }}
-                >
-                  + Step
-                </Button>
+                  >
+                    + Step
+                  </Button>
+                ) : null}
               </div>
             ) : null}
 

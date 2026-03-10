@@ -303,6 +303,7 @@ openai/gpt-5.4
 - `bun run --cwd packages/api test -- src/routers/methodology.test.ts`
 - `bun run --cwd packages/methodology-engine test -- src/version-service.test.ts src/validation.test.ts`
 - `bun run --cwd packages/methodology-engine test -- src/lifecycle-validation.test.ts src/version-service.test.ts src/eligibility-service.test.ts`
+- `bunx vitest run "src/components/app-sidebar.integration.test.tsx" "src/components/app-shell.sidebar-sections.integration.test.tsx" "src/routes/methodologies.$methodologyId.integration.test.tsx" "src/routes/methodologies.$methodologyId.versions.integration.test.tsx"`
 
 ### Completion Notes List
 
@@ -332,6 +333,9 @@ openai/gpt-5.4
 - Normalized newly-enriched `descriptionJson` fields to the same `{ human.markdown, agent.markdown }` shape where applicable, including methodology fact definitions and lifecycle-state seed content.
 - Simplified workflow IO contracts to fact-reference contracts (`factKey`, `displayName`, `required`, `validation`) rather than embedding a second pseudo-fact-definition model.
 - Deferred two follow-up schema cleanups explicitly for later work: physical rename of `methodology_fact_schemas` and physical removal of the legacy `required` field on methodology fact definitions.
+- Implemented the new shell IA: list/index pages remain in `System`, selected methodology pages switch into `Methodology`, and selected/new project pages switch into `Project`, with grouped methodology selector + version selector controls and Bitmap SVG context icons.
+- Split the methodology overview from the versions ledger, added a reusable TanStack/shadcn-style `DataGrid`, and made the versions page the dedicated ledger while preserving the methodology dashboard as an overview page.
+- Verified the live `/projects/new` flow via Playwright after seed and shell fixes: BMAD v1 published version selection works, project creation and pinning succeed, and the app lands on the new project dashboard with the expected methodology pin.
 - Assessed renaming `methodology_fact_schemas` and deferred the physical rename to a follow-up (target candidate: 3.1) so the next agent can execute it as a focused migration once naming is finalized. Blast radius identified across DB schema (`packages/db/src/schema/methodology.ts`), lifecycle and methodology repositories (`packages/db/src/lifecycle-repository.ts`, `packages/db/src/methodology-repository.ts`), contracts (`packages/contracts/src/methodology/fact.ts`, `packages/contracts/src/methodology/lifecycle.ts`), seed exports (`packages/scripts/src/seed/methodology/index.ts`, `packages/scripts/src/seed/methodology/tables/methodology-fact-schemas.seed.ts`, `packages/scripts/src/story-seed.mjs`), frontend methodology workspace files (`apps/web/src/features/methodologies/**`), and a broad set of tests/docs. Recommendation: keep domain language aligned now (`workUnitFacts` vs `methodologyFacts`), then perform one explicit rename/reset pass later rather than mixing the table rename into ongoing model cleanup.
 - Assessed legacy `required` on methodology fact definitions and deferred its physical removal to the same follow-up migration track. Current seed/model semantics already treat it as non-authoritative (`required: false` for the seeded methodology facts, with transition condition sets carrying real requiredness), but the column/field still exists in schema, repository mapping, preview logic, contracts, and tests. Recommendation: remove it later in one explicit cleanup pass alongside the fact-schema naming migration instead of mixing that churn into current 2.7 testing.
 
@@ -350,6 +354,20 @@ openai/gpt-5.4
 - `apps/web/src/features/methodologies/version-workspace.persistence.test.ts`
 - `apps/web/src/features/methodologies/version-workspace.integration.test.tsx`
 - `apps/web/src/features/methodologies/command-palette.integration.test.tsx`
+- `apps/web/src/components/app-shell.tsx`
+- `apps/web/src/components/app-sidebar.tsx`
+- `apps/web/src/components/sidebar-sections.tsx`
+- `apps/web/src/components/data-grid.tsx`
+- `apps/web/src/components/ui/table.tsx`
+- `apps/web/src/components/app-sidebar.integration.test.tsx`
+- `apps/web/src/components/app-shell.sidebar-sections.integration.test.tsx`
+- `apps/web/src/routes/methodologies.$methodologyId.tsx`
+- `apps/web/src/routes/methodologies.$methodologyId.versions.tsx`
+- `apps/web/src/routes/methodologies.$methodologyId.integration.test.tsx`
+- `apps/web/src/routes/methodologies.$methodologyId.versions.integration.test.tsx`
+- `apps/web/public/visuals/context-switcher/system-asset-16.svg`
+- `apps/web/public/visuals/context-switcher/methodology-asset-08.svg`
+- `apps/web/public/visuals/context-switcher/project-asset-05.svg`
 - `packages/db/src/methodology-repository.integration.test.ts`
 - `packages/db/src/methodology-repository.ts`
 - `packages/db/src/project-context-repository.ts`

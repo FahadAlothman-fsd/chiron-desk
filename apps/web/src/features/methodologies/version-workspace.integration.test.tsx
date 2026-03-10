@@ -240,6 +240,82 @@ describe("methodology version workspace baseline", () => {
 
     expect(screen.getByLabelText("Display Name")).toBeTruthy();
     expect(screen.getByDisplayValue("WU.PRD")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Overview Tab" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Facts Tab" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Transitions Tab" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Workflows Tab" })).toBeTruthy();
+  });
+
+  it("switches inspector tabs for selected work units", () => {
+    render(
+      <MethodologyVersionWorkspace
+        draft={SAMPLE_DRAFT}
+        parseDiagnostics={[]}
+        isSaving={false}
+        onChange={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "List View" }));
+    fireEvent.click(screen.getByRole("button", { name: "Row WU.PRD" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Facts Tab" }));
+    expect(screen.getByText(/Edit work-unit facts from the work-unit facts panel/i)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Transitions Tab" }));
+    expect(screen.getByText(/Select a transition node to edit transition details/i)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Workflows Tab" }));
+    expect(screen.getByText(/Select a workflow node to edit workflow details/i)).toBeTruthy();
+  });
+
+  it("renders workflow inspector tabs and switches workflow-local panels", () => {
+    render(
+      <MethodologyVersionWorkspace
+        draft={SAMPLE_DRAFT}
+        parseDiagnostics={[]}
+        isSaving={false}
+        onChange={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "List View" }));
+    fireEvent.click(screen.getByRole("button", { name: "Row WU.PRD" }));
+    fireEvent.click(screen.getByRole("button", { name: "L2 Work Unit" }));
+    fireEvent.click(screen.getByRole("button", { name: "L3 Workflow" }));
+
+    expect(screen.getByRole("button", { name: "Workflow Overview Tab" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "IO Contract Tab" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Steps Tab" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "IO Contract Tab" }));
+    expect(screen.getByLabelText("Workflow Input Contract")).toBeTruthy();
+    expect(screen.getByLabelText("Workflow Output Contract")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Steps Tab" }));
+    expect(screen.getByRole("button", { name: "+ Step" })).toBeTruthy();
+  });
+
+  it("auto-selects the steps tab when a step is chosen in workflow scope", () => {
+    render(
+      <MethodologyVersionWorkspace
+        draft={SAMPLE_DRAFT}
+        parseDiagnostics={[]}
+        isSaving={false}
+        onChange={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "List View" }));
+    fireEvent.click(screen.getByRole("button", { name: "Row WU.PRD" }));
+    fireEvent.click(screen.getByRole("button", { name: "L2 Work Unit" }));
+    fireEvent.click(screen.getByRole("button", { name: "L3 Workflow" }));
+    fireEvent.click(screen.getByRole("button", { name: "s1" }));
+
+    expect(screen.getByDisplayValue("form")).toBeTruthy();
   });
 
   it("filters list rows by query text", () => {

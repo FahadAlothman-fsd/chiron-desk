@@ -19,6 +19,7 @@ const popoverContentVariants = cva(
         default: "bg-popover ring-1 ring-foreground/10",
         flat: "chiron-frame-flat",
         cut: "chiron-cut-frame",
+        "cut-thin": "chiron-cut-frame-thin",
       },
       tone: {
         default: "",

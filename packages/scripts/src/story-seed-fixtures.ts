@@ -54,9 +54,9 @@ const STORY_2_7_PLAN: StorySeedPlan = {
     {
       id: "mver_bmad_project_context_only_draft",
       methodologyId: "mdef_story_2_7_bmad_v1",
-      version: "v1-draft",
-      status: "draft",
-      displayName: "BMAD v1 Draft",
+      version: "v1",
+      status: "active",
+      displayName: "BMAD v1",
       retiredAt: null,
     },
   ],
