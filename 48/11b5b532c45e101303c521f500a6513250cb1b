@@ -1,0 +1,23 @@
+_bmad-output/implementation-artifacts/2-7-enforce-canonical-methodology-persistence-and-establish-project-context-module-boundary.md
+  c235eb8f1179df75 281-288,350-351,357-372,387-394
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "4811b5b532c45e101303c521f500a6513250cb1b",
+  "prompts": {
+    "c235eb8f1179df75": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_32709f341ffeuzl2fjWPs1zfXH",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 35,
+      "total_deletions": 1,
+      "accepted_lines": 34,
+      "overriden_lines": 0
+    }
+  }
+}
