@@ -202,7 +202,11 @@ function FactEditorDialog({
           onSubmit={(event) => {
             event.preventDefault();
             event.stopPropagation();
-            void form.handleSubmit();
+            if (step === "guidance") {
+              void form.handleSubmit();
+            } else {
+              setStep("guidance");
+            }
           }}
         >
           <div className="flex flex-col gap-10">

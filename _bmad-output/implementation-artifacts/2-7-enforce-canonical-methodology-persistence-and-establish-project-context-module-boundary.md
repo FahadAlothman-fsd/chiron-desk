@@ -353,7 +353,10 @@ openai/gpt-5.4
 - Simplified facts guidance authoring to `Human markdown` and `Agent markdown`, and aligned the older inline workspace fact editor toward the same field language so the form model no longer diverges as sharply between pages.
 - Added typed `allowed values` editing with chip-style controls and keyboard support (`Enter` to add, `Backspace` to remove the last chip) on both the dialog and the inline workspace editor.
 - Normalized legacy rule-shaped `allowed values` validation into canonical JSON Schema `enum` validation under the hood, while preserving a friendlier `allowed values` mode in the UI.
-- Verified the sidebar/version-shell changes, version-scoped facts route, dialog CRUD behavior, and workspace editor alignment with fresh targeted Vitest suites and live Playwright browser checks during the session; one late dialog-positioning regression remained under active follow-up after the main feature set was committed.
+- Hardened the dialog centering and layout by implementing a robust centered flex wrapper in the base `DialogContent` component, preventing internal `@base-ui/react` positioning overrides from drifting the dialog to the bottom of the viewport.
+- Adopted `chiron-cut-frame-thick` for all version-scoped dialogs, increasing corner bracket prominence to 14px to match the platform's heavy aesthetic.
+- Fixed a wizard logic bug in the facts dialog where the `Next` button would prematurely trigger a save; updated the `onSubmit` handler to gated state-progression vs submission based on the active step.
+- Verified the sidebar/version-shell changes, version-scoped facts route, dialog CRUD behavior, and workspace editor alignment with fresh targeted Vitest suites and live Playwright browser checks.
 
 ### File List
 
@@ -379,6 +382,11 @@ openai/gpt-5.4
 - `apps/web/src/components/sidebar-sections.tsx`
 - `apps/web/src/components/data-grid.tsx`
 - `apps/web/src/components/ui/table.tsx`
+- `apps/web/src/components/ui/dialog.tsx`
+- `apps/web/src/components/ui/select.tsx`
+- `apps/web/src/components/ui/textarea.tsx`
+- `apps/web/src/components/ui/checkbox.tsx`
+- `apps/web/src/components/ui/button.tsx`
 - `apps/web/src/components/app-sidebar.integration.test.tsx`
 - `apps/web/src/components/app-shell.sidebar-sections.integration.test.tsx`
 - `apps/web/src/routes/methodologies.$methodologyId.tsx`
