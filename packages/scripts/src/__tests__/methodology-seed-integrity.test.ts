@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 
-import { getStorySeedPlan } from "../story-seed-fixtures";
+import { availableStorySeedIds, getStorySeedPlan } from "../story-seed-fixtures";
 
 const FORBIDDEN_EXTENSION_KEYS = [
   "workUnitTypes",
@@ -23,18 +23,21 @@ async function loadMethodologySeedArtifacts() {
 }
 
 describe("methodology seed integrity", () => {
-  it("keeps story seed plans free of forbidden canonical extension keys", () => {
-    const plan = Effect.runSync(getStorySeedPlan("2-7"));
+  it("keeps all story seed plans free of forbidden canonical extension keys", () => {
+    for (const storySeedId of availableStorySeedIds) {
+      const plan = Effect.runSync(getStorySeedPlan(storySeedId));
 
-    for (const version of plan.methodologyVersions) {
-      const versionRecord = version as Record<string, unknown>;
-      const definitionExtensions =
-        versionRecord.definitionExtensions && typeof versionRecord.definitionExtensions === "object"
-          ? (versionRecord.definitionExtensions as Record<string, unknown>)
-          : {};
+      for (const version of plan.methodologyVersions) {
+        const versionRecord = version as Record<string, unknown>;
+        const definitionExtensions =
+          versionRecord.definitionExtensions &&
+          typeof versionRecord.definitionExtensions === "object"
+            ? (versionRecord.definitionExtensions as Record<string, unknown>)
+            : {};
 
-      for (const forbiddenKey of FORBIDDEN_EXTENSION_KEYS) {
-        expect(definitionExtensions[forbiddenKey]).toBeUndefined();
+        for (const forbiddenKey of FORBIDDEN_EXTENSION_KEYS) {
+          expect(definitionExtensions[forbiddenKey]).toBeUndefined();
+        }
       }
     }
   });

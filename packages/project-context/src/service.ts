@@ -1,4 +1,7 @@
-import { MethodologyRepository, RepositoryError } from "@chiron/methodology-engine";
+import {
+  MethodologyRepository,
+  type RepositoryError as MethodologyRepositoryError,
+} from "@chiron/methodology-engine";
 import type {
   GetProjectPinLineageInput,
   PinProjectMethodologyVersionInput,
@@ -14,6 +17,9 @@ import {
   type ProjectMethodologyPinRow,
   type ProjectRow,
 } from "./repository";
+import type { RepositoryError as ProjectContextRepositoryError } from "./errors";
+
+type RepositoryError = MethodologyRepositoryError | ProjectContextRepositoryError;
 
 export interface ProjectMethodologyPinState {
   projectId: string;
@@ -333,6 +339,24 @@ export const ProjectContextServiceLive = Layer.effect(
           })
           .pipe(
             Effect.catchAll((error) => {
+              if (error.code === "PROJECT_REPIN_BLOCKED_EXECUTION_HISTORY") {
+                return Effect.succeed({
+                  pin: null,
+                  diagnostics: {
+                    valid: false,
+                    diagnostics: [
+                      makeProjectPinDiagnostic(
+                        "PROJECT_REPIN_BLOCKED_EXECUTION_HISTORY",
+                        "project.repin.policy",
+                        timestamp,
+                        "project without persisted executions for repin",
+                        "found persisted executions for project methodology pin",
+                        "Use migration workflow when available in later epic scope",
+                      ),
+                    ],
+                  },
+                } as const);
+              }
               if (error.code === "PROJECT_REPIN_REQUIRES_EXISTING_PIN") {
                 return Effect.succeed({
                   pin: null,

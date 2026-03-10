@@ -1,9 +1,10 @@
 import { asc, eq } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { Effect, Layer } from "effect";
-import { RepositoryError, type RepositoryErrorCode } from "@chiron/methodology-engine";
 import {
   ProjectContextRepository,
+  RepositoryError,
+  type RepositoryErrorCode,
   type GetProjectPinLineageParams,
   type PinProjectMethodologyVersionParams,
   type ProjectMethodologyPinEventRow,

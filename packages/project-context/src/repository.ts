@@ -1,5 +1,5 @@
 import { Context, Effect } from "effect";
-import type { RepositoryError } from "@chiron/methodology-engine";
+import type { RepositoryError } from "./errors";
 
 export interface PinProjectMethodologyVersionParams {
   projectId: string;

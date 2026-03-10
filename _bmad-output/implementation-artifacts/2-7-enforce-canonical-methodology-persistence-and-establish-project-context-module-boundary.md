@@ -1,6 +1,6 @@
 # Story 2.7: Enforce Canonical Methodology Persistence and Establish Project-Context Module Boundary
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -392,6 +392,10 @@ openai/gpt-5.4
   - Fixed `apps/web/src/routes/-methodologies.$methodologyId.versions.$versionId.integration.test.tsx`: Added `useLocation` mock export to @tanstack/react-router mock for proper hook resolution.
 - **Test Status:** Backend packages (db, contracts, methodology-engine, api, scripts) all tests passing (100%). Frontend integration tests: 5 test files have rendering issues to be addressed in follow-up work.
 - **Code Review Follow-up (2026-03-11):** Applied test infrastructure fixes during adversarial code review. Fixed 5 test files: methodology-repository.integration.test.ts (vitest import), version.test.ts (description format), facts.tsx (any[] to string[]), facts.integration.test.tsx (label casing), methodology version integration test (useLocation mock). Backend tests (packages/*) all passing (24/24 test files). Frontend integration tests have 5 failing test files (methodology route tests) that need investigation - deferred to follow-up work.
+- **Code Review Auto-fix (2026-03-11):** Resolved Story 2.7 high/medium findings from adversarial review by broadening forbidden canonical key checks to all available story seed plans, aligning integration-test `methodology_workflows` DDL with canonical workflow columns (`metadata_json`, `input_contract_json`, `output_contract_json`), and adding deterministic repin race-path diagnostics mapping for `PROJECT_REPIN_BLOCKED_EXECUTION_HISTORY` in `project-context` service.
+- Added `packages/project-context/src/errors.ts` and rewired `packages/db/src/project-context-repository.ts` plus `packages/project-context` contracts to use project-context-owned repository error types instead of methodology-engine-owned error definitions, preserving boundary semantics while keeping runtime behavior stable.
+- Added targeted unit regression `packages/project-context/src/service.test.ts` to prove repository-raised blocked-execution repin errors are normalized to deterministic diagnostics.
+- Verification after auto-fix: `bun test ./packages/project-context/src/service.test.ts`, `bun test ./packages/db/src/methodology-repository.integration.test.ts`, `bun test ./packages/scripts/src/__tests__/methodology-seed-integrity.test.ts`, and `bun test ./packages/api/src/routers/methodology.test.ts` all pass.
 
 ### File List
 
@@ -443,8 +447,10 @@ openai/gpt-5.4
 - `packages/project-context/package.json`
 - `packages/project-context/tsconfig.json`
 - `packages/project-context/src/index.ts`
+- `packages/project-context/src/errors.ts`
 - `packages/project-context/src/repository.ts`
 - `packages/project-context/src/service.ts`
+- `packages/project-context/src/service.test.ts`
 - `packages/methodology-engine/src/repository.ts`
 - `packages/methodology-engine/src/version-service.ts`
 - `packages/methodology-engine/src/version-service.test.ts`
