@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { Link, Outlet, createFileRoute, useLocation } from "@tanstack/react-router";
 import { Result } from "better-result";
 import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
@@ -31,6 +31,7 @@ export function MethodologyWorkspaceEntryRoute() {
   const { methodologyId, versionId } = Route.useParams();
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
+  const location = useLocation();
   const { orpc, queryClient } = Route.useRouteContext();
   const initialDraft = useMemo(
     () => createEmptyMethodologyVersionWorkspaceDraft(methodologyId),
@@ -96,6 +97,7 @@ export function MethodologyWorkspaceEntryRoute() {
   const immutableVersion = currentVersion ? currentVersion.status !== "draft" : false;
   const effectiveWorkspacePage =
     immutableVersion && workspacePage === "publish" ? "context" : workspacePage;
+  const workspacePath = `/methodologies/${methodologyId}/versions/${versionId}`;
 
   useEffect(() => {
     if (!draftQuery.data) {
@@ -354,6 +356,10 @@ export function MethodologyWorkspaceEntryRoute() {
       return left.evidenceRef.localeCompare(right.evidenceRef);
     });
   }, [evidenceFilter, evidenceQuery.data]);
+
+  if (location.pathname !== workspacePath) {
+    return <Outlet />;
+  }
 
   return (
     <MethodologyWorkspaceShell

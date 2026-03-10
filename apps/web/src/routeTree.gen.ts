@@ -25,6 +25,7 @@ import { Route as ProjectsProjectIdFactsRouteImport } from './routes/projects.$p
 import { Route as ProjectsProjectIdAgentsRouteImport } from './routes/projects.$projectId.agents'
 import { Route as MethodologiesMethodologyIdVersionsRouteImport } from './routes/methodologies.$methodologyId.versions'
 import { Route as MethodologiesMethodologyIdVersionsVersionIdRouteImport } from './routes/methodologies.$methodologyId.versions.$versionId'
+import { Route as MethodologiesMethodologyIdVersionsVersionIdFactsRouteImport } from './routes/methodologies.$methodologyId.versions.$versionId.facts'
 
 const ProjectsRoute = ProjectsRouteImport.update({
   id: '/projects',
@@ -112,6 +113,12 @@ const MethodologiesMethodologyIdVersionsVersionIdRoute =
     path: '/$versionId',
     getParentRoute: () => MethodologiesMethodologyIdVersionsRoute,
   } as any)
+const MethodologiesMethodologyIdVersionsVersionIdFactsRoute =
+  MethodologiesMethodologyIdVersionsVersionIdFactsRouteImport.update({
+    id: '/facts',
+    path: '/facts',
+    getParentRoute: () => MethodologiesMethodologyIdVersionsVersionIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -129,7 +136,8 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/transitions': typeof ProjectsProjectIdTransitionsRoute
   '/projects/$projectId/work-units': typeof ProjectsProjectIdWorkUnitsRoute
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
-  '/methodologies/$methodologyId/versions/$versionId': typeof MethodologiesMethodologyIdVersionsVersionIdRoute
+  '/methodologies/$methodologyId/versions/$versionId': typeof MethodologiesMethodologyIdVersionsVersionIdRouteWithChildren
+  '/methodologies/$methodologyId/versions/$versionId/facts': typeof MethodologiesMethodologyIdVersionsVersionIdFactsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -146,7 +154,8 @@ export interface FileRoutesByTo {
   '/projects/$projectId/transitions': typeof ProjectsProjectIdTransitionsRoute
   '/projects/$projectId/work-units': typeof ProjectsProjectIdWorkUnitsRoute
   '/projects/$projectId': typeof ProjectsProjectIdIndexRoute
-  '/methodologies/$methodologyId/versions/$versionId': typeof MethodologiesMethodologyIdVersionsVersionIdRoute
+  '/methodologies/$methodologyId/versions/$versionId': typeof MethodologiesMethodologyIdVersionsVersionIdRouteWithChildren
+  '/methodologies/$methodologyId/versions/$versionId/facts': typeof MethodologiesMethodologyIdVersionsVersionIdFactsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -165,7 +174,8 @@ export interface FileRoutesById {
   '/projects/$projectId/transitions': typeof ProjectsProjectIdTransitionsRoute
   '/projects/$projectId/work-units': typeof ProjectsProjectIdWorkUnitsRoute
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
-  '/methodologies/$methodologyId/versions/$versionId': typeof MethodologiesMethodologyIdVersionsVersionIdRoute
+  '/methodologies/$methodologyId/versions/$versionId': typeof MethodologiesMethodologyIdVersionsVersionIdRouteWithChildren
+  '/methodologies/$methodologyId/versions/$versionId/facts': typeof MethodologiesMethodologyIdVersionsVersionIdFactsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -186,6 +196,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/work-units'
     | '/projects/$projectId/'
     | '/methodologies/$methodologyId/versions/$versionId'
+    | '/methodologies/$methodologyId/versions/$versionId/facts'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -203,6 +214,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/work-units'
     | '/projects/$projectId'
     | '/methodologies/$methodologyId/versions/$versionId'
+    | '/methodologies/$methodologyId/versions/$versionId/facts'
   id:
     | '__root__'
     | '/'
@@ -221,6 +233,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/work-units'
     | '/projects/$projectId/'
     | '/methodologies/$methodologyId/versions/$versionId'
+    | '/methodologies/$methodologyId/versions/$versionId/facts'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -345,17 +358,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MethodologiesMethodologyIdVersionsVersionIdRouteImport
       parentRoute: typeof MethodologiesMethodologyIdVersionsRoute
     }
+    '/methodologies/$methodologyId/versions/$versionId/facts': {
+      id: '/methodologies/$methodologyId/versions/$versionId/facts'
+      path: '/facts'
+      fullPath: '/methodologies/$methodologyId/versions/$versionId/facts'
+      preLoaderRoute: typeof MethodologiesMethodologyIdVersionsVersionIdFactsRouteImport
+      parentRoute: typeof MethodologiesMethodologyIdVersionsVersionIdRoute
+    }
   }
 }
 
+interface MethodologiesMethodologyIdVersionsVersionIdRouteChildren {
+  MethodologiesMethodologyIdVersionsVersionIdFactsRoute: typeof MethodologiesMethodologyIdVersionsVersionIdFactsRoute
+}
+
+const MethodologiesMethodologyIdVersionsVersionIdRouteChildren: MethodologiesMethodologyIdVersionsVersionIdRouteChildren =
+  {
+    MethodologiesMethodologyIdVersionsVersionIdFactsRoute:
+      MethodologiesMethodologyIdVersionsVersionIdFactsRoute,
+  }
+
+const MethodologiesMethodologyIdVersionsVersionIdRouteWithChildren =
+  MethodologiesMethodologyIdVersionsVersionIdRoute._addFileChildren(
+    MethodologiesMethodologyIdVersionsVersionIdRouteChildren,
+  )
+
 interface MethodologiesMethodologyIdVersionsRouteChildren {
-  MethodologiesMethodologyIdVersionsVersionIdRoute: typeof MethodologiesMethodologyIdVersionsVersionIdRoute
+  MethodologiesMethodologyIdVersionsVersionIdRoute: typeof MethodologiesMethodologyIdVersionsVersionIdRouteWithChildren
 }
 
 const MethodologiesMethodologyIdVersionsRouteChildren: MethodologiesMethodologyIdVersionsRouteChildren =
   {
     MethodologiesMethodologyIdVersionsVersionIdRoute:
-      MethodologiesMethodologyIdVersionsVersionIdRoute,
+      MethodologiesMethodologyIdVersionsVersionIdRouteWithChildren,
   }
 
 const MethodologiesMethodologyIdVersionsRouteWithChildren =
