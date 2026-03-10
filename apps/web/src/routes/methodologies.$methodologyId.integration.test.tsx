@@ -46,11 +46,35 @@ function createTestHarness() {
             versions: [
               {
                 id: "mver_bmad_project_context_only_draft",
+                version: "v2-draft",
+                status: "draft",
+                displayName: "BMAD v1",
+                createdAt: "2026-03-10T09:42:43.783Z",
+                retiredAt: null,
+              },
+              {
+                id: "mver_bmad_project_context_only_active",
                 version: "v1",
                 status: "active",
                 displayName: "BMAD v1",
                 createdAt: "2026-03-09T21:42:43.783Z",
                 retiredAt: null,
+              },
+            ],
+          }),
+        }),
+      },
+      getDraftProjection: {
+        queryOptions: () => ({
+          queryKey: ["methodology", "draft", "mver_bmad_project_context_only_draft"],
+          queryFn: async () => ({
+            factDefinitions: [
+              {
+                name: "Repository URL",
+                key: "repo_url",
+                factType: "string",
+                defaultValue: "https://example.com/repo.git",
+                validation: { kind: "none" },
               },
             ],
           }),
@@ -79,7 +103,7 @@ describe("methodology details route", () => {
     cleanup();
   });
 
-  it("renders a dashboard-style overview and links out to the versions page", async () => {
+  it("renders a dashboard-style fact inventory and links out to the facts editor", async () => {
     const { queryClient } = createTestHarness();
     render(
       <QueryClientProvider client={queryClient}>
@@ -88,11 +112,15 @@ describe("methodology details route", () => {
     );
 
     expect(await screen.findByText("BMAD v1")).toBeTruthy();
-    expect(screen.getByText("Metadata")).toBeTruthy();
-    expect(screen.getByText("Runtime")).toBeTruthy();
-    expect(screen.queryByText("Version Ledger")).toBeNull();
-    expect(screen.getByRole("link", { name: "Open Versions" }).getAttribute("href")).toBe(
-      "/methodologies/$methodologyId/versions",
+    expect(screen.getByText("Fact Inventory")).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Fact" })).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Type" })).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Guidance" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Open Facts Editor" }).getAttribute("href")).toBe(
+      "/methodologies/$methodologyId/versions/$versionId/facts",
     );
+    expect(screen.queryByRole("columnheader", { name: "Actions" })).toBeNull();
+    expect(screen.queryByText("Metadata")).toBeNull();
+    expect(screen.queryByText("Runtime")).toBeNull();
   });
 });
