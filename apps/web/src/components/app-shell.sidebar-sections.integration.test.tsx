@@ -25,26 +25,47 @@ describe("buildSidebarSections", () => {
   });
 
   it("returns methodology sidebar sections for methodology scope", () => {
-    const sections = buildSidebarSections("/methodologies/bmad.v1", "methodology", {
-      methodologyId: "bmad.v1",
-    });
+    const sections = buildSidebarSections(
+      "/methodologies/bmad.v1/versions/mver_bmad_project_context_only_draft",
+      "methodology",
+      {
+        methodologyId: "bmad.v1",
+        methodologyVersionId: "mver_bmad_project_context_only_draft",
+        methodologyVersionLabel: "BMAD V1",
+      },
+    );
 
     expect(sections).toEqual([
       {
-        title: "Methodology",
+        title: "Overview",
         items: [
           expect.objectContaining({
             label: "Dashboard",
             to: "/methodologies/bmad.v1",
-            isActive: true,
+            isActive: false,
           }),
           expect.objectContaining({
             label: "Versions",
             to: "/methodologies/bmad.v1/versions",
+            isActive: true,
+          }),
+        ],
+      },
+      {
+        title: "BMAD V1",
+        items: [
+          expect.objectContaining({
+            label: "Workspace",
+            to: "/methodologies/bmad.v1/versions/mver_bmad_project_context_only_draft",
+            isActive: true,
+          }),
+          expect.objectContaining({
+            label: "Facts",
+            to: "/methodologies/bmad.v1/versions/mver_bmad_project_context_only_draft/facts",
             isActive: false,
           }),
-          expect.objectContaining({ label: "Methodology Facts", disabled: true }),
           expect.objectContaining({ label: "Work Units", disabled: true }),
+          expect.objectContaining({ label: "Workflows", disabled: true }),
           expect.objectContaining({ label: "Artifact Templates", disabled: true }),
         ],
       },

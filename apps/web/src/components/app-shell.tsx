@@ -16,6 +16,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { MethodologyCommandPalette } from "@/features/methodologies/command-palette";
+import { formatMethodologyVersionLabel } from "@/features/methodologies/version-label";
 import { buildSidebarSections } from "./sidebar-sections";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -59,11 +60,62 @@ export default function AppShell({ children }: { children: ReactNode }) {
     }),
     enabled: Boolean(session?.user && methodologyId),
   });
+  const methodologyVersionProjectionQuery = useQuery({
+    ...orpc.methodology.getDraftProjection.queryOptions({
+      input: { versionId: versionId ?? "" },
+    }),
+    enabled: Boolean(session?.user && methodologyId && versionId),
+  });
   const methodologyVersions = methodologyDetailsQuery.data?.versions ?? [];
-  const showMethodologyVersionSelector = Boolean(methodologyId && methodologyVersions.length > 0);
-  const currentVersion = versionId
+  const currentVersionFromDetails = versionId
     ? methodologyVersions.find((version) => version.id === versionId)
     : null;
+  const currentVersionFromProjection =
+    versionId && methodologyVersionProjectionQuery.data
+      ? {
+          id: versionId,
+          displayName: methodologyVersionProjectionQuery.data.displayName,
+          version: methodologyVersionProjectionQuery.data.version,
+          status: methodologyVersionProjectionQuery.data.status,
+        }
+      : null;
+  const currentVersion = currentVersionFromProjection ?? currentVersionFromDetails;
+  const currentVersionLooksDraft =
+    Boolean(versionId && versionId.toLowerCase().includes("draft")) ||
+    currentVersion?.status === "draft";
+  const currentVersionLabel = currentVersion
+    ? formatMethodologyVersionLabel({
+        ...currentVersion,
+        status: currentVersionLooksDraft ? "draft" : currentVersion.status,
+      })
+    : null;
+  const methodologyVersionOptions = [
+    ...(currentVersion && !methodologyVersions.some((version) => version.id === currentVersion.id)
+      ? [
+          {
+            id: currentVersion.id,
+            displayName:
+              currentVersionLabel ??
+              currentVersion.displayName ??
+              currentVersion.version ??
+              currentVersion.id,
+          },
+        ]
+      : []),
+    ...methodologyVersions.map((version) => ({
+      id: version.id,
+      displayName:
+        version.id === currentVersion?.id
+          ? (currentVersionLabel ??
+            currentVersion.displayName ??
+            currentVersion.version ??
+            version.displayName)
+          : (formatMethodologyVersionLabel(version) ?? version.displayName),
+    })),
+  ];
+  const showMethodologyVersionSelector = Boolean(
+    methodologyId && methodologyVersionOptions.length > 0,
+  );
   const sidebarScope: "system" | "project" | "methodology" = projectId
     ? "project"
     : methodologyId
@@ -108,6 +160,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const navSections = buildSidebarSections(pathname, sidebarScope, {
     projectId,
     methodologyId,
+    methodologyVersionId: versionId,
+    methodologyVersionLabel: versionId !== null ? currentVersionLabel : null,
   });
 
   return (
@@ -133,18 +187,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
         methodologyVersionSwitcher={{
           currentVersionId: showMethodologyVersionSelector ? (versionId ?? null) : null,
           currentVersionLabel: showMethodologyVersionSelector
-            ? (currentVersion?.displayName ??
-              currentVersion?.version ??
-              methodologyVersions[0]?.displayName ??
-              null)
+            ? (currentVersionLabel ?? methodologyVersionOptions[0]?.displayName ?? null)
             : null,
           methodologyId: showMethodologyVersionSelector ? (methodologyId ?? null) : null,
-          versions: showMethodologyVersionSelector
-            ? methodologyVersions.map((version) => ({
-                id: version.id,
-                displayName: version.displayName,
-              }))
-            : [],
+          versions: showMethodologyVersionSelector ? methodologyVersionOptions : [],
         }}
         onOpenCommands={() => setIsCommandPaletteOpen(true)}
         className="border-r border-border/80"

@@ -128,11 +128,28 @@ describe("AppSidebar", () => {
     });
   });
 
-  it("renders methodology scope selector and hides old operator workspace banner", () => {
+  it("renders methodology scope selector, version-scoped sections, and navigates on version selection", () => {
+    const methodologySections: SidebarNavSection[] = [
+      {
+        title: "Overview",
+        items: [
+          { label: "Dashboard", to: "/methodologies/bmad.v1" },
+          { label: "Versions", to: "/methodologies/bmad.v1/versions", isActive: true },
+        ],
+      },
+      {
+        title: "Draft: BMAD V1",
+        items: [
+          { label: "Workspace", to: "/methodologies/bmad.v1/versions/draft-v2", isActive: true },
+          { label: "Facts", to: "/methodologies/bmad.v1/versions/draft-v2/facts" },
+        ],
+      },
+    ];
+
     render(
       <SidebarProvider>
         <AppSidebar
-          sections={sections}
+          sections={methodologySections}
           scope="methodology"
           methodologySwitcher={{
             currentMethodologyId: "bmad.v1",
@@ -144,11 +161,11 @@ describe("AppSidebar", () => {
           }}
           methodologyVersionSwitcher={{
             currentVersionId: "draft-v2",
-            currentVersionLabel: "Draft v2",
+            currentVersionLabel: "Draft: BMAD V1",
             methodologyId: "bmad.v1",
             versions: [
-              { id: "draft-v2", displayName: "Draft v2" },
-              { id: "draft-v3", displayName: "Draft v3" },
+              { id: "draft-v2", displayName: "Draft: BMAD V1" },
+              { id: "draft-v3", displayName: "Draft: BMAD V2" },
             ],
           }}
         />
@@ -156,10 +173,24 @@ describe("AppSidebar", () => {
     );
 
     expect(screen.queryByText("Operator Workspace")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /BMAD/i }));
+    expect(screen.getByText("Overview")).toBeTruthy();
+    expect(screen.getAllByText("Draft: BMAD V1").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole("link", { name: "Workspace" }).getAttribute("href")).toBe(
+      "/methodologies/bmad.v1/versions/draft-v2",
+    );
+    expect(screen.getByRole("link", { name: "Facts" }).getAttribute("href")).toBe(
+      "/methodologies/bmad.v1/versions/draft-v2/facts",
+    );
+    fireEvent.click(screen.getAllByRole("button", { name: /BMAD/i })[0]!);
     expect(screen.getByPlaceholderText("Search methodologies...")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /Draft v2/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Draft: BMAD V1/i }));
     expect(screen.getByPlaceholderText("Search versions...")).toBeTruthy();
+    fireEvent.click(screen.getByText("Draft: BMAD V2"));
+
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: "/methodologies/$methodologyId/versions/$versionId",
+      params: { methodologyId: "bmad.v1", versionId: "draft-v3" },
+    });
   });
 
   it("switches app context from the top-level context buttons", () => {

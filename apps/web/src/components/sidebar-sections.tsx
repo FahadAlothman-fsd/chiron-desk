@@ -17,6 +17,8 @@ export type SidebarScopeMode = "system" | "methodology" | "project";
 type SidebarContext = {
   projectId?: string | null;
   methodologyId?: string | null;
+  methodologyVersionId?: string | null;
+  methodologyVersionLabel?: string | null;
 };
 
 export function buildSidebarSections(
@@ -26,6 +28,8 @@ export function buildSidebarSections(
 ): SidebarNavSection[] {
   const projectId = context.projectId ?? null;
   const methodologyId = context.methodologyId ?? null;
+  const methodologyVersionId = context.methodologyVersionId ?? null;
+  const methodologyVersionLabel = context.methodologyVersionLabel ?? null;
 
   if (scope === "system") {
     return [
@@ -66,9 +70,9 @@ export function buildSidebarSections(
   }
 
   if (scope === "methodology") {
-    return [
+    const sections: SidebarNavSection[] = [
       {
-        title: "Methodology",
+        title: "Overview",
         items: [
           {
             label: "Dashboard",
@@ -88,13 +92,36 @@ export function buildSidebarSections(
                 ? pathname.startsWith(`/methodologies/${methodologyId}/versions`)
                 : false,
           },
+        ],
+      },
+    ];
+
+    if (methodologyId && methodologyVersionId && methodologyVersionLabel) {
+      sections.push({
+        title: methodologyVersionLabel,
+        items: [
           {
-            label: "Methodology Facts",
+            label: "Workspace",
+            to: `/methodologies/${methodologyId}/versions/${methodologyVersionId}`,
+            icon: <LayoutDashboardIcon className="size-4" />,
+            isActive:
+              pathname === `/methodologies/${methodologyId}/versions/${methodologyVersionId}`,
+          },
+          {
+            label: "Facts",
+            to: `/methodologies/${methodologyId}/versions/${methodologyVersionId}/facts`,
             icon: <BookOpenIcon className="size-4" />,
-            disabled: true,
+            isActive: pathname.startsWith(
+              `/methodologies/${methodologyId}/versions/${methodologyVersionId}/facts`,
+            ),
           },
           {
             label: "Work Units",
+            icon: <WaypointsIcon className="size-4" />,
+            disabled: true,
+          },
+          {
+            label: "Workflows",
             icon: <WaypointsIcon className="size-4" />,
             disabled: true,
           },
@@ -104,8 +131,10 @@ export function buildSidebarSections(
             disabled: true,
           },
         ],
-      },
-    ];
+      });
+    }
+
+    return sections;
   }
 
   return [
