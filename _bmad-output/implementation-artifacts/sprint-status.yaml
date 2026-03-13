@@ -1,4 +1,4 @@
-# generated: 2026-02-27 00:57
+# generated: 2026-03-13 18:38
 # project: chiron
 # project_key: NOKEY
 # tracking_system: file-system
@@ -33,11 +33,15 @@
 # - SM typically creates next story after previous one is 'done' to incorporate learnings
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
-generated: 2026-02-27 00:57
+generated: 2026-03-13 18:38
 project: chiron
 project_key: NOKEY
 tracking_system: file-system
 story_location: /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/implementation-artifacts
+
+retrospective_artifacts:
+  epic-1: /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/implementation-artifacts/epic-1-retro-2026-02-27.md
+  epic-2: /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/implementation-artifacts/epic-2-retro-2026-03-13.md
 
 development_status:
   epic-1: done
@@ -48,20 +52,26 @@ development_status:
   1-5-pin-project-to-published-methodology-version-and-preserve-pin-lineage: done
   epic-1-retrospective: done
   epic-2: in-progress
-  2-1-build-methodology-workspace-ui-for-draft-authoring-and-validation: done
-  2-2-build-react-flow-methodology-graph-for-work-unit-transition-and-workflow-binding-management: done
-  2-3-deliver-validation-publish-and-evidence-ux-for-methodology-contracts: done
+  2-1-establish-methodology-catalog-details-and-version-entry-foundation: done
+  2-2-build-methodology-version-workspace-baseline-with-react-flow-authoring: done
+  2-3-harden-validation-publish-and-evidence-ux-for-methodology-contracts: done
   2-4-implement-rigorous-facts-and-variable-type-authoring-across-methodology-and-work-units: done
   2-5-provide-project-creation-and-methodology-pinning-ux-with-pin-lineage-visibility: done
   2-6-provide-baseline-operator-visibility-for-methodology-pin-and-diagnostics-state: done
   2-7-enforce-canonical-methodology-persistence-and-establish-project-context-module-boundary: done
-  epic-2-retrospective: optional
+  epic-2-retrospective: done
   epic-3: backlog
-  3-1-execute-one-transition-through-start-gate-preflight-and-exact-workflow-selection: backlog
-  3-2-invoke-child-work-unit-via-workflow-defined-relationship-and-contracted-i-o-mapping: backlog
-  3-3-execute-same-work-unit-technique-path-with-prefilled-inputs-and-selection-first-flow: backlog
-  3-4-prove-cancellation-cascade-stream-reconnect-continuity-and-idempotent-replay-boundaries: backlog
-  3-5-consolidate-g3-evidence-and-record-promotion-decision: backlog
+  3-1-complete-design-time-ia-and-page-shell-baseline: backlog
+  3-2-complete-work-unit-l2-tabs-overview-workflows-artifact-slots-facts-state-machine: backlog
+  3-3-complete-workflow-editor-and-step-dialog-surfaces: backlog
+  3-4-canonical-persistence-and-schema-recovery-hardening: backlog
+  3-5-design-time-verification-harnesses-and-runtime-entry-gate: backlog
+  3-6-opencode-foundation-and-system-harnesses-sidebar-page: backlog
+  3-7-mcp-foundation-effect-hono: backlog
+  3-8-runtime-entry-and-shared-prefix-execution-intake-capture-projecttype-route: backlog
+  3-9-greenfield-runtime-chain: backlog
+  3-10-brownfield-runtime-chain-and-same-work-unit-invoke: backlog
+  3-11-runtime-resilience-child-invoke-proof-and-g3-consolidation: backlog
   epic-3-retrospective: optional
   epic-4: backlog
   4-1-run-brainstorming-to-research-as-a-repeatable-vertical-slice-planning-flow: backlog
