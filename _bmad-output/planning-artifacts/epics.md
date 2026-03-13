@@ -737,20 +737,71 @@ So that Epic 3 execution work starts from coherent boundaries without `definitio
 **Then** tests fail if forbidden canonical keys appear in `definition_extensions_json`
 **And** roundtrip parity tests prove canonical table writes/refetch behavior for project-context mapping payloads.
 
-## Epic 3: Onboarding-Centered Runtime Spikes
+## Epic 3: Onboarding-Centered Runtime Spikes (Design-Time First)
 
-Deliver the full `WU.PROJECT_CONTEXT` onboarding flow through segmented runtime slices, while proving execution-layer resilience and gate evidence quality required for G3 promotion.
+Deliver full `WU.PROJECT_CONTEXT` onboarding through a design-time-first sequence, then runtime slices, while preserving canonical authority, typed contracts, and G3 evidence quality.
 
-Epic 3 additionally establishes canonical artifact persistence primitives for this slice:
-- artifact templates catalog (`artifact_templates`)
-- work-unit artifact slots (`work_unit_artifact_slots`)
-- append-only artifact snapshots (`work_unit_artifact_snapshots`)
+Epic 3 establishes artifact persistence separation for this slice:
+- methodology design-time: `methodology_artifact_slot_definitions`, `methodology_artifact_slot_templates`
+- project runtime evidence: `project_artifact_snapshots`
 
-### Story 3.1: Add Design-Time Workflow Builder Enhancements for Runtime Authoring
+### Story 3.1: Complete Design-Time IA and Page Shell Baseline
 
 As an operator,
-I want graph-first workflow authoring with typed step controls and step-runtime configuration surfaces,
-So that methodology guidance and runtime behavior are modeled consistently before execution.
+I want complete design-time page shells and route context,
+So that methodology authoring surfaces are reachable and consistent before runtime unlock.
+
+**Story Metadata:**
+
+- `intentTag`: `Spike`
+- `frRefs`: `FR2`, `FR7`
+- `nfrRefs`: `NFR1`, `NFR5`
+- `adrRefs`: `ADR-EF-B01`, `ADR-EF-B02`, `ADR-EF-03`, `ADR-EF-06`
+- `gateRefs`: `G3`
+- `evidenceRefs`: `design-shell-route-map-log`, `design-shell-nav-consistency-log`, `design-shell-state-handling-log`
+- `diagnosticRefs`: `design-shell-route-diagnostics`, `design-shell-accessibility-diagnostics`
+
+**Acceptance Criteria:**
+
+**Given** I open methodology version workspace routes
+**When** I navigate across design-time pages
+**Then** Work Units (L1), Methodology Facts, Agents, Dependency Definitions, and Work Unit L2 shell routes are complete and deterministic.
+
+**Given** empty/loading/error states occur
+**When** I interact with page shells
+**Then** state handling is deterministic, keyboard-accessible, and preserves context.
+
+### Story 3.2: Complete Work Unit L2 Tabs (Overview, Workflows, Artifact Slots, Facts, State Machine)
+
+As an operator,
+I want all Work Unit L2 tabs implemented to the locked design baseline,
+So that topology, contracts, and lifecycle can be authored in one coherent surface.
+
+**Story Metadata:**
+
+- `intentTag`: `Spike`
+- `frRefs`: `FR1`, `FR2`, `FR7`
+- `nfrRefs`: `NFR1`, `NFR5`
+- `adrRefs`: `ADR-EF-B01`, `ADR-EF-B02`, `ADR-EF-03`, `ADR-EF-06`
+- `gateRefs`: `G3`
+- `evidenceRefs`: `l2-tabs-parity-log`, `artifact-slots-authoring-log`, `facts-tab-authoring-log`, `state-machine-authoring-log`
+- `diagnosticRefs`: `l2-tabs-findings-diagnostics`, `state-machine-validation-diagnostics`, `artifact-slots-validation-diagnostics`
+
+**Acceptance Criteria:**
+
+**Given** I open Work Unit L2
+**When** I switch tabs
+**Then** Overview, Workflows, Artifact Slots, Facts, and State Machine tabs match locked wireframes/behaviors in `docs/plans/2026-03-11-methodology-design-time-pages-tentative-design.md`.
+
+**Given** findings are present
+**When** they render in rows, inspectors, and dialogs
+**Then** severity treatment and blocking semantics are consistent and deterministic.
+
+### Story 3.3: Complete Workflow Editor and Step Dialog Surfaces
+
+As an operator,
+I want complete step authoring surfaces,
+So that workflow intent is modeled with typed, validated configurations.
 
 **Story Metadata:**
 
@@ -759,346 +810,230 @@ So that methodology guidance and runtime behavior are modeled consistently befor
 - `nfrRefs`: `NFR1`, `NFR5`
 - `adrRefs`: `ADR-EF-B01`, `ADR-EF-B02`, `ADR-EF-03`, `ADR-EF-06`
 - `gateRefs`: `G3`
-- `evidenceRefs`: `builder-graph-config-log`, `step-type-node-shape-log`, `branch-multi-edge-log`, `form-builder-authoring-log`, `agent-config-authoring-log`, `action-type-authoring-log`, `artifact-template-authoring-log`, `display-plate-edit-log`
-- `diagnosticRefs`: `builder-validation-diagnostics`, `step-config-schema-diagnostics`, `form-config-validation-diagnostics`, `agent-config-validation-diagnostics`, `artifact-template-config-diagnostics`
+- `evidenceRefs`: `workflow-editor-shell-log`, `step-dialog-parity-log`, `variable-path-mapping-log`
+- `diagnosticRefs`: `step-config-schema-diagnostics`, `variable-compatibility-diagnostics`, `editor-save-diagnostics`
 
 **Acceptance Criteria:**
 
-**Given** I open workflow authoring for a methodology draft version
-**When** I add steps from the side palette
-**Then** only supported step types (`form`, `agent`, `action`, `invoke`, `branch`, `display`) are selectable.
+**Given** I author workflow steps
+**When** I use the editor and dialogs
+**Then** Form, Branch, Agent, Invoke, Display, and Action dialogs support locked fields, stacked editing, and deterministic validation.
 
-**Given** step nodes are rendered in the graph
-**When** I inspect node visuals and metadata
-**Then** step types use deterministic node shapes and persist type identity.
+**Given** variable targets are selected
+**When** mappings are saved
+**Then** path semantics and cardinality/type compatibility are enforced with actionable diagnostics.
 
-**Given** a `branch` step node exists
-**When** I create outgoing edges
-**Then** multiple outgoing edges are supported with route conditions per edge.
+### Story 3.4: Canonical Persistence and Schema Recovery Hardening
 
-**Given** I configure a `form` step
-**When** I open form configuration
-**Then** I can define form fields with required/optional behavior and enum options for selection inputs
-**And** unsupported advanced selectors (for example artifact-slot and snapshot selectors) are explicitly deferred with deterministic validation errors.
-
-**Given** I configure an `agent` step
-**When** I open agent configuration
-**Then** I can define `agentKind`, runtime-specific agent config, context-access scope, and allowed tools with required-variable gating.
-
-**Given** I configure an `action` step for `WU.PROJECT_CONTEXT` workflows
-**When** I select action kinds
-**Then** I can choose from the currently supported onboarding action kinds used in this slice
-**And** unsupported/new action kinds are explicitly deferred to later stories with deterministic validation errors.
-
-**Given** I configure artifact behavior for onboarding outputs
-**When** I open artifact configuration
-**Then** I can select an artifact template and bind it to a work-unit artifact slot
-**And** template and slot references are validated against canonical tables before save.
-
-**Given** I edit a `display` step
-**When** I open content editing
-**Then** Plate-based editing is available with current variable support and deterministic persistence.
-
-**Given** graph structure or step config is invalid
-**When** I save
-**Then** save is rejected with structured diagnostics and no partial-invalid mutation is committed.
-
-### Story 3.2: Surface Guided Onboarding Transition Entry After Project Pinning
-
-As an operator,
-I want the product to guide me to the next valid onboarding transition,
-So that methodology intent is explicit before runtime execution begins.
+As a platform engineer,
+I want canonical writes and typed contract validation hardening,
+So that design-time save/publish behavior is migration-safe and drift-resistant.
 
 **Story Metadata:**
 
 - `intentTag`: `Spike`
-- `frRefs`: `FR2`, `FR3`, `FR7`
-- `nfrRefs`: `NFR1`, `NFR2`
+- `frRefs`: `FR2`, `FR3`, `FR6`
+- `nfrRefs`: `NFR1`, `NFR2`, `NFR5`
+- `adrRefs`: `ADR-EF-B01`, `ADR-EF-B02`, `ADR-EF-03`, `ADR-EF-04`, `ADR-EF-06`
+- `gateRefs`: `G3`
+- `evidenceRefs`: `canonical-write-read-log`, `schema-recovery-validation-log`, `publish-contract-check-log`
+- `diagnosticRefs`: `canonical-authority-diagnostics`, `contract-drift-diagnostics`, `publish-validation-diagnostics`
+
+**Acceptance Criteria:**
+
+**Given** design-time entities are saved
+**When** persistence executes
+**Then** canonical table authority is enforced and `definition_extensions_json` is never used as canonical fallback.
+
+**Given** `*.v1` step configs and lifecycle gates are validated
+**When** save/publish runs
+**Then** contract drift is rejected deterministically with structured diagnostics.
+
+### Story 3.5: Design-Time Verification Harnesses and Runtime-Entry Gate
+
+As a release owner,
+I want deterministic design-time harness coverage,
+So that runtime stories cannot begin until authoring integrity is proven.
+
+**Story Metadata:**
+
+- `intentTag`: `Spike`
+- `frRefs`: `FR3`, `FR6`, `FR7`
+- `nfrRefs`: `NFR1`, `NFR2`, `NFR5`
+- `adrRefs`: `ADR-EF-B01`, `ADR-EF-B02`, `ADR-EF-04`, `ADR-EF-06`
+- `gateRefs`: `G3`
+- `evidenceRefs`: `design-harness-suite-log`, `runtime-entry-gate-report`, `design-regression-proof-log`
+- `diagnosticRefs`: `design-harness-failure-diagnostics`, `runtime-entry-gate-diagnostics`
+
+**Acceptance Criteria:**
+
+**Given** design-time suites run
+**When** canonical authority, contract drift, and diagnostics checks execute
+**Then** regressions fail CI with deterministic evidence artifacts.
+
+**Given** runtime-entry readiness is evaluated
+**When** story 3.5 completes
+**Then** a reusable readiness report artifact is produced and referenced by downstream stories.
+
+### Story 3.6: OpenCode Foundation and System Harnesses Sidebar Page
+
+As an operator,
+I want OpenCode integration foundations and system-level harness management,
+So that runtime harness selection is explicit, governed, and reusable.
+
+**Story Metadata:**
+
+- `intentTag`: `Spike`
+- `frRefs`: `FR2`, `FR5`, `FR7`
+- `nfrRefs`: `NFR1`, `NFR2`, `NFR5`
 - `adrRefs`: `ADR-EF-B01`, `ADR-EF-B02`, `ADR-EF-03`, `ADR-EF-06`
 - `gateRefs`: `G3`
-- `evidenceRefs`: `guided-transition-entry-log`, `readiness-preview-log`, `onboarding-intent-evidence`
-- `diagnosticRefs`: `onboarding-readiness-diagnostics`, `transition-entry-diagnostics`
+- `evidenceRefs`: `opencode-foundation-log`, `system-harnesses-sidebar-log`, `harness-policy-resolution-log`
+- `diagnosticRefs`: `opencode-adapter-diagnostics`, `harness-config-diagnostics`, `harness-policy-diagnostics`
 
 **Acceptance Criteria:**
 
-**Given** a project is pinned to a published methodology version
-**When** I open project overview
-**Then** `WU.PROJECT_CONTEXT` is shown as the guided next transition action.
+**Given** system settings are opened
+**When** I navigate the global sidebar
+**Then** a Harnesses page exists for system-level harness configuration and visibility.
 
-**Given** guided transition details are shown
-**When** I inspect onboarding guidance
-**Then** I can see transition intent, required inputs, and expected output artifacts.
+**Given** agent-step harness configuration is authored
+**When** harness is set to `opencode`
+**Then** selection resolves through system-governed harness configuration and policy checks.
 
-**Given** onboarding readiness is evaluated
-**When** required prerequisites are missing
-**Then** execution entry remains blocked with actionable diagnostics.
+### Story 3.7: MCP Foundation (Effect + Hono)
 
-**Given** readiness is pass
-**When** I proceed from guided entry
-**Then** execution starts from the pinned contract snapshot for `WU.PROJECT_CONTEXT`.
-
-### Story 3.3: Implement Shared Prefix Runtime for Onboarding (`intake.capture` + `projectType.route`)
-
-As an operator,
-I want onboarding intake and routing to execute deterministically,
-So that greenfield and brownfield paths start from a stable shared prefix.
-
-**Story Metadata:**
-
-- `intentTag`: `Spike`
-- `frRefs`: `FR3`, `FR6`
-- `nfrRefs`: `NFR1`, `NFR2`
-- `adrRefs`: `ADR-EF-B01`, `ADR-EF-B02`, `ADR-EF-01`, `ADR-EF-03`, `ADR-EF-04`, `ADR-EF-06`
-- `gateRefs`: `G3`
-- `evidenceRefs`: `onboarding-intake-log`, `project-type-route-log`, `step-state-evidence-log`
-- `diagnosticRefs`: `form-validation-diagnostics`, `branch-routing-diagnostics`
-
-**Acceptance Criteria:**
-
-**Given** I start `WU.PROJECT_CONTEXT` onboarding
-**When** `intake.capture` runs
-**Then** `projectType` is collected and validated deterministically.
-
-**Given** `projectType` is available
-**When** `projectType.route` evaluates
-**Then** routing goes to exactly one path (`greenfield` or `brownfield`) by deterministic condition evaluation.
-
-**Given** route conditions are invalid or unresolved
-**When** branch execution is attempted
-**Then** execution blocks with structured routing diagnostics and no ambiguous fallback.
-
-**Given** shared prefix steps complete
-**When** evidence is queried
-**Then** append-only step evidence includes inputs, selected branch, and timestamps.
-
-### Story 3.4: Implement Greenfield Discovery Agent Slice (`greenfield.discovery.agent`)
-
-As an operator,
-I want the greenfield discovery agent step to capture required onboarding context,
-So that downstream greenfield steps have validated inputs.
+As a platform engineer,
+I want MCP transport and contract foundations,
+So that external runtime tool access uses one canonical internal contract.
 
 **Story Metadata:**
 
 - `intentTag`: `Spike`
 - `frRefs`: `FR5`, `FR6`
-- `nfrRefs`: `NFR1`, `NFR2`
+- `nfrRefs`: `NFR1`, `NFR2`, `NFR4`, `NFR5`
 - `adrRefs`: `ADR-EF-B01`, `ADR-EF-B02`, `ADR-EF-01`, `ADR-EF-03`, `ADR-EF-04`, `ADR-EF-06`
 - `gateRefs`: `G3`
-- `evidenceRefs`: `greenfield-agent-run-log`, `agent-tool-approval-log`, `greenfield-variable-persistence-log`
-- `diagnosticRefs`: `agent-tool-gating-diagnostics`, `agent-output-validation-diagnostics`
+- `evidenceRefs`: `mcp-foundation-contract-log`, `mcp-hono-transport-log`, `native-mcp-parity-log`
+- `diagnosticRefs`: `mcp-contract-diagnostics`, `mcp-policy-diagnostics`, `mcp-transport-diagnostics`
 
 **Acceptance Criteria:**
 
-**Given** onboarding is routed to greenfield
-**When** `greenfield.discovery.agent` executes
-**Then** tool availability follows required-variable gating and policy enforcement.
+**Given** MCP foundation services are implemented
+**When** requests are processed through Hono
+**Then** contract decoding, policy checks, and typed errors execute through Effect service boundaries.
 
-**Given** agent tools execute in sequence
-**When** outputs are produced
-**Then** `facts.projectDescription`, `facts.deliveryMode`, and `context.discoverySummary` persist deterministically.
+**Given** tool exposure is configured
+**When** MCP and native lanes are compared
+**Then** both lanes resolve through the same canonical tool contract and tooling control plane.
 
-**Given** required variables are missing
-**When** a gated tool is invoked
-**Then** invocation is blocked with explicit unavailable-reason diagnostics.
-
-**Given** agent completion conditions are evaluated
-**When** required outputs are not set
-**Then** step remains incomplete and transition progress is blocked with actionable diagnostics.
-
-### Story 3.5: Implement Greenfield Completion Chain (`greenfield.paths.capture` -> `greenfield.bootstrap.action` -> `greenfield.summary.show`)
+### Story 3.8: Runtime Entry and Shared Prefix Execution (`intake.capture`, `projectType.route`)
 
 As an operator,
-I want the greenfield completion chain to persist onboarding artifacts and evidence,
-So that greenfield onboarding produces auditable outputs.
+I want deterministic runtime entry and shared prefix behavior,
+So that onboarding begins from a stable and auditable boundary.
 
 **Story Metadata:**
 
 - `intentTag`: `Spike`
-- `frRefs`: `FR6`, `FR7`
-- `nfrRefs`: `NFR1`, `NFR2`, `NFR5`
+- `frRefs`: `FR2`, `FR3`, `FR5`, `FR6`, `FR7`
+- `nfrRefs`: `NFR1`, `NFR2`, `NFR4`
 - `adrRefs`: `ADR-EF-B01`, `ADR-EF-B02`, `ADR-EF-01`, `ADR-EF-03`, `ADR-EF-06`
 - `gateRefs`: `G3`
-- `evidenceRefs`: `greenfield-path-capture-log`, `bootstrap-artifact-snapshot-log`, `artifact-slot-binding-log`, `artifact-template-resolution-log`, `git-bootstrap-evidence-log`, `greenfield-summary-render-log`
-- `diagnosticRefs`: `path-validation-diagnostics`, `action-side-effect-diagnostics`, `artifact-persistence-diagnostics`, `display-render-diagnostics`
+- `evidenceRefs`: `onboarding-entry-log`, `shared-prefix-route-log`, `prefix-step-evidence-log`
+- `diagnosticRefs`: `onboarding-entry-diagnostics`, `prefix-routing-diagnostics`
 
 **Acceptance Criteria:**
 
-**Given** `greenfield.discovery.agent` completed
-**When** `greenfield.paths.capture` runs
-**Then** `projectRootPath` and `projectKnowledgePath` pass configured path safety and under-root validation.
+**Given** project context onboarding starts
+**When** shared prefix executes
+**Then** `projectType` capture/validation and branch routing are deterministic with append-only evidence.
 
-**Given** greenfield paths are valid
-**When** `greenfield.bootstrap.action` executes
-**Then** git init-if-missing, bootstrap snapshot persistence, and commit evidence are performed deterministically.
+**Given** route conditions are invalid
+**When** branching is attempted
+**Then** execution is blocked with structured diagnostics and no ambiguous fallback.
 
-**Given** bootstrap snapshot persistence runs
-**When** artifact write is committed
-**Then** output is written through canonical `work_unit_artifact_slots` and append-only `work_unit_artifact_snapshots`
-**And** template rendering source is recorded from canonical `artifact_templates`.
-
-**Given** bootstrap action completed
-**When** `greenfield.summary.show` renders
-**Then** summary displays facts and artifact evidence using display-step contract behavior.
-
-**Given** action side effects fail
-**When** execution continues
-**Then** step fails deterministically with no partial-success ambiguity and structured diagnostics.
-
-### Story 3.6: Implement Brownfield Discovery and Decision Chain (`brownfield.paths.capture` -> `brownfield.discovery.agent` -> `brownfield.context.route`)
+### Story 3.9: Greenfield Runtime Chain
 
 As an operator,
-I want brownfield onboarding to determine whether context generation is required,
-So that the flow branches correctly before invoke.
+I want greenfield onboarding runtime completion,
+So that discovery, path capture, bootstrap action, and summary behave deterministically.
 
 **Story Metadata:**
 
 - `intentTag`: `Spike`
-- `frRefs`: `FR3`, `FR5`, `FR6`
-- `nfrRefs`: `NFR1`, `NFR2`
+- `frRefs`: `FR3`, `FR5`, `FR6`, `FR7`
+- `nfrRefs`: `NFR1`, `NFR2`, `NFR4`, `NFR5`
 - `adrRefs`: `ADR-EF-B01`, `ADR-EF-B02`, `ADR-EF-01`, `ADR-EF-03`, `ADR-EF-04`, `ADR-EF-06`
 - `gateRefs`: `G3`
-- `evidenceRefs`: `brownfield-path-capture-log`, `brownfield-discovery-agent-log`, `needs-context-generation-route-log`
-- `diagnosticRefs`: `brownfield-path-validation-diagnostics`, `brownfield-agent-diagnostics`, `brownfield-route-diagnostics`
+- `evidenceRefs`: `greenfield-runtime-chain-log`, `bootstrap-action-evidence-log`, `greenfield-summary-log`
+- `diagnosticRefs`: `greenfield-runtime-diagnostics`, `bootstrap-side-effect-diagnostics`, `snapshot-write-diagnostics`
 
 **Acceptance Criteria:**
 
-**Given** onboarding is routed to brownfield
-**When** `brownfield.paths.capture` runs
-**Then** root/knowledge paths and optional `existingIndexPath` are validated by configured rules.
+**Given** greenfield path is selected
+**When** runtime steps execute
+**Then** discovery outputs, path validations, bootstrap actions, and summary rendering persist deterministic evidence.
 
-**Given** brownfield paths are valid
-**When** `brownfield.discovery.agent` executes
-**Then** discovery summary and `needsContextGeneration` decision are produced and persisted deterministically.
+**Given** artifact persistence is required
+**When** onboarding outputs are recorded
+**Then** runtime evidence writes to canonical `project_artifact_snapshots` with lineage metadata.
 
-**Given** `needsContextGeneration` is true
-**When** `brownfield.context.route` evaluates
-**Then** route target is `brownfield.context.invoke`.
-
-**Given** `needsContextGeneration` is false
-**When** `brownfield.context.route` evaluates
-**Then** route target is `brownfield.summary.show`.
-
-### Story 3.7: Implement Same-Work-Unit Invoke and `generate-project-context` Sub-workflow
+### Story 3.10: Brownfield Runtime Chain and Same-Work-Unit Invoke
 
 As an operator,
-I want brownfield invoke to run context generation in the same work unit with explicit mapping,
-So that onboarding can complete with deterministic generated context artifacts.
+I want brownfield discovery and conditional invoke behavior,
+So that context generation occurs only when needed and remains traceable.
 
 **Story Metadata:**
 
 - `intentTag`: `Spike`
-- `frRefs`: `FR4`, `FR5`, `FR6`
-- `nfrRefs`: `NFR1`, `NFR2`
-- `adrRefs`: `ADR-EF-B01`, `ADR-EF-B02`, `ADR-EF-01`, `ADR-EF-03`, `ADR-EF-04`, `ADR-EF-06`
-- `gateRefs`: `G3`
-- `evidenceRefs`: `same-work-unit-invoke-log`, `invoke-io-mapping-log`, `generate-context-subworkflow-log`, `artifact-snapshot-log`, `artifact-slot-binding-log`, `traceability-output-log`
-- `diagnosticRefs`: `invoke-contract-diagnostics`, `subworkflow-failure-diagnostics`, `io-mapping-diagnostics`, `artifact-template-resolution-diagnostics`
-
-**Acceptance Criteria:**
-
-**Given** `brownfield.context.route` selected invoke
-**When** `brownfield.context.invoke` runs
-**Then** invoke executes with `bindingMode=same_work_unit` and `workflowRef=generate-project-context`.
-
-**Given** invoke input mapping is configured
-**When** sub-workflow starts
-**Then** mapped inputs (`projectType`, `projectRootPath`, `projectKnowledgePath`, optional `existingIndexPath`, `discoverySummary`) are validated before execution.
-
-**Given** sub-workflow executes
-**When** `inputs.confirm -> context.generate -> artifact.snapshot.save -> result.show` completes
-**Then** artifact snapshot and traceability outputs are persisted and mapped back to parent context.
-
-**Given** `artifact.snapshot.save` executes
-**When** generated context is persisted
-**Then** snapshot persistence uses canonical artifact slot and snapshot tables
-**And** snapshot metadata includes template reference, slot key, and lineage identifiers.
-
-**Given** sub-workflow fails
-**When** `onChildError=fail` applies
-**Then** parent execution fails deterministically with lineage-linked diagnostics.
-
-### Story 3.8: Harden Runtime Resilience for Onboarding Executions (Cancellation, SSE Reconnect, Idempotent Replay)
-
-As an operator,
-I want onboarding runs to survive disconnects and control actions safely,
-So that execution state remains consistent and observable.
-
-**Story Metadata:**
-
-- `intentTag`: `Spike`
-- `frRefs`: `FR5`, `FR6`, `FR7`
+- `frRefs`: `FR3`, `FR4`, `FR5`, `FR6`
 - `nfrRefs`: `NFR1`, `NFR2`, `NFR4`
-- `adrRefs`: `ADR-EF-B01`, `ADR-EF-B02`, `ADR-EF-01`, `ADR-EF-02`, `ADR-EF-03`, `ADR-EF-04`, `ADR-EF-05`, `ADR-EF-06`
+- `adrRefs`: `ADR-EF-B01`, `ADR-EF-B02`, `ADR-EF-01`, `ADR-EF-03`, `ADR-EF-04`, `ADR-EF-06`
 - `gateRefs`: `G3`
-- `evidenceRefs`: `cancellation-cascade-log`, `sse-reconnect-log`, `idempotent-replay-log`, `stream-terminal-state-log`
-- `diagnosticRefs`: `cancellation-diagnostics`, `stream-recovery-diagnostics`, `replay-idempotency-diagnostics`
+- `evidenceRefs`: `brownfield-discovery-log`, `brownfield-route-decision-log`, `same-work-unit-invoke-log`
+- `diagnosticRefs`: `brownfield-runtime-diagnostics`, `invoke-io-mapping-diagnostics`, `lineage-persistence-diagnostics`
 
 **Acceptance Criteria:**
 
-**Given** an active onboarding execution
-**When** cancellation is requested
-**Then** cancellation propagates deterministically to active runtime units and terminal evidence is appended.
+**Given** brownfield path is selected
+**When** discovery and route decision execute
+**Then** `needsContextGeneration` deterministically routes to invoke or summary path.
 
-**Given** SSE stream disconnect occurs
-**When** client reconnects
-**Then** stream continuity resumes from durable cursor without duplicate side effects.
+**Given** invoke path is selected
+**When** `generate-project-context` runs in same work unit
+**Then** input/output mappings, lineage, and failure semantics are deterministic and diagnostic-rich.
 
-**Given** replay/retry is triggered for an onboarding attempt
-**When** idempotency boundaries are evaluated
-**Then** duplicate side effects are prevented and diagnostics remain deterministic.
-
-**Given** an onboarding step replays after artifact persistence
-**When** idempotency checks run
-**Then** duplicate artifact snapshots are prevented for the same idempotency boundary
-**And** deterministic diagnostics identify whether snapshot reuse or append is applied.
-
-**Given** runtime recovery scenarios execute
-**When** evidence is inspected
-**Then** diagnostics and event evidence remain append-only and queryable.
-
-### Story 3.9: Prove Greenfield Child Brainstorming Invoke and Consolidate G3 Promotion Evidence
+### Story 3.11: Runtime Resilience, Child Invoke Proof, and G3 Consolidation
 
 As a release owner,
-I want greenfield onboarding to optionally open a child brainstorming work unit and prove nested invoke behavior,
-So that guidance-driven progression and G3 promotion evidence are both validated.
+I want resilience and nested invoke proof consolidated with gate evidence,
+So that Epic 3 can promote to Slice A on reproducible technical evidence.
 
 **Story Metadata:**
 
 - `intentTag`: `Spike`
 - `frRefs`: `FR3`, `FR4`, `FR5`, `FR6`, `FR7`
-- `nfrRefs`: `NFR1`, `NFR2`, `NFR5`
-- `adrRefs`: `ADR-EF-B01`, `ADR-EF-B02`, `ADR-EF-01`, `ADR-EF-03`, `ADR-EF-04`, `ADR-EF-06`
+- `nfrRefs`: `NFR1`, `NFR2`, `NFR4`, `NFR5`
+- `adrRefs`: `ADR-EF-B01`, `ADR-EF-B02`, `ADR-EF-01`, `ADR-EF-02`, `ADR-EF-03`, `ADR-EF-04`, `ADR-EF-05`, `ADR-EF-06`
 - `gateRefs`: `G3`
-- `evidenceRefs`: `greenfield-brainstorming-decision-log`, `child-brainstorming-invoke-log`, `parent-child-lineage-log`, `nested-invoke-evidence-log`, `g3-evidence-bundle`, `g3-promotion-decision-log`
-- `diagnosticRefs`: `brainstorming-openability-diagnostics`, `child-invoke-contract-diagnostics`, `nested-invoke-diagnostics`, `g3-gate-checklist-diagnostics`
+- `evidenceRefs`: `runtime-resilience-log`, `child-invoke-proof-log`, `g3-consolidation-bundle-log`, `g3-promotion-decision-log`
+- `diagnosticRefs`: `resilience-runtime-diagnostics`, `child-invoke-diagnostics`, `g3-gate-checklist-diagnostics`
 
 **Acceptance Criteria:**
 
-**Given** `WU.PROJECT_CONTEXT` onboarding is in greenfield path
-**When** `intake.capture` persists `projectType=greenfield`
-**Then** methodology guidance evaluation can open brainstorming transition eligibility for the project according to contract rules.
+**Given** active executions run
+**When** cancellation, SSE reconnect, and replay scenarios occur
+**Then** behavior is deterministic, idempotent boundaries are respected, and evidence remains append-only.
 
-**Given** `greenfield.discovery.agent` determines brainstorming is required
-**When** onboarding reaches the configured invoke decision point
-**Then** `document-project` invokes a `WU.BRAINSTORMING` child work unit using `bindingMode=child_work_units` with explicit parent->child inputs.
+**Given** child invoke proof scenarios run
+**When** nested invoke succeeds or fails
+**Then** lineage and diagnostics are persisted for both paths without partial transition corruption.
 
-**Given** a child brainstorming workflow is invoked
-**When** the selected child workflow is `conduct-brainstorming-session`
-**Then** child runtime supports same-work-unit invoke of elicitation techniques as nested invoke behavior.
-
-**Given** child brainstorming fixture assumptions are required for this spike
-**When** story setup is validated
-**Then** methodology contains stubbed `WU.BRAINSTORMING` transition/workflow definitions sufficient for runtime proof
-**And** full brainstorming depth remains deferred to Epic 4 Slice A.
-
-**Given** child or nested invoke contract validation fails
-**When** execution is attempted
-**Then** execution blocks deterministically with actionable diagnostics and no partial transition corruption.
-
-**Given** Stories 3.1 through 3.8 evidence exists and Story 3.9 child/nested invoke proof completes
-**When** G3 consolidation runs
-**Then** evidence and diagnostics are bundled into a reproducible promotion artifact set
-**And** gate decision references persisted evidence/diagnostic refs and cannot pass on narrative summary alone.
+**Given** Epic 3 story evidence is complete
+**When** G3 consolidation executes
+**Then** promotion artifacts are reproducible and gate decisions reference persisted evidence and diagnostics.
 
 ## Epic 4: Golden Path Slice A - Planning Chain
 
