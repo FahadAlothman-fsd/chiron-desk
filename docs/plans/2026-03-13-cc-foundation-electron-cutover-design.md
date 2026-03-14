@@ -66,6 +66,8 @@ This keeps TanStack Router/Query and existing renderer behavior intact while iso
   - `contextIsolation: true`
   - `nodeIntegration: false`
 - Expose only narrow, explicit APIs from preload to renderer.
+- Make the shell real and runnable in this story by implementing the first desktop host orchestration path for `apps/server`: probe for an already running healthy backend, attach if available, start if absent, wait for readiness, then continue renderer startup.
+- Use OpenCode as the orchestration precedent for readiness probing and attach/start flow shape, but not as a literal architecture template because Chiron loads `apps/web` as the renderer and coordinates `apps/server` from Electron main instead of launching a terminal TUI session.
 
 ### CCF-3 Dev Runtime Parity
 
@@ -92,6 +94,14 @@ This keeps TanStack Router/Query and existing renderer behavior intact while iso
 - Preload provides minimal bridge for approved operations.
 - App/business workflows continue to communicate with `apps/server` over existing app APIs.
 - Avoid importing server/db/auth runtime modules directly into renderer.
+
+### Local service orchestration precedent
+
+- OpenCode reference repo: `https://github.com/anomalyco/opencode`
+- Useful implementation reference: `https://github.com/anomalyco/opencode/blob/dev/sdks/vscode/src/extension.ts`
+- Useful CLI attach semantics reference: `https://opencode.ai/docs/cli/`
+- Reusable lesson for Chiron: adopt the service lifecycle pattern `probe -> attach if healthy -> start if absent -> wait for readiness -> proceed`.
+- Non-transferable detail: do not copy the terminal/TUI startup model; Chiron should implement the same lifecycle in Electron main around `apps/server` while keeping `apps/web` as the renderer.
 
 ---
 

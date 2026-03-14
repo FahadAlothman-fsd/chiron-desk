@@ -4,7 +4,7 @@
 
 **Goal:** Replace Tauri with a thin Electron shell while keeping `apps/web` as the single renderer and preserving web plus desktop runtime parity.
 
-**Architecture:** Keep product logic in `apps/web` and `apps/server`, and add `apps/desktop` only for host responsibilities (window lifecycle, preload bridge, backend process bootstrap). Remove all Tauri artifacts first because the team is currently web-first, then establish deterministic dev/prod desktop startup and smoke gates. Gate Epic 3 on parity checks, not on package refactors.
+**Architecture:** Keep product logic in `apps/web` and `apps/server`, and add `apps/desktop` only for host responsibilities (window lifecycle, preload bridge, backend process bootstrap). Remove all Tauri artifacts first because the team is currently web-first, then establish deterministic dev/prod desktop startup and smoke gates. For local backend orchestration, adapt OpenCode's service lifecycle shape (`probe -> attach if healthy -> start if absent -> wait for readiness -> proceed`) in Electron main rather than copying its terminal/TUI startup model. Gate Epic 3 on parity checks, not on package refactors.
 
 **Tech Stack:** Bun workspaces, Turborepo, Electron, Vite (web renderer), TanStack Router/Query, Vitest, Playwright MCP.
 
@@ -242,6 +242,25 @@ if (devUrl) {
 }
 ```
 
+Also add the first backend attach/start helper in `apps/desktop/main.ts` using this sequence:
+
+```ts
+export const ensureBackendReady = async (runtime: RuntimeConfig) => {
+  const candidate = resolveBackendUrl(runtime)
+  if (await probeBackendHealth(candidate)) return candidate
+
+  const child = await startBackendIfAbsent(runtime)
+  await waitForBackendReadiness(candidate)
+  return { url: candidate, child }
+}
+```
+
+Rules:
+- In development, probe the expected backend URL first and reuse the existing healthy backend when `bun dev` already started it.
+- Only spawn a managed backend when no healthy backend is available.
+- Use HTTP health readiness, not only port-open checks.
+- If readiness fails, stop desktop startup with a clear blocking error.
+
 Update scripts:
 - `apps/desktop/package.json` add `"dev:attach": "electron ."`
 - `package.json` add `"dev:desktop": "turbo run dev --filter=desktop"`
@@ -305,6 +324,13 @@ if (process.env.VITE_DEV_SERVER_URL) {
 }
 ```
 
+Packaged mode must preserve the same service lifecycle semantics from Task 3:
+- probe for an already available compatible backend first
+- attach if healthy
+- otherwise launch the packaged/local backend process
+- wait for HTTP readiness before loading the renderer
+- fail with explicit diagnostics if readiness never succeeds
+
 Update scripts:
 - `apps/web/package.json` ensure `build` outputs `dist` (already true, keep stable)
 - `apps/desktop/package.json` add `"build:app": "bun run --cwd ../web build && bun run build"`
@@ -358,11 +384,13 @@ Update `apps/desktop/preload.ts`:
 import { contextBridge } from "electron"
 
 export type DesktopBridge = {
-  ping: () => string
+  getRuntimeStatus: () => Promise<{ backend: "ready" | "starting" | "error" }>
+  restartLocalServices: () => Promise<void>
 }
 
 const desktopBridge: DesktopBridge = {
-  ping: () => "pong",
+  getRuntimeStatus: async () => ({ backend: "ready" }),
+  restartLocalServices: async () => {},
 }
 
 contextBridge.exposeInMainWorld("desktop", desktopBridge)
@@ -376,11 +404,14 @@ export {}
 declare global {
   interface Window {
     desktop?: {
-      ping: () => string
+      getRuntimeStatus: () => Promise<{ backend: "ready" | "starting" | "error" }>
+      restartLocalServices: () => Promise<void>
     }
   }
 }
 ```
+
+Keep this intentionally narrow. Do not expose raw Node APIs, generic IPC senders, or direct process control.
 
 **Step 4: Run test to verify it passes**
 
@@ -534,3 +565,9 @@ Expected outcome: web and desktop runtime parity established, Tauri fully remove
 - `@superpowers/executing-plans` for execution workflow.
 - `@turborepo` for package-task and root delegation compliance.
 - `@playwright` for MCP desktop interaction smoke validation.
+
+## External Reference
+
+- OpenCode repo: `https://github.com/anomalyco/opencode`
+- VS Code integration reference: `https://github.com/anomalyco/opencode/blob/dev/sdks/vscode/src/extension.ts`
+- CLI attach semantics: `https://opencode.ai/docs/cli/`
