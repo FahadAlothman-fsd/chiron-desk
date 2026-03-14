@@ -60,6 +60,14 @@ development_status:
   2-6-provide-baseline-operator-visibility-for-methodology-pin-and-diagnostics-state: done
   2-7-enforce-canonical-methodology-persistence-and-establish-project-context-module-boundary: done
   epic-2-retrospective: done
+  cc-foundation: backlog
+  ccf-1-remove-tauri-surface-from-active-code-paths: backlog
+  ccf-2-add-thin-electron-shell-with-secure-runtime-boundaries: backlog
+  ccf-3-establish-web-desktop-server-runtime-parity: backlog
+  ccf-4-initialize-test-foundation-after-electron-cutover: backlog
+  ccf-5-lock-thin-core-boundaries-before-epic-3: backlog
+  ccf-6-re-baseline-canonical-planning-artifacts-after-electron-cutover: backlog
+  cc-foundation-retrospective: backlog
   epic-3: backlog
   3-1-complete-design-time-ia-and-page-shell-baseline: backlog
   3-2-complete-work-unit-l2-tabs-overview-workflows-artifact-slots-facts-state-machine: backlog

@@ -42,7 +42,9 @@ NFR5: Local-first development supports reset/rebuild cycles to runnable canonica
 ### Additional Requirements
 
 - Keep Epics 1-2 intact as foundational; redesign Epic 3+ only.
+- Insert `CC-Foundation` as a prerequisite cutover epic before Epic 3 execution.
 - Epic 3+ sequencing must follow: Spike -> Vertical Slice -> Hardening -> Scale-out.
+- `/bmad-tea-testarch-framework` initialization occurs after Electron cutover and web+desktop+server smoke parity, not before migration.
 - Story intent policy must be explicit: Epic 3 stories are Spike, Epics 4-5 are Vertical Slice, Epic 6 is Hardening, Epic 7 is Scale-out.
 - Golden-path-first implementation must map across this ordered chain: brainstorming -> research -> product brief -> prd -> ux-design -> architecture -> create-epics-stories -> create-story -> dev-story -> code-review.
 - Progression gates are mandatory between phases: G3 (Spike->Slice A), G4 (Slice A->Slice B), G5 (Slice B->Hardening), G6 (Hardening->Scale-out).
@@ -109,6 +111,231 @@ Operators can execute core flows and inspect execution, transition, and artifact
 **Intent tag:** Foundation (unchanged)
 **FRs covered:** FR2 (operational baseline), FR6, FR7
 
+### CC-Foundation: Electron Cutover and Runtime Parity
+
+Teams replace Tauri with Electron, preserve the shared renderer/server architecture, and establish stable web + desktop + server parity before Epic 3 runtime work begins.
+
+**Intent tag:** Foundation Prerequisite
+**FRs covered:** FR2 (delivery/runtime baseline), FR5 (desktop host baseline), FR7 (operator-visible parity)
+**Scope guardrails:**
+- Immediate Tauri removal from the active code path.
+- `apps/web` remains the single renderer source.
+- `apps/desktop` is shell-only (Electron main/preload/IPC).
+- `apps/server` remains the shared backend runtime host.
+- `core` remains thin orchestration only; no monolithic refactor is allowed in this epic.
+- `/bmad-tea-testarch-framework` begins only after migration parity gates pass.
+
+### Story CCF.1: Remove Tauri Surface From Active Code Paths
+
+As a platform engineer,
+I want to remove Tauri from active scripts, dependencies, and shell artifacts,
+So that Electron becomes the single supported desktop host baseline.
+
+**Story Metadata:**
+
+- `intentTag`: `Foundation Prerequisite`
+- `frRefs`: `FR2`, `FR5`
+- `nfrRefs`: `NFR1`, `NFR5`
+- `adrRefs`: `ADR-EF-B01`, `ADR-EF-B02`
+- `gateRefs`: `G2.5`
+- `evidenceRefs`: `tauri-removal-diff-log`, `desktop-script-surface-log`, `desktop-dependency-cleanup-log`
+- `diagnosticRefs`: `desktop-script-regression-diagnostics`, `desktop-shell-removal-diagnostics`
+
+**Acceptance Criteria:**
+
+**Given** the current repository still contains Tauri shell wiring
+**When** CC-Foundation cutover begins
+**Then** `apps/web/src-tauri/**` is removed from the active codebase
+**And** Tauri-specific scripts and dependencies are removed from supported package surfaces.
+
+**Given** desktop-related root and package scripts are inspected after cutover
+**When** a contributor reviews available commands
+**Then** no active command path references Tauri
+**And** Electron is the only supported desktop host path.
+
+**Given** archived or historical documentation still mentions Tauri
+**When** implementation reads current runtime instructions
+**Then** active guidance points to Electron-only desktop flow
+**And** stale Tauri instructions are not presented as valid current execution paths.
+
+### Story CCF.2: Add Thin Electron Shell With Secure Runtime Boundaries
+
+As a platform engineer,
+I want a thin Electron shell with secure preload boundaries,
+So that desktop hosting is available without rewriting renderer or backend architecture.
+
+**Story Metadata:**
+
+- `intentTag`: `Foundation Prerequisite`
+- `frRefs`: `FR2`, `FR5`, `FR7`
+- `nfrRefs`: `NFR1`, `NFR5`
+- `adrRefs`: `ADR-EF-B01`, `ADR-EF-B02`, `ADR-EF-03`
+- `gateRefs`: `G2.5`
+- `evidenceRefs`: `electron-shell-bootstrap-log`, `preload-boundary-log`, `desktop-runtime-model-log`
+- `diagnosticRefs`: `electron-bootstrap-diagnostics`, `preload-bridge-diagnostics`, `desktop-security-baseline-diagnostics`
+
+**Acceptance Criteria:**
+
+**Given** `apps/desktop` is introduced as the desktop host
+**When** the Electron shell boots
+**Then** it hosts the existing renderer rather than duplicating UI logic
+**And** `apps/web` remains the single renderer source of truth.
+
+**Given** Electron window configuration is created
+**When** desktop runtime defaults are applied
+**Then** `contextIsolation` is enabled
+**And** `nodeIntegration` is disabled
+**And** renderer access to machine operations is only through explicit preload APIs.
+
+**Given** the current modular architecture includes `contracts`, domain engines, and transport packages
+**When** the Electron shell is added
+**Then** no domain package is moved into a desktop-specific layer
+**And** shell-specific code remains isolated to `apps/desktop`.
+
+### Story CCF.3: Establish Web + Desktop + Server Runtime Parity
+
+As a release owner,
+I want stable parity across web, desktop, and server runtime flows,
+So that Epic 3 builds on one coherent product architecture instead of diverging hosts.
+
+**Story Metadata:**
+
+- `intentTag`: `Foundation Prerequisite`
+- `frRefs`: `FR2`, `FR5`, `FR7`
+- `nfrRefs`: `NFR1`, `NFR5`
+- `adrRefs`: `ADR-EF-B01`, `ADR-EF-03`, `ADR-EF-06`
+- `gateRefs`: `G2.5`
+- `evidenceRefs`: `desktop-dev-parity-log`, `desktop-packaged-parity-log`, `web-desktop-server-smoke-log`
+- `diagnosticRefs`: `desktop-startup-diagnostics`, `server-bootstrap-diagnostics`, `renderer-parity-diagnostics`
+
+**Acceptance Criteria:**
+
+**Given** web development flow already exists
+**When** desktop development flow is introduced
+**Then** desktop can attach to the running renderer/server development environment deterministically
+**And** web development continues to function independently.
+
+**Given** a packaged desktop build is produced
+**When** the application is launched in packaged mode
+**Then** renderer assets load deterministically
+**And** the backend is started or attached in a deterministic order
+**And** end-user execution does not require Bun to be installed manually.
+
+**Given** parity is evaluated across all runtime surfaces
+**When** smoke checks run
+**Then** the same core product flow is reachable from web and desktop modes
+**And** failures produce actionable diagnostics rather than silent shell-specific breakage.
+
+### Story CCF.4: Initialize Test Foundation After Electron Cutover
+
+As a test architect,
+I want the test architecture framework initialized only after Electron cutover parity is real,
+So that automation targets the actual repo structure instead of a speculative one.
+
+**Story Metadata:**
+
+- `intentTag`: `Foundation Prerequisite`
+- `frRefs`: `FR5`, `FR7`
+- `nfrRefs`: `NFR1`, `NFR2`, `NFR5`
+- `adrRefs`: `ADR-EF-04`, `ADR-EF-06`
+- `gateRefs`: `G2.5`
+- `evidenceRefs`: `post-cutover-testarch-init-log`, `desktop-smoke-framework-log`, `playwright-mcp-desktop-proof-log`
+- `diagnosticRefs`: `testarch-bootstrap-diagnostics`, `desktop-smoke-failure-diagnostics`, `playwright-mcp-diagnostics`
+
+**Acceptance Criteria:**
+
+**Given** Electron cutover and runtime parity are complete
+**When** `/bmad-tea-testarch-framework` is initialized
+**Then** it targets the real post-cutover repository structure
+**And** no Tauri-specific assumptions remain in test architecture setup.
+
+**Given** desktop runtime is available after cutover
+**When** Playwright MCP validation is executed
+**Then** agents can navigate and interact with the Electron-hosted application through the real desktop runtime path
+**And** that interaction is recorded as gate evidence for downstream work.
+
+**Given** baseline framework smoke checks run
+**When** web, desktop, and server surfaces are exercised
+**Then** the framework establishes a reusable post-cutover verification baseline for Epic 3 and later epics.
+
+### Story CCF.5: Lock Thin Core Boundaries Before Epic 3
+
+As an architect,
+I want the thin-core boundaries explicitly locked before Epic 3 starts,
+So that runtime and delivery work cannot drift into a monolithic orchestration layer.
+
+**Story Metadata:**
+
+- `intentTag`: `Foundation Prerequisite`
+- `frRefs`: `FR2`, `FR5`, `FR7`
+- `nfrRefs`: `NFR1`, `NFR2`, `NFR5`
+- `adrRefs`: `ADR-EF-B01`, `ADR-EF-02`, `ADR-EF-03`
+- `gateRefs`: `G2.5`
+- `evidenceRefs`: `core-boundary-decision-log`, `package-responsibility-map`, `epic3-prerequisite-architecture-log`
+- `diagnosticRefs`: `boundary-violation-diagnostics`, `package-ownership-diagnostics`
+
+**Acceptance Criteria:**
+
+**Given** Chiron already contains dedicated packages such as `workflow-engine`, `methodology-engine`, `project-context`, and `contracts`
+**When** the course correction is finalized
+**Then** `core` is defined only as thin orchestration/use-case coordination
+**And** domain rules remain in domain packages
+**And** shared contracts remain in `packages/contracts`.
+
+**Given** package responsibilities are reviewed before Epic 3
+**When** the architecture boundaries are documented
+**Then** `core` is allowed to contain orchestration, ports/interfaces, and app-level policy composition only
+**And** `core` is explicitly forbidden from absorbing DB/filesystem/process adapters, Electron host code, Hono transport handlers, or React/TanStack UI code.
+
+**Given** Epic 3 dependencies are evaluated
+**When** promotion past CC-Foundation is considered
+**Then** Epic 3 cannot start unless thin-core boundaries are explicitly locked and referenced in planning artifacts.
+
+### Story CCF.6: Re-Baseline Canonical Planning Artifacts After Electron Cutover
+
+As a planning owner,
+I want the canonical BMAD planning artifacts re-baselined after Electron cutover is proven,
+So that Epic 3 and later work build on the real post-cutover architecture instead of temporary correction notes.
+
+**Story Metadata:**
+
+- `intentTag`: `Foundation Prerequisite`
+- `frRefs`: `FR2`, `FR5`, `FR7`
+- `nfrRefs`: `NFR1`, `NFR2`, `NFR5`
+- `adrRefs`: `ADR-EF-B01`, `ADR-EF-03`, `ADR-EF-06`
+- `gateRefs`: `G2.5`
+- `evidenceRefs`: `planning-rebaseline-log`, `prd-rebaseline-log`, `architecture-rebaseline-log`, `command-surface-rebaseline-log`
+- `diagnosticRefs`: `planning-drift-diagnostics`, `canonical-doc-alignment-diagnostics`
+
+**Acceptance Criteria:**
+
+**Given** Electron cutover and runtime parity have been validated
+**When** canonical planning artifacts are re-baselined
+**Then** `/_bmad-output/planning-artifacts/prd.md` reflects Electron as the approved desktop host
+**And** `/_bmad-output/planning-artifacts/architecture.md` reflects the real post-cutover runtime structure.
+
+**Given** temporary pending course-correction notes were added during migration planning
+**When** re-baseline is complete
+**Then** those temporary notes are removed or replaced with final canonical wording
+**And** active run/dev/build command references match the real supported repo flows.
+
+**Given** the final post-cutover structure includes `apps/web`, `apps/desktop`, `apps/server`, thin `core`, and `packages/contracts`
+**When** Epic 3 readiness is reviewed
+**Then** canonical planning artifacts record those boundaries explicitly
+**And** downstream epics no longer depend on temporary correction context to understand the architecture.
+
+### CC-Foundation Retrospective
+
+Run a structured retrospective immediately after `CCF.6` completes and before Epic 3 begins.
+
+**Purpose:** confirm the Electron cutover actually improved the delivery footing, capture migration pain while fresh, and record any guardrails or follow-up fixes needed before runtime work expands.
+
+**Exit requirements:**
+- Document what slowed the cutover down, what accelerated it, and what should be repeated.
+- Capture any remaining Electron/runtime risks that are acceptable to carry into Epic 3.
+- Confirm web + desktop + server parity still holds at the time of retrospective.
+- Record whether thin-core boundaries held in practice or need tightening.
+
 ### Epic 3: Runtime Primitive Spikes
 
 Teams prove critical runtime primitives with reproducible evidence before production slice expansion.
@@ -148,6 +375,7 @@ Teams expand validated runtime patterns across additional workflows/modules/prov
 
 ### Progression Acceptance Gates (Epic 3+)
 
+- G2.5 (CC-Foundation -> Epic 3): Tauri removed from active path, Electron desktop runs in dev and packaged modes, web + desktop + server smoke parity passes, Playwright MCP desktop interaction smoke passes, and `/bmad-tea-testarch-framework` is ready to initialize against the real post-cutover structure.
 - G3 (Epic 3 -> Epic 4): Spike proofs complete with reproducible evidence for cancellation cascade, invoke child completion/lineage, idempotent replay boundary, SSE reconnect continuity, and deterministic append-only gate evidence.
 - G4 (Epic 4 -> Epic 5): Planning chain runnable end-to-end (brainstorming -> research -> product brief -> prd) with persisted/queryable outputs and actionable diagnostics.
 - G5 (Epic 5 -> Epic 6): Full golden path runnable with at least one success run and one intentional failure run with diagnostics.
@@ -155,6 +383,7 @@ Teams expand validated runtime patterns across additional workflows/modules/prov
 
 ### Golden-Path Milestone Mapping to Epics
 
+- CC-Foundation milestone: Electron cutover complete with stable parity across web, desktop, and server.
 - Epic 3 milestone: primitive proof for brainstorming and research execution semantics.
 - Epic 4 milestone: runnable planning chain (brainstorming -> research -> product brief -> prd).
 - Epic 5 milestone: runnable solutioning/delivery chain (ux-design -> architecture -> create-epics-stories -> create-story -> dev-story -> code-review).
@@ -2165,11 +2394,21 @@ So that release decisions are grounded in deterministic runtime, diagnostics, an
 
 ### Epic 3
 
-- `3.1` dependsOn `[1.5, 2.5]`
+- `3.1` dependsOn `[1.5, 2.5, cc-foundation-retrospective]`
 - `3.2` dependsOn `[3.1]`
 - `3.3` dependsOn `[3.1]`
 - `3.4` dependsOn `[3.2, 3.3]`
 - `3.5` dependsOn `[3.1, 3.2, 3.3, 3.4]`
+
+### CC-Foundation
+
+- `CCF.1` dependsOn `[2.5]`
+- `CCF.2` dependsOn `[CCF.1]`
+- `CCF.3` dependsOn `[CCF.2]`
+- `CCF.4` dependsOn `[CCF.3]`
+- `CCF.5` dependsOn `[CCF.4]`
+- `CCF.6` dependsOn `[CCF.5]`
+- `cc-foundation-retrospective` dependsOn `[CCF.6]`
 
 ### Epic 4
 
@@ -2208,6 +2447,7 @@ So that release decisions are grounded in deterministic runtime, diagnostics, an
 ### Parallelization Guidance
 
 - `2.2` and `2.3` can run in parallel after `2.1`.
+- `CCF.2` packaging prep and `CCF.3` parity checks can partially overlap once shell baseline exists, but `CCF.5` remains a hard gate before Epic 3.
 - `3.2` and `3.3` can run in parallel after `3.1`.
 - `6.1`, `6.2`, and `6.3` can run in parallel after `5.7`.
 - `7.1`, `7.2`, and `7.3` can run in parallel after `6.5`.
