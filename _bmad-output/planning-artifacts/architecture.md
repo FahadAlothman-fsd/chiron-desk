@@ -3,6 +3,8 @@
 Date: 2026-02-21
 Status: Canonical architecture reference for reset + rebuild (updated after Correct Course resequencing)
 
+Pending course-correction note (2026-03-14): this architecture document predates completion of the approved Tauri -> Electron cutover. It remains authoritative for domain/module boundaries, but desktop-host/runtime sections must be revised again after `CC-Foundation` implementation finishes and web + desktop + server parity is proven.
+
 ## 1) Architectural Core
 
 Chiron is an Effect-based orchestration platform with a methodology-first domain model.

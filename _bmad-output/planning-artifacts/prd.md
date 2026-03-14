@@ -37,13 +37,15 @@ editHistory:
 Date: 2026-02-18
 Status: Canonical PRD for reset + reimplementation
 
+Pending course-correction note (2026-03-14): desktop runtime wording in this PRD still reflects the pre-cutover Tauri posture. It remains temporarily canonical for product scope, but desktop-host implementation details must be re-baselined to Electron after `CC-Foundation` stories complete and runtime parity is verified.
+
 ## 1) Executive Summary
 
 ### Product Vision
 
 Chiron is a methodology-first orchestration platform for AI-assisted software delivery. It turns BMAD workflows into executable, auditable runs where planning and execution remain synchronized through work units, transitions, and deterministic gates.
 
-Current delivery posture is a desktop application with a client-server architecture: a Tauri desktop client and a backend runtime server exposing typed control/query APIs and runtime streams.
+Current delivery posture is a desktop application with a client-server architecture. The product scope remains unchanged, but the desktop host is currently under approved migration from Tauri to Electron via `CC-Foundation`; after those stories complete, this PRD must be updated again to reflect the live Electron architecture precisely.
 
 ## 2) Primary Outcomes
 

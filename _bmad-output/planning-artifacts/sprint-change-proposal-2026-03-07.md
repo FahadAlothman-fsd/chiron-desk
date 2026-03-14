@@ -10,27 +10,30 @@ Mode used: Batch (ULW)
 Current implementation ships desktop via Tauri. Concern raised: desktop delivery should remain low-friction, and future desktop iteration velocity should not become tedious.
 
 ### Problem Statement
-We need to decide whether replacing Tauri with Electron reduces long-term execution friction without violating existing PRD/architecture/UX commitments.
+We need to replace Tauri with Electron in a way that preserves the existing renderer/server architecture, keeps Epic 3 intact, and establishes a stable desktop-first foundation before further implementation work resumes.
 
 ### Evidence Collected
 - Current native code is minimal (`apps/web/src-tauri/src/lib.rs`, `apps/web/src-tauri/src/main.rs`) with no custom command surface.
 - Renderer appears not coupled to Tauri APIs (`@tauri-apps/api` usage not found in app source).
 - Tauri coupling is concentrated in build/dev scripts and packaging config.
-- Automation tangent: first-party Playwright MCP is browser-first; Electron automation through MCP is feasible mainly via third-party Electron-capable MCP servers or direct Playwright Electron APIs.
+- Playwright MCP desktop interaction was validated through Electron remote debugging/CDP attach, so agent-driven desktop smoke testing remains viable after the cutover.
 
 ## 2) Impact Analysis
 
 ### Epic Impact
 - Existing product epics remain valid functionally (orchestration, runtime behavior, UX semantics).
 - Change primarily affects platform-delivery stories under desktop packaging/dev workflow.
-- Epic sequencing impact: introduce migration spike and shell swap stories before additional desktop polish stories.
+- Epic sequencing impact: insert a prerequisite `CC-Foundation` epic before Epic 3 execution; keep Epic 3 design intact and only add dependency gates.
 
 ### Story Impact
 - New migration-focused stories required for:
-  - Electron shell scaffold and process model.
-  - Dev/build/release script migration.
-  - Security baseline (`contextIsolation`, preload, IPC boundaries, CSP policy alignment).
-  - Regression validation for desktop behaviors and update/install paths.
+  - immediate Tauri removal,
+  - Electron shell scaffold and process model,
+  - dev/build/release script migration,
+  - security baseline (`contextIsolation`, preload, IPC boundaries, CSP policy alignment),
+  - web + desktop + server smoke parity,
+  - `/bmad-tea-testarch-framework` initialization after migration parity is achieved,
+  - final re-baseline of canonical planning artifacts once the real Electron structure is proven.
 
 ### Artifact Conflicts
 - PRD: desktop target wording should become desktop-shell-neutral or explicitly Electron if decision approved.
@@ -47,10 +50,13 @@ We need to decide whether replacing Tauri with Electron reduces long-term execut
 
 Selected path: **Option 1 - Direct Adjustment (with short migration spike)**
 
+Finalized path: **Option 1 - Direct Adjustment via prerequisite `CC-Foundation` epic**
+
 Rationale:
 - Current Tauri-native surface is small, so shell migration can be isolated.
 - Product behavior contracts live mostly above shell layer.
-- Keeps roadmap momentum while reducing uncertainty via timeboxed spike.
+- Epic 3 can remain intact if migration is treated as a short prerequisite rather than folded into product-story execution.
+- Test architecture should target the real post-migration repo structure, not a speculative one.
 
 Estimated effort:
 - Spike + design decision: 1-2 days
@@ -63,27 +69,27 @@ Risk assessment:
 - Key risks: packaging/signing process differences, local server lifecycle management, desktop security defaults, installer/update behavior drift.
 
 Timeline impact:
-- Short-term: moderate shift of one sprint lane.
-- Long-term: potentially improved desktop iteration ergonomics if Electron tooling aligns better with team workflows.
+- Short-term: concentrated prerequisite lane before Epic 3 execution.
+- Long-term: improved desktop iteration ergonomics and clearer runtime boundaries once Electron becomes the single desktop shell.
 
 ## 4) Detailed Change Proposals
 
 ### A. Stories
 
-Story: `[NEW] DESKTOP-MIG-1 Electron Feasibility Spike`  
+Story: `[NEW] CCF-1 Remove Tauri Surface`  
 Section: New story
 
 OLD:
-- No dedicated migration decision story.
+- Tauri remains active in scripts, config, and `apps/web/src-tauri/**`.
 
 NEW:
-- Produce decision record comparing Tauri vs Electron for this repo.
-- Validate Electron can launch/coordinate existing backend runtime in dev and prod modes.
-- Document security baseline and packaging plan.
+- Remove `apps/web/src-tauri/**`.
+- Remove Tauri scripts/dependencies from active paths.
+- Remove Tauri root/turbo delegation.
 
-Rationale: de-risks implementation before broad changes.
+Rationale: hard cutover avoids dual-maintenance overhead because active usage is web-first.
 
-Story: `[NEW] DESKTOP-MIG-2 Replace Native Shell with Electron`  
+Story: `[NEW] CCF-2 Add Electron Shell`  
 Section: New story
 
 OLD:
@@ -92,33 +98,62 @@ OLD:
 NEW:
 - Add Electron main/preload structure.
 - Keep renderer app unchanged except minimal bridge wiring if required.
-- Remove Tauri runtime dependency from active path.
+- Enforce secure defaults (`contextIsolation`, no renderer Node exposure, typed preload bridge).
 
 Rationale: isolates framework swap to shell layer.
 
-Story: `[NEW] DESKTOP-MIG-3 Native Dev/Build Pipeline Migration`  
+Story: `[NEW] CCF-3 Establish Runtime Parity`  
 Section: New story
 
 OLD:
 - `desktop:dev`, `desktop:dev:attach`, `desktop:build` run through Tauri.
 
 NEW:
-- Equivalent Electron scripts and packaging flow.
-- CI/release docs updated for Electron artifacts.
+- Desktop dev attaches to running web/server flow.
+- Packaged Electron app starts/attaches backend deterministically.
+- Web, desktop, and server smoke path all pass on the new structure.
 
-Rationale: makes desktop delivery operationally complete.
+Rationale: parity must exist before product implementation resumes.
 
-Story: `[NEW] DESKTOP-MIG-4 Desktop Regression + Automation`  
+Story: `[NEW] CCF-4 Initialize Test Foundation After Cutover`  
 Section: New story
 
 OLD:
-- No explicit Electron automation plan.
+- No validated post-migration test architecture baseline.
 
 NEW:
-- Define test strategy: direct Playwright Electron automation for core flows.
-- Optional MCP path via third-party Electron-capable MCP server for agent-driven sessions.
+- Initialize `/bmad-tea-testarch-framework` only after Electron migration and smoke parity complete.
+- Add desktop interaction smoke using Playwright MCP against the real Electron runtime.
 
-Rationale: ensures confidence and supports agent workflows.
+Rationale: test architecture should target the actual repo/runtime structure, not the Tauri-era or speculative interim state.
+
+Story: `[NEW] CCF-5 Lock Thin Core Boundaries`  
+Section: New story
+
+OLD:
+- `core` package role undefined and at risk of becoming a monolithic refactor bucket.
+
+NEW:
+- `core` is allowed only as a thin orchestration layer.
+- `packages/contracts` remains the canonical shared contract layer.
+- Domain logic remains in existing domain packages.
+- `core` must not absorb DB adapters, Electron host code, Hono handlers, or UI code.
+
+Rationale: preserves modularity and prevents the migration from expanding into a package-architecture rewrite.
+
+Story: `[NEW] CCF-6 Re-Baseline Canonical Planning Artifacts`  
+Section: New story
+
+OLD:
+- PRD and architecture still carry temporary pending course-correction notes and pre-cutover wording.
+
+NEW:
+- Re-baseline `/_bmad-output/planning-artifacts/prd.md` after cutover parity is real.
+- Re-baseline `/_bmad-output/planning-artifacts/architecture.md` after the Electron structure is proven.
+- Remove temporary pending course-correction notes.
+- Update canonical docs to reflect final repo/runtime shape: `apps/web`, `apps/desktop`, `apps/server`, thin `core`, `packages/contracts`.
+
+Rationale: canonical planning artifacts should be finalized only after the actual post-cutover structure is validated, not while it is still in transition.
 
 ### B. PRD Modifications
 
@@ -142,10 +177,13 @@ OLD:
 
 NEW:
 - Add Electron architecture slice:
-  - Main process boots and supervises local backend process.
+  - `apps/web` remains the single renderer source.
+  - `apps/desktop` becomes a thin shell only (main/preload/IPC).
+  - Main process boots and supervises local backend process where required.
   - Preload provides minimal, typed bridge surface.
   - Renderer keeps existing API usage pattern.
   - Security controls: no Node exposure in renderer, strict IPC contracts.
+  - `core` is thin orchestration only; contracts stay in `packages/contracts`, domain rules stay in domain packages.
 
 Ripple effects:
 - Update deployment/build diagram and native packaging steps.
@@ -167,19 +205,20 @@ NEW:
 User impact:
 - Migration should be behavior-preserving from user perspective.
 
-### E. MCP/Agent Access Proposal (Research Tangent)
+### E. MCP/Agent Access Proposal
 
 Current state:
-- First-party Playwright MCP is browser-centric.
-- Electron control via MCP is feasible primarily with third-party Electron-capable MCP servers.
+- Playwright MCP is browser-first, but Electron interaction is feasible by attaching to Electron's debugging target and driving the real renderer path.
 
 Recommended path:
-1. Primary: automate Electron via direct Playwright Electron APIs for stable CI checks.
-2. Secondary: add optional third-party Electron MCP server for interactive agent sessions.
+1. Primary CI/runtime gate: post-cutover desktop smoke on the real Electron app.
+2. Agent validation: Playwright MCP smoke against the real Electron runtime after migration parity.
+3. Re-baseline canonical docs only after that parity/testing gate proves the real structure.
+4. Optional later enhancement: specialized Electron-capable MCP tooling if interactive needs exceed the current attach model.
 
 Caveats:
 - Remote debugging endpoints must be secured.
-- Third-party MCP maintenance risk should be tracked.
+- MCP validation is a post-migration gate, not a pre-migration blocker.
 
 ## 5) Implementation Handoff
 
@@ -199,7 +238,10 @@ Scope classification: **Moderate**
 - Desktop app runs in dev and packaged modes via Electron.
 - Existing core workflows function with no UX regression.
 - Security baseline enforced (isolated renderer + explicit IPC).
-- Documentation and CI pathways updated to Electron-native flow.
+- Web + desktop + server smoke parity is established.
+- `/bmad-tea-testarch-framework` is initialized only after parity is established.
+- `core` boundaries are documented and migration work does not expand into monolithic package refactoring.
+- PRD and architecture are re-baselined after parity through `CCF-6`, with temporary migration notes removed.
 
 ---
 
