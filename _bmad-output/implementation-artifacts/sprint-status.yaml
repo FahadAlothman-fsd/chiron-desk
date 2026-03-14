@@ -62,7 +62,7 @@ development_status:
   epic-2-retrospective: done
   cc-foundation: in-progress
   ccf-1-remove-tauri-surface-from-active-code-paths: done
-  ccf-2-add-thin-electron-shell-with-secure-runtime-boundaries: backlog
+  ccf-2-add-thin-electron-shell-with-secure-runtime-boundaries: done
   ccf-3-establish-web-desktop-server-runtime-parity: backlog
   ccf-4-initialize-test-foundation-after-electron-cutover: backlog
   ccf-5-lock-thin-core-boundaries-before-epic-3: backlog
