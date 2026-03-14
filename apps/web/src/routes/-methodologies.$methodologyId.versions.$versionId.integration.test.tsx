@@ -3,15 +3,18 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { useParamsMock, useRouteContextMock, useSearchMock, useNavigateMock } = vi.hoisted(() => ({
-  useParamsMock: vi.fn(),
-  useRouteContextMock: vi.fn(),
-  useSearchMock: vi.fn(),
-  useNavigateMock: vi.fn(),
-}));
+const { useLocationMock, useParamsMock, useRouteContextMock, useSearchMock, useNavigateMock } =
+  vi.hoisted(() => ({
+    useLocationMock: vi.fn(),
+    useParamsMock: vi.fn(),
+    useRouteContextMock: vi.fn(),
+    useSearchMock: vi.fn(),
+    useNavigateMock: vi.fn(),
+  }));
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children }: { children: ReactNode }) => <a href="/">{children}</a>,
+  useLocation: useLocationMock,
   createFileRoute: () => (options: Record<string, unknown>) => ({
     ...options,
     useLocation: useLocationMock,
@@ -222,6 +225,9 @@ function renderRoute(
     },
   });
 
+  useLocationMock.mockReturnValue({
+    pathname: "/methodologies/equity-core/versions/draft-v2",
+  });
   useParamsMock.mockReturnValue({
     methodologyId: "equity-core",
     versionId: "draft-v2",
@@ -243,6 +249,7 @@ function renderRoute(
 }
 
 beforeEach(() => {
+  useLocationMock.mockReset();
   useParamsMock.mockReset();
   useRouteContextMock.mockReset();
   useSearchMock.mockReset();

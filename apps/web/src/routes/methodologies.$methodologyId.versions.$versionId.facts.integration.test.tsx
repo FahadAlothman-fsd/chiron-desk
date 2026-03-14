@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -31,6 +31,22 @@ vi.mock("sonner", () => ({
 }));
 
 import { MethodologyVersionFactsRoute } from "./methodologies.$methodologyId.versions.$versionId.facts";
+
+function comboboxForField(label: string): HTMLButtonElement {
+  const field = screen.getByText(label).closest("div");
+  if (!field) {
+    throw new Error(`Field not found for ${label}`);
+  }
+
+  return within(field).getByRole("combobox") as HTMLButtonElement;
+}
+
+function chooseOption(label: string, optionName: string) {
+  fireEvent.click(comboboxForField(label));
+  const option = screen.getByRole("option", { name: optionName });
+  fireEvent.mouseMove(option);
+  fireEvent.click(option);
+}
 
 function createTestHarness() {
   const draftProjection = {
@@ -170,14 +186,12 @@ describe("methodology version facts route", () => {
       target: { value: "Workspace Root" },
     });
     fireEvent.change(screen.getByLabelText("Fact Key"), { target: { value: "workspace_root" } });
-    expect(screen.getByLabelText("Validation Type")).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Validation Type"), { target: { value: "path" } });
-    expect(screen.getByLabelText("Path Kind")).toBeTruthy();
-    expect(screen.getByLabelText("Trim whitespace")).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Validation Type"), {
-      target: { value: "allowed-values" },
-    });
-    expect(screen.getByLabelText("Allowed value input")).toBeTruthy();
+    expect(comboboxForField("Validation Type")).toBeTruthy();
+    chooseOption("Validation Type", "path");
+    expect(await screen.findByText("Path Kind")).toBeTruthy();
+    expect(screen.getByLabelText(/Trim Whitespace/i)).toBeTruthy();
+    chooseOption("Validation Type", "allowed-values");
+    expect(await screen.findByLabelText("Allowed value input")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Allowed value input"), {
       target: { value: "greenfield" },
     });
@@ -187,9 +201,11 @@ describe("methodology version facts route", () => {
     });
     expect(screen.getByText("greenfield")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
-    expect(await screen.findByLabelText("Human markdown")).toBeTruthy();
-    expect(screen.getByLabelText("Agent markdown")).toBeTruthy();
-    expect(screen.queryByLabelText("Validation Type")).toBeNull();
+    expect(await screen.findByLabelText("Human Guidance")).toBeTruthy();
+    expect(screen.getByLabelText("Agent Guidance")).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.queryByText("Validation Type")).toBeNull();
+    });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(await screen.findByText("Workspace Root")).toBeTruthy();
@@ -198,8 +214,9 @@ describe("methodology version facts route", () => {
     expect(invalidateQueriesMock).toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "View guidance" }));
-    expect(await screen.findByRole("dialog", { name: "Guidance" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    const guidanceDialog = await screen.findByRole("dialog", { name: "Guidance" });
+    expect(guidanceDialog).toBeTruthy();
+    fireEvent.click(within(guidanceDialog).getAllByRole("button", { name: "Close" })[0]!);
 
     fireEvent.click(screen.getAllByRole("button", { name: "Fact actions" })[0]!);
     fireEvent.click(await screen.findByRole("menuitem", { name: "Edit" }));
