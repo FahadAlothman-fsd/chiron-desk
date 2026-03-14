@@ -37,8 +37,6 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "check-types": "turbo check-types",
-    "dev:native": "bun run --cwd apps/web desktop:dev",
-    "dev:native:attach": "bun run --cwd apps/web desktop:dev:attach",
     "dev:web": "turbo -F web dev",
     "dev:server": "turbo -F server dev",
     "db:push": "turbo -F @chiron/db db:push",

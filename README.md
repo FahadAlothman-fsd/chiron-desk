@@ -15,7 +15,6 @@ This project was created with [Better-T-Stack](https://github.com/AmanVarshney01
 - **SQLite/Turso** - Database engine
 - **Authentication** - Better-Auth
 - **Oxlint** - Oxlint + Oxfmt (linting & formatting)
-- **Tauri** - Build native desktop applications
 - **Turborepo** - Optimized monorepo build system
 
 ## Getting Started
@@ -83,6 +82,3 @@ chiron/
 - `bun run db:studio`: Open database studio UI
 - `bun run db:local`: Start the local SQLite database
 - `bun run check`: Run Oxlint and Oxfmt
-- `cd apps/web && bun run desktop:dev`: Start Tauri desktop app in development
-- `bun run dev:native:attach`: Start Tauri desktop app from repo root, attaching to an already running web dev server (`bun run dev`)
-- `cd apps/web && bun run desktop:build`: Build Tauri desktop app

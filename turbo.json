@@ -21,12 +21,6 @@
       "cache": false,
       "persistent": true
     },
-    "dev:native": {
-      "cache": false
-    },
-    "dev:native:attach": {
-      "cache": false
-    },
     "db:push": {
       "cache": false
     },
