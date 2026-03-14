@@ -1,0 +1,23 @@
+{
+  "name": "desktop",
+  "private": true,
+  "type": "module",
+  "main": "dist/desktop/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "NODE_OPTIONS='--import tsx' ELECTRON_RENDERER_URL=${ELECTRON_RENDERER_URL:-http://localhost:3001} electron ./main.ts",
+    "start": "bun run build && electron .",
+    "test": "vitest run",
+    "check-types": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "electron": "^37.4.0"
+  },
+  "devDependencies": {
+    "@chiron/config": "workspace:*",
+    "@types/bun": "catalog:",
+    "tsx": "^4.20.5",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
