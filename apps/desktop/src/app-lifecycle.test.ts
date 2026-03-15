@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { startDesktopApp } from "../main";
+import { resolveRendererTarget, startDesktopApp } from "../main";
 
 describe("desktop app lifecycle", () => {
   it("boots the shell after Electron is ready", async () => {
@@ -64,5 +64,36 @@ describe("desktop app lifecycle", () => {
     ).rejects.toThrow(/Failed to start required local service/);
 
     expect(onStartupError).toHaveBeenCalledOnce();
+  });
+
+  it("loads packaged renderer assets before showing the window", async () => {
+    const browserWindow = {
+      loadURL: vi.fn().mockResolvedValue(undefined),
+      loadFile: vi.fn().mockResolvedValue(undefined),
+      show: vi.fn(),
+    };
+
+    await startDesktopApp({
+      app: { whenReady: vi.fn().mockResolvedValue(undefined) },
+      ipcMain: { handle: vi.fn() },
+      createBrowserWindow: vi.fn().mockReturnValue(browserWindow),
+      rendererTarget: resolveRendererTarget({
+        appRoot: "/opt/Chiron/resources/app.asar",
+        resourcesPath: "/opt/Chiron/resources",
+      }),
+      runtime: {
+        probe: vi.fn().mockResolvedValue(false),
+        startServer: vi.fn().mockResolvedValue({ owned: true }),
+        waitForReady: vi.fn().mockResolvedValue(undefined),
+      },
+      getRuntimeStatus: () => ({ backend: "attached" }),
+      recoverLocalServices: vi.fn().mockResolvedValue(undefined),
+      onStartupError: vi.fn(),
+    });
+
+    expect(browserWindow.loadFile).toHaveBeenCalledWith(
+      "/opt/Chiron/resources/web-dist/index.html",
+    );
+    expect(browserWindow.show).toHaveBeenCalledOnce();
   });
 });
