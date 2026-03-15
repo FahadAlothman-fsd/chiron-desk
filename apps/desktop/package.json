@@ -1,23 +1,54 @@
 {
   "name": "desktop",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
   "main": "dist/desktop/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "build:release": "bun --filter web build && bun --filter server build && bun --filter server compile && bun run build",
     "dev": "NODE_OPTIONS='--import tsx' ELECTRON_RENDERER_URL=${ELECTRON_RENDERER_URL:-http://localhost:3001} electron ./main.ts",
+    "package:linux": "bun run build:release && electron-builder --linux AppImage",
     "start": "bun run build && electron .",
     "test": "vitest run",
     "check-types": "tsc --noEmit -p tsconfig.json"
   },
-  "dependencies": {
-    "electron": "^37.4.0"
-  },
   "devDependencies": {
     "@chiron/config": "workspace:*",
     "@types/bun": "catalog:",
+    "electron": "^37.4.0",
+    "electron-builder": "^26.0.12",
     "tsx": "^4.20.5",
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "build": {
+    "appId": "local.chiron.desktop",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "dist/desktop/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../web/dist",
+        "to": "web-dist"
+      },
+      {
+        "from": "../server/dist",
+        "to": "server-dist"
+      },
+      {
+        "from": "../server/server",
+        "to": "server-dist/server"
+      }
+    ],
+    "linux": {
+      "target": [
+        "AppImage"
+      ]
+    }
   }
 }
