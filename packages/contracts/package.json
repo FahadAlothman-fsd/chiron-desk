@@ -4,13 +4,23 @@
   "type": "module",
   "exports": {
     ".": {
-      "default": "./src/index.ts"
+      "types": "./src/index.ts",
+      "bun": "./src/index.ts",
+      "default": "./dist/src/index.js"
+    },
+    "./desktop-runtime": {
+      "types": "./src/desktop-runtime.ts",
+      "bun": "./src/desktop-runtime.ts",
+      "default": "./dist/src/desktop-runtime.js"
     },
     "./*": {
-      "default": "./src/*.ts"
+      "types": "./src/*.ts",
+      "bun": "./src/*.ts",
+      "default": "./dist/src/*.js"
     }
   },
   "scripts": {
+    "build": "tsc -p tsconfig.json",
     "test": "vitest run"
   },
   "dependencies": {
