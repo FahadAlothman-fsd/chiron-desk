@@ -6,6 +6,8 @@ node_modules
 # Build outputs
 dist
 build
+apps/desktop/dist-electron
+apps/server/server
 *.tsbuildinfo
 
 # Environment variables
