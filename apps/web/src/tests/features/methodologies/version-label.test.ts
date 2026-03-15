@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatMethodologyVersionLabel } from "./version-label";
+import { formatMethodologyVersionLabel } from "../../../features/methodologies/version-label";
 
 describe("formatMethodologyVersionLabel", () => {
   it("prefixes draft versions so draft status is explicit", () => {

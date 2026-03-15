@@ -5,7 +5,7 @@ import {
   MethodologyVersionWorkspace,
   toDeterministicJson,
   type MethodologyVersionWorkspaceDraft,
-} from "./version-workspace";
+} from "../../../features/methodologies/version-workspace";
 
 const SAMPLE_DRAFT: MethodologyVersionWorkspaceDraft = {
   methodologyKey: "bmad.v1",

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildSidebarSections } from "./sidebar-sections";
+import { buildSidebarSections } from "../../components/sidebar-sections";
 
 describe("buildSidebarSections", () => {
   it("returns system sidebar sections for system scope", () => {

@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it } from "vitest";
 
-import { getNextGroupBoundaryIndex, type GroupedCommandRow } from "./command-palette-navigation";
+import {
+  getNextGroupBoundaryIndex,
+  type GroupedCommandRow,
+} from "../../../features/methodologies/command-palette-navigation";
 
 const rows: GroupedCommandRow[] = [
   { group: "Open", disabled: false },

@@ -25,7 +25,7 @@ vi.mock("@/features/methodologies/workspace-shell", () => ({
   MethodologyWorkspaceShell: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
-import { MethodologyVersionsRoute } from "./methodologies.$methodologyId.versions";
+import { MethodologyDetailsRoute } from "../../routes/methodologies.$methodologyId";
 
 function createTestHarness() {
   const orpc = {
@@ -46,11 +46,35 @@ function createTestHarness() {
             versions: [
               {
                 id: "mver_bmad_project_context_only_draft",
+                version: "v2-draft",
+                status: "draft",
+                displayName: "BMAD v1",
+                createdAt: "2026-03-10T09:42:43.783Z",
+                retiredAt: null,
+              },
+              {
+                id: "mver_bmad_project_context_only_active",
                 version: "v1",
                 status: "active",
                 displayName: "BMAD v1",
                 createdAt: "2026-03-09T21:42:43.783Z",
                 retiredAt: null,
+              },
+            ],
+          }),
+        }),
+      },
+      getDraftProjection: {
+        queryOptions: () => ({
+          queryKey: ["methodology", "draft", "mver_bmad_project_context_only_draft"],
+          queryFn: async () => ({
+            factDefinitions: [
+              {
+                name: "Repository URL",
+                key: "repo_url",
+                factType: "string",
+                defaultValue: "https://example.com/repo.git",
+                validation: { kind: "none" },
               },
             ],
           }),
@@ -65,12 +89,12 @@ function createTestHarness() {
   });
 
   useRouteContextMock.mockReturnValue({ orpc, queryClient });
-  useLocationMock.mockReturnValue({ pathname: "/methodologies/bmad.v1/versions" });
+  useLocationMock.mockReturnValue({ pathname: "/methodologies/bmad.v1" });
 
   return { queryClient };
 }
 
-describe("methodology versions route", () => {
+describe("methodology details route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -79,20 +103,24 @@ describe("methodology versions route", () => {
     cleanup();
   });
 
-  it("renders the versions ledger as a table/grid page", async () => {
+  it("renders a dashboard-style fact inventory and links out to the facts editor", async () => {
     const { queryClient } = createTestHarness();
     render(
       <QueryClientProvider client={queryClient}>
-        <MethodologyVersionsRoute />
+        <MethodologyDetailsRoute />
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByText("Version Ledger")).toBeTruthy();
-    expect(screen.getByText("Version Ledger")).toBeTruthy();
-    expect(screen.getByRole("columnheader", { name: "Display Name" })).toBeTruthy();
-    expect(screen.getByRole("columnheader", { name: "Version" })).toBeTruthy();
-    expect(screen.getByRole("columnheader", { name: "Status" })).toBeTruthy();
-    expect(screen.getByRole("columnheader", { name: "Actions" })).toBeTruthy();
-    expect(screen.getByRole("cell", { name: "BMAD v1" })).toBeTruthy();
+    expect(await screen.findByText("BMAD v1")).toBeTruthy();
+    expect(screen.getByText("Fact Inventory")).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Fact" })).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Type" })).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Guidance" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Open Facts Editor" }).getAttribute("href")).toBe(
+      "/methodologies/$methodologyId/versions/$versionId/facts",
+    );
+    expect(screen.queryByRole("columnheader", { name: "Actions" })).toBeNull();
+    expect(screen.queryByText("Metadata")).toBeNull();
+    expect(screen.queryByText("Runtime")).toBeNull();
   });
 });

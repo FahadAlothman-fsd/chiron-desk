@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vitest";
 
 import {
   breadcrumbScopes,
@@ -9,7 +9,7 @@ import {
   reduceTopologyScope,
   type GraphProjectionInput,
   type GraphScope,
-} from "./version-graph";
+} from "../../../features/methodologies/version-graph";
 
 const GRAPH_INPUT: GraphProjectionInput = {
   workUnitTypes: [

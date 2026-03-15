@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getAvatarAssetForMethodologyIndex } from "./card-avatar-map";
+import { getAvatarAssetForMethodologyIndex } from "../../../features/projects/card-avatar-map";
 
 describe("getAvatarAssetForMethodologyIndex", () => {
   it("maps indices deterministically and cycles every four entries", () => {

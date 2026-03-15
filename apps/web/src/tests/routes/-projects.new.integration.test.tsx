@@ -21,7 +21,7 @@ vi.mock("@/features/methodologies/workspace-shell", () => ({
   MethodologyWorkspaceShell: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
-import { CreateProjectRoute } from "./projects.new";
+import { CreateProjectRoute } from "../../routes/projects.new";
 
 type MethodologyVersionFixture = {
   id: string;

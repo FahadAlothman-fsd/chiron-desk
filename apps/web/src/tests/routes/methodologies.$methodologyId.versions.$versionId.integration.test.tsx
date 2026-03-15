@@ -45,7 +45,7 @@ vi.mock("@/features/methodologies/version-workspace", () => ({
   }),
 }));
 
-import { MethodologyWorkspaceEntryRoute } from "./methodologies.$methodologyId.versions.$versionId";
+import { MethodologyWorkspaceEntryRoute } from "../../routes/methodologies.$methodologyId.versions.$versionId";
 
 function createTestHarness() {
   const orpc = {

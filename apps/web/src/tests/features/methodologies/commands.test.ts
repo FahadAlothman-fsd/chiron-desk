@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it } from "vitest";
 
 import {
   METHODOLOGY_COMMAND_IDS,
@@ -7,9 +7,12 @@ import {
   buildNextDraftInput,
   getCommandSearchMethodology,
   rankAndLimitMethodologyCommands,
-} from "./commands";
-import type { MethodologyCommand } from "./commands";
-import type { MethodologyCatalogItem, MethodologyDetails } from "./foundation";
+} from "../../../features/methodologies/commands";
+import type { MethodologyCommand } from "../../../features/methodologies/commands";
+import type {
+  MethodologyCatalogItem,
+  MethodologyDetails,
+} from "../../../features/methodologies/foundation";
 
 const catalog: MethodologyCatalogItem[] = [
   {

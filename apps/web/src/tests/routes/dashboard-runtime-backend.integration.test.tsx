@@ -47,7 +47,7 @@ vi.mock("@/utils/orpc", () => ({
   },
 }));
 
-import { Route } from "./dashboard";
+import { Route } from "../../routes/dashboard";
 
 const DashboardRoute = (Route as unknown as { component: () => ReactNode }).component;
 

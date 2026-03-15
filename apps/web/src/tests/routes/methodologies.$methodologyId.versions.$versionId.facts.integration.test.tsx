@@ -30,7 +30,7 @@ vi.mock("sonner", () => ({
   },
 }));
 
-import { MethodologyVersionFactsRoute } from "./methodologies.$methodologyId.versions.$versionId.facts";
+import { MethodologyVersionFactsRoute } from "../../routes/methodologies.$methodologyId.versions.$versionId.facts";
 
 function comboboxForField(label: string): HTMLButtonElement {
   const field = screen.getByText(label).closest("div");

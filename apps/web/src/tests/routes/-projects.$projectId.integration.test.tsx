@@ -27,7 +27,7 @@ vi.mock("@/features/methodologies/workspace-shell", () => ({
   MethodologyWorkspaceShell: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
-import { ProjectDashboardRoute } from "./projects.$projectId.index";
+import { ProjectDashboardRoute } from "../../routes/projects.$projectId.index";
 
 function createHarness() {
   const orpc = {

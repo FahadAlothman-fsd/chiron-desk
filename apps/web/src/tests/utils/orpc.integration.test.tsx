@@ -34,7 +34,7 @@ describe("orpc runtime bridge", () => {
   });
 
   it("falls back to baked web env when the desktop bridge is absent", async () => {
-    await import("./orpc");
+    await import("../../utils/orpc");
 
     expect(RPCLink).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -52,7 +52,7 @@ describe("orpc runtime bridge", () => {
       recoverLocalServices: vi.fn(),
     };
 
-    await import("./orpc");
+    await import("../../utils/orpc");
 
     expect(RPCLink).toHaveBeenCalledWith(
       expect.objectContaining({

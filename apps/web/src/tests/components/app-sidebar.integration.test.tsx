@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { forwardRef, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AppSidebar, type SidebarNavSection } from "./app-sidebar";
+import { AppSidebar, type SidebarNavSection } from "../../components/app-sidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 
 const navigateMock = vi.fn();

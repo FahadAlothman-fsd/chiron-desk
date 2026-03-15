@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it } from "vitest";
 
 import {
   RUNTIME_DEFERRED_RATIONALE,
   getDeterministicState,
   selectLatestDraft,
   sortCatalogDeterministically,
-} from "./foundation";
+} from "../../../features/methodologies/foundation";
 
 describe("methodology foundation helpers", () => {
   it("keeps deterministic catalog ordering for equivalent input", () => {

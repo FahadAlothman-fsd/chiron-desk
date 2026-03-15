@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MethodologyCommandPalette } from "./command-palette";
+import { MethodologyCommandPalette } from "../../../features/methodologies/command-palette";
 
 const navigateMock = vi.fn();
 const invalidateQueriesMock = vi.fn();

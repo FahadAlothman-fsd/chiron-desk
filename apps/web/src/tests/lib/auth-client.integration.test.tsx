@@ -24,7 +24,7 @@ describe("auth client runtime bridge", () => {
   });
 
   it("falls back to baked web env when the desktop bridge is absent", async () => {
-    await import("./auth-client");
+    await import("../../lib/auth-client");
 
     expect(createAuthClient).toHaveBeenCalledWith({
       baseURL: "http://localhost:3000",
@@ -40,7 +40,7 @@ describe("auth client runtime bridge", () => {
       recoverLocalServices: vi.fn(),
     };
 
-    await import("./auth-client");
+    await import("../../lib/auth-client");
 
     expect(createAuthClient).toHaveBeenCalledWith({
       baseURL: "http://127.0.0.1:43110",

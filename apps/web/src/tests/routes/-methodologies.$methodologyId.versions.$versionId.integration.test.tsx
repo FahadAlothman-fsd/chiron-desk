@@ -38,7 +38,7 @@ vi.mock("@/features/methodologies/workspace-shell", () => ({
   MethodologyWorkspaceShell: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
-import { MethodologyWorkspaceEntryRoute } from "./methodologies.$methodologyId.versions.$versionId";
+import { MethodologyWorkspaceEntryRoute } from "../../routes/methodologies.$methodologyId.versions.$versionId";
 
 type ValidationDiagnostic = {
   code: string;
