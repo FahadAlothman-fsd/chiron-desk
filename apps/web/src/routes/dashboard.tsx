@@ -2,10 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { authClient } from "@/lib/auth-client";
+import { resolveRuntimeBackendUrl } from "@/lib/runtime-backend";
 import { useSSE } from "@/lib/use-sse";
 import { orpc } from "@/utils/orpc";
-
-import { env } from "@chiron/env/web";
 
 export const Route = createFileRoute("/dashboard")({
   component: RouteComponent,
@@ -123,10 +122,11 @@ const typographyShowcase = [
 
 function RouteComponent() {
   const { session } = Route.useRouteContext();
+  const backendUrl = resolveRuntimeBackendUrl();
 
   const privateData = useQuery(orpc.privateData.queryOptions());
   const healthCheck = useQuery(orpc.healthCheck.queryOptions());
-  const { events, status } = useSSE(`${env.VITE_SERVER_URL}/sse/smoke`);
+  const { events, status } = useSSE(`${backendUrl}/sse/smoke`);
 
   const latestTick = events.length > 0 ? events[events.length - 1] : null;
   const privateMessage = privateData.isLoading
