@@ -5,13 +5,16 @@
   "type": "module",
   "main": "dist/desktop/main.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "build:release": "bun --filter web build && bun --filter server build && bun --filter server compile && bun run build",
+    "build": "bun --filter \"@chiron/contracts\" build && tsc -p tsconfig.json",
+    "build:release": "bun --filter web build && bun --filter server build && bun --filter server bundle:desktop && bun run build",
     "dev": "NODE_OPTIONS='--import tsx' ELECTRON_RENDERER_URL=${ELECTRON_RENDERER_URL:-http://localhost:3001} electron ./main.ts",
     "package:linux": "bun run build:release && electron-builder --linux AppImage",
     "start": "bun run build && electron .",
     "test": "vitest run",
     "check-types": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@chiron/contracts": "workspace:*"
   },
   "devDependencies": {
     "@chiron/config": "workspace:*",
@@ -37,12 +40,16 @@
         "to": "web-dist"
       },
       {
-        "from": "../server/dist",
-        "to": "server-dist"
+        "from": "../server/dist/bun",
+        "to": "server-dist/bun"
       },
       {
-        "from": "../server/server",
-        "to": "server-dist/server"
+        "from": "../server/dist/server.mjs",
+        "to": "server-dist/server.mjs"
+      },
+      {
+        "from": "../server/dist/node_modules",
+        "to": "server-dist/node_modules"
       }
     ],
     "linux": {
