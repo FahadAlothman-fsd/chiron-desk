@@ -13,6 +13,12 @@ type RuntimeCleanupHandle = OwnedRuntimeHandle & {
   stop: () => Promise<void>;
 };
 
+type RuntimeLaunchSpec = {
+  command: string;
+  args: string[];
+  cwd: string;
+};
+
 type RendererLoader = {
   loadURL: (url: string) => Promise<unknown>;
   loadFile: (filePath: string) => Promise<unknown>;
@@ -67,6 +73,12 @@ export type DesktopRuntimeStatus = {
   backend: "attached" | "started";
 };
 
+type PackagedPaths = {
+  rendererHtml: string;
+  serverCwd: string;
+  serverExecutable: string;
+};
+
 type RuntimeReadyOptions = {
   probe: () => Promise<boolean>;
   startServer: () => Promise<OwnedRuntimeHandle>;
@@ -83,6 +95,10 @@ function getDesktopPackageRoot(moduleDir = dirname(fileURLToPath(import.meta.url
   }
 
   return moduleDir;
+}
+
+function isPackagedAppLayout(appRoot: string, resourcesPath?: string): boolean {
+  return basename(appRoot) === "app.asar" && Boolean(resourcesPath);
 }
 
 export function getBrowserWindowOptions(): BrowserWindowConstructorOptions {
@@ -113,6 +129,7 @@ export function createMainWindow<TWindow>(
 export function resolveRendererTarget(options: {
   devServerUrl?: string;
   appRoot?: string;
+  resourcesPath?: string;
 }): RendererTarget {
   if (options.devServerUrl) {
     return {
@@ -123,9 +140,33 @@ export function resolveRendererTarget(options: {
 
   const appRoot = options.appRoot ?? getDesktopPackageRoot();
 
+  if (isPackagedAppLayout(appRoot, options.resourcesPath)) {
+    return {
+      mode: "file",
+      target: resolvePackagedPaths({
+        appRoot,
+        resourcesPath: options.resourcesPath,
+      }).rendererHtml,
+    };
+  }
+
   return {
     mode: "file",
     target: join(appRoot, "..", "web", "dist", "index.html"),
+  };
+}
+
+export function resolvePackagedPaths(options: {
+  appRoot?: string;
+  resourcesPath?: string;
+}): PackagedPaths {
+  const appRoot = options.appRoot ?? getDesktopPackageRoot();
+  const resourcesPath = options.resourcesPath ?? join(appRoot, "..");
+
+  return {
+    rendererHtml: join(resourcesPath, "web-dist", "index.html"),
+    serverCwd: join(resourcesPath, "server-dist"),
+    serverExecutable: join(resourcesPath, "server-dist", "server"),
   };
 }
 
@@ -135,6 +176,36 @@ export function resolveBackendUrl(backendUrl = "http://localhost:3000"): string 
 
 export function resolveServerScript(options: { devServerUrl?: string }): "dev" | "start:headless" {
   return options.devServerUrl ? "dev" : "start:headless";
+}
+
+export function resolveRuntimeLaunch(options: {
+  appRoot: string;
+  devServerUrl?: string;
+  resourcesPath?: string;
+}): RuntimeLaunchSpec {
+  if (options.devServerUrl) {
+    return {
+      command: "bun",
+      args: ["run", resolveServerScript(options)],
+      cwd: join(options.appRoot, "..", "server"),
+    };
+  }
+
+  if (isPackagedAppLayout(options.appRoot, options.resourcesPath)) {
+    const packagedPaths = resolvePackagedPaths(options);
+
+    return {
+      command: packagedPaths.serverExecutable,
+      args: [],
+      cwd: packagedPaths.serverCwd,
+    };
+  }
+
+  return {
+    command: "bun",
+    args: ["run", resolveServerScript(options)],
+    cwd: join(options.appRoot, "..", "server"),
+  };
 }
 
 export async function loadRendererTarget(
@@ -294,13 +365,17 @@ async function waitForBackendReady(backendUrl: string): Promise<void> {
 
 async function createOwnedRuntimeHandle(
   appRoot: string,
-  options: { devServerUrl?: string },
+  options: { devServerUrl?: string; resourcesPath?: string },
 ): Promise<RuntimeCleanupHandle> {
   const { spawn } = await import("node:child_process");
-  const serverScript = resolveServerScript(options);
+  const launchSpec = resolveRuntimeLaunch({
+    appRoot,
+    devServerUrl: options.devServerUrl,
+    resourcesPath: options.resourcesPath,
+  });
 
-  const child = spawn("bun", ["run", serverScript], {
-    cwd: join(appRoot, "..", "server"),
+  const child = spawn(launchSpec.command, launchSpec.args, {
+    cwd: launchSpec.cwd,
     env: process.env,
     stdio: "inherit",
   });
@@ -326,13 +401,17 @@ async function runDesktopApp(): Promise<void> {
   const rendererTarget = resolveRendererTarget({
     devServerUrl,
     appRoot,
+    resourcesPath: process.resourcesPath,
   });
 
   let runtimeStatus: DesktopRuntimeStatus = { backend: "attached" };
   let ownedRuntime: RuntimeCleanupHandle | undefined;
 
   const startServer = async (): Promise<OwnedRuntimeHandle> => {
-    ownedRuntime = await createOwnedRuntimeHandle(appRoot, { devServerUrl });
+    ownedRuntime = await createOwnedRuntimeHandle(appRoot, {
+      devServerUrl,
+      resourcesPath: process.resourcesPath,
+    });
     return ownedRuntime;
   };
 

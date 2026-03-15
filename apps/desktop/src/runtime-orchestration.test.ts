@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import serverPackage from "../../server/package.json";
-import { ensureRuntimeReady, resolveServerScript } from "../main";
+import { ensureRuntimeReady, resolveRuntimeLaunch, resolveServerScript } from "../main";
 
 describe("runtime orchestration contract", () => {
   it("requires the server headless start contract", () => {
@@ -48,5 +48,31 @@ describe("runtime orchestration contract", () => {
 
   it("uses the headless built server script for packaged startup", () => {
     expect(resolveServerScript({})).toBe("start:headless");
+  });
+
+  it("starts the dev server from the source workspace when using a dev renderer", () => {
+    expect(
+      resolveRuntimeLaunch({
+        appRoot: "/repo/apps/desktop",
+        devServerUrl: "http://localhost:3001",
+      }),
+    ).toEqual({
+      command: "bun",
+      args: ["run", "dev"],
+      cwd: "/repo/apps/server",
+    });
+  });
+
+  it("starts the packaged server binary from bundled resources", () => {
+    expect(
+      resolveRuntimeLaunch({
+        appRoot: "/opt/Chiron/resources/app.asar",
+        resourcesPath: "/opt/Chiron/resources",
+      }),
+    ).toEqual({
+      command: "/opt/Chiron/resources/server-dist/server",
+      args: [],
+      cwd: "/opt/Chiron/resources/server-dist",
+    });
   });
 });
