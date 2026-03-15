@@ -1,12 +1,4 @@
-type DesktopRuntimeStatus = {
-  backend: "unknown" | "attached" | "started" | "error";
-  message?: string;
-};
-
-type DesktopApi = {
-  getRuntimeStatus: () => Promise<DesktopRuntimeStatus>;
-  recoverLocalServices: () => Promise<void>;
-};
+import type { DesktopApi } from "@chiron/contracts/desktop-runtime";
 
 declare global {
   interface Window {

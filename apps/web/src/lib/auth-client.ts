@@ -1,6 +1,6 @@
-import { env } from "@chiron/env/web";
 import { createAuthClient } from "better-auth/react";
+import { resolveRuntimeBackendUrl } from "./runtime-backend";
 
 export const authClient = createAuthClient({
-  baseURL: env.VITE_SERVER_URL,
+  baseURL: resolveRuntimeBackendUrl(),
 });
