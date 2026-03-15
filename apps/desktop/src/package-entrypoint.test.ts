@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import desktopPackage from "../package.json";
 
@@ -39,5 +41,19 @@ describe("desktop package entrypoint contract", () => {
   it("keeps electron in devDependencies for packaging", () => {
     expect(desktopPackageConfig.devDependencies.electron).toBeTruthy();
     expect(desktopPackageConfig.dependencies?.electron).toBeUndefined();
+  });
+
+  it("uses .js-suffixed local esm imports for packaged desktop modules", () => {
+    const desktopSources = ["main.ts", "src/runtime-bootstrap.ts", "src/runtime-env.ts"].map(
+      (relativePath) => readFileSync(join(import.meta.dirname, "..", relativePath), "utf8"),
+    );
+
+    expect(desktopSources[0]).toContain('from "./src/runtime-bootstrap.js"');
+    expect(desktopSources[0]).toContain('from "./src/runtime-env.js"');
+    expect(desktopSources[1]).toContain('from "./runtime-config.js"');
+    expect(desktopSources[1]).toContain('from "./runtime-paths.js"');
+    expect(desktopSources[1]).toContain('from "./runtime-secrets.js"');
+    expect(desktopSources[2]).toContain('from "./runtime-config.js"');
+    expect(desktopSources[2]).toContain('from "./runtime-secrets.js"');
   });
 });
