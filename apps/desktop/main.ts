@@ -1,7 +1,19 @@
 import { basename, dirname, extname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { once } from "node:events";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import net from "node:net";
 import type { BrowserWindowConstructorOptions } from "electron";
+import type {
+  DesktopRuntimeMetadata,
+  DesktopRuntimeStatus,
+} from "@chiron/contracts/desktop-runtime";
+import { createDesktopRuntimeBackendArgument } from "@chiron/contracts/desktop-runtime";
+import {
+  bootstrapRuntimeState,
+  createCorruptJsonFile,
+  type BootstrapRuntimeState,
+} from "./src/runtime-bootstrap.js";
+import { buildServerEnv } from "./src/runtime-env.js";
 
 export type RendererTarget = { mode: "url"; target: string } | { mode: "file"; target: string };
 
@@ -17,6 +29,23 @@ type RuntimeLaunchSpec = {
   command: string;
   args: string[];
   cwd: string;
+};
+
+type RuntimeEnvironment = Record<string, string | undefined>;
+
+type SpawnLike = (
+  command: string,
+  args: string[],
+  options: {
+    cwd: string;
+    env: NodeJS.ProcessEnv;
+    stdio: "inherit";
+  },
+) => {
+  exitCode: number | null;
+  kill: (signal?: NodeJS.Signals | number) => boolean;
+  once: (event: string, listener: (...args: unknown[]) => void) => unknown;
+  on: (event: string, listener: (...args: unknown[]) => void) => unknown;
 };
 
 type RendererLoader = {
@@ -40,6 +69,7 @@ type DesktopIpcHandlers = {
 type DesktopApp = {
   whenReady: () => Promise<void>;
   quit?: () => void;
+  on?: (event: "before-quit", listener: () => void) => void;
 };
 
 type BrowserWindowFactory<TWindow> = (options: BrowserWindowConstructorOptions) => TWindow;
@@ -55,6 +85,7 @@ type StartDesktopAppOptions = {
   app: DesktopApp;
   ipcMain: DesktopIpcMain;
   createBrowserWindow: BrowserWindowFactory<DesktopWindow>;
+  desktopRuntime?: DesktopRuntimeMetadata;
   rendererTarget: RendererTarget;
   rendererReadiness?: RendererReadinessOptions;
   runtime: RuntimeReadyOptions;
@@ -69,15 +100,48 @@ type RendererReadinessOptions = {
   timeoutMs?: number;
 };
 
-export type DesktopRuntimeStatus = {
-  backend: "attached" | "started";
-};
-
 type PackagedPaths = {
   rendererHtml: string;
   serverCwd: string;
   serverExecutable: string;
+  serverEntry: string;
 };
+
+type PackagedRuntimeContext = {
+  backendUrl: string;
+  rendererTarget: RendererTarget;
+  runtimeEnv: RuntimeEnvironment;
+};
+
+type DesktopElectronModule = {
+  app: DesktopApp & {
+    getPath: (name: string) => string;
+  };
+  ipcMain: DesktopIpcMain;
+  BrowserWindow: new (options: BrowserWindowConstructorOptions) => DesktopWindow;
+  dialog: {
+    showErrorBox: (title: string, content: string) => void;
+  };
+};
+
+type RunDesktopAppOptions = {
+  electronModule?: DesktopElectronModule;
+  appRoot?: string;
+  resourcesPath?: string;
+  devServerUrl?: string;
+  bootstrapRuntimeState?: BootstrapRuntimeStateFn;
+  createOwnedRuntimeHandleImpl?: typeof createOwnedRuntimeHandle;
+  startDesktopAppImpl?: typeof startDesktopApp;
+};
+
+type BootstrapRuntimeStateFn = (options: {
+  userDataPath: string;
+  choosePort: (preferredPort?: number) => Promise<number>;
+  readJson: (path: string) => Promise<unknown | undefined>;
+  writeText: (path: string, value: string) => Promise<void>;
+  writeJson: (path: string, value: unknown) => Promise<void>;
+  ensureDir: (path: string) => Promise<void>;
+}) => Promise<BootstrapRuntimeState>;
 
 type RuntimeReadyOptions = {
   probe: () => Promise<boolean>;
@@ -101,12 +165,17 @@ function isPackagedAppLayout(appRoot: string, resourcesPath?: string): boolean {
   return basename(appRoot) === "app.asar" && Boolean(resourcesPath);
 }
 
-export function getBrowserWindowOptions(): BrowserWindowConstructorOptions {
+export function getBrowserWindowOptions(
+  desktopRuntime: DesktopRuntimeMetadata = {},
+): BrowserWindowConstructorOptions {
   return {
     width: 1440,
     height: 960,
     show: false,
     webPreferences: {
+      additionalArguments: desktopRuntime.backendUrl
+        ? [createDesktopRuntimeBackendArgument(desktopRuntime.backendUrl)]
+        : [],
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -122,8 +191,9 @@ export function resolvePreloadScriptPath(modulePath = fileURLToPath(import.meta.
 
 export function createMainWindow<TWindow>(
   createBrowserWindow: BrowserWindowFactory<TWindow>,
+  desktopRuntime: DesktopRuntimeMetadata = {},
 ): TWindow {
-  return createBrowserWindow(getBrowserWindowOptions());
+  return createBrowserWindow(getBrowserWindowOptions(desktopRuntime));
 }
 
 export function resolveRendererTarget(options: {
@@ -166,12 +236,54 @@ export function resolvePackagedPaths(options: {
   return {
     rendererHtml: join(resourcesPath, "web-dist", "index.html"),
     serverCwd: join(resourcesPath, "server-dist"),
-    serverExecutable: join(resourcesPath, "server-dist", "server"),
+    serverExecutable: join(resourcesPath, "server-dist", "bun"),
+    serverEntry: join(resourcesPath, "server-dist", "server.mjs"),
   };
 }
 
 export function resolveBackendUrl(backendUrl = "http://localhost:3000"): string {
   return backendUrl;
+}
+
+export function resolveRendererOrigin(target: RendererTarget): string {
+  if (target.mode === "url") {
+    return new URL(target.target).origin;
+  }
+
+  return pathToFileURL(target.target).origin;
+}
+
+export async function resolvePackagedRuntimeContext(options: {
+  appRoot: string;
+  resourcesPath: string;
+  userDataPath: string;
+  bootstrapRuntimeState?: BootstrapRuntimeStateFn;
+}): Promise<PackagedRuntimeContext> {
+  const rendererTarget = resolveRendererTarget({
+    appRoot: options.appRoot,
+    resourcesPath: options.resourcesPath,
+  });
+  const runtimeState = await (options.bootstrapRuntimeState ?? bootstrapRuntimeState)({
+    userDataPath: options.userDataPath,
+    choosePort: chooseAvailablePort,
+    readJson: readJsonFile,
+    writeText: writeTextFile,
+    writeJson: writeJsonFile,
+    ensureDir: ensureDirectory,
+  });
+  const backendUrl = resolveBackendUrl(`http://127.0.0.1:${runtimeState.config.server.port}`);
+
+  const runtimeEnv = buildServerEnv({
+    config: runtimeState.config,
+    secrets: runtimeState.secrets,
+    rendererOrigin: backendUrl,
+  });
+
+  return {
+    backendUrl,
+    rendererTarget,
+    runtimeEnv,
+  };
 }
 
 export function resolveServerScript(options: { devServerUrl?: string }): "dev" | "start:headless" {
@@ -196,7 +308,7 @@ export function resolveRuntimeLaunch(options: {
 
     return {
       command: packagedPaths.serverExecutable,
-      args: [],
+      args: [basename(packagedPaths.serverEntry)],
       cwd: packagedPaths.serverCwd,
     };
   }
@@ -319,7 +431,7 @@ export async function startDesktopApp(
   });
 
   try {
-    const window = createMainWindow(options.createBrowserWindow);
+    const window = createMainWindow(options.createBrowserWindow, options.desktopRuntime);
 
     return await bootstrapDesktopShell({
       window,
@@ -363,20 +475,25 @@ async function waitForBackendReady(backendUrl: string): Promise<void> {
   throw new Error(`Timed out waiting for ${backendUrl}`);
 }
 
-async function createOwnedRuntimeHandle(
+export async function createOwnedRuntimeHandle(
   appRoot: string,
-  options: { devServerUrl?: string; resourcesPath?: string },
+  options: {
+    devServerUrl?: string;
+    resourcesPath?: string;
+    env?: RuntimeEnvironment;
+    spawn?: SpawnLike;
+  },
 ): Promise<RuntimeCleanupHandle> {
-  const { spawn } = await import("node:child_process");
+  const spawnImplementation = options.spawn ?? (await import("node:child_process")).spawn;
   const launchSpec = resolveRuntimeLaunch({
     appRoot,
     devServerUrl: options.devServerUrl,
     resourcesPath: options.resourcesPath,
   });
 
-  const child = spawn(launchSpec.command, launchSpec.args, {
+  const child = spawnImplementation(launchSpec.command, launchSpec.args, {
     cwd: launchSpec.cwd,
-    env: process.env,
+    env: options.resourcesPath ? { ...options.env } : { ...process.env, ...options.env },
     stdio: "inherit",
   });
 
@@ -388,30 +505,136 @@ async function createOwnedRuntimeHandle(
       }
 
       child.kill("SIGTERM");
-      await once(child, "exit");
+      await new Promise<void>((resolve) => {
+        child.once("exit", () => resolve());
+      });
     },
   };
 }
 
-async function runDesktopApp(): Promise<void> {
-  const electron = await import("electron");
-  const appRoot = getDesktopPackageRoot();
-  const backendUrl = resolveBackendUrl(process.env.CHIRON_BACKEND_URL);
-  const devServerUrl = process.env.ELECTRON_RENDERER_URL;
-  const rendererTarget = resolveRendererTarget({
-    devServerUrl,
-    appRoot,
-    resourcesPath: process.resourcesPath,
+async function ensureDirectory(path: string): Promise<void> {
+  await mkdir(path, { recursive: true });
+}
+
+async function readJsonFile(path: string): Promise<unknown | undefined> {
+  try {
+    const content = await readFile(path, "utf8");
+    try {
+      return JSON.parse(content) as unknown;
+    } catch {
+      return createCorruptJsonFile(content);
+    }
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error as { code?: string }).code === "ENOENT"
+    ) {
+      return undefined;
+    }
+
+    throw error;
+  }
+}
+
+export async function writeTextFile(path: string, value: string): Promise<void> {
+  await writeFile(path, value, "utf8");
+}
+
+export async function writeJsonFile(path: string, value: unknown): Promise<void> {
+  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+export async function chooseAvailablePort(
+  preferredPort?: number,
+  reservePortImpl: typeof reservePort = reservePort,
+): Promise<number> {
+  if (preferredPort !== undefined) {
+    try {
+      return await reservePortImpl(preferredPort);
+    } catch (error) {
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        (error as { code?: string }).code === "EADDRINUSE"
+      ) {
+        return await reservePortImpl();
+      }
+
+      throw error;
+    }
+  }
+
+  return await reservePortImpl();
+}
+
+async function reservePort(preferredPort?: number): Promise<number> {
+  return await new Promise((resolve, reject) => {
+    const server = net.createServer();
+
+    server.once("error", reject);
+    server.listen(preferredPort ?? 0, "127.0.0.1", () => {
+      const address = server.address();
+
+      if (!address || typeof address === "string") {
+        server.close(() => reject(new Error("Failed to choose runtime port")));
+        return;
+      }
+
+      const { port } = address;
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve(port);
+      });
+    });
   });
+}
+
+export async function runDesktopApp(options: RunDesktopAppOptions = {}): Promise<void> {
+  const electron = options.electronModule ?? (await import("electron"));
+  const appRoot = options.appRoot ?? getDesktopPackageRoot();
+  const resourcesPath = options.resourcesPath ?? process.resourcesPath;
+  const isPackagedLayout = isPackagedAppLayout(appRoot, resourcesPath);
+  const devServerUrl =
+    options.devServerUrl ?? (isPackagedLayout ? undefined : process.env.ELECTRON_RENDERER_URL);
+  const isPackaged = !devServerUrl && isPackagedLayout;
+  const packagedRuntime = isPackaged
+    ? await resolvePackagedRuntimeContext({
+        appRoot,
+        resourcesPath,
+        userDataPath: electron.app.getPath("userData"),
+        bootstrapRuntimeState: options.bootstrapRuntimeState,
+      })
+    : undefined;
+  const backendUrl = packagedRuntime
+    ? packagedRuntime.backendUrl
+    : resolveBackendUrl(process.env.CHIRON_BACKEND_URL);
+  const rendererTarget =
+    packagedRuntime?.rendererTarget ??
+    resolveRendererTarget({
+      devServerUrl,
+      appRoot,
+      resourcesPath,
+    });
 
   let runtimeStatus: DesktopRuntimeStatus = { backend: "attached" };
   let ownedRuntime: RuntimeCleanupHandle | undefined;
 
   const startServer = async (): Promise<OwnedRuntimeHandle> => {
-    ownedRuntime = await createOwnedRuntimeHandle(appRoot, {
-      devServerUrl,
-      resourcesPath: process.resourcesPath,
-    });
+    ownedRuntime = await (options.createOwnedRuntimeHandleImpl ?? createOwnedRuntimeHandle)(
+      appRoot,
+      {
+        devServerUrl,
+        resourcesPath,
+        env: packagedRuntime?.runtimeEnv,
+      },
+    );
     return ownedRuntime;
   };
 
@@ -441,10 +664,11 @@ async function runDesktopApp(): Promise<void> {
     });
   }
 
-  await startDesktopApp({
+  await (options.startDesktopAppImpl ?? startDesktopApp)({
     app: electron.app,
     ipcMain: electron.ipcMain,
     createBrowserWindow: (options) => new electron.BrowserWindow(options),
+    desktopRuntime: packagedRuntime ? { backendUrl: packagedRuntime.backendUrl } : undefined,
     rendererTarget,
     runtime: {
       probe: () => probeBackend(backendUrl),

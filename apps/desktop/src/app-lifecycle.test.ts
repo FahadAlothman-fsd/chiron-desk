@@ -1,5 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
-import { resolveRendererTarget, startDesktopApp } from "../main";
+import type { DesktopRuntimeStatus } from "@chiron/contracts/desktop-runtime";
+import { resolveRendererTarget, runDesktopApp, startDesktopApp } from "../main";
+
+function restoreRendererUrl(originalRendererUrl: string | undefined): void {
+  if (originalRendererUrl === undefined) {
+    delete process.env.ELECTRON_RENDERER_URL;
+    return;
+  }
+
+  process.env.ELECTRON_RENDERER_URL = originalRendererUrl;
+}
 
 describe("desktop app lifecycle", () => {
   it("boots the shell after Electron is ready", async () => {
@@ -95,5 +105,142 @@ describe("desktop app lifecycle", () => {
       "/opt/Chiron/resources/web-dist/index.html",
     );
     expect(browserWindow.show).toHaveBeenCalledOnce();
+  });
+
+  it("uses bootstrap-derived packaged runtime state without shell env", async () => {
+    const originalRendererUrl = process.env.ELECTRON_RENDERER_URL;
+    process.env.ELECTRON_RENDERER_URL = "http://localhost:3001";
+    const startDesktopAppImpl: typeof startDesktopApp = vi.fn(async (options) => {
+      expect(options.desktopRuntime).toEqual({
+        backendUrl: "http://127.0.0.1:43110",
+      });
+      expect(options.rendererTarget).toEqual({
+        mode: "file",
+        target: "/opt/Chiron/resources/web-dist/index.html",
+      });
+
+      await options.runtime.startServer();
+
+      const status: DesktopRuntimeStatus = { backend: "started" };
+      return status;
+    });
+    const createOwnedRuntimeHandleImpl = vi.fn().mockResolvedValue({
+      owned: true,
+      stop: vi.fn().mockResolvedValue(undefined),
+    });
+    const app = {
+      getPath: vi.fn().mockReturnValue("/tmp/chiron"),
+      on: vi.fn(),
+      quit: vi.fn(),
+      whenReady: vi.fn().mockResolvedValue(undefined),
+    };
+
+    try {
+      await runDesktopApp({
+        appRoot: "/opt/Chiron/resources/app.asar",
+        resourcesPath: "/opt/Chiron/resources",
+        electronModule: {
+          app,
+          ipcMain: { handle: vi.fn() },
+          BrowserWindow: vi.fn(),
+          dialog: { showErrorBox: vi.fn() },
+        },
+        bootstrapRuntimeState: vi.fn().mockResolvedValue({
+          paths: {
+            runtimeRoot: "/tmp/chiron/runtime",
+            configFile: "/tmp/chiron/runtime/config.json",
+            secretsFile: "/tmp/chiron/runtime/secrets.json",
+            dataDir: "/tmp/chiron/runtime/data",
+            databaseFile: "/tmp/chiron/runtime/data/chiron.db",
+            logsDir: "/tmp/chiron/runtime/logs",
+          },
+          config: {
+            version: 1,
+            mode: "local",
+            server: { kind: "bundled", port: 43110 },
+            database: {
+              kind: "local",
+              url: "file:///tmp/chiron/runtime/data/chiron.db",
+            },
+          },
+          secrets: { betterAuthSecret: "secret" },
+        }),
+        startDesktopAppImpl,
+        createOwnedRuntimeHandleImpl,
+      });
+    } finally {
+      restoreRendererUrl(originalRendererUrl);
+    }
+
+    expect(app.getPath).toHaveBeenCalledWith("userData");
+    expect(startDesktopAppImpl).toHaveBeenCalledOnce();
+    expect(createOwnedRuntimeHandleImpl).toHaveBeenCalledWith(
+      "/opt/Chiron/resources/app.asar",
+      expect.objectContaining({
+        resourcesPath: "/opt/Chiron/resources",
+        env: expect.objectContaining({
+          DATABASE_URL: "file:///tmp/chiron/runtime/data/chiron.db",
+          BETTER_AUTH_SECRET: "secret",
+          BETTER_AUTH_URL: "http://127.0.0.1:43110",
+          CORS_ORIGIN: "http://127.0.0.1:43110",
+        }),
+      }),
+    );
+  });
+
+  it("restores ELECTRON_RENDERER_URL when packaged startup fails", async () => {
+    const originalRendererUrl = process.env.ELECTRON_RENDERER_URL;
+    process.env.ELECTRON_RENDERER_URL = "http://localhost:3001";
+
+    try {
+      await expect(
+        runDesktopApp({
+          appRoot: "/opt/Chiron/resources/app.asar",
+          resourcesPath: "/opt/Chiron/resources",
+          electronModule: {
+            app: {
+              getPath: vi.fn().mockReturnValue("/tmp/chiron"),
+              on: vi.fn(),
+              quit: vi.fn(),
+              whenReady: vi.fn().mockResolvedValue(undefined),
+            },
+            ipcMain: { handle: vi.fn() },
+            BrowserWindow: vi.fn(),
+            dialog: { showErrorBox: vi.fn() },
+          },
+          bootstrapRuntimeState: vi.fn().mockResolvedValue({
+            paths: {
+              runtimeRoot: "/tmp/chiron/runtime",
+              configFile: "/tmp/chiron/runtime/config.json",
+              secretsFile: "/tmp/chiron/runtime/secrets.json",
+              dataDir: "/tmp/chiron/runtime/data",
+              databaseFile: "/tmp/chiron/runtime/data/chiron.db",
+              logsDir: "/tmp/chiron/runtime/logs",
+            },
+            config: {
+              version: 1,
+              mode: "local",
+              server: { kind: "bundled", port: 43110 },
+              database: {
+                kind: "local",
+                url: "file:///tmp/chiron/runtime/data/chiron.db",
+              },
+            },
+            secrets: { betterAuthSecret: "secret" },
+          }),
+          startDesktopAppImpl: vi.fn(async () => {
+            throw new Error("boom");
+          }),
+          createOwnedRuntimeHandleImpl: vi.fn().mockResolvedValue({
+            owned: true,
+            stop: vi.fn().mockResolvedValue(undefined),
+          }),
+        }),
+      ).rejects.toThrow("boom");
+
+      expect(process.env.ELECTRON_RENDERER_URL).toBe("http://localhost:3001");
+    } finally {
+      restoreRendererUrl(originalRendererUrl);
+    }
   });
 });
