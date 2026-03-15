@@ -50,7 +50,11 @@
     "db:seed:story:reset": "bun run db:push && turbo -F @chiron/scripts db:seed:story:reset --",
     "check": "oxlint && oxfmt --check",
     "format": "oxfmt --write",
-    "test": "turbo test"
+    "test": "turbo test",
+    "test:layout:guardrail": "bun scripts/test-layout-guardrail.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed"
   },
   "dependencies": {
     "@chiron/env": "workspace:*",
@@ -59,6 +63,9 @@
   },
   "devDependencies": {
     "@chiron/config": "workspace:*",
+    "@faker-js/faker": "^10.3.0",
+    "@playwright/test": "^1.58.2",
+    "@seontechnologies/playwright-utils": "^3.14.0",
     "@types/bun": "catalog:",
     "lefthook": "^2.0.13",
     "oxfmt": "^0.26.0",
