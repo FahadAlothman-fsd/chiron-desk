@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import desktopPackage from "../package.json";
+import desktopPackage from "../../../package.json";
 
 const desktopPackageConfig = desktopPackage as typeof desktopPackage & {
   version?: string;
@@ -45,7 +45,8 @@ describe("desktop package entrypoint contract", () => {
 
   it("uses .js-suffixed local esm imports for packaged desktop modules", () => {
     const desktopSources = ["main.ts", "src/runtime-bootstrap.ts", "src/runtime-env.ts"].map(
-      (relativePath) => readFileSync(join(import.meta.dirname, "..", relativePath), "utf8"),
+      (relativePath) =>
+        readFileSync(join(import.meta.dirname, "..", "..", "..", relativePath), "utf8"),
     );
 
     expect(desktopSources[0]).toContain('from "./src/runtime-bootstrap.js"');

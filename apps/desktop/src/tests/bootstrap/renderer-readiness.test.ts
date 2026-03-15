@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { waitForRendererTarget } from "../main";
+import { waitForRendererTarget } from "../../../main";
 
 describe("renderer readiness", () => {
   it("waits for a dev renderer url to respond before continuing", async () => {

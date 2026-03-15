@@ -3,7 +3,7 @@ import {
   resolvePackagedRuntimeContext,
   resolveRendererOrigin,
   resolveRendererTarget,
-} from "../main";
+} from "../../../main";
 
 describe("renderer target resolution in packaged mode", () => {
   it("uses built web assets when no dev server url is present", () => {

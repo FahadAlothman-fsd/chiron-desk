@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveDesktopRuntimeMetadata } from "@chiron/contracts/desktop-runtime";
-import { getBrowserWindowOptions, resolvePackagedRuntimeContext } from "../main";
+import { getBrowserWindowOptions, resolvePackagedRuntimeContext } from "../../../main";
 import { pathToFileURL } from "node:url";
 
 describe("packaged bootstrap smoke contract", () => {
@@ -64,7 +64,7 @@ describe("packaged bootstrap smoke contract", () => {
       },
     };
 
-    const { resolveRuntimeBackendUrl } = await import("../../web/src/lib/runtime-backend");
+    const { resolveRuntimeBackendUrl } = await import("../../../../web/src/lib/runtime-backend");
 
     expect(bootstrapRuntimeState).toHaveBeenCalledWith(
       expect.objectContaining({ userDataPath: "/tmp/chiron" }),

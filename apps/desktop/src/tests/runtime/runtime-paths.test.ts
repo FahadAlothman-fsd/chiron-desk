@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { resolveRuntimePaths } from "./runtime-paths";
+import { resolveRuntimePaths } from "../../runtime-paths";
 
 describe("resolveRuntimePaths", () => {
   it("derives runtime files under Electron userData", () => {

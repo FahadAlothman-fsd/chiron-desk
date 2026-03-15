@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveRendererTarget } from "../main";
+import { resolveRendererTarget } from "../../../main";
 
 describe("renderer target resolution in development", () => {
   it("uses the dev server url when present", () => {

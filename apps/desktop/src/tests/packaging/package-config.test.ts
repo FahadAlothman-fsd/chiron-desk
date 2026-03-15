@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import desktopPackage from "../package.json";
+import desktopPackage from "../../../package.json";
 
 type DesktopPackageConfig = {
   scripts: Record<string, string | undefined>;

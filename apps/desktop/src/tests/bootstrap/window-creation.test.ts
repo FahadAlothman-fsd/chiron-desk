@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createMainWindow } from "../main";
+import { createMainWindow } from "../../../main";
 
 describe("main window creation", () => {
   it("creates the browser window with secure defaults", () => {

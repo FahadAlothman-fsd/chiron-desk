@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import serverPackage from "../../server/package.json";
-import { shouldInlineServerDependency } from "../../server/tsdown.config";
+import serverPackage from "../../../../server/package.json";
+import { shouldInlineServerDependency } from "../../../../server/tsdown.config";
 
 describe("server build config", () => {
   it("keeps database runtime external in the built server bundle", () => {

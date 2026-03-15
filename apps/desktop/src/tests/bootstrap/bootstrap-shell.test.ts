@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { bootstrapDesktopShell } from "../main";
+import { bootstrapDesktopShell } from "../../../main";
 
 describe("desktop shell bootstrap", () => {
   it("attaches to an already running backend before loading the renderer", async () => {

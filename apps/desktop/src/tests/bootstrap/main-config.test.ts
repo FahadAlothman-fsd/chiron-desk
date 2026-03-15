@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getBrowserWindowOptions, resolvePreloadScriptPath } from "../main";
+import { getBrowserWindowOptions, resolvePreloadScriptPath } from "../../../main";
 
 describe("browser window security defaults", () => {
   it("uses secure runtime defaults", () => {

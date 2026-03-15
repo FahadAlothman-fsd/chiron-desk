@@ -2,7 +2,7 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, expect, it, vi } from "vitest";
-import serverPackage from "../../server/package.json";
+import serverPackage from "../../../../server/package.json";
 import {
   chooseAvailablePort,
   createOwnedRuntimeHandle,
@@ -13,7 +13,7 @@ import {
   resolveServerScript,
   writeTextFile,
   writeJsonFile,
-} from "../main";
+} from "../../../main";
 
 describe("runtime orchestration contract", () => {
   it("requires the server headless start contract", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildServerEnv } from "./runtime-env";
+import { buildServerEnv } from "../../runtime-env";
 
 describe("buildServerEnv", () => {
   it("derives required packaged server environment", () => {

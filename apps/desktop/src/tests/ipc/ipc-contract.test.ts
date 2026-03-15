@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { registerDesktopHandlers } from "../main";
+import { registerDesktopHandlers } from "../../../main";
 
 describe("desktop ipc contract", () => {
   it("registers the narrow runtime status and recovery channels", async () => {

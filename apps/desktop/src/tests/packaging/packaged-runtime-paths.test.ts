@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolvePackagedPaths, resolveRendererOrigin, resolveBackendUrl } from "../main";
+import { resolvePackagedPaths, resolveRendererOrigin, resolveBackendUrl } from "../../../main";
 
 describe("packaged runtime paths", () => {
   it("resolves the packaged renderer entry from process resources", () => {

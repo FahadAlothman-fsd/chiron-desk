@@ -2,7 +2,7 @@ import { pathToFileURL } from "node:url";
 
 import { describe, expect, it, vi } from "vitest";
 
-import { bootstrapRuntimeState, createCorruptJsonFile } from "./runtime-bootstrap";
+import { bootstrapRuntimeState, createCorruptJsonFile } from "../../runtime-bootstrap";
 
 describe("bootstrapRuntimeState", () => {
   it("creates first-run config and secrets when missing", async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { loadRendererTarget } from "../main";
+import { loadRendererTarget } from "../../../main";
 
 describe("renderer loading", () => {
   it("loads the dev server url in development mode", async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { stopOwnedRuntime } from "../main";
+import { stopOwnedRuntime } from "../../../main";
 
 describe("runtime cleanup", () => {
   it("stops runtimes owned by the desktop shell", async () => {

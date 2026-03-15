@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createSecrets, readSecrets } from "./runtime-secrets";
+import { createSecrets, readSecrets } from "../../runtime-secrets";
 
 describe("runtime secrets", () => {
   it("creates a better auth secret once", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveBackendUrl } from "../main";
+import { resolveBackendUrl } from "../../../main";
 
 describe("backend url resolution", () => {
   it("defaults to the local server url", () => {

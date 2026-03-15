@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createDefaultRuntimeConfig, migrateRuntimeConfig } from "./runtime-config";
+import { createDefaultRuntimeConfig, migrateRuntimeConfig } from "../../runtime-config";
 
 describe("runtime config", () => {
   it("creates default local config", () => {

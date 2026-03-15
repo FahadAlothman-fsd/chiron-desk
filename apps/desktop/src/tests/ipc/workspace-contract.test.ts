@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import desktopPackage from "../package.json";
+import desktopPackage from "../../../package.json";
 
 describe("desktop workspace contract", () => {
   it("declares the desktop host package scripts", () => {

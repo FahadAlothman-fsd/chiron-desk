@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { DesktopRuntimeStatus } from "@chiron/contracts/desktop-runtime";
-import { resolveRendererTarget, runDesktopApp, startDesktopApp } from "../main";
+import { resolveRendererTarget, runDesktopApp, startDesktopApp } from "../../../main";
 
 function restoreRendererUrl(originalRendererUrl: string | undefined): void {
   if (originalRendererUrl === undefined) {
