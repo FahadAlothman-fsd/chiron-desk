@@ -65,7 +65,7 @@ development_status:
   ccf-2-add-thin-electron-shell-with-secure-runtime-boundaries: done
   ccf-3-establish-web-desktop-server-runtime-parity: done
   ccf-4-initialize-test-foundation-after-electron-cutover: done
-  ccf-5-lock-thin-core-boundaries-before-epic-3: review
+  ccf-5-lock-thin-core-boundaries-before-epic-3: done
   ccf-6-re-baseline-canonical-planning-artifacts-after-electron-cutover: backlog
   cc-foundation-retrospective: backlog
   epic-3: backlog
