@@ -16,8 +16,8 @@ import type {
   PublishDraftVersionParams,
   UpdateDraftParams,
   WorkflowSnapshot,
-} from "./repository";
-import { RepositoryError, type RepositoryErrorCode } from "./errors";
+} from "../../repository";
+import { RepositoryError, type RepositoryErrorCode } from "../../errors";
 import {
   LifecycleRepository,
   type AgentTypeRow,
@@ -26,9 +26,9 @@ import {
   type LifecycleTransitionRow,
   type TransitionConditionSetRow,
   type WorkUnitTypeRow,
-} from "./lifecycle-repository";
-import { MethodologyRepository } from "./repository";
-import { MethodologyVersionService, MethodologyVersionServiceLive } from "./version-service";
+} from "../../lifecycle-repository";
+import { MethodologyRepository } from "../../repository";
+import { MethodologyVersionService, MethodologyVersionServiceLive } from "../../version-service";
 
 function makeTestRepo() {
   const definitions: MethodologyDefinitionRow[] = [];

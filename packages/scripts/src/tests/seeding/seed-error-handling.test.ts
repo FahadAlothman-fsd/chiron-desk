@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { classifySeedError, shouldSkipSeedError } from "../seed-error-handling";
+import { classifySeedError, shouldSkipSeedError } from "../../seed-error-handling";
 
 describe("seed error handling", () => {
   it("classifies missing table errors", () => {

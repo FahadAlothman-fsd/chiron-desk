@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 
-import { availableStorySeedIds, getStorySeedPlan } from "../story-seed-fixtures";
+import { availableStorySeedIds, getStorySeedPlan } from "../../story-seed-fixtures";
 
 const FORBIDDEN_EXTENSION_KEYS = [
   "workUnitTypes",
@@ -19,7 +19,7 @@ async function loadMethodologySeedArtifacts() {
   process.env.BETTER_AUTH_URL ??= "http://localhost:3000";
   process.env.CORS_ORIGIN ??= "http://localhost:3000";
 
-  return import("../seed/methodology");
+  return import("../../seed/methodology");
 }
 
 describe("methodology seed integrity", () => {

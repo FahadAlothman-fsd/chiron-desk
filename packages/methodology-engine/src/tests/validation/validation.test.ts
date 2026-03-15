@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MethodologyVersionDefinition } from "@chiron/contracts/methodology/version";
-import { validateDraftDefinition } from "./validation";
+import { validateDraftDefinition } from "../../validation";
 
 const BASE_DEFINITION = {
   workUnitTypes: [{ key: "task" }],

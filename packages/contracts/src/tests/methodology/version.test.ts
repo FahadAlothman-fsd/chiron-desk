@@ -23,7 +23,7 @@ import {
   ValidationResult,
   VariableValueType,
   VersionEventType,
-} from "./version";
+} from "../../methodology/version";
 
 const validDefinition = {
   workUnitTypes: [],

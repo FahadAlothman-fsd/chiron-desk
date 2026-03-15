@@ -2,9 +2,9 @@ import { MethodologyRepository } from "@chiron/methodology-engine";
 import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 
-import { RepositoryError } from "./errors";
-import { ProjectContextRepository } from "./repository";
-import { ProjectContextService, ProjectContextServiceLive } from "./service";
+import { RepositoryError } from "../../errors";
+import { ProjectContextRepository } from "../../repository";
+import { ProjectContextService, ProjectContextServiceLive } from "../../service";
 
 const FIXED_NOW = new Date("2026-01-01T00:00:00.000Z");
 

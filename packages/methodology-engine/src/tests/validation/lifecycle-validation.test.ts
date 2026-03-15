@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { describe, it, expect } from "vitest";
-import { validateLifecycleDefinition } from "./lifecycle-validation";
+import { validateLifecycleDefinition } from "../../lifecycle-validation";
 import type { AgentTypeDefinition } from "@chiron/contracts/methodology/agent";
 import type { WorkUnitTypeDefinition } from "@chiron/contracts/methodology/lifecycle";
 

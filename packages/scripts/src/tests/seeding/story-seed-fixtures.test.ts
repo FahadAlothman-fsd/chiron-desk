@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 
-import { getStorySeedPlan } from "../story-seed-fixtures";
+import { getStorySeedPlan } from "../../story-seed-fixtures";
 
 describe("story seed fixtures", () => {
   it("returns canonical Story 2.7 BMAD seed data", () => {

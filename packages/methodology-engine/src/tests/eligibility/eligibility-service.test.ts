@@ -11,7 +11,7 @@ import {
   type MethodologyVersionEventRow,
   type MethodologyVersionRow,
   type UpdateDraftParams,
-} from "./index";
+} from "../../index";
 
 const VERSION_ID = "version-1";
 const METHODOLOGY_ID = "methodology-1";

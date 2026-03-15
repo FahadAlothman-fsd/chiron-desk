@@ -9,17 +9,17 @@ import { Effect } from "effect";
 import { eq } from "drizzle-orm";
 import { drizzle, type LibSQLDatabase } from "drizzle-orm/libsql";
 
-import { createMethodologyRepoLayer } from "./methodology-repository";
-import { createProjectContextRepoLayer } from "./project-context-repository";
+import { createMethodologyRepoLayer } from "../../methodology-repository";
+import { createProjectContextRepoLayer } from "../../project-context-repository";
 import {
   methodologyAgentTypes,
   methodologyLifecycleStates,
   methodologyLifecycleTransitions,
   methodologyVersions,
   methodologyWorkUnitTypes,
-} from "./schema/methodology";
-import { projectExecutions, projectMethodologyPins } from "./schema/project";
-import * as schema from "./schema";
+} from "../../schema/methodology";
+import { projectExecutions, projectMethodologyPins } from "../../schema/project";
+import * as schema from "../../schema";
 
 const VALIDATION_OK: ValidationResult = {
   valid: true,

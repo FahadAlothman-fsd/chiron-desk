@@ -31,8 +31,8 @@ import {
 import { RepositoryError } from "@chiron/methodology-engine";
 import { ProjectContextRepository, ProjectContextServiceLive } from "@chiron/project-context";
 import type { ValidationResult } from "@chiron/contracts/methodology/version";
-import { createMethodologyRouter } from "./methodology";
-import { createProjectRouter } from "./project";
+import { createMethodologyRouter } from "../../routers/methodology";
+import { createProjectRouter } from "../../routers/project";
 
 function makeTestRepo(): MethodologyRepository["Type"] & ProjectContextRepository["Type"] {
   const definitions = new Map<

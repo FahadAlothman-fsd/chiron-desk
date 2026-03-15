@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createDesktopRuntimeBackendArgument,
   resolveDesktopRuntimeMetadata,
-} from "./desktop-runtime";
+} from "../../desktop-runtime";
 
 describe("desktop runtime bridge contract", () => {
   it("encodes the packaged backend url into a desktop launch argument", () => {
