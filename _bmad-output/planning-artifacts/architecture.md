@@ -185,6 +185,19 @@ No additional gate class is allowed in this horizon.
 - Epics 1-2 remain foundational and intact.
 - Epic 3+ planning and implementation must build on Epic 1-2 contracts, runtime boundaries, and locked ADRs without redefining foundations.
 
+### 10.1.1) Epic 3 Prerequisite: CCF.5 Thin-Core Boundary Lock
+
+- Epic 3 cannot begin until Story `CCF.5` is complete and evidence remains current.
+- Required evidence IDs:
+  - `core-boundary-decision-log`
+  - `package-responsibility-map`
+  - `epic3-prerequisite-architecture-log`
+- Required architecture lock:
+  - `core` remains orchestration/use-case coordination + ports/interfaces only.
+  - `core` is forbidden from DB/filesystem/process adapters, Electron host ownership, Hono/oRPC transport handlers, and React/TanStack UI ownership.
+- Traceability anchors for this prerequisite lock: `FR2`, `FR5`, `FR7`, `NFR1`, `NFR2`, `NFR5`, `ADR-EF-B01`, `ADR-EF-02`, `ADR-EF-03`, `G2.5`.
+- Sequencing guardrail: CCF.6 re-baseline happens after this boundary lock and does not relax thin-core restrictions.
+
 ### 10.2) Epic 3+ Progressive Delivery Model
 
 From Epic 3 onward, delivery is intentionally resequenced from abstraction-first to progressive runnable capability slices:

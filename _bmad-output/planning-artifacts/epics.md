@@ -290,6 +290,12 @@ So that runtime and delivery work cannot drift into a monolithic orchestration l
 **When** promotion past CC-Foundation is considered
 **Then** Epic 3 cannot start unless thin-core boundaries are explicitly locked and referenced in planning artifacts.
 
+**Epic 3 gate lock (CCF.5 prerequisite evidence):**
+
+- Epic 3 start is blocked until Story CCF.5 is complete and current.
+- Required evidence for promotion: `core-boundary-decision-log`, `package-responsibility-map`, `epic3-prerequisite-architecture-log`.
+- Sequencing requirement: CCF.6 remains next and must preserve the CCF.5 lock semantics during planning re-baseline.
+
 ### Story CCF.6: Re-Baseline Canonical Planning Artifacts After Electron Cutover
 
 As a planning owner,
@@ -374,7 +380,7 @@ Teams expand validated runtime patterns across additional workflows/modules/prov
 
 ### Progression Acceptance Gates (Epic 3+)
 
-- G2.5 (CC-Foundation -> Epic 3): Tauri removed from active path, Electron desktop runs in dev and packaged modes, web + desktop + server smoke parity passes, Playwright MCP desktop interaction smoke passes, and `/bmad-tea-testarch-framework` is ready to initialize against the real post-cutover structure.
+- G2.5 (CC-Foundation -> Epic 3): Tauri removed from active path, Electron desktop runs in dev and packaged modes, web + desktop + server smoke parity passes, Playwright MCP desktop interaction smoke passes, `/bmad-tea-testarch-framework` is ready to initialize against the real post-cutover structure, and CCF.5 thin-core boundary lock evidence is complete (`core-boundary-decision-log`, `package-responsibility-map`, `epic3-prerequisite-architecture-log`).
 - G3 (Epic 3 -> Epic 4): Spike proofs complete with reproducible evidence for cancellation cascade, invoke child completion/lineage, idempotent replay boundary, SSE reconnect continuity, and deterministic append-only gate evidence.
 - G4 (Epic 4 -> Epic 5): Planning chain runnable end-to-end (brainstorming -> research -> product brief -> prd) with persisted/queryable outputs and actionable diagnostics.
 - G5 (Epic 5 -> Epic 6): Full golden path runnable with at least one success run and one intentional failure run with diagnostics.

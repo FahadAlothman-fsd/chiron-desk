@@ -143,6 +143,51 @@ Each module is Effect-wrapped and owns its public contract.
 
 All modules may depend on `@chiron/contracts`. No module may import another module only for shared types.
 
+## Thin-Core Boundary Lock (CCF.5 / Gate G2.5)
+
+Decision record (`core-boundary-decision-log`) for Epic 3 prerequisite locking.
+
+### Core scope statement (locked)
+
+`core` is restricted to thin orchestration/use-case coordination only and is concretely represented by `packages/core` (`@chiron/core`). Domain behavior remains in domain packages and shared contracts remain in `packages/contracts`.
+
+### Allowed responsibilities in `core`
+
+- orchestration flow and use-case coordination
+- app-level policy composition
+- ports/interfaces for external concerns
+- deterministic orchestration outputs consumed by adapters
+
+### Forbidden responsibilities in `core`
+
+- DB/filesystem/process adapters and persistence implementations
+- Electron host/runtime ownership (`main`, `preload`, IPC surface)
+- Hono/oRPC handlers and protocol transport wiring
+- React/TanStack UI rendering, component logic, and UI event handling
+
+### Traceability links
+
+- FR: `FR2`, `FR5`, `FR7`
+- NFR: `NFR1`, `NFR2`, `NFR5`
+- ADR: `ADR-EF-B01`, `ADR-EF-02`, `ADR-EF-03`
+- Gate: `G2.5`
+- Evidence: `core-boundary-decision-log`, `package-responsibility-map`, `epic3-prerequisite-architecture-log`
+- Diagnostics: `boundary-violation-diagnostics`, `package-ownership-diagnostics`
+
+### Dev Story Boundary Checklist
+
+- Verify no transport/runtime/UI leakage into `core`.
+- Verify no adapter/infrastructure implementation inside `core`.
+- Verify `core` only composes/consumes ports/interfaces for external concerns.
+- Verify Epic 3-related edits preserve CCF.5 evidence references.
+
+### Code Review Boundary Checklist
+
+- Reject any PR adding Hono/oRPC, Electron host, or React/TanStack ownership to `core`.
+- Reject any PR placing persistence/process/filesystem implementation in `core`.
+- Confirm dependency direction stays contracts-centered and adapter -> core -> domain/contracts.
+- Confirm CCF.6 sequencing remains intact: CCF.5 lock precedes planning re-baseline.
+
 ## OpenCode Integration
 
 OpenCode uses custom tools (no MCP by default):

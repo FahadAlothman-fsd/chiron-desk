@@ -196,6 +196,17 @@
         "vitest": "catalog:",
       },
     },
+    "packages/core": {
+      "name": "@chiron/core",
+      "version": "0.0.0",
+      "dependencies": {
+        "@chiron/contracts": "workspace:*",
+      },
+      "devDependencies": {
+        "typescript": "catalog:",
+        "vitest": "catalog:",
+      },
+    },
     "packages/db": {
       "name": "@chiron/db",
       "dependencies": {
@@ -481,6 +492,8 @@
     "@chiron/config": ["@chiron/config@workspace:packages/config"],
 
     "@chiron/contracts": ["@chiron/contracts@workspace:packages/contracts"],
+
+    "@chiron/core": ["@chiron/core@workspace:packages/core"],
 
     "@chiron/db": ["@chiron/db@workspace:packages/db"],
 
