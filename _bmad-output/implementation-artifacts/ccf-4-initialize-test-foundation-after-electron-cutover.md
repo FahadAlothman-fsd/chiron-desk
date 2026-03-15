@@ -1,6 +1,6 @@
 # Story CCF.4: Initialize Test Foundation After Electron Cutover
 
-Status: ready-for-dev
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -28,15 +28,15 @@ so that automation targets the actual repo structure instead of a speculative on
 
 ## Tasks / Subtasks
 
-- [ ] Initialize `/bmad-tea-testarch-framework` against the current Electron-first repo layout (AC: 1)
-  - [ ] Use the real `apps/web`, `apps/desktop`, `apps/server`, and shared package boundaries.
-  - [ ] Remove or avoid any remaining Tauri-specific assumptions in setup/config.
-- [ ] Prove desktop automation against the real Electron runtime (AC: 2)
-  - [ ] Capture at least one Playwright MCP / desktop-interaction proof against the Electron-hosted app.
-  - [ ] Persist evidence and diagnostics references for downstream work.
-- [ ] Establish reusable baseline verification surfaces (AC: 3)
-  - [ ] Document the baseline checks that later Epic 3 stories should reuse.
-  - [ ] Keep the framework focused on real repo/runtime structure instead of speculative future architecture.
+- [x] Initialize `/bmad-tea-testarch-framework` against the current Electron-first repo layout (AC: 1)
+  - [x] Use the real `apps/web`, `apps/desktop`, `apps/server`, and shared package boundaries.
+  - [x] Remove or avoid any remaining Tauri-specific assumptions in setup/config.
+- [x] Prove desktop automation against the real Electron runtime (AC: 2)
+  - [x] Capture at least one Playwright MCP / desktop-interaction proof against the Electron-hosted app.
+  - [x] Persist evidence and diagnostics references for downstream work.
+- [x] Establish reusable baseline verification surfaces (AC: 3)
+  - [x] Document the baseline checks that later Epic 3 stories should reuse.
+  - [x] Keep the framework focused on real repo/runtime structure instead of speculative future architecture.
 
 ## Dev Notes
 
@@ -46,6 +46,6 @@ so that automation targets the actual repo structure instead of a speculative on
 
 ## Definition of Done
 
-- [ ] Test foundation is initialized against the current repo structure.
-- [ ] Desktop automation proof is captured.
-- [ ] Reusable baseline verification notes/evidence are recorded.
+- [x] Test foundation is initialized against the current repo structure.
+- [x] Desktop automation proof is captured.
+- [x] Reusable baseline verification notes/evidence are recorded.
