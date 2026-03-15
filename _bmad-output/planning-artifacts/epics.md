@@ -192,11 +192,11 @@ So that desktop hosting is available without rewriting renderer or backend archi
 **Then** no domain package is moved into a desktop-specific layer
 **And** shell-specific code remains isolated to `apps/desktop`.
 
-### Story CCF.3: Establish Web + Desktop + Server Runtime Parity
+### Story CCF.3: Reconcile Runtime Parity Evidence And Defer Packaging Polish
 
 As a release owner,
-I want stable parity across web, desktop, and server runtime flows,
-So that Epic 3 builds on one coherent product architecture instead of diverging hosts.
+I want runtime parity evidence reconciled into one explicit checkpoint,
+So that Epic 3 starts from confirmed parity while distro and release polish stay deferred.
 
 **Story Metadata:**
 
@@ -205,26 +205,25 @@ So that Epic 3 builds on one coherent product architecture instead of diverging 
 - `nfrRefs`: `NFR1`, `NFR5`
 - `adrRefs`: `ADR-EF-B01`, `ADR-EF-03`, `ADR-EF-06`
 - `gateRefs`: `G2.5`
-- `evidenceRefs`: `desktop-dev-parity-log`, `desktop-packaged-parity-log`, `web-desktop-server-smoke-log`
-- `diagnosticRefs`: `desktop-startup-diagnostics`, `server-bootstrap-diagnostics`, `renderer-parity-diagnostics`
+- `evidenceRefs`: `desktop-dev-parity-log`, `desktop-packaged-parity-log`, `web-desktop-server-smoke-log`, `runtime-bridge-proof-log`, `desktop-self-bootstrap-proof-log`
+- `diagnosticRefs`: `desktop-startup-diagnostics`, `server-bootstrap-diagnostics`, `renderer-parity-diagnostics`, `deferred-packaging-polish-log`
 
 **Acceptance Criteria:**
 
-**Given** web development flow already exists
-**When** desktop development flow is introduced
-**Then** desktop can attach to the running renderer/server development environment deterministically
-**And** web development continues to function independently.
+**Given** `CCF.2` and its approved follow-up work already implemented the Electron shell, self-bootstrap flow, packaged runtime bridge, and packaged server launch path
+**When** parity readiness is reviewed
+**Then** the story records the existing evidence proving deterministic web, desktop, and server runtime behavior
+**And** no new runtime-parity engineering scope is invented in this story.
 
-**Given** a packaged desktop build is produced
-**When** the application is launched in packaged mode
-**Then** renderer assets load deterministically
-**And** the backend is started or attached in a deterministic order
-**And** end-user execution does not require Bun to be installed manually.
+**Given** packaged desktop work is already functionally proven enough to unblock the next phase
+**When** packaging follow-up is reviewed
+**Then** remaining distro/install/release polish is explicitly deferred to a later cleanup, hardening, or release epic after the core Chiron feature epics are complete
+**And** that deferred scope is not treated as a blocker for `CCF.4`.
 
-**Given** parity is evaluated across all runtime surfaces
-**When** smoke checks run
-**Then** the same core product flow is reachable from web and desktop modes
-**And** failures produce actionable diagnostics rather than silent shell-specific breakage.
+**Given** Epic 3 readiness depends on post-cutover verification clarity
+**When** this checkpoint story is closed
+**Then** `CCF.4` is unblocked as the next active foundation story
+**And** parity evidence references and deferred packaging notes are explicit enough that downstream work does not need to reverse-engineer the current state.
 
 ### Story CCF.4: Initialize Test Foundation After Electron Cutover
 
@@ -244,7 +243,7 @@ So that automation targets the actual repo structure instead of a speculative on
 
 **Acceptance Criteria:**
 
-**Given** Electron cutover and runtime parity are complete
+**Given** Electron cutover and runtime parity evidence are complete
 **When** `/bmad-tea-testarch-framework` is initialized
 **Then** it targets the real post-cutover repository structure
 **And** no Tauri-specific assumptions remain in test architecture setup.
@@ -2447,7 +2446,7 @@ So that release decisions are grounded in deterministic runtime, diagnostics, an
 ### Parallelization Guidance
 
 - `2.2` and `2.3` can run in parallel after `2.1`.
-- `CCF.2` packaging prep and `CCF.3` parity checks can partially overlap once shell baseline exists, but `CCF.5` remains a hard gate before Epic 3.
+- `CCF.2` implementation and `CCF.3` evidence reconciliation can overlap once shell baseline exists, but distro/install/release polish and the remaining desktop + headless server packaging/release work are explicitly deferred out of the Epic 3 critical path until after core feature delivery.
 - `3.2` and `3.3` can run in parallel after `3.1`.
 - `6.1`, `6.2`, and `6.3` can run in parallel after `5.7`.
 - `7.1`, `7.2`, and `7.3` can run in parallel after `6.5`.

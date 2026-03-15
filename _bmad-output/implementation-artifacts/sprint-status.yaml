@@ -51,7 +51,7 @@ development_status:
   1-4-publish-validated-methodology-draft-as-immutable-version: done
   1-5-pin-project-to-published-methodology-version-and-preserve-pin-lineage: done
   epic-1-retrospective: done
-  epic-2: in-progress
+  epic-2: done
   2-1-establish-methodology-catalog-details-and-version-entry-foundation: done
   2-2-build-methodology-version-workspace-baseline-with-react-flow-authoring: done
   2-3-harden-validation-publish-and-evidence-ux-for-methodology-contracts: done
@@ -63,8 +63,8 @@ development_status:
   cc-foundation: in-progress
   ccf-1-remove-tauri-surface-from-active-code-paths: done
   ccf-2-add-thin-electron-shell-with-secure-runtime-boundaries: done
-  ccf-3-establish-web-desktop-server-runtime-parity: backlog
-  ccf-4-initialize-test-foundation-after-electron-cutover: backlog
+  ccf-3-establish-web-desktop-server-runtime-parity: done
+  ccf-4-initialize-test-foundation-after-electron-cutover: ready-for-dev
   ccf-5-lock-thin-core-boundaries-before-epic-3: backlog
   ccf-6-re-baseline-canonical-planning-artifacts-after-electron-cutover: backlog
   cc-foundation-retrospective: backlog
