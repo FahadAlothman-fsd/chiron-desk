@@ -66,7 +66,7 @@ development_status:
   ccf-3-establish-web-desktop-server-runtime-parity: done
   ccf-4-initialize-test-foundation-after-electron-cutover: done
   ccf-5-lock-thin-core-boundaries-before-epic-3: done
-  ccf-6-re-baseline-canonical-planning-artifacts-after-electron-cutover: backlog
+  ccf-6-re-baseline-canonical-planning-artifacts-after-electron-cutover: done
   cc-foundation-retrospective: backlog
   epic-3: backlog
   3-1-complete-design-time-ia-and-page-shell-baseline: backlog
