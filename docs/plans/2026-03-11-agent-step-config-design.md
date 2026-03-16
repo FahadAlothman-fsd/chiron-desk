@@ -13,7 +13,7 @@ Define a best-fit schema for configuring agent-driven workflow steps across mult
 
 This design is intended to align with:
 
-- `docs/architecture/workflow-engine/agent-step-contract.md`
+- `docs/architecture/methodology-pages/workflow-editor/agent-step.md`
 - `docs/architecture/modules/template-engine.md`
 - `docs/architecture/modules/provider-registry.md`
 - `docs/plans/2026-03-05-opencode-agents-epic3-design.md`

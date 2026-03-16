@@ -14,8 +14,8 @@ Both mutation paths - deterministic `action` steps and agent/tool writes - must 
 The current direction has the right ingredients but not one authority surface yet:
 
 - `docs/plans/2026-03-11-workflow-variables-design.md` moves toward declared variables, deterministic bindings, and explicit scope semantics.
-- `docs/architecture/workflow-engine/action-step-contract.md` still models variable writes and outputs as step-local config fields without a typed registry-first contract.
-- `docs/architecture/workflow-engine/agent-step-contract.md` still lets agent tools describe output behavior independently through `targetVariable`, `valueSchema`, and tool-local behavior.
+- `docs/architecture/methodology-pages/workflow-editor/action-step.md` still models variable writes and outputs as step-local config fields without a typed registry-first contract.
+- `docs/architecture/methodology-pages/workflow-editor/agent-step.md` still lets agent tools describe output behavior independently through `targetVariable`, `valueSchema`, and tool-local behavior.
 - `docs/plans/2026-03-12-invoke-facts-artifact-slots-design.md` correctly moves invoke away from workflow-level business IO and toward durable facts/artifact slots, which increases the need for one canonical mutation path elsewhere.
 
 If action steps, agent tools, and workflow IO all describe the same data independently, Chiron will drift on:

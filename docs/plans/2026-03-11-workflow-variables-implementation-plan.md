@@ -223,7 +223,7 @@ Expected: blocking diagnostic `BRANCH_CONDITION_NON_SCALAR_VAR`.
 
 **Step 2: Implement Condition schema and decode-at-validation**
 
-Implement the Condition ADT schema (aligned with `docs/architecture/workflow-engine/branch-step-contract.md`) and in `validateDraftDefinition`:
+Implement the Condition ADT schema (aligned with `docs/architecture/methodology-pages/workflow-editor/branch-step.md`) and in `validateDraftDefinition`:
 - for each outgoing edge from a branch step:
   - attempt to decode `edge.condition` using the Condition schema
   - fail => diagnostic

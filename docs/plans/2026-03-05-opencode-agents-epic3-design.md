@@ -18,7 +18,7 @@ This includes safe repository path handling, a single permission gateway, cachin
 
 ## Constraints And Existing Anchors
 - Epic 2 explicitly avoids runtime mutation/execution (Epic 3+ only): `docs/plans/2026-03-05-epic-2-preview-setup-transition-facts-agents-design.md`.
-- Agent step runtime contract already supports `agentKind: "opencode"`: `docs/architecture/workflow-engine/agent-step-contract.md`.
+- Agent step runtime contract already supports `agentKind: "opencode"`: `docs/architecture/methodology-pages/workflow-editor/agent-step.md`.
 - Step execution UI patterns anticipate tabbed context panels (Artifact / Variables / Logs): `docs/design/step-execution-layout-system.md`.
 - Project-scoped OpenCode agents already exist in this repo: `.opencode/agents/*.md`.
 
@@ -158,8 +158,8 @@ Keep `/projects/$projectId/agents` as "methodology agent types" (baseline previe
 ## Likely Integration Points (Code)
 
 ### Contracts
-- Modify: `docs/architecture/workflow-engine/agent-step-contract.md` (document `agentSource` as additive)
-- Modify (code): wherever `AgentStepConfig` is defined (see `docs/architecture/workflow-engine/agent-step-contract.md`)
+- Modify: `docs/architecture/methodology-pages/workflow-editor/agent-step.md` (document `agentSource` as additive)
+- Modify (code): wherever `AgentStepConfig` is defined (see `docs/architecture/methodology-pages/workflow-editor/agent-step.md`)
 
 ### API
 - Create: `packages/api/src/routers/opencode-agents.ts` (list agents for picker)

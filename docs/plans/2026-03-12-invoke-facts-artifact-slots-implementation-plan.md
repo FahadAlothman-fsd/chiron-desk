@@ -277,7 +277,7 @@ git commit -m "feat(workflow-engine): add invoke lineage metadata type"
 ### Task 4: Rewrite canonical invoke docs around target modes and persisted-state flow
 
 **Files:**
-- Modify: `docs/architecture/workflow-engine/invoke-step-contract.md`
+- Modify: `docs/architecture/methodology-pages/workflow-editor/invoke-step.md`
 - Modify: `docs/architecture/workflow-engine/invoke-cross-work-unit-pattern.md`
 - Modify: `docs/architecture/workflow-engine/agent-continuation-contract.md`
 - Modify: `docs/plans/2026-03-11-methodology-design-time-pages-tentative-design.md`
@@ -333,7 +333,7 @@ Expected: no matches
 **Step 4: Commit**
 
 ```bash
-git add docs/architecture/workflow-engine/invoke-step-contract.md docs/architecture/workflow-engine/invoke-cross-work-unit-pattern.md docs/architecture/workflow-engine/agent-continuation-contract.md docs/plans/2026-03-11-methodology-design-time-pages-tentative-design.md
+git add docs/architecture/methodology-pages/workflow-editor/invoke-step.md docs/architecture/workflow-engine/invoke-cross-work-unit-pattern.md docs/architecture/workflow-engine/agent-continuation-contract.md docs/plans/2026-03-11-methodology-design-time-pages-tentative-design.md
 git commit -m "docs(workflow): lock invoke around facts, slots, and lineage"
 ```
 

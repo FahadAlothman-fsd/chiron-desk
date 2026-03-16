@@ -4,6 +4,8 @@ Date: 2026-03-11
 Owner: Product + UX + Engineering + QA
 Status: Locked baseline for Story 3-1 readiness (all core methodology pages and L2 tabs now aligned)
 
+**Supersession note (2026-03-16):** Active implementation authority has been promoted into stable docs under `docs/architecture/` and routed by `docs/architecture/epic-3-authority.md`. This document is preserved as historical design rationale and source baseline for promoted surfaces.
+
 ## 1) Scope and sequencing
 
 This document captures a **progressive lock** for methodology-layer design-time UX.

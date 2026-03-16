@@ -56,7 +56,7 @@ This lock strategy resolves the ambiguity by choosing one routing authority (edg
 
 ## Locked condition model (edge.conditionJson)
 
-Use the condition ADT shape documented in `docs/architecture/workflow-engine/branch-step-contract.md`, but store it on `methodology_workflow_edges.conditionJson`.
+Use the condition ADT shape documented in `docs/architecture/methodology-pages/workflow-editor/branch-step.md`, but store it on `methodology_workflow_edges.conditionJson`.
 
 ```ts
 // Stored in methodology_workflow_edges.conditionJson
