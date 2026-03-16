@@ -68,8 +68,8 @@ development_status:
   ccf-5-lock-thin-core-boundaries-before-epic-3: done
   ccf-6-re-baseline-canonical-planning-artifacts-after-electron-cutover: done
   cc-foundation-retrospective: done
-  epic-3: backlog
-  3-1-complete-design-time-ia-and-page-shell-baseline: backlog
+  epic-3: in-progress
+  3-1-complete-design-time-ia-and-page-shell-baseline: ready-for-dev
   3-2-complete-work-unit-l2-tabs-overview-workflows-artifact-slots-facts-state-machine: backlog
   3-3-complete-workflow-editor-and-step-dialog-surfaces: backlog
   3-4-canonical-persistence-and-schema-recovery-hardening: backlog
