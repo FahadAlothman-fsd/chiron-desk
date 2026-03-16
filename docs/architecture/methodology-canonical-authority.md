@@ -53,6 +53,19 @@ Seeds for methodology configuration must be table-first.
 - Story progression updates table files and index entries only
 - No canonical payload blobs in `definitionExtensions`
 
+## Progressive Slice Policy
+
+Methodology seed truth grows progressively, not all at once.
+
+- The final active seed should include only slices that have been explicitly mapped, documented, and validated.
+- For the current documentation pass, `WU.SETUP` is the documentation target slice we are converging toward.
+- The current runtime seed is allowed to remain transitional if it is sufficient for ongoing development/testing, but that runtime state must not be mistaken for the final locked seed truth.
+- Earlier broad JSON seed artifacts are historical lineage only, not current canonical seed authority.
+- Future slices should be appended only after the corresponding BMAD workflow(s) are digested and mapped into canonical Chiron structures.
+- As execution stories refine the seed, documentation and runtime seed truth should be updated together.
+
+See `docs/architecture/methodology-progressive-seeding.md` for the operational process.
+
 ## Validation Expectations
 
 - Save and refetch roundtrip must return canonical table values.

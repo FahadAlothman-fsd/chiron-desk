@@ -6,15 +6,27 @@ This mapping is intentionally limited to `WU.SETUP` and the `setup-project` work
 
 ## Source References
 
-- `_bmad-output/planning-artifacts/chiron-seed-workflow-definitions-v1.json`
-- `_bmad-output/planning-artifacts/chiron-seed-transition-allowed-workflows-v1.json`
-- `packages/scripts/src/story-seed-fixtures.ts` (setup work-unit fact schema source)
+- `docs/architecture/methodology-progressive-seeding.md`
+- `docs/architecture/methodology-canonical-authority.md`
+- `packages/scripts/src/story-seed-fixtures.ts` (current runtime fixture source, still awaiting `WU.SETUP` code cutover)
+
+## Current status
+
+This document is the active mapping authority for the setup slice the documentation is converging toward.
+
+- Documentation target slice: `WU.SETUP`
+- Documentation target workflow scope: `setup-project`
+- Current runtime TypeScript seed is sufficient for ongoing development and testing, but it remains transitional rather than the final locked seed truth
+- Runtime seed/code alignment is deferred to the Epic 3 execution stories, where the seeded shape will be refined and locked progressively
+- `WU.PROJECT_CONTEXT` is historical transition context for the current runtime seed, not the slice we should keep extending in documentation
+- The broad legacy seed JSON artifacts are lineage/context only and should not be treated as active seed authority
 
 ## Mapping Rules
 
 1. If a canonical table exists, mapped data must be inserted there.
 2. `definitionExtensions` is not used as canonical authority for setup slice data.
 3. Seed payload is validated through Effect Schema before row generation.
+4. Grow the active documentation target progressively; do not widen scope beyond `WU.SETUP` until a later slice is explicitly mapped and approved.
 
 ## Setup Slice Table Mapping
 
@@ -44,3 +56,11 @@ This mapping is intentionally limited to `WU.SETUP` and the `setup-project` work
   - `packages/scripts/src/seed/methodology/tables/*.seed.ts`
 - Seed index and apply order:
   - `packages/scripts/src/seed/methodology/index.ts`
+
+## Progressive seeding note
+
+For this pass, `WU.SETUP` is the only slice we are intentionally documenting forward. Future slices should be appended only after the corresponding BMAD workflow(s) are digested, mapped into Chiron structures, and documented alongside the evolving runtime seed.
+
+## Mapping rationale note
+
+The BMAD-to-Chiron mapping here is not arbitrary. As this slice evolves, keep a descriptive reason for why each BMAD behavior is represented as a particular Chiron work unit, workflow, step, fact, transition, artifact slot, or artifact.
