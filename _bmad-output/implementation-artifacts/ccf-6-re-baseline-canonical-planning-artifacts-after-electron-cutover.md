@@ -142,8 +142,18 @@ so that Epic 3 and later work build on the real post-cutover architecture instea
 
 ## Story Completion Status
 
-- Story completed with canonical planning artifacts re-baselined to the post-Electron runtime structure and with the Epic 3 documentation cleanup folded into the final canonical planning/view model.
-- Completion note: **Canonical planning artifacts, methodology page hierarchy, workflow-editor docs, and seed-direction documentation are now aligned well enough for the current documentation scope. Runtime seed/code cutover remains intentionally deferred to Epic 3 execution stories.**
+- Story completed with canonical planning artifacts re-baselined to the post-Electron runtime structure and with the broader Epic 3 documentation cleanup folded into the final canonical planning/view model.
+- Completion note: **Canonical planning artifacts, methodology page hierarchy, workflow-editor docs, archive cleanup, and seed-direction documentation are now aligned well enough for the current documentation scope. Runtime seed/code cutover remains intentionally deferred to Epic 3 execution stories.**
+
+### Documentation Cleanup Outcomes
+
+- Re-homed methodology design-time workflow docs out of `docs/architecture/workflow-engine/` and into `docs/architecture/methodology-pages/workflow-editor/` so `workflow-engine/` is reserved for runtime/technical material.
+- Renamed methodology page docs from internal `L1` / `L2` labels to semantic page names (`Work Units Overview`, `Work Unit Detail Tabs`) while preserving the aliases in-document for continuity.
+- Promoted the literal locked ASCII wireframes from the March 11 baseline into the stable methodology pages and workflow-editor docs, including the six step/dialog wireframes.
+- Added the missing `Methodology Versions` page as the umbrella methodology-owned page and documented version-scoped routing plus exploratory repin/upgrade notes.
+- Added progressive seeding documentation that explains the intended `WU.SETUP` direction, the append-only slice-growth model, and the current docs-vs-runtime seed discrepancy.
+- Archived broad legacy planning artifacts, superseded Week 6 lock docs, and the two broad legacy seed JSONs under `/_bmad-output/planning-artifacts/archive/2026-02-reset/`, while updating active references to point at archived lineage where needed.
+- Recorded that the current runtime seed is still transitional but sufficient for ongoing development/testing, and that full runtime seed truth will be locked later in the Epic 3 execution stories.
 
 ## Dev Agent Record
 
@@ -163,8 +173,48 @@ opencode/gpt-5.3-codex
 - Generated comprehensive CCF.6 story context from epics/PRD/architecture/UX/project-context plus previous story and git intelligence.
 - Embedded concrete repository command-surface references for canonical docs alignment.
 - Added explicit guardrails to prevent regression to temporary migration framing.
-- Completed the documentation-side follow-through: re-homed methodology design-time workflow docs, promoted locked wireframes, added Methodology Versions and progressive seeding guidance, and documented the intentional docs-vs-runtime seed discrepancy for later Epic 3 execution work.
+- Completed the documentation-side follow-through by re-homing methodology design-time workflow docs, promoting locked page and step-dialog wireframes, and aligning the methodology page hierarchy with the accepted `system / methodology / project` view model.
+- Added `docs/architecture/methodology-pages/versions.md` and documented methodology version routing plus exploratory repin/upgrade guidance without prematurely locking policy.
+- Added `docs/architecture/methodology-progressive-seeding.md`, updated seed/mapping authority docs, and explicitly documented that `WU.SETUP` is the documentation target while the current runtime seed remains transitional until Epic 3 execution work completes the cutover.
+- Archived large batches of stale planning artifacts and the broad legacy seed JSONs under `/_bmad-output/planning-artifacts/archive/2026-02-reset/`, then rewired active references and indexes so the planning-artifacts root is substantially cleaner.
+- Tightened README/authority/inventory wording so methodology design-time docs live under `docs/architecture/methodology-pages/` and `docs/architecture/workflow-engine/` reads as runtime/technical only.
 
 ### File List
 
+- `docs/README.md`
+- `docs/architecture/epic-3-authority.md`
+- `docs/architecture/module-inventory.md`
+- `docs/architecture/methodology-pages/versions.md`
+- `docs/architecture/methodology-pages/work-units/overview.md`
+- `docs/architecture/methodology-pages/work-units/detail-tabs.md`
+- `docs/architecture/methodology-pages/methodology-facts.md`
+- `docs/architecture/methodology-pages/agents.md`
+- `docs/architecture/methodology-pages/dependency-definitions.md`
+- `docs/architecture/methodology-pages/artifact-slots-design-time.md`
+- `docs/architecture/methodology-pages/state-machine-tab.md`
+- `docs/architecture/methodology-pages/workflow-editor/shell.md`
+- `docs/architecture/methodology-pages/workflow-editor/form-step.md`
+- `docs/architecture/methodology-pages/workflow-editor/branch-step.md`
+- `docs/architecture/methodology-pages/workflow-editor/agent-step.md`
+- `docs/architecture/methodology-pages/workflow-editor/invoke-step.md`
+- `docs/architecture/methodology-pages/workflow-editor/display-step.md`
+- `docs/architecture/methodology-pages/workflow-editor/action-step.md`
+- `docs/architecture/methodology-pages/workflow-editor/step-dialog-patterns.md`
+- `docs/architecture/methodology-pages/workflow-editor/variable-target-model.md`
+- `docs/architecture/system-pages/harnesses/index.md`
+- `docs/architecture/ux-patterns/diagnostics-visual-treatment.md`
+- `docs/architecture/ux-patterns/rich-selectors.md`
+- `docs/architecture/methodology-progressive-seeding.md`
+- `docs/architecture/methodology-bmad-setup-mapping.md`
+- `docs/architecture/methodology-canonical-authority.md`
+- `/_bmad-output/planning-artifacts/epics.md`
+- `/_bmad-output/planning-artifacts/prd.md`
+- `/_bmad-output/planning-artifacts/architecture.md`
+- `/_bmad-output/planning-artifacts/ux-design-specification.md`
+- `/_bmad-output/planning-artifacts/epic-3-design-time-first-reassessment-2026-03-13.md`
+- `/_bmad-output/planning-artifacts/archive/2026-02-reset/`
+- `docs/plans/2026-03-16-epic-3-canonical-documentation-design.md`
+- `docs/plans/2026-03-16-epic-3-canonical-documentation-implementation-plan.md`
+- `docs/plans/2026-03-16-methodology-versions-and-progressive-seeding-design.md`
+- `docs/plans/2026-03-16-methodology-versions-and-progressive-seeding-implementation-plan.md`
 - `_bmad-output/implementation-artifacts/ccf-6-re-baseline-canonical-planning-artifacts-after-electron-cutover.md`
