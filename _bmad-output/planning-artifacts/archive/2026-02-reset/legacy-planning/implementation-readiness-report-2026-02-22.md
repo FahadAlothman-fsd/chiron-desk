@@ -20,7 +20,7 @@ documentInventory:
     - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/archive/2026-02-reset/design-exploration/wireframes-architecture-mapping.md
   epicsCandidates:
     - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/epics.md
-    - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/chiron-next-session-epics-stories-kickoff-v1-week6.md
+    - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/archive/2026-02-reset/session-handoffs/chiron-next-session-epics-stories-kickoff-v1-week6.md
     - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/archive/2026-02-reset/research/workflows/create-epic-workflow.md
     - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/archive/2026-02-reset/research/epic-2-research-analysis.md
   uxCandidates:
@@ -51,7 +51,7 @@ documentInventory:
 ### Epics Documents
 
 - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/epics.md
-- /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/chiron-next-session-epics-stories-kickoff-v1-week6.md
+- /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/archive/2026-02-reset/session-handoffs/chiron-next-session-epics-stories-kickoff-v1-week6.md
 - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/archive/2026-02-reset/research/workflows/create-epic-workflow.md
 - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/archive/2026-02-reset/research/epic-2-research-analysis.md
 

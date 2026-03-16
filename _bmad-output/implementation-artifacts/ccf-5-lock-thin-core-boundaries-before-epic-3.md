@@ -173,7 +173,7 @@ Invalid examples:
 - [Source: _bmad-output/planning-artifacts/ux-design-specification.md (deterministic contract ownership and UX/backend boundary expectations)]
 - [Source: docs/architecture/chiron-module-structure.md (canonical module ownership and contracts-centered dependency rule)]
 - [Source: docs/architecture/workflow-engine/effectful-design.md (effect boundaries and error-channel contracts)]
-- [Source: docs/architecture/workflow-engine/agent-step-contract.md (agent step boundaries and deterministic completion semantics)]
+- [Source: docs/architecture/methodology-pages/workflow-editor/agent-step.md (agent step boundaries and deterministic completion semantics)]
 - [Source: docs/architecture/modules/README.md (module responsibility index)]
 - [Source: https://www.electronjs.org/docs/latest/tutorial/security]
 - [Source: https://hono.dev/docs/guides/best-practices]

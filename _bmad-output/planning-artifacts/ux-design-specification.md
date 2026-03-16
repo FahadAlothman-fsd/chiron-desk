@@ -2,7 +2,7 @@
 stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
 lastStep: 14
 inputDocuments:
-  - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/implementation-readiness-report-2026-02-22.md
+  - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/archive/2026-02-reset/legacy-planning/implementation-readiness-report-2026-02-22.md
   - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/prd.md
   - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/architecture.md
   - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/epics.md

@@ -1,7 +1,7 @@
 {
   "version": "v1",
   "methodologyVersionKey": "bmad.v1",
-  "source": "_bmad-output/planning-artifacts/chiron-seed-workflow-definitions-v1.json",
+  "source": "_bmad-output/planning-artifacts/archive/2026-02-reset/legacy-seeds/chiron-seed-workflow-definitions-v1.json",
   "bindings": [
     {
       "workUnitRef": "WU.SETUP",

@@ -10,7 +10,7 @@ Purpose: concrete file-by-file move plan before archival execution.
 - `_bmad-output/planning-artifacts/architecture.md`
 - `_bmad-output/planning-artifacts/chiron-foundational-docs-lock-v1-week6.md`
 - `_bmad-output/planning-artifacts/chiron-active-doc-index-v1-week6.md`
-- `_bmad-output/planning-artifacts/implementation-readiness-report-2026-02-18.md`
+- `_bmad-output/planning-artifacts/archive/2026-02-reset/legacy-planning/implementation-readiness-report-2026-02-18.md`
 - `_bmad-output/planning-artifacts/ux-design-specification.md`
 - `_bmad-output/planning-artifacts/design/ux-patterns-index.md`
 - `_bmad-output/planning-artifacts/design/ux-pattern-structured-exploration-lists.md`

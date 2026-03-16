@@ -15,7 +15,9 @@ Intent: freeze architecture and implementation foundations before new epics/stor
 ### A. Core architecture contracts (must remain authoritative)
 
 - `docs/architecture/modules/*.md`
-- `docs/architecture/workflow-engine/*.md`
+- `docs/architecture/workflow-engine/*.md` (runtime/technical only after the Epic 3 re-home)
+- `docs/architecture/methodology-pages/workflow-editor/*.md`
+- `docs/architecture/methodology-pages/work-units/*.md`
 - `docs/architecture/method-workitem-execution-contract.md`
 - `docs/architecture/method-workitem-execution-examples.md`
 
@@ -29,24 +31,26 @@ Intent: freeze architecture and implementation foundations before new epics/stor
 ### C. Locked implementation decisions from this session
 
 - `_bmad-output/planning-artifacts/chiron-north-star-non-negotiables-week6-tuesday.md`
-- `_bmad-output/planning-artifacts/chiron-canonical-mapping-and-gate-constraints-week6.md`
+- `_bmad-output/planning-artifacts/archive/2026-02-reset/foundation-locks/chiron-canonical-mapping-and-gate-constraints-week6.md`
 - `_bmad-output/planning-artifacts/chiron-transition-workflow-binding-spec-week6.md`
-- `_bmad-output/planning-artifacts/chiron-complete-schemas-v2-week6.md`
+- `_bmad-output/planning-artifacts/archive/2026-02-reset/foundation-locks/chiron-complete-schemas-v2-week6.md`
 - `_bmad-output/planning-artifacts/chiron-effect-schema-contract-status-week6.md`
 - `_bmad-output/planning-artifacts/bmad-work-unit-catalog-v1-week6.md`
 - `_bmad-output/planning-artifacts/bmad-to-chiron-step-config-stubs-v1-week6.md`
 - `_bmad-output/planning-artifacts/bmad-to-chiron-step-config-resolved-v1-week6.md`
 - `_bmad-output/planning-artifacts/bmad-agent-system-prompts-v1-week6.md`
-- `_bmad-output/planning-artifacts/chiron-backend-stack-lock-v1-week6.md`
-- `_bmad-output/planning-artifacts/chiron-frontend-lock-v1-week6.md`
-- `_bmad-output/planning-artifacts/chiron-module-lock-matrix-v1-week6.md`
+- `_bmad-output/planning-artifacts/archive/2026-02-reset/foundation-locks/chiron-backend-stack-lock-v1-week6.md`
+- `_bmad-output/planning-artifacts/archive/2026-02-reset/foundation-locks/chiron-frontend-lock-v1-week6.md`
+- `_bmad-output/planning-artifacts/archive/2026-02-reset/foundation-locks/chiron-module-lock-matrix-v1-week6.md`
 - `_bmad-output/planning-artifacts/prd.md`
 - `_bmad-output/planning-artifacts/architecture.md`
 
-### D. Seed planning artifacts (input to rebuild)
+### D. Seed planning artifacts (historical input to rebuild)
 
-- `_bmad-output/planning-artifacts/chiron-seed-workflow-definitions-v1.json`
-- `_bmad-output/planning-artifacts/chiron-seed-transition-allowed-workflows-v1.json`
+- `_bmad-output/planning-artifacts/archive/2026-02-reset/legacy-seeds/chiron-seed-workflow-definitions-v1.json`
+- `_bmad-output/planning-artifacts/archive/2026-02-reset/legacy-seeds/chiron-seed-transition-allowed-workflows-v1.json`
+
+These broad seed JSONs are preserved as lineage only. They are not the current active seed truth after the shift to progressive slice-based seeding.
 
 ## 3) Explicitly Superseded in This Session
 

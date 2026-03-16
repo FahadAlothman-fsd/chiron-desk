@@ -14,7 +14,7 @@ Scope: Re-sequence Epic 3 so design-time implementation is completed before onbo
 
 ## Design-time scope inventory (must be implemented before runtime slices)
 
-From `docs/plans/2026-03-11-methodology-design-time-pages-tentative-design.md`:
+From the stable Epic 3 docs routed by `docs/architecture/epic-3-authority.md`, originally derived from the March 11 baseline:
 
 1. Work Unit L2 surfaces:
    - Workflows tab

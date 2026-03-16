@@ -9,12 +9,12 @@ Goal: start epic/story creation from locked foundations, then execute reset and 
 Load and treat as canonical:
 
 - `_bmad-output/planning-artifacts/chiron-foundational-docs-lock-v1-week6.md`
-- `_bmad-output/planning-artifacts/chiron-module-lock-matrix-v1-week6.md`
-- `_bmad-output/planning-artifacts/chiron-complete-schemas-v2-week6.md`
+- `_bmad-output/planning-artifacts/archive/2026-02-reset/foundation-locks/chiron-module-lock-matrix-v1-week6.md`
+- `_bmad-output/planning-artifacts/archive/2026-02-reset/foundation-locks/chiron-complete-schemas-v2-week6.md`
 - `_bmad-output/planning-artifacts/bmad-work-unit-catalog-v1-week6.md`
 - `_bmad-output/planning-artifacts/bmad-to-chiron-step-config-resolved-v1-week6.md`
-- `_bmad-output/planning-artifacts/chiron-backend-stack-lock-v1-week6.md`
-- `_bmad-output/planning-artifacts/chiron-frontend-lock-v1-week6.md`
+- `_bmad-output/planning-artifacts/archive/2026-02-reset/foundation-locks/chiron-backend-stack-lock-v1-week6.md`
+- `_bmad-output/planning-artifacts/archive/2026-02-reset/foundation-locks/chiron-frontend-lock-v1-week6.md`
 - `_bmad-output/planning-artifacts/prd.md`
 - `_bmad-output/planning-artifacts/architecture.md`
 

@@ -8,9 +8,9 @@ inputDocuments:
   - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/prd.md
   - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/architecture.md
   - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/ux-design-specification.md
-  - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/sprint-change-proposal-2026-02-21.md
-  - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/chiron-layered-requirements-register-v1-week6.md
-  - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/chiron-week6-doc-finalization-checklist.md
+  - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/archive/2026-02-reset/legacy-planning/sprint-change-proposal-2026-02-21.md
+  - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/archive/2026-02-reset/foundation-locks/chiron-layered-requirements-register-v1-week6.md
+  - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/archive/2026-02-reset/foundation-locks/chiron-week6-doc-finalization-checklist.md
 ---
 
 # chiron - Epic Breakdown
@@ -1025,7 +1025,7 @@ So that topology, contracts, and lifecycle can be authored in one coherent surfa
 
 **Given** I open Work Unit L2
 **When** I switch tabs
-**Then** Overview, Workflows, Artifact Slots, Facts, and State Machine tabs match locked wireframes/behaviors in `docs/plans/2026-03-11-methodology-design-time-pages-tentative-design.md`.
+**Then** Overview, Workflows, Artifact Slots, Facts, and State Machine tabs match the stable architecture docs routed by `docs/architecture/epic-3-authority.md`, including `docs/architecture/methodology-pages/work-units/detail-tabs.md`, `docs/architecture/methodology-pages/methodology-facts.md`, `docs/architecture/methodology-pages/artifact-slots-design-time.md`, and `docs/architecture/methodology-pages/state-machine-tab.md`.
 
 **Given** findings are present
 **When** they render in rows, inspectors, and dialogs
@@ -1051,7 +1051,9 @@ So that workflow intent is modeled with typed, validated configurations.
 
 **Given** I author workflow steps
 **When** I use the editor and dialogs
-**Then** Form, Branch, Agent, Invoke, Display, and Action dialogs support locked fields, stacked editing, and deterministic validation.
+**Then** Form, Branch, Agent, Invoke, Display, and Action dialogs support locked fields, stacked editing, and deterministic validation through the stable methodology Workflow Editor docs routed by `docs/architecture/epic-3-authority.md`.
+
+**And** implementation follows the stable methodology Workflow Editor docs routed by `docs/architecture/epic-3-authority.md`, including `docs/architecture/methodology-pages/workflow-editor/shell.md`, the promoted step-dialog docs under `docs/architecture/methodology-pages/workflow-editor/`, and the shared pattern docs under `docs/architecture/methodology-pages/workflow-editor/` and `docs/architecture/ux-patterns/`.
 
 **Given** variable targets are selected
 **When** mappings are saved

@@ -6,7 +6,7 @@ classification:
   format: bmad-standard
 date: 2026-02-18
 inputDocuments:
-  - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/sprint-change-proposal-2026-02-21.md
+- /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/archive/2026-02-reset/legacy-planning/sprint-change-proposal-2026-02-21.md
   - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/architecture.md
 stepsCompleted:
   - step-e-01-discovery

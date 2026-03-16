@@ -668,11 +668,11 @@ This specification now addresses implementation-readiness blockers without redes
 
 ### Related Documents
 
-- Implementation Readiness Report: `/home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/implementation-readiness-report-2026-02-22.md`
+- Implementation Readiness Report: `/home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/archive/2026-02-reset/legacy-planning/implementation-readiness-report-2026-02-22.md`
 - Product Requirements (canonical): `/home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/prd.md`
 - Architecture (canonical): `/home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/architecture.md`
 - Epics (canonical): `/home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/epics.md`
-- Product Brief (canonical): `/home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/product-brief-chiron-2025-10-26.md`
+- Product Brief (historical context): `/home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/archive/2026-02-reset/legacy-planning/product-brief-chiron-2025-10-26.md`
 - UX Pattern Index: `/home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/design/ux-patterns-index.md`
 - Structured Exploration Lists: `/home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/design/ux-pattern-structured-exploration-lists.md`
 
@@ -685,7 +685,7 @@ This UX Design Specification was created through visual collaboration:
   - Live UI component examples in each theme
   - Side-by-side comparison and semantic color usage
 
-- **Design Direction Mockups**: /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/ux-design-directions.html
+- **Design Direction Mockups**: /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/archive/2026-02-reset/design-exploration/ux-design-directions.html
   - Interactive HTML with 6-8 complete design approaches
   - Full-screen mockups of key screens
   - Design philosophy and rationale for each direction

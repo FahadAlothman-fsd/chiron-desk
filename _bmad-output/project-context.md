@@ -83,8 +83,8 @@ _Version note: entries here are planning-time targets and may change during rese
 - `_bmad-output/planning-artifacts/reset-baseline-checklist.md`
 - `docs/architecture/chiron-module-structure.md`
 - `docs/architecture/workflow-engine/effectful-design.md`
-- `docs/architecture/workflow-engine/agent-step-contract.md`
-- `docs/architecture/workflow-engine/action-step-contract.md`
+- `docs/architecture/methodology-pages/workflow-editor/agent-step.md`
+- `docs/architecture/methodology-pages/workflow-editor/action-step.md`
 - `docs/architecture/modules/README.md`
 - `packages/contracts/AGENTS.md`
 

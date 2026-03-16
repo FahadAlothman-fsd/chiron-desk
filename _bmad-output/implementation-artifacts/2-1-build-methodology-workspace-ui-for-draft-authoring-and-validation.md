@@ -191,7 +191,7 @@ so that I can reliably reach the correct version workspace without using raw API
 ### References
 
 - `_bmad-output/planning-artifacts/epics.md` (Epic 2 Story 2.1 corrected scope and ACs)
-- `_bmad-output/planning-artifacts/sprint-change-proposal-2026-02-28.md` (course correction rationale and sequencing)
+- `_bmad-output/planning-artifacts/archive/2026-02-reset/legacy-planning/sprint-change-proposal-2026-02-28.md` (course correction rationale and sequencing)
 - `_bmad-output/planning-artifacts/architecture.md` (locked architecture and module boundaries)
 - `_bmad-output/planning-artifacts/prd.md` (product model and journey constraints)
 - `_bmad-output/planning-artifacts/ux-design-specification.md` (state semantics, navigation/accessibility expectations)

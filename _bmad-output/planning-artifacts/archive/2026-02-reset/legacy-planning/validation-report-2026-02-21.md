@@ -3,7 +3,7 @@ validationTarget: '_bmad-output/planning-artifacts/prd.md'
 validationDate: '2026-02-21'
 inputDocuments:
   - _bmad-output/planning-artifacts/prd.md
-  - _bmad-output/planning-artifacts/sprint-change-proposal-2026-02-21.md
+- _bmad-output/planning-artifacts/archive/2026-02-reset/legacy-planning/sprint-change-proposal-2026-02-21.md
   - _bmad-output/planning-artifacts/architecture.md
 validationStepsCompleted:
   - step-v-01-discovery
@@ -31,7 +31,7 @@ overallStatus: Pass
 ## Input Documents
 
 - `_bmad-output/planning-artifacts/prd.md`
-- `_bmad-output/planning-artifacts/sprint-change-proposal-2026-02-21.md`
+- `_bmad-output/planning-artifacts/archive/2026-02-reset/legacy-planning/sprint-change-proposal-2026-02-21.md`
 - `_bmad-output/planning-artifacts/architecture.md`
 
 ## Validation Findings

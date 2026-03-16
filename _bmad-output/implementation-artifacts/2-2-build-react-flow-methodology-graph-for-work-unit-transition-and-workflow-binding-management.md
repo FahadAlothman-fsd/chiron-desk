@@ -175,8 +175,8 @@ so that I can configure work units, facts, transitions, workflows, and bindings 
 
 #### Story 2.2 Seed Source of Truth
 
-- `_bmad-output/planning-artifacts/chiron-seed-transition-allowed-workflows-v1.json`
-- `_bmad-output/planning-artifacts/chiron-seed-workflow-definitions-v1.json`
+- `_bmad-output/planning-artifacts/archive/2026-02-reset/legacy-seeds/chiron-seed-transition-allowed-workflows-v1.json`
+- `_bmad-output/planning-artifacts/archive/2026-02-reset/legacy-seeds/chiron-seed-workflow-definitions-v1.json`
 - `_bmad-output/planning-artifacts/bmad-work-unit-catalog-v1-week6.md`
 
 #### Work-Unit Cardinality Mapping for BMAD Seed (Locked for Story 2.2)

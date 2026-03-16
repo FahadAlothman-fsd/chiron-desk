@@ -164,4 +164,4 @@ flowchart LR
 
 ## Canonical Glossary Source
 
-- `_bmad-output/planning-artifacts/chiron-terminology-glossary-v1.md`
+- `_bmad-output/planning-artifacts/archive/2026-02-reset/foundation-locks/chiron-terminology-glossary-v1.md`

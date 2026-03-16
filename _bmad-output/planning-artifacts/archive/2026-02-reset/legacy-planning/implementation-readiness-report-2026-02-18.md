@@ -9,7 +9,7 @@ stepsCompleted:
 selectedDocuments:
   prd: /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/prd.md
   architecture: /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/architecture.md
-  epics: /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/chiron-next-session-epics-stories-kickoff-v1-week6.md
+  epics: /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/archive/2026-02-reset/session-handoffs/chiron-next-session-epics-stories-kickoff-v1-week6.md
   ux: /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/ux-design-specification.md
 documentInventory:
   prdCandidates:
@@ -19,7 +19,7 @@ documentInventory:
     - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/research/chiron-orchestration-architecture-v2.md
     - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/design/wireframes-architecture-mapping.md
   epicsCandidates:
-    - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/chiron-next-session-epics-stories-kickoff-v1-week6.md
+    - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/archive/2026-02-reset/session-handoffs/chiron-next-session-epics-stories-kickoff-v1-week6.md
     - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/research/workflows/create-epic-workflow.md
     - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/research/epic-2-research-analysis.md
   uxCandidates:
@@ -49,7 +49,7 @@ documentInventory:
 
 ### Epics Documents
 
-- /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/chiron-next-session-epics-stories-kickoff-v1-week6.md
+- /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/archive/2026-02-reset/session-handoffs/chiron-next-session-epics-stories-kickoff-v1-week6.md
 - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/research/workflows/create-epic-workflow.md
 - /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/research/epic-2-research-analysis.md
 
@@ -119,7 +119,7 @@ The PRD is concise and clear enough to establish product model constraints, runt
 
 ### Epic FR Coverage Extracted
 
-No explicit FR coverage map was found in `/home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/chiron-next-session-epics-stories-kickoff-v1-week6.md`. The document provides kickoff objectives and ordering guidance, but it does not claim FR-by-FR coverage.
+No explicit FR coverage map was found in `/home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/archive/2026-02-reset/session-handoffs/chiron-next-session-epics-stories-kickoff-v1-week6.md`. The document provides kickoff objectives and ordering guidance, but it does not claim FR-by-FR coverage.
 
 Total FRs in epics document with explicit mapping: 0
 
@@ -215,7 +215,7 @@ Supporting UX references found:
 ### Validation Scope
 
 Reviewed epics source document:
-- /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/chiron-next-session-epics-stories-kickoff-v1-week6.md
+- /home/gondilf/Desktop/projects/masters/chiron/_bmad-output/planning-artifacts/archive/2026-02-reset/session-handoffs/chiron-next-session-epics-stories-kickoff-v1-week6.md
 
 Reference standard applied:
 - /home/gondilf/Desktop/projects/masters/chiron/_bmad/bmm/workflows/3-solutioning/create-epics-and-stories/workflow.md
