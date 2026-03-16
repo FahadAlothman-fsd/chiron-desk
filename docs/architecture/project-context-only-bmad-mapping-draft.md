@@ -1,8 +1,21 @@
 # Project Context Only Mapping Draft (BMAD Source Only)
 
-Status: draft-for-review
+Status: Contextual draft only (non-canonical)
 Date: 2026-03-07
 Scope: `WU.PROJECT_CONTEXT` only (no `WU.SETUP` rows)
+
+Do not use this file as current Epic 3 implementation authority.
+
+This draft is preserved as BMAD-source lineage only. It contains pre-promotion step shapes and invoke/output examples that conflict with the promoted workflow-engine and methodology-page canonicals.
+
+Use `docs/architecture/epic-3-authority.md` to route to the current canonical docs, especially:
+- `docs/architecture/methodology-pages/workflow-editor/form-step.md`
+- `docs/architecture/methodology-pages/workflow-editor/agent-step.md`
+- `docs/architecture/methodology-pages/workflow-editor/invoke-step.md`
+- `docs/architecture/methodology-pages/workflow-editor/action-step.md`
+- `docs/architecture/methodology-pages/workflow-editor/branch-step.md`
+- `docs/architecture/methodology-pages/workflow-editor/display-step.md`
+- promoted methodology-page docs under `docs/architecture/methodology-pages/`
 
 ## 1) Source of Truth Used
 
@@ -610,7 +623,7 @@ Brownfield-specific steps are now active in the canonical lock and represented b
     intent only; path capture occurs in path-specific form steps.
   source_refs:
     - _bmad/bmm/workflows/document-project/instructions.md:11
-    - docs/architecture/workflow-engine/form-step-contract.md:1
+    - docs/architecture/methodology-pages/workflow-editor/form-step.md:1
 
 - id: seed:wf-step:document-project:projectType.route
   methodologyVersionId: mver_bmad_project_context_only_draft
@@ -761,7 +774,7 @@ Brownfield-specific steps are now active in the canonical lock and represented b
   guidanceJson: >
     Present captured facts and bootstrap artifact evidence for review.
   source_refs:
-    - docs/architecture/workflow-engine/display-step-contract.md:1
+    - docs/architecture/methodology-pages/workflow-editor/display-step.md:1
 
 - id: seed:wf-step:document-project:brownfield.paths.capture
   methodologyVersionId: mver_bmad_project_context_only_draft
@@ -916,7 +929,7 @@ Brownfield-specific steps are now active in the canonical lock and represented b
   guidanceJson: >
     Present brownfield findings, generation decision, and artifact evidence.
   source_refs:
-    - docs/architecture/workflow-engine/display-step-contract.md:1
+    - docs/architecture/methodology-pages/workflow-editor/display-step.md:1
 
 # generate-project-context
 - id: seed:wf-step:generate-project-context:inputs.confirm

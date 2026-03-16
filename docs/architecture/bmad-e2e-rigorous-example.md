@@ -1,7 +1,14 @@
 # BMAD E2E Rigorous Example (Target-State)
 
 **Last Updated:** 2026-02-09  
-**Status:** Working reference (not final implementation spec)
+**Status:** Historical working reference (not final implementation spec)
+
+Use this file only as contextual lineage, not as current Epic 3 contract authority.
+
+Some examples here intentionally preserve pre-lock invoke/output patterns such as `inputMapping` and namespace-based child output capture. Current canonical invoke behavior is defined instead by:
+- `docs/architecture/methodology-pages/workflow-editor/invoke-step.md`
+- `docs/plans/2026-03-12-invoke-facts-artifact-slots-design.md`
+- `docs/architecture/epic-3-authority.md`
 
 This document provides a concrete, contract-aligned walkthrough from project initialization through first-story implementation, using BMAD workflows as source inspiration and Chiron step contracts as execution model.
 

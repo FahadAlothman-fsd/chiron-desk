@@ -1,8 +1,17 @@
 # Cross-Work-Unit Invoke Pattern (Parent -> Child)
 
 Date: 2026-02-19
-Status: Locked for implementation stories
+Status: Superseded historical pattern
 Scope: Workflow/invoke runtime, gate evaluation, dependency semantics
+
+Do not use this file as current invoke implementation authority.
+
+This document preserves an older parent-child IO-mapping pattern that has been superseded by the promoted `invoke.v1` direction. Current Epic 3 invoke behavior is defined by:
+- `docs/architecture/methodology-pages/workflow-editor/invoke-step.md`
+- `docs/plans/2026-03-12-invoke-facts-artifact-slots-design.md`
+- `docs/architecture/epic-3-authority.md`
+
+In current canon, parent and child workflows communicate through durable facts and artifact slots rather than invoke-level `inputMapping` / generic output-capture configuration.
 
 ## Decision
 

@@ -7,15 +7,20 @@
 
 Run optimization loops for prompt/tool-generation quality and return governed recommendations.
 
-For phase 1, AX is used as a tool path (`ax-generation`) in runtime executions.
+For phase 1, AX is approved as a manual-first tool path (`ax-generation`) in runtime executions.
+The policy and target service shape in this document are architecture authority, not proof that the runtime path is wired today.
 
 Chiron uses `@ax-llm/ax` as the DSPy-style optimization framework for TypeScript.
+
+Before implementation starts, engineers must refresh live `@ax-llm/ax` APIs and examples against current upstream docs and package exports. This document locks Chiron policy, not a guaranteed snapshot of the live library surface.
 
 ## Current Reality
 
 - Standalone package is scaffold-only.
-- DB has optimization-related tables.
+- Runtime wiring through `tooling-engine`, `agent-runtime`, and `template-engine` is still planned, not implemented.
+- DB persistence described here is planned architecture from the March 8 AX design docs, not current schema reality.
 - Prototype concepts exist outside this package.
+- This doc is allowed to be ahead of code because it defines the canonical AX policy baseline, but implementation engineers must treat the repo as scaffold-only until concrete package and schema work lands.
 
 ## MVP Responsibilities
 
@@ -139,9 +144,9 @@ Promotion rules:
 
 ## Persistence Mapping (MVP)
 
-- `training_examples`: corrected input/output examples used for optimization datasets.
-- `optimization_runs`: run metadata, optimizer type, metrics, and applied timestamp.
-- Prompt/template lineage comes from template-engine references and prompt receipts.
+- Planned persistence includes template registry tables plus AX signature, binding, run, variant, and project-selection tables described in the March 8 AX design docs.
+- Current repo reality does not yet include those AX or template tables in `packages/db/src/schema/`, so this section is a target-state mapping, not an implemented inventory.
+- Prompt/template lineage is still expected to come from template-engine references and prompt receipts once the related schema and runtime wiring exist.
 
 If additional metadata is required, extend optimization persistence with additive tables (no destructive migration).
 

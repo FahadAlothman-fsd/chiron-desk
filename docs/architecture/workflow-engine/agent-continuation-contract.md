@@ -1,7 +1,15 @@
 # Agent Continuation Contract
 
 **Last Updated:** 2026-02-09  
-**Status:** Draft baseline (implementation target)
+**Status:** Contextual draft only (non-canonical)
+
+Do not use this file as current implementation authority.
+
+The continuation intent described here is still relevant, but the invoke/output examples in this draft predate the promoted `invoke.v1` facts-and-artifact-slot model. Continuation work must be reconciled against:
+- `docs/architecture/methodology-pages/workflow-editor/agent-step.md`
+- `docs/architecture/methodology-pages/workflow-editor/invoke-step.md`
+- `docs/plans/2026-03-12-invoke-facts-artifact-slots-design.md`
+- `docs/architecture/epic-3-authority.md`
 
 ## Purpose
 
