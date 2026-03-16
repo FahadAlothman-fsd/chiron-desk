@@ -67,7 +67,7 @@ development_status:
   ccf-4-initialize-test-foundation-after-electron-cutover: done
   ccf-5-lock-thin-core-boundaries-before-epic-3: done
   ccf-6-re-baseline-canonical-planning-artifacts-after-electron-cutover: done
-  cc-foundation-retrospective: backlog
+  cc-foundation-retrospective: done
   epic-3: backlog
   3-1-complete-design-time-ia-and-page-shell-baseline: backlog
   3-2-complete-work-unit-l2-tabs-overview-workflows-artifact-slots-facts-state-machine: backlog
