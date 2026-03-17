@@ -1,12 +1,16 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, Outlet, createFileRoute, useLocation } from "@tanstack/react-router";
 import { Result } from "better-result";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { z } from "zod";
 
 import { buttonVariants } from "@/components/ui/button";
 import {
-  MethodologyVersionWorkspace,
+  MethodologyVersionWorkspaceAuthorHub,
+  type AuthorHubSurfaceSummary,
+} from "@/features/methodologies/version-workspace-author-hub";
+import type { MethodologyVersionWorkspaceAuthorHubActions } from "@/features/methodologies/version-workspace-author-hub-actions";
+import {
   createDraftFromProjection,
   createEmptyMethodologyVersionWorkspaceDraft,
   mapValidationDiagnosticsToWorkspaceDiagnostics,
@@ -21,7 +25,7 @@ export const Route = createFileRoute("/methodologies/$methodologyId/versions/$ve
   validateSearch: (search) =>
     z
       .object({
-        page: z.enum(["author", "publish", "evidence", "context"]).optional(),
+        page: z.enum(["author", "review"]).optional(),
       })
       .parse(search),
   component: MethodologyWorkspaceEntryRoute,
@@ -37,11 +41,10 @@ export function MethodologyWorkspaceEntryRoute() {
     () => createEmptyMethodologyVersionWorkspaceDraft(methodologyId),
     [methodologyId],
   );
-  const [draft, setDraft] = useState<MethodologyVersionWorkspaceDraft>(initialDraft);
   const [parseDiagnostics, setParseDiagnostics] = useState<WorkspaceParseDiagnostic[]>([]);
-  const [publishVersion, setPublishVersion] = useState("");
+  const [publishVersionOverride, setPublishVersionOverride] = useState<string | null>(null);
   const [evidenceFilter, setEvidenceFilter] = useState("");
-  const workspacePage = search.page ?? "author";
+  const workspacePage = search.page === "review" ? "review" : "author";
   const [publishResult, setPublishResult] = useState<{
     publishedVersion: string;
     sourceDraftRef: string;
@@ -96,120 +99,107 @@ export function MethodologyWorkspaceEntryRoute() {
 
   const immutableVersion = currentVersion ? currentVersion.status !== "draft" : false;
   const effectiveWorkspacePage =
-    immutableVersion && workspacePage === "publish" ? "context" : workspacePage;
+    immutableVersion && workspacePage === "review" ? "review" : workspacePage;
   const workspacePath = `/methodologies/${methodologyId}/versions/${versionId}`;
-
-  useEffect(() => {
+  const draft = useMemo<MethodologyVersionWorkspaceDraft>(() => {
     if (!draftQuery.data) {
-      return;
+      return initialDraft;
     }
 
-    setDraft(createDraftFromProjection(methodologyId, draftQuery.data as DraftProjectionShape));
-    setParseDiagnostics([]);
-  }, [draftQuery.data, methodologyId]);
-
-  useEffect(() => {
-    if (publishVersion || !currentVersion?.version) {
-      return;
-    }
-
-    setPublishVersion(currentVersion.version);
-  }, [currentVersion?.version, publishVersion]);
-
-  const immutableRejectionDiagnostic = {
-    field: "displayName",
-    group: "field",
-    blocking: true,
-    message:
-      "IMMUTABLE_PUBLISHED_VERSION required: draft status observed: published status remediation: create or open a draft before editing immutable contract fields.",
-  } satisfies WorkspaceParseDiagnostic;
-
-  const handleSave = async () => {
-    if (isSaving) {
-      return;
-    }
-
-    if (immutableVersion) {
-      setParseDiagnostics([immutableRejectionDiagnostic]);
-      return;
-    }
-
-    const parsed = parseWorkspaceDraftForPersistence(draft);
-    if (hasBlockingDiagnostics(parsed.diagnostics)) {
-      setParseDiagnostics(parsed.diagnostics);
-      return;
-    }
-
-    setParseDiagnostics([]);
-    const saveResult = await Result.tryPromise({
-      try: async () => {
-        const lifecycleInput = {
-          versionId,
-          workUnitTypes: parsed.lifecycle.workUnitTypes,
-          agentTypes: parsed.lifecycle.agentTypes,
-        } as Parameters<typeof updateLifecycleMutation.mutateAsync>[0];
-
-        const lifecycleResult = await updateLifecycleMutation.mutateAsync(lifecycleInput);
-
-        const lifecycleDiagnostics = mapValidationDiagnosticsToWorkspaceDiagnostics(
-          lifecycleResult.validation.diagnostics,
-        );
-        if (!lifecycleResult.validation.valid || hasBlockingDiagnostics(lifecycleDiagnostics)) {
-          setParseDiagnostics(lifecycleDiagnostics);
-          return;
-        }
-
-        const workflowInput = {
-          versionId,
-          workflows: parsed.workflows.workflows,
-          transitionWorkflowBindings: parsed.workflows.transitionWorkflowBindings,
-          guidance: parsed.workflows.guidance,
-          factDefinitions: parsed.workflows.factDefinitions,
-        } as Parameters<typeof updateWorkflowsMutation.mutateAsync>[0];
-
-        const workflowResult = await updateWorkflowsMutation.mutateAsync(workflowInput);
-
-        const workflowDiagnostics = mapValidationDiagnosticsToWorkspaceDiagnostics(
-          workflowResult.diagnostics,
-        );
-        if (hasBlockingDiagnostics(workflowDiagnostics)) {
-          setParseDiagnostics(workflowDiagnostics);
-          return;
-        }
-
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: draftQueryOptions.queryKey }),
-          queryClient.invalidateQueries({ queryKey: detailsQueryOptions.queryKey }),
-        ]);
-
-        const refreshedDraft = await draftQuery.refetch();
-        if (refreshedDraft.data) {
-          setDraft(
-            createDraftFromProjection(methodologyId, refreshedDraft.data as DraftProjectionShape),
-          );
-        }
+    return createDraftFromProjection(methodologyId, draftQuery.data as DraftProjectionShape);
+  }, [draftQuery.data, initialDraft, methodologyId]);
+  const parsedDraft = useMemo(() => parseWorkspaceDraftForPersistence(draft), [draft]);
+  const publishVersion = publishVersionOverride ?? currentVersion?.version ?? "";
+  const authorHubActions: MethodologyVersionWorkspaceAuthorHubActions = {
+    openWorkUnits: {
+      disabledReason: null,
+      onTrigger: () => {
+        void navigate({
+          to: "/methodologies/$methodologyId/versions/$versionId/work-units",
+          params: { methodologyId, versionId },
+        });
       },
-      catch: (error) => error,
-    });
-
-    if (saveResult.isErr()) {
-      const error = saveResult.error;
-      const message = error instanceof Error ? error.message : "Failed to persist draft updates.";
-      if (message.toLowerCase().includes("draft")) {
-        setParseDiagnostics([immutableRejectionDiagnostic]);
-        return;
-      }
-
-      setParseDiagnostics([
-        {
-          field: "displayName",
-          group: "field",
-          blocking: true,
-          message: `SAVE_FAILED required: deterministic save observed: ${message}`,
-        },
-      ]);
-    }
+    },
+    createWorkUnit: {
+      disabledReason: null,
+      onTrigger: () => {
+        void navigate({
+          to: "/methodologies/$methodologyId/versions/$versionId/work-units",
+          params: { methodologyId, versionId },
+        });
+      },
+    },
+    openFacts: {
+      disabledReason: null,
+      onTrigger: () => {
+        void navigate({
+          to: "/methodologies/$methodologyId/versions/$versionId/facts",
+          params: { methodologyId, versionId },
+        });
+      },
+    },
+    createFact: {
+      disabledReason: null,
+      onTrigger: () => {
+        void navigate({
+          to: "/methodologies/$methodologyId/versions/$versionId/facts",
+          params: { methodologyId, versionId },
+        });
+      },
+    },
+    openAgents: {
+      disabledReason: null,
+      onTrigger: () => {
+        void navigate({
+          to: "/methodologies/$methodologyId/versions/$versionId/agents",
+          params: { methodologyId, versionId },
+        });
+      },
+    },
+    createAgent: {
+      disabledReason: null,
+      onTrigger: () => {
+        void navigate({
+          to: "/methodologies/$methodologyId/versions/$versionId/agents",
+          params: { methodologyId, versionId },
+        });
+      },
+    },
+    openLinkTypes: {
+      disabledReason: null,
+      onTrigger: () => {
+        void navigate({
+          to: "/methodologies/$methodologyId/versions/$versionId/dependency-definitions",
+          params: { methodologyId, versionId },
+        });
+      },
+    },
+    createLinkType: {
+      disabledReason: null,
+      onTrigger: () => {
+        void navigate({
+          to: "/methodologies/$methodologyId/versions/$versionId/dependency-definitions",
+          params: { methodologyId, versionId },
+        });
+      },
+    },
   };
+
+  const authorHubSummaries = useMemo(
+    () => ({
+      workUnits: createWorkUnitSummary(
+        parsedDraft.lifecycle.workUnitTypes,
+        parsedDraft.workflows.workflows,
+      ),
+      facts: createFactSummary(
+        parsedDraft.workflows.factDefinitions,
+        parsedDraft.lifecycle.workUnitTypes,
+      ),
+      agents: createAgentSummary(parsedDraft.lifecycle.agentTypes),
+      linkTypes: createLinkTypeSummary(parsedDraft.workflows.transitionWorkflowBindings),
+    }),
+    [parsedDraft],
+  );
 
   const handlePublish = async () => {
     if (publishMutation.isPending || validateDraftMutation.isPending) {
@@ -387,9 +377,7 @@ export function MethodologyWorkspaceEntryRoute() {
           {(
             [
               ["author", "Author"],
-              ["publish", "Publish"],
-              ["evidence", "Evidence"],
-              ["context", "Context"],
+              ["review", "Review & Publish"],
             ] as const
           ).map(([pageKey, label]) => (
             <button
@@ -405,7 +393,7 @@ export function MethodologyWorkspaceEntryRoute() {
                   to: "/methodologies/$methodologyId/versions/$versionId",
                   params: { methodologyId, versionId },
                   search: {
-                    page: pageKey === "author" ? undefined : pageKey,
+                    page: pageKey === "author" ? undefined : "review",
                   },
                   replace: true,
                 });
@@ -417,7 +405,7 @@ export function MethodologyWorkspaceEntryRoute() {
         </div>
       </section>
 
-      {effectiveWorkspacePage === "context" ? (
+      {effectiveWorkspacePage === "review" ? (
         <details className="chiron-frame-flat chiron-tone-context p-3" open>
           <summary className="chiron-tone-kicker cursor-pointer text-[0.68rem] uppercase tracking-[0.18em]">
             Workspace Context
@@ -463,7 +451,7 @@ export function MethodologyWorkspaceEntryRoute() {
         </section>
       ) : null}
 
-      {effectiveWorkspacePage === "publish" ? (
+      {effectiveWorkspacePage === "review" ? (
         <section className="chiron-frame-flat chiron-tone-publish p-4 space-y-3">
           <p className="chiron-tone-kicker text-[0.68rem] uppercase tracking-[0.18em]">
             Publish Methodology Version
@@ -480,7 +468,7 @@ export function MethodologyWorkspaceEntryRoute() {
                 className="border border-border/70 bg-background px-2 py-1 text-sm"
                 value={publishVersion}
                 onChange={(event) => {
-                  setPublishVersion(event.target.value);
+                  setPublishVersionOverride(event.target.value);
                 }}
               />
             </label>
@@ -526,7 +514,7 @@ export function MethodologyWorkspaceEntryRoute() {
         </section>
       ) : null}
 
-      {effectiveWorkspacePage === "evidence" ? (
+      {effectiveWorkspacePage === "review" ? (
         <section className="chiron-frame-flat chiron-tone-evidence p-4 space-y-3">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <p className="chiron-tone-kicker text-[0.68rem] uppercase tracking-[0.18em]">
@@ -587,7 +575,7 @@ export function MethodologyWorkspaceEntryRoute() {
 
       <details
         className="chiron-frame-flat chiron-tone-navigation p-3"
-        open={workspacePage === "context"}
+        open={workspacePage === "review"}
       >
         <summary className="chiron-tone-kicker cursor-pointer text-[0.68rem] uppercase tracking-[0.18em]">
           Navigation
@@ -611,21 +599,88 @@ export function MethodologyWorkspaceEntryRoute() {
       </details>
 
       {effectiveWorkspacePage === "author" ? (
-        <MethodologyVersionWorkspace
-          draft={draft}
-          parseDiagnostics={parseDiagnostics}
-          isSaving={isSaving}
-          onChange={(field, value) => {
-            setDraft((current) => ({
-              ...current,
-              [field]: value,
-            }));
-          }}
-          onSave={() => {
-            void handleSave();
-          }}
+        <MethodologyVersionWorkspaceAuthorHub
+          actions={authorHubActions}
+          draftStatus={
+            currentVersion?.status === "draft"
+              ? "Draft version"
+              : (currentVersion?.status ?? "Draft version")
+          }
+          saveState={isSaving ? "Saving" : "Saved"}
+          runtimeState="Deferred"
+          readinessState={parseDiagnostics.length > 0 ? "Needs Review" : "Ready"}
+          summaries={authorHubSummaries}
         />
       ) : null}
     </MethodologyWorkspaceShell>
   );
+}
+
+function createWorkUnitSummary(
+  workUnitTypes: readonly unknown[],
+  workflows: readonly unknown[],
+): AuthorHubSurfaceSummary {
+  const transitionCount = workUnitTypes.reduce<number>((count, workUnitType) => {
+    if (!isRecord(workUnitType) || !Array.isArray(workUnitType.lifecycleTransitions)) {
+      return count;
+    }
+
+    return count + workUnitType.lifecycleTransitions.length;
+  }, 0);
+
+  return {
+    primary: formatCount(workUnitTypes.length, "work unit"),
+    secondary: [
+      formatCount(transitionCount, "transition"),
+      formatCount(workflows.length, "workflow"),
+    ],
+  };
+}
+
+function createFactSummary(
+  factDefinitions: readonly unknown[],
+  workUnitTypes: readonly unknown[],
+): AuthorHubSurfaceSummary {
+  const schemaCount = workUnitTypes.reduce<number>((count, workUnitType) => {
+    if (!isRecord(workUnitType) || !Array.isArray(workUnitType.factSchemas)) {
+      return count;
+    }
+
+    return count + workUnitType.factSchemas.length;
+  }, 0);
+
+  return {
+    primary: formatCount(factDefinitions.length, "methodology fact"),
+    secondary: [formatCount(schemaCount, "work-unit schema")],
+  };
+}
+
+function createAgentSummary(agentTypes: readonly unknown[]): AuthorHubSurfaceSummary {
+  return {
+    primary: formatCount(agentTypes.length, "agent definition"),
+    secondary: [],
+  };
+}
+
+function createLinkTypeSummary(
+  transitionWorkflowBindings: Record<string, readonly string[]>,
+): AuthorHubSurfaceSummary {
+  const linkTypeCount = Object.keys(transitionWorkflowBindings).length;
+  const bindingCount = Object.values(transitionWorkflowBindings).reduce(
+    (count, workflowKeys) => count + workflowKeys.length,
+    0,
+  );
+
+  return {
+    primary: formatCount(linkTypeCount, "link type"),
+    secondary: [formatCount(bindingCount, "active binding")],
+  };
+}
+
+function formatCount(count: number, singular: string): string {
+  return `${count} ${singular}${count === 1 ? "" : "s"}`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }

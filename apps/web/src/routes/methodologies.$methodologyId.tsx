@@ -134,7 +134,7 @@ export function MethodologyDetailsRoute() {
           <Link
             to="/methodologies/$methodologyId/versions/$versionId"
             params={{ methodologyId, versionId: row.original.id }}
-            search={{ page: row.original.status === "draft" ? undefined : "context" }}
+            search={{ page: row.original.status === "draft" ? undefined : "review" }}
             className={buttonVariants({ size: "sm", variant: "outline" })}
           >
             Open

@@ -3,25 +3,49 @@ import { cleanup, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { useParamsMock, useSearchMock, useRouteContextMock } = vi.hoisted(() => ({
-  useParamsMock: vi.fn(),
-  useSearchMock: vi.fn(),
-  useRouteContextMock: vi.fn(),
-}));
+const { useParamsMock, useSearchMock, useRouteContextMock, useLocationMock, useNavigateMock } =
+  vi.hoisted(() => ({
+    useParamsMock: vi.fn(),
+    useSearchMock: vi.fn(),
+    useRouteContextMock: vi.fn(),
+    useLocationMock: vi.fn(),
+    useNavigateMock: vi.fn(),
+  }));
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children }: { children: ReactNode }) => <a href="/">{children}</a>,
+  Outlet: () => <div>Nested route outlet</div>,
   createFileRoute: () => (options: Record<string, unknown>) => ({
     ...options,
     useParams: useParamsMock,
     useSearch: useSearchMock,
     useRouteContext: useRouteContextMock,
+    useNavigate: () => useNavigateMock,
+  }),
+  useLocation: useLocationMock,
+}));
+
+vi.mock("@/features/methodologies/version-workspace", () => ({
+  MethodologyVersionWorkspace: () => <div>Workspace body</div>,
+  createDraftFromProjection: () => ({ factDefinitionsJson: "[]" }),
+  createEmptyMethodologyVersionWorkspaceDraft: () => ({ factDefinitionsJson: "[]" }),
+  mapValidationDiagnosticsToWorkspaceDiagnostics: () => [],
+  parseWorkspaceDraftForPersistence: () => ({
+    diagnostics: [],
+    lifecycle: { workUnitTypes: [], agentTypes: [] },
+    workflows: {
+      workflows: [],
+      transitionWorkflowBindings: {},
+      guidance: null,
+      factDefinitions: [],
+    },
   }),
 }));
 
 function createRouteContext(options?: {
   detailsQueryFn?: () => Promise<unknown>;
   draftQueryFn?: () => Promise<unknown>;
+  evidenceQueryFn?: () => Promise<unknown>;
 }) {
   const detailsQueryFn = options?.detailsQueryFn ?? (async () => ({ versions: [] }));
   const draftQueryFn =
@@ -31,8 +55,12 @@ function createRouteContext(options?: {
       agentTypes: [{ key: "agent.research", displayName: "Research Agent" }],
       transitionWorkflowBindings: { "link.requires": ["wf.a"] },
     }));
+  const evidenceQueryFn = options?.evidenceQueryFn ?? (async () => []);
 
   return {
+    queryClient: new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
+    }),
     orpc: {
       methodology: {
         getMethodologyDetails: {
@@ -45,6 +73,28 @@ function createRouteContext(options?: {
           queryOptions: ({ input }: { input: { versionId: string } }) => ({
             queryKey: ["methodology", "draft", input.versionId],
             queryFn: draftQueryFn,
+          }),
+        },
+        getPublicationEvidence: {
+          queryOptions: ({ input }: { input: { methodologyVersionId: string } }) => ({
+            queryKey: ["methodology", "evidence", input.methodologyVersionId],
+            queryFn: evidenceQueryFn,
+          }),
+        },
+        validateDraftVersion: {
+          mutationOptions: () => ({ mutationFn: async () => ({ valid: true, diagnostics: [] }) }),
+        },
+        updateDraftLifecycle: {
+          mutationOptions: () => ({
+            mutationFn: async () => ({ validation: { valid: true, diagnostics: [] } }),
+          }),
+        },
+        updateDraftWorkflows: {
+          mutationOptions: () => ({ mutationFn: async () => ({ diagnostics: [] }) }),
+        },
+        publishDraftVersion: {
+          mutationOptions: () => ({
+            mutationFn: async () => ({ published: false, diagnostics: [], evidence: null }),
           }),
         },
       },
@@ -63,7 +113,12 @@ beforeEach(() => {
   useParamsMock.mockReset();
   useSearchMock.mockReset();
   useRouteContextMock.mockReset();
+  useLocationMock.mockReset();
+  useNavigateMock.mockReset();
   useRouteContextMock.mockReturnValue(createRouteContext());
+  useLocationMock.mockReturnValue({
+    pathname: "/methodologies/equity-core/versions/draft-v2/work-units",
+  });
 });
 
 afterEach(() => {
@@ -71,6 +126,37 @@ afterEach(() => {
 });
 
 describe("methodology version shell routes", () => {
+  it("renders the new workspace author shell contract at the top layer", async () => {
+    const { MethodologyWorkspaceEntryRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId");
+    useParamsMock.mockReturnValue({ methodologyId: "equity-core", versionId: "draft-v2" });
+    useSearchMock.mockReturnValue({});
+    useLocationMock.mockReturnValue({ pathname: "/methodologies/equity-core/versions/draft-v2" });
+    useRouteContextMock.mockReturnValue(
+      createRouteContext({
+        detailsQueryFn: async () => ({
+          versions: [{ id: "draft-v2", version: "Draft: Equity Draft", status: "draft" }],
+        }),
+      }),
+    );
+
+    renderWithQueryClient(<MethodologyWorkspaceEntryRoute />);
+
+    expect(await screen.findByRole("button", { name: "Author" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Review & Publish" })).toBeTruthy();
+    expect(screen.getByText("DRAFT")).toBeTruthy();
+    expect(screen.getByText("SAVE STATE")).toBeTruthy();
+    expect(screen.getByText("RUNTIME")).toBeTruthy();
+    expect(screen.getByText("READINESS")).toBeTruthy();
+    expect(screen.getByText("Work Units")).toBeTruthy();
+    expect(screen.getByText("Facts")).toBeTruthy();
+    expect(screen.getByText("Agents")).toBeTruthy();
+    expect(screen.getByText("Link Types")).toBeTruthy();
+    expect(screen.getAllByTestId("surface-card-separator")).toHaveLength(4);
+    expect(screen.getAllByTestId("surface-card-footer")).toHaveLength(4);
+    expect(screen.getAllByTestId("surface-card-corner")).toHaveLength(16);
+  });
+
   it("renders work-units shell and keeps add intent context", async () => {
     const { MethodologyVersionWorkUnitsRoute } =
       await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
