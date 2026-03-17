@@ -227,6 +227,14 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    font-size: 16px;
+  }
+  @media (min-width: 1280px) {
+    html {
+      font-size: clamp(16px, 0.72vw + 6.75px, 18px);
+    }
+  }
   body {
     @apply font-sans bg-background text-foreground;
   }
@@ -532,6 +540,26 @@
     padding: clamp(1.25rem, 2vw, 2.25rem);
     display: grid;
     gap: 1rem;
+  }
+
+  .chiron-app-shell-header {
+    padding-inline: clamp(0.95rem, 0.65rem + 0.45vw, 1.35rem);
+    padding-block: clamp(0.82rem, 0.6rem + 0.32vw, 1.1rem);
+  }
+
+  .chiron-app-shell-content {
+    padding: clamp(0.95rem, 0.68rem + 0.5vw, 1.45rem);
+  }
+
+  @media (min-width: 1280px) {
+    .chiron-app-shell-header {
+      padding-inline: clamp(1.15rem, 0.58rem + 0.95vw, 1.95rem);
+      padding-block: clamp(0.95rem, 0.56rem + 0.62vw, 1.35rem);
+    }
+
+    .chiron-app-shell-content {
+      padding: clamp(1.1rem, 0.54rem + 0.95vw, 1.95rem);
+    }
   }
 
   .chiron-panel {

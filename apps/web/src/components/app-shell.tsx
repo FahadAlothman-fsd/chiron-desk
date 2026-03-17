@@ -197,7 +197,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
       />
 
       <SidebarInset className="chiron-texture-canvas min-w-0">
-        <header className="border-b border-border/80 px-3 py-3 md:px-4">
+        <header className="chiron-app-shell-header border-b border-border/80">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <SidebarTrigger className="rounded-none" />
@@ -247,7 +247,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <div className="relative z-10 space-y-4 p-3 md:p-4">{children}</div>
+        <div className="chiron-app-shell-content relative z-10 space-y-4">{children}</div>
       </SidebarInset>
 
       <MethodologyCommandPalette
