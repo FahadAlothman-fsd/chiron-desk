@@ -323,3 +323,90 @@ openai/gpt-5.4
 - `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.dependency-definitions.tsx`
 - `apps/web/src/tests/components/app-shell.sidebar-sections.integration.test.tsx`
 - `apps/web/src/tests/components/app-sidebar.integration.test.tsx`
+
+## Post-Implementation Addendum (2026-03-17) — Methodology Dashboard IA Alignment
+
+### Scope of this addendum
+
+- Align `/methodologies/:methodologyId` to version-first dashboard behavior after UX review.
+- Remove dashboard-level facts inventory presentation to avoid cross-scope ambiguity.
+- Encode pinned-project editability rule at dashboard action level.
+
+### Implemented changes
+
+- Updated route:
+  - `apps/web/src/routes/methodologies.$methodologyId.tsx`
+- Replaced facts-inventory dashboard body with:
+  - summary strip: `Latest Active Version`, `Latest Draft Version`, `Total Versions`
+  - version ledger section with lifecycle badges and editability state
+- Added pinned-aware editability behavior:
+  - editable when lifecycle is not archived and pinned-project count is `0`
+  - locked when pinned-project count is greater than `0`
+  - archived rows remain locked
+- Kept version navigation context intact through existing versions/workspace routes.
+
+### Test updates
+
+- Updated:
+  - `apps/web/src/tests/routes/methodologies.$methodologyId.integration.test.tsx`
+- New assertions validate:
+  - version-first summary strip and ledger presence
+  - lifecycle badge visibility
+  - pinned-aware lock/edit behavior labels
+  - absence of dashboard facts inventory/editor cues on this route
+
+### Verification evidence
+
+Commands run (all passing after formatting correction):
+
+1. `bun run --cwd apps/web test -- 'src/tests/routes/methodologies.$methodologyId.integration.test.tsx'`
+2. `bun run --cwd apps/web test -- 'src/tests/routes/methodologies.$methodologyId.integration.test.tsx' 'src/tests/routes/methodologies.$methodologyId.versions.integration.test.tsx' 'src/tests/components/app-shell.sidebar-sections.integration.test.tsx' 'src/tests/components/app-sidebar.integration.test.tsx' 'src/tests/features/methodologies/commands.test.ts' 'src/tests/features/methodologies/command-palette.integration.test.tsx'`
+3. `bun run --cwd apps/web check-types`
+4. `bun run check-types`
+5. `bun run check` (required formatting fix applied via `bunx oxfmt --write 'apps/web/src/routes/methodologies.$methodologyId.tsx'`)
+6. `bunx playwright test tests/e2e/story-3-1-design-shell-navigation.spec.ts`
+
+### Notes
+
+- This addendum intentionally targets IA clarity on methodology dashboard only; it does not alter deeper draft/activation policy beyond pinned-aware dashboard edit affordances.
+
+## Post-Implementation Addendum (2026-03-17) — Dashboard/Versions Convergence + API Ownership
+
+### Scope of this addendum
+
+- Make `/methodologies/:methodologyId` the canonical methodology page for version ledger + draft controls.
+- Keep `/methodologies/:methodologyId/versions` as a compatibility route shell (not a duplicated maintained UX page).
+- Move version editability metadata ownership to server/API.
+
+### Implemented changes
+
+- Dashboard route now hosts former versions-index controls:
+  - `Create Draft`
+  - `Open Existing Draft`
+- Dashboard ledger now consumes API-owned metadata per version:
+  - `pinnedProjectCount`
+  - `isEditable`
+  - `editabilityReason`
+- Versions index route was reduced to compatibility content with a deterministic path back to dashboard while preserving nested child route behavior through `Outlet`.
+- API router (`packages/api/src/routers/methodology.ts`) now enriches methodology version summaries with editability metadata before returning details/versions to web clients.
+
+### Files updated (convergence slice)
+
+- `apps/web/src/routes/methodologies.$methodologyId.tsx`
+- `apps/web/src/routes/methodologies.$methodologyId.versions.tsx`
+- `apps/web/src/tests/routes/methodologies.$methodologyId.integration.test.tsx`
+- `apps/web/src/tests/routes/methodologies.$methodologyId.versions.integration.test.tsx`
+- `packages/api/src/routers/methodology.ts`
+- `packages/api/src/tests/routers/methodology.test.ts`
+
+### Verification evidence
+
+Commands run for this convergence slice:
+
+1. `bun run --cwd packages/api test -- src/tests/routers/methodology.test.ts`
+2. `bun run --cwd apps/web test -- 'src/tests/routes/methodologies.$methodologyId.integration.test.tsx' 'src/tests/routes/methodologies.$methodologyId.versions.integration.test.tsx'`
+3. `bun run --cwd apps/web test -- 'src/tests/components/app-shell.sidebar-sections.integration.test.tsx' 'src/tests/components/app-sidebar.integration.test.tsx' 'src/tests/features/methodologies/commands.test.ts' 'src/tests/features/methodologies/command-palette.integration.test.tsx' 'src/tests/routes/methodologies.$methodologyId.integration.test.tsx' 'src/tests/routes/methodologies.$methodologyId.versions.integration.test.tsx' 'src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx'`
+
+### Notes
+
+- `packages/core` extraction was intentionally deferred in this slice because editability derivation is currently a single-surface API composition concern. Extraction remains a follow-up if this policy becomes multi-consumer or materially more complex.

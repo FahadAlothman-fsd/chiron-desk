@@ -13,8 +13,15 @@ export const METHODOLOGY_COMMAND_IDS = {
   NAV_METHODOLOGIES: "CMD-NAV-METHODOLOGIES",
   NAV_METHODOLOGY_DETAILS: "CMD-NAV-METHODOLOGY-DETAILS",
   NAV_VERSIONS: "CMD-NAV-VERSIONS",
+  NAV_WORK_UNITS: "CMD-NAV-WORK-UNITS",
+  NAV_AGENTS: "CMD-NAV-AGENTS",
+  NAV_DEPENDENCY_DEFINITIONS: "CMD-NAV-DEPENDENCY-DEFINITIONS",
   CREATE_METHODOLOGY: "CMD-CREATE-METHODOLOGY",
   CREATE_DRAFT: "CMD-CREATE-DRAFT",
+  CREATE_FACT: "CMD-CREATE-FACT",
+  CREATE_WORK_UNIT: "CMD-CREATE-WORK-UNIT",
+  CREATE_AGENT: "CMD-CREATE-AGENT",
+  CREATE_LINK_TYPE: "CMD-CREATE-LINK-TYPE",
   OPEN_DRAFT: "CMD-OPEN-DRAFT",
   SYS_RUNTIME_DEFERRED: "CMD-SYS-RUNTIME-DEFERRED",
 } as const;
@@ -31,16 +38,19 @@ export type MethodologyCommand = {
   shortcut: string | null;
   disabledReason: string | null;
   targetMethodologyKey: string | null;
+  targetVersionId: string | null;
 };
 
 type MethodologyCommandInput = {
   selectedMethodologyKey: string | null;
+  selectedVersionId: string | null;
   catalog: readonly MethodologyCatalogItem[];
   selectedDetails: MethodologyDetails | null;
 };
 
 export type MethodologyCommandRankingOptions = {
   selectedMethodologyKey?: string | null;
+  selectedVersionId?: string | null;
   recentlyUsedCommandIds?: readonly MethodologyCommandId[];
 };
 
@@ -61,6 +71,11 @@ export function buildMethodologyCommands(input: MethodologyCommandInput): Method
   const latestDraft = input.selectedDetails
     ? selectLatestDraft(input.selectedDetails.versions)
     : null;
+  const targetVersionId = input.selectedVersionId;
+
+  const requiresVersionContext = targetVersionId
+    ? null
+    : "Open a methodology version context first";
 
   return [
     {
@@ -70,6 +85,7 @@ export function buildMethodologyCommands(input: MethodologyCommandInput): Method
       shortcut: "g h",
       disabledReason: null,
       targetMethodologyKey: null,
+      targetVersionId: null,
     },
     {
       id: METHODOLOGY_COMMAND_IDS.NAV_DASHBOARD,
@@ -78,6 +94,7 @@ export function buildMethodologyCommands(input: MethodologyCommandInput): Method
       shortcut: "g b",
       disabledReason: null,
       targetMethodologyKey: null,
+      targetVersionId: null,
     },
     {
       id: METHODOLOGY_COMMAND_IDS.NAV_METHODOLOGIES,
@@ -86,6 +103,7 @@ export function buildMethodologyCommands(input: MethodologyCommandInput): Method
       shortcut: "g m",
       disabledReason: null,
       targetMethodologyKey: null,
+      targetVersionId: null,
     },
     {
       id: METHODOLOGY_COMMAND_IDS.NAV_METHODOLOGY_DETAILS,
@@ -94,6 +112,7 @@ export function buildMethodologyCommands(input: MethodologyCommandInput): Method
       shortcut: "g d",
       disabledReason: targetMethodologyKey ? null : "Select a methodology first",
       targetMethodologyKey,
+      targetVersionId: null,
     },
     {
       id: METHODOLOGY_COMMAND_IDS.NAV_VERSIONS,
@@ -102,6 +121,34 @@ export function buildMethodologyCommands(input: MethodologyCommandInput): Method
       shortcut: "g v",
       disabledReason: targetMethodologyKey ? null : "Select a methodology first",
       targetMethodologyKey,
+      targetVersionId: null,
+    },
+    {
+      id: METHODOLOGY_COMMAND_IDS.NAV_WORK_UNITS,
+      label: "Open Work Units",
+      group: "Open",
+      shortcut: "g w",
+      disabledReason: requiresVersionContext,
+      targetMethodologyKey,
+      targetVersionId,
+    },
+    {
+      id: METHODOLOGY_COMMAND_IDS.NAV_AGENTS,
+      label: "Open Agents",
+      group: "Open",
+      shortcut: "g a",
+      disabledReason: requiresVersionContext,
+      targetMethodologyKey,
+      targetVersionId,
+    },
+    {
+      id: METHODOLOGY_COMMAND_IDS.NAV_DEPENDENCY_DEFINITIONS,
+      label: "Open Dependency Definitions",
+      group: "Open",
+      shortcut: "g l",
+      disabledReason: requiresVersionContext,
+      targetMethodologyKey,
+      targetVersionId,
     },
     {
       id: METHODOLOGY_COMMAND_IDS.CREATE_METHODOLOGY,
@@ -110,6 +157,7 @@ export function buildMethodologyCommands(input: MethodologyCommandInput): Method
       shortcut: "c m",
       disabledReason: null,
       targetMethodologyKey: null,
+      targetVersionId: null,
     },
     {
       id: METHODOLOGY_COMMAND_IDS.CREATE_DRAFT,
@@ -118,6 +166,43 @@ export function buildMethodologyCommands(input: MethodologyCommandInput): Method
       shortcut: "c d",
       disabledReason: targetMethodologyKey ? null : "Open a methodology version context first",
       targetMethodologyKey,
+      targetVersionId: null,
+    },
+    {
+      id: METHODOLOGY_COMMAND_IDS.CREATE_FACT,
+      label: "Add Fact",
+      group: "Create",
+      shortcut: "c f",
+      disabledReason: requiresVersionContext,
+      targetMethodologyKey,
+      targetVersionId,
+    },
+    {
+      id: METHODOLOGY_COMMAND_IDS.CREATE_WORK_UNIT,
+      label: "Add Work Unit",
+      group: "Create",
+      shortcut: "c w",
+      disabledReason: requiresVersionContext,
+      targetMethodologyKey,
+      targetVersionId,
+    },
+    {
+      id: METHODOLOGY_COMMAND_IDS.CREATE_AGENT,
+      label: "Add Agent",
+      group: "Create",
+      shortcut: "c a",
+      disabledReason: requiresVersionContext,
+      targetMethodologyKey,
+      targetVersionId,
+    },
+    {
+      id: METHODOLOGY_COMMAND_IDS.CREATE_LINK_TYPE,
+      label: "Add Link Type",
+      group: "Create",
+      shortcut: "c l",
+      disabledReason: requiresVersionContext,
+      targetMethodologyKey,
+      targetVersionId,
     },
     {
       id: METHODOLOGY_COMMAND_IDS.OPEN_DRAFT,
@@ -126,6 +211,7 @@ export function buildMethodologyCommands(input: MethodologyCommandInput): Method
       shortcut: "o d",
       disabledReason: latestDraft ? null : "No draft version exists for this methodology",
       targetMethodologyKey,
+      targetVersionId,
     },
     {
       id: METHODOLOGY_COMMAND_IDS.SYS_RUNTIME_DEFERRED,
@@ -134,6 +220,7 @@ export function buildMethodologyCommands(input: MethodologyCommandInput): Method
       shortcut: null,
       disabledReason: RUNTIME_DEFERRED_RATIONALE,
       targetMethodologyKey: null,
+      targetVersionId: null,
     },
   ];
 }
@@ -174,6 +261,7 @@ export function rankAndLimitMethodologyCommands(
   }
 
   const contextMethodologyKey = options.selectedMethodologyKey ?? null;
+  const contextVersionId = options.selectedVersionId ?? null;
 
   const isSystemMatch = (command: MethodologyCommand) => {
     const label = command.label.toLowerCase();
@@ -190,7 +278,15 @@ export function rankAndLimitMethodologyCommands(
     }
 
     if (command.targetMethodologyKey === contextMethodologyKey) {
-      return 0;
+      if (!contextVersionId || !command.targetVersionId) {
+        return 0;
+      }
+
+      if (command.targetVersionId === contextVersionId) {
+        return 0;
+      }
+
+      return 1;
     }
 
     return command.targetMethodologyKey ? 2 : 1;
@@ -239,7 +335,7 @@ export function rankAndLimitMethodologyCommands(
     const label = command.label.toLowerCase();
     const group = command.group.toLowerCase();
     const haystack =
-      `${command.label} ${command.group} ${command.targetMethodologyKey ?? ""}`.toLowerCase();
+      `${command.label} ${command.group} ${command.targetMethodologyKey ?? ""} ${command.targetVersionId ?? ""}`.toLowerCase();
 
     if (!isRefinedSearch) {
       return (

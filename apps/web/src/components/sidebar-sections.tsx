@@ -117,18 +117,27 @@ export function buildSidebarSections(
           },
           {
             label: "Work Units",
+            to: `/methodologies/${methodologyId}/versions/${methodologyVersionId}/work-units`,
             icon: <WaypointsIcon className="size-4" />,
-            disabled: true,
+            isActive: pathname.startsWith(
+              `/methodologies/${methodologyId}/versions/${methodologyVersionId}/work-units`,
+            ),
           },
           {
-            label: "Workflows",
-            icon: <WaypointsIcon className="size-4" />,
-            disabled: true,
+            label: "Agents",
+            to: `/methodologies/${methodologyId}/versions/${methodologyVersionId}/agents`,
+            icon: <WrenchIcon className="size-4" />,
+            isActive: pathname.startsWith(
+              `/methodologies/${methodologyId}/versions/${methodologyVersionId}/agents`,
+            ),
           },
           {
-            label: "Artifact Templates",
-            icon: <FolderKanbanIcon className="size-4" />,
-            disabled: true,
+            label: "Dependency Definitions",
+            to: `/methodologies/${methodologyId}/versions/${methodologyVersionId}/dependency-definitions`,
+            icon: <PackageIcon className="size-4" />,
+            isActive: pathname.startsWith(
+              `/methodologies/${methodologyId}/versions/${methodologyVersionId}/dependency-definitions`,
+            ),
           },
         ],
       });

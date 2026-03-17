@@ -64,6 +64,7 @@ describe("methodology command palette helpers", () => {
   it("creates all required story command IDs with expected disable rules", () => {
     const commands = buildMethodologyCommands({
       selectedMethodologyKey: null,
+      selectedVersionId: null,
       catalog,
       selectedDetails: null,
     });
@@ -76,8 +77,15 @@ describe("methodology command palette helpers", () => {
         METHODOLOGY_COMMAND_IDS.NAV_METHODOLOGIES,
         METHODOLOGY_COMMAND_IDS.NAV_METHODOLOGY_DETAILS,
         METHODOLOGY_COMMAND_IDS.NAV_VERSIONS,
+        METHODOLOGY_COMMAND_IDS.NAV_WORK_UNITS,
+        METHODOLOGY_COMMAND_IDS.NAV_AGENTS,
+        METHODOLOGY_COMMAND_IDS.NAV_DEPENDENCY_DEFINITIONS,
         METHODOLOGY_COMMAND_IDS.CREATE_METHODOLOGY,
         METHODOLOGY_COMMAND_IDS.CREATE_DRAFT,
+        METHODOLOGY_COMMAND_IDS.CREATE_FACT,
+        METHODOLOGY_COMMAND_IDS.CREATE_WORK_UNIT,
+        METHODOLOGY_COMMAND_IDS.CREATE_AGENT,
+        METHODOLOGY_COMMAND_IDS.CREATE_LINK_TYPE,
         METHODOLOGY_COMMAND_IDS.OPEN_DRAFT,
         METHODOLOGY_COMMAND_IDS.SYS_RUNTIME_DEFERRED,
       ],
@@ -92,15 +100,20 @@ describe("methodology command palette helpers", () => {
     const draftCommand = commands.find(
       (command) => command.id === METHODOLOGY_COMMAND_IDS.CREATE_DRAFT,
     );
+    const createFactCommand = commands.find(
+      (command) => command.id === METHODOLOGY_COMMAND_IDS.CREATE_FACT,
+    );
 
     assert.equal(detailsCommand?.disabledReason, "Select a methodology first");
     assert.equal(versionsCommand?.disabledReason, "Select a methodology first");
     assert.equal(draftCommand?.disabledReason, "Open a methodology version context first");
+    assert.equal(createFactCommand?.disabledReason, "Open a methodology version context first");
   });
 
   it("promotes open commands in ranking order and hides system command unless requested", () => {
     const commands = buildMethodologyCommands({
       selectedMethodologyKey: "equity-core",
+      selectedVersionId: "v-draft",
       catalog,
       selectedDetails: detailsWithDraft,
     });
@@ -128,6 +141,7 @@ describe("methodology command palette helpers", () => {
         shortcut: null,
         disabledReason: null,
         targetMethodologyKey: "equity-core",
+        targetVersionId: null,
       },
       {
         id: METHODOLOGY_COMMAND_IDS.NAV_VERSIONS,
@@ -136,6 +150,7 @@ describe("methodology command palette helpers", () => {
         shortcut: null,
         disabledReason: null,
         targetMethodologyKey: "credit-risk",
+        targetVersionId: null,
       },
     ];
 
@@ -156,6 +171,7 @@ describe("methodology command palette helpers", () => {
         shortcut: null,
         disabledReason: null,
         targetMethodologyKey: null,
+        targetVersionId: null,
       },
       {
         id: METHODOLOGY_COMMAND_IDS.NAV_HOME,
@@ -164,6 +180,7 @@ describe("methodology command palette helpers", () => {
         shortcut: null,
         disabledReason: null,
         targetMethodologyKey: null,
+        targetVersionId: null,
       },
     ];
 
@@ -178,6 +195,7 @@ describe("methodology command palette helpers", () => {
   it("expands eligible command matches after two characters", () => {
     const commands = buildMethodologyCommands({
       selectedMethodologyKey: "equity-core",
+      selectedVersionId: "v-draft",
       catalog,
       selectedDetails: detailsWithDraft,
     });

@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Fragment, type ReactNode } from "react";
+import { Fragment, type ComponentProps, type ReactNode } from "react";
 
 import {
   Breadcrumb,
@@ -12,15 +12,7 @@ import {
 
 type ShellSegment = {
   label: string;
-  to?:
-    | "/projects"
-    | "/projects/new"
-    | "/projects/$projectId"
-    | "/projects/$projectId/pinning"
-    | "/methodologies"
-    | "/methodologies/$methodologyId"
-    | "/methodologies/$methodologyId/versions"
-    | "/methodologies/$methodologyId/versions/$versionId";
+  to?: ComponentProps<typeof Link>["to"];
   params?: Record<string, string>;
 };
 

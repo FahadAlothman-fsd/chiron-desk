@@ -8,12 +8,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Result } from "better-result";
 import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
+import { z } from "zod";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -52,6 +53,12 @@ import {
 import { MethodologyWorkspaceShell } from "@/features/methodologies/workspace-shell";
 
 export const Route = createFileRoute("/methodologies/$methodologyId/versions/$versionId/facts")({
+  validateSearch: (search) =>
+    z
+      .object({
+        intent: z.enum(["add-fact"]).optional(),
+      })
+      .parse(search),
   component: MethodologyVersionFactsRoute,
 });
 
@@ -601,6 +608,8 @@ function FactEditorDialog({
 
 export function MethodologyVersionFactsRoute() {
   const { methodologyId, versionId } = Route.useParams();
+  const search = Route.useSearch();
+  const navigate = useNavigate();
   const { orpc, queryClient } = Route.useRouteContext();
   const initialDraft = useMemo(
     () => createEmptyMethodologyVersionWorkspaceDraft(methodologyId),
@@ -656,6 +665,8 @@ export function MethodologyVersionFactsRoute() {
     setEditorFact(createEmptyMethodologyFact());
     setEditorOpen(true);
   };
+
+  const isCreateIntentActive = search.intent === "add-fact";
 
   const openEditDialog = (factId: string) => {
     const existing = findFactById(factId);
@@ -851,8 +862,17 @@ export function MethodologyVersionFactsRoute() {
 
       <FactEditorDialog
         key={`${editingFactId ?? "new"}-${editorOpen ? "open" : "closed"}`}
-        open={editorOpen}
-        onOpenChange={setEditorOpen}
+        open={editorOpen || isCreateIntentActive}
+        onOpenChange={(open) => {
+          setEditorOpen(open);
+          if (!open && isCreateIntentActive) {
+            void navigate({
+              to: "/methodologies/$methodologyId/versions/$versionId/facts",
+              params: { methodologyId, versionId },
+              search: {},
+            });
+          }
+        }}
         initialFact={editorFact}
         isEditing={editingFactId !== null}
         onSave={saveEditorFact}

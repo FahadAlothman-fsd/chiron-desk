@@ -121,11 +121,44 @@ afterEach(() => {
 });
 
 describe("MethodologyCommandPalette integration", () => {
+  it("shows system context and global scope when no selection is active", () => {
+    render(
+      <MethodologyCommandPalette
+        open
+        onOpenChange={vi.fn()}
+        selectedMethodologyKey={null}
+        selectedVersionId={null}
+      />,
+    );
+
+    expect(screen.getByText("Context: System")).toBeTruthy();
+    expect(screen.getByText("Scope: Global platform")).toBeTruthy();
+  });
+
+  it("shows methodology + version scope in the palette header", () => {
+    render(
+      <MethodologyCommandPalette
+        open
+        onOpenChange={vi.fn()}
+        selectedMethodologyKey="equity-core"
+        selectedVersionId="draft-v2"
+      />,
+    );
+
+    expect(screen.getByText("Context: Methodology")).toBeTruthy();
+    expect(screen.getByText("Scope: Equity Core > Draft: Equity Draft")).toBeTruthy();
+  });
+
   it("navigates to create methodology flow from command action", () => {
     const onOpenChange = vi.fn();
 
     render(
-      <MethodologyCommandPalette open onOpenChange={onOpenChange} selectedMethodologyKey={null} />,
+      <MethodologyCommandPalette
+        open
+        onOpenChange={onOpenChange}
+        selectedMethodologyKey={null}
+        selectedVersionId={null}
+      />,
     );
 
     fireEvent.click(screen.getByText("Create Methodology"));
@@ -145,6 +178,7 @@ describe("MethodologyCommandPalette integration", () => {
         open
         onOpenChange={onOpenChange}
         selectedMethodologyKey="equity-core"
+        selectedVersionId={null}
       />,
     );
 
@@ -166,6 +200,7 @@ describe("MethodologyCommandPalette integration", () => {
         open
         onOpenChange={vi.fn()}
         selectedMethodologyKey="equity-core"
+        selectedVersionId={null}
       />,
     );
 
@@ -217,6 +252,7 @@ describe("MethodologyCommandPalette integration", () => {
         open
         onOpenChange={vi.fn()}
         selectedMethodologyKey="equity-core"
+        selectedVersionId={null}
       />,
     );
 
@@ -226,5 +262,97 @@ describe("MethodologyCommandPalette integration", () => {
 
     expect(scrollSpy).toHaveBeenCalled();
     scrollSpy.mockRestore();
+  });
+
+  it("navigates to work units from methodology context", () => {
+    render(
+      <MethodologyCommandPalette
+        open
+        onOpenChange={vi.fn()}
+        selectedMethodologyKey="equity-core"
+        selectedVersionId="draft-v2"
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Open Work Units"));
+
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: "/methodologies/$methodologyId/versions/$versionId/work-units",
+      params: {
+        methodologyId: "equity-core",
+        versionId: "draft-v2",
+      },
+    });
+  });
+
+  it("routes add-fact action to facts shell", () => {
+    render(
+      <MethodologyCommandPalette
+        open
+        onOpenChange={vi.fn()}
+        selectedMethodologyKey="equity-core"
+        selectedVersionId="draft-v2"
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Add Fact"));
+
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: "/methodologies/$methodologyId/versions/$versionId/facts",
+      params: {
+        methodologyId: "equity-core",
+        versionId: "draft-v2",
+      },
+    });
+  });
+
+  it("routes add-agent and add-link-type actions to shells", () => {
+    render(
+      <MethodologyCommandPalette
+        open
+        onOpenChange={vi.fn()}
+        selectedMethodologyKey="equity-core"
+        selectedVersionId="draft-v2"
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Add Agent"));
+    expect(navigateMock).toHaveBeenLastCalledWith({
+      to: "/methodologies/$methodologyId/versions/$versionId/agents",
+      params: {
+        methodologyId: "equity-core",
+        versionId: "draft-v2",
+      },
+    });
+
+    fireEvent.click(screen.getByText("Add Link Type"));
+    expect(navigateMock).toHaveBeenLastCalledWith({
+      to: "/methodologies/$methodologyId/versions/$versionId/dependency-definitions",
+      params: {
+        methodologyId: "equity-core",
+        versionId: "draft-v2",
+      },
+    });
+  });
+
+  it("routes add-work-unit create action to work units shell", () => {
+    render(
+      <MethodologyCommandPalette
+        open
+        onOpenChange={vi.fn()}
+        selectedMethodologyKey="equity-core"
+        selectedVersionId="draft-v2"
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Add Work Unit"));
+
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: "/methodologies/$methodologyId/versions/$versionId/work-units",
+      params: {
+        methodologyId: "equity-core",
+        versionId: "draft-v2",
+      },
+    });
   });
 });

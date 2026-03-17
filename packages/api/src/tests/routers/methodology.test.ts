@@ -1064,6 +1064,68 @@ describe("methodology router", () => {
       expect(versions).toHaveLength(1);
       expect(versions[0]?.id).toBe(created.version.id);
     });
+
+    it("returns version editability metadata derived from server-side pin state", async () => {
+      const serviceLayer = makeServiceLayer();
+      const methodologyRouter = createMethodologyRouter(serviceLayer);
+
+      const firstDraft = await call(
+        methodologyRouter.createDraftVersion,
+        {
+          methodologyKey: "details-metadata-method",
+          displayName: "Details Metadata Method",
+          version: "0.1.0-draft",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        methodologyRouter.publishDraftVersion,
+        {
+          versionId: firstDraft.version.id,
+          publishedVersion: "1.0.0",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        methodologyRouter.createDraftVersion,
+        {
+          methodologyKey: "details-metadata-method",
+          displayName: "Details Metadata Method",
+          version: "1.1.0-draft",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const details = await call(
+        methodologyRouter.getMethodologyDetails,
+        { methodologyKey: "details-metadata-method" },
+        PUBLIC_CTX,
+      );
+
+      expect(details.versions).toHaveLength(2);
+      expect(details.versions[0]).toEqual(
+        expect.objectContaining({
+          pinnedProjectCount: expect.any(Number),
+          isEditable: expect.any(Boolean),
+          editabilityReason: expect.stringMatching(/^(editable|pinned|archived)$/),
+        }),
+      );
+      expect(details.versions[1]).toEqual(
+        expect.objectContaining({
+          pinnedProjectCount: expect.any(Number),
+          isEditable: expect.any(Boolean),
+          editabilityReason: expect.stringMatching(/^(editable|pinned|archived)$/),
+        }),
+      );
+    });
   });
 
   describe("createDraftVersion", () => {

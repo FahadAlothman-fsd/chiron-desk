@@ -79,7 +79,7 @@ describe("methodology versions route", () => {
     cleanup();
   });
 
-  it("renders the versions ledger as a table/grid page", async () => {
+  it("renders compatibility content that routes users to dashboard", async () => {
     const { queryClient } = createTestHarness();
     render(
       <QueryClientProvider client={queryClient}>
@@ -87,12 +87,11 @@ describe("methodology versions route", () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByText("Version Ledger")).toBeTruthy();
-    expect(screen.getByText("Version Ledger")).toBeTruthy();
-    expect(screen.getByRole("columnheader", { name: "Display Name" })).toBeTruthy();
-    expect(screen.getByRole("columnheader", { name: "Version" })).toBeTruthy();
-    expect(screen.getByRole("columnheader", { name: "Status" })).toBeTruthy();
-    expect(screen.getByRole("columnheader", { name: "Actions" })).toBeTruthy();
-    expect(screen.getByRole("cell", { name: "BMAD v1" })).toBeTruthy();
+    expect(
+      await screen.findByText(
+        "Version index behaviors now live on the Methodology Dashboard to avoid duplicated page maintenance.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Open Methodology Dashboard" })).toBeTruthy();
   });
 });

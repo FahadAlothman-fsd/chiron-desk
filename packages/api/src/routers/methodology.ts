@@ -338,6 +338,29 @@ function serializeProjectPinEvent(event: {
   };
 }
 
+type MethodologyVersionSummaryLike = {
+  id: string;
+  status: string;
+};
+
+function addVersionEditabilityMetadata<T extends MethodologyVersionSummaryLike>(
+  versions: readonly T[],
+  pinnedCountByVersionId: ReadonlyMap<string, number>,
+) {
+  return versions.map((version) => {
+    const pinnedProjectCount = pinnedCountByVersionId.get(version.id) ?? 0;
+    const isArchived = version.status === "archived";
+    const isEditable = !isArchived && pinnedProjectCount === 0;
+
+    return {
+      ...version,
+      pinnedProjectCount,
+      isEditable,
+      editabilityReason: isArchived ? "archived" : pinnedProjectCount > 0 ? "pinned" : "editable",
+    } as const;
+  });
+}
+
 function mapEffectError(err: MethodologyError | LifecycleError | unknown): never {
   const tag =
     err && typeof err === "object" && "_tag" in err ? (err as { _tag: string })._tag : undefined;
@@ -419,7 +442,30 @@ export function createMethodologyRouter(
         });
       }
 
-      return details;
+      const pinnedCounts = await runEffect(
+        serviceLayer,
+        Effect.gen(function* () {
+          const projectSvc = yield* ProjectContextService;
+          const projects = yield* projectSvc.listProjects();
+          const counts = new Map<string, number>();
+
+          for (const project of projects) {
+            const pin = yield* projectSvc.getProjectMethodologyPin(project.id);
+            if (!pin || pin.methodologyKey !== input.methodologyKey) {
+              continue;
+            }
+
+            counts.set(pin.methodologyVersionId, (counts.get(pin.methodologyVersionId) ?? 0) + 1);
+          }
+
+          return counts;
+        }),
+      );
+
+      return {
+        ...details,
+        versions: addVersionEditabilityMetadata(details.versions, pinnedCounts),
+      };
     }),
 
     listMethodologyVersions: publicProcedure
@@ -439,7 +485,27 @@ export function createMethodologyRouter(
           });
         }
 
-        return details.versions;
+        const pinnedCounts = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const projectSvc = yield* ProjectContextService;
+            const projects = yield* projectSvc.listProjects();
+            const counts = new Map<string, number>();
+
+            for (const project of projects) {
+              const pin = yield* projectSvc.getProjectMethodologyPin(project.id);
+              if (!pin || pin.methodologyKey !== input.methodologyKey) {
+                continue;
+              }
+
+              counts.set(pin.methodologyVersionId, (counts.get(pin.methodologyVersionId) ?? 0) + 1);
+            }
+
+            return counts;
+          }),
+        );
+
+        return addVersionEditabilityMetadata(details.versions, pinnedCounts);
       }),
 
     createDraftVersion: protectedProcedure

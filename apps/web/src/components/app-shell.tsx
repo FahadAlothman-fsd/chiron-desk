@@ -254,6 +254,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
         open={isCommandPaletteOpen}
         onOpenChange={setIsCommandPaletteOpen}
         selectedMethodologyKey={methodologyId ?? null}
+        selectedVersionId={versionId ?? null}
+        selectedProjectId={projectId}
+        selectedProjectName={currentProject?.displayName ?? null}
       />
     </SidebarProvider>
   );

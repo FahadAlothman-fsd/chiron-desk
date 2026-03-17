@@ -25,7 +25,11 @@ import { Route as ProjectsProjectIdFactsRouteImport } from './routes/projects.$p
 import { Route as ProjectsProjectIdAgentsRouteImport } from './routes/projects.$projectId.agents'
 import { Route as MethodologiesMethodologyIdVersionsRouteImport } from './routes/methodologies.$methodologyId.versions'
 import { Route as MethodologiesMethodologyIdVersionsVersionIdRouteImport } from './routes/methodologies.$methodologyId.versions.$versionId'
+import { Route as MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRouteImport } from './routes/methodologies.$methodologyId.versions.$versionId.work-units'
 import { Route as MethodologiesMethodologyIdVersionsVersionIdFactsRouteImport } from './routes/methodologies.$methodologyId.versions.$versionId.facts'
+import { Route as MethodologiesMethodologyIdVersionsVersionIdDependencyDefinitionsRouteImport } from './routes/methodologies.$methodologyId.versions.$versionId.dependency-definitions'
+import { Route as MethodologiesMethodologyIdVersionsVersionIdAgentsRouteImport } from './routes/methodologies.$methodologyId.versions.$versionId.agents'
+import { Route as MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRouteImport } from './routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey'
 
 const ProjectsRoute = ProjectsRouteImport.update({
   id: '/projects',
@@ -113,12 +117,41 @@ const MethodologiesMethodologyIdVersionsVersionIdRoute =
     path: '/$versionId',
     getParentRoute: () => MethodologiesMethodologyIdVersionsRoute,
   } as any)
+const MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRoute =
+  MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRouteImport.update({
+    id: '/work-units',
+    path: '/work-units',
+    getParentRoute: () => MethodologiesMethodologyIdVersionsVersionIdRoute,
+  } as any)
 const MethodologiesMethodologyIdVersionsVersionIdFactsRoute =
   MethodologiesMethodologyIdVersionsVersionIdFactsRouteImport.update({
     id: '/facts',
     path: '/facts',
     getParentRoute: () => MethodologiesMethodologyIdVersionsVersionIdRoute,
   } as any)
+const MethodologiesMethodologyIdVersionsVersionIdDependencyDefinitionsRoute =
+  MethodologiesMethodologyIdVersionsVersionIdDependencyDefinitionsRouteImport.update(
+    {
+      id: '/dependency-definitions',
+      path: '/dependency-definitions',
+      getParentRoute: () => MethodologiesMethodologyIdVersionsVersionIdRoute,
+    } as any,
+  )
+const MethodologiesMethodologyIdVersionsVersionIdAgentsRoute =
+  MethodologiesMethodologyIdVersionsVersionIdAgentsRouteImport.update({
+    id: '/agents',
+    path: '/agents',
+    getParentRoute: () => MethodologiesMethodologyIdVersionsVersionIdRoute,
+  } as any)
+const MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRoute =
+  MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRouteImport.update(
+    {
+      id: '/$workUnitKey',
+      path: '/$workUnitKey',
+      getParentRoute: () =>
+        MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRoute,
+    } as any,
+  )
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -137,7 +170,11 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/work-units': typeof ProjectsProjectIdWorkUnitsRoute
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
   '/methodologies/$methodologyId/versions/$versionId': typeof MethodologiesMethodologyIdVersionsVersionIdRouteWithChildren
+  '/methodologies/$methodologyId/versions/$versionId/agents': typeof MethodologiesMethodologyIdVersionsVersionIdAgentsRoute
+  '/methodologies/$methodologyId/versions/$versionId/dependency-definitions': typeof MethodologiesMethodologyIdVersionsVersionIdDependencyDefinitionsRoute
   '/methodologies/$methodologyId/versions/$versionId/facts': typeof MethodologiesMethodologyIdVersionsVersionIdFactsRoute
+  '/methodologies/$methodologyId/versions/$versionId/work-units': typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRouteWithChildren
+  '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey': typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -155,7 +192,11 @@ export interface FileRoutesByTo {
   '/projects/$projectId/work-units': typeof ProjectsProjectIdWorkUnitsRoute
   '/projects/$projectId': typeof ProjectsProjectIdIndexRoute
   '/methodologies/$methodologyId/versions/$versionId': typeof MethodologiesMethodologyIdVersionsVersionIdRouteWithChildren
+  '/methodologies/$methodologyId/versions/$versionId/agents': typeof MethodologiesMethodologyIdVersionsVersionIdAgentsRoute
+  '/methodologies/$methodologyId/versions/$versionId/dependency-definitions': typeof MethodologiesMethodologyIdVersionsVersionIdDependencyDefinitionsRoute
   '/methodologies/$methodologyId/versions/$versionId/facts': typeof MethodologiesMethodologyIdVersionsVersionIdFactsRoute
+  '/methodologies/$methodologyId/versions/$versionId/work-units': typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRouteWithChildren
+  '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey': typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -175,7 +216,11 @@ export interface FileRoutesById {
   '/projects/$projectId/work-units': typeof ProjectsProjectIdWorkUnitsRoute
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
   '/methodologies/$methodologyId/versions/$versionId': typeof MethodologiesMethodologyIdVersionsVersionIdRouteWithChildren
+  '/methodologies/$methodologyId/versions/$versionId/agents': typeof MethodologiesMethodologyIdVersionsVersionIdAgentsRoute
+  '/methodologies/$methodologyId/versions/$versionId/dependency-definitions': typeof MethodologiesMethodologyIdVersionsVersionIdDependencyDefinitionsRoute
   '/methodologies/$methodologyId/versions/$versionId/facts': typeof MethodologiesMethodologyIdVersionsVersionIdFactsRoute
+  '/methodologies/$methodologyId/versions/$versionId/work-units': typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRouteWithChildren
+  '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey': typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -196,7 +241,11 @@ export interface FileRouteTypes {
     | '/projects/$projectId/work-units'
     | '/projects/$projectId/'
     | '/methodologies/$methodologyId/versions/$versionId'
+    | '/methodologies/$methodologyId/versions/$versionId/agents'
+    | '/methodologies/$methodologyId/versions/$versionId/dependency-definitions'
     | '/methodologies/$methodologyId/versions/$versionId/facts'
+    | '/methodologies/$methodologyId/versions/$versionId/work-units'
+    | '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -214,7 +263,11 @@ export interface FileRouteTypes {
     | '/projects/$projectId/work-units'
     | '/projects/$projectId'
     | '/methodologies/$methodologyId/versions/$versionId'
+    | '/methodologies/$methodologyId/versions/$versionId/agents'
+    | '/methodologies/$methodologyId/versions/$versionId/dependency-definitions'
     | '/methodologies/$methodologyId/versions/$versionId/facts'
+    | '/methodologies/$methodologyId/versions/$versionId/work-units'
+    | '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey'
   id:
     | '__root__'
     | '/'
@@ -233,7 +286,11 @@ export interface FileRouteTypes {
     | '/projects/$projectId/work-units'
     | '/projects/$projectId/'
     | '/methodologies/$methodologyId/versions/$versionId'
+    | '/methodologies/$methodologyId/versions/$versionId/agents'
+    | '/methodologies/$methodologyId/versions/$versionId/dependency-definitions'
     | '/methodologies/$methodologyId/versions/$versionId/facts'
+    | '/methodologies/$methodologyId/versions/$versionId/work-units'
+    | '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -358,6 +415,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MethodologiesMethodologyIdVersionsVersionIdRouteImport
       parentRoute: typeof MethodologiesMethodologyIdVersionsRoute
     }
+    '/methodologies/$methodologyId/versions/$versionId/work-units': {
+      id: '/methodologies/$methodologyId/versions/$versionId/work-units'
+      path: '/work-units'
+      fullPath: '/methodologies/$methodologyId/versions/$versionId/work-units'
+      preLoaderRoute: typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRouteImport
+      parentRoute: typeof MethodologiesMethodologyIdVersionsVersionIdRoute
+    }
     '/methodologies/$methodologyId/versions/$versionId/facts': {
       id: '/methodologies/$methodologyId/versions/$versionId/facts'
       path: '/facts'
@@ -365,17 +429,62 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MethodologiesMethodologyIdVersionsVersionIdFactsRouteImport
       parentRoute: typeof MethodologiesMethodologyIdVersionsVersionIdRoute
     }
+    '/methodologies/$methodologyId/versions/$versionId/dependency-definitions': {
+      id: '/methodologies/$methodologyId/versions/$versionId/dependency-definitions'
+      path: '/dependency-definitions'
+      fullPath: '/methodologies/$methodologyId/versions/$versionId/dependency-definitions'
+      preLoaderRoute: typeof MethodologiesMethodologyIdVersionsVersionIdDependencyDefinitionsRouteImport
+      parentRoute: typeof MethodologiesMethodologyIdVersionsVersionIdRoute
+    }
+    '/methodologies/$methodologyId/versions/$versionId/agents': {
+      id: '/methodologies/$methodologyId/versions/$versionId/agents'
+      path: '/agents'
+      fullPath: '/methodologies/$methodologyId/versions/$versionId/agents'
+      preLoaderRoute: typeof MethodologiesMethodologyIdVersionsVersionIdAgentsRouteImport
+      parentRoute: typeof MethodologiesMethodologyIdVersionsVersionIdRoute
+    }
+    '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey': {
+      id: '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey'
+      path: '/$workUnitKey'
+      fullPath: '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey'
+      preLoaderRoute: typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRouteImport
+      parentRoute: typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRoute
+    }
   }
 }
 
+interface MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRouteChildren {
+  MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRoute: typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRoute
+}
+
+const MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRouteChildren: MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRouteChildren =
+  {
+    MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRoute:
+      MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRoute,
+  }
+
+const MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRouteWithChildren =
+  MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRoute._addFileChildren(
+    MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRouteChildren,
+  )
+
 interface MethodologiesMethodologyIdVersionsVersionIdRouteChildren {
+  MethodologiesMethodologyIdVersionsVersionIdAgentsRoute: typeof MethodologiesMethodologyIdVersionsVersionIdAgentsRoute
+  MethodologiesMethodologyIdVersionsVersionIdDependencyDefinitionsRoute: typeof MethodologiesMethodologyIdVersionsVersionIdDependencyDefinitionsRoute
   MethodologiesMethodologyIdVersionsVersionIdFactsRoute: typeof MethodologiesMethodologyIdVersionsVersionIdFactsRoute
+  MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRoute: typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRouteWithChildren
 }
 
 const MethodologiesMethodologyIdVersionsVersionIdRouteChildren: MethodologiesMethodologyIdVersionsVersionIdRouteChildren =
   {
+    MethodologiesMethodologyIdVersionsVersionIdAgentsRoute:
+      MethodologiesMethodologyIdVersionsVersionIdAgentsRoute,
+    MethodologiesMethodologyIdVersionsVersionIdDependencyDefinitionsRoute:
+      MethodologiesMethodologyIdVersionsVersionIdDependencyDefinitionsRoute,
     MethodologiesMethodologyIdVersionsVersionIdFactsRoute:
       MethodologiesMethodologyIdVersionsVersionIdFactsRoute,
+    MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRoute:
+      MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRouteWithChildren,
   }
 
 const MethodologiesMethodologyIdVersionsVersionIdRouteWithChildren =

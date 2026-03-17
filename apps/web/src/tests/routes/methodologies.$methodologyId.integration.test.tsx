@@ -14,6 +14,7 @@ vi.mock("@tanstack/react-router", () => ({
     ...options,
     useRouteContext: useRouteContextMock,
     useParams: () => ({ methodologyId: "bmad.v1" }),
+    useNavigate: () => useNavigateMock,
   }),
   useLocation: useLocationMock,
   useNavigate: () => useNavigateMock,
@@ -51,6 +52,9 @@ function createTestHarness() {
                 displayName: "BMAD v1",
                 createdAt: "2026-03-10T09:42:43.783Z",
                 retiredAt: null,
+                pinnedProjectCount: 0,
+                isEditable: true,
+                editabilityReason: "editable",
               },
               {
                 id: "mver_bmad_project_context_only_active",
@@ -59,22 +63,9 @@ function createTestHarness() {
                 displayName: "BMAD v1",
                 createdAt: "2026-03-09T21:42:43.783Z",
                 retiredAt: null,
-              },
-            ],
-          }),
-        }),
-      },
-      getDraftProjection: {
-        queryOptions: () => ({
-          queryKey: ["methodology", "draft", "mver_bmad_project_context_only_draft"],
-          queryFn: async () => ({
-            factDefinitions: [
-              {
-                name: "Repository URL",
-                key: "repo_url",
-                factType: "string",
-                defaultValue: "https://example.com/repo.git",
-                validation: { kind: "none" },
+                pinnedProjectCount: 1,
+                isEditable: false,
+                editabilityReason: "pinned",
               },
             ],
           }),
@@ -103,7 +94,7 @@ describe("methodology details route", () => {
     cleanup();
   });
 
-  it("renders a dashboard-style fact inventory and links out to the facts editor", async () => {
+  it("renders a version-first dashboard with badges, summary, and pinned-aware editability", async () => {
     const { queryClient } = createTestHarness();
     render(
       <QueryClientProvider client={queryClient}>
@@ -111,16 +102,36 @@ describe("methodology details route", () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByText("BMAD v1")).toBeTruthy();
-    expect(screen.getByText("Fact Inventory")).toBeTruthy();
-    expect(screen.getByRole("columnheader", { name: "Fact" })).toBeTruthy();
-    expect(screen.getByRole("columnheader", { name: "Type" })).toBeTruthy();
-    expect(screen.getByRole("columnheader", { name: "Guidance" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Open Facts Editor" }).getAttribute("href")).toBe(
-      "/methodologies/$methodologyId/versions/$versionId/facts",
+    expect(await screen.findByText("Latest Active Version")).toBeTruthy();
+    expect(screen.getByText("Latest Draft Version")).toBeTruthy();
+    expect(screen.getByText("Total Versions")).toBeTruthy();
+
+    expect(screen.getByText("Version Ledger")).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Display Name" })).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Version" })).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Lifecycle" })).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Editability" })).toBeTruthy();
+
+    expect(screen.getByText("Draft")).toBeTruthy();
+    expect(screen.getByText("Active")).toBeTruthy();
+
+    expect(screen.getByRole("button", { name: "Edit version" }).hasAttribute("disabled")).toBe(
+      false,
     );
-    expect(screen.queryByRole("columnheader", { name: "Actions" })).toBeNull();
-    expect(screen.queryByText("Metadata")).toBeNull();
-    expect(screen.queryByText("Runtime")).toBeNull();
+    expect(screen.getByRole("button", { name: "Locked" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByText("Pinned by active projects")).toBeTruthy();
+
+    expect(screen.queryByText("Fact Inventory")).toBeNull();
+    expect(screen.queryByRole("columnheader", { name: "Fact" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Open Facts Editor" })).toBeNull();
+
+    expect(screen.getByRole("button", { name: "Create Draft" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Open Existing Draft" }).hasAttribute("disabled"),
+    ).toBe(false);
+
+    expect(screen.getByRole("link", { name: "Versions Index (Compat)" }).getAttribute("href")).toBe(
+      "/methodologies/$methodologyId/versions",
+    );
   });
 });

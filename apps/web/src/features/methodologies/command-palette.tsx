@@ -31,12 +31,16 @@ import {
   type MethodologyCatalogItem,
   type MethodologyDetails,
 } from "@/features/methodologies/foundation";
+import { formatMethodologyVersionLabel } from "@/features/methodologies/version-label";
 import { orpc, queryClient } from "@/utils/orpc";
 
 type MethodologyCommandPaletteProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selectedMethodologyKey: string | null;
+  selectedVersionId: string | null;
+  selectedProjectId?: string | null;
+  selectedProjectName?: string | null;
 };
 
 const GROUP_ORDER = ["Open", "Navigate", "Create", "System"] as const;
@@ -70,6 +74,9 @@ export function MethodologyCommandPalette({
   open,
   onOpenChange,
   selectedMethodologyKey,
+  selectedVersionId,
+  selectedProjectId = null,
+  selectedProjectName = null,
 }: MethodologyCommandPaletteProps) {
   const navigate = useNavigate();
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -99,6 +106,38 @@ export function MethodologyCommandPalette({
   });
 
   const selectedDetails = (detailsQuery.data as MethodologyDetails | undefined) ?? null;
+  const selectedVersion =
+    selectedVersionId && selectedDetails
+      ? (selectedDetails.versions.find((version) => version.id === selectedVersionId) ?? null)
+      : null;
+  const selectedVersionLabel = selectedVersion
+    ? (formatMethodologyVersionLabel(selectedVersion) ??
+      selectedVersion.displayName ??
+      selectedVersion.version ??
+      selectedVersion.id)
+    : null;
+
+  const activeContext: "system" | "methodology" | "project" = selectedProjectId
+    ? "project"
+    : resolvedMethodologyKey
+      ? "methodology"
+      : "system";
+
+  const activeContextLabel =
+    activeContext === "project"
+      ? "Project"
+      : activeContext === "methodology"
+        ? "Methodology"
+        : "System";
+
+  const scopeLabel =
+    activeContext === "project"
+      ? (selectedProjectName ?? selectedProjectId ?? "Selected project")
+      : activeContext === "methodology"
+        ? `${selectedDetails?.displayName ?? resolvedMethodologyKey ?? "Methodology"} > ${
+            selectedVersionLabel ?? "no draft selected"
+          }`
+        : "Global platform";
 
   const createDraftMutation = useMutation(
     orpc.methodology.createDraftVersion.mutationOptions({
@@ -193,12 +232,14 @@ export function MethodologyCommandPalette({
   const commands = rankAndLimitMethodologyCommands(
     buildMethodologyCommands({
       selectedMethodologyKey: resolvedMethodologyKey,
+      selectedVersionId,
       catalog,
       selectedDetails,
     }),
     search,
     {
       selectedMethodologyKey: resolvedMethodologyKey,
+      selectedVersionId,
       recentlyUsedCommandIds,
     },
   );
@@ -239,6 +280,17 @@ export function MethodologyCommandPalette({
               moveSelectionToGroupBoundary(event.shiftKey ? -1 : 1);
             }}
           >
+            <div className="border-b border-border/80 px-3 py-2 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <span className="rounded border border-border bg-muted px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-foreground">
+                  Context: {activeContextLabel}
+                </span>
+                <span className="text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground/90">
+                  System · Methodology · Project
+                </span>
+              </div>
+              <p className="mt-1 text-[0.72rem] text-foreground/90">Scope: {scopeLabel}</p>
+            </div>
             <CommandInput
               value={search}
               onValueChange={setSearch}
@@ -305,6 +357,57 @@ export function MethodologyCommandPalette({
                                 );
                                 return;
                               }
+                              case METHODOLOGY_COMMAND_IDS.NAV_WORK_UNITS: {
+                                const methodologyKey = command.targetMethodologyKey;
+                                const targetVersionId = command.targetVersionId;
+                                if (!methodologyKey || !targetVersionId) {
+                                  return;
+                                }
+                                navigateAndClose(command.id, () =>
+                                  navigate({
+                                    to: "/methodologies/$methodologyId/versions/$versionId/work-units",
+                                    params: {
+                                      methodologyId: methodologyKey,
+                                      versionId: targetVersionId,
+                                    },
+                                  }),
+                                );
+                                return;
+                              }
+                              case METHODOLOGY_COMMAND_IDS.NAV_AGENTS: {
+                                const methodologyKey = command.targetMethodologyKey;
+                                const targetVersionId = command.targetVersionId;
+                                if (!methodologyKey || !targetVersionId) {
+                                  return;
+                                }
+                                navigateAndClose(command.id, () =>
+                                  navigate({
+                                    to: "/methodologies/$methodologyId/versions/$versionId/agents",
+                                    params: {
+                                      methodologyId: methodologyKey,
+                                      versionId: targetVersionId,
+                                    },
+                                  }),
+                                );
+                                return;
+                              }
+                              case METHODOLOGY_COMMAND_IDS.NAV_DEPENDENCY_DEFINITIONS: {
+                                const methodologyKey = command.targetMethodologyKey;
+                                const targetVersionId = command.targetVersionId;
+                                if (!methodologyKey || !targetVersionId) {
+                                  return;
+                                }
+                                navigateAndClose(command.id, () =>
+                                  navigate({
+                                    to: "/methodologies/$methodologyId/versions/$versionId/dependency-definitions",
+                                    params: {
+                                      methodologyId: methodologyKey,
+                                      versionId: targetVersionId,
+                                    },
+                                  }),
+                                );
+                                return;
+                              }
                               case METHODOLOGY_COMMAND_IDS.CREATE_METHODOLOGY: {
                                 navigateAndClose(command.id, () =>
                                   navigate({
@@ -321,6 +424,74 @@ export function MethodologyCommandPalette({
                                 rememberCommand(command.id);
                                 createDraftMutation.mutate(
                                   buildNextDraftInput(selectedDetails, resolvedMethodologyKey),
+                                );
+                                return;
+                              }
+                              case METHODOLOGY_COMMAND_IDS.CREATE_FACT: {
+                                const methodologyKey = command.targetMethodologyKey;
+                                const targetVersionId = command.targetVersionId;
+                                if (!methodologyKey || !targetVersionId) {
+                                  return;
+                                }
+                                navigateAndClose(command.id, () =>
+                                  navigate({
+                                    to: "/methodologies/$methodologyId/versions/$versionId/facts",
+                                    params: {
+                                      methodologyId: methodologyKey,
+                                      versionId: targetVersionId,
+                                    },
+                                  }),
+                                );
+                                return;
+                              }
+                              case METHODOLOGY_COMMAND_IDS.CREATE_WORK_UNIT: {
+                                const methodologyKey = command.targetMethodologyKey;
+                                const targetVersionId = command.targetVersionId;
+                                if (!methodologyKey || !targetVersionId) {
+                                  return;
+                                }
+                                navigateAndClose(command.id, () =>
+                                  navigate({
+                                    to: "/methodologies/$methodologyId/versions/$versionId/work-units",
+                                    params: {
+                                      methodologyId: methodologyKey,
+                                      versionId: targetVersionId,
+                                    },
+                                  }),
+                                );
+                                return;
+                              }
+                              case METHODOLOGY_COMMAND_IDS.CREATE_AGENT: {
+                                const methodologyKey = command.targetMethodologyKey;
+                                const targetVersionId = command.targetVersionId;
+                                if (!methodologyKey || !targetVersionId) {
+                                  return;
+                                }
+                                navigateAndClose(command.id, () =>
+                                  navigate({
+                                    to: "/methodologies/$methodologyId/versions/$versionId/agents",
+                                    params: {
+                                      methodologyId: methodologyKey,
+                                      versionId: targetVersionId,
+                                    },
+                                  }),
+                                );
+                                return;
+                              }
+                              case METHODOLOGY_COMMAND_IDS.CREATE_LINK_TYPE: {
+                                const methodologyKey = command.targetMethodologyKey;
+                                const targetVersionId = command.targetVersionId;
+                                if (!methodologyKey || !targetVersionId) {
+                                  return;
+                                }
+                                navigateAndClose(command.id, () =>
+                                  navigate({
+                                    to: "/methodologies/$methodologyId/versions/$versionId/dependency-definitions",
+                                    params: {
+                                      methodologyId: methodologyKey,
+                                      versionId: targetVersionId,
+                                    },
+                                  }),
                                 );
                                 return;
                               }

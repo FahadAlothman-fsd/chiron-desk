@@ -142,6 +142,12 @@ describe("AppSidebar", () => {
         items: [
           { label: "Workspace", to: "/methodologies/bmad.v1/versions/draft-v2", isActive: true },
           { label: "Facts", to: "/methodologies/bmad.v1/versions/draft-v2/facts" },
+          { label: "Work Units", to: "/methodologies/bmad.v1/versions/draft-v2/work-units" },
+          { label: "Agents", to: "/methodologies/bmad.v1/versions/draft-v2/agents" },
+          {
+            label: "Dependency Definitions",
+            to: "/methodologies/bmad.v1/versions/draft-v2/dependency-definitions",
+          },
         ],
       },
     ];
@@ -180,6 +186,15 @@ describe("AppSidebar", () => {
     );
     expect(screen.getByRole("link", { name: "Facts" }).getAttribute("href")).toBe(
       "/methodologies/bmad.v1/versions/draft-v2/facts",
+    );
+    expect(screen.getByRole("link", { name: "Work Units" }).getAttribute("href")).toBe(
+      "/methodologies/bmad.v1/versions/draft-v2/work-units",
+    );
+    expect(screen.getByRole("link", { name: "Agents" }).getAttribute("href")).toBe(
+      "/methodologies/bmad.v1/versions/draft-v2/agents",
+    );
+    expect(screen.getByRole("link", { name: "Dependency Definitions" }).getAttribute("href")).toBe(
+      "/methodologies/bmad.v1/versions/draft-v2/dependency-definitions",
     );
     fireEvent.click(screen.getAllByRole("button", { name: /BMAD/i })[0]!);
     expect(screen.getByPlaceholderText("Search methodologies...")).toBeTruthy();
