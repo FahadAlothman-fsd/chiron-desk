@@ -410,3 +410,41 @@ Commands run for this convergence slice:
 ### Notes
 
 - `packages/core` extraction was intentionally deferred in this slice because editability derivation is currently a single-surface API composition concern. Extraction remains a follow-up if this policy becomes multi-consumer or materially more complex.
+
+## Post-Implementation Addendum (2026-03-17) — Comfortable Desktop Scaling (1080p/1440p)
+
+### Scope of this addendum
+
+- Address operator feedback that desktop UI felt too small/sparse at 1440p while keeping the Story 3.1 shell UX intact.
+- Apply one maintainable desktop scale strategy instead of page-by-page sizing overrides.
+
+### Implemented changes
+
+- Added desktop fluid root scaling in global web styles (`apps/web/src/index.css`):
+  - baseline remains stable at smaller sizes
+  - scales up between desktop breakpoints with clamp-based bounds
+- Added shell spacing hooks for balanced rhythm under the larger scale:
+  - `chiron-app-shell-header`
+  - `chiron-app-shell-content`
+- Updated app shell structure to use those hooks:
+  - `apps/web/src/components/app-shell.tsx`
+
+### Files updated (scaling slice)
+
+- `apps/web/src/index.css`
+- `apps/web/src/components/app-shell.tsx`
+- `docs/plans/2026-03-17-comfortable-desktop-scaling-design.md`
+- `docs/plans/2026-03-17-comfortable-desktop-scaling-implementation-plan.md`
+
+### Verification evidence
+
+Commands run for this scaling slice:
+
+1. `bun run --cwd apps/web test -- src/tests/components/app-shell.sidebar-sections.integration.test.tsx`
+2. `bun run --cwd apps/web test -- src/tests/features/methodologies/command-palette.integration.test.tsx src/tests/features/methodologies/commands.test.ts`
+3. `bun run --cwd apps/web check-types`
+4. `bun run check`
+
+### Notes
+
+- This slice intentionally avoids per-page hardcoded resolution logic and avoids introducing new effect-based runtime resizing behavior.
