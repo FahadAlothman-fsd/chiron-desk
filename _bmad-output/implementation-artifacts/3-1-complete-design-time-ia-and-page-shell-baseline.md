@@ -1,6 +1,6 @@
 # Story 3.1: Complete Design-Time IA and Page Shell Baseline
 
-Status: ready-for-dev
+Status: in-progress
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -448,3 +448,114 @@ Commands run for this scaling slice:
 ### Notes
 
 - This slice intentionally avoids per-page hardcoded resolution logic and avoids introducing new effect-based runtime resizing behavior.
+
+## Post-Implementation Addendum (2026-03-17) — Version Workspace Author Hub + Two-Tab Top Layer
+
+### Scope of this addendum
+
+- Replace the old top-level version workspace mode model (`Author`, `Publish`, `Evidence`, `Context`) with the approved first-layer contract.
+- Establish `Author` as a hub with visible quick-action and hotkey parity instead of a top-level mega-editor.
+- Keep deeper authoring on dedicated owner pages while preserving deterministic review/publish behavior.
+
+### Implemented changes
+
+- Top-level version workspace now exposes exactly two visible tabs:
+  - `Author`
+  - `Review & Publish`
+- Added a dedicated author-hub component:
+  - `apps/web/src/features/methodologies/version-workspace-author-hub.tsx`
+- Added reusable author-hub action metadata and input-guarded TanStack hotkey sequence wiring:
+  - `apps/web/src/features/methodologies/version-workspace-author-hub-actions.ts`
+- Author hub now shows the approved first-layer shell:
+  - status cards: `DRAFT`, `SAVE STATE`, `RUNTIME`, `READINESS`
+  - surface cards: `Work Units`, `Facts`, `Agents`, `Link Types`
+  - visible quick-action parity for open/create actions with existing command grammar hints:
+    - `G W`, `C W`
+    - `G F`, `C F`
+    - `G A`, `C A`
+    - `G L`, `C L`
+- Top-level author hub actions route to the same destinations as the command palette:
+  - work units -> `/methodologies/:methodologyId/versions/:versionId/work-units`
+  - facts -> `/methodologies/:methodologyId/versions/:versionId/facts`
+  - agents -> `/methodologies/:methodologyId/versions/:versionId/agents`
+  - link types -> `/methodologies/:methodologyId/versions/:versionId/dependency-definitions`
+- Legacy top-layer search states were removed from the route contract; only `author` and `review` remain valid top-level workspace pages.
+- The top-level workspace route no longer mounts the old `MethodologyVersionWorkspace` editor directly.
+- Remaining `useEffect` state-sync logic was removed from the top-level workspace route in favor of render-derived state to align with React best-practices guidance.
+
+### Files updated (author-hub slice)
+
+- `apps/web/src/features/methodologies/version-workspace-author-hub.tsx`
+- `apps/web/src/features/methodologies/version-workspace-author-hub-actions.ts`
+- `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.tsx`
+- `apps/web/src/routes/methodologies.$methodologyId.tsx`
+- `apps/web/src/tests/features/methodologies/version-workspace-author-hub.test.tsx`
+- `apps/web/src/tests/routes/methodologies.$methodologyId.versions.$versionId.integration.test.tsx`
+- `apps/web/src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx`
+
+### Verification evidence
+
+Commands run for this author-hub slice:
+
+1. `bun run --cwd apps/web test -- 'src/tests/features/methodologies/version-workspace-author-hub.test.tsx'`
+2. `bun run --cwd apps/web test -- 'src/tests/routes/methodologies.$methodologyId.versions.$versionId.integration.test.tsx' 'src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx' 'src/tests/features/methodologies/version-workspace-author-hub.test.tsx' 'src/tests/features/methodologies/commands.test.ts' 'src/tests/features/methodologies/command-palette.integration.test.tsx'`
+3. `bun run --cwd apps/web check-types`
+4. `bun run check-types`
+5. `bun run check`
+6. `bunx playwright test tests/e2e/story-3-1-design-shell-navigation.spec.ts`
+
+### Notes
+
+- This slice keeps deeper editing intentionally out of the top-level workspace and treats `Author` as a navigational hub.
+- Hotkey behavior is guarded so shortcut sequences do not fire while text input targets are active.
+
+## Post-Implementation Addendum (2026-03-17) — Reusable Surface Card Primitive
+
+### Scope of this addendum
+
+- Replace the one-off Author hub surface cards with an approved reusable card primitive.
+- Match the near-exact reference structure while keeping colors sourced from the existing app palette.
+- Preserve existing quick-action and hotkey parity while moving the Author hub onto the reusable shell.
+
+### Implemented changes
+
+- Added a reusable surface-card component:
+  - `apps/web/src/components/surface-card.tsx`
+- The shared card now provides the approved structural language:
+  - square shell
+  - thin border
+  - palette-derived tinted background
+  - subtle diagonal stripe wash
+  - four decorative corner squares
+  - explicit footer separator
+  - compact side-by-side footer actions
+- Migrated the Author hub surface cards to use the reusable primitive while keeping current content intact:
+  - `Work Units`
+  - `Facts`
+  - `Agents`
+  - `Link Types`
+- Preserved current quick-action behaviors during the migration:
+  - visible shortcut hints remain attached to action buttons
+  - disabled rationale remains visible when provided
+  - existing TanStack hotkey sequence behavior still routes through the Author hub layer
+
+### Files updated (reusable-card slice)
+
+- `apps/web/src/components/surface-card.tsx`
+- `apps/web/src/features/methodologies/version-workspace-author-hub.tsx`
+- `apps/web/src/tests/components/surface-card.test.tsx`
+- `apps/web/src/tests/features/methodologies/version-workspace-author-hub.test.tsx`
+- `apps/web/src/tests/routes/methodologies.$methodologyId.versions.$versionId.integration.test.tsx`
+- `apps/web/src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx`
+
+### Verification evidence
+
+Commands run for this reusable-card slice:
+
+1. `bun run --cwd apps/web test -- 'src/tests/components/surface-card.test.tsx'`
+2. `bun run --cwd apps/web test -- 'src/tests/routes/methodologies.$methodologyId.versions.$versionId.integration.test.tsx' 'src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx' 'src/tests/components/surface-card.test.tsx' 'src/tests/features/methodologies/version-workspace-author-hub.test.tsx'`
+
+### Notes
+
+- This primitive is intended for reuse across the app; the Author hub is only the first consumer.
+- The visual structure is near-exact to the approved reference, but color derives from current Chiron tone tokens rather than a copied external palette.
