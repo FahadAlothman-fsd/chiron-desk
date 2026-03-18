@@ -44,6 +44,7 @@ function makeTestRepo(): MethodologyRepository["Type"] & ProjectContextRepositor
       descriptionJson: unknown;
       createdAt: Date;
       updatedAt: Date;
+      archivedAt: Date | null;
     }
   >();
   const versions = new Map<string, MethodologyVersionRow>();
@@ -73,6 +74,18 @@ function makeTestRepo(): MethodologyRepository["Type"] & ProjectContextRepositor
   }> = [];
   const workflowSnapshots = new Map<string, WorkflowSnapshot>();
   const factSchemasByVersion = new Map<string, readonly PublishFactSchemaRow[]>();
+  const linkTypeDefinitionsByVersion = new Map<
+    string,
+    readonly {
+      id: string;
+      methodologyVersionId: string;
+      key: string;
+      descriptionJson: unknown;
+      allowedStrengthsJson: unknown;
+      createdAt: Date;
+      updatedAt: Date;
+    }[]
+  >();
   const projects = new Map<
     string,
     {
@@ -94,9 +107,11 @@ function makeTestRepo(): MethodologyRepository["Type"] & ProjectContextRepositor
   return {
     listDefinitions: () =>
       Effect.succeed(
-        [...definitions.values()].sort(
-          (a, b) => a.updatedAt.getTime() - b.updatedAt.getTime() || a.key.localeCompare(b.key),
-        ),
+        [...definitions.values()]
+          .filter((definition) => definition.archivedAt === null)
+          .sort(
+            (a, b) => a.updatedAt.getTime() - b.updatedAt.getTime() || a.key.localeCompare(b.key),
+          ),
       ),
     createDefinition: (key: string, displayName: string) => {
       const now = new Date();
@@ -107,10 +122,35 @@ function makeTestRepo(): MethodologyRepository["Type"] & ProjectContextRepositor
         descriptionJson: {},
         createdAt: now,
         updatedAt: now,
+        archivedAt: null,
       };
       definitions.set(created.id, created);
       return Effect.succeed(created);
     },
+    updateDefinition: (key: string, displayName: string) =>
+      Effect.sync(() => {
+        const existing = [...definitions.values()].find((d) => d.key === key) ?? null;
+        if (!existing) return null;
+        const updated = {
+          ...existing,
+          name: displayName,
+          updatedAt: new Date(),
+        };
+        definitions.set(updated.id, updated);
+        return updated;
+      }),
+    archiveDefinition: (key: string) =>
+      Effect.sync(() => {
+        const existing = [...definitions.values()].find((d) => d.key === key) ?? null;
+        if (!existing) return null;
+        const archived = {
+          ...existing,
+          archivedAt: new Date(),
+          updatedAt: new Date(),
+        };
+        definitions.set(archived.id, archived);
+        return archived;
+      }),
     findDefinitionByKey: (key: string) =>
       Effect.succeed([...definitions.values()].find((d) => d.key === key) ?? null),
     listVersionsByMethodologyId: (methodologyId: string) =>
@@ -139,6 +179,7 @@ function makeTestRepo(): MethodologyRepository["Type"] & ProjectContextRepositor
             descriptionJson: null,
             createdAt: new Date(),
             updatedAt: new Date(),
+            archivedAt: null,
           };
           definitions.set(def.id, def);
         }
@@ -164,12 +205,24 @@ function makeTestRepo(): MethodologyRepository["Type"] & ProjectContextRepositor
             key: fact.key,
             factType: fact.factType,
             name: fact.name ?? fact.key,
-            description: fact.description ?? "",
+            description: typeof fact.description === "string" ? fact.description : null,
             required:
               "required" in fact ? Boolean((fact as { required?: boolean }).required) : false,
             defaultValueJson: fact.defaultValue,
             guidanceJson: null,
             validationJson: null,
+          })),
+        );
+        linkTypeDefinitionsByVersion.set(
+          version.id,
+          (params.linkTypeDefinitions ?? []).map((definition) => ({
+            id: nextId(),
+            methodologyVersionId: version.id,
+            key: definition.key,
+            descriptionJson: definition.description ?? null,
+            allowedStrengthsJson: definition.allowedStrengths,
+            createdAt: new Date(),
+            updatedAt: new Date(),
           })),
         );
         const createdEvent: MethodologyVersionEventRow = {
@@ -216,12 +269,26 @@ function makeTestRepo(): MethodologyRepository["Type"] & ProjectContextRepositor
               key: fact.key,
               factType: fact.factType,
               name: fact.name ?? fact.key,
-              description: fact.description ?? "",
+              description: typeof fact.description === "string" ? fact.description : null,
               required:
                 "required" in fact ? Boolean((fact as { required?: boolean }).required) : false,
               defaultValueJson: fact.defaultValue,
               guidanceJson: null,
               validationJson: null,
+            })),
+          );
+        }
+        if (params.linkTypeDefinitions) {
+          linkTypeDefinitionsByVersion.set(
+            params.versionId,
+            params.linkTypeDefinitions.map((definition) => ({
+              id: nextId(),
+              methodologyVersionId: params.versionId,
+              key: definition.key,
+              descriptionJson: definition.description ?? null,
+              allowedStrengthsJson: definition.allowedStrengths,
+              createdAt: new Date(),
+              updatedAt: new Date(),
             })),
           );
         }
@@ -265,7 +332,14 @@ function makeTestRepo(): MethodologyRepository["Type"] & ProjectContextRepositor
         return row;
       }),
 
-    findLinkTypeKeys: (_versionId: string) => Effect.succeed([] as readonly string[]),
+    findLinkTypeKeys: (versionId: string) =>
+      Effect.succeed(
+        (linkTypeDefinitionsByVersion.get(versionId) ?? [])
+          .map((definition) => definition.key)
+          .sort((a, b) => a.localeCompare(b)) as readonly string[],
+      ),
+    findLinkTypeDefinitionsByVersionId: (versionId: string) =>
+      Effect.succeed(linkTypeDefinitionsByVersion.get(versionId) ?? []),
     findWorkflowSnapshot: (versionId: string) =>
       Effect.succeed(
         workflowSnapshots.get(versionId) ?? {
@@ -276,7 +350,24 @@ function makeTestRepo(): MethodologyRepository["Type"] & ProjectContextRepositor
       ),
     findFactSchemasByVersionId: (versionId: string) =>
       Effect.succeed(factSchemasByVersion.get(versionId) ?? []),
-    findFactDefinitionsByVersionId: () => Effect.succeed([]),
+    findFactDefinitionsByVersionId: (versionId: string) =>
+      Effect.succeed(
+        (factSchemasByVersion.get(versionId) ?? []).map((fact) => ({
+          key: fact.key,
+          name: fact.name,
+          valueType: fact.factType,
+          required: fact.required,
+          descriptionJson: fact.description
+            ? {
+                human: { markdown: fact.description },
+                agent: { markdown: fact.description },
+              }
+            : null,
+          guidanceJson: fact.guidanceJson,
+          defaultValueJson: fact.defaultValueJson,
+          validationJson: fact.validationJson,
+        })),
+      ),
     publishDraftVersion: (params: PublishDraftVersionParams) =>
       Effect.gen(function* () {
         const fail = (code: RepositoryErrorCode) =>
@@ -991,11 +1082,53 @@ describe("methodology router", () => {
   });
 
   describe("catalog and details routes", () => {
+    it("exposes version lifecycle procedures under the version namespace", () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+      const catalogRouter = router as Record<string, unknown> & {
+        catalog?: Record<string, unknown>;
+      };
+      const versionRouter = router.version as Record<string, unknown> & {
+        fact?: Record<string, unknown>;
+        agent?: Record<string, unknown>;
+        dependencyDefinition?: Record<string, unknown>;
+        workUnit?: Record<string, unknown>;
+      };
+
+      expect(catalogRouter.catalog?.update).toBeDefined();
+      expect(catalogRouter.catalog?.delete).toBeDefined();
+      expect(router.version.create).toBeDefined();
+      expect(router.version.list).toBeDefined();
+      expect(router.version.get).toBeDefined();
+      expect(router.version.update).toBeDefined();
+      expect(router.version.validate).toBeDefined();
+      expect(versionRouter.fact?.list).toBeDefined();
+      expect(versionRouter.fact?.create).toBeDefined();
+      expect(versionRouter.fact?.update).toBeDefined();
+      expect(versionRouter.fact?.delete).toBeDefined();
+      expect(versionRouter.agent?.list).toBeDefined();
+      expect(versionRouter.agent?.create).toBeDefined();
+      expect(versionRouter.agent?.update).toBeDefined();
+      expect(versionRouter.agent?.delete).toBeDefined();
+      expect(versionRouter.dependencyDefinition?.list).toBeDefined();
+      expect(versionRouter.dependencyDefinition?.create).toBeDefined();
+      expect(versionRouter.dependencyDefinition?.update).toBeDefined();
+      expect(versionRouter.dependencyDefinition?.delete).toBeDefined();
+      expect(versionRouter.workUnit?.list).toBeDefined();
+      expect(versionRouter.workUnit?.create).toBeDefined();
+      expect(versionRouter.workUnit?.get).toBeDefined();
+      expect(versionRouter.workUnit?.updateMeta).toBeDefined();
+      expect(versionRouter.workUnit?.delete).toBeDefined();
+      expect(router.version.getLineage).toBeDefined();
+      expect(router.version.publish).toBeDefined();
+      expect(router.version.getPublicationEvidence).toBeDefined();
+      expect(versionRouter.workUnit?.stateMachine).toBeUndefined();
+    });
+
     it("lists methodologies deterministically with draft and version summary", async () => {
       const router = createMethodologyRouter(makeServiceLayer());
 
       await call(
-        router.createDraftVersion,
+        router.version.create,
         {
           methodologyKey: "z-method",
           displayName: "Zeta Method",
@@ -1008,7 +1141,7 @@ describe("methodology router", () => {
       );
 
       await call(
-        router.createDraftVersion,
+        router.version.create,
         {
           methodologyKey: "a-method",
           displayName: "Alpha Method",
@@ -1034,7 +1167,7 @@ describe("methodology router", () => {
       const router = createMethodologyRouter(makeServiceLayer());
 
       const created = await call(
-        router.createDraftVersion,
+        router.version.create,
         {
           methodologyKey: "details-method",
           displayName: "Details Method",
@@ -1052,7 +1185,7 @@ describe("methodology router", () => {
         PUBLIC_CTX,
       );
       const versions = await call(
-        router.listMethodologyVersions,
+        router.version.list,
         { methodologyKey: "details-method" },
         PUBLIC_CTX,
       );
@@ -1065,12 +1198,120 @@ describe("methodology router", () => {
       expect(versions[0]?.id).toBe(created.version.id);
     });
 
+    it("archives a methodology through catalog.delete instead of removing it outright", async () => {
+      const router = createMethodologyRouter(
+        makeServiceLayer(),
+      ) as typeof createMethodologyRouter extends (...args: any[]) => infer T
+        ? T & { catalog?: { delete?: unknown } }
+        : never;
+
+      await call(
+        router.createMethodology,
+        {
+          methodologyKey: "archive-method",
+          displayName: "Archive Method",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.catalog?.delete as unknown as Parameters<typeof call>[0],
+        { methodologyKey: "archive-method" },
+        AUTHENTICATED_CTX,
+      );
+
+      const catalog = await call(router.listMethodologies, {}, PUBLIC_CTX);
+
+      expect(catalog.some((item) => item.methodologyKey === "archive-method")).toBe(false);
+    });
+
+    it("updates methodology metadata through catalog.update", async () => {
+      const router = createMethodologyRouter(
+        makeServiceLayer(),
+      ) as typeof createMethodologyRouter extends (...args: any[]) => infer T
+        ? T & {
+            catalog?: {
+              update?: unknown;
+              get?: unknown;
+            };
+          }
+        : never;
+
+      await call(
+        router.createMethodology,
+        {
+          methodologyKey: "rename-method",
+          displayName: "Original Name",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const updated = await call(
+        router.catalog?.update as unknown as Parameters<typeof call>[0],
+        {
+          methodologyKey: "rename-method",
+          displayName: "Renamed Method",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const details = await call(
+        router.catalog?.get as unknown as Parameters<typeof call>[0],
+        { methodologyKey: "rename-method" },
+        PUBLIC_CTX,
+      );
+      const catalog = await call(router.listMethodologies, {}, PUBLIC_CTX);
+
+      expect(updated.displayName).toBe("Renamed Method");
+      expect(details.displayName).toBe("Renamed Method");
+      expect(catalog.find((item) => item.methodologyKey === "rename-method")?.displayName).toBe(
+        "Renamed Method",
+      );
+    });
+
+    it("keeps archived methodologies recoverable through catalog.get", async () => {
+      const router = createMethodologyRouter(
+        makeServiceLayer(),
+      ) as typeof createMethodologyRouter extends (...args: any[]) => infer T
+        ? T & {
+            catalog?: {
+              delete?: unknown;
+              get?: unknown;
+            };
+          }
+        : never;
+
+      await call(
+        router.createMethodology,
+        {
+          methodologyKey: "recoverable-method",
+          displayName: "Recoverable Method",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.catalog?.delete as unknown as Parameters<typeof call>[0],
+        { methodologyKey: "recoverable-method" },
+        AUTHENTICATED_CTX,
+      );
+
+      const archivedDetails = await call(
+        router.catalog?.get as unknown as Parameters<typeof call>[0],
+        { methodologyKey: "recoverable-method" },
+        PUBLIC_CTX,
+      );
+
+      expect(archivedDetails.methodologyKey).toBe("recoverable-method");
+      expect(archivedDetails.displayName).toBe("Recoverable Method");
+    });
+
     it("returns version editability metadata derived from server-side pin state", async () => {
       const serviceLayer = makeServiceLayer();
       const methodologyRouter = createMethodologyRouter(serviceLayer);
 
       const firstDraft = await call(
-        methodologyRouter.createDraftVersion,
+        methodologyRouter.version.create,
         {
           methodologyKey: "details-metadata-method",
           displayName: "Details Metadata Method",
@@ -1083,7 +1324,17 @@ describe("methodology router", () => {
       );
 
       await call(
-        methodologyRouter.publishDraftVersion,
+        methodologyRouter.updateDraftWorkflows,
+        {
+          versionId: firstDraft.version.id,
+          workflows: VALID_DEFINITION.workflows,
+          transitionWorkflowBindings: VALID_DEFINITION.transitionWorkflowBindings,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const publishedDraft = await call(
+        methodologyRouter.version.publish,
         {
           versionId: firstDraft.version.id,
           publishedVersion: "1.0.0",
@@ -1091,8 +1342,10 @@ describe("methodology router", () => {
         AUTHENTICATED_CTX,
       );
 
+      expect(publishedDraft.published).toBe(true);
+
       await call(
-        methodologyRouter.createDraftVersion,
+        methodologyRouter.version.create,
         {
           methodologyKey: "details-metadata-method",
           displayName: "Details Metadata Method",
@@ -1133,7 +1386,7 @@ describe("methodology router", () => {
       const router = createMethodologyRouter(makeServiceLayer());
 
       const result = await call(
-        router.createDraftVersion,
+        router.version.create,
         {
           methodologyKey: "test-meth",
           displayName: "Test Methodology",
@@ -1157,7 +1410,7 @@ describe("methodology router", () => {
       const router = createMethodologyRouter(makeServiceLayer());
 
       const result = await call(
-        router.createDraftVersion,
+        router.version.create,
         {
           methodologyKey: "canonical-create",
           displayName: "Canonical Create",
@@ -1177,7 +1430,7 @@ describe("methodology router", () => {
       const router = createMethodologyRouter(makeServiceLayer());
 
       const result = await call(
-        router.createDraftVersion,
+        router.version.create,
         {
           methodologyKey: "test-meth",
           displayName: "Test",
@@ -1194,6 +1447,38 @@ describe("methodology router", () => {
         true,
       );
     });
+
+    it("rejects creating a second draft version for the same methodology", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      await call(
+        router.version.create,
+        {
+          methodologyKey: "single-draft-meth",
+          displayName: "Single Draft Methodology",
+          version: "0.1.0-draft",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await expect(
+        call(
+          router.version.create,
+          {
+            methodologyKey: "single-draft-meth",
+            displayName: "Single Draft Methodology",
+            version: "0.2.0-draft",
+            workUnitTypes: VALID_DEFINITION.workUnitTypes,
+            transitions: VALID_DEFINITION.transitions,
+            agentTypes: VALID_DEFINITION.agentTypes,
+          },
+          AUTHENTICATED_CTX,
+        ),
+      ).rejects.toThrow(/draft/i);
+    });
   });
 
   describe("split contract routes", () => {
@@ -1201,7 +1486,7 @@ describe("methodology router", () => {
       const router = createMethodologyRouter(makeServiceLayer());
 
       const result = await call(
-        router.createDraftVersion,
+        router.version.create,
         {
           methodologyKey: "test-meth-v2",
           displayName: "V2 Methodology",
@@ -1224,7 +1509,7 @@ describe("methodology router", () => {
       const router = createMethodologyRouter(makeServiceLayer());
 
       const created = await call(
-        router.createDraftVersion,
+        router.version.create,
         {
           methodologyKey: "test-meth",
           displayName: "Test",
@@ -1287,12 +1572,351 @@ describe("methodology router", () => {
     });
   });
 
+  describe("version.fact routes", () => {
+    it("creates, updates, and deletes fact definitions through version.fact CRUD", async () => {
+      const router = createMethodologyRouter(
+        makeServiceLayer(),
+      ) as typeof createMethodologyRouter extends (...args: any[]) => infer T
+        ? T & {
+            version?: {
+              fact?: {
+                list?: unknown;
+                create?: unknown;
+                update?: unknown;
+                delete?: unknown;
+              };
+            };
+          }
+        : never;
+
+      const created = await call(
+        router.version.create,
+        {
+          methodologyKey: "fact-crud-method",
+          displayName: "Fact CRUD Method",
+          version: "0.1.0-draft",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.version?.fact?.create as unknown as Parameters<typeof call>[0],
+        {
+          versionId: created.version.id,
+          fact: {
+            key: "customer_name",
+            name: "Customer Name",
+            factType: "string",
+            description: {
+              human: { markdown: "Customer-facing name" },
+              agent: { markdown: "Customer-facing name" },
+            },
+          },
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const afterCreate = await call(
+        router.version?.fact?.list as unknown as Parameters<typeof call>[0],
+        { versionId: created.version.id },
+        PUBLIC_CTX,
+      );
+
+      expect(afterCreate.factDefinitions).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            key: "customer_name",
+            name: "Customer Name",
+            factType: "string",
+          }),
+        ]),
+      );
+
+      await call(
+        router.version?.fact?.update as unknown as Parameters<typeof call>[0],
+        {
+          versionId: created.version.id,
+          factKey: "customer_name",
+          fact: {
+            key: "customer_name",
+            name: "Legal Customer Name",
+            factType: "string",
+            description: {
+              human: { markdown: "Legal customer name" },
+              agent: { markdown: "Legal customer name" },
+            },
+          },
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const afterUpdate = await call(
+        router.version?.fact?.list as unknown as Parameters<typeof call>[0],
+        { versionId: created.version.id },
+        PUBLIC_CTX,
+      );
+
+      expect(afterUpdate.factDefinitions).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            key: "customer_name",
+            name: "Legal Customer Name",
+          }),
+        ]),
+      );
+
+      await call(
+        router.version?.fact?.delete as unknown as Parameters<typeof call>[0],
+        {
+          versionId: created.version.id,
+          factKey: "customer_name",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const afterDelete = await call(
+        router.version?.fact?.list as unknown as Parameters<typeof call>[0],
+        { versionId: created.version.id },
+        PUBLIC_CTX,
+      );
+
+      expect(afterDelete.factDefinitions ?? []).not.toEqual(
+        expect.arrayContaining([expect.objectContaining({ key: "customer_name" })]),
+      );
+    });
+  });
+
+  describe("version.agent routes", () => {
+    it("creates, updates, and deletes agent definitions through version.agent CRUD", async () => {
+      const router = createMethodologyRouter(
+        makeServiceLayer(),
+      ) as typeof createMethodologyRouter extends (...args: any[]) => infer T
+        ? T & {
+            version?: {
+              agent?: {
+                list?: unknown;
+                create?: unknown;
+                update?: unknown;
+                delete?: unknown;
+              };
+            };
+          }
+        : never;
+
+      const created = await call(
+        router.version.create,
+        {
+          methodologyKey: "agent-crud-method",
+          displayName: "Agent CRUD Method",
+          version: "0.1.0-draft",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.version?.agent?.create as unknown as Parameters<typeof call>[0],
+        {
+          versionId: created.version.id,
+          agent: {
+            key: "reviewer",
+            displayName: "Reviewer",
+            description: "Reviews outputs",
+            persona: "Thorough reviewer",
+          },
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const afterCreate = await call(
+        router.version?.agent?.list as unknown as Parameters<typeof call>[0],
+        { versionId: created.version.id },
+        PUBLIC_CTX,
+      );
+
+      expect(afterCreate.agentTypes).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            key: "reviewer",
+            displayName: "Reviewer",
+            persona: "Thorough reviewer",
+          }),
+        ]),
+      );
+
+      await call(
+        router.version?.agent?.update as unknown as Parameters<typeof call>[0],
+        {
+          versionId: created.version.id,
+          agentKey: "reviewer",
+          agent: {
+            key: "reviewer",
+            displayName: "Senior Reviewer",
+            description: "Reviews outputs carefully",
+            persona: "Senior reviewer",
+          },
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const afterUpdate = await call(
+        router.version?.agent?.list as unknown as Parameters<typeof call>[0],
+        { versionId: created.version.id },
+        PUBLIC_CTX,
+      );
+
+      expect(afterUpdate.agentTypes).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            key: "reviewer",
+            displayName: "Senior Reviewer",
+            persona: "Senior reviewer",
+          }),
+        ]),
+      );
+
+      await call(
+        router.version?.agent?.delete as unknown as Parameters<typeof call>[0],
+        {
+          versionId: created.version.id,
+          agentKey: "reviewer",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const afterDelete = await call(
+        router.version?.agent?.list as unknown as Parameters<typeof call>[0],
+        { versionId: created.version.id },
+        PUBLIC_CTX,
+      );
+
+      expect(afterDelete.agentTypes ?? []).not.toEqual(
+        expect.arrayContaining([expect.objectContaining({ key: "reviewer" })]),
+      );
+    });
+  });
+
+  describe("version.dependencyDefinition routes", () => {
+    it("creates, updates, and deletes dependency definitions through version.dependencyDefinition CRUD", async () => {
+      const router = createMethodologyRouter(
+        makeServiceLayer(),
+      ) as typeof createMethodologyRouter extends (...args: any[]) => infer T
+        ? T & {
+            version?: {
+              dependencyDefinition?: {
+                list?: unknown;
+                create?: unknown;
+                update?: unknown;
+                delete?: unknown;
+              };
+            };
+          }
+        : never;
+
+      const created = await call(
+        router.version.create,
+        {
+          methodologyKey: "dependency-crud-method",
+          displayName: "Dependency CRUD Method",
+          version: "0.1.0-draft",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.version?.dependencyDefinition?.create as unknown as Parameters<typeof call>[0],
+        {
+          versionId: created.version.id,
+          dependencyDefinition: {
+            key: "depends_on",
+            description: "Depends on another work unit",
+            allowedStrengths: ["hard", "soft"],
+          },
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const afterCreate = await call(
+        router.version?.dependencyDefinition?.list as unknown as Parameters<typeof call>[0],
+        { versionId: created.version.id },
+        PUBLIC_CTX,
+      );
+
+      expect(afterCreate.linkTypeDefinitions).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            key: "depends_on",
+            description: "Depends on another work unit",
+            allowedStrengths: expect.arrayContaining(["hard", "soft"]),
+          }),
+        ]),
+      );
+
+      await call(
+        router.version?.dependencyDefinition?.update as unknown as Parameters<typeof call>[0],
+        {
+          versionId: created.version.id,
+          dependencyKey: "depends_on",
+          dependencyDefinition: {
+            key: "depends_on",
+            description: "Strong dependency between work units",
+            allowedStrengths: ["hard"],
+          },
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const afterUpdate = await call(
+        router.version?.dependencyDefinition?.list as unknown as Parameters<typeof call>[0],
+        { versionId: created.version.id },
+        PUBLIC_CTX,
+      );
+
+      expect(afterUpdate.linkTypeDefinitions).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            key: "depends_on",
+            description: "Strong dependency between work units",
+            allowedStrengths: ["hard"],
+          }),
+        ]),
+      );
+
+      await call(
+        router.version?.dependencyDefinition?.delete as unknown as Parameters<typeof call>[0],
+        {
+          versionId: created.version.id,
+          dependencyKey: "depends_on",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const afterDelete = await call(
+        router.version?.dependencyDefinition?.list as unknown as Parameters<typeof call>[0],
+        { versionId: created.version.id },
+        PUBLIC_CTX,
+      );
+
+      expect(afterDelete.linkTypeDefinitions ?? []).not.toEqual(
+        expect.arrayContaining([expect.objectContaining({ key: "depends_on" })]),
+      );
+    });
+  });
+
   describe("validateDraftVersion", () => {
     it("returns deterministic diagnostics across repeated calls", async () => {
       const router = createMethodologyRouter(makeServiceLayer());
 
       const created = await call(
-        router.createDraftVersion,
+        router.version.create,
         {
           methodologyKey: "test-meth",
           displayName: "Test",
@@ -1324,13 +1948,13 @@ describe("methodology router", () => {
       );
 
       const result1 = await call(
-        router.validateDraftVersion,
+        router.version.validate,
         { versionId: created.version.id },
         AUTHENTICATED_CTX,
       );
 
       const result2 = await call(
-        router.validateDraftVersion,
+        router.version.validate,
         { versionId: created.version.id },
         AUTHENTICATED_CTX,
       );
@@ -1346,7 +1970,7 @@ describe("methodology router", () => {
       const router = createMethodologyRouter(makeServiceLayer());
 
       await expect(
-        call(router.validateDraftVersion, { versionId: "test-version" }, PUBLIC_CTX),
+        call(router.version.validate, { versionId: "test-version" }, PUBLIC_CTX),
       ).rejects.toThrow();
     });
   });
@@ -1356,7 +1980,7 @@ describe("methodology router", () => {
       const router = createMethodologyRouter(makeServiceLayer());
 
       const created = await call(
-        router.createDraftVersion,
+        router.version.create,
         {
           methodologyKey: "test-meth",
           displayName: "Test",
@@ -1369,7 +1993,7 @@ describe("methodology router", () => {
       );
 
       const lineage = await call(
-        router.getDraftLineage,
+        router.version.getLineage,
         { methodologyVersionId: created.version.id },
         PUBLIC_CTX,
       );
@@ -1380,12 +2004,46 @@ describe("methodology router", () => {
     });
   });
 
+  describe("version workspace bootstrap", () => {
+    it("exposes methodology.version.workspace.get for version-owned bootstrap reads", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const created = await call(
+        router.version.create,
+        {
+          methodologyKey: "workspace-bootstrap",
+          displayName: "Workspace Bootstrap",
+          version: "0.1.0-draft",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const result = await call(
+        router.version.workspace.get,
+        { versionId: created.version.id },
+        PUBLIC_CTX,
+      );
+
+      expect(result.id).toBe(created.version.id);
+      expect(result.displayName).toBe("Workspace Bootstrap");
+      expect(result.status).toBe("draft");
+      expect(result.workUnitTypes).toBeDefined();
+      expect(result.agentTypes).toBeDefined();
+      expect(result.transitions).toBeDefined();
+      expect(result.workflows).toBeDefined();
+      expect(result.transitionWorkflowBindings).toBeDefined();
+    });
+  });
+
   describe("publishDraftVersion", () => {
     it("publishes a draft and returns publication evidence", async () => {
       const router = createMethodologyRouter(makeServiceLayer());
 
       const created = await call(
-        router.createDraftVersion,
+        router.version.create,
         {
           methodologyKey: "publish-meth",
           displayName: "Publish Test",
@@ -1411,7 +2069,7 @@ describe("methodology router", () => {
       );
 
       const result = await call(
-        router.publishDraftVersion,
+        router.version.publish,
         {
           versionId: created.version.id,
           publishedVersion: "1.0.0",
@@ -1431,7 +2089,7 @@ describe("methodology router", () => {
       const router = createMethodologyRouter(makeServiceLayer());
 
       const first = await call(
-        router.createDraftVersion,
+        router.version.create,
         {
           methodologyKey: "dup-publish",
           displayName: "Dup 1",
@@ -1453,8 +2111,19 @@ describe("methodology router", () => {
         AUTHENTICATED_CTX,
       );
 
+      const firstPublish = await call(
+        router.version.publish,
+        {
+          versionId: first.version.id,
+          publishedVersion: "1.0.0",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      expect(firstPublish.published).toBe(true);
+
       const second = await call(
-        router.createDraftVersion,
+        router.version.create,
         {
           methodologyKey: "dup-publish",
           displayName: "Dup 2",
@@ -1476,17 +2145,8 @@ describe("methodology router", () => {
         AUTHENTICATED_CTX,
       );
 
-      await call(
-        router.publishDraftVersion,
-        {
-          versionId: first.version.id,
-          publishedVersion: "1.0.0",
-        },
-        AUTHENTICATED_CTX,
-      );
-
       const failA = await call(
-        router.publishDraftVersion,
+        router.version.publish,
         {
           versionId: second.version.id,
           publishedVersion: "1.0.0",
@@ -1495,7 +2155,7 @@ describe("methodology router", () => {
       );
 
       const failB = await call(
-        router.publishDraftVersion,
+        router.version.publish,
         {
           versionId: second.version.id,
           publishedVersion: "1.0.0",
@@ -1534,7 +2194,7 @@ describe("methodology router", () => {
       const router = createMethodologyRouter(makeServiceLayer());
 
       const created = await call(
-        router.createDraftVersion,
+        router.version.create,
         {
           methodologyKey: "conflict-meth",
           displayName: "Conflict",
@@ -1557,7 +2217,7 @@ describe("methodology router", () => {
       );
 
       const failA = await call(
-        router.publishDraftVersion,
+        router.version.publish,
         {
           versionId: created.version.id,
           publishedVersion: "conflict",
@@ -1566,7 +2226,7 @@ describe("methodology router", () => {
       );
 
       const failB = await call(
-        router.publishDraftVersion,
+        router.version.publish,
         {
           versionId: created.version.id,
           publishedVersion: "conflict",
@@ -1603,7 +2263,7 @@ describe("methodology router", () => {
       const router = createMethodologyRouter(makeServiceLayer());
 
       const created = await call(
-        router.createDraftVersion,
+        router.version.create,
         {
           methodologyKey: "atomicity-meth",
           displayName: "Atomicity",
@@ -1626,7 +2286,7 @@ describe("methodology router", () => {
       );
 
       const result = await call(
-        router.publishDraftVersion,
+        router.version.publish,
         {
           versionId: created.version.id,
           publishedVersion: "atomicity-abort",
@@ -1645,7 +2305,7 @@ describe("methodology router", () => {
       const router = createMethodologyRouter(makeServiceLayer());
 
       const created = await call(
-        router.createDraftVersion,
+        router.version.create,
         {
           methodologyKey: "evidence-meth",
           displayName: "Evidence",
@@ -1668,7 +2328,7 @@ describe("methodology router", () => {
       );
 
       await call(
-        router.publishDraftVersion,
+        router.version.publish,
         {
           versionId: created.version.id,
           publishedVersion: "1.0.0",
@@ -1677,7 +2337,7 @@ describe("methodology router", () => {
       );
 
       const evidence = await call(
-        router.getPublicationEvidence,
+        router.version.getPublicationEvidence,
         {
           methodologyVersionId: created.version.id,
         },
@@ -1695,7 +2355,7 @@ describe("methodology router", () => {
       const router = createMethodologyRouter(makeServiceLayer());
 
       const created = await call(
-        router.createDraftVersion,
+        router.version.create,
         {
           methodologyKey: "query-meth",
           displayName: "Query",
@@ -1721,7 +2381,7 @@ describe("methodology router", () => {
       );
 
       await call(
-        router.publishDraftVersion,
+        router.version.publish,
         {
           versionId: created.version.id,
           publishedVersion: "1.0.0",
@@ -1751,7 +2411,7 @@ describe("methodology router", () => {
       const router = createMethodologyRouter(makeServiceLayer());
 
       const created = await call(
-        router.createDraftVersion,
+        router.version.create,
         {
           methodologyKey: "project-pin-api",
           displayName: "Project Pin API",
@@ -1774,7 +2434,7 @@ describe("methodology router", () => {
       );
 
       await call(
-        router.publishDraftVersion,
+        router.version.publish,
         {
           versionId: created.version.id,
           publishedVersion: "1.0.0",
@@ -1802,7 +2462,7 @@ describe("methodology router", () => {
       const router = createMethodologyRouter(makeServiceLayer());
 
       const v1 = await call(
-        router.createDraftVersion,
+        router.version.create,
         {
           methodologyKey: "project-repin-api",
           displayName: "Project Repin API",
@@ -1825,7 +2485,7 @@ describe("methodology router", () => {
       );
 
       await call(
-        router.publishDraftVersion,
+        router.version.publish,
         {
           versionId: v1.version.id,
           publishedVersion: "1.0.0",
@@ -1834,7 +2494,7 @@ describe("methodology router", () => {
       );
 
       const v2 = await call(
-        router.createDraftVersion,
+        router.version.create,
         {
           methodologyKey: "project-repin-api",
           displayName: "Project Repin API v2",
@@ -1857,7 +2517,7 @@ describe("methodology router", () => {
       );
 
       await call(
-        router.publishDraftVersion,
+        router.version.publish,
         {
           versionId: v2.version.id,
           publishedVersion: "2.0.0",
@@ -1896,7 +2556,7 @@ describe("methodology router", () => {
       const router = createMethodologyRouter(makeServiceLayer());
 
       const created = await call(
-        router.createDraftVersion,
+        router.version.create,
         {
           methodologyKey: "project-repin-needs-pin-api",
           displayName: "Project Repin Needs Pin API",
@@ -1919,7 +2579,7 @@ describe("methodology router", () => {
       );
 
       await call(
-        router.publishDraftVersion,
+        router.version.publish,
         {
           versionId: created.version.id,
           publishedVersion: "1.0.0",
@@ -1946,7 +2606,7 @@ describe("methodology router", () => {
       const router = createMethodologyRouter(makeServiceLayer());
 
       const v1 = await call(
-        router.createDraftVersion,
+        router.version.create,
         {
           methodologyKey: "project-lineage-api",
           displayName: "Project Lineage API",
@@ -1969,7 +2629,7 @@ describe("methodology router", () => {
       );
 
       await call(
-        router.publishDraftVersion,
+        router.version.publish,
         {
           versionId: v1.version.id,
           publishedVersion: "1.0.0",
@@ -1978,7 +2638,7 @@ describe("methodology router", () => {
       );
 
       const v2 = await call(
-        router.createDraftVersion,
+        router.version.create,
         {
           methodologyKey: "project-lineage-api",
           displayName: "Project Lineage API v2",
@@ -2001,7 +2661,7 @@ describe("methodology router", () => {
       );
 
       await call(
-        router.publishDraftVersion,
+        router.version.publish,
         {
           versionId: v2.version.id,
           publishedVersion: "2.0.0",
@@ -2570,7 +3230,7 @@ describe("methodology router", () => {
       const router = createMethodologyRouter(makeServiceLayer());
 
       const created = await call(
-        router.createDraftVersion,
+        router.version.create,
         {
           methodologyKey: "project-eligibility-pin-api",
           displayName: "Project Eligibility Pin API",
@@ -2593,7 +3253,7 @@ describe("methodology router", () => {
       );
 
       await call(
-        router.publishDraftVersion,
+        router.version.publish,
         {
           versionId: created.version.id,
           publishedVersion: "1.0.0",

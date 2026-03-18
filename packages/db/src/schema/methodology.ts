@@ -17,6 +17,7 @@ export const methodologyDefinitions = sqliteTable(
       .default(timestampDefault)
       .notNull()
       .$onUpdate(() => new Date()),
+    archivedAt: integer("archived_at", { mode: "timestamp_ms" }),
   },
   (table) => [uniqueIndex("methodology_definitions_key_idx").on(table.key)],
 );

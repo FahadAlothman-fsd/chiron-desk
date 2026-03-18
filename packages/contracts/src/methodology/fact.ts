@@ -75,3 +75,22 @@ export const MethodologyFactDefinitionInput = Schema.Struct({
   validation: Schema.optionalWith(FactValidation, { default: () => ({ kind: "none" as const }) }),
 });
 export type MethodologyFactDefinitionInput = typeof MethodologyFactDefinitionInput.Type;
+
+export const CreateMethodologyFactInput = Schema.Struct({
+  versionId: Schema.NonEmptyString,
+  fact: MethodologyFactDefinitionInput,
+});
+export type CreateMethodologyFactInput = typeof CreateMethodologyFactInput.Type;
+
+export const UpdateMethodologyFactInput = Schema.Struct({
+  versionId: Schema.NonEmptyString,
+  factKey: Schema.NonEmptyString,
+  fact: MethodologyFactDefinitionInput,
+});
+export type UpdateMethodologyFactInput = typeof UpdateMethodologyFactInput.Type;
+
+export const DeleteMethodologyFactInput = Schema.Struct({
+  versionId: Schema.NonEmptyString,
+  factKey: Schema.NonEmptyString,
+});
+export type DeleteMethodologyFactInput = typeof DeleteMethodologyFactInput.Type;

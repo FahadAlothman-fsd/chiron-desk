@@ -2,7 +2,12 @@ import {
   type UpdateDraftLifecycleInput,
   type WorkUnitTypeDefinition,
 } from "@chiron/contracts/methodology/lifecycle";
-import { type AgentTypeDefinition } from "@chiron/contracts/methodology/agent";
+import {
+  type AgentTypeDefinition,
+  type CreateMethodologyAgentInput as CreateAgentInput,
+  type DeleteMethodologyAgentInput as DeleteAgentInput,
+  type UpdateMethodologyAgentInput as UpdateAgentInput,
+} from "@chiron/contracts/methodology/agent";
 import type { ValidationResult } from "@chiron/contracts/methodology/version";
 import { Context, Effect } from "effect";
 import { LifecycleRepository } from "./lifecycle-repository";
@@ -25,6 +30,27 @@ export class LifecycleService extends Context.Tag("LifecycleService")<
   {
     readonly updateDraftLifecycle: (
       input: UpdateDraftLifecycleInput,
+      actorId: string,
+    ) => Effect.Effect<
+      UpdateDraftLifecycleResult,
+      VersionNotFoundError | VersionNotDraftError | RepositoryError
+    >;
+    readonly createAgent: (
+      input: CreateAgentInput,
+      actorId: string,
+    ) => Effect.Effect<
+      UpdateDraftLifecycleResult,
+      VersionNotFoundError | VersionNotDraftError | RepositoryError
+    >;
+    readonly updateAgent: (
+      input: UpdateAgentInput,
+      actorId: string,
+    ) => Effect.Effect<
+      UpdateDraftLifecycleResult,
+      VersionNotFoundError | VersionNotDraftError | RepositoryError
+    >;
+    readonly deleteAgent: (
+      input: DeleteAgentInput,
       actorId: string,
     ) => Effect.Effect<
       UpdateDraftLifecycleResult,
@@ -356,7 +382,102 @@ export const LifecycleServiceLive = Effect.gen(function* () {
       return { version, validation };
     });
 
+  const createAgent = (
+    input: CreateAgentInput,
+    actorId: string,
+  ): Effect.Effect<
+    UpdateDraftLifecycleResult,
+    VersionNotFoundError | VersionNotDraftError | RepositoryError
+  > =>
+    Effect.gen(function* () {
+      const existing = yield* repo.findVersionById(input.versionId);
+      if (!existing) {
+        return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+      }
+
+      yield* ensureVersionIsDraft(existing);
+
+      const previousDefinition = yield* loadPreviousLifecycleDefinition(
+        input.versionId,
+        lifecycleRepo,
+      );
+
+      return yield* updateDraftLifecycle(
+        {
+          versionId: input.versionId,
+          workUnitTypes: previousDefinition.workUnitTypes,
+          agentTypes: [...previousDefinition.agentTypes, input.agent],
+        },
+        actorId,
+      );
+    });
+
+  const updateAgent = (
+    input: UpdateAgentInput,
+    actorId: string,
+  ): Effect.Effect<
+    UpdateDraftLifecycleResult,
+    VersionNotFoundError | VersionNotDraftError | RepositoryError
+  > =>
+    Effect.gen(function* () {
+      const existing = yield* repo.findVersionById(input.versionId);
+      if (!existing) {
+        return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+      }
+
+      yield* ensureVersionIsDraft(existing);
+
+      const previousDefinition = yield* loadPreviousLifecycleDefinition(
+        input.versionId,
+        lifecycleRepo,
+      );
+
+      return yield* updateDraftLifecycle(
+        {
+          versionId: input.versionId,
+          workUnitTypes: previousDefinition.workUnitTypes,
+          agentTypes: previousDefinition.agentTypes.map((agent) =>
+            agent.key === input.agentKey ? input.agent : agent,
+          ),
+        },
+        actorId,
+      );
+    });
+
+  const deleteAgent = (
+    input: DeleteAgentInput,
+    actorId: string,
+  ): Effect.Effect<
+    UpdateDraftLifecycleResult,
+    VersionNotFoundError | VersionNotDraftError | RepositoryError
+  > =>
+    Effect.gen(function* () {
+      const existing = yield* repo.findVersionById(input.versionId);
+      if (!existing) {
+        return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+      }
+
+      yield* ensureVersionIsDraft(existing);
+
+      const previousDefinition = yield* loadPreviousLifecycleDefinition(
+        input.versionId,
+        lifecycleRepo,
+      );
+
+      return yield* updateDraftLifecycle(
+        {
+          versionId: input.versionId,
+          workUnitTypes: previousDefinition.workUnitTypes,
+          agentTypes: previousDefinition.agentTypes.filter((agent) => agent.key !== input.agentKey),
+        },
+        actorId,
+      );
+    });
+
   return LifecycleService.of({
     updateDraftLifecycle,
+    createAgent,
+    updateAgent,
+    deleteAgent,
   });
 });

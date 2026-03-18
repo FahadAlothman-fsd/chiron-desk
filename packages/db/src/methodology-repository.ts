@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { Effect, Layer } from "effect";
 import {
@@ -50,6 +50,7 @@ function toDefinitionRow(
     descriptionJson: row.descriptionJson,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    archivedAt: row.archivedAt,
   };
 }
 
@@ -350,6 +351,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
         const rows = await db
           .select()
           .from(methodologyDefinitions)
+          .where(isNull(methodologyDefinitions.archivedAt))
           .orderBy(asc(methodologyDefinitions.updatedAt), asc(methodologyDefinitions.key));
 
         return rows.map((row) => toDefinitionRow(row));
@@ -372,6 +374,28 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
         }
 
         return toDefinitionRow(row);
+      }),
+
+    updateDefinition: (key: string, displayName: string) =>
+      dbEffect("methodology.updateDefinition", async () => {
+        const updated = await db
+          .update(methodologyDefinitions)
+          .set({ name: displayName })
+          .where(eq(methodologyDefinitions.key, key))
+          .returning();
+
+        return updated[0] ? toDefinitionRow(updated[0]) : null;
+      }),
+
+    archiveDefinition: (key: string) =>
+      dbEffect("methodology.archiveDefinition", async () => {
+        const archived = await db
+          .update(methodologyDefinitions)
+          .set({ archivedAt: new Date() })
+          .where(eq(methodologyDefinitions.key, key))
+          .returning();
+
+        return archived[0] ? toDefinitionRow(archived[0]) : null;
       }),
 
     findDefinitionByKey: (key: string) =>
@@ -665,6 +689,25 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           .where(eq(methodologyLinkTypeDefinitions.methodologyVersionId, versionId))
           .orderBy(asc(methodologyLinkTypeDefinitions.key));
         return rows.map((r) => r.key) as readonly string[];
+      }),
+
+    findLinkTypeDefinitionsByVersionId: (versionId: string) =>
+      dbEffect("methodology.findLinkTypeDefinitionsByVersionId", async () => {
+        const rows = await db
+          .select()
+          .from(methodologyLinkTypeDefinitions)
+          .where(eq(methodologyLinkTypeDefinitions.methodologyVersionId, versionId))
+          .orderBy(asc(methodologyLinkTypeDefinitions.key));
+
+        return rows.map((row) => ({
+          id: row.id,
+          methodologyVersionId: row.methodologyVersionId,
+          key: row.key,
+          descriptionJson: row.descriptionJson,
+          allowedStrengthsJson: row.allowedStrengthsJson,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+        }));
       }),
 
     findWorkflowSnapshot: (versionId: string) =>

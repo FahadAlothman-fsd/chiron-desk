@@ -2,6 +2,7 @@ import type {
   CreateDraftVersionInput,
   PublicationEvidence,
   LayeredGuidance,
+  MethodologyLinkTypeDefinition,
   MethodologyVersionDefinition,
   UpdateDraftVersionInput,
   ValidationResult,
@@ -17,6 +18,7 @@ export interface MethodologyDefinitionRow {
   descriptionJson: unknown;
   createdAt: Date;
   updatedAt: Date;
+  archivedAt: Date | null;
 }
 
 export interface MethodologyVersionRow {
@@ -114,6 +116,8 @@ export interface MethodologyFactDefinitionRow {
   validationJson: unknown;
 }
 
+export type MethodologyLinkTypeDefinitionRow = MethodologyLinkTypeDefinition;
+
 export class MethodologyRepository extends Context.Tag("MethodologyRepository")<
   MethodologyRepository,
   {
@@ -125,6 +129,13 @@ export class MethodologyRepository extends Context.Tag("MethodologyRepository")<
       key: string,
       displayName: string,
     ) => Effect.Effect<MethodologyDefinitionRow, RepositoryError>;
+    readonly updateDefinition: (
+      key: string,
+      displayName: string,
+    ) => Effect.Effect<MethodologyDefinitionRow | null, RepositoryError>;
+    readonly archiveDefinition: (
+      key: string,
+    ) => Effect.Effect<MethodologyDefinitionRow | null, RepositoryError>;
     readonly findDefinitionByKey: (
       key: string,
     ) => Effect.Effect<MethodologyDefinitionRow | null, RepositoryError>;
@@ -161,6 +172,9 @@ export class MethodologyRepository extends Context.Tag("MethodologyRepository")<
     readonly findLinkTypeKeys: (
       versionId: string,
     ) => Effect.Effect<readonly string[], RepositoryError>;
+    readonly findLinkTypeDefinitionsByVersionId: (
+      versionId: string,
+    ) => Effect.Effect<readonly MethodologyLinkTypeDefinitionRow[], RepositoryError>;
     readonly findWorkflowSnapshot: (
       versionId: string,
     ) => Effect.Effect<WorkflowSnapshot, RepositoryError>;

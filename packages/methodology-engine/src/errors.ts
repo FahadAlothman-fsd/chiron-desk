@@ -18,6 +18,14 @@ export class DuplicateVersionError extends Data.TaggedError("DuplicateVersionErr
   readonly version: string;
 }> {}
 
+export class DraftVersionAlreadyExistsError extends Data.TaggedError(
+  "DraftVersionAlreadyExistsError",
+)<{
+  readonly methodologyId: string;
+  readonly versionId: string;
+  readonly existingVersion: string;
+}> {}
+
 export class ValidationDecodeError extends Data.TaggedError("ValidationDecodeError")<{
   readonly message: string;
 }> {}
@@ -46,6 +54,7 @@ export type MethodologyError =
   | VersionNotFoundError
   | VersionNotDraftError
   | DuplicateVersionError
+  | DraftVersionAlreadyExistsError
   | ValidationDecodeError
   | RepositoryError;
 

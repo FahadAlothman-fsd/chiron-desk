@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import {
+  MethodologyRepository,
   MethodologyVersionService,
   type MethodologyVersionRow,
   type MethodologyVersionEventRow,
@@ -11,22 +12,37 @@ import {
   EligibilityService,
   type LifecycleError,
 } from "@chiron/methodology-engine";
-import {
-  ProjectContextService,
-  type ProjectContextService as ProjectContextServiceType,
-} from "@chiron/project-context";
+import { ProjectContextService } from "@chiron/project-context";
 import type { UpdateDraftLifecycleInput } from "@chiron/contracts/methodology/lifecycle";
+import type {
+  CreateMethodologyAgentInput,
+  DeleteMethodologyAgentInput,
+  UpdateMethodologyAgentInput,
+} from "@chiron/contracts/methodology/agent";
+import type {
+  CreateMethodologyDependencyDefinitionInput,
+  DeleteMethodologyDependencyDefinitionInput,
+  UpdateMethodologyDependencyDefinitionInput,
+} from "@chiron/contracts/methodology/dependency";
 
 import type {
-  CreateDraftVersionInput,
+  CreateVersionInput,
+  GetVersionLineageInput,
+  GetVersionPublicationEvidenceInput,
   GetProjectPinLineageInput,
-  GetPublicationEvidenceInput,
   PinProjectMethodologyVersionInput,
-  PublishDraftVersionInput,
+  PublishVersionInput,
   RepinProjectMethodologyVersionInput,
+  UpdateVersionInput,
   ValidationResult,
+  ValidateVersionInput,
   ProjectMethodologyPinEvent,
 } from "@chiron/contracts/methodology/version";
+import type {
+  CreateMethodologyFactInput,
+  DeleteMethodologyFactInput,
+  UpdateMethodologyFactInput,
+} from "@chiron/contracts/methodology/fact";
 import type { UpdateDraftWorkflowsInputDto } from "@chiron/contracts/methodology/dto";
 import { Effect, type Layer } from "effect";
 import { z } from "zod";
@@ -137,6 +153,10 @@ const createDraftInput = z.object({
   linkTypeDefinitions: z.array(linkTypeDefinitionSchema).optional(),
 });
 
+const updateVersionInput = createDraftInput.extend({
+  versionId: z.string().min(1),
+});
+
 const updateDraftWorkflowsInput = z.object({
   versionId: z.string().min(1),
   workflows: z.array(workflowSchema),
@@ -145,7 +165,27 @@ const updateDraftWorkflowsInput = z.object({
   factDefinitions: z.array(variableDefinitionSchema).optional(),
 });
 
+const createFactInput = z.object({
+  versionId: z.string().min(1),
+  fact: variableDefinitionSchema,
+});
+
+const updateFactInput = z.object({
+  versionId: z.string().min(1),
+  factKey: z.string().min(1),
+  fact: variableDefinitionSchema,
+});
+
+const deleteFactInput = z.object({
+  versionId: z.string().min(1),
+  factKey: z.string().min(1),
+});
+
 const validateDraftInput = z.object({
+  versionId: z.string().min(1),
+});
+
+const versionInput = z.object({
   versionId: z.string().min(1),
 });
 
@@ -253,6 +293,38 @@ const agentTypeSchema = z.object({
   capabilities: z.array(z.string().min(1)).optional(),
 });
 
+const createAgentInput = z.object({
+  versionId: z.string().min(1),
+  agent: agentTypeSchema,
+});
+
+const updateAgentInput = z.object({
+  versionId: z.string().min(1),
+  agentKey: z.string().min(1),
+  agent: agentTypeSchema,
+});
+
+const deleteAgentInput = z.object({
+  versionId: z.string().min(1),
+  agentKey: z.string().min(1),
+});
+
+const createDependencyDefinitionInput = z.object({
+  versionId: z.string().min(1),
+  dependencyDefinition: linkTypeDefinitionSchema,
+});
+
+const updateDependencyDefinitionInput = z.object({
+  versionId: z.string().min(1),
+  dependencyKey: z.string().min(1),
+  dependencyDefinition: linkTypeDefinitionSchema,
+});
+
+const deleteDependencyDefinitionInput = z.object({
+  versionId: z.string().min(1),
+  dependencyKey: z.string().min(1),
+});
+
 const updateDraftLifecycleInput = z.object({
   versionId: z.string().min(1),
   workUnitTypes: z.array(workUnitTypeSchema),
@@ -273,6 +345,8 @@ const createMethodologyInput = z.object({
   methodologyKey: z.string().min(1),
   displayName: z.string().min(1),
 });
+
+const updateMethodologyInput = createMethodologyInput;
 
 function serializeVersion(v: MethodologyVersionRow) {
   return {
@@ -369,6 +443,7 @@ function mapEffectError(err: MethodologyError | LifecycleError | unknown): never
     case "MethodologyNotFoundError":
       throw new ORPCError("NOT_FOUND", { message: String(err) });
     case "DuplicateVersionError":
+    case "DraftVersionAlreadyExistsError":
       throw new ORPCError("CONFLICT", { message: String(err) });
     case "VersionNotDraftError":
       throw new ORPCError("PRECONDITION_FAILED", { message: String(err) });
@@ -382,14 +457,8 @@ function mapEffectError(err: MethodologyError | LifecycleError | unknown): never
 }
 
 function runEffect<A>(
-  serviceLayer: Layer.Layer<
-    MethodologyVersionService | LifecycleService | EligibilityService | ProjectContextServiceType
-  >,
-  effect: Effect.Effect<
-    A,
-    MethodologyError | LifecycleError | unknown,
-    MethodologyVersionService | LifecycleService | EligibilityService | ProjectContextServiceType
-  >,
+  serviceLayer: Layer.Layer<any>,
+  effect: Effect.Effect<A, MethodologyError | LifecycleError | unknown, any>,
 ): Promise<A> {
   return Effect.runPromise(
     effect.pipe(
@@ -399,12 +468,8 @@ function runEffect<A>(
   );
 }
 
-export function createMethodologyRouter(
-  serviceLayer: Layer.Layer<
-    MethodologyVersionService | LifecycleService | EligibilityService | ProjectContextServiceType
-  >,
-) {
-  return {
+export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
+  const router = {
     createMethodology: protectedProcedure
       .input(createMethodologyInput)
       .handler(async ({ input }) => {
@@ -468,6 +533,28 @@ export function createMethodologyRouter(
       };
     }),
 
+    updateMethodology: protectedProcedure
+      .input(updateMethodologyInput)
+      .handler(async ({ input }) => {
+        return runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionService;
+            return yield* svc.updateMethodology(input.methodologyKey, input.displayName);
+          }),
+        );
+      }),
+
+    archiveMethodology: protectedProcedure.input(methodologyKeyInput).handler(async ({ input }) => {
+      return runEffect(
+        serviceLayer,
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionService;
+          return yield* svc.archiveMethodology(input.methodologyKey);
+        }),
+      );
+    }),
+
     listMethodologyVersions: publicProcedure
       .input(methodologyKeyInput)
       .handler(async ({ input }) => {
@@ -512,7 +599,7 @@ export function createMethodologyRouter(
       .input(createDraftInput)
       .handler(async ({ input, context }) => {
         const actorId = context.session.user.id;
-        const createDraftPayload: CreateDraftVersionInput = {
+        const createDraftPayload: CreateVersionInput = {
           methodologyKey: input.methodologyKey,
           displayName: input.displayName,
           version: input.version,
@@ -525,7 +612,7 @@ export function createMethodologyRouter(
           },
           factDefinitions: input.factDefinitions,
           linkTypeDefinitions:
-            input.linkTypeDefinitions as CreateDraftVersionInput["linkTypeDefinitions"],
+            input.linkTypeDefinitions as CreateVersionInput["linkTypeDefinitions"],
         };
 
         const result = await runEffect(
@@ -541,15 +628,68 @@ export function createMethodologyRouter(
         };
       }),
 
+    getVersion: publicProcedure.input(versionInput).handler(async ({ input }) => {
+      const result = await runEffect(
+        serviceLayer,
+        Effect.gen(function* () {
+          const repo = yield* MethodologyRepository;
+          return yield* repo.findVersionById(input.versionId);
+        }),
+      );
+
+      if (!result) {
+        throw new ORPCError("NOT_FOUND", {
+          message: `Version '${input.versionId}' not found`,
+        });
+      }
+
+      return serializeVersion(result);
+    }),
+
+    updateVersion: protectedProcedure
+      .input(updateVersionInput)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        const updatePayload: UpdateVersionInput = {
+          versionId: input.versionId,
+          displayName: input.displayName,
+          version: input.version,
+          definition: {
+            workUnitTypes: input.workUnitTypes,
+            agentTypes: input.agentTypes,
+            transitions: input.transitions,
+            workflows: [],
+            transitionWorkflowBindings: {},
+          },
+          factDefinitions: input.factDefinitions,
+          linkTypeDefinitions:
+            input.linkTypeDefinitions as UpdateVersionInput["linkTypeDefinitions"],
+        };
+
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionService;
+            return yield* svc.updateDraftVersion(updatePayload, actorId);
+          }),
+        );
+
+        return {
+          version: serializeVersion(result.version),
+          diagnostics: result.diagnostics,
+        };
+      }),
+
     validateDraftVersion: protectedProcedure
       .input(validateDraftInput)
       .handler(async ({ input, context }) => {
         const actorId = context.session.user.id;
+        const validatePayload: ValidateVersionInput = { versionId: input.versionId };
         return runEffect(
           serviceLayer,
           Effect.gen(function* () {
             const svc = yield* MethodologyVersionService;
-            return yield* svc.validateDraftVersion({ versionId: input.versionId }, actorId);
+            return yield* svc.validateDraftVersion(validatePayload, actorId);
           }),
         );
       }),
@@ -569,9 +709,11 @@ export function createMethodologyRouter(
         serviceLayer,
         Effect.gen(function* () {
           const svc = yield* MethodologyVersionService;
-          return yield* svc.getDraftLineage({
+          const lineagePayload: GetVersionLineageInput = {
             methodologyVersionId: input.methodologyVersionId,
-          });
+          };
+
+          return yield* svc.getDraftLineage(lineagePayload);
         }),
       );
       return events.map(serializeEvent);
@@ -581,7 +723,7 @@ export function createMethodologyRouter(
       .input(publishDraftInput)
       .handler(async ({ input, context }) => {
         const actorId = context.session.user.id;
-        const publishPayload: PublishDraftVersionInput = {
+        const publishPayload: PublishVersionInput = {
           versionId: input.versionId,
           publishedVersion: input.publishedVersion,
         };
@@ -609,7 +751,7 @@ export function createMethodologyRouter(
           serviceLayer,
           Effect.gen(function* () {
             const svc = yield* MethodologyVersionService;
-            const publicationEvidencePayload: GetPublicationEvidenceInput = {
+            const publicationEvidencePayload: GetVersionPublicationEvidenceInput = {
               methodologyVersionId: input.methodologyVersionId,
             };
 
@@ -758,6 +900,206 @@ export function createMethodologyRouter(
         };
       }),
 
+    createFact: protectedProcedure.input(createFactInput).handler(async ({ input, context }) => {
+      const actorId = context.session.user.id;
+      const factPayload: CreateMethodologyFactInput = {
+        versionId: input.versionId,
+        fact: input.fact,
+      };
+
+      const result = await runEffect(
+        serviceLayer,
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionService;
+          return yield* svc.createFact(factPayload, actorId);
+        }),
+      );
+
+      return {
+        version: serializeVersion(result.version),
+        diagnostics: result.diagnostics,
+      };
+    }),
+
+    updateFact: protectedProcedure.input(updateFactInput).handler(async ({ input, context }) => {
+      const actorId = context.session.user.id;
+      const factPayload: UpdateMethodologyFactInput = {
+        versionId: input.versionId,
+        factKey: input.factKey,
+        fact: input.fact,
+      };
+
+      const result = await runEffect(
+        serviceLayer,
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionService;
+          return yield* svc.updateFact(factPayload, actorId);
+        }),
+      );
+
+      return {
+        version: serializeVersion(result.version),
+        diagnostics: result.diagnostics,
+      };
+    }),
+
+    deleteFact: protectedProcedure.input(deleteFactInput).handler(async ({ input, context }) => {
+      const actorId = context.session.user.id;
+      const factPayload: DeleteMethodologyFactInput = {
+        versionId: input.versionId,
+        factKey: input.factKey,
+      };
+
+      const result = await runEffect(
+        serviceLayer,
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionService;
+          return yield* svc.deleteFact(factPayload, actorId);
+        }),
+      );
+
+      return {
+        version: serializeVersion(result.version),
+        diagnostics: result.diagnostics,
+      };
+    }),
+
+    createAgent: protectedProcedure.input(createAgentInput).handler(async ({ input, context }) => {
+      const actorId = context.session.user.id;
+      const agentPayload: CreateMethodologyAgentInput = {
+        versionId: input.versionId,
+        agent: input.agent,
+      };
+
+      const result = await runEffect(
+        serviceLayer,
+        Effect.gen(function* () {
+          const svc = yield* LifecycleService;
+          return yield* svc.createAgent(agentPayload, actorId);
+        }),
+      );
+
+      return {
+        version: serializeVersion(result.version),
+        diagnostics: result.validation,
+      };
+    }),
+
+    updateAgent: protectedProcedure.input(updateAgentInput).handler(async ({ input, context }) => {
+      const actorId = context.session.user.id;
+      const agentPayload: UpdateMethodologyAgentInput = {
+        versionId: input.versionId,
+        agentKey: input.agentKey,
+        agent: input.agent,
+      };
+
+      const result = await runEffect(
+        serviceLayer,
+        Effect.gen(function* () {
+          const svc = yield* LifecycleService;
+          return yield* svc.updateAgent(agentPayload, actorId);
+        }),
+      );
+
+      return {
+        version: serializeVersion(result.version),
+        diagnostics: result.validation,
+      };
+    }),
+
+    deleteAgent: protectedProcedure.input(deleteAgentInput).handler(async ({ input, context }) => {
+      const actorId = context.session.user.id;
+      const agentPayload: DeleteMethodologyAgentInput = {
+        versionId: input.versionId,
+        agentKey: input.agentKey,
+      };
+
+      const result = await runEffect(
+        serviceLayer,
+        Effect.gen(function* () {
+          const svc = yield* LifecycleService;
+          return yield* svc.deleteAgent(agentPayload, actorId);
+        }),
+      );
+
+      return {
+        version: serializeVersion(result.version),
+        diagnostics: result.validation,
+      };
+    }),
+
+    createDependencyDefinition: protectedProcedure
+      .input(createDependencyDefinitionInput)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        const dependencyPayload: CreateMethodologyDependencyDefinitionInput = {
+          versionId: input.versionId,
+          dependencyDefinition:
+            input.dependencyDefinition as unknown as CreateMethodologyDependencyDefinitionInput["dependencyDefinition"],
+        };
+
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionService;
+            return yield* svc.createDependencyDefinition(dependencyPayload, actorId);
+          }),
+        );
+
+        return {
+          version: serializeVersion(result.version),
+          diagnostics: result.diagnostics,
+        };
+      }),
+
+    updateDependencyDefinition: protectedProcedure
+      .input(updateDependencyDefinitionInput)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        const dependencyPayload: UpdateMethodologyDependencyDefinitionInput = {
+          versionId: input.versionId,
+          dependencyKey: input.dependencyKey,
+          dependencyDefinition:
+            input.dependencyDefinition as unknown as UpdateMethodologyDependencyDefinitionInput["dependencyDefinition"],
+        };
+
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionService;
+            return yield* svc.updateDependencyDefinition(dependencyPayload, actorId);
+          }),
+        );
+
+        return {
+          version: serializeVersion(result.version),
+          diagnostics: result.diagnostics,
+        };
+      }),
+
+    deleteDependencyDefinition: protectedProcedure
+      .input(deleteDependencyDefinitionInput)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        const dependencyPayload: DeleteMethodologyDependencyDefinitionInput = {
+          versionId: input.versionId,
+          dependencyKey: input.dependencyKey,
+        };
+
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionService;
+            return yield* svc.deleteDependencyDefinition(dependencyPayload, actorId);
+          }),
+        );
+
+        return {
+          version: serializeVersion(result.version),
+          diagnostics: result.diagnostics,
+        };
+      }),
+
     getTransitionEligibility: publicProcedure
       .input(getTransitionEligibilityInput)
       .handler(async ({ input }) => {
@@ -787,5 +1129,54 @@ export function createMethodologyRouter(
         );
         return result;
       }),
+  };
+
+  return {
+    ...router,
+    catalog: {
+      list: router.listMethodologies,
+      create: router.createMethodology,
+      get: router.getMethodologyDetails,
+      update: router.updateMethodology,
+      delete: router.archiveMethodology,
+    },
+    version: {
+      list: router.listMethodologyVersions,
+      create: router.createDraftVersion,
+      get: router.getVersion,
+      update: router.updateVersion,
+      validate: router.validateDraftVersion,
+      workspace: {
+        get: router.getDraftProjection,
+      },
+      fact: {
+        list: router.getDraftProjection,
+        create: router.createFact,
+        update: router.updateFact,
+        delete: router.deleteFact,
+      },
+      agent: {
+        list: router.getDraftProjection,
+        create: router.createAgent,
+        update: router.updateAgent,
+        delete: router.deleteAgent,
+      },
+      dependencyDefinition: {
+        list: router.getDraftProjection,
+        create: router.createDependencyDefinition,
+        update: router.updateDependencyDefinition,
+        delete: router.deleteDependencyDefinition,
+      },
+      workUnit: {
+        list: router.getDraftProjection,
+        create: router.updateDraftLifecycle,
+        get: router.getDraftProjection,
+        updateMeta: router.updateDraftLifecycle,
+        delete: router.updateDraftLifecycle,
+      },
+      getLineage: router.getDraftLineage,
+      publish: router.publishDraftVersion,
+      getPublicationEvidence: router.getPublicationEvidence,
+    },
   };
 }

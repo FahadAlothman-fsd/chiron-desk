@@ -192,6 +192,8 @@ export const CreateDraftVersionInput = Schema.Struct({
   linkTypeDefinitions: Schema.optional(Schema.Array(MethodologyLinkTypeDefinitionInput)),
 });
 export type CreateDraftVersionInput = typeof CreateDraftVersionInput.Type;
+export const CreateVersionInput = CreateDraftVersionInput;
+export type CreateVersionInput = typeof CreateVersionInput.Type;
 
 /**
  * Input for updating an existing draft version.
@@ -206,27 +208,42 @@ export const UpdateDraftVersionInput = Schema.Struct({
   linkTypeDefinitions: Schema.optional(Schema.Array(MethodologyLinkTypeDefinitionInput)),
 });
 export type UpdateDraftVersionInput = typeof UpdateDraftVersionInput.Type;
+export const UpdateVersionInput = UpdateDraftVersionInput;
+export type UpdateVersionInput = typeof UpdateVersionInput.Type;
 
 export const ValidateDraftVersionInput = Schema.Struct({
   versionId: Schema.NonEmptyString,
 });
 export type ValidateDraftVersionInput = typeof ValidateDraftVersionInput.Type;
+export const ValidateVersionInput = ValidateDraftVersionInput;
+export type ValidateVersionInput = typeof ValidateVersionInput.Type;
+
+export const GetVersionInput = Schema.Struct({
+  versionId: Schema.NonEmptyString,
+});
+export type GetVersionInput = typeof GetVersionInput.Type;
 
 export const GetDraftLineageInput = Schema.Struct({
   methodologyVersionId: Schema.NonEmptyString,
 });
 export type GetDraftLineageInput = typeof GetDraftLineageInput.Type;
+export const GetVersionLineageInput = GetDraftLineageInput;
+export type GetVersionLineageInput = typeof GetVersionLineageInput.Type;
 
 export const PublishDraftVersionInput = Schema.Struct({
   versionId: Schema.NonEmptyString,
   publishedVersion: Schema.NonEmptyString,
 });
 export type PublishDraftVersionInput = typeof PublishDraftVersionInput.Type;
+export const PublishVersionInput = PublishDraftVersionInput;
+export type PublishVersionInput = typeof PublishVersionInput.Type;
 
 export const GetPublicationEvidenceInput = Schema.Struct({
   methodologyVersionId: Schema.NonEmptyString,
 });
 export type GetPublicationEvidenceInput = typeof GetPublicationEvidenceInput.Type;
+export const GetVersionPublicationEvidenceInput = GetPublicationEvidenceInput;
+export type GetVersionPublicationEvidenceInput = typeof GetVersionPublicationEvidenceInput.Type;
 
 export const PinProjectMethodologyVersionInput = Schema.Struct({
   projectId: Schema.NonEmptyString,
