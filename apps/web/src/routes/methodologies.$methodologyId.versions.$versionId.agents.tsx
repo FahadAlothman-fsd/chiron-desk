@@ -1,20 +1,21 @@
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { z } from "zod";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { MethodologyWorkspaceShell } from "@/features/methodologies/workspace-shell";
 
+const agentsSearchSchema = z.object({
+  intent: z.enum(["add-agent"]).optional(),
+  tab: z.enum(["catalog", "contracts", "diagnostics"]).optional(),
+});
+
+type AgentsSearch = z.infer<typeof agentsSearchSchema>;
+
 export const Route = createFileRoute("/methodologies/$methodologyId/versions/$versionId/agents")({
-  validateSearch: (search) =>
-    z
-      .object({
-        intent: z.enum(["add-agent"]).optional(),
-        tab: z.enum(["catalog", "contracts", "diagnostics"]).optional(),
-      })
-      .parse(search),
+  validateSearch: (search): AgentsSearch => agentsSearchSchema.parse(search),
   component: MethodologyVersionAgentsRoute,
 });
 
@@ -22,6 +23,7 @@ export function MethodologyVersionAgentsRoute() {
   const { methodologyId, versionId } = Route.useParams();
   const search = Route.useSearch();
   const tab = search.tab ?? "catalog";
+  const navigate = useNavigate();
   const { orpc } = Route.useRouteContext();
   const queryClient = useQueryClient();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -38,6 +40,17 @@ export function MethodologyVersionAgentsRoute() {
     }),
   );
 
+  const isCreateIntentActive = search.intent === "add-agent";
+
+  function clearCreateIntent() {
+    void navigate({
+      to: "/methodologies/$methodologyId/versions/$versionId/agents",
+      params: { methodologyId, versionId },
+      search: {},
+      replace: true,
+    });
+  }
+
   const createAgentMutation = useMutation(
     orpc.methodology.version.agent.create.mutationOptions({
       onSuccess: async () => {
@@ -50,6 +63,10 @@ export function MethodologyVersionAgentsRoute() {
         setDisplayName("");
         setDescription("");
         setPersona("");
+
+        if (isCreateIntentActive) {
+          clearCreateIntent();
+        }
       },
     }),
   );
@@ -239,7 +256,15 @@ export function MethodologyVersionAgentsRoute() {
         </section>
       ) : null}
 
-      <DialogPrimitive.Root open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+      <DialogPrimitive.Root
+        open={isCreateDialogOpen || isCreateIntentActive}
+        onOpenChange={(open) => {
+          setIsCreateDialogOpen(open);
+          if (!open && isCreateIntentActive) {
+            clearCreateIntent();
+          }
+        }}
+      >
         <DialogPrimitive.Portal>
           <DialogPrimitive.Backdrop className="fixed inset-0 bg-black/70" />
           <DialogPrimitive.Popup className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 border border-border bg-background p-4 shadow-2xl">

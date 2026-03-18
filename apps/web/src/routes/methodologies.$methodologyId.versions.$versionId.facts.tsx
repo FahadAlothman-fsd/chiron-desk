@@ -50,13 +50,14 @@ import {
 } from "@/features/methodologies/version-workspace";
 import { MethodologyWorkspaceShell } from "@/features/methodologies/workspace-shell";
 
+const factsSearchSchema = z.object({
+  intent: z.enum(["add-fact"]).optional(),
+});
+
+type FactsSearch = z.infer<typeof factsSearchSchema>;
+
 export const Route = createFileRoute("/methodologies/$methodologyId/versions/$versionId/facts")({
-  validateSearch: (search) =>
-    z
-      .object({
-        intent: z.enum(["add-fact"]).optional(),
-      })
-      .parse(search),
+  validateSearch: (search): FactsSearch => factsSearchSchema.parse(search),
   component: MethodologyVersionFactsRoute,
 });
 

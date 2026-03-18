@@ -31,10 +31,26 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
     }),
   );
 
+  const workUnitTypes = Array.isArray(
+    (draftQuery.data as { workUnitTypes?: ReadonlyArray<{ key?: string }> } | undefined)
+      ?.workUnitTypes,
+  )
+    ? ((draftQuery.data as { workUnitTypes?: ReadonlyArray<{ key?: string }> }).workUnitTypes ?? [])
+    : [];
+  const hasMatchingWorkUnit = workUnitTypes.some((workUnit) => workUnit?.key === workUnitKey);
+  const hasResolvedInvalidSelection =
+    !draftQuery.isLoading && !draftQuery.isError && !hasMatchingWorkUnit;
+
   return (
     <MethodologyWorkspaceShell
       title={`Work Unit · ${workUnitKey}`}
-      stateLabel={draftQuery.isLoading ? "loading" : draftQuery.isError ? "failed" : "success"}
+      stateLabel={
+        draftQuery.isLoading
+          ? "loading"
+          : draftQuery.isError || hasResolvedInvalidSelection
+            ? "failed"
+            : "success"
+      }
       segments={[
         { label: "Methodologies", to: "/methodologies" },
         { label: methodologyId, to: "/methodologies/$methodologyId", params: { methodologyId } },
@@ -104,7 +120,7 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
           </p>
           {draftQuery.isLoading ? (
             <p className="mt-2 text-sm">Loading work-unit details...</p>
-          ) : draftQuery.isError ? (
+          ) : draftQuery.isError || hasResolvedInvalidSelection ? (
             <p className="mt-2 text-sm">
               State: failed - Unable to load work-unit details while preserving selected context.
             </p>

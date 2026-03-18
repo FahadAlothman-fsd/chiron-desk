@@ -1,22 +1,24 @@
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { z } from "zod";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { MethodologyWorkspaceShell } from "@/features/methodologies/workspace-shell";
 
+const dependencyDefinitionsSearchSchema = z.object({
+  intent: z.enum(["add-link-type"]).optional(),
+  tab: z.enum(["definitions", "usage", "diagnostics"]).optional(),
+});
+
+type DependencyDefinitionsSearch = z.infer<typeof dependencyDefinitionsSearchSchema>;
+
 export const Route = createFileRoute(
   "/methodologies/$methodologyId/versions/$versionId/dependency-definitions",
 )({
-  validateSearch: (search) =>
-    z
-      .object({
-        intent: z.enum(["add-link-type"]).optional(),
-        tab: z.enum(["definitions", "usage", "diagnostics"]).optional(),
-      })
-      .parse(search),
+  validateSearch: (search): DependencyDefinitionsSearch =>
+    dependencyDefinitionsSearchSchema.parse(search),
   component: MethodologyVersionDependencyDefinitionsRoute,
 });
 
@@ -24,6 +26,7 @@ export function MethodologyVersionDependencyDefinitionsRoute() {
   const { methodologyId, versionId } = Route.useParams();
   const search = Route.useSearch();
   const tab = search.tab ?? "definitions";
+  const navigate = useNavigate();
   const { orpc } = Route.useRouteContext();
   const queryClient = useQueryClient();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -40,6 +43,17 @@ export function MethodologyVersionDependencyDefinitionsRoute() {
     }),
   );
 
+  const isCreateIntentActive = search.intent === "add-link-type";
+
+  function clearCreateIntent() {
+    void navigate({
+      to: "/methodologies/$methodologyId/versions/$versionId/dependency-definitions",
+      params: { methodologyId, versionId },
+      search: {},
+      replace: true,
+    });
+  }
+
   const createDependencyDefinitionMutation = useMutation(
     orpc.methodology.version.dependencyDefinition.create.mutationOptions({
       onSuccess: async () => {
@@ -53,6 +67,10 @@ export function MethodologyVersionDependencyDefinitionsRoute() {
         setDescription("");
         setAllowHard(false);
         setAllowSoft(false);
+
+        if (isCreateIntentActive) {
+          clearCreateIntent();
+        }
       },
     }),
   );
@@ -295,7 +313,15 @@ export function MethodologyVersionDependencyDefinitionsRoute() {
         </section>
       ) : null}
 
-      <DialogPrimitive.Root open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+      <DialogPrimitive.Root
+        open={isCreateDialogOpen || isCreateIntentActive}
+        onOpenChange={(open) => {
+          setIsCreateDialogOpen(open);
+          if (!open && isCreateIntentActive) {
+            clearCreateIntent();
+          }
+        }}
+      >
         <DialogPrimitive.Portal>
           <DialogPrimitive.Backdrop className="fixed inset-0 bg-black/70" />
           <DialogPrimitive.Popup className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 border border-border bg-background p-4 shadow-2xl">

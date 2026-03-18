@@ -23,6 +23,7 @@ vi.mock("@tanstack/react-router", () => ({
     useNavigate: () => useNavigateMock,
   }),
   useLocation: useLocationMock,
+  useNavigate: () => useNavigateMock,
 }));
 
 vi.mock("@/features/methodologies/version-workspace", () => ({
@@ -114,13 +115,22 @@ function createRouteContext(options?: {
               }),
             },
             create: {
-              mutationOptions: () => ({ mutationFn: createAgentMock }),
+              mutationOptions: (options: Record<string, unknown> = {}) => ({
+                mutationFn: createAgentMock,
+                ...options,
+              }),
             },
             update: {
-              mutationOptions: () => ({ mutationFn: updateAgentMock }),
+              mutationOptions: (options: Record<string, unknown> = {}) => ({
+                mutationFn: updateAgentMock,
+                ...options,
+              }),
             },
             delete: {
-              mutationOptions: () => ({ mutationFn: deleteAgentMock }),
+              mutationOptions: (options: Record<string, unknown> = {}) => ({
+                mutationFn: deleteAgentMock,
+                ...options,
+              }),
             },
           },
           dependencyDefinition: {
@@ -131,13 +141,22 @@ function createRouteContext(options?: {
               }),
             },
             create: {
-              mutationOptions: () => ({ mutationFn: createDependencyDefinitionMock }),
+              mutationOptions: (options: Record<string, unknown> = {}) => ({
+                mutationFn: createDependencyDefinitionMock,
+                ...options,
+              }),
             },
             update: {
-              mutationOptions: () => ({ mutationFn: updateDependencyDefinitionMock }),
+              mutationOptions: (options: Record<string, unknown> = {}) => ({
+                mutationFn: updateDependencyDefinitionMock,
+                ...options,
+              }),
             },
             delete: {
-              mutationOptions: () => ({ mutationFn: deleteDependencyDefinitionMock }),
+              mutationOptions: (options: Record<string, unknown> = {}) => ({
+                mutationFn: deleteDependencyDefinitionMock,
+                ...options,
+              }),
             },
           },
           workUnit: {
@@ -226,7 +245,7 @@ describe("methodology version shell routes", () => {
     expect(screen.getAllByTestId("surface-card-corner")).toHaveLength(16);
   });
 
-  it("renders work-units shell with graph/list views and active summary", async () => {
+  it("renders work-units shell with graph/contracts/diagnostics views and active summary", async () => {
     const { MethodologyVersionWorkUnitsRoute } =
       await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
     useParamsMock.mockReturnValue({ methodologyId: "equity-core", versionId: "draft-v2" });
@@ -236,7 +255,9 @@ describe("methodology version shell routes", () => {
 
     expect(await screen.findByPlaceholderText("Search work units...")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Graph" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "List" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Contracts" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Diagnostics" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "List" })).toBeNull();
     expect(screen.getByText("ACTIVE WORK UNIT")).toBeTruthy();
     expect(screen.getByText("Open details")).toBeTruthy();
     expect(screen.getByText("Open Relationship View")).toBeTruthy();
@@ -260,11 +281,37 @@ describe("methodology version shell routes", () => {
     expect(screen.getByText("Artifact Slots")).toBeTruthy();
   });
 
-  it("renders agents shell and intent banner", async () => {
+  it("renders a failed shell when the selected work unit key does not exist in the draft", async () => {
+    const { MethodologyVersionWorkUnitDetailsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey");
+    useParamsMock.mockReturnValue({
+      methodologyId: "equity-core",
+      versionId: "draft-v2",
+      workUnitKey: "WU.MISSING",
+    });
+    useSearchMock.mockReturnValue({ tab: "overview" });
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitDetailsRoute />);
+
+    expect(await screen.findByText("Work Unit · WU.MISSING")).toBeTruthy();
+    expect(
+      await screen.findByText(
+        "State: failed - Unable to load work-unit details while preserving selected context.",
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.queryByText("L2 detail shell is active for deterministic Story 3.1 baseline."),
+    ).toBeNull();
+    expect(screen.getByText("Work Unit: WU.MISSING")).toBeTruthy();
+  });
+
+  it("opens the agents create dialog from add-agent intent and clears intent after create", async () => {
     const { MethodologyVersionAgentsRoute } =
       await import("../../routes/methodologies.$methodologyId.versions.$versionId.agents");
+    const routeContext = createRouteContext();
     useParamsMock.mockReturnValue({ methodologyId: "equity-core", versionId: "draft-v2" });
     useSearchMock.mockReturnValue({ intent: "add-agent" });
+    useRouteContextMock.mockReturnValue(routeContext);
 
     renderWithQueryClient(<MethodologyVersionAgentsRoute />);
 
@@ -272,6 +319,25 @@ describe("methodology version shell routes", () => {
     expect(screen.getByText("Add Agent requested from command palette.")).toBeTruthy();
     expect(screen.getByText("Contracts")).toBeTruthy();
     expect(screen.getByText("Diagnostics")).toBeTruthy();
+
+    expect(screen.getByLabelText("Agent Key")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Agent Key"), { target: { value: "agent.review" } });
+    fireEvent.change(screen.getByLabelText("Display Name"), { target: { value: "Review Agent" } });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Reviews outputs" },
+    });
+    fireEvent.change(screen.getByLabelText("Persona"), { target: { value: "Thorough reviewer" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create Agent" }));
+
+    await waitFor(() => expect(routeContext.createAgentMock).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(useNavigateMock).toHaveBeenCalledWith({
+        to: "/methodologies/$methodologyId/versions/$versionId/agents",
+        params: { methodologyId: "equity-core", versionId: "draft-v2" },
+        search: {},
+        replace: true,
+      }),
+    );
   });
 
   it("creates an agent through version.agent.create", async () => {
@@ -331,11 +397,13 @@ describe("methodology version shell routes", () => {
     await waitFor(() => expect(routeContext.deleteAgentMock).toHaveBeenCalledTimes(1));
   });
 
-  it("renders dependency definitions shell and intent banner", async () => {
+  it("opens the dependency definition dialog from add-link-type intent and clears intent after create", async () => {
     const { MethodologyVersionDependencyDefinitionsRoute } =
       await import("../../routes/methodologies.$methodologyId.versions.$versionId.dependency-definitions");
+    const routeContext = createRouteContext();
     useParamsMock.mockReturnValue({ methodologyId: "equity-core", versionId: "draft-v2" });
     useSearchMock.mockReturnValue({ intent: "add-link-type" });
+    useRouteContextMock.mockReturnValue(routeContext);
 
     renderWithQueryClient(<MethodologyVersionDependencyDefinitionsRoute />);
 
@@ -343,6 +411,26 @@ describe("methodology version shell routes", () => {
     expect(screen.getByText("Add Link Type requested from command palette.")).toBeTruthy();
     expect(screen.getByText("Definitions")).toBeTruthy();
     expect(screen.getByText("Usage")).toBeTruthy();
+
+    expect(screen.getByLabelText("Link Type Key")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Link Type Key"), { target: { value: "depends_on" } });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Depends on another work unit" },
+    });
+    fireEvent.click(screen.getByLabelText("Hard"));
+    fireEvent.click(screen.getByRole("button", { name: "Create Link Type" }));
+
+    await waitFor(() =>
+      expect(routeContext.createDependencyDefinitionMock).toHaveBeenCalledTimes(1),
+    );
+    await waitFor(() =>
+      expect(useNavigateMock).toHaveBeenCalledWith({
+        to: "/methodologies/$methodologyId/versions/$versionId/dependency-definitions",
+        params: { methodologyId: "equity-core", versionId: "draft-v2" },
+        search: {},
+        replace: true,
+      }),
+    );
   });
 
   it("creates a dependency definition through version.dependencyDefinition.create", async () => {
