@@ -13,6 +13,7 @@ export type GraphWorkUnit = {
   cardinality?: CardinalityPolicy;
   lifecycleStates?: Array<{ key: string }>;
   lifecycleTransitions?: Array<{ transitionKey: string; toState?: string }>;
+  relationships?: Array<{ targetWorkUnitTypeKey: string; linkTypeKey: string }>;
 };
 
 export type GraphWorkflow = {
@@ -44,43 +45,28 @@ function sortByKey<T extends { key: string }>(items: readonly T[]): T[] {
   return [...items].sort((a, b) => a.key.localeCompare(b.key));
 }
 
-function transitionsForWorkUnit(
-  workUnit: GraphWorkUnit,
-): Array<{ workUnitTypeKey: string; transitionKey: string; toState?: string }> {
-  const lifecycleTransitions = Array.isArray(workUnit.lifecycleTransitions)
-    ? workUnit.lifecycleTransitions
-    : [];
-
-  return lifecycleTransitions
-    .filter((transition) => typeof transition.transitionKey === "string")
-    .map((transition) => ({
-      workUnitTypeKey: workUnit.key,
-      transitionKey: transition.transitionKey,
-      toState: typeof transition.toState === "string" ? transition.toState : undefined,
-    }))
-    .sort((a, b) => a.transitionKey.localeCompare(b.transitionKey));
-}
-
-function transitionStateLabel(transition: { transitionKey: string; toState?: string }): string {
-  const [fromSegment, toSegmentFromKey] = transition.transitionKey.split("__to__");
-  const toState = transition.toState ?? toSegmentFromKey;
-
-  if (fromSegment && toState) {
-    return `${fromSegment} -> ${toState}`;
-  }
-
-  if (toState) {
-    return `to ${toState}`;
-  }
-
-  return transition.transitionKey;
-}
-
 function workflowCatalogForWorkUnit(
   workflows: readonly GraphWorkflow[],
   workUnitTypeKey: string,
 ): GraphWorkflow[] {
   return sortByKey(workflows.filter((workflow) => workflow.workUnitTypeKey === workUnitTypeKey));
+}
+
+function relationshipsForWorkUnit(
+  workUnit: GraphWorkUnit,
+): Array<{ targetWorkUnitTypeKey: string; linkTypeKey: string }> {
+  const relationships = Array.isArray(workUnit.relationships) ? workUnit.relationships : [];
+
+  return relationships
+    .filter(
+      (relationship): relationship is { targetWorkUnitTypeKey: string; linkTypeKey: string } =>
+        typeof relationship?.targetWorkUnitTypeKey === "string" &&
+        typeof relationship?.linkTypeKey === "string",
+    )
+    .sort((a, b) => {
+      const byTarget = a.targetWorkUnitTypeKey.localeCompare(b.targetWorkUnitTypeKey);
+      return byTarget !== 0 ? byTarget : a.linkTypeKey.localeCompare(b.linkTypeKey);
+    });
 }
 
 export function filterTransitionEligibleWorkflows(input: {
@@ -159,8 +145,7 @@ export function projectMethodologyGraph(
     const columnCount = sortedWorkUnits.length > 20 ? 6 : sortedWorkUnits.length > 12 ? 5 : 4;
     const workUnitHorizontalGap = 420;
     const workUnitVerticalGap = 260;
-    const transitionHorizontalGap = 132;
-    const transitionYOffset = 150;
+    const workUnitKeys = new Set(sortedWorkUnits.map((workUnit) => workUnit.key));
 
     for (const [index, workUnit] of sortedWorkUnits.entries()) {
       const baseX = (index % columnCount) * workUnitHorizontalGap;
@@ -182,32 +167,18 @@ export function projectMethodologyGraph(
         },
       });
 
-      const transitions = transitionsForWorkUnit(workUnit);
-      for (const [transitionIndex, transition] of transitions.entries()) {
-        const transitionNodeId = `transition:${transition.workUnitTypeKey}:${transition.transitionKey}`;
-        const transitionLabel = transitionStateLabel(transition);
-        const boundCount = input.transitionWorkflowBindings[transition.transitionKey]?.length ?? 0;
-
-        nodes.push({
-          id: transitionNodeId,
-          type: "transition",
-          position: {
-            x: baseX + transitionIndex * transitionHorizontalGap,
-            y: baseY + transitionYOffset,
-          },
-          data: {
-            label: transitionLabel,
-            bindingCount: boundCount,
-          },
-        });
+      const relationships = relationshipsForWorkUnit(workUnit);
+      for (const relationship of relationships) {
+        if (!workUnitKeys.has(relationship.targetWorkUnitTypeKey)) {
+          continue;
+        }
 
         edges.push({
-          id: `wu-to-transition:${transitionNodeId}`,
+          id: `wu-rel:${workUnit.key}:${relationship.linkTypeKey}:${relationship.targetWorkUnitTypeKey}`,
           source: workUnitNodeId,
-          target: transitionNodeId,
+          target: `wu:${relationship.targetWorkUnitTypeKey}`,
           type: "smoothstep",
-          animated: boundCount > 0,
-          label: boundCount > 0 ? `${boundCount} bound` : "unbound",
+          label: relationship.linkTypeKey,
           style: {
             stroke: "color-mix(in oklab, var(--primary) 60%, transparent)",
             strokeWidth: 1.5,

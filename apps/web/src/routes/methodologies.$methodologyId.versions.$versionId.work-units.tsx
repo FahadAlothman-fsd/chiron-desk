@@ -1,8 +1,25 @@
-import { useQuery } from "@tanstack/react-query";
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute } from "@tanstack/react-router";
+import { useMemo, useRef, useState } from "react";
 import { z } from "zod";
 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { WorkUnitsGraphView } from "@/features/methodologies/work-units-graph-view";
+import {
+  deriveActiveWorkUnit,
+  deriveWorkUnitsPageRows,
+} from "@/features/methodologies/work-units-page-selectors";
+import { WorkUnitsRightRail } from "@/features/methodologies/work-units-right-rail";
+import { WorkUnitsListView } from "@/features/methodologies/work-units-list-view";
+import { projectMethodologyGraph } from "@/features/methodologies/version-graph";
 import { MethodologyWorkspaceShell } from "@/features/methodologies/workspace-shell";
 
 export const Route = createFileRoute(
@@ -11,8 +28,10 @@ export const Route = createFileRoute(
   validateSearch: (search) =>
     z
       .object({
-        intent: z.enum(["add-work-unit"]).optional(),
+        view: z.enum(["graph", "list"]).optional(),
+        selected: z.string().min(1).optional(),
       })
+      .strict()
       .parse(search),
   component: MethodologyVersionWorkUnitsRoute,
 });
@@ -21,6 +40,8 @@ export function MethodologyVersionWorkUnitsRoute() {
   const { methodologyId, versionId } = Route.useParams();
   const search = Route.useSearch();
   const { orpc } = Route.useRouteContext();
+  const navigate = Route.useNavigate();
+  const queryClient = useQueryClient();
 
   const detailsQuery = useQuery(
     orpc.methodology.getMethodologyDetails.queryOptions({
@@ -29,16 +50,170 @@ export function MethodologyVersionWorkUnitsRoute() {
   );
 
   const draftQuery = useQuery(
-    orpc.methodology.getDraftProjection.queryOptions({
+    orpc.methodology.version.workUnit.list.queryOptions({
       input: { versionId },
     }),
   );
 
-  const workUnits = ((
-    draftQuery.data as
-      | { workUnitTypes?: ReadonlyArray<{ key?: string; displayName?: string }> }
-      | undefined
-  )?.workUnitTypes ?? []) as ReadonlyArray<{ key?: string; displayName?: string }>;
+  const draftProjection = (draftQuery.data ?? null) as {
+    workUnitTypes?: ReadonlyArray<{
+      key?: string;
+      displayName?: string;
+      cardinality?: "one_per_project" | "many_per_project";
+      lifecycleStates?: ReadonlyArray<{ key?: string }>;
+      lifecycleTransitions?: ReadonlyArray<unknown>;
+      factSchemas?: ReadonlyArray<unknown>;
+      relationships?: ReadonlyArray<unknown>;
+    }>;
+    workflows?: ReadonlyArray<{
+      key?: string;
+      displayName?: string;
+      workUnitTypeKey?: string;
+      steps?: ReadonlyArray<unknown>;
+      edges?: ReadonlyArray<unknown>;
+    }>;
+    transitionWorkflowBindings?: Record<string, readonly string[]>;
+    agentTypes?: ReadonlyArray<{
+      key?: string;
+      displayName?: string;
+      description?: string;
+      factSchemaKeys?: ReadonlyArray<string>;
+    }>;
+  } | null;
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [newWorkUnitKey, setNewWorkUnitKey] = useState("");
+  const [createError, setCreateError] = useState<string | null>(null);
+  const newWorkUnitKeyRef = useRef<HTMLInputElement | null>(null);
+
+  const updateDraftLifecycleMutation = useMutation(
+    orpc.methodology.version.workUnit.create.mutationOptions(),
+  );
+
+  const workUnits = useMemo(() => deriveWorkUnitsPageRows(draftProjection), [draftProjection]);
+
+  const filteredWorkUnits = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    if (!normalizedQuery) {
+      return workUnits;
+    }
+
+    return workUnits.filter(
+      (row) =>
+        row.displayName.toLowerCase().includes(normalizedQuery) ||
+        row.key.toLowerCase().includes(normalizedQuery),
+    );
+  }, [searchQuery, workUnits]);
+
+  const activeWorkUnit = deriveActiveWorkUnit(workUnits, search.selected ?? null);
+  const activeWorkUnitKey = activeWorkUnit?.key ?? null;
+  const isGraphView = search.view !== "list";
+
+  const graphProjection = useMemo(
+    () =>
+      projectMethodologyGraph(
+        {
+          workUnitTypes: Array.isArray(draftProjection?.workUnitTypes)
+            ? draftProjection.workUnitTypes
+            : [],
+          workflows: Array.isArray(draftProjection?.workflows) ? draftProjection.workflows : [],
+          transitionWorkflowBindings:
+            draftProjection?.transitionWorkflowBindings &&
+            typeof draftProjection.transitionWorkflowBindings === "object"
+              ? draftProjection.transitionWorkflowBindings
+              : {},
+        },
+        { level: "L1" },
+      ),
+    [draftProjection],
+  );
+
+  const existingWorkUnitTypes = useMemo(
+    () => (Array.isArray(draftProjection?.workUnitTypes) ? draftProjection.workUnitTypes : []),
+    [draftProjection?.workUnitTypes],
+  );
+
+  const existingAgentTypes = useMemo(
+    () => (Array.isArray(draftProjection?.agentTypes) ? draftProjection.agentTypes : []),
+    [draftProjection?.agentTypes],
+  );
+
+  const updateSearch = (next: { view?: "graph" | "list"; selected?: string }) => {
+    void navigate({
+      search: (previous) => ({
+        view: next.view ?? previous.view,
+        selected: next.selected ?? previous.selected,
+      }),
+    });
+  };
+
+  const handleCreateWorkUnit = async () => {
+    const nextKey = (newWorkUnitKeyRef.current?.value ?? newWorkUnitKey).trim();
+    if (!nextKey) {
+      setCreateError("Work Unit Key is required.");
+      return;
+    }
+
+    const keyAlreadyExists = existingWorkUnitTypes.some((workUnit) => workUnit?.key === nextKey);
+    if (keyAlreadyExists) {
+      setCreateError("Work Unit Key must be unique.");
+      return;
+    }
+
+    setCreateError(null);
+
+    await updateDraftLifecycleMutation.mutateAsync({
+      versionId,
+      workUnitTypes: [
+        ...existingWorkUnitTypes,
+        {
+          key: nextKey,
+          displayName: nextKey,
+          description: "",
+          cardinality: "many_per_project",
+          lifecycleStates: [{ key: "draft" }],
+          lifecycleTransitions: [],
+          factSchemas: [],
+        },
+      ],
+      agentTypes: existingAgentTypes.map((agent) => ({
+        key: agent?.key ?? "",
+        displayName: agent?.displayName ?? agent?.key ?? "",
+        description: agent?.description ?? "",
+        persona:
+          typeof (agent as { persona?: unknown })?.persona === "string"
+            ? ((agent as { persona?: string }).persona ?? "draft")
+            : "draft",
+        defaultModel:
+          (agent as { defaultModel?: { provider?: string; model?: string } })?.defaultModel
+            ?.provider &&
+          (agent as { defaultModel?: { provider?: string; model?: string } })?.defaultModel?.model
+            ? {
+                provider: (agent as { defaultModel?: { provider?: string; model?: string } })
+                  .defaultModel!.provider!,
+                model: (agent as { defaultModel?: { provider?: string; model?: string } })
+                  .defaultModel!.model!,
+              }
+            : undefined,
+        mcpServers: Array.isArray((agent as { mcpServers?: unknown }).mcpServers)
+          ? ((agent as { mcpServers?: string[] }).mcpServers ?? [])
+          : [],
+        capabilities: Array.isArray((agent as { capabilities?: unknown }).capabilities)
+          ? ((agent as { capabilities?: string[] }).capabilities ?? [])
+          : [],
+      })),
+    });
+
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["methodology", "draft", versionId] }),
+      queryClient.invalidateQueries({ queryKey: ["methodology", "details", methodologyId] }),
+    ]);
+
+    setIsCreateDialogOpen(false);
+    setNewWorkUnitKey("");
+    updateSearch({ selected: nextKey });
+  };
 
   return (
     <MethodologyWorkspaceShell
@@ -69,28 +244,84 @@ export function MethodologyVersionWorkUnitsRoute() {
       <section className="chiron-frame-flat chiron-tone-navigation p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap gap-2">
-            {(["Graph", "Contracts", "Diagnostics"] as const).map((tab) => (
-              <Button
-                key={tab}
-                size="sm"
-                variant={tab === "Graph" ? "default" : "outline"}
-                className="rounded-none"
-              >
-                {tab}
-              </Button>
-            ))}
+            <Button
+              size="sm"
+              variant={isGraphView ? "default" : "outline"}
+              className="rounded-none"
+              onClick={() => updateSearch({ view: "graph" })}
+            >
+              Graph
+            </Button>
+            <Button
+              size="sm"
+              variant={isGraphView ? "outline" : "default"}
+              className="rounded-none"
+              onClick={() => updateSearch({ view: "list" })}
+            >
+              List
+            </Button>
           </div>
-          <Button size="sm" className="rounded-none">
+          <Button
+            size="sm"
+            className="rounded-none"
+            onClick={() => {
+              setCreateError(null);
+              setNewWorkUnitKey("");
+              setIsCreateDialogOpen(true);
+            }}
+          >
             + Add Work Unit
           </Button>
         </div>
-        {search.intent === "add-work-unit" ? (
-          <p className="mt-2 text-xs text-muted-foreground">
-            Add Work Unit requested from command palette. Use + Add Work Unit to continue the
-            deterministic create flow.
-          </p>
-        ) : null}
       </section>
+
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent className="max-w-md rounded-none">
+          <DialogHeader>
+            <DialogTitle>Add Work Unit</DialogTitle>
+            <DialogDescription>
+              Create a new work unit in this methodology version using the minimal lifecycle shell.
+            </DialogDescription>
+          </DialogHeader>
+
+          <label htmlFor="new-work-unit-key" className="grid gap-1 text-xs">
+            <span>Work Unit Key</span>
+            <input
+              ref={newWorkUnitKeyRef}
+              id="new-work-unit-key"
+              aria-label="Work Unit Key"
+              className="border-input placeholder:text-muted-foreground h-8 w-full rounded-none border bg-transparent px-2.5 py-1 text-xs outline-none"
+              value={newWorkUnitKey}
+              onChange={(event) => {
+                setNewWorkUnitKey(event.target.value);
+                if (createError) {
+                  setCreateError(null);
+                }
+              }}
+              placeholder="WU.NEW_STEP"
+            />
+          </label>
+
+          {createError ? <p className="text-xs text-destructive">{createError}</p> : null}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="rounded-none"
+              onClick={() => setIsCreateDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="rounded-none"
+              onClick={() => void handleCreateWorkUnit()}
+              disabled={updateDraftLifecycleMutation.isPending}
+            >
+              Create Work Unit
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {draftQuery.isLoading ? (
         <p className="text-sm">Loading work-unit shells for this version...</p>
@@ -103,60 +334,32 @@ export function MethodologyVersionWorkUnitsRoute() {
       ) : null}
 
       {!draftQuery.isLoading && !draftQuery.isError ? (
-        <section className="grid gap-3 lg:grid-cols-[2fr_1fr_1fr]">
-          <div className="chiron-frame-flat p-3">
-            <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
-              Graph Canvas (Locked Shell)
-            </p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Graph interactions remain design-time baseline for Story 3.1.
-            </p>
-          </div>
+        <section className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_22rem]">
+          {isGraphView ? (
+            <WorkUnitsGraphView
+              rows={filteredWorkUnits}
+              graph={graphProjection}
+              activeWorkUnitKey={activeWorkUnitKey}
+              onSelect={(workUnitKey) => updateSearch({ selected: workUnitKey })}
+            />
+          ) : (
+            <WorkUnitsListView
+              rows={filteredWorkUnits}
+              activeWorkUnitKey={activeWorkUnitKey}
+              onSelect={(workUnitKey) => updateSearch({ selected: workUnitKey })}
+            />
+          )}
 
-          <div className="chiron-frame-flat p-3">
-            <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
-              Searchable List
-            </p>
-            <div className="mt-2 space-y-2">
-              {workUnits.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No work units yet. Add one to start defining design-time structure.
-                </p>
-              ) : (
-                workUnits.map((unit, index) => {
-                  const workUnitKey = unit?.key ?? `work-unit-${index + 1}`;
-                  const workUnitLabel = unit?.displayName ?? workUnitKey;
-
-                  return (
-                    <div key={workUnitKey} className="border border-border/70 p-2 text-sm">
-                      <p className="font-medium">{workUnitLabel}</p>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <Link
-                          className="underline"
-                          to="/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey"
-                          params={{ methodologyId, versionId, workUnitKey }}
-                        >
-                          Open details
-                        </Link>
-                        <button type="button" className="underline">
-                          Open Relationship View
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-
-          <div className="chiron-frame-flat p-3">
-            <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
-              Selected Summary
-            </p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Select a work unit from the list to anchor L2 details context.
-            </p>
-          </div>
+          <WorkUnitsRightRail
+            methodologyId={methodologyId}
+            versionId={versionId}
+            rows={filteredWorkUnits}
+            activeWorkUnit={activeWorkUnit}
+            activeWorkUnitKey={activeWorkUnitKey}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            onSelect={(workUnitKey) => updateSearch({ selected: workUnitKey })}
+          />
         </section>
       ) : null}
     </MethodologyWorkspaceShell>

@@ -163,29 +163,82 @@ test("L1 work units expose lifecycle states for node state cues", () => {
   ]);
 });
 
-test("L1 transition labels present readable from-state to-state flow", () => {
-  const graphWithStateTransition: GraphProjectionInput = {
+test("L1 uses only work-unit nodes and never renders transition nodes", () => {
+  const l1 = projectMethodologyGraph(
+    {
+      ...GRAPH_INPUT,
+      workUnitTypes: [
+        {
+          key: "WU.TEST",
+          cardinality: "many_per_project",
+          lifecycleStates: [{ key: "draft" }, { key: "ready" }],
+          lifecycleTransitions: [
+            {
+              transitionKey: "draft__to__ready",
+              toState: "ready",
+            },
+          ],
+        },
+      ],
+      workflows: [],
+      transitionWorkflowBindings: {},
+    },
+    { level: "L1" },
+  );
+
+  assert.equal(
+    l1.nodes.some((node) => node.id.startsWith("transition:")),
+    false,
+  );
+  assert.deepEqual(
+    l1.nodes.map((node) => node.id),
+    ["wu:WU.TEST"],
+  );
+});
+
+test("L1 derives edges only between work units from work-unit relationships", () => {
+  const graphWithRelationships = {
     ...GRAPH_INPUT,
     workUnitTypes: [
       {
-        key: "WU.TEST",
+        key: "WU.INTAKE",
+        displayName: "Intake",
         cardinality: "many_per_project",
-        lifecycleStates: [{ key: "draft" }, { key: "ready" }],
-        lifecycleTransitions: [
+        lifecycleStates: [{ key: "draft" }],
+        lifecycleTransitions: [{ transitionKey: "submit" }],
+        relationships: [
           {
-            transitionKey: "draft__to__ready",
-            toState: "ready",
+            targetWorkUnitTypeKey: "WU.VALIDATION",
+            linkTypeKey: "depends_on",
           },
         ],
+      },
+      {
+        key: "WU.VALIDATION",
+        displayName: "Validation",
+        cardinality: "one_per_project",
+        lifecycleStates: [{ key: "draft" }],
+        lifecycleTransitions: [{ transitionKey: "approve" }],
       },
     ],
     workflows: [],
     transitionWorkflowBindings: {},
-  };
+  } as GraphProjectionInput;
 
-  const l1 = projectMethodologyGraph(graphWithStateTransition, { level: "L1" });
-  const transitionNode = l1.nodes.find((node) => node.id === "transition:WU.TEST:draft__to__ready");
+  const l1 = projectMethodologyGraph(graphWithRelationships, { level: "L1" });
 
-  assert.equal(Boolean(transitionNode), true);
-  assert.equal((transitionNode?.data as { label?: string } | undefined)?.label, "draft -> ready");
+  assert.deepEqual(
+    l1.edges.map((edge) => ({
+      source: edge.source,
+      target: edge.target,
+      label: edge.label,
+    })),
+    [
+      {
+        source: "wu:WU.INTAKE",
+        target: "wu:WU.VALIDATION",
+        label: "depends_on",
+      },
+    ],
+  );
 });

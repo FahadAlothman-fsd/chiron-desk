@@ -26,7 +26,7 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
   const { orpc } = Route.useRouteContext();
 
   const draftQuery = useQuery(
-    orpc.methodology.getDraftProjection.queryOptions({
+    orpc.methodology.version.workUnit.get.queryOptions({
       input: { versionId },
     }),
   );
