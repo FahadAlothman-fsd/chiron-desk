@@ -1,6 +1,6 @@
 # Story 3.1: Complete Design-Time IA and Page Shell Baseline
 
-Status: in-progress
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -571,7 +571,7 @@ Implemented the approved Work Units L1 surface at
 
 - Replaced the placeholder L1 shell with the approved page structure:
   - page-level `+ Add Work Unit`
-  - top-level `Graph` and `List` views only
+  - top-level `Graph`, `Contracts`, and `Diagnostics` tabs
   - persistent right rail with search, work-unit index, and active summary
 - Locked the clarified L1 graph rule into implementation:
   - only one node type at L1: `Work Unit`
@@ -581,8 +581,8 @@ Implemented the approved Work Units L1 surface at
 - Added reusable page-local selectors for deterministic L1 summaries and active selection fallback.
 - Extracted presentational page primitives for:
   - graph view
-  - list view
   - right rail summary/index
+- Added deterministic placeholder shells for the locked `Contracts` and `Diagnostics` L1 tabs while preserving route-backed selection context.
 - Kept selection and view state route-backed through search params (`view`, `selected`).
 
 ### Files updated
@@ -830,3 +830,39 @@ Commands run for the L1 completion slice:
 
 - This addendum closes the approved L1 product surface only.
 - Artifact slots, artifact templates, and state-machine internals remain intentionally deferred to L2.
+
+## Senior Developer Review (AI)
+
+### Review Date
+
+- 2026-03-18
+
+### Reviewer
+
+- OpenCode (openai/gpt-5.4)
+
+### Findings Summary
+
+- No active blocking findings remain from the Story 3.1 remediation pass after fresh verification.
+
+### Resolved In This Pass
+
+- `Add Fact`, `Add Agent`, and `Add Link Type` now navigate into intent-backed create flows, and the Agents / Dependency Definitions routes now open and clear those create intents deterministically.
+- `Add Work Unit` now follows the same route-backed create-intent pattern: the command palette navigates with `intent=add-work-unit`, and the Work Units route opens and clears that create intent while preserving current selection context.
+- Work Units L1 create now captures the shallow metadata contract actually supported by Story 3.1 (`Work Unit Key`, `Display Name`, `Description`) and still normalizes hidden invalid draft agent personas before submit so the visible create action is self-sufficient against the existing broad lifecycle mutation contract.
+- Work Units L1 create failures now surface operator-visible inline error copy and preserve dialog context instead of failing silently.
+- Work Unit L2 routes now validate the selected `workUnitKey` and render preserved-context failed state instead of false success for arbitrary keys.
+- `Open Relationship View` now performs a deterministic navigation back to graph mode while preserving the active selected work unit.
+- The command palette no longer advertises nonexistent project scope/context, so its labels now match the real command model.
+- The Work Units L1 tab contract is back in sync with authority docs: `Graph`, `Contracts`, and `Diagnostics`.
+
+### Outcome
+
+- Targeted remediation verification passed, no active blocking findings remain, and Story 3.1 returns to `review`.
+
+### Change Log
+
+- 2026-03-18: Senior Developer Review recorded 5 HIGH and 2 MEDIUM active findings across command-palette parity, Work Units L1 create-flow determinism, silent mutation failures, route determinism, dead shell affordances, and project-context honesty; story returned to `in-progress` pending remediation.
+- 2026-03-18: Remediation verification passed the targeted Story 3.1 suite (30 tests), `bun run --cwd apps/web check-types`, and `bun run check`. Six review findings are now resolved; one HIGH finding remains active for command-palette `Add Work Unit` parity, so the story stays `in-progress`.
+- 2026-03-18: Final parity remediation passed the refreshed targeted Story 3.1 suite (31 tests), `bun run --cwd apps/web check-types`, and `bun run check`. The remaining `Add Work Unit` command-palette blocker is now resolved, so no active blocking findings remain and the story returns to `review`.
+- 2026-03-18: Work Units create dialog regression was corrected so the Story 3.1 shallow create surface now authors `Work Unit Key`, `Display Name`, and `Description`; targeted Work Units regression tests, `bun run --cwd apps/web check-types`, and the refreshed Story 3.1 verification suite all passed afterward.
