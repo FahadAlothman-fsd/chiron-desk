@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -29,6 +29,23 @@ vi.mock("@/features/methodologies/workspace-shell", () => ({
 import { MethodologyDetailsRoute } from "../../routes/methodologies.$methodologyId";
 
 function createTestHarness() {
+  const updateCatalogMock = vi.fn(
+    async ({ methodologyKey, displayName }: { methodologyKey: string; displayName: string }) => ({
+      methodologyId: "mdef_story_2_7_bmad_v1",
+      methodologyKey,
+      displayName,
+      descriptionJson: { summary: "Project-context-only canonical mapping for Story 2.7." },
+      createdAt: "2026-03-09T21:42:43.783Z",
+      updatedAt: "2026-03-18T10:12:13.000Z",
+      versions: [],
+    }),
+  );
+  const archiveCatalogMock = vi.fn(async ({ methodologyKey }: { methodologyKey: string }) => ({
+    methodologyId: "mdef_story_2_7_bmad_v1",
+    methodologyKey,
+    archivedAt: "2026-03-18T10:12:13.000Z",
+  }));
+
   const orpc = {
     methodology: {
       listMethodologies: {
@@ -71,7 +88,13 @@ function createTestHarness() {
           }),
         }),
       },
-      createDraftVersion: { mutationOptions: () => ({ mutationFn: async () => null }) },
+      version: {
+        create: { mutationOptions: () => ({ mutationFn: async () => null }) },
+      },
+      catalog: {
+        update: { mutationOptions: () => ({ mutationFn: updateCatalogMock }) },
+        delete: { mutationOptions: () => ({ mutationFn: archiveCatalogMock }) },
+      },
     },
   };
 
@@ -82,7 +105,7 @@ function createTestHarness() {
   useRouteContextMock.mockReturnValue({ orpc, queryClient });
   useLocationMock.mockReturnValue({ pathname: "/methodologies/bmad.v1" });
 
-  return { queryClient };
+  return { archiveCatalogMock, queryClient, updateCatalogMock };
 }
 
 describe("methodology details route", () => {
@@ -133,5 +156,49 @@ describe("methodology details route", () => {
     expect(screen.getByRole("link", { name: "Versions Index (Compat)" }).getAttribute("href")).toBe(
       "/methodologies/$methodologyId/versions",
     );
+  });
+
+  it("edits and archives the methodology through catalog mutations", async () => {
+    const { archiveCatalogMock, queryClient, updateCatalogMock } = createTestHarness();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MethodologyDetailsRoute />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("Version Ledger")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit Methodology" }));
+    const displayNameInput = await screen.findByLabelText("Display Name");
+    fireEvent.change(displayNameInput, { target: { value: "BMAD v2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Changes" }));
+
+    await waitFor(() => {
+      expect(updateCatalogMock).toHaveBeenCalled();
+      const firstCall = updateCatalogMock.mock.calls[0] as unknown as [
+        { displayName: string; methodologyKey: string },
+        unknown?,
+      ];
+      expect(firstCall?.[0]).toEqual({
+        displayName: "BMAD v2",
+        methodologyKey: "bmad.v1",
+      });
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Archive Methodology" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Archive" }));
+
+    await waitFor(() => {
+      expect(archiveCatalogMock).toHaveBeenCalled();
+      const firstCall = archiveCatalogMock.mock.calls[0] as unknown as [
+        { methodologyKey: string },
+        unknown?,
+      ];
+      expect(firstCall?.[0]).toEqual({
+        methodologyKey: "bmad.v1",
+      });
+    });
   });
 });

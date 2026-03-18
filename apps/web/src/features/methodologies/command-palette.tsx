@@ -140,7 +140,7 @@ export function MethodologyCommandPalette({
         : "Global platform";
 
   const createDraftMutation = useMutation(
-    orpc.methodology.createDraftVersion.mutationOptions({
+    orpc.methodology.version.create.mutationOptions({
       onSuccess: async (result, variables) => {
         const targetDetailsQueryOptions = orpc.methodology.getMethodologyDetails.queryOptions({
           input: { methodologyKey: variables.methodologyKey },

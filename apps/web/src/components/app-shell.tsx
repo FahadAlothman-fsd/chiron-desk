@@ -61,7 +61,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     enabled: Boolean(session?.user && methodologyId),
   });
   const methodologyVersionProjectionQuery = useQuery({
-    ...orpc.methodology.getDraftProjection.queryOptions({
+    ...orpc.methodology.version.workspace.get.queryOptions({
       input: { versionId: versionId ?? "" },
     }),
     enabled: Boolean(session?.user && methodologyId && versionId),

@@ -64,25 +64,23 @@ export function MethodologyWorkspaceEntryRoute() {
     input: { methodologyKey: methodologyId },
   });
   const detailsQuery = useQuery(detailsQueryOptions);
-  const draftQueryOptions = orpc.methodology.getDraftProjection.queryOptions({
+  const draftQueryOptions = orpc.methodology.version.workspace.get.queryOptions({
     input: { versionId },
   });
   const draftQuery = useQuery(draftQueryOptions);
-  const evidenceQueryOptions = orpc.methodology.getPublicationEvidence.queryOptions({
+  const evidenceQueryOptions = orpc.methodology.version.getPublicationEvidence.queryOptions({
     input: { methodologyVersionId: versionId },
   });
   const evidenceQuery = useQuery(evidenceQueryOptions);
 
-  const validateDraftMutation = useMutation(
-    orpc.methodology.validateDraftVersion.mutationOptions(),
-  );
+  const validateDraftMutation = useMutation(orpc.methodology.version.validate.mutationOptions());
   const updateLifecycleMutation = useMutation(
     orpc.methodology.updateDraftLifecycle.mutationOptions(),
   );
   const updateWorkflowsMutation = useMutation(
     orpc.methodology.updateDraftWorkflows.mutationOptions(),
   );
-  const publishMutation = useMutation(orpc.methodology.publishDraftVersion.mutationOptions());
+  const publishMutation = useMutation(orpc.methodology.version.publish.mutationOptions());
 
   const isSaving =
     updateLifecycleMutation.isPending ||

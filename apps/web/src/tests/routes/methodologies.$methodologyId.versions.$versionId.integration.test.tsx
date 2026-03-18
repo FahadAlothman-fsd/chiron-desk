@@ -76,21 +76,6 @@ function createTestHarness() {
           }),
         }),
       },
-      getDraftProjection: {
-        queryOptions: () => ({
-          queryKey: ["methodology", "draft", "mver_bmad_project_context_only_draft"],
-          queryFn: async () => ({ factDefinitions: [] }),
-        }),
-      },
-      getPublicationEvidence: {
-        queryOptions: () => ({
-          queryKey: ["methodology", "evidence", "mver_bmad_project_context_only_draft"],
-          queryFn: async () => [],
-        }),
-      },
-      validateDraftVersion: {
-        mutationOptions: () => ({ mutationFn: async () => ({ valid: true, diagnostics: [] }) }),
-      },
       updateDraftLifecycle: {
         mutationOptions: () => ({
           mutationFn: async () => ({ validation: { valid: true, diagnostics: [] } }),
@@ -99,10 +84,29 @@ function createTestHarness() {
       updateDraftWorkflows: {
         mutationOptions: () => ({ mutationFn: async () => ({ diagnostics: [] }) }),
       },
-      publishDraftVersion: {
-        mutationOptions: () => ({
-          mutationFn: async () => ({ published: false, diagnostics: [], evidence: null }),
-        }),
+      version: {
+        workspace: {
+          get: {
+            queryOptions: () => ({
+              queryKey: ["methodology", "draft", "mver_bmad_project_context_only_draft"],
+              queryFn: async () => ({ factDefinitions: [] }),
+            }),
+          },
+        },
+        getPublicationEvidence: {
+          queryOptions: () => ({
+            queryKey: ["methodology", "evidence", "mver_bmad_project_context_only_draft"],
+            queryFn: async () => [],
+          }),
+        },
+        validate: {
+          mutationOptions: () => ({ mutationFn: async () => ({ valid: true, diagnostics: [] }) }),
+        },
+        publish: {
+          mutationOptions: () => ({
+            mutationFn: async () => ({ published: false, diagnostics: [], evidence: null }),
+          }),
+        },
       },
     },
   };

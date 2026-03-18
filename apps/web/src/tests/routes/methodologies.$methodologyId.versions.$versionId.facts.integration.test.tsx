@@ -12,11 +12,13 @@ vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (options: Record<string, unknown>) => ({
     ...options,
     useRouteContext: useRouteContextMock,
+    useSearch: () => ({}),
     useParams: () => ({
       methodologyId: "bmad.v1",
       versionId: "mver_bmad_project_context_only_draft",
     }),
   }),
+  useNavigate: () => vi.fn(),
   Link: ({ to, children }: { to: string; children: ReactNode }) => <a href={to}>{children}</a>,
 }));
 
@@ -76,10 +78,36 @@ function createTestHarness() {
       },
     ],
   };
-  const updateDraftWorkflowsMock = vi.fn(async (input?: { factDefinitions?: unknown[] }) => {
-    if (input?.factDefinitions) {
-      draftProjection.factDefinitions =
-        input.factDefinitions as typeof draftProjection.factDefinitions;
+  const createFactMock = vi.fn(
+    async (input?: { fact?: (typeof draftProjection.factDefinitions)[number] }) => {
+      if (input?.fact) {
+        draftProjection.factDefinitions = [...draftProjection.factDefinitions, input.fact];
+        return { diagnostics: [] };
+      }
+
+      return { diagnostics: [] };
+    },
+  );
+  const updateFactMock = vi.fn(
+    async (input?: {
+      factKey?: string;
+      fact?: (typeof draftProjection.factDefinitions)[number];
+    }) => {
+      if (input?.factKey && input.fact) {
+        const nextFact = input.fact;
+        draftProjection.factDefinitions = draftProjection.factDefinitions.map((fact) =>
+          fact.key === input.factKey ? nextFact : fact,
+        );
+      }
+
+      return { diagnostics: [] };
+    },
+  );
+  const deleteFactMock = vi.fn(async (input?: { factKey?: string }) => {
+    if (input?.factKey) {
+      draftProjection.factDefinitions = draftProjection.factDefinitions.filter(
+        (fact) => fact.key !== input.factKey,
+      );
     }
 
     return { diagnostics: [] };
@@ -117,16 +145,24 @@ function createTestHarness() {
           }),
         }),
       },
-      getDraftProjection: {
-        queryOptions: () => ({
-          queryKey: ["methodology", "draft", "mver_bmad_project_context_only_draft"],
-          queryFn: async () => structuredClone(draftProjection),
-        }),
-      },
-      updateDraftWorkflows: {
-        mutationOptions: () => ({
-          mutationFn: updateDraftWorkflowsMock,
-        }),
+      version: {
+        fact: {
+          list: {
+            queryOptions: () => ({
+              queryKey: ["methodology", "draft", "mver_bmad_project_context_only_draft"],
+              queryFn: async () => structuredClone(draftProjection),
+            }),
+          },
+          create: {
+            mutationOptions: () => ({ mutationFn: createFactMock }),
+          },
+          update: {
+            mutationOptions: () => ({ mutationFn: updateFactMock }),
+          },
+          delete: {
+            mutationOptions: () => ({ mutationFn: deleteFactMock }),
+          },
+        },
       },
     },
   };
@@ -138,7 +174,7 @@ function createTestHarness() {
 
   useRouteContextMock.mockReturnValue({ orpc, queryClient });
 
-  return { queryClient, updateDraftWorkflowsMock, invalidateQueriesMock };
+  return { queryClient, createFactMock, updateFactMock, deleteFactMock, invalidateQueriesMock };
 }
 
 describe("methodology version facts route", () => {
@@ -170,7 +206,8 @@ describe("methodology version facts route", () => {
   });
 
   it("supports create, edit, guidance, delete, and save refresh behavior for the selected version", async () => {
-    const { queryClient, updateDraftWorkflowsMock, invalidateQueriesMock } = createTestHarness();
+    const { queryClient, createFactMock, updateFactMock, deleteFactMock, invalidateQueriesMock } =
+      createTestHarness();
     render(
       <QueryClientProvider client={queryClient}>
         <MethodologyVersionFactsRoute />
@@ -209,7 +246,7 @@ describe("methodology version facts route", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(await screen.findByText("Workspace Root")).toBeTruthy();
-    expect(updateDraftWorkflowsMock).toHaveBeenCalled();
+    expect(createFactMock).toHaveBeenCalled();
     expect(toastSuccessMock).toHaveBeenCalledWith("Fact saved");
     expect(invalidateQueriesMock).toHaveBeenCalled();
 
@@ -221,6 +258,17 @@ describe("methodology version facts route", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Fact actions" })[0]!);
     fireEvent.click(await screen.findByRole("menuitem", { name: "Edit" }));
     expect(await screen.findByDisplayValue("Repository URL")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Display Name"), {
+      target: { value: "Repository URL Updated" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Save" }));
+    expect(await screen.findByText("Repository URL Updated")).toBeTruthy();
+    expect(updateFactMock).toHaveBeenCalled();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Fact actions" })[0]!);
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Edit" }));
+    expect(await screen.findByDisplayValue("Repository URL Updated")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
     fireEvent.click(screen.getAllByRole("button", { name: "Fact actions" })[0]!);
@@ -228,6 +276,7 @@ describe("methodology version facts route", () => {
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
 
     await waitFor(() => {
+      expect(deleteFactMock).toHaveBeenCalled();
       expect(toastSuccessMock).toHaveBeenCalledWith("Fact deleted");
       expect(invalidateQueriesMock).toHaveBeenCalled();
     });

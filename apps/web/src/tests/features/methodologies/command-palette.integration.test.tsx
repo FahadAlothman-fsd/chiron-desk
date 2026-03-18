@@ -70,8 +70,10 @@ vi.mock("@/utils/orpc", () => {
             queryFn: async () => detailsData,
           }),
         },
-        createDraftVersion: {
-          mutationOptions: (options: Record<string, unknown>) => options,
+        version: {
+          create: {
+            mutationOptions: (options: Record<string, unknown>) => options,
+          },
         },
       },
     },

@@ -1,6 +1,8 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { Link, Outlet, createFileRoute, useLocation } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
+import { useState } from "react";
 
 import { DataGrid } from "@/components/data-grid";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -26,8 +28,11 @@ export function MethodologyDetailsRoute() {
   const listQueryOptions = orpc.methodology.listMethodologies.queryOptions();
 
   const detailsQuery = useQuery(detailsQueryOptions);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
+  const [nextDisplayName, setNextDisplayName] = useState("");
   const createDraftMutation = useMutation(
-    orpc.methodology.createDraftVersion.mutationOptions({
+    orpc.methodology.version.create.mutationOptions({
       onSuccess: async (result) => {
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: listQueryOptions.queryKey }),
@@ -38,6 +43,29 @@ export function MethodologyDetailsRoute() {
           to: "/methodologies/$methodologyId/versions/$versionId",
           params: { methodologyId, versionId: result.version.id },
         });
+      },
+    }),
+  );
+  const updateCatalogMutation = useMutation(
+    orpc.methodology.catalog.update.mutationOptions({
+      onSuccess: async () => {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: listQueryOptions.queryKey }),
+          queryClient.invalidateQueries({ queryKey: detailsQueryOptions.queryKey }),
+        ]);
+        setIsEditDialogOpen(false);
+      },
+    }),
+  );
+  const archiveCatalogMutation = useMutation(
+    orpc.methodology.catalog.delete.mutationOptions({
+      onSuccess: async () => {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: listQueryOptions.queryKey }),
+          queryClient.invalidateQueries({ queryKey: detailsQueryOptions.queryKey }),
+        ]);
+        setIsArchiveDialogOpen(false);
+        void navigate({ to: "/methodologies" });
       },
     }),
   );
@@ -207,6 +235,27 @@ export function MethodologyDetailsRoute() {
                     size="sm"
                     variant="outline"
                     className="rounded-none"
+                    onClick={() => {
+                      setNextDisplayName(details.displayName);
+                      setIsEditDialogOpen(true);
+                    }}
+                  >
+                    Edit Methodology
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-none"
+                    onClick={() => {
+                      setIsArchiveDialogOpen(true);
+                    }}
+                  >
+                    Archive Methodology
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-none"
                     disabled={createDraftMutation.isPending}
                     onClick={() => {
                       createDraftMutation.mutate(buildNextDraftInput(details, methodologyId));
@@ -248,6 +297,89 @@ export function MethodologyDetailsRoute() {
               <DataGrid columns={columns} data={ledgerRows} emptyLabel="No versions found." />
             </div>
           </section>
+
+          <DialogPrimitive.Root open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+            <DialogPrimitive.Portal>
+              <DialogPrimitive.Backdrop className="fixed inset-0 z-50 bg-black/30 backdrop-blur-[1px]" />
+              <DialogPrimitive.Popup className="fixed top-1/2 left-1/2 z-50 w-[min(92vw,30rem)] -translate-x-1/2 -translate-y-1/2 border border-border/80 bg-background p-4 shadow-lg">
+                <DialogPrimitive.Title className="text-sm font-semibold uppercase tracking-[0.12em]">
+                  Edit Methodology
+                </DialogPrimitive.Title>
+                <form
+                  className="mt-4 grid gap-3"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    updateCatalogMutation.mutate({
+                      displayName: nextDisplayName.trim(),
+                      methodologyKey: methodologyId,
+                    });
+                  }}
+                >
+                  <label
+                    htmlFor="methodology-display-name-input"
+                    className="space-y-1 text-xs uppercase tracking-[0.14em] text-muted-foreground"
+                  >
+                    Display Name
+                    <input
+                      id="methodology-display-name-input"
+                      value={nextDisplayName}
+                      onChange={(event) => setNextDisplayName(event.target.value)}
+                      className="flex h-10 w-full rounded-none border border-input bg-background px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-none"
+                      onClick={() => setIsEditDialogOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      className="rounded-none"
+                      disabled={updateCatalogMutation.isPending}
+                    >
+                      Save Changes
+                    </Button>
+                  </div>
+                </form>
+              </DialogPrimitive.Popup>
+            </DialogPrimitive.Portal>
+          </DialogPrimitive.Root>
+
+          <DialogPrimitive.Root open={isArchiveDialogOpen} onOpenChange={setIsArchiveDialogOpen}>
+            <DialogPrimitive.Portal>
+              <DialogPrimitive.Backdrop className="fixed inset-0 z-50 bg-black/30 backdrop-blur-[1px]" />
+              <DialogPrimitive.Popup className="fixed top-1/2 left-1/2 z-50 w-[min(92vw,28rem)] -translate-x-1/2 -translate-y-1/2 border border-border/80 bg-background p-4 shadow-lg">
+                <DialogPrimitive.Title className="text-sm font-semibold uppercase tracking-[0.12em]">
+                  Archive Methodology
+                </DialogPrimitive.Title>
+                <DialogPrimitive.Description className="mt-2 text-sm text-muted-foreground">
+                  This hides the methodology from the default catalog without deleting its versions.
+                </DialogPrimitive.Description>
+                <div className="mt-4 flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-none"
+                    onClick={() => setIsArchiveDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    className="rounded-none"
+                    disabled={archiveCatalogMutation.isPending}
+                    onClick={() => archiveCatalogMutation.mutate({ methodologyKey: methodologyId })}
+                  >
+                    Confirm Archive
+                  </Button>
+                </div>
+              </DialogPrimitive.Popup>
+            </DialogPrimitive.Portal>
+          </DialogPrimitive.Root>
         </>
       ) : null}
     </MethodologyWorkspaceShell>

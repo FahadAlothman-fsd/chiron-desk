@@ -40,12 +40,10 @@ import {
   createEmptyMethodologyFact,
   MethodologyFactsInventory,
   parseMethodologyFacts,
-  serializeMethodologyFacts,
 } from "@/features/methodologies/methodology-facts";
 import {
-  createDraftFromProjection,
   createEmptyMethodologyVersionWorkspaceDraft,
-  parseWorkspaceDraftForPersistence,
+  createDraftFromProjection,
   type DraftProjectionShape,
   type FactEditorValue,
   type MethodologyVersionWorkspaceDraft,
@@ -177,6 +175,33 @@ function formValuesToFact(
           }
         : undefined,
     validation: validation as FactEditorValue["validation"],
+  };
+}
+
+function factToMutationInput(fact: FactEditorValue) {
+  const description = fact.description?.trim();
+  const humanGuidance = fact.guidance?.human?.short?.trim();
+  const agentGuidance = fact.guidance?.agent?.intent?.trim();
+
+  return {
+    name: fact.name,
+    key: fact.key,
+    factType: fact.factType,
+    defaultValue: fact.defaultValue,
+    description: description
+      ? {
+          human: { markdown: description },
+          agent: { markdown: description },
+        }
+      : undefined,
+    guidance:
+      humanGuidance || agentGuidance
+        ? {
+            human: { markdown: humanGuidance ?? "" },
+            agent: { markdown: agentGuidance ?? "" },
+          }
+        : undefined,
+    validation: fact.validation,
   };
 }
 
@@ -628,13 +653,13 @@ export function MethodologyVersionFactsRoute() {
   const detailsQuery = useQuery(detailsQueryOptions);
   const details = (detailsQuery.data as MethodologyDetails | undefined) ?? null;
   const currentVersion = details?.versions.find((version) => version.id === versionId) ?? null;
-  const draftQueryOptions = orpc.methodology.getDraftProjection.queryOptions({
+  const draftQueryOptions = orpc.methodology.version.fact.list.queryOptions({
     input: { versionId },
   });
   const draftQuery = useQuery(draftQueryOptions);
-  const updateWorkflowsMutation = useMutation(
-    orpc.methodology.updateDraftWorkflows.mutationOptions(),
-  );
+  const createFactMutation = useMutation(orpc.methodology.version.fact.create.mutationOptions());
+  const updateFactMutation = useMutation(orpc.methodology.version.fact.update.mutationOptions());
+  const deleteFactMutation = useMutation(orpc.methodology.version.fact.delete.mutationOptions());
 
   useEffect(() => {
     if (!draftQuery.data) {
@@ -699,78 +724,73 @@ export function MethodologyVersionFactsRoute() {
     ""
   ).trim();
 
-  const persistFacts = async (nextFacts: FactEditorValue[], successMessage: string) => {
-    if (updateWorkflowsMutation.isPending) {
+  const refreshFacts = async (successMessage: string) => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: detailsQueryOptions.queryKey }),
+      queryClient.invalidateQueries({ queryKey: draftQueryOptions.queryKey }),
+    ]);
+
+    const refreshedDraft = await draftQuery.refetch();
+    if (refreshedDraft.data) {
+      setDraft(
+        createDraftFromProjection(methodologyId, refreshedDraft.data as DraftProjectionShape),
+      );
+    }
+
+    toast.success(successMessage);
+  };
+
+  const deleteFact = async () => {
+    if (!deleteFactId || deleteFactMutation.isPending) {
       return;
     }
 
-    const nextDraft = {
-      ...draft,
-      factDefinitionsJson: serializeMethodologyFacts(nextFacts),
-    };
-    setDraft(nextDraft);
-
-    const parsed = parseWorkspaceDraftForPersistence(nextDraft);
-    if (parsed.diagnostics.length > 0) {
+    const existing = findFactById(deleteFactId);
+    if (!existing) {
       return;
     }
 
-    const saveResult = await Result.tryPromise({
+    const deleteResult = await Result.tryPromise({
       try: async () => {
-        await updateWorkflowsMutation.mutateAsync({
-          versionId,
-          workflows: parsed.workflows.workflows as never,
-          transitionWorkflowBindings: parsed.workflows.transitionWorkflowBindings as never,
-          guidance: parsed.workflows.guidance as never,
-          factDefinitions: parsed.workflows.factDefinitions as never,
-        });
-
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: detailsQueryOptions.queryKey }),
-          queryClient.invalidateQueries({ queryKey: draftQueryOptions.queryKey }),
-        ]);
-
-        const refreshedDraft = await draftQuery.refetch();
-        if (refreshedDraft.data) {
-          setDraft(
-            createDraftFromProjection(methodologyId, refreshedDraft.data as DraftProjectionShape),
-          );
-        }
-
-        toast.success(successMessage);
+        await deleteFactMutation.mutateAsync({ versionId, factKey: existing.key });
+        await refreshFacts("Fact deleted");
       },
       catch: (error) => error,
     });
 
-    if (saveResult.isErr()) {
+    if (deleteResult.isErr()) {
       return;
     }
-  };
-
-  const deleteFact = async () => {
-    if (!deleteFactId) {
-      return;
-    }
-
-    await persistFacts(
-      facts.filter((fact, index) => {
-        const rowId = fact.__uiId ?? `fact-row-${index}`;
-        return rowId !== deleteFactId;
-      }),
-      "Fact deleted",
-    );
     setDeleteFactId(null);
   };
 
   const saveEditorFact = async (nextFact: FactEditorValue) => {
-    const nextFacts = editingFactId
-      ? facts.map((fact, index) => {
-          const rowId = fact.__uiId ?? `fact-row-${index}`;
-          return rowId === editingFactId ? nextFact : fact;
-        })
-      : [...facts, nextFact];
+    const mutationResult = await Result.tryPromise({
+      try: async () => {
+        if (editingFactId) {
+          const existing = findFactById(editingFactId);
+          if (!existing) {
+            return;
+          }
 
-    await persistFacts(nextFacts, "Fact saved");
+          await updateFactMutation.mutateAsync({
+            versionId,
+            factKey: existing.key,
+            fact: factToMutationInput(nextFact),
+          });
+        } else {
+          await createFactMutation.mutateAsync({ versionId, fact: factToMutationInput(nextFact) });
+        }
+
+        await refreshFacts("Fact saved");
+      },
+      catch: (error) => error,
+    });
+
+    if (mutationResult.isErr()) {
+      return;
+    }
+
     setEditorOpen(false);
     setEditingFactId(null);
     setEditorFact(createEmptyMethodologyFact());

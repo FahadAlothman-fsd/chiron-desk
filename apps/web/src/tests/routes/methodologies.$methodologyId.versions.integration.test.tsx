@@ -56,7 +56,9 @@ function createTestHarness() {
           }),
         }),
       },
-      createDraftVersion: { mutationOptions: () => ({ mutationFn: async () => null }) },
+      version: {
+        create: { mutationOptions: () => ({ mutationFn: async () => null }) },
+      },
     },
   };
 

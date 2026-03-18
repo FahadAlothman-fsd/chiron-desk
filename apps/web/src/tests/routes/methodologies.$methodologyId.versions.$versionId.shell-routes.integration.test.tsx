@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -56,6 +56,12 @@ function createRouteContext(options?: {
       transitionWorkflowBindings: { "link.requires": ["wf.a"] },
     }));
   const evidenceQueryFn = options?.evidenceQueryFn ?? (async () => []);
+  const createAgentMock = vi.fn(async () => ({ validation: { valid: true, diagnostics: [] } }));
+  const updateAgentMock = vi.fn(async () => ({ validation: { valid: true, diagnostics: [] } }));
+  const deleteAgentMock = vi.fn(async () => ({ validation: { valid: true, diagnostics: [] } }));
+  const createDependencyDefinitionMock = vi.fn(async () => ({ diagnostics: [] }));
+  const updateDependencyDefinitionMock = vi.fn(async () => ({ diagnostics: [] }));
+  const deleteDependencyDefinitionMock = vi.fn(async () => ({ diagnostics: [] }));
 
   return {
     queryClient: new QueryClient({
@@ -69,21 +75,6 @@ function createRouteContext(options?: {
             queryFn: detailsQueryFn,
           }),
         },
-        getDraftProjection: {
-          queryOptions: ({ input }: { input: { versionId: string } }) => ({
-            queryKey: ["methodology", "draft", input.versionId],
-            queryFn: draftQueryFn,
-          }),
-        },
-        getPublicationEvidence: {
-          queryOptions: ({ input }: { input: { methodologyVersionId: string } }) => ({
-            queryKey: ["methodology", "evidence", input.methodologyVersionId],
-            queryFn: evidenceQueryFn,
-          }),
-        },
-        validateDraftVersion: {
-          mutationOptions: () => ({ mutationFn: async () => ({ valid: true, diagnostics: [] }) }),
-        },
         updateDraftLifecycle: {
           mutationOptions: () => ({
             mutationFn: async () => ({ validation: { valid: true, diagnostics: [] } }),
@@ -92,13 +83,91 @@ function createRouteContext(options?: {
         updateDraftWorkflows: {
           mutationOptions: () => ({ mutationFn: async () => ({ diagnostics: [] }) }),
         },
-        publishDraftVersion: {
-          mutationOptions: () => ({
-            mutationFn: async () => ({ published: false, diagnostics: [], evidence: null }),
-          }),
+        version: {
+          workspace: {
+            get: {
+              queryOptions: ({ input }: { input: { versionId: string } }) => ({
+                queryKey: ["methodology", "draft", input.versionId],
+                queryFn: draftQueryFn,
+              }),
+            },
+          },
+          getPublicationEvidence: {
+            queryOptions: ({ input }: { input: { methodologyVersionId: string } }) => ({
+              queryKey: ["methodology", "evidence", input.methodologyVersionId],
+              queryFn: evidenceQueryFn,
+            }),
+          },
+          validate: {
+            mutationOptions: () => ({ mutationFn: async () => ({ valid: true, diagnostics: [] }) }),
+          },
+          publish: {
+            mutationOptions: () => ({
+              mutationFn: async () => ({ published: false, diagnostics: [], evidence: null }),
+            }),
+          },
+          agent: {
+            list: {
+              queryOptions: ({ input }: { input: { versionId: string } }) => ({
+                queryKey: ["methodology", "draft", input.versionId, "agents"],
+                queryFn: draftQueryFn,
+              }),
+            },
+            create: {
+              mutationOptions: () => ({ mutationFn: createAgentMock }),
+            },
+            update: {
+              mutationOptions: () => ({ mutationFn: updateAgentMock }),
+            },
+            delete: {
+              mutationOptions: () => ({ mutationFn: deleteAgentMock }),
+            },
+          },
+          dependencyDefinition: {
+            list: {
+              queryOptions: ({ input }: { input: { versionId: string } }) => ({
+                queryKey: ["methodology", "draft", input.versionId, "dependency-definitions"],
+                queryFn: draftQueryFn,
+              }),
+            },
+            create: {
+              mutationOptions: () => ({ mutationFn: createDependencyDefinitionMock }),
+            },
+            update: {
+              mutationOptions: () => ({ mutationFn: updateDependencyDefinitionMock }),
+            },
+            delete: {
+              mutationOptions: () => ({ mutationFn: deleteDependencyDefinitionMock }),
+            },
+          },
+          workUnit: {
+            list: {
+              queryOptions: ({ input }: { input: { versionId: string } }) => ({
+                queryKey: ["methodology", "draft", input.versionId, "work-units"],
+                queryFn: draftQueryFn,
+              }),
+            },
+            create: {
+              mutationOptions: () => ({
+                mutationFn: async () => ({ validation: { valid: true, diagnostics: [] } }),
+              }),
+            },
+            get: {
+              queryOptions: ({ input }: { input: { versionId: string } }) => ({
+                queryKey: ["methodology", "draft", input.versionId, "work-unit"],
+                queryFn: draftQueryFn,
+              }),
+            },
+          },
         },
       },
     },
+    createAgentMock,
+    updateAgentMock,
+    deleteAgentMock,
+    createDependencyDefinitionMock,
+    updateDependencyDefinitionMock,
+    deleteDependencyDefinitionMock,
   };
 }
 
@@ -157,16 +226,20 @@ describe("methodology version shell routes", () => {
     expect(screen.getAllByTestId("surface-card-corner")).toHaveLength(16);
   });
 
-  it("renders work-units shell and keeps add intent context", async () => {
+  it("renders work-units shell with graph/list views and active summary", async () => {
     const { MethodologyVersionWorkUnitsRoute } =
       await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
     useParamsMock.mockReturnValue({ methodologyId: "equity-core", versionId: "draft-v2" });
-    useSearchMock.mockReturnValue({ intent: "add-work-unit" });
+    useSearchMock.mockReturnValue({ view: "graph", selected: "WU.TASK" });
 
     renderWithQueryClient(<MethodologyVersionWorkUnitsRoute />);
 
-    expect(await screen.findByText("+ Add Work Unit")).toBeTruthy();
-    expect(screen.getByText(/Add Work Unit requested from command palette/)).toBeTruthy();
+    expect(await screen.findByPlaceholderText("Search work units...")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Graph" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "List" })).toBeTruthy();
+    expect(screen.getByText("ACTIVE WORK UNIT")).toBeTruthy();
+    expect(screen.getByText("Open details")).toBeTruthy();
+    expect(screen.getByText("Open Relationship View")).toBeTruthy();
   });
 
   it("renders work-unit detail shell with preserved selected key", async () => {
@@ -201,6 +274,63 @@ describe("methodology version shell routes", () => {
     expect(screen.getByText("Diagnostics")).toBeTruthy();
   });
 
+  it("creates an agent through version.agent.create", async () => {
+    const { MethodologyVersionAgentsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.agents");
+    const routeContext = createRouteContext();
+    useParamsMock.mockReturnValue({ methodologyId: "equity-core", versionId: "draft-v2" });
+    useSearchMock.mockReturnValue({});
+    useRouteContextMock.mockReturnValue(routeContext);
+
+    renderWithQueryClient(<MethodologyVersionAgentsRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "+ Add Agent" }));
+    fireEvent.change(screen.getByLabelText("Agent Key"), { target: { value: "agent.review" } });
+    fireEvent.change(screen.getByLabelText("Display Name"), { target: { value: "Review Agent" } });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Reviews outputs" },
+    });
+    fireEvent.change(screen.getByLabelText("Persona"), { target: { value: "Thorough reviewer" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create Agent" }));
+
+    await waitFor(() => expect(routeContext.createAgentMock).toHaveBeenCalledTimes(1));
+  });
+
+  it("updates an agent through version.agent.update", async () => {
+    const { MethodologyVersionAgentsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.agents");
+    const routeContext = createRouteContext();
+    useParamsMock.mockReturnValue({ methodologyId: "equity-core", versionId: "draft-v2" });
+    useSearchMock.mockReturnValue({});
+    useRouteContextMock.mockReturnValue(routeContext);
+
+    renderWithQueryClient(<MethodologyVersionAgentsRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit Research Agent" }));
+    fireEvent.change(screen.getByLabelText("Display Name"), {
+      target: { value: "Research Agent Updated" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save Agent Changes" }));
+
+    await waitFor(() => expect(routeContext.updateAgentMock).toHaveBeenCalledTimes(1));
+  });
+
+  it("deletes an agent through version.agent.delete", async () => {
+    const { MethodologyVersionAgentsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.agents");
+    const routeContext = createRouteContext();
+    useParamsMock.mockReturnValue({ methodologyId: "equity-core", versionId: "draft-v2" });
+    useSearchMock.mockReturnValue({});
+    useRouteContextMock.mockReturnValue(routeContext);
+
+    renderWithQueryClient(<MethodologyVersionAgentsRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Delete Research Agent" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Delete Agent" }));
+
+    await waitFor(() => expect(routeContext.deleteAgentMock).toHaveBeenCalledTimes(1));
+  });
+
   it("renders dependency definitions shell and intent banner", async () => {
     const { MethodologyVersionDependencyDefinitionsRoute } =
       await import("../../routes/methodologies.$methodologyId.versions.$versionId.dependency-definitions");
@@ -213,6 +343,69 @@ describe("methodology version shell routes", () => {
     expect(screen.getByText("Add Link Type requested from command palette.")).toBeTruthy();
     expect(screen.getByText("Definitions")).toBeTruthy();
     expect(screen.getByText("Usage")).toBeTruthy();
+  });
+
+  it("creates a dependency definition through version.dependencyDefinition.create", async () => {
+    const { MethodologyVersionDependencyDefinitionsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.dependency-definitions");
+    const routeContext = createRouteContext();
+    useParamsMock.mockReturnValue({ methodologyId: "equity-core", versionId: "draft-v2" });
+    useSearchMock.mockReturnValue({});
+    useRouteContextMock.mockReturnValue(routeContext);
+
+    renderWithQueryClient(<MethodologyVersionDependencyDefinitionsRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "+ Add Link Type" }));
+    fireEvent.change(screen.getByLabelText("Link Type Key"), { target: { value: "depends_on" } });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Depends on another work unit" },
+    });
+    fireEvent.click(screen.getByLabelText("Hard"));
+    fireEvent.click(screen.getByRole("button", { name: "Create Link Type" }));
+
+    await waitFor(() =>
+      expect(routeContext.createDependencyDefinitionMock).toHaveBeenCalledTimes(1),
+    );
+  });
+
+  it("updates a dependency definition through version.dependencyDefinition.update", async () => {
+    const { MethodologyVersionDependencyDefinitionsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.dependency-definitions");
+    const routeContext = createRouteContext();
+    useParamsMock.mockReturnValue({ methodologyId: "equity-core", versionId: "draft-v2" });
+    useSearchMock.mockReturnValue({});
+    useRouteContextMock.mockReturnValue(routeContext);
+
+    renderWithQueryClient(<MethodologyVersionDependencyDefinitionsRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit link.requires" }));
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Updated dependency description" },
+    });
+    fireEvent.click(screen.getByLabelText("Soft"));
+    fireEvent.click(screen.getByRole("button", { name: "Save Link Type Changes" }));
+
+    await waitFor(() =>
+      expect(routeContext.updateDependencyDefinitionMock).toHaveBeenCalledTimes(1),
+    );
+  });
+
+  it("deletes a dependency definition through version.dependencyDefinition.delete", async () => {
+    const { MethodologyVersionDependencyDefinitionsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.dependency-definitions");
+    const routeContext = createRouteContext();
+    useParamsMock.mockReturnValue({ methodologyId: "equity-core", versionId: "draft-v2" });
+    useSearchMock.mockReturnValue({});
+    useRouteContextMock.mockReturnValue(routeContext);
+
+    renderWithQueryClient(<MethodologyVersionDependencyDefinitionsRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Delete link.requires" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Delete Link Type" }));
+
+    await waitFor(() =>
+      expect(routeContext.deleteDependencyDefinitionMock).toHaveBeenCalledTimes(1),
+    );
   });
 
   it("renders deterministic loading state while preserving scope copy", async () => {
