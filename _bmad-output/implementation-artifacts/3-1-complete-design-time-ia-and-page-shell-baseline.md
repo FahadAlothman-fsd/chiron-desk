@@ -559,3 +559,274 @@ Commands run for this reusable-card slice:
 
 - This primitive is intended for reuse across the app; the Author hub is only the first consumer.
 - The visual structure is near-exact to the approved reference, but color derives from current Chiron tone tokens rather than a copied external palette.
+
+## Post-Implementation Addendum (2026-03-17) — Work Units L1 Overview Shell
+
+### Scope
+
+Implemented the approved Work Units L1 surface at
+`/methodologies/:methodologyId/versions/:versionId/work-units` as the version-scoped overview page for browsing, selecting, and opening work units.
+
+### What changed
+
+- Replaced the placeholder L1 shell with the approved page structure:
+  - page-level `+ Add Work Unit`
+  - top-level `Graph` and `List` views only
+  - persistent right rail with search, work-unit index, and active summary
+- Locked the clarified L1 graph rule into implementation:
+  - only one node type at L1: `Work Unit`
+  - transitions are details inside the work-unit card, not graph nodes
+  - edges exist only between work units
+- Updated the pure graph projection so L1 derives work-unit-to-work-unit edges from explicit work-unit relationships.
+- Added reusable page-local selectors for deterministic L1 summaries and active selection fallback.
+- Extracted presentational page primitives for:
+  - graph view
+  - list view
+  - right rail summary/index
+- Kept selection and view state route-backed through search params (`view`, `selected`).
+
+### Files updated
+
+- `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.tsx`
+- `apps/web/src/features/methodologies/version-graph.ts`
+- `apps/web/src/features/methodologies/work-units-page-selectors.ts`
+- `apps/web/src/features/methodologies/work-units-graph-view.tsx`
+- `apps/web/src/features/methodologies/work-units-list-view.tsx`
+- `apps/web/src/features/methodologies/work-units-right-rail.tsx`
+- `apps/web/src/tests/routes/methodologies.$methodologyId.versions.$versionId.work-units.integration.test.tsx`
+- `apps/web/src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx`
+- `apps/web/src/tests/features/methodologies/version-graph.test.ts`
+- `apps/web/src/tests/features/methodologies/work-units-page-selectors.test.ts`
+
+### Verification evidence
+
+Commands run for this Work Units L1 slice:
+
+1. `bun run --cwd apps/web test -- 'src/tests/routes/methodologies.$methodologyId.versions.$versionId.work-units.integration.test.tsx' 'src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx'`
+2. `bun run --cwd apps/web test -- 'src/tests/features/methodologies/version-graph.test.ts' 'src/tests/features/methodologies/work-units-page-selectors.test.ts'`
+3. `bun run --cwd apps/web test -- 'src/tests/features/methodologies/version-graph.test.ts' 'src/tests/features/methodologies/work-units-page-selectors.test.ts' 'src/tests/routes/methodologies.$methodologyId.versions.$versionId.work-units.integration.test.tsx' 'src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx'`
+4. `bun run --cwd apps/web check-types`
+5. `bun run check-types`
+6. `bun run check`
+
+### Notes
+
+- The current relationship-edge source is implemented through explicit work-unit `relationships` in the L1 projection layer.
+- This matches the newly approved L1 contract better than the prior transition-node model, but broader canonical documentation may still need future tightening around the exact serialized source of those relationships.
+
+## Post-Implementation Addendum (2026-03-17) - Methodology Version Namespace Migration
+
+### Scope
+
+Recorded the Story 3.1 API and web migration from draft-centric methodology procedure names to the approved version-owned namespace.
+
+### Implemented namespace decision
+
+- Version lifecycle procedures now live under `methodology.version.*`:
+  - `methodology.version.list`
+  - `methodology.version.create`
+  - `methodology.version.get`
+  - `methodology.version.update`
+  - `methodology.version.validate`
+  - `methodology.version.publish`
+  - `methodology.version.getLineage`
+  - `methodology.version.getPublicationEvidence`
+  - `methodology.version.workspace.get`
+- Story 3.1 shallow version-owned entity surfaces now exist under the same aggregate:
+  - `methodology.version.fact.list`
+  - `methodology.version.agent.list`
+  - `methodology.version.dependencyDefinition.list`
+  - `methodology.version.workUnit.list`
+  - `methodology.version.workUnit.create`
+  - `methodology.version.workUnit.get`
+  - `methodology.version.workUnit.updateMeta`
+  - `methodology.version.workUnit.delete`
+- Story 3.1 intentionally stops at the shallow work-unit surface.
+- Story 3.2 remains the planned expansion point for nested work-unit internals such as:
+  - `methodology.version.workUnit.fact.*`
+  - `methodology.version.workUnit.stateMachine.*`
+  - `methodology.version.workUnit.workflow.*`
+  - `methodology.version.workUnit.artifactSlot.*`
+
+### Single-draft product rule now enforced
+
+- `methodology.version.create` now fails when a draft version already exists for the methodology.
+- This is enforced in the service layer through `DraftVersionAlreadyExistsError`, not only by UI convention.
+- The web surfaces continue to support `Create Draft` / `Open Existing Draft` behavior around that invariant.
+
+### Story 3.1 web alignment completed
+
+- Story 3.1 web consumers were aligned to the new version-owned surface for create/bootstrap/read/publish behavior:
+  - dashboard create flow uses `methodology.version.create`
+  - workspace bootstrap uses `methodology.version.workspace.get`
+  - workspace validation/publish uses `methodology.version.validate` and `methodology.version.publish`
+  - app shell version bootstrap uses `methodology.version.workspace.get`
+  - command palette draft creation uses `methodology.version.create`
+  - shallow read routes use `methodology.version.fact.list`, `agent.list`, `dependencyDefinition.list`, and `workUnit.list/get`
+- Two top-level draft-centric web mutations intentionally remain in place for now because no better version-owned mutation seam has been implemented yet:
+  - `orpc.methodology.updateDraftLifecycle`
+  - `orpc.methodology.updateDraftWorkflows`
+- Those remaining seams are currently used only where Story 3.1 still persists through lifecycle/workflow payload updates rather than dedicated entity-specific mutations.
+
+### Files updated in the namespace slice
+
+- `packages/contracts/src/methodology/version.ts`
+- `packages/methodology-engine/src/errors.ts`
+- `packages/methodology-engine/src/version-service.ts`
+- `packages/api/src/routers/methodology.ts`
+- `packages/api/src/tests/routers/methodology.test.ts`
+- `apps/web/src/routes/methodologies.$methodologyId.tsx`
+- `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.tsx`
+- `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.facts.tsx`
+- `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.agents.tsx`
+- `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.dependency-definitions.tsx`
+- `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.tsx`
+- `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.tsx`
+- `apps/web/src/components/app-shell.tsx`
+- `apps/web/src/features/methodologies/command-palette.tsx`
+- `apps/web/src/tests/routes/methodologies.$methodologyId.integration.test.tsx`
+- `apps/web/src/tests/routes/methodologies.$methodologyId.versions.integration.test.tsx`
+- `apps/web/src/tests/routes/methodologies.$methodologyId.versions.$versionId.integration.test.tsx`
+- `apps/web/src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx`
+- `apps/web/src/tests/routes/methodologies.$methodologyId.versions.$versionId.work-units.integration.test.tsx`
+- `apps/web/src/tests/routes/methodologies.$methodologyId.versions.$versionId.facts.integration.test.tsx`
+- `apps/web/src/tests/routes/-methodologies.$methodologyId.versions.$versionId.integration.test.tsx`
+- `apps/web/src/tests/features/methodologies/command-palette.integration.test.tsx`
+- `docs/plans/2026-03-17-methodology-version-namespace-design.md`
+
+### Verification evidence
+
+Commands run for the namespace migration slice:
+
+1. `bun run --cwd packages/api test -- src/tests/routers/methodology.test.ts`
+2. `bun run --cwd apps/web test -- 'src/tests/routes/methodologies.$methodologyId.integration.test.tsx' 'src/tests/routes/methodologies.$methodologyId.versions.$versionId.integration.test.tsx' 'src/tests/routes/methodologies.$methodologyId.versions.$versionId.work-units.integration.test.tsx' 'src/tests/features/methodologies/command-palette.integration.test.tsx'`
+3. `bun run --cwd apps/web test -- 'src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx' 'src/tests/routes/methodologies.$methodologyId.versions.$versionId.facts.integration.test.tsx' 'src/tests/routes/-methodologies.$methodologyId.versions.$versionId.integration.test.tsx'`
+4. `bun run --cwd packages/api test -- src/tests/routers/methodology.test.ts && bun run --cwd apps/web test -- 'src/tests/routes/methodologies.$methodologyId.integration.test.tsx' 'src/tests/routes/methodologies.$methodologyId.versions.$versionId.integration.test.tsx' 'src/tests/routes/methodologies.$methodologyId.versions.$versionId.work-units.integration.test.tsx'`
+
+### Notes
+
+- This slice intentionally establishes the version-owned API boundary first, while leaving a narrow compatibility bridge for lifecycle/workflow persistence until deeper entity-specific mutations are introduced.
+- The Story 3.1 vs Story 3.2 boundary is now explicit in both the API shape and the verification surface.
+
+## Post-Implementation Addendum (2026-03-17) - Catalog and Entity Mutation Surface
+
+### Scope
+
+Recorded the Story 3.1 mutation follow-up that completed methodology catalog actions plus dedicated fact, agent, and dependency-definition mutation surfaces.
+
+### Implemented mutation decision
+
+- methodology aggregate CRUD now lives under `methodology.catalog.*`:
+  - `methodology.catalog.list`
+  - `methodology.catalog.create`
+  - `methodology.catalog.get`
+  - `methodology.catalog.update`
+  - `methodology.catalog.delete`
+- `methodology.catalog.delete` is implemented as soft delete / archive.
+- nested Story 3.1 entity mutations now exist under `methodology.version.*`:
+  - `methodology.version.fact.create/update/delete`
+  - `methodology.version.agent.create/update/delete`
+  - `methodology.version.dependencyDefinition.create/update/delete`
+
+### Story 3.1 frontend alignment completed
+
+- facts page save/delete flow now uses `methodology.version.fact.create/update/delete`
+- methodology dashboard edit/archive actions now use `methodology.catalog.update/delete`
+- agents page now exposes a real create-flow dialog using `methodology.version.agent.create`
+- dependency-definitions page now exposes a real create-flow dialog using `methodology.version.dependencyDefinition.create`
+
+### Files updated in the mutation slice
+
+- `packages/contracts/src/methodology/fact.ts`
+- `packages/contracts/src/methodology/agent.ts`
+- `packages/contracts/src/methodology/dependency.ts`
+- `packages/contracts/src/methodology/projection.ts`
+- `packages/methodology-engine/src/repository.ts`
+- `packages/methodology-engine/src/version-service.ts`
+- `packages/methodology-engine/src/lifecycle-service.ts`
+- `packages/db/src/schema/methodology.ts`
+- `packages/db/src/methodology-repository.ts`
+- `packages/api/src/routers/methodology.ts`
+- `packages/api/src/tests/routers/methodology.test.ts`
+- `apps/web/src/routes/methodologies.$methodologyId.tsx`
+- `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.facts.tsx`
+- `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.agents.tsx`
+- `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.dependency-definitions.tsx`
+- `apps/web/src/tests/routes/methodologies.$methodologyId.integration.test.tsx`
+- `apps/web/src/tests/routes/methodologies.$methodologyId.versions.$versionId.facts.integration.test.tsx`
+- `apps/web/src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx`
+- `docs/plans/2026-03-17-methodology-catalog-and-version-entity-mutations-design.md`
+
+### Verification evidence
+
+Commands run for the mutation-surface slice:
+
+1. `bun run --cwd packages/api test -- src/tests/routers/methodology.test.ts`
+2. `bun run --cwd apps/web test -- 'src/tests/routes/methodologies.$methodologyId.versions.$versionId.facts.integration.test.tsx'`
+3. `bun run --cwd apps/web test -- 'src/tests/routes/methodologies.$methodologyId.integration.test.tsx'`
+4. `bun run --cwd apps/web test -- 'src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx'`
+
+### Notes
+
+- This slice completes the intended Story 3.1 mutation surface for methodology catalog actions and the fact/agent/dependency-definition entity layer.
+- Work Units remain shallow in Story 3.1.
+- Two narrow compatibility seams still remain for broader lifecycle/workflow persistence in routes that have not yet been fully decomposed into deeper entity-specific mutations:
+  - `orpc.methodology.updateDraftLifecycle`
+  - `orpc.methodology.updateDraftWorkflows`
+
+## Post-Implementation Addendum (2026-03-18) - L1 Completion
+
+### Scope
+
+Closed the remaining Story 3.1 L1 product surface for agents, dependency definitions, and shallow work-unit/dashboard mutation affordances while intentionally leaving L2 artifact/state-machine work out of scope.
+
+### Implemented changes
+
+- Methodology dashboard now exposes user-visible methodology aggregate actions:
+  - `Edit Methodology`
+  - `Archive Methodology`
+- Facts page save/delete flow now uses dedicated fact CRUD mutations end-to-end:
+  - `methodology.version.fact.create`
+  - `methodology.version.fact.update`
+  - `methodology.version.fact.delete`
+- Agents page now exposes user-visible create/edit/delete dialogs using:
+  - `methodology.version.agent.create`
+  - `methodology.version.agent.update`
+  - `methodology.version.agent.delete`
+- Dependency Definitions page now exposes user-visible create/edit/delete dialogs using:
+  - `methodology.version.dependencyDefinition.create`
+  - `methodology.version.dependencyDefinition.update`
+  - `methodology.version.dependencyDefinition.delete`
+- Work Units remained at the shallow Story 3.1 boundary already accepted for L1:
+  - `list`
+  - `create`
+  - `get`
+  - `updateMeta`
+  - `delete`
+
+### Files updated in the L1 completion slice
+
+- `apps/web/src/routes/methodologies.$methodologyId.tsx`
+- `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.facts.tsx`
+- `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.agents.tsx`
+- `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.dependency-definitions.tsx`
+- `apps/web/src/tests/routes/methodologies.$methodologyId.integration.test.tsx`
+- `apps/web/src/tests/routes/methodologies.$methodologyId.versions.$versionId.facts.integration.test.tsx`
+- `apps/web/src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx`
+- `docs/plans/2026-03-18-story-3-1-l1-completion-design.md`
+
+### Verification evidence
+
+Commands run for the L1 completion slice:
+
+1. `bun run --cwd apps/web test -- 'src/tests/routes/methodologies.$methodologyId.integration.test.tsx'`
+2. `bun run --cwd apps/web test -- 'src/tests/routes/methodologies.$methodologyId.versions.$versionId.facts.integration.test.tsx'`
+3. `bun run --cwd apps/web test -- 'src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx'`
+4. `bun run --cwd apps/web test -- 'src/tests/routes/methodologies.$methodologyId.integration.test.tsx' 'src/tests/routes/methodologies.$methodologyId.versions.$versionId.facts.integration.test.tsx' 'src/tests/routes/methodologies.$methodologyId.versions.$versionId.work-units.integration.test.tsx' 'src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx'`
+5. `bun run check-types`
+6. `bun run check`
+
+### Notes
+
+- This addendum closes the approved L1 product surface only.
+- Artifact slots, artifact templates, and state-machine internals remain intentionally deferred to L2.
