@@ -11,9 +11,12 @@ type WorkUnitsRightRailProps = {
   searchQuery: string;
   onSearchChange: (value: string) => void;
   onSelect: (workUnitKey: string) => void;
+  onOpenRelationshipView: (workUnitKey: string) => void;
 };
 
 export function WorkUnitsRightRail(props: WorkUnitsRightRailProps) {
+  const activeWorkUnit = props.activeWorkUnit;
+
   return (
     <div className="chiron-frame-flat p-3">
       <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
@@ -59,17 +62,17 @@ export function WorkUnitsRightRail(props: WorkUnitsRightRailProps) {
         <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
           ACTIVE WORK UNIT
         </p>
-        {props.activeWorkUnit ? (
+        {activeWorkUnit ? (
           <>
             <div className="mt-2 space-y-1 text-sm">
-              <p className="font-medium">{props.activeWorkUnit.displayName}</p>
-              <p className="text-xs text-muted-foreground">key: {props.activeWorkUnit.key}</p>
+              <p className="font-medium">{activeWorkUnit.displayName}</p>
+              <p className="text-xs text-muted-foreground">key: {activeWorkUnit.key}</p>
             </div>
             <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
-              <span>{props.activeWorkUnit.transitionCount} transitions</span>
-              <span>{props.activeWorkUnit.workflowCount} workflows</span>
-              <span>{props.activeWorkUnit.factCount} facts</span>
-              <span>{props.activeWorkUnit.relationshipCount} relationships</span>
+              <span>{activeWorkUnit.transitionCount} transitions</span>
+              <span>{activeWorkUnit.workflowCount} workflows</span>
+              <span>{activeWorkUnit.factCount} facts</span>
+              <span>{activeWorkUnit.relationshipCount} relationships</span>
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               <Link
@@ -78,12 +81,16 @@ export function WorkUnitsRightRail(props: WorkUnitsRightRailProps) {
                 params={{
                   methodologyId: props.methodologyId,
                   versionId: props.versionId,
-                  workUnitKey: props.activeWorkUnit.key,
+                  workUnitKey: activeWorkUnit.key,
                 }}
               >
                 Open details
               </Link>
-              <button type="button" className="underline">
+              <button
+                type="button"
+                className="underline"
+                onClick={() => props.onOpenRelationshipView(activeWorkUnit.key)}
+              >
                 Open Relationship View
               </button>
             </div>

@@ -64,6 +64,14 @@ function createRouteContext() {
       depends_on: ["wf.intake.review"],
       informs: ["wf.intake.publish", "wf.validation"],
     },
+    agentTypes: [
+      {
+        key: "agent.reviewer",
+        displayName: "Reviewer",
+        description: "",
+        persona: "",
+      },
+    ],
   };
 
   return {
@@ -118,7 +126,7 @@ afterEach(() => {
 });
 
 describe("methodology version work units l1 route", () => {
-  it("accepts only graph/list view state with selected work unit key", async () => {
+  it("accepts only graph/contracts/diagnostics view state with selected work unit key", async () => {
     const routeModule =
       (await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units")) as unknown as {
         Route: { validateSearch: (search: unknown) => unknown };
@@ -126,15 +134,65 @@ describe("methodology version work units l1 route", () => {
 
     expect(routeModule.Route.validateSearch({})).toEqual({});
     expect(routeModule.Route.validateSearch({ view: "graph" })).toEqual({ view: "graph" });
-    expect(routeModule.Route.validateSearch({ view: "list", selected: "WU.INTAKE" })).toEqual({
-      view: "list",
+    expect(routeModule.Route.validateSearch({ view: "contracts", selected: "WU.INTAKE" })).toEqual({
+      view: "contracts",
       selected: "WU.INTAKE",
     });
-    expect(() => routeModule.Route.validateSearch({ view: "contracts" })).toThrow();
-    expect(() => routeModule.Route.validateSearch({ intent: "add-work-unit" })).toThrow();
+    expect(
+      routeModule.Route.validateSearch({ view: "diagnostics", selected: "WU.INTAKE" }),
+    ).toEqual({
+      view: "diagnostics",
+      selected: "WU.INTAKE",
+    });
+    expect(() => routeModule.Route.validateSearch({ view: "list" })).toThrow();
+    expect(routeModule.Route.validateSearch({ intent: "add-work-unit" })).toEqual({
+      intent: "add-work-unit",
+    });
   });
 
-  it("renders the approved l1 shell with graph/list, right rail, and active summary actions", async () => {
+  it("opens the create dialog from add-work-unit intent and clears only the intent on close", async () => {
+    useSearchMock.mockReturnValue({
+      view: "contracts",
+      selected: "WU.INTAKE",
+      intent: "add-work-unit",
+    });
+
+    const { MethodologyVersionWorkUnitsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitsRoute />);
+
+    expect(await screen.findByLabelText("Work Unit Key")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(useNavigateMock).toHaveBeenCalledTimes(1);
+
+    const firstCall = useNavigateMock.mock.calls[0] as
+      | [
+          {
+            search?: (previous: {
+              view?: "graph" | "contracts" | "diagnostics";
+              selected?: string;
+              intent?: "add-work-unit";
+            }) => unknown;
+          },
+        ]
+      | undefined;
+
+    expect(
+      firstCall?.[0]?.search?.({
+        view: "contracts",
+        selected: "WU.INTAKE",
+        intent: "add-work-unit",
+      }),
+    ).toEqual({
+      view: "contracts",
+      selected: "WU.INTAKE",
+    });
+  });
+
+  it("renders the canonical l1 shell with graph/contracts/diagnostics, right rail, and active summary actions", async () => {
     const { MethodologyVersionWorkUnitsRoute } =
       await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
 
@@ -142,9 +200,9 @@ describe("methodology version work units l1 route", () => {
 
     expect(await screen.findByPlaceholderText("Search work units...")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Graph" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "List" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Contracts" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Diagnostics" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Contracts" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Diagnostics" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "List" })).toBeNull();
     expect(screen.getByText("+ Add Work Unit")).toBeTruthy();
     expect(screen.getByText("ACTIVE WORK UNIT")).toBeTruthy();
     expect(screen.getByText("key: WU.INTAKE")).toBeTruthy();
@@ -152,7 +210,36 @@ describe("methodology version work units l1 route", () => {
     expect(screen.getByText("Open Relationship View")).toBeTruthy();
   });
 
-  it("opens a create flow and submits a new work unit from the page action", async () => {
+  it("opens the relationship view by switching back to graph mode for the active work unit", async () => {
+    useSearchMock.mockReturnValue({ view: "contracts", selected: "WU.INTAKE" });
+
+    const { MethodologyVersionWorkUnitsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitsRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Open Relationship View" }));
+
+    expect(useNavigateMock).toHaveBeenCalledTimes(1);
+
+    const firstCall = useNavigateMock.mock.calls[0] as
+      | [
+          {
+            search?: (previous: {
+              view?: "graph" | "contracts" | "diagnostics";
+              selected?: string;
+            }) => unknown;
+          },
+        ]
+      | undefined;
+
+    expect(firstCall?.[0]?.search?.({ view: "contracts", selected: "WU.INTAKE" })).toEqual({
+      view: "graph",
+      selected: "WU.INTAKE",
+    });
+  });
+
+  it("opens a create flow with shallow metadata fields and submits the authored work unit", async () => {
     const { MethodologyVersionWorkUnitsRoute } =
       await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
 
@@ -161,8 +248,16 @@ describe("methodology version work units l1 route", () => {
     fireEvent.click(await screen.findByRole("button", { name: "+ Add Work Unit" }));
 
     expect(screen.getByLabelText("Work Unit Key")).toBeTruthy();
+    expect(screen.getByLabelText("Display Name")).toBeTruthy();
+    expect(screen.getByLabelText("Description")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Work Unit Key"), {
       target: { value: "WU.NEW_STEP" },
+    });
+    fireEvent.change(screen.getByLabelText("Display Name"), {
+      target: { value: "New Step" },
+    });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Operator-facing work unit summary." },
     });
     fireEvent.click(screen.getByRole("button", { name: "Create Work Unit" }));
 
@@ -178,9 +273,38 @@ describe("methodology version work units l1 route", () => {
       expect.objectContaining({
         versionId: "draft-v3",
         workUnitTypes: expect.arrayContaining([
-          expect.objectContaining({ key: "WU.NEW_STEP", displayName: "WU.NEW_STEP" }),
+          expect.objectContaining({
+            key: "WU.NEW_STEP",
+            displayName: "New Step",
+            description: "Operator-facing work unit summary.",
+          }),
+        ]),
+        agentTypes: expect.arrayContaining([
+          expect.objectContaining({ key: "agent.reviewer", persona: "draft" }),
         ]),
       }),
     );
+  });
+
+  it("surfaces a human-readable error when create work unit fails", async () => {
+    updateDraftLifecycleMutationSpy.mockRejectedValueOnce(new Error("BAD_REQUEST"));
+
+    const { MethodologyVersionWorkUnitsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitsRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "+ Add Work Unit" }));
+    fireEvent.change(screen.getByLabelText("Work Unit Key"), {
+      target: { value: "WU.FAIL_CASE" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create Work Unit" }));
+
+    expect(
+      await screen.findByText(
+        "Unable to create work unit. Review the current draft definitions and try again.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByLabelText("Work Unit Key")).toBeTruthy();
   });
 });

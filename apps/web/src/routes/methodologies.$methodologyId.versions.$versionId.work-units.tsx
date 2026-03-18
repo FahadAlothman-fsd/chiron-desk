@@ -18,7 +18,6 @@ import {
   deriveWorkUnitsPageRows,
 } from "@/features/methodologies/work-units-page-selectors";
 import { WorkUnitsRightRail } from "@/features/methodologies/work-units-right-rail";
-import { WorkUnitsListView } from "@/features/methodologies/work-units-list-view";
 import { projectMethodologyGraph } from "@/features/methodologies/version-graph";
 import { MethodologyWorkspaceShell } from "@/features/methodologies/workspace-shell";
 
@@ -28,8 +27,9 @@ export const Route = createFileRoute(
   validateSearch: (search) =>
     z
       .object({
-        view: z.enum(["graph", "list"]).optional(),
+        view: z.enum(["graph", "contracts", "diagnostics"]).optional(),
         selected: z.string().min(1).optional(),
+        intent: z.literal("add-work-unit").optional(),
       })
       .strict()
       .parse(search),
@@ -84,6 +84,8 @@ export function MethodologyVersionWorkUnitsRoute() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newWorkUnitKey, setNewWorkUnitKey] = useState("");
+  const [newWorkUnitDisplayName, setNewWorkUnitDisplayName] = useState("");
+  const [newWorkUnitDescription, setNewWorkUnitDescription] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
   const newWorkUnitKeyRef = useRef<HTMLInputElement | null>(null);
 
@@ -108,7 +110,9 @@ export function MethodologyVersionWorkUnitsRoute() {
 
   const activeWorkUnit = deriveActiveWorkUnit(workUnits, search.selected ?? null);
   const activeWorkUnitKey = activeWorkUnit?.key ?? null;
-  const isGraphView = search.view !== "list";
+  const activeView = search.view ?? "graph";
+  const isGraphView = activeView === "graph";
+  const isCreateIntentActive = search.intent === "add-work-unit";
 
   const graphProjection = useMemo(
     () =>
@@ -139,7 +143,10 @@ export function MethodologyVersionWorkUnitsRoute() {
     [draftProjection?.agentTypes],
   );
 
-  const updateSearch = (next: { view?: "graph" | "list"; selected?: string }) => {
+  const updateSearch = (next: {
+    view?: "graph" | "contracts" | "diagnostics";
+    selected?: string;
+  }) => {
     void navigate({
       search: (previous) => ({
         view: next.view ?? previous.view,
@@ -148,8 +155,19 @@ export function MethodologyVersionWorkUnitsRoute() {
     });
   };
 
+  const clearCreateIntent = () => updateSearch({});
+
+  const closeCreateDialog = () => {
+    setIsCreateDialogOpen(false);
+    if (isCreateIntentActive) {
+      clearCreateIntent();
+    }
+  };
+
   const handleCreateWorkUnit = async () => {
     const nextKey = (newWorkUnitKeyRef.current?.value ?? newWorkUnitKey).trim();
+    const nextDisplayName = newWorkUnitDisplayName.trim() || nextKey;
+    const nextDescription = newWorkUnitDescription.trim();
     if (!nextKey) {
       setCreateError("Work Unit Key is required.");
       return;
@@ -163,56 +181,65 @@ export function MethodologyVersionWorkUnitsRoute() {
 
     setCreateError(null);
 
-    await updateDraftLifecycleMutation.mutateAsync({
-      versionId,
-      workUnitTypes: [
-        ...existingWorkUnitTypes,
-        {
-          key: nextKey,
-          displayName: nextKey,
-          description: "",
-          cardinality: "many_per_project",
-          lifecycleStates: [{ key: "draft" }],
-          lifecycleTransitions: [],
-          factSchemas: [],
-        },
-      ],
-      agentTypes: existingAgentTypes.map((agent) => ({
-        key: agent?.key ?? "",
-        displayName: agent?.displayName ?? agent?.key ?? "",
-        description: agent?.description ?? "",
-        persona:
-          typeof (agent as { persona?: unknown })?.persona === "string"
-            ? ((agent as { persona?: string }).persona ?? "draft")
-            : "draft",
-        defaultModel:
-          (agent as { defaultModel?: { provider?: string; model?: string } })?.defaultModel
-            ?.provider &&
-          (agent as { defaultModel?: { provider?: string; model?: string } })?.defaultModel?.model
-            ? {
-                provider: (agent as { defaultModel?: { provider?: string; model?: string } })
-                  .defaultModel!.provider!,
-                model: (agent as { defaultModel?: { provider?: string; model?: string } })
-                  .defaultModel!.model!,
-              }
-            : undefined,
-        mcpServers: Array.isArray((agent as { mcpServers?: unknown }).mcpServers)
-          ? ((agent as { mcpServers?: string[] }).mcpServers ?? [])
-          : [],
-        capabilities: Array.isArray((agent as { capabilities?: unknown }).capabilities)
-          ? ((agent as { capabilities?: string[] }).capabilities ?? [])
-          : [],
-      })),
-    });
+    try {
+      await updateDraftLifecycleMutation.mutateAsync({
+        versionId,
+        workUnitTypes: [
+          ...existingWorkUnitTypes,
+          {
+            key: nextKey,
+            displayName: nextDisplayName,
+            description: nextDescription,
+            cardinality: "many_per_project",
+            lifecycleStates: [{ key: "draft" }],
+            lifecycleTransitions: [],
+            factSchemas: [],
+          },
+        ],
+        agentTypes: existingAgentTypes.map((agent) => ({
+          key: agent?.key ?? "",
+          displayName: agent?.displayName ?? agent?.key ?? "",
+          description: agent?.description ?? "",
+          persona:
+            typeof (agent as { persona?: unknown })?.persona === "string" &&
+            (agent as { persona?: string }).persona?.trim().length
+              ? (agent as { persona?: string }).persona!.trim()
+              : "draft",
+          defaultModel:
+            (agent as { defaultModel?: { provider?: string; model?: string } })?.defaultModel
+              ?.provider &&
+            (agent as { defaultModel?: { provider?: string; model?: string } })?.defaultModel?.model
+              ? {
+                  provider: (agent as { defaultModel?: { provider?: string; model?: string } })
+                    .defaultModel!.provider!,
+                  model: (agent as { defaultModel?: { provider?: string; model?: string } })
+                    .defaultModel!.model!,
+                }
+              : undefined,
+          mcpServers: Array.isArray((agent as { mcpServers?: unknown }).mcpServers)
+            ? ((agent as { mcpServers?: string[] }).mcpServers ?? [])
+            : [],
+          capabilities: Array.isArray((agent as { capabilities?: unknown }).capabilities)
+            ? ((agent as { capabilities?: string[] }).capabilities ?? [])
+            : [],
+        })),
+      });
 
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["methodology", "draft", versionId] }),
-      queryClient.invalidateQueries({ queryKey: ["methodology", "details", methodologyId] }),
-    ]);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["methodology", "draft", versionId] }),
+        queryClient.invalidateQueries({ queryKey: ["methodology", "details", methodologyId] }),
+      ]);
 
-    setIsCreateDialogOpen(false);
-    setNewWorkUnitKey("");
-    updateSearch({ selected: nextKey });
+      setIsCreateDialogOpen(false);
+      setNewWorkUnitKey("");
+      setNewWorkUnitDisplayName("");
+      setNewWorkUnitDescription("");
+      updateSearch({ selected: nextKey });
+    } catch {
+      setCreateError(
+        "Unable to create work unit. Review the current draft definitions and try again.",
+      );
+    }
   };
 
   return (
@@ -254,11 +281,19 @@ export function MethodologyVersionWorkUnitsRoute() {
             </Button>
             <Button
               size="sm"
-              variant={isGraphView ? "outline" : "default"}
+              variant={activeView === "contracts" ? "default" : "outline"}
               className="rounded-none"
-              onClick={() => updateSearch({ view: "list" })}
+              onClick={() => updateSearch({ view: "contracts" })}
             >
-              List
+              Contracts
+            </Button>
+            <Button
+              size="sm"
+              variant={activeView === "diagnostics" ? "default" : "outline"}
+              className="rounded-none"
+              onClick={() => updateSearch({ view: "diagnostics" })}
+            >
+              Diagnostics
             </Button>
           </div>
           <Button
@@ -267,6 +302,8 @@ export function MethodologyVersionWorkUnitsRoute() {
             onClick={() => {
               setCreateError(null);
               setNewWorkUnitKey("");
+              setNewWorkUnitDisplayName("");
+              setNewWorkUnitDescription("");
               setIsCreateDialogOpen(true);
             }}
           >
@@ -275,7 +312,15 @@ export function MethodologyVersionWorkUnitsRoute() {
         </div>
       </section>
 
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+      <Dialog
+        open={isCreateDialogOpen || isCreateIntentActive}
+        onOpenChange={(open) => {
+          setIsCreateDialogOpen(open);
+          if (!open && isCreateIntentActive) {
+            clearCreateIntent();
+          }
+        }}
+      >
         <DialogContent className="max-w-md rounded-none">
           <DialogHeader>
             <DialogTitle>Add Work Unit</DialogTitle>
@@ -302,14 +347,44 @@ export function MethodologyVersionWorkUnitsRoute() {
             />
           </label>
 
+          <label htmlFor="new-work-unit-display-name" className="grid gap-1 text-xs">
+            <span>Display Name</span>
+            <input
+              id="new-work-unit-display-name"
+              aria-label="Display Name"
+              className="border-input placeholder:text-muted-foreground h-8 w-full rounded-none border bg-transparent px-2.5 py-1 text-xs outline-none"
+              value={newWorkUnitDisplayName}
+              onChange={(event) => {
+                setNewWorkUnitDisplayName(event.target.value);
+                if (createError) {
+                  setCreateError(null);
+                }
+              }}
+              placeholder="New Step"
+            />
+          </label>
+
+          <label htmlFor="new-work-unit-description" className="grid gap-1 text-xs">
+            <span>Description</span>
+            <textarea
+              id="new-work-unit-description"
+              aria-label="Description"
+              className="border-input placeholder:text-muted-foreground min-h-20 w-full rounded-none border bg-transparent px-2.5 py-2 text-xs outline-none"
+              value={newWorkUnitDescription}
+              onChange={(event) => {
+                setNewWorkUnitDescription(event.target.value);
+                if (createError) {
+                  setCreateError(null);
+                }
+              }}
+              placeholder="Operator-facing work unit summary."
+            />
+          </label>
+
           {createError ? <p className="text-xs text-destructive">{createError}</p> : null}
 
           <DialogFooter>
-            <Button
-              variant="outline"
-              className="rounded-none"
-              onClick={() => setIsCreateDialogOpen(false)}
-            >
+            <Button variant="outline" className="rounded-none" onClick={closeCreateDialog}>
               Cancel
             </Button>
             <Button
@@ -342,12 +417,44 @@ export function MethodologyVersionWorkUnitsRoute() {
               activeWorkUnitKey={activeWorkUnitKey}
               onSelect={(workUnitKey) => updateSearch({ selected: workUnitKey })}
             />
+          ) : activeView === "contracts" ? (
+            <section className="chiron-frame-flat flex min-h-[28rem] flex-col justify-between p-4">
+              <div className="space-y-2">
+                <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
+                  Contracts
+                </p>
+                <h2 className="text-base font-semibold">Work-unit contract shell</h2>
+                <p className="text-sm text-muted-foreground">
+                  State: loading contracts overview while preserving selected work-unit context.
+                </p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Contract details remain anchored to the selected summary and will replace this
+                placeholder as Story 3.1 follow-on surfaces land.
+              </p>
+            </section>
+          ) : activeView === "diagnostics" ? (
+            <section className="chiron-frame-flat flex min-h-[28rem] flex-col justify-between p-4">
+              <div className="space-y-2">
+                <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
+                  Diagnostics
+                </p>
+                <h2 className="text-base font-semibold">Work-unit diagnostics shell</h2>
+                <p className="text-sm text-muted-foreground">
+                  State: loading diagnostics overview while preserving selected work-unit context.
+                </p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Deterministic diagnostics remain version-scoped here until the dedicated findings
+                surface replaces this baseline shell.
+              </p>
+            </section>
           ) : (
-            <WorkUnitsListView
-              rows={filteredWorkUnits}
-              activeWorkUnitKey={activeWorkUnitKey}
-              onSelect={(workUnitKey) => updateSearch({ selected: workUnitKey })}
-            />
+            <section className="chiron-frame-flat flex min-h-[28rem] items-center justify-center p-4">
+              <p className="text-sm text-muted-foreground">
+                State: failed - Unsupported Work Units tab selection.
+              </p>
+            </section>
           )}
 
           <WorkUnitsRightRail
@@ -359,6 +466,12 @@ export function MethodologyVersionWorkUnitsRoute() {
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
             onSelect={(workUnitKey) => updateSearch({ selected: workUnitKey })}
+            onOpenRelationshipView={(workUnitKey) =>
+              updateSearch({
+                view: "graph",
+                selected: workUnitKey,
+              })
+            }
           />
         </section>
       ) : null}
