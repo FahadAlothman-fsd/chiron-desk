@@ -39,12 +39,31 @@ type MethodologyCommandPaletteProps = {
   onOpenChange: (open: boolean) => void;
   selectedMethodologyKey: string | null;
   selectedVersionId: string | null;
-  selectedProjectId?: string | null;
-  selectedProjectName?: string | null;
 };
 
 const GROUP_ORDER = ["Open", "Navigate", "Create", "System"] as const;
 const RECENT_COMMAND_STORAGE_KEY = "methodology-command-recent-v1";
+
+function buildMethodologyVersionSectionHref({
+  methodologyId,
+  versionId,
+  section,
+  intent,
+}: {
+  methodologyId: string;
+  versionId: string;
+  section: "facts" | "work-units" | "agents" | "dependency-definitions";
+  intent?: "add-fact" | "add-work-unit" | "add-agent" | "add-link-type";
+}) {
+  const pathname = `/methodologies/${encodeURIComponent(methodologyId)}/versions/${encodeURIComponent(versionId)}/${section}`;
+
+  if (!intent) {
+    return pathname;
+  }
+
+  const searchParams = new URLSearchParams({ intent });
+  return `${pathname}?${searchParams.toString()}`;
+}
 
 function readRecentCommandIds(): MethodologyCommandId[] {
   if (typeof window === "undefined") {
@@ -75,10 +94,8 @@ export function MethodologyCommandPalette({
   onOpenChange,
   selectedMethodologyKey,
   selectedVersionId,
-  selectedProjectId = null,
-  selectedProjectName = null,
 }: MethodologyCommandPaletteProps) {
-  const navigate = useNavigate();
+  const navigate = useNavigate({ from: "/" });
   const listRef = useRef<HTMLDivElement | null>(null);
   const [search, setSearch] = useState("");
   const [recentlyUsedCommandIds, setRecentlyUsedCommandIds] =
@@ -117,27 +134,16 @@ export function MethodologyCommandPalette({
       selectedVersion.id)
     : null;
 
-  const activeContext: "system" | "methodology" | "project" = selectedProjectId
-    ? "project"
-    : resolvedMethodologyKey
-      ? "methodology"
-      : "system";
+  const activeContext: "system" | "methodology" = resolvedMethodologyKey ? "methodology" : "system";
 
-  const activeContextLabel =
-    activeContext === "project"
-      ? "Project"
-      : activeContext === "methodology"
-        ? "Methodology"
-        : "System";
+  const activeContextLabel = activeContext === "methodology" ? "Methodology" : "System";
 
   const scopeLabel =
-    activeContext === "project"
-      ? (selectedProjectName ?? selectedProjectId ?? "Selected project")
-      : activeContext === "methodology"
-        ? `${selectedDetails?.displayName ?? resolvedMethodologyKey ?? "Methodology"} > ${
-            selectedVersionLabel ?? "no draft selected"
-          }`
-        : "Global platform";
+    activeContext === "methodology"
+      ? `${selectedDetails?.displayName ?? resolvedMethodologyKey ?? "Methodology"} > ${
+          selectedVersionLabel ?? "no draft selected"
+        }`
+      : "Global platform";
 
   const createDraftMutation = useMutation(
     orpc.methodology.version.create.mutationOptions({
@@ -286,7 +292,7 @@ export function MethodologyCommandPalette({
                   Context: {activeContextLabel}
                 </span>
                 <span className="text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground/90">
-                  System · Methodology · Project
+                  System · Methodology
                 </span>
               </div>
               <p className="mt-1 text-[0.72rem] text-foreground/90">Scope: {scopeLabel}</p>
@@ -435,11 +441,12 @@ export function MethodologyCommandPalette({
                                 }
                                 navigateAndClose(command.id, () =>
                                   navigate({
-                                    to: "/methodologies/$methodologyId/versions/$versionId/facts",
-                                    params: {
+                                    href: buildMethodologyVersionSectionHref({
                                       methodologyId: methodologyKey,
                                       versionId: targetVersionId,
-                                    },
+                                      section: "facts",
+                                      intent: "add-fact",
+                                    }),
                                   }),
                                 );
                                 return;
@@ -452,11 +459,12 @@ export function MethodologyCommandPalette({
                                 }
                                 navigateAndClose(command.id, () =>
                                   navigate({
-                                    to: "/methodologies/$methodologyId/versions/$versionId/work-units",
-                                    params: {
+                                    href: buildMethodologyVersionSectionHref({
                                       methodologyId: methodologyKey,
                                       versionId: targetVersionId,
-                                    },
+                                      section: "work-units",
+                                      intent: "add-work-unit",
+                                    }),
                                   }),
                                 );
                                 return;
@@ -469,11 +477,12 @@ export function MethodologyCommandPalette({
                                 }
                                 navigateAndClose(command.id, () =>
                                   navigate({
-                                    to: "/methodologies/$methodologyId/versions/$versionId/agents",
-                                    params: {
+                                    href: buildMethodologyVersionSectionHref({
                                       methodologyId: methodologyKey,
                                       versionId: targetVersionId,
-                                    },
+                                      section: "agents",
+                                      intent: "add-agent",
+                                    }),
                                   }),
                                 );
                                 return;
@@ -486,11 +495,12 @@ export function MethodologyCommandPalette({
                                 }
                                 navigateAndClose(command.id, () =>
                                   navigate({
-                                    to: "/methodologies/$methodologyId/versions/$versionId/dependency-definitions",
-                                    params: {
+                                    href: buildMethodologyVersionSectionHref({
                                       methodologyId: methodologyKey,
                                       versionId: targetVersionId,
-                                    },
+                                      section: "dependency-definitions",
+                                      intent: "add-link-type",
+                                    }),
                                   }),
                                 );
                                 return;
