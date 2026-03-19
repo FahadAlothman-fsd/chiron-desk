@@ -866,3 +866,23 @@ Commands run for the L1 completion slice:
 - 2026-03-18: Remediation verification passed the targeted Story 3.1 suite (30 tests), `bun run --cwd apps/web check-types`, and `bun run check`. Six review findings are now resolved; one HIGH finding remains active for command-palette `Add Work Unit` parity, so the story stays `in-progress`.
 - 2026-03-18: Final parity remediation passed the refreshed targeted Story 3.1 suite (31 tests), `bun run --cwd apps/web check-types`, and `bun run check`. The remaining `Add Work Unit` command-palette blocker is now resolved, so no active blocking findings remain and the story returns to `review`.
 - 2026-03-18: Work Units create dialog regression was corrected so the Story 3.1 shallow create surface now authors `Work Unit Key`, `Display Name`, and `Description`; targeted Work Units regression tests, `bun run --cwd apps/web check-types`, and the refreshed Story 3.1 verification suite all passed afterward.
+
+## Architecture Alignment Addendum (2026-03-19)
+
+### Boundary clarification after Story 3.1
+
+- Story 3.1 completion remains valid for approved L1 UX/API outcomes.
+- Canonical architecture ownership is now clarified as:
+  - methodology version = publish/release root,
+  - work unit = workflow and transition-workflow binding authoring root.
+- Any compatibility shape that still exposes version-level workflow summaries is read/projection-only and must not become a parallel writable authority.
+
+### Design-time vs runtime contract stance
+
+- `@chiron/methodology-engine` remains the design-time authority for definitions, validation, and publication.
+- Runtime packages consume published runtime-facing contracts/projections and do not own design-time persistence seams.
+
+### Stability disclaimer
+
+- Execution module/service internals are provisional and may change heavily during L1/L2/L3 implementation hardening.
+- Stability anchors are the design-time contract boundary and runtime-facing published contract/projection boundary.

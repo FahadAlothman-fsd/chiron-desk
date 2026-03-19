@@ -230,3 +230,11 @@ Before calling L1 complete, fresh evidence should show:
   - `apps/web/src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx`
 - Out-of-scope boundary preserved:
   - artifact slots, artifact templates, and state-machine internals remain L2 and were intentionally not implemented in this slice.
+
+## Architectural Divergence Addendum (2026-03-19)
+
+- Story 3.1 remains complete for the approved L1 product scope captured in this document.
+- Canonical architecture direction now locks workflow authoring ownership under work units, while methodology version remains the release/publish root.
+- Remaining compatibility seams that still traverse broad lifecycle persistence paths are transitional and not long-term ownership contracts.
+- Refactor sequencing and boundary hardening follow:
+  - `docs/plans/2026-03-19-methodology-design-runtime-boundary-refactor-plan.md`.

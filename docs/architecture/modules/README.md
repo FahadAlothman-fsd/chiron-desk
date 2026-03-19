@@ -43,6 +43,20 @@ These docs define the detailed design for modules that are scaffold-only or unde
 - contracts-centered dependency rule: shared seams live in `packages/contracts`.
 - Required direction: `packages/contracts` <- domain packages (`workflow-engine`, `methodology-engine`, `project-context`) <- `packages/core` (`@chiron/core`) orchestration/policy <- adapters/app shells.
 - Anti-coupling: no direct reverse ownership leak from transport/runtime/UI into `core`.
+- Design-time/runtime split lock:
+  - `@chiron/methodology-engine` owns design-time authoring definitions and publication.
+  - runtime packages consume published contracts/projections and must not import methodology-engine repository/mutation seams.
+
+### Work-unit workflow ownership (canonical)
+
+- `methodology version` remains publish/release root.
+- workflow authoring ownership is under `work unit` (not version-root writable collections).
+- transition-workflow bindings are scoped under work-unit transition identity; version-level workflow summaries are compatibility projections only.
+
+### Stability disclaimer
+
+- Execution-side module/service internals are provisional and expected to evolve rapidly.
+- Stable boundaries are design-time contracts and runtime-facing published contracts/projections.
 
 ### Boundary diagnostics expectations
 

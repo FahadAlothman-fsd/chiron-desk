@@ -143,6 +143,34 @@ Each module is Effect-wrapped and owns its public contract.
 
 All modules may depend on `@chiron/contracts`. No module may import another module only for shared types.
 
+## Methodology Ownership Model (Design-Time Canonical)
+
+Design-time ownership is locked as:
+
+- `Methodology Version` owns release/publish lineage and published projection boundaries.
+- `Work Unit` owns local authoring aggregates: facts, state machine, workflows, and transition-workflow bindings.
+- `Workflow` owns steps and edges within its parent work unit scope.
+
+Compatibility read models may expose flattened version-level workflow indexes for legacy callers, but those are projections only and are not write-authoritative sources.
+
+## Runtime Boundary Lock
+
+Runtime modules (`workflow-engine`, `agent-runtime`, `tooling-engine`, `variable-service`, `template-engine`) consume:
+
+- `@chiron/contracts` runtime-facing schemas, and
+- published methodology projections/resolver contracts.
+
+Runtime modules must not import design-time persistence seams (methodology repositories, draft mutation services, or DB table adapters) from `@chiron/methodology-engine`.
+
+## Stability Disclaimer (Execution vs Contracts)
+
+Execution-side module internals are intentionally provisional and may change significantly as L1/L2/L3 implementation advances.
+
+Stability anchors are:
+
+- design-time contract shapes in `@chiron/contracts`, and
+- runtime-facing published contracts/projections consumed by execution modules.
+
 ## Thin-Core Boundary Lock (CCF.5 / Gate G2.5)
 
 Decision record (`core-boundary-decision-log`) for Epic 3 prerequisite locking.

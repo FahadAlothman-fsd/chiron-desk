@@ -90,11 +90,26 @@ No additional gate class is allowed in this horizon.
 
 ## 6) Workflow Binding Model
 
-- Workflows scoped by `methodologyVersion + workUnitType`.
-- Transitions define allowed executable workflows.
+- `methodology version` is the publish/release root.
+- Canonical authoring ownership is `work unit -> workflows -> steps/edges`.
+- Transition-workflow binding ownership is scoped under work-unit transition identity (not a writable version-global transition-key map).
+- Version-level workflow summaries may exist as compatibility projections only and must not be write-authoritative.
 - Invoke modes:
   - `same_work_unit` for techniques/subroutines
   - `child_work_units` for lifecycle fan-out entities
+
+## 6.2) Design-Time vs Runtime Boundary Lock
+
+- `@chiron/methodology-engine` owns design-time definitions, validation, and publication.
+- Runtime modules (`workflow-engine`, `agent-runtime`, `tooling-engine`, `variable-service`, `template-engine`) consume runtime-facing contracts and published projections.
+- Runtime modules must not depend on methodology design-time repository/mutation seams.
+
+## 6.3) Stability Disclaimer
+
+- Execution-side services/modules are provisional and expected to evolve significantly during L1/L2/L3 implementation.
+- Stable anchors are:
+  - design-time contract shapes in `@chiron/contracts`, and
+  - runtime-facing published contracts/projections consumed by execution modules.
 
 ## 6.1) Agent Model v1 (Canonical)
 
