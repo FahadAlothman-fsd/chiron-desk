@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Result } from "better-result";
+import { AlertTriangleIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -80,6 +81,203 @@ type FactEditorFormValues = {
   jsonSchema: string;
 };
 
+type JsonFactValueType = "string" | "number" | "boolean";
+
+type JsonSubKey = {
+  id: string;
+  displayName: string;
+  key: string;
+  value: string;
+  valueType: JsonFactValueType;
+  validationType: "none" | "path" | "allowed-values";
+  pathKind: "file" | "directory";
+  trimWhitespace: boolean;
+  disallowAbsolute: boolean;
+  preventTraversal: boolean;
+  allowedValues: string;
+};
+
+let jsonSubKeyIdSequence = 0;
+
+function createJsonSubKeyId(): string {
+  jsonSubKeyIdSequence += 1;
+  return `json-sub-key-${jsonSubKeyIdSequence}`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function toJsonValueType(value: unknown): JsonFactValueType {
+  if (value === "string" || value === "number" || value === "boolean") {
+    return value;
+  }
+
+  return "string";
+}
+
+function parseJsonSubKeys(fact: FactEditorValue): JsonSubKey[] {
+  if (fact.validation?.kind !== "json-schema") {
+    return [];
+  }
+
+  const schema = isRecord(fact.validation.schema) ? fact.validation.schema : {};
+  const properties = isRecord(schema.properties) ? schema.properties : {};
+
+  return Object.entries(properties).map(([propertyKey, propertySchema]) => {
+    const propertyRecord = isRecord(propertySchema) ? propertySchema : {};
+    const xValidation = isRecord(propertyRecord["x-validation"])
+      ? propertyRecord["x-validation"]
+      : {};
+    const validationType = getUiValidationKind(xValidation);
+    const allowedValues = getAllowedValues(xValidation);
+    const pathValidation = isRecord(xValidation.path) ? xValidation.path : {};
+    const normalization = isRecord(pathValidation.normalization)
+      ? pathValidation.normalization
+      : {};
+    const safety = isRecord(pathValidation.safety) ? pathValidation.safety : {};
+    const rawDefaultValue = propertyRecord.default;
+
+    return {
+      id: createJsonSubKeyId(),
+      displayName:
+        typeof propertyRecord.title === "string"
+          ? propertyRecord.title
+          : typeof propertyRecord.description === "string"
+            ? propertyRecord.description
+            : propertyKey,
+      key: propertyKey,
+      value:
+        rawDefaultValue === undefined
+          ? ""
+          : typeof rawDefaultValue === "string"
+            ? rawDefaultValue
+            : JSON.stringify(rawDefaultValue),
+      valueType: toJsonValueType(propertyRecord.type),
+      validationType:
+        validationType === "path"
+          ? "path"
+          : validationType === "allowed-values"
+            ? "allowed-values"
+            : "none",
+      pathKind: pathValidation.pathKind === "directory" ? "directory" : "file",
+      trimWhitespace: normalization.trimWhitespace !== false,
+      disallowAbsolute: safety.disallowAbsolute !== false,
+      preventTraversal: safety.preventTraversal !== false,
+      allowedValues: allowedValues.join("\n"),
+    };
+  });
+}
+
+function createEmptyJsonSubKey(existingKeys: readonly JsonSubKey[]): JsonSubKey {
+  const usedKeys = new Set(
+    existingKeys.map((entry) => entry.key.trim()).filter((entry) => entry.length > 0),
+  );
+  let counter = existingKeys.length + 1;
+  let key = `field_${counter}`;
+  while (usedKeys.has(key)) {
+    counter += 1;
+    key = `field_${counter}`;
+  }
+
+  return {
+    id: createJsonSubKeyId(),
+    displayName: "",
+    key,
+    value: "",
+    valueType: "string",
+    validationType: "none",
+    pathKind: "file",
+    trimWhitespace: true,
+    disallowAbsolute: true,
+    preventTraversal: true,
+    allowedValues: "",
+  };
+}
+
+function parseJsonSubKeyDefaultValue(entry: JsonSubKey): unknown {
+  const trimmed = entry.value.trim();
+  if (trimmed.length === 0) {
+    return undefined;
+  }
+
+  if (entry.valueType === "number") {
+    const numeric = Number(trimmed);
+    return Number.isFinite(numeric) ? numeric : trimmed;
+  }
+
+  if (entry.valueType === "boolean") {
+    return trimmed === "true";
+  }
+
+  return entry.value;
+}
+
+function jsonSubKeysToJsonSchemaValidation(
+  keys: readonly JsonSubKey[],
+): FactEditorValue["validation"] {
+  const properties: Record<string, Record<string, unknown>> = {};
+
+  for (const entry of keys) {
+    const trimmedKey = entry.key.trim();
+    if (trimmedKey.length === 0) {
+      continue;
+    }
+
+    const propertySchema: Record<string, unknown> = {
+      type: entry.valueType,
+    };
+
+    const title = entry.displayName.trim();
+    if (title.length > 0) {
+      propertySchema.title = title;
+    }
+
+    const parsedDefault = parseJsonSubKeyDefaultValue(entry);
+    if (parsedDefault !== undefined) {
+      propertySchema.default = parsedDefault;
+    }
+
+    if (entry.valueType === "string") {
+      if (entry.validationType === "path") {
+        propertySchema["x-validation"] = {
+          kind: "path",
+          path: {
+            pathKind: entry.pathKind,
+            normalization: {
+              mode: "posix",
+              trimWhitespace: entry.trimWhitespace,
+            },
+            safety: {
+              disallowAbsolute: entry.disallowAbsolute,
+              preventTraversal: entry.preventTraversal,
+            },
+          },
+        };
+      } else if (entry.validationType === "allowed-values") {
+        propertySchema["x-validation"] = createAllowedValuesValidation(
+          entry.allowedValues
+            .split(/\r?\n/g)
+            .map((value) => value.trim())
+            .filter((value) => value.length > 0),
+        );
+      }
+    }
+
+    properties[trimmedKey] = propertySchema;
+  }
+
+  return {
+    kind: "json-schema",
+    schemaDialect: "draft-2020-12",
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      properties,
+    },
+  };
+}
+
 function factToFormValues(fact: FactEditorValue): FactEditorFormValues {
   const validation = fact.validation as
     | {
@@ -127,37 +325,42 @@ function factToFormValues(fact: FactEditorValue): FactEditorFormValues {
 function formValuesToFact(
   values: FactEditorFormValues,
   baseFact: FactEditorValue,
+  jsonSubKeys: readonly JsonSubKey[],
 ): FactEditorValue {
-  const validation: FactEditorValue["validation"] | Record<string, unknown> =
-    values.validationType === "path"
-      ? {
-          kind: "path",
-          path: {
-            pathKind: values.pathKind,
-            normalization: {
-              mode: "posix",
-              trimWhitespace: values.trimWhitespace,
-            },
-            safety: {
-              disallowAbsolute: values.disallowAbsolute,
-              preventTraversal: values.preventTraversal,
-            },
-          },
-        }
-      : values.validationType === "json-schema"
-        ? {
-            kind: "json-schema",
-            schemaDialect: "draft-2020-12",
-            schema: Result.try(() => JSON.parse(values.jsonSchema)).unwrapOr({}),
-          }
-        : values.validationType === "allowed-values"
-          ? createAllowedValuesValidation(
-              values.allowedValues
-                .split(/\r?\n/g)
-                .map((value) => value.trim())
-                .filter((value) => value.length > 0),
-            )
-          : { kind: "none" };
+  const validation: FactEditorValue["validation"] =
+    values.factType === "json"
+      ? jsonSubKeysToJsonSchemaValidation(jsonSubKeys)
+      : values.factType === "string"
+        ? values.validationType === "path"
+          ? {
+              kind: "path",
+              path: {
+                pathKind: values.pathKind,
+                normalization: {
+                  mode: "posix",
+                  trimWhitespace: values.trimWhitespace,
+                },
+                safety: {
+                  disallowAbsolute: values.disallowAbsolute,
+                  preventTraversal: values.preventTraversal,
+                },
+              },
+            }
+          : values.validationType === "json-schema"
+            ? {
+                kind: "json-schema",
+                schemaDialect: "draft-2020-12",
+                schema: Result.try(() => JSON.parse(values.jsonSchema)).unwrapOr({}),
+              }
+            : values.validationType === "allowed-values"
+              ? createAllowedValuesValidation(
+                  values.allowedValues
+                    .split(/\r?\n/g)
+                    .map((value) => value.trim())
+                    .filter((value) => value.length > 0),
+                )
+              : { kind: "none" }
+        : { kind: "none" };
 
   return {
     ...baseFact,
@@ -229,10 +432,11 @@ function FactEditorDialog({
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
   const [isContractTabDirty, setIsContractTabDirty] = useState(false);
   const [isGuidanceTabDirty, setIsGuidanceTabDirty] = useState(false);
+  const [jsonSubKeys, setJsonSubKeys] = useState<JsonSubKey[]>(() => parseJsonSubKeys(initialFact));
   const form = useForm({
     defaultValues: factToFormValues(initialFact),
     onSubmit: async ({ value }) => {
-      await onSave(formValuesToFact(value, initialFact));
+      await onSave(formValuesToFact(value, initialFact, jsonSubKeys));
     },
   });
   const isDialogDirty = isContractTabDirty || isGuidanceTabDirty;
@@ -278,6 +482,13 @@ function FactEditorDialog({
           onSubmit={(event) => {
             event.preventDefault();
             event.stopPropagation();
+
+            const nextFactKey = form.getFieldValue("factKey").trim();
+            if (nextFactKey.length === 0) {
+              setActiveTab("contract");
+              toast.error("Fact key is required");
+              return;
+            }
             void form.handleSubmit();
           }}
         >
@@ -286,23 +497,20 @@ function FactEditorDialog({
               <DialogTitle className="text-base font-semibold uppercase tracking-[0.08em]">
                 {isEditing ? "Edit Fact" : "Add Fact"}
               </DialogTitle>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap gap-2 border-b border-border pb-3">
                 {(
                   [
                     ["contract", "Contract"],
                     ["guidance", "Guidance"],
                   ] as const
-                ).map(([stepValue, label], index) => {
-                  const active = activeTab === stepValue;
+                ).map(([stepValue, label]) => {
                   return (
-                    <div key={stepValue} className="flex items-center gap-2">
-                      <button
+                    <div key={stepValue}>
+                      <Button
                         type="button"
-                        className={
-                          active
-                            ? "chiron-frame-flat px-3 py-1 text-xs uppercase tracking-[0.14em]"
-                            : "border border-border/70 px-3 py-1 text-xs uppercase tracking-[0.14em] text-muted-foreground"
-                        }
+                        size="sm"
+                        variant={activeTab === stepValue ? "default" : "outline"}
+                        className="rounded-none"
                         onClick={() => setActiveTab(stepValue)}
                       >
                         {label}
@@ -322,10 +530,7 @@ function FactEditorDialog({
                             *
                           </span>
                         ) : null}
-                      </button>
-                      {index === 0 ? (
-                        <span className="text-xs text-muted-foreground">/</span>
-                      ) : null}
+                      </Button>
                     </div>
                   );
                 })}
@@ -369,6 +574,14 @@ function FactEditorDialog({
                         onBlur={field.handleBlur}
                         onChange={(e) => field.handleChange(e.target.value)}
                       />
+                      {field.state.value.trim().length === 0 ? (
+                        <p
+                          data-testid="fact-key-required-message"
+                          className="text-[10px] uppercase tracking-[0.12em] text-destructive"
+                        >
+                          Fact key is required to save.
+                        </p>
+                      ) : null}
                     </div>
                   )}
                 </form.Field>
@@ -417,173 +630,518 @@ function FactEditorDialog({
                     </div>
                   )}
                 </form.Field>
-                <div className="col-span-2 space-y-6">
-                  <form.Field name="validationType">
-                    {(field) => (
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor={field.name}
-                          className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
-                        >
-                          Validation Type
-                        </Label>
-                        <Select
-                          value={field.state.value}
-                          onValueChange={(v) =>
-                            field.handleChange(v as FactEditorFormValues["validationType"])
-                          }
-                        >
-                          <SelectTrigger className="h-9 rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]">
-                            <SelectValue placeholder="Select validation" />
-                          </SelectTrigger>
-                          <SelectContent className="rounded-none border-border/70 bg-background text-xs">
-                            <SelectItem value="none">none</SelectItem>
-                            <SelectItem value="path">path</SelectItem>
-                            <SelectItem value="allowed-values">allowed-values</SelectItem>
-                            <SelectItem value="json-schema">json-schema</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-                  </form.Field>
-
-                  <form.Subscribe selector={(state) => state.values.validationType}>
-                    {(validationType) =>
-                      validationType === "path" ? (
-                        <Card
-                          frame="flat"
-                          tone="contracts"
-                          className="rounded-none border-0 bg-background/30 p-4 shadow-none"
-                        >
-                          <div className="grid gap-6">
-                            <form.Field name="pathKind">
-                              {(field) => (
-                                <div className="space-y-2">
-                                  <Label
-                                    htmlFor={field.name}
-                                    className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
-                                  >
-                                    Path Kind
-                                  </Label>
-                                  <Select
-                                    value={field.state.value}
-                                    onValueChange={(v) =>
-                                      field.handleChange(v as "file" | "directory")
-                                    }
-                                  >
-                                    <SelectTrigger className="h-9 rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]">
-                                      <SelectValue placeholder="Select kind" />
-                                    </SelectTrigger>
-                                    <SelectContent className="rounded-none border-border/70 bg-background text-xs">
-                                      <SelectItem value="file">file</SelectItem>
-                                      <SelectItem value="directory">directory</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                              )}
-                            </form.Field>
-                            <div className="flex flex-wrap gap-x-8 gap-y-4">
-                              <form.Field name="trimWhitespace">
-                                {(field) => (
-                                  <div className="flex items-center gap-2">
-                                    <Checkbox
-                                      id={field.name}
-                                      checked={field.state.value}
-                                      onCheckedChange={(checked) =>
-                                        field.handleChange(checked === true)
-                                      }
-                                    />
-                                    <Label
-                                      htmlFor={field.name}
-                                      className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground"
-                                    >
-                                      Trim Whitespace
-                                    </Label>
-                                  </div>
-                                )}
-                              </form.Field>
-                              <form.Field name="disallowAbsolute">
-                                {(field) => (
-                                  <div className="flex items-center gap-2">
-                                    <Checkbox
-                                      id={field.name}
-                                      checked={field.state.value}
-                                      onCheckedChange={(checked) =>
-                                        field.handleChange(checked === true)
-                                      }
-                                    />
-                                    <Label
-                                      htmlFor={field.name}
-                                      className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground"
-                                    >
-                                      Disallow Absolute
-                                    </Label>
-                                  </div>
-                                )}
-                              </form.Field>
-                              <form.Field name="preventTraversal">
-                                {(field) => (
-                                  <div className="flex items-center gap-2">
-                                    <Checkbox
-                                      id={field.name}
-                                      checked={field.state.value}
-                                      onCheckedChange={(checked) =>
-                                        field.handleChange(checked === true)
-                                      }
-                                    />
-                                    <Label
-                                      htmlFor={field.name}
-                                      className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground"
-                                    >
-                                      Prevent Traversal
-                                    </Label>
-                                  </div>
-                                )}
-                              </form.Field>
-                            </div>
-                          </div>
-                        </Card>
-                      ) : validationType === "allowed-values" ? (
-                        <form.Field name="allowedValues">
-                          {(field) => (
-                            <div className="space-y-2">
-                              <Label className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                                Allowed Values
-                              </Label>
-                              <AllowedValuesChipEditor
-                                values={field.state.value
-                                  .split(/\r?\n/g)
-                                  .map((value) => value.trim())
-                                  .filter((value) => value.length > 0)}
-                                onChange={(values) => field.handleChange(values.join("\n"))}
-                              />
-                            </div>
-                          )}
-                        </form.Field>
-                      ) : validationType === "json-schema" ? (
-                        <form.Field name="jsonSchema">
+                <form.Subscribe selector={(state) => state.values.factType}>
+                  {(factType) =>
+                    factType === "string" ? (
+                      <div className="col-span-2 space-y-6">
+                        <form.Field name="validationType">
                           {(field) => (
                             <div className="space-y-2">
                               <Label
                                 htmlFor={field.name}
                                 className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
                               >
-                                JSON Schema
+                                Validation Type
                               </Label>
-                              <Textarea
-                                id={field.name}
-                                className="min-h-[10rem] resize-none rounded-none border-border/70 bg-background/50 p-3 text-xs tracking-[0.04em] placeholder:text-muted-foreground/50"
+                              <Select
                                 value={field.state.value}
-                                onBlur={field.handleBlur}
-                                onChange={(e) => field.handleChange(e.target.value)}
-                              />
+                                onValueChange={(v) =>
+                                  field.handleChange(v as FactEditorFormValues["validationType"])
+                                }
+                              >
+                                <SelectTrigger className="h-9 rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]">
+                                  <SelectValue placeholder="Select validation" />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-none border-border/70 bg-background text-xs">
+                                  <SelectItem value="none">none</SelectItem>
+                                  <SelectItem value="path">path</SelectItem>
+                                  <SelectItem value="allowed-values">allowed-values</SelectItem>
+                                  <SelectItem value="json-schema">json-schema</SelectItem>
+                                </SelectContent>
+                              </Select>
                             </div>
                           )}
                         </form.Field>
-                      ) : null
-                    }
-                  </form.Subscribe>
-                </div>
+
+                        <form.Subscribe selector={(state) => state.values.validationType}>
+                          {(validationType) =>
+                            validationType === "path" ? (
+                              <Card
+                                frame="flat"
+                                tone="contracts"
+                                className="rounded-none border-0 bg-background/30 p-4 shadow-none"
+                              >
+                                <div className="grid gap-6">
+                                  <form.Field name="pathKind">
+                                    {(field) => (
+                                      <div className="space-y-2">
+                                        <Label
+                                          htmlFor={field.name}
+                                          className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                                        >
+                                          Path Kind
+                                        </Label>
+                                        <Select
+                                          value={field.state.value}
+                                          onValueChange={(v) =>
+                                            field.handleChange(v as "file" | "directory")
+                                          }
+                                        >
+                                          <SelectTrigger className="h-9 rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]">
+                                            <SelectValue placeholder="Select kind" />
+                                          </SelectTrigger>
+                                          <SelectContent className="rounded-none border-border/70 bg-background text-xs">
+                                            <SelectItem value="file">file</SelectItem>
+                                            <SelectItem value="directory">directory</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    )}
+                                  </form.Field>
+                                  <div className="flex flex-wrap gap-x-8 gap-y-4">
+                                    <form.Field name="trimWhitespace">
+                                      {(field) => (
+                                        <div className="flex items-center gap-2">
+                                          <Checkbox
+                                            id={field.name}
+                                            checked={field.state.value}
+                                            onCheckedChange={(checked) =>
+                                              field.handleChange(checked === true)
+                                            }
+                                          />
+                                          <Label
+                                            htmlFor={field.name}
+                                            className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground"
+                                          >
+                                            Trim Whitespace
+                                          </Label>
+                                        </div>
+                                      )}
+                                    </form.Field>
+                                    <form.Field name="disallowAbsolute">
+                                      {(field) => (
+                                        <div className="flex items-center gap-2">
+                                          <Checkbox
+                                            id={field.name}
+                                            checked={field.state.value}
+                                            onCheckedChange={(checked) =>
+                                              field.handleChange(checked === true)
+                                            }
+                                          />
+                                          <Label
+                                            htmlFor={field.name}
+                                            className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground"
+                                          >
+                                            Disallow Absolute
+                                          </Label>
+                                        </div>
+                                      )}
+                                    </form.Field>
+                                    <form.Field name="preventTraversal">
+                                      {(field) => (
+                                        <div className="flex items-center gap-2">
+                                          <Checkbox
+                                            id={field.name}
+                                            checked={field.state.value}
+                                            onCheckedChange={(checked) =>
+                                              field.handleChange(checked === true)
+                                            }
+                                          />
+                                          <Label
+                                            htmlFor={field.name}
+                                            className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground"
+                                          >
+                                            Prevent Traversal
+                                          </Label>
+                                        </div>
+                                      )}
+                                    </form.Field>
+                                  </div>
+                                </div>
+                              </Card>
+                            ) : validationType === "allowed-values" ? (
+                              <form.Field name="allowedValues">
+                                {(field) => (
+                                  <div className="space-y-2">
+                                    <Label className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                                      Allowed Values
+                                    </Label>
+                                    <AllowedValuesChipEditor
+                                      values={field.state.value
+                                        .split(/\r?\n/g)
+                                        .map((value) => value.trim())
+                                        .filter((value) => value.length > 0)}
+                                      onChange={(values) => field.handleChange(values.join("\n"))}
+                                    />
+                                  </div>
+                                )}
+                              </form.Field>
+                            ) : validationType === "json-schema" ? (
+                              <form.Field name="jsonSchema">
+                                {(field) => (
+                                  <div className="space-y-2">
+                                    <Label
+                                      htmlFor={field.name}
+                                      className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                                    >
+                                      JSON Schema
+                                    </Label>
+                                    <Textarea
+                                      id={field.name}
+                                      className="min-h-[10rem] resize-none rounded-none border-border/70 bg-background/50 p-3 text-xs tracking-[0.04em] placeholder:text-muted-foreground/50"
+                                      value={field.state.value}
+                                      onBlur={field.handleBlur}
+                                      onChange={(e) => field.handleChange(e.target.value)}
+                                    />
+                                  </div>
+                                )}
+                              </form.Field>
+                            ) : null
+                          }
+                        </form.Subscribe>
+                      </div>
+                    ) : factType === "json" ? (
+                      <div className="col-span-2 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                            JSON Sub-schema Keys
+                          </p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="rounded-none px-3"
+                            onClick={() => {
+                              setIsContractTabDirty(true);
+                              setJsonSubKeys((current) => [
+                                ...current,
+                                createEmptyJsonSubKey(current),
+                              ]);
+                            }}
+                          >
+                            Add JSON Key
+                          </Button>
+                        </div>
+
+                        {jsonSubKeys.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">
+                            No keys defined yet. Add at least one key to author the JSON fact
+                            schema.
+                          </p>
+                        ) : (
+                          <div className="space-y-4">
+                            {jsonSubKeys.map((entry, index) => (
+                              <Card
+                                key={entry.id}
+                                frame="flat"
+                                tone="contracts"
+                                className="rounded-none border-0 bg-background/30 p-4 shadow-none"
+                              >
+                                <div className="space-y-4">
+                                  <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                                    <div className="space-y-2">
+                                      <Label
+                                        htmlFor={`json-subkey-display-${entry.id}`}
+                                        className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                                      >
+                                        Key Display Name
+                                      </Label>
+                                      <Input
+                                        id={`json-subkey-display-${entry.id}`}
+                                        className="rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]"
+                                        value={entry.displayName}
+                                        onChange={(event) => {
+                                          setIsContractTabDirty(true);
+                                          setJsonSubKeys((current) =>
+                                            current.map((currentEntry, currentIndex) =>
+                                              currentIndex === index
+                                                ? {
+                                                    ...currentEntry,
+                                                    displayName: event.target.value,
+                                                  }
+                                                : currentEntry,
+                                            ),
+                                          );
+                                        }}
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label
+                                        htmlFor={`json-subkey-key-${entry.id}`}
+                                        className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                                      >
+                                        Key Name
+                                      </Label>
+                                      <Input
+                                        id={`json-subkey-key-${entry.id}`}
+                                        className="rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]"
+                                        value={entry.key}
+                                        onChange={(event) => {
+                                          setIsContractTabDirty(true);
+                                          setJsonSubKeys((current) =>
+                                            current.map((currentEntry, currentIndex) =>
+                                              currentIndex === index
+                                                ? { ...currentEntry, key: event.target.value }
+                                                : currentEntry,
+                                            ),
+                                          );
+                                        }}
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label
+                                        htmlFor={`json-subkey-value-${entry.id}`}
+                                        className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                                      >
+                                        Key Value
+                                      </Label>
+                                      <Input
+                                        id={`json-subkey-value-${entry.id}`}
+                                        className="rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]"
+                                        value={entry.value}
+                                        onChange={(event) => {
+                                          setIsContractTabDirty(true);
+                                          setJsonSubKeys((current) =>
+                                            current.map((currentEntry, currentIndex) =>
+                                              currentIndex === index
+                                                ? { ...currentEntry, value: event.target.value }
+                                                : currentEntry,
+                                            ),
+                                          );
+                                        }}
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label
+                                        htmlFor={`json-subkey-type-${entry.id}`}
+                                        className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                                      >
+                                        Value Type
+                                      </Label>
+                                      <Select
+                                        value={entry.valueType}
+                                        onValueChange={(value) => {
+                                          setIsContractTabDirty(true);
+                                          setJsonSubKeys((current) =>
+                                            current.map((currentEntry, currentIndex) =>
+                                              currentIndex === index
+                                                ? {
+                                                    ...currentEntry,
+                                                    valueType: value as JsonFactValueType,
+                                                    validationType:
+                                                      value === "string"
+                                                        ? currentEntry.validationType
+                                                        : "none",
+                                                  }
+                                                : currentEntry,
+                                            ),
+                                          );
+                                        }}
+                                      >
+                                        <SelectTrigger
+                                          id={`json-subkey-type-${entry.id}`}
+                                          className="h-9 rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]"
+                                        >
+                                          <SelectValue placeholder="Select type" />
+                                        </SelectTrigger>
+                                        <SelectContent className="rounded-none border-border/70 bg-background text-xs">
+                                          <SelectItem value="string">string</SelectItem>
+                                          <SelectItem value="number">number</SelectItem>
+                                          <SelectItem value="boolean">boolean</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </div>
+
+                                  {entry.valueType === "string" ? (
+                                    <div className="space-y-4 border border-border/70 p-3">
+                                      <div className="space-y-2">
+                                        <Label className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                                          Value Validation Type
+                                        </Label>
+                                        <Select
+                                          value={entry.validationType}
+                                          onValueChange={(value) => {
+                                            setIsContractTabDirty(true);
+                                            setJsonSubKeys((current) =>
+                                              current.map((currentEntry, currentIndex) =>
+                                                currentIndex === index
+                                                  ? {
+                                                      ...currentEntry,
+                                                      validationType:
+                                                        value as JsonSubKey["validationType"],
+                                                    }
+                                                  : currentEntry,
+                                              ),
+                                            );
+                                          }}
+                                        >
+                                          <SelectTrigger className="h-9 rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]">
+                                            <SelectValue placeholder="Select validation" />
+                                          </SelectTrigger>
+                                          <SelectContent className="rounded-none border-border/70 bg-background text-xs">
+                                            <SelectItem value="none">none</SelectItem>
+                                            <SelectItem value="path">path</SelectItem>
+                                            <SelectItem value="allowed-values">
+                                              allowed-values
+                                            </SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+
+                                      {entry.validationType === "path" ? (
+                                        <div className="space-y-3">
+                                          <div className="space-y-2">
+                                            <Label className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                                              Path Kind
+                                            </Label>
+                                            <Select
+                                              value={entry.pathKind}
+                                              onValueChange={(value) => {
+                                                setIsContractTabDirty(true);
+                                                setJsonSubKeys((current) =>
+                                                  current.map((currentEntry, currentIndex) =>
+                                                    currentIndex === index
+                                                      ? {
+                                                          ...currentEntry,
+                                                          pathKind: value as "file" | "directory",
+                                                        }
+                                                      : currentEntry,
+                                                  ),
+                                                );
+                                              }}
+                                            >
+                                              <SelectTrigger className="h-9 rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]">
+                                                <SelectValue placeholder="Select path kind" />
+                                              </SelectTrigger>
+                                              <SelectContent className="rounded-none border-border/70 bg-background text-xs">
+                                                <SelectItem value="file">file</SelectItem>
+                                                <SelectItem value="directory">directory</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                          <div className="flex flex-wrap gap-x-6 gap-y-3">
+                                            <div className="flex items-center gap-2">
+                                              <Checkbox
+                                                checked={entry.trimWhitespace}
+                                                onCheckedChange={(checked) => {
+                                                  setIsContractTabDirty(true);
+                                                  setJsonSubKeys((current) =>
+                                                    current.map((currentEntry, currentIndex) =>
+                                                      currentIndex === index
+                                                        ? {
+                                                            ...currentEntry,
+                                                            trimWhitespace: checked === true,
+                                                          }
+                                                        : currentEntry,
+                                                    ),
+                                                  );
+                                                }}
+                                              />
+                                              <Label className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                                                Trim Whitespace
+                                              </Label>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              <Checkbox
+                                                checked={entry.disallowAbsolute}
+                                                onCheckedChange={(checked) => {
+                                                  setIsContractTabDirty(true);
+                                                  setJsonSubKeys((current) =>
+                                                    current.map((currentEntry, currentIndex) =>
+                                                      currentIndex === index
+                                                        ? {
+                                                            ...currentEntry,
+                                                            disallowAbsolute: checked === true,
+                                                          }
+                                                        : currentEntry,
+                                                    ),
+                                                  );
+                                                }}
+                                              />
+                                              <Label className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                                                Disallow Absolute
+                                              </Label>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              <Checkbox
+                                                checked={entry.preventTraversal}
+                                                onCheckedChange={(checked) => {
+                                                  setIsContractTabDirty(true);
+                                                  setJsonSubKeys((current) =>
+                                                    current.map((currentEntry, currentIndex) =>
+                                                      currentIndex === index
+                                                        ? {
+                                                            ...currentEntry,
+                                                            preventTraversal: checked === true,
+                                                          }
+                                                        : currentEntry,
+                                                    ),
+                                                  );
+                                                }}
+                                              />
+                                              <Label className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                                                Prevent Traversal
+                                              </Label>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ) : null}
+
+                                      {entry.validationType === "allowed-values" ? (
+                                        <div className="space-y-2">
+                                          <Label className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                                            Allowed Values
+                                          </Label>
+                                          <AllowedValuesChipEditor
+                                            values={entry.allowedValues
+                                              .split(/\r?\n/g)
+                                              .map((value) => value.trim())
+                                              .filter((value) => value.length > 0)}
+                                            onChange={(values) => {
+                                              setIsContractTabDirty(true);
+                                              setJsonSubKeys((current) =>
+                                                current.map((currentEntry, currentIndex) =>
+                                                  currentIndex === index
+                                                    ? {
+                                                        ...currentEntry,
+                                                        allowedValues: values.join("\n"),
+                                                      }
+                                                    : currentEntry,
+                                                ),
+                                              );
+                                            }}
+                                          />
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  ) : null}
+
+                                  <div className="flex justify-end">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      className="rounded-none px-3"
+                                      onClick={() => {
+                                        setIsContractTabDirty(true);
+                                        setJsonSubKeys((current) =>
+                                          current.filter(
+                                            (currentEntry) => currentEntry.id !== entry.id,
+                                          ),
+                                        );
+                                      }}
+                                    >
+                                      Remove Key
+                                    </Button>
+                                  </div>
+                                </div>
+                              </Card>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : null
+                  }
+                </form.Subscribe>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-x-10 gap-y-6">
@@ -657,9 +1215,17 @@ function FactEditorDialog({
             >
               Cancel
             </Button>
-            <Button className="rounded-none px-8" type="submit">
-              Save
-            </Button>
+            <form.Subscribe selector={(state) => state.values.factKey}>
+              {(factKey) => (
+                <Button
+                  className="rounded-none px-8"
+                  type="submit"
+                  disabled={factKey.trim().length === 0}
+                >
+                  Save
+                </Button>
+              )}
+            </form.Subscribe>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -1015,15 +1581,23 @@ export function MethodologyVersionFactsRoute() {
           }
         }}
       >
-        <DialogContent className="chiron-cut-frame-thick w-[min(28rem,calc(100vw-2rem))] p-6 sm:max-w-none">
+        <DialogContent className="chiron-cut-frame-thick w-[min(34rem,calc(100vw-2rem))] border-destructive/50 p-6 sm:max-w-none">
           <DialogHeader>
-            <DialogTitle className="text-base font-semibold uppercase tracking-[0.08em]">
+            <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-destructive">
+              <AlertTriangleIcon className="size-4" aria-hidden="true" />
+              <span>Destructive action</span>
+            </div>
+            <DialogTitle className="text-base font-semibold uppercase tracking-[0.08em] text-destructive">
               Delete Fact
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              This will remove this fact from the methodology contract.
+              This will permanently remove this fact from the methodology contract.
             </DialogDescription>
           </DialogHeader>
+          <div className="rounded-none border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive/90">
+            Removing this fact can invalidate workflow assumptions, prompts, and transition
+            references that depend on it.
+          </div>
           <DialogFooter className="gap-2">
             <Button
               variant="outline"
@@ -1032,8 +1606,12 @@ export function MethodologyVersionFactsRoute() {
             >
               Cancel
             </Button>
-            <Button className="rounded-none" onClick={() => void deleteFact()}>
-              Delete
+            <Button
+              variant="destructive"
+              className="rounded-none"
+              onClick={() => void deleteFact()}
+            >
+              Delete Fact Permanently
             </Button>
           </DialogFooter>
         </DialogContent>

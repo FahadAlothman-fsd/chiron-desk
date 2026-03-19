@@ -29,6 +29,7 @@ vi.mock("@/features/methodologies/workspace-shell", () => ({
 vi.mock("sonner", () => ({
   toast: {
     success: toastSuccessMock,
+    error: vi.fn(),
   },
 }));
 
@@ -48,6 +49,10 @@ function chooseOption(label: string, optionName: string) {
   const option = screen.getByRole("option", { name: optionName });
   fireEvent.mouseMove(option);
   fireEvent.click(option);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 function createTestHarness() {
@@ -71,8 +76,8 @@ function createTestHarness() {
         defaultValue: "https://example.com/repo.git",
         description: "Canonical repository source.",
         guidance: {
-          human: { short: "Provide the canonical source repository URL." },
-          agent: { intent: "Use the repo URL when creating workspace context." },
+          human: { markdown: "Provide the canonical source repository URL." },
+          agent: { markdown: "Use the repo URL when creating workspace context." },
         },
         validation: { kind: "none" },
       },
@@ -219,6 +224,11 @@ describe("methodology version facts route", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add Fact" }));
     expect((await screen.findAllByText("Contract")).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("Guidance").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole("button", { name: "Save" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByTestId("fact-key-required-message").textContent).toContain(
+      "Fact key is required to save.",
+    );
+    expect(createFactMock).not.toHaveBeenCalled();
     fireEvent.change(screen.getByLabelText("Display Name"), {
       target: { value: "Workspace Root" },
     });
@@ -237,6 +247,28 @@ describe("methodology version facts route", () => {
       code: "Enter",
     });
     expect(screen.getByText("greenfield")).toBeTruthy();
+    chooseOption("Fact Type", "json");
+    await waitFor(() => {
+      expect(screen.queryByText("Validation Type")).toBeNull();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add JSON Key" }));
+    fireEvent.change(screen.getByLabelText("Key Display Name"), {
+      target: { value: "Workspace Root Path" },
+    });
+    fireEvent.change(screen.getByLabelText("Key Name"), {
+      target: { value: "workspaceRoot" },
+    });
+    fireEvent.change(screen.getByLabelText("Key Value"), {
+      target: { value: "/repo" },
+    });
+    fireEvent.click(comboboxForField("Value Type"));
+    expect(screen.queryByRole("option", { name: "json" })).toBeNull();
+    const stringValueOption = screen.getByRole("option", { name: "string" });
+    fireEvent.mouseMove(stringValueOption);
+    fireEvent.click(stringValueOption);
+    expect(await screen.findByText("Value Validation Type")).toBeTruthy();
+    chooseOption("Value Validation Type", "path");
+    expect(await screen.findByText("Path Kind")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Guidance" }));
     expect(await screen.findByLabelText("Human Guidance")).toBeTruthy();
     expect(screen.getByLabelText("Agent Guidance")).toBeTruthy();
@@ -247,6 +279,22 @@ describe("methodology version facts route", () => {
 
     expect(await screen.findByText("Workspace Root")).toBeTruthy();
     expect(createFactMock).toHaveBeenCalled();
+    expect(createFactMock.mock.calls[0]?.[0]?.fact?.validation?.kind).toBe("json-schema");
+    const createdValidation: unknown = createFactMock.mock.calls[0]?.[0]?.fact?.validation;
+    const createdSchema =
+      isRecord(createdValidation) && isRecord(createdValidation["schema"])
+        ? createdValidation["schema"]
+        : {};
+    const createdProperties = isRecord(createdSchema.properties) ? createdSchema.properties : {};
+    const workspaceRoot = isRecord(createdProperties.workspaceRoot)
+      ? createdProperties.workspaceRoot
+      : {};
+    const workspaceRootValidation = isRecord(workspaceRoot["x-validation"])
+      ? workspaceRoot["x-validation"]
+      : {};
+
+    expect(workspaceRoot.type).toBe("string");
+    expect(workspaceRootValidation.kind).toBe("path");
     expect(toastSuccessMock).toHaveBeenCalledWith("Fact saved");
     expect(invalidateQueriesMock).toHaveBeenCalled();
 
@@ -262,9 +310,25 @@ describe("methodology version facts route", () => {
       target: { value: "Repository URL Updated" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Guidance" }));
+    const humanGuidanceField = (await screen.findByLabelText(
+      "Human Guidance",
+    )) as HTMLTextAreaElement;
+    const agentGuidanceField = screen.getByLabelText("Agent Guidance") as HTMLTextAreaElement;
+    expect(humanGuidanceField.value).toBe("Provide the canonical source repository URL.");
+    expect(agentGuidanceField.value).toBe("Use the repo URL when creating workspace context.");
     fireEvent.click(await screen.findByRole("button", { name: "Save" }));
     expect(await screen.findByText("Repository URL Updated")).toBeTruthy();
     expect(updateFactMock).toHaveBeenCalled();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Fact actions" })[1]!);
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Edit" }));
+    expect(await screen.findByDisplayValue("Workspace Root Path")).toBeTruthy();
+    expect(screen.getByDisplayValue("workspaceRoot")).toBeTruthy();
+    expect(screen.getByDisplayValue("/repo")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => {
+      expect(screen.queryByDisplayValue("Workspace Root Path")).toBeNull();
+    });
 
     fireEvent.click(screen.getAllByRole("button", { name: "Fact actions" })[0]!);
     fireEvent.click(await screen.findByRole("menuitem", { name: "Edit" }));
@@ -278,7 +342,8 @@ describe("methodology version facts route", () => {
 
     fireEvent.click(screen.getAllByRole("button", { name: "Fact actions" })[0]!);
     fireEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));
-    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(await screen.findByText("Destructive action")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Delete Fact Permanently" }));
 
     await waitFor(() => {
       expect(deleteFactMock).toHaveBeenCalled();

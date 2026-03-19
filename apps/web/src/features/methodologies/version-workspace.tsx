@@ -184,19 +184,49 @@ function toFactEditorValue(input: unknown, fallbackId?: string): FactEditorValue
   const humanSource = isRecord(guidanceSource.human) ? guidanceSource.human : {};
   const agentSource = isRecord(guidanceSource.agent) ? guidanceSource.agent : {};
 
-  const guidance = {
-    human: {
-      short: typeof humanSource.short === "string" ? humanSource.short : undefined,
-      long: typeof humanSource.long === "string" ? humanSource.long : undefined,
-      examples: Array.isArray(humanSource.examples) ? humanSource.examples.map(toGuidanceLine) : [],
-    },
-    agent: {
-      intent: typeof agentSource.intent === "string" ? agentSource.intent : undefined,
-      constraints: Array.isArray(agentSource.constraints)
-        ? agentSource.constraints.map(toGuidanceLine)
-        : [],
-      examples: Array.isArray(agentSource.examples) ? agentSource.examples.map(toGuidanceLine) : [],
-    },
+  const humanShort =
+    typeof humanSource.short === "string"
+      ? humanSource.short
+      : typeof humanSource.markdown === "string"
+        ? humanSource.markdown
+        : undefined;
+  const humanLong = typeof humanSource.long === "string" ? humanSource.long : undefined;
+  const humanExamples = Array.isArray(humanSource.examples)
+    ? humanSource.examples.map(toGuidanceLine)
+    : [];
+
+  const agentIntent =
+    typeof agentSource.intent === "string"
+      ? agentSource.intent
+      : typeof agentSource.markdown === "string"
+        ? agentSource.markdown
+        : undefined;
+  const agentConstraints = Array.isArray(agentSource.constraints)
+    ? agentSource.constraints.map(toGuidanceLine)
+    : [];
+  const agentExamples = Array.isArray(agentSource.examples)
+    ? agentSource.examples.map(toGuidanceLine)
+    : [];
+
+  const guidance: FactEditorValue["guidance"] = {
+    ...(humanShort || humanLong || humanExamples.length > 0
+      ? {
+          human: {
+            ...(humanShort ? { short: humanShort } : {}),
+            ...(humanLong ? { long: humanLong } : {}),
+            ...(humanExamples.length > 0 ? { examples: humanExamples } : {}),
+          },
+        }
+      : {}),
+    ...(agentIntent || agentConstraints.length > 0 || agentExamples.length > 0
+      ? {
+          agent: {
+            ...(agentIntent ? { intent: agentIntent } : {}),
+            ...(agentConstraints.length > 0 ? { constraints: agentConstraints } : {}),
+            ...(agentExamples.length > 0 ? { examples: agentExamples } : {}),
+          },
+        }
+      : {}),
   };
 
   let validation: FactEditorValue["validation"] = { kind: "none" };
@@ -235,14 +265,27 @@ function toFactEditorValue(input: unknown, fallbackId?: string): FactEditorValue
     };
   }
 
+  const name = typeof value.name === "string" ? value.name : undefined;
+  const descriptionSource = isRecord(value.description) ? value.description : undefined;
+  const descriptionHuman = isRecord(descriptionSource?.human) ? descriptionSource.human : {};
+  const descriptionAgent = isRecord(descriptionSource?.agent) ? descriptionSource.agent : {};
+  const description =
+    typeof value.description === "string"
+      ? value.description
+      : typeof descriptionHuman.markdown === "string"
+        ? descriptionHuman.markdown
+        : typeof descriptionAgent.markdown === "string"
+          ? descriptionAgent.markdown
+          : undefined;
+
   return {
     __uiId: typeof value.__uiId === "string" ? value.__uiId : (fallbackId ?? createFactEditorId()),
-    name: typeof value.name === "string" ? value.name : undefined,
+    ...(name ? { name } : {}),
     key: typeof value.key === "string" ? value.key : "",
     factType,
     defaultValue: value.defaultValue,
-    description: typeof value.description === "string" ? value.description : undefined,
-    guidance,
+    ...(description ? { description } : {}),
+    ...(guidance && (guidance.human || guidance.agent) ? { guidance } : {}),
     validation,
   };
 }
@@ -331,34 +374,41 @@ function sanitizeFact(fact: FactEditorValue): FactEditorValue {
     agentConstraints.length > 0 ||
     agentExamples.length > 0
       ? {
-          human:
-            humanShort || humanLong || humanExamples.length > 0
-              ? {
-                  short: humanShort,
-                  long: humanLong,
-                  examples: humanExamples,
-                }
-              : undefined,
-          agent:
-            agentIntent || agentConstraints.length > 0 || agentExamples.length > 0
-              ? {
-                  intent: agentIntent,
-                  constraints: agentConstraints,
-                  examples: agentExamples,
-                }
-              : undefined,
+          ...(humanShort || humanLong || humanExamples.length > 0
+            ? {
+                human: {
+                  ...(humanShort ? { short: humanShort } : {}),
+                  ...(humanLong ? { long: humanLong } : {}),
+                  ...(humanExamples.length > 0 ? { examples: humanExamples } : {}),
+                },
+              }
+            : {}),
+          ...(agentIntent || agentConstraints.length > 0 || agentExamples.length > 0
+            ? {
+                agent: {
+                  ...(agentIntent ? { intent: agentIntent } : {}),
+                  ...(agentConstraints.length > 0 ? { constraints: agentConstraints } : {}),
+                  ...(agentExamples.length > 0 ? { examples: agentExamples } : {}),
+                },
+              }
+            : {}),
         }
       : undefined;
 
-  const validation = normalizeFactValidation(fact.validation) as FactEditorValue["validation"];
+  const normalizedValidation = normalizeFactValidation(
+    fact.validation,
+  ) as FactEditorValue["validation"];
+  const validation: NonNullable<FactEditorValue["validation"]> = normalizedValidation ?? {
+    kind: "none",
+  };
 
   return {
-    name: name && name.length > 0 ? name : undefined,
+    ...(name && name.length > 0 ? { name } : {}),
     key,
     factType: fact.factType,
     defaultValue: fact.defaultValue,
-    description: description && description.length > 0 ? description : undefined,
-    guidance,
+    ...(description && description.length > 0 ? { description } : {}),
+    ...(guidance ? { guidance } : {}),
     validation,
   };
 }
