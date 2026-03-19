@@ -4,13 +4,8 @@ import { ORPCError } from "@orpc/server";
 import { Effect, Layer } from "effect";
 import { z } from "zod";
 
-import type { EligibilityService, MethodologyVersionService } from "@chiron/methodology-engine";
-import {
-  EligibilityService as EligibilityServiceTag,
-  MethodologyVersionService as MethodologyVersionServiceTag,
-} from "@chiron/methodology-engine";
-import type { ProjectContextService } from "@chiron/project-context";
-import { ProjectContextService as ProjectContextServiceTag } from "@chiron/project-context";
+import { EligibilityService, MethodologyVersionBoundaryService } from "@chiron/methodology-engine";
+import { ProjectContextService } from "@chiron/project-context";
 import { protectedProcedure, publicProcedure } from "../index";
 
 const createAndPinProjectInput = z.object({
@@ -62,7 +57,7 @@ function mapEffectError(err: unknown): never {
 
 function runEffect<
   A,
-  R extends MethodologyVersionService | EligibilityService | ProjectContextService,
+  R extends MethodologyVersionBoundaryService | EligibilityService | ProjectContextService,
 >(serviceLayer: Layer.Layer<R>, effect: Effect.Effect<A, unknown, R>): Promise<A> {
   return Effect.runPromise(
     effect.pipe(
@@ -73,7 +68,9 @@ function runEffect<
 }
 
 export function createProjectRouter(
-  serviceLayer: Layer.Layer<MethodologyVersionService | EligibilityService | ProjectContextService>,
+  serviceLayer: Layer.Layer<
+    MethodologyVersionBoundaryService | EligibilityService | ProjectContextService
+  >,
 ) {
   type ProjectionFactSchema = {
     key: string;
@@ -139,7 +136,7 @@ export function createProjectRouter(
       return runEffect(
         serviceLayer,
         Effect.gen(function* () {
-          const projectSvc = yield* ProjectContextServiceTag;
+          const projectSvc = yield* ProjectContextService;
           return yield* projectSvc.listProjects();
         }),
       );
@@ -151,7 +148,7 @@ export function createProjectRouter(
         return runEffect(
           serviceLayer,
           Effect.gen(function* () {
-            const projectSvc = yield* ProjectContextServiceTag;
+            const projectSvc = yield* ProjectContextService;
             const projectId = randomUUID();
             const project = yield* projectSvc.createProject(projectId, input.name);
             const result = yield* projectSvc.pinProjectMethodologyVersion(
@@ -176,12 +173,12 @@ export function createProjectRouter(
     getProjectDetails: publicProcedure.input(getProjectDetailsInput).handler(async ({ input }) => {
       return runEffect(
         serviceLayer as Layer.Layer<
-          MethodologyVersionService | EligibilityService | ProjectContextService
+          MethodologyVersionBoundaryService | EligibilityService | ProjectContextService
         >,
         Effect.gen(function* () {
-          const projectSvc = yield* ProjectContextServiceTag;
-          const methodologySvc = yield* MethodologyVersionServiceTag;
-          const eligibilitySvc = yield* EligibilityServiceTag;
+          const projectSvc = yield* ProjectContextService;
+          const methodologySvc = yield* MethodologyVersionBoundaryService;
+          const eligibilitySvc = yield* EligibilityService;
           const project = yield* projectSvc.getProjectById(input.projectId);
 
           if (!project) {

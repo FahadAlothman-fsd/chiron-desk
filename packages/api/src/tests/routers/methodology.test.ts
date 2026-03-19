@@ -3,10 +3,7 @@ import { call } from "@orpc/server";
 import { Effect, Layer } from "effect";
 import {
   MethodologyRepository,
-  MethodologyVersionService,
-  MethodologyVersionServiceLive,
-  LifecycleService,
-  LifecycleServiceLive,
+  MethodologyEngineL1Live,
   LifecycleRepository,
   EligibilityService,
   EligibilityServiceLive,
@@ -163,6 +160,20 @@ function makeTestRepo(): MethodologyRepository["Type"] & ProjectContextRepositor
           ),
       ),
     findVersionById: (id: string) => Effect.succeed(versions.get(id) ?? null),
+    archiveVersion: (versionId: string) =>
+      Effect.sync(() => {
+        const existing = versions.get(versionId) ?? null;
+        if (!existing) {
+          return null;
+        }
+        const archived: MethodologyVersionRow = {
+          ...existing,
+          status: "archived",
+          retiredAt: new Date(),
+        };
+        versions.set(versionId, archived);
+        return archived;
+      }),
     findVersionByMethodologyAndVersion: (methodologyId: string, version: string) =>
       Effect.succeed(
         [...versions.values()].find(
@@ -804,6 +815,13 @@ function makeServiceLayer() {
         displayName: typeof agentType.displayName === "string" ? agentType.displayName : null,
         description: typeof agentType.description === "string" ? agentType.description : null,
         persona: typeof agentType.persona === "string" ? agentType.persona : "",
+        promptTemplateJson:
+          typeof agentType.promptTemplate === "object" && agentType.promptTemplate !== null
+            ? agentType.promptTemplate
+            : typeof agentType.persona === "string"
+              ? { markdown: agentType.persona }
+              : null,
+        promptTemplateVersion: 1,
         defaultModelJson:
           typeof agentType.defaultModel === "object" && agentType.defaultModel !== null
             ? agentType.defaultModel
@@ -930,8 +948,7 @@ function makeServiceLayer() {
   const projectContextRepoLayer = Layer.succeed(ProjectContextRepository, projectRepo);
   const allRepos = Layer.mergeAll(repoLayer, lifecycleRepoLayer, projectContextRepoLayer);
   return Layer.mergeAll(
-    Layer.provide(Layer.effect(MethodologyVersionService, MethodologyVersionServiceLive), allRepos),
-    Layer.provide(Layer.effect(LifecycleService, LifecycleServiceLive), allRepos),
+    Layer.provide(MethodologyEngineL1Live, allRepos),
     Layer.provide(Layer.effect(EligibilityService, EligibilityServiceLive), allRepos),
     Layer.provide(ProjectContextServiceLive, allRepos),
   );
@@ -1106,6 +1123,8 @@ describe("methodology router", () => {
       expect(router.version.list).toBeDefined();
       expect(router.version.get).toBeDefined();
       expect(router.version.update).toBeDefined();
+      expect(versionRouter.updateMeta).toBeDefined();
+      expect(versionRouter.archive).toBeDefined();
       expect(router.version.validate).toBeDefined();
       expect(versionRouter.fact?.list).toBeDefined();
       expect(versionRouter.fact?.create).toBeDefined();
@@ -1202,6 +1221,46 @@ describe("methodology router", () => {
       expect(details.versions[0]?.id).toBe(created.version.id);
       expect(versions).toHaveLength(1);
       expect(versions[0]?.id).toBe(created.version.id);
+    });
+
+    it("updates and archives a draft version through version metadata routes", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const created = await call(
+        router.version.create,
+        {
+          methodologyKey: "version-meta-method",
+          displayName: "Version Meta Method",
+          version: "0.1.0",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const updated = await call(
+        router.version.updateMeta,
+        {
+          versionId: created.version.id,
+          displayName: "Version Meta Method Draft",
+          version: "0.2.0-draft",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      expect(updated.version.displayName).toBe("Version Meta Method Draft");
+      expect(updated.version.version).toBe("0.2.0-draft");
+
+      const archived = await call(
+        router.version.archive,
+        {
+          versionId: created.version.id,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      expect(archived.status).toBe("archived");
     });
 
     it("archives a methodology through catalog.delete instead of removing it outright", async () => {
@@ -2285,11 +2344,11 @@ describe("methodology router", () => {
         AUTHENTICATED_CTX,
       );
 
-      const result = await call(
+      const result = (await call(
         router.version.workspace.get,
         { versionId: created.version.id },
         PUBLIC_CTX,
-      );
+      )) as Record<string, unknown>;
 
       expect(result.id).toBe(created.version.id);
       expect(result.displayName).toBe("Workspace Bootstrap");

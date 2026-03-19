@@ -145,6 +145,9 @@ export class MethodologyRepository extends Context.Tag("MethodologyRepository")<
     readonly findVersionById: (
       id: string,
     ) => Effect.Effect<MethodologyVersionRow | null, RepositoryError>;
+    readonly archiveVersion: (
+      versionId: string,
+    ) => Effect.Effect<MethodologyVersionRow | null, RepositoryError>;
     readonly findVersionByMethodologyAndVersion: (
       methodologyId: string,
       version: string,

@@ -30,7 +30,12 @@ export function MethodologyDetailsRoute() {
   const detailsQuery = useQuery(detailsQueryOptions);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
+  const [isVersionEditDialogOpen, setIsVersionEditDialogOpen] = useState(false);
+  const [isVersionArchiveDialogOpen, setIsVersionArchiveDialogOpen] = useState(false);
   const [nextDisplayName, setNextDisplayName] = useState("");
+  const [selectedVersionId, setSelectedVersionId] = useState("");
+  const [nextVersionDisplayName, setNextVersionDisplayName] = useState("");
+  const [nextVersionTag, setNextVersionTag] = useState("");
   const createDraftMutation = useMutation(
     orpc.methodology.version.create.mutationOptions({
       onSuccess: async (result) => {
@@ -66,6 +71,28 @@ export function MethodologyDetailsRoute() {
         ]);
         setIsArchiveDialogOpen(false);
         void navigate({ to: "/methodologies" });
+      },
+    }),
+  );
+  const updateVersionMetadataMutation = useMutation(
+    orpc.methodology.version.updateMeta.mutationOptions({
+      onSuccess: async () => {
+        setIsVersionEditDialogOpen(false);
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: listQueryOptions.queryKey }),
+          queryClient.invalidateQueries({ queryKey: detailsQueryOptions.queryKey }),
+        ]);
+      },
+    }),
+  );
+  const archiveVersionMutation = useMutation(
+    orpc.methodology.version.archive.mutationOptions({
+      onSuccess: async () => {
+        setIsVersionArchiveDialogOpen(false);
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: listQueryOptions.queryKey }),
+          queryClient.invalidateQueries({ queryKey: detailsQueryOptions.queryKey }),
+        ]);
       },
     }),
   );
@@ -172,8 +199,32 @@ export function MethodologyDetailsRoute() {
             variant="outline"
             className="rounded-none"
             disabled={!row.original.isEditable}
+            onClick={() => {
+              if (!row.original.isEditable) {
+                return;
+              }
+              setSelectedVersionId(row.original.id);
+              setNextVersionDisplayName(row.original.displayName);
+              setNextVersionTag(row.original.version);
+              setIsVersionEditDialogOpen(true);
+            }}
           >
             {row.original.isEditable ? "Edit version" : "Locked"}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-none"
+            disabled={!row.original.isEditable}
+            onClick={() => {
+              if (!row.original.isEditable) {
+                return;
+              }
+              setSelectedVersionId(row.original.id);
+              setIsVersionArchiveDialogOpen(true);
+            }}
+          >
+            Archive version
           </Button>
         </div>
       ),
@@ -375,6 +426,108 @@ export function MethodologyDetailsRoute() {
                     onClick={() => archiveCatalogMutation.mutate({ methodologyKey: methodologyId })}
                   >
                     Confirm Archive
+                  </Button>
+                </div>
+              </DialogPrimitive.Popup>
+            </DialogPrimitive.Portal>
+          </DialogPrimitive.Root>
+
+          <DialogPrimitive.Root
+            open={isVersionEditDialogOpen}
+            onOpenChange={setIsVersionEditDialogOpen}
+          >
+            <DialogPrimitive.Portal>
+              <DialogPrimitive.Backdrop className="fixed inset-0 z-50 bg-black/30 backdrop-blur-[1px]" />
+              <DialogPrimitive.Popup className="fixed top-1/2 left-1/2 z-50 w-[min(92vw,30rem)] -translate-x-1/2 -translate-y-1/2 border border-border/80 bg-background p-4 shadow-lg">
+                <DialogPrimitive.Title className="text-sm font-semibold uppercase tracking-[0.12em]">
+                  Edit Version
+                </DialogPrimitive.Title>
+                <form
+                  className="mt-4 grid gap-3"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    updateVersionMetadataMutation.mutate({
+                      versionId: selectedVersionId,
+                      displayName: nextVersionDisplayName.trim(),
+                      version: nextVersionTag.trim(),
+                    });
+                  }}
+                >
+                  <label
+                    htmlFor="version-display-name-input"
+                    className="space-y-1 text-xs uppercase tracking-[0.14em] text-muted-foreground"
+                  >
+                    Version Display Name
+                    <input
+                      id="version-display-name-input"
+                      value={nextVersionDisplayName}
+                      onChange={(event) => setNextVersionDisplayName(event.target.value)}
+                      className="flex h-10 w-full rounded-none border border-input bg-background px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label
+                    htmlFor="version-tag-input"
+                    className="space-y-1 text-xs uppercase tracking-[0.14em] text-muted-foreground"
+                  >
+                    Version Tag
+                    <input
+                      id="version-tag-input"
+                      value={nextVersionTag}
+                      onChange={(event) => setNextVersionTag(event.target.value)}
+                      className="flex h-10 w-full rounded-none border border-input bg-background px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-none"
+                      onClick={() => setIsVersionEditDialogOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      className="rounded-none"
+                      disabled={updateVersionMetadataMutation.isPending}
+                    >
+                      Save Version
+                    </Button>
+                  </div>
+                </form>
+              </DialogPrimitive.Popup>
+            </DialogPrimitive.Portal>
+          </DialogPrimitive.Root>
+
+          <DialogPrimitive.Root
+            open={isVersionArchiveDialogOpen}
+            onOpenChange={setIsVersionArchiveDialogOpen}
+          >
+            <DialogPrimitive.Portal>
+              <DialogPrimitive.Backdrop className="fixed inset-0 z-50 bg-black/30 backdrop-blur-[1px]" />
+              <DialogPrimitive.Popup className="fixed top-1/2 left-1/2 z-50 w-[min(92vw,28rem)] -translate-x-1/2 -translate-y-1/2 border border-border/80 bg-background p-4 shadow-lg">
+                <DialogPrimitive.Title className="text-sm font-semibold uppercase tracking-[0.12em]">
+                  Archive Version
+                </DialogPrimitive.Title>
+                <DialogPrimitive.Description className="mt-2 text-sm text-muted-foreground">
+                  This archives the selected version and removes it from editable draft flow.
+                </DialogPrimitive.Description>
+                <div className="mt-4 flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-none"
+                    onClick={() => setIsVersionArchiveDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    className="rounded-none"
+                    disabled={archiveVersionMutation.isPending}
+                    onClick={() => archiveVersionMutation.mutate({ versionId: selectedVersionId })}
+                  >
+                    Confirm Version Archive
                   </Button>
                 </div>
               </DialogPrimitive.Popup>

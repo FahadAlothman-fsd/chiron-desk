@@ -5,11 +5,9 @@ import { createMethodologyRouter } from "./methodology";
 import { createProjectRouter } from "./project";
 import { Layer } from "effect";
 import {
-  MethodologyVersionService,
-  MethodologyVersionServiceLive,
+  MethodologyVersionBoundaryService,
+  MethodologyEngineL1Live,
   MethodologyRepository,
-  LifecycleService,
-  LifecycleServiceLive,
   EligibilityService,
   EligibilityServiceLive,
   LifecycleRepository,
@@ -27,13 +25,10 @@ export function createAppRouter(
 ) {
   const allRepos = Layer.mergeAll(repoLayer, lifecycleRepoLayer, projectContextRepoLayer);
   const methodologyServiceLayer = Layer.mergeAll(
-    Layer.provide(Layer.effect(MethodologyVersionService, MethodologyVersionServiceLive), allRepos),
-    Layer.provide(Layer.effect(LifecycleService, LifecycleServiceLive), allRepos),
+    Layer.provide(MethodologyEngineL1Live, allRepos),
     Layer.provide(Layer.effect(EligibilityService, EligibilityServiceLive), allRepos),
     Layer.provide(ProjectContextServiceLive, allRepos),
-  ) as Layer.Layer<
-    MethodologyVersionService | LifecycleService | EligibilityService | ProjectContextService
-  >;
+  ) as Layer.Layer<MethodologyVersionBoundaryService | EligibilityService | ProjectContextService>;
   return {
     healthCheck: publicProcedure.handler(() => {
       return "OK";
