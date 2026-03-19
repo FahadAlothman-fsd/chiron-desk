@@ -1,7 +1,7 @@
 ---
 project_name: "chiron"
 user_name: "Gondilf"
-date: "2026-02-23"
+date: "2026-03-19"
 sections_completed:
   - technology_stack
   - language_rules
@@ -98,6 +98,13 @@ _Version note: entries here are planning-time targets and may change during rese
 - `bun db:generate` - Generate database client/types
 - `bun db:studio` - Open Drizzle Studio
 
+## Methodology-Engine Boundary Update (2026-03-19)
+
+- Design-time methodology mutations are now routed through layered L1 boundary services.
+- Legacy/lifecycle compatibility seam has been removed from active composition.
+- `lifecycle-service.ts` has been deleted after migration.
+- Version and catalog destructive flows remain archive-not-delete.
+
 ## Implementation Note
 
 This context is intentionally documentation-first because existing code is being deprecated/reset. When new code lands, update this file to include any newly locked constraints.
@@ -129,4 +136,4 @@ This context is intentionally documentation-first because existing code is being
 
 - Update after each story that changes stack assumptions, ADR constraints, module boundaries, or command workflow.
 
-Last Updated: 2026-02-23
+Last Updated: 2026-03-19

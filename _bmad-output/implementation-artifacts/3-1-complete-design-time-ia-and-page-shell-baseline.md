@@ -1,6 +1,6 @@
 # Story 3.1: Complete Design-Time IA and Page Shell Baseline
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -663,10 +663,7 @@ Recorded the Story 3.1 API and web migration from draft-centric methodology proc
   - app shell version bootstrap uses `methodology.version.workspace.get`
   - command palette draft creation uses `methodology.version.create`
   - shallow read routes use `methodology.version.fact.list`, `agent.list`, `dependencyDefinition.list`, and `workUnit.list/get`
-- Two top-level draft-centric web mutations intentionally remain in place for now because no better version-owned mutation seam has been implemented yet:
-  - `orpc.methodology.updateDraftLifecycle`
-  - `orpc.methodology.updateDraftWorkflows`
-- Those remaining seams are currently used only where Story 3.1 still persists through lifecycle/workflow payload updates rather than dedicated entity-specific mutations.
+- Historical snapshot (superseded on 2026-03-19): at this point in Story 3.1, draft-centric seams were still present for lifecycle/workflow payload updates. That is no longer true in the current architecture after the layered refactor.
 
 ### Files updated in the namespace slice
 
@@ -770,9 +767,7 @@ Commands run for the mutation-surface slice:
 
 - This slice completes the intended Story 3.1 mutation surface for methodology catalog actions and the fact/agent/dependency-definition entity layer.
 - Work Units remain shallow in Story 3.1.
-- Two narrow compatibility seams still remain for broader lifecycle/workflow persistence in routes that have not yet been fully decomposed into deeper entity-specific mutations:
-  - `orpc.methodology.updateDraftLifecycle`
-  - `orpc.methodology.updateDraftWorkflows`
+- Historical note: the former compatibility seams (`orpc.methodology.updateDraftLifecycle`, `orpc.methodology.updateDraftWorkflows`) were removed in the 2026-03-19 methodology-engine layered refactor.
 
 ## Post-Implementation Addendum (2026-03-18) - L1 Completion
 
@@ -886,3 +881,23 @@ Commands run for the L1 completion slice:
 
 - Execution module/service internals are provisional and may change heavily during L1/L2/L3 implementation hardening.
 - Stability anchors are the design-time contract boundary and runtime-facing published contract/projection boundary.
+
+## Methodology-Engine Refactor Completion Addendum (2026-03-19)
+
+### Completion status
+
+- Lifecycle/legacy compatibility seam removed from active methodology-engine composition.
+- API methodology and project routers now consume boundary-first L1 services.
+- `packages/methodology-engine/src/lifecycle-service.ts` removed after migration.
+
+### Verified outcomes
+
+- Version CRUD and archive-not-delete behavior remained intact after seam removal.
+- L1 boundary characterization and service tests passed.
+- API methodology router tests and web methodology integration tests passed.
+- Scoped build for `@chiron/api`, `@chiron/methodology-engine`, and `web` passed.
+
+### Reference commits
+
+- `8c0a93313` — refactor(methodology): remove lifecycle compatibility seam and finalize version archive flows
+- `74cbb68b5` — merge `chore/l1-layers-scaffold` into `feat/effect-migration`

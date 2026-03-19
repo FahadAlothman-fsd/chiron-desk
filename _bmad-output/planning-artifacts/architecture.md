@@ -3,6 +3,8 @@
 Date: 2026-02-21
 Status: Canonical architecture reference for reset + rebuild (updated after Correct Course resequencing)
 
+Post-implementation addendum (2026-03-19): methodology-engine layered refactor is now implemented in active branch history. L1 boundary services own version-level mutations, lifecycle compatibility seam is removed from active composition, and API routing is boundary-first.
+
 Pending course-correction note (2026-03-14): this architecture document predates completion of the approved Tauri -> Electron cutover. It remains authoritative for domain/module boundaries, but desktop-host/runtime sections must be revised again after `CC-Foundation` implementation finishes and web + desktop + server parity is proven.
 
 ## 1) Architectural Core
