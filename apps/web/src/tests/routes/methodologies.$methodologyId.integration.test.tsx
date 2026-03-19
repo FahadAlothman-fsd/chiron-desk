@@ -29,6 +29,26 @@ vi.mock("@/features/methodologies/workspace-shell", () => ({
 import { MethodologyDetailsRoute } from "../../routes/methodologies.$methodologyId";
 
 function createTestHarness() {
+  const updateVersionMetaMock = vi.fn(
+    async ({
+      versionId,
+      displayName,
+      version,
+    }: {
+      versionId: string;
+      displayName: string;
+      version: string;
+    }) => ({
+      id: versionId,
+      displayName,
+      version,
+      status: "draft",
+    }),
+  );
+  const archiveVersionMock = vi.fn(async ({ versionId }: { versionId: string }) => ({
+    id: versionId,
+    status: "archived",
+  }));
   const updateCatalogMock = vi.fn(
     async ({ methodologyKey, displayName }: { methodologyKey: string; displayName: string }) => ({
       methodologyId: "mdef_story_2_7_bmad_v1",
@@ -90,6 +110,8 @@ function createTestHarness() {
       },
       version: {
         create: { mutationOptions: () => ({ mutationFn: async () => null }) },
+        updateMeta: { mutationOptions: () => ({ mutationFn: updateVersionMetaMock }) },
+        archive: { mutationOptions: () => ({ mutationFn: archiveVersionMock }) },
       },
       catalog: {
         update: { mutationOptions: () => ({ mutationFn: updateCatalogMock }) },
@@ -105,7 +127,13 @@ function createTestHarness() {
   useRouteContextMock.mockReturnValue({ orpc, queryClient });
   useLocationMock.mockReturnValue({ pathname: "/methodologies/bmad.v1" });
 
-  return { archiveCatalogMock, queryClient, updateCatalogMock };
+  return {
+    archiveCatalogMock,
+    archiveVersionMock,
+    queryClient,
+    updateCatalogMock,
+    updateVersionMetaMock,
+  };
 }
 
 describe("methodology details route", () => {
@@ -198,6 +226,55 @@ describe("methodology details route", () => {
       ];
       expect(firstCall?.[0]).toEqual({
         methodologyKey: "bmad.v1",
+      });
+    });
+  });
+
+  it("edits and archives a draft version through version dialogs", async () => {
+    const { archiveVersionMock, queryClient, updateVersionMetaMock } = createTestHarness();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MethodologyDetailsRoute />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("Version Ledger")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit version" }));
+    const versionDisplayNameInput = await screen.findByLabelText("Version Display Name");
+    const versionTagInput = await screen.findByLabelText("Version Tag");
+
+    fireEvent.change(versionDisplayNameInput, { target: { value: "BMAD v2 Draft" } });
+    fireEvent.change(versionTagInput, { target: { value: "v2-draft-updated" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Version" }));
+
+    await waitFor(() => {
+      expect(updateVersionMetaMock).toHaveBeenCalled();
+      const firstCall = updateVersionMetaMock.mock.calls[0] as unknown as [
+        { versionId: string; displayName: string; version: string },
+        unknown?,
+      ];
+      expect(firstCall?.[0]).toEqual({
+        versionId: "mver_bmad_project_context_only_draft",
+        displayName: "BMAD v2 Draft",
+        version: "v2-draft-updated",
+      });
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    const archiveButtons = screen.getAllByRole("button", { name: "Archive version" });
+    fireEvent.click(archiveButtons[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Version Archive" }));
+
+    await waitFor(() => {
+      expect(archiveVersionMock).toHaveBeenCalled();
+      const firstCall = archiveVersionMock.mock.calls[0] as unknown as [
+        { versionId: string },
+        unknown?,
+      ];
+      expect(firstCall?.[0]).toEqual({
+        versionId: "mver_bmad_project_context_only_draft",
       });
     });
   });

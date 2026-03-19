@@ -5,7 +5,7 @@ import type {
 import { Context, Effect, Layer } from "effect";
 
 import { RepositoryError, VersionNotDraftError, VersionNotFoundError } from "../errors";
-import { MethodologyVersionService as LegacyMethodologyVersionService } from "../version-service";
+import { MethodologyVersionServiceLive as CoreMethodologyVersionServiceLive } from "../version-service";
 
 export class MethodologyValidationService extends Context.Tag("MethodologyValidationService")<
   MethodologyValidationService,
@@ -15,15 +15,18 @@ export class MethodologyValidationService extends Context.Tag("MethodologyValida
       actorId: string | null,
     ) => Effect.Effect<
       ValidationResult,
-      VersionNotFoundError | VersionNotDraftError | RepositoryError,
-      LegacyMethodologyVersionService
+      VersionNotFoundError | VersionNotDraftError | RepositoryError
     >;
   }
 >() {}
 
-export const MethodologyValidationServiceLive = Layer.succeed(MethodologyValidationService, {
-  validateDraftVersion: (input, actorId) =>
-    Effect.flatMap(LegacyMethodologyVersionService, (service) =>
-      service.validateDraftVersion(input, actorId),
-    ),
-});
+export const MethodologyValidationServiceLive = Layer.effect(
+  MethodologyValidationService,
+  Effect.gen(function* () {
+    const coreService = yield* CoreMethodologyVersionServiceLive;
+
+    return MethodologyValidationService.of({
+      validateDraftVersion: (input, actorId) => coreService.validateDraftVersion(input, actorId),
+    });
+  }),
+);

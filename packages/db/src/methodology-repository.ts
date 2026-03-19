@@ -429,6 +429,17 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
         return rows[0] ? toVersionRow(rows[0]) : null;
       }),
 
+    archiveVersion: (versionId: string) =>
+      dbEffect("methodology.archiveVersion", async () => {
+        const archived = await db
+          .update(methodologyVersions)
+          .set({ status: "archived", retiredAt: new Date() })
+          .where(eq(methodologyVersions.id, versionId))
+          .returning();
+
+        return archived[0] ? toVersionRow(archived[0]) : null;
+      }),
+
     findVersionByMethodologyAndVersion: (methodologyId: string, version: string) =>
       dbEffect("methodology.findVersionByMethodologyAndVersion", async () => {
         const rows = await db
