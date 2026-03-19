@@ -1,0 +1,23 @@
+_bmad-output/implementation-artifacts/3-2-complete-work-unit-l2-tabs-overview-workflows-artifact-slots-facts-state-machine.md
+  cbf194a4f18334a3 1-2,4-55,57-58,60-230,232-262,272,277,285-450,454-770,774-787,789-791,801-803,813-830,833-857
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "7945455e03fc5f6bdb79dc54379191d69b6a68af",
+  "prompts": {
+    "cbf194a4f18334a3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2f877e0f1ffe6W7KumR0VJ7mUd",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 1024,
+      "total_deletions": 207,
+      "accepted_lines": 806,
+      "overriden_lines": 7
+    }
+  }
+}
