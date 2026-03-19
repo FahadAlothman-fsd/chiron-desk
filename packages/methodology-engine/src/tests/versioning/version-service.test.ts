@@ -785,7 +785,7 @@ function makeTestRepo() {
       ),
   });
 
-  return { repo, lifecycleRepo };
+  return { repo, lifecycleRepo, lifecycleDataByVersion };
 }
 
 function makeServiceLayer() {
@@ -941,7 +941,7 @@ describe("MethodologyVersionService", () => {
       expect(result.version.methodologyId).toBeTruthy();
     });
 
-    it("rejects duplicate version for same methodology", async () => {
+    it("rejects creating a second draft when one already exists", async () => {
       const error = await Effect.runPromise(
         Effect.gen(function* () {
           const svc = yield* MethodologyVersionService;
@@ -950,7 +950,7 @@ describe("MethodologyVersionService", () => {
         }).pipe(Effect.flip, Effect.provide(makeServiceLayer())),
       );
 
-      expect(error._tag).toBe("DuplicateVersionError");
+      expect(error._tag).toBe("DraftVersionAlreadyExistsError");
     });
 
     it("rejects invalid definition JSON", async () => {
@@ -1314,19 +1314,20 @@ describe("MethodologyVersionService", () => {
             },
             TEST_ACTOR_ID,
           );
-          const second = yield* svc.createDraftVersion(
-            {
-              ...MINIMAL_INPUT,
-              methodologyKey: "dup-methodology",
-              version: "0.1.0-draft-b",
-            },
-            TEST_ACTOR_ID,
-          );
 
           yield* svc.publishDraftVersion(
             {
               versionId: first.version.id,
               publishedVersion: "1.0.0",
+            },
+            TEST_ACTOR_ID,
+          );
+
+          const second = yield* svc.createDraftVersion(
+            {
+              ...MINIMAL_INPUT,
+              methodologyKey: "dup-methodology",
+              version: "0.1.0-draft-b",
             },
             TEST_ACTOR_ID,
           );
@@ -1668,6 +1669,48 @@ describe("MethodologyVersionService", () => {
           agent: { markdown: "Draft the normalized intake summary." },
         },
       });
+    });
+
+    it("extracts work unit description text from lifecycle repository json fields", async () => {
+      const { repo, lifecycleRepo, lifecycleDataByVersion } = makeTestRepo();
+      const repoLayer = Layer.succeed(MethodologyRepository, repo);
+      const lifecycleRepoLayer = Layer.succeed(LifecycleRepository, lifecycleRepo);
+      const serviceLayer = Layer.effect(MethodologyVersionService, MethodologyVersionServiceLive);
+
+      const projection = await Effect.runPromise(
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionService;
+          const created = yield* svc.createDraftVersion(MINIMAL_INPUT, TEST_ACTOR_ID);
+
+          const lifecycleData = lifecycleDataByVersion.get(created.version.id);
+          if (!lifecycleData) {
+            throw new Error("Expected lifecycle data for created draft version");
+          }
+
+          const existingWorkUnit = lifecycleData.workUnitTypes[0];
+          if (!existingWorkUnit) {
+            throw new Error("Expected at least one work unit in lifecycle data");
+          }
+
+          lifecycleData.workUnitTypes[0] = {
+            ...existingWorkUnit,
+            descriptionJson: { text: "Description loaded from lifecycle json" },
+          };
+
+          return yield* svc.getDraftProjection(created.version.id);
+        }).pipe(
+          Effect.provide(
+            Layer.mergeAll(
+              repoLayer,
+              lifecycleRepoLayer,
+              Layer.provide(serviceLayer, Layer.merge(repoLayer, lifecycleRepoLayer)),
+            ),
+          ),
+        ),
+      );
+
+      const firstWorkUnit = projection.workUnitTypes[0] as { description?: string } | undefined;
+      expect(firstWorkUnit?.description).toBe("Description loaded from lifecycle json");
     });
 
     it("returns VersionNotFoundError when projection version does not exist", async () => {

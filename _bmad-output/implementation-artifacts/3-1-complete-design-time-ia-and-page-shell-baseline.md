@@ -901,3 +901,78 @@ Commands run for the L1 completion slice:
 
 - `8c0a93313` — refactor(methodology): remove lifecycle compatibility seam and finalize version archive flows
 - `74cbb68b5` — merge `chore/l1-layers-scaffold` into `feat/effect-migration`
+
+## Current Backend Architecture Snapshot Addendum (2026-03-19)
+
+### Why this addendum exists
+
+- This section records the **current repo state** after the L1 layering work so Story 3.1 history stays aligned with the actual backend implementation.
+- It captures service ownership, router wiring, and the still-active compatibility-shaped procedures that are part of the current API surface.
+
+### Active service layering (current)
+
+- `packages/methodology-engine/src/layers/live.ts` composes the L1 methodology layer as:
+  - `MethodologyVersionServiceLive`
+  - `MethodologyValidationServiceLive`
+  - `PublishedMethodologyServiceLive`
+- `packages/methodology-engine/src/index.ts` exports the L1 boundary alias:
+  - `MethodologyVersionService` as `MethodologyVersionBoundaryService`
+- `packages/api/src/routers/index.ts` wires runtime layers by providing repos into:
+  - `MethodologyEngineL1Live`
+  - `EligibilityServiceLive`
+  - `ProjectContextServiceLive`
+
+### Current backend ownership model
+
+- **API router layer (`packages/api/src/routers/methodology.ts`)**
+  - maps transport procedures and namespace aliases (`catalog.*`, `version.*`) to service calls
+  - retains top-level procedures for project pinning and transition eligibility
+- **Boundary service layer (`packages/methodology-engine/src/services/methodology-version-service.ts`)**
+  - exposes draft/version/catalog operations and Story 3.1 shallow entity CRUD entry points
+  - keeps lifecycle/workflow update entry points (`updateDraftLifecycle`, `updateDraftWorkflows`)
+- **Core version service (`packages/methodology-engine/src/version-service.ts`)**
+  - remains the deeper implementation for draft lifecycle, validation, publication, and persistence orchestration
+- **Repository layer (`packages/methodology-engine/src/repository.ts` + `lifecycle-repository.ts`)**
+  - persists methodology/version and lifecycle-specific structures through Effect `Context.Tag` boundaries
+
+### API namespace and behavior notes (current)
+
+- `catalog` aliases exist and route to methodology aggregate actions:
+  - `list`, `create`, `get`, `update`, `delete` (archive)
+- `version` aliases exist and route to version aggregate actions:
+  - `list`, `create`, `get`, `update`, `updateMeta`, `archive`, `validate`, `workspace.get`, `getLineage`, `publish`, `getPublicationEvidence`
+- Story 3.1 shallow entity aliases remain under `version`:
+  - `fact.{list,create,update,delete}`
+  - `agent.{list,create,update,delete}`
+  - `dependencyDefinition.{list,create,update,delete}`
+  - `workUnit.{list,create,get,updateMeta,delete}`
+- Important current mapping detail:
+  - `version.workUnit.delete` currently aliases `router.updateDraftLifecycle` (full lifecycle payload path), not a dedicated work-unit-only delete transport path.
+
+### Invariants currently enforced in service layer
+
+- Draft mutability guard is enforced before lifecycle/workflow mutations (`VersionNotDraftError` path).
+- Duplicate and existence checks remain active for dependency definitions (`DuplicateDependencyDefinitionError`, `DependencyDefinitionNotFoundError`).
+- Validation/decode and repository failure categories are preserved through typed Effect error channels and mapped by API router error handling.
+
+### Files reviewed for this addendum
+
+- `packages/methodology-engine/src/index.ts`
+- `packages/methodology-engine/src/layers/live.ts`
+- `packages/methodology-engine/src/services/methodology-version-service.ts`
+- `packages/methodology-engine/src/version-service.ts`
+- `packages/methodology-engine/src/repository.ts`
+- `packages/methodology-engine/src/lifecycle-repository.ts`
+- `packages/api/src/routers/index.ts`
+- `packages/api/src/routers/methodology.ts`
+
+### Verification evidence for this documentation update
+
+1. `grep` over `packages/methodology-engine/src/services` and `packages/methodology-engine/src/layers` to confirm current service tags and layer composition.
+2. `read` verification of:
+   - `packages/methodology-engine/src/index.ts`
+   - `packages/methodology-engine/src/layers/live.ts`
+   - `packages/methodology-engine/src/services/methodology-version-service.ts`
+   - `packages/api/src/routers/index.ts`
+   - `packages/api/src/routers/methodology.ts`
+3. `grep` verification of active router procedures including `updateDraftLifecycle` and `updateDraftWorkflows` usage in `packages/api/src/routers/methodology.ts`.

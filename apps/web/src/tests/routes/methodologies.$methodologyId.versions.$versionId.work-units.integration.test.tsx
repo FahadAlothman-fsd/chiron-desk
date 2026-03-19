@@ -23,19 +23,11 @@ const {
   })),
 }));
 
-vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children }: { children: ReactNode }) => <a href="/">{children}</a>,
-  createFileRoute: () => (options: Record<string, unknown>) => ({
-    ...options,
-    useParams: useParamsMock,
-    useSearch: useSearchMock,
-    useRouteContext: useRouteContextMock,
-    useNavigate: () => useNavigateMock,
-  }),
-}));
+const draftQueryKey = ["rpc", "methodology", "version", "workUnit", "list", "draft-v3"];
+const detailsQueryKey = ["rpc", "methodology", "details", "equity-core"];
 
-function createRouteContext() {
-  const draftProjection = {
+function createDraftProjection() {
+  return {
     workUnitTypes: [
       {
         key: "WU.INTAKE",
@@ -89,22 +81,37 @@ function createRouteContext() {
       },
     ],
   };
+}
 
+let draftProjectionState = createDraftProjection();
+
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ children }: { children: ReactNode }) => <a href="/">{children}</a>,
+  createFileRoute: () => (options: Record<string, unknown>) => ({
+    ...options,
+    useParams: useParamsMock,
+    useSearch: useSearchMock,
+    useRouteContext: useRouteContextMock,
+    useNavigate: () => useNavigateMock,
+  }),
+}));
+
+function createRouteContext() {
   return {
     orpc: {
       methodology: {
         getMethodologyDetails: {
-          queryOptions: ({ input }: { input: { methodologyKey: string } }) => ({
-            queryKey: ["methodology", "details", input.methodologyKey],
+          queryOptions: (_options: { input: { methodologyKey: string } }) => ({
+            queryKey: detailsQueryKey,
             queryFn: async () => ({ versions: [] }),
           }),
         },
         version: {
           workUnit: {
             list: {
-              queryOptions: ({ input }: { input: { versionId: string } }) => ({
-                queryKey: ["methodology", "draft", input.versionId],
-                queryFn: async () => draftProjection,
+              queryOptions: (_options: { input: { versionId: string } }) => ({
+                queryKey: draftQueryKey,
+                queryFn: async () => draftProjectionState,
               }),
             },
             create: {
@@ -137,6 +144,7 @@ beforeEach(() => {
   useParamsMock.mockReturnValue({ methodologyId: "equity-core", versionId: "draft-v3" });
   useSearchMock.mockReturnValue({ view: "graph", selected: "WU.INTAKE" });
   useRouteContextMock.mockReturnValue(createRouteContext());
+  draftProjectionState = createDraftProjection();
   createWorkUnitMutationSpy.mockClear();
   updateWorkUnitMutationSpy.mockClear();
 });
@@ -260,12 +268,46 @@ describe("methodology version work units l1 route", () => {
   });
 
   it("creates a work unit through Contract and Guidance tabs", async () => {
+    createWorkUnitMutationSpy.mockImplementationOnce(async (...args: unknown[]) => {
+      const [{ workUnitType }] = args as [
+        { workUnitType: (typeof draftProjectionState.workUnitTypes)[number] },
+      ];
+      draftProjectionState = {
+        ...draftProjectionState,
+        workUnitTypes: [
+          ...draftProjectionState.workUnitTypes,
+          {
+            key: workUnitType.key,
+            displayName: workUnitType.displayName,
+            description: workUnitType.description,
+            guidance: workUnitType.guidance,
+            cardinality: workUnitType.cardinality,
+            lifecycleStates: [{ key: "draft" }],
+            lifecycleTransitions: [],
+            factSchemas: [],
+          },
+        ],
+      };
+
+      return {
+        validation: { valid: true, diagnostics: [] },
+      };
+    });
+
     const { MethodologyVersionWorkUnitsRoute } =
       await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
 
     renderWithQueryClient(<MethodologyVersionWorkUnitsRoute />);
 
     fireEvent.click(await screen.findByRole("button", { name: "+ Add Work Unit" }));
+
+    expect(screen.getByRole("button", { name: "Close" })).toBeTruthy();
+    expect(screen.getByText("Contract").closest("div")?.className.includes("border-b")).toBe(true);
+    expect(
+      screen.queryByText("/", {
+        selector: "span.text-xs.text-muted-foreground",
+      }),
+    ).toBeNull();
 
     expect((await screen.findAllByText("Contract")).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("Guidance").length).toBeGreaterThanOrEqual(1);
@@ -322,6 +364,10 @@ describe("methodology version work units l1 route", () => {
         }),
       }),
     );
+
+    await waitFor(() => {
+      expect(screen.getAllByText("New Step").length).toBeGreaterThan(0);
+    });
   });
 
   it("opens edit with the same tabbed editor prefilled from the selected work unit", async () => {
@@ -355,6 +401,31 @@ describe("methodology version work units l1 route", () => {
     ).toBeTruthy();
   });
 
+  it("normalizes json-style work-unit descriptions before opening the editor", async () => {
+    draftProjectionState = {
+      ...createDraftProjection(),
+      workUnitTypes: createDraftProjection().workUnitTypes.map((workUnit) =>
+        workUnit.key === "WU.INTAKE"
+          ? {
+              ...workUnit,
+              description: { text: "Description from lifecycle json" } as unknown as string,
+            }
+          : workUnit,
+      ),
+    };
+
+    useRouteContextMock.mockReturnValue(createRouteContext());
+
+    const { MethodologyVersionWorkUnitsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitsRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit Work Unit" }));
+
+    expect(await screen.findByDisplayValue("Description from lifecycle json")).toBeTruthy();
+  });
+
   it("surfaces a human-readable error when create work unit fails", async () => {
     createWorkUnitMutationSpy.mockRejectedValueOnce(new Error("BAD_REQUEST"));
 
@@ -378,6 +449,27 @@ describe("methodology version work units l1 route", () => {
   });
 
   it("saves edited work-unit metadata through updateMeta", async () => {
+    updateWorkUnitMutationSpy.mockImplementationOnce(async (...args: unknown[]) => {
+      const [{ workUnitType }] = args as [
+        { workUnitType: Partial<(typeof draftProjectionState.workUnitTypes)[number]> },
+      ];
+      draftProjectionState = {
+        ...draftProjectionState,
+        workUnitTypes: draftProjectionState.workUnitTypes.map((workUnit) =>
+          workUnit.key === "WU.INTAKE"
+            ? {
+                ...workUnit,
+                ...workUnitType,
+              }
+            : workUnit,
+        ),
+      };
+
+      return {
+        validation: { valid: true, diagnostics: [] },
+      };
+    });
+
     const { MethodologyVersionWorkUnitsRoute } =
       await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
 
@@ -407,6 +499,27 @@ describe("methodology version work units l1 route", () => {
         }),
       }),
     );
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Intake Updated").length).toBeGreaterThan(0);
+    });
+  });
+
+  it("closes a pristine edit dialog without discard confirmation", async () => {
+    const { MethodologyVersionWorkUnitsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitsRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit Work Unit" }));
+    expect(await screen.findByLabelText("Work Unit Key")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("Discard unsaved changes?")).toBeNull();
+      expect(screen.queryByLabelText("Work Unit Key")).toBeNull();
+    });
   });
 
   it("shows dirty indicators and confirms cancel when dialog has unsaved changes", async () => {

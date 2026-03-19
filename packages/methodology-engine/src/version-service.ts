@@ -475,7 +475,15 @@ function asCanonicalFactType(value: unknown): "string" | "number" | "boolean" | 
 }
 
 function extractText(value: unknown): string | null {
-  return typeof value === "string" ? value : null;
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (typeof value !== "object" || value === null || !("text" in value)) {
+    return null;
+  }
+
+  return typeof value.text === "string" ? value.text : null;
 }
 
 function asModelReference(value: unknown): { provider: string; model: string } | undefined {
@@ -566,14 +574,14 @@ function loadCanonicalLifecycleDefinition(
         return {
           key: workUnit.key,
           displayName: extractText(workUnit.displayName),
-          description: workUnit.descriptionJson,
+          description: extractText(workUnit.descriptionJson),
           guidance:
             (workUnit.guidanceJson as WorkUnitTypeDefinition["guidance"] | null) ?? undefined,
           cardinality: asCardinality(workUnit.cardinality),
           lifecycleStates: states.map((state) => ({
             key: state.key,
             displayName: extractText(state.displayName),
-            description: state.descriptionJson,
+            description: extractText(state.descriptionJson),
           })),
           lifecycleTransitions: transitions.map((transition) => ({
             transitionKey: transition.transitionKey,

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Layers3Icon, RectangleHorizontalIcon } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { WorkUnitsGraphView } from "@/features/methodologies/work-units-graph-view";
@@ -39,6 +40,40 @@ export const Route = createFileRoute(
   component: MethodologyVersionWorkUnitsRoute,
 });
 
+type WorkUnitFormValues = {
+  key: string;
+  displayName: string;
+  description: string;
+  cardinality: "one_per_project" | "many_per_project";
+  humanGuidance: string;
+  agentGuidance: string;
+};
+
+const emptyWorkUnitFormValues: WorkUnitFormValues = {
+  key: "",
+  displayName: "",
+  description: "",
+  cardinality: "many_per_project",
+  humanGuidance: "",
+  agentGuidance: "",
+};
+
+function extractWorkUnitText(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (
+    value &&
+    typeof value === "object" &&
+    typeof (value as { text?: unknown }).text === "string"
+  ) {
+    return (value as { text: string }).text;
+  }
+
+  return "";
+}
+
 export function MethodologyVersionWorkUnitsRoute() {
   const { methodologyId, versionId } = Route.useParams();
   const search = Route.useSearch();
@@ -46,17 +81,16 @@ export function MethodologyVersionWorkUnitsRoute() {
   const navigate = Route.useNavigate();
   const queryClient = useQueryClient();
 
-  const detailsQuery = useQuery(
-    orpc.methodology.getMethodologyDetails.queryOptions({
-      input: { methodologyKey: methodologyId },
-    }),
-  );
+  const detailsQueryOptions = orpc.methodology.getMethodologyDetails.queryOptions({
+    input: { methodologyKey: methodologyId },
+  });
+  const draftQueryOptions = orpc.methodology.version.workUnit.list.queryOptions({
+    input: { versionId },
+  });
 
-  const draftQuery = useQuery(
-    orpc.methodology.version.workUnit.list.queryOptions({
-      input: { versionId },
-    }),
-  );
+  const detailsQuery = useQuery(detailsQueryOptions);
+
+  const draftQuery = useQuery(draftQueryOptions);
 
   const draftProjection = (draftQuery.data ?? null) as {
     factDefinitions?: ReadonlyArray<{
@@ -73,7 +107,7 @@ export function MethodologyVersionWorkUnitsRoute() {
     workUnitTypes?: ReadonlyArray<{
       key?: string;
       displayName?: string;
-      description?: string;
+      description?: unknown;
       guidance?: {
         human?: { markdown?: string };
         agent?: { markdown?: string };
@@ -112,18 +146,21 @@ export function MethodologyVersionWorkUnitsRoute() {
   >("many_per_project");
   const [newWorkUnitHumanGuidance, setNewWorkUnitHumanGuidance] = useState("");
   const [newWorkUnitAgentGuidance, setNewWorkUnitAgentGuidance] = useState("");
+  const [initialWorkUnitFormValues, setInitialWorkUnitFormValues] =
+    useState<WorkUnitFormValues>(emptyWorkUnitFormValues);
   const [createError, setCreateError] = useState<string | null>(null);
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
   const newWorkUnitKeyRef = useRef<HTMLInputElement | null>(null);
 
   const isContractTabDirty =
-    newWorkUnitKey.trim().length > 0 ||
-    newWorkUnitDisplayName.trim().length > 0 ||
-    newWorkUnitDescription.trim().length > 0 ||
-    newWorkUnitCardinality !== "many_per_project";
+    newWorkUnitKey !== initialWorkUnitFormValues.key ||
+    newWorkUnitDisplayName !== initialWorkUnitFormValues.displayName ||
+    newWorkUnitDescription !== initialWorkUnitFormValues.description ||
+    newWorkUnitCardinality !== initialWorkUnitFormValues.cardinality;
 
   const isGuidanceTabDirty =
-    newWorkUnitHumanGuidance.trim().length > 0 || newWorkUnitAgentGuidance.trim().length > 0;
+    newWorkUnitHumanGuidance !== initialWorkUnitFormValues.humanGuidance ||
+    newWorkUnitAgentGuidance !== initialWorkUnitFormValues.agentGuidance;
 
   const isCreateDialogDirty = isContractTabDirty || isGuidanceTabDirty;
 
@@ -195,17 +232,22 @@ export function MethodologyVersionWorkUnitsRoute() {
 
   const clearCreateIntent = () => updateSearch({});
 
+  const resetWorkUnitFormState = (values: WorkUnitFormValues) => {
+    setNewWorkUnitKey(values.key);
+    setNewWorkUnitDisplayName(values.displayName);
+    setNewWorkUnitDescription(values.description);
+    setNewWorkUnitCardinality(values.cardinality);
+    setNewWorkUnitHumanGuidance(values.humanGuidance);
+    setNewWorkUnitAgentGuidance(values.agentGuidance);
+    setInitialWorkUnitFormValues(values);
+    setCreateDialogTab("contract");
+    setCreateError(null);
+  };
+
   const closeCreateDialog = () => {
     setIsCreateDialogOpen(false);
     setEditingWorkUnitKey(null);
-    setCreateError(null);
-    setNewWorkUnitKey("");
-    setNewWorkUnitDisplayName("");
-    setNewWorkUnitDescription("");
-    setNewWorkUnitCardinality("many_per_project");
-    setNewWorkUnitHumanGuidance("");
-    setNewWorkUnitAgentGuidance("");
-    setCreateDialogTab("contract");
+    resetWorkUnitFormState(emptyWorkUnitFormValues);
     setIsDiscardDialogOpen(false);
     if (isCreateIntentActive) {
       clearCreateIntent();
@@ -281,8 +323,8 @@ export function MethodologyVersionWorkUnitsRoute() {
       }
 
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["methodology", "draft", versionId] }),
-        queryClient.invalidateQueries({ queryKey: ["methodology", "details", methodologyId] }),
+        queryClient.invalidateQueries({ queryKey: draftQueryOptions.queryKey }),
+        queryClient.invalidateQueries({ queryKey: detailsQueryOptions.queryKey }),
       ]);
 
       closeCreateDialog();
@@ -298,15 +340,8 @@ export function MethodologyVersionWorkUnitsRoute() {
   };
 
   const openCreateDialog = () => {
-    setCreateError(null);
     setEditingWorkUnitKey(null);
-    setNewWorkUnitKey("");
-    setNewWorkUnitDisplayName("");
-    setNewWorkUnitDescription("");
-    setNewWorkUnitCardinality("many_per_project");
-    setNewWorkUnitHumanGuidance("");
-    setNewWorkUnitAgentGuidance("");
-    setCreateDialogTab("contract");
+    resetWorkUnitFormState(emptyWorkUnitFormValues);
     setIsCreateDialogOpen(true);
   };
 
@@ -316,17 +351,33 @@ export function MethodologyVersionWorkUnitsRoute() {
       return;
     }
 
-    setCreateError(null);
     setEditingWorkUnitKey(workUnitKey);
-    setNewWorkUnitKey(workUnit.key ?? "");
-    setNewWorkUnitDisplayName(workUnit.displayName ?? "");
-    setNewWorkUnitDescription(workUnit.description ?? "");
-    setNewWorkUnitCardinality(workUnit.cardinality ?? "many_per_project");
-    setNewWorkUnitHumanGuidance(workUnit.guidance?.human?.markdown ?? "");
-    setNewWorkUnitAgentGuidance(workUnit.guidance?.agent?.markdown ?? "");
-    setCreateDialogTab("contract");
+    resetWorkUnitFormState({
+      key: workUnit.key ?? "",
+      displayName: workUnit.displayName ?? "",
+      description: extractWorkUnitText(workUnit.description),
+      cardinality: workUnit.cardinality ?? "many_per_project",
+      humanGuidance: workUnit.guidance?.human?.markdown ?? "",
+      agentGuidance: workUnit.guidance?.agent?.markdown ?? "",
+    });
     setIsCreateDialogOpen(true);
   };
+
+  useEffect(() => {
+    if (isCreateIntentActive && !isCreateDialogOpen && !isEditMode) {
+      setEditingWorkUnitKey(null);
+      setNewWorkUnitKey("");
+      setNewWorkUnitDisplayName("");
+      setNewWorkUnitDescription("");
+      setNewWorkUnitCardinality("many_per_project");
+      setNewWorkUnitHumanGuidance("");
+      setNewWorkUnitAgentGuidance("");
+      setInitialWorkUnitFormValues(emptyWorkUnitFormValues);
+      setCreateDialogTab("contract");
+      setCreateError(null);
+      setIsCreateDialogOpen(true);
+    }
+  }, [isCreateDialogOpen, isCreateIntentActive, isEditMode]);
 
   return (
     <MethodologyWorkspaceShell
@@ -392,24 +443,28 @@ export function MethodologyVersionWorkUnitsRoute() {
         open={isCreateDialogOpen || isCreateIntentActive}
         onOpenChange={(open) => {
           if (open) {
-            setIsCreateDialogOpen(true);
             return;
           }
 
           requestCloseCreateDialog();
         }}
       >
-        <DialogContent className="max-w-5xl rounded-none">
-          <DialogHeader>
-            <DialogTitle>{isEditMode ? "Edit Work Unit" : "Add Work Unit"}</DialogTitle>
-            <DialogDescription>
+        <DialogContent
+          className="max-w-[95vw] rounded-none p-0 sm:max-w-5xl lg:max-w-6xl"
+          showCloseButton
+        >
+          <DialogHeader className="gap-0 border-b border-border p-4 pr-12 pb-3">
+            <DialogTitle className="text-sm font-semibold uppercase tracking-[0.18em]">
+              {isEditMode ? "Edit Work Unit" : "Add Work Unit"}
+            </DialogTitle>
+            <DialogDescription className="mt-2 text-xs text-muted-foreground">
               {isEditMode
                 ? "Update the selected work unit metadata while preserving its lifecycle structure."
                 : "Create a new work unit in this methodology version using the minimal lifecycle shell."}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex items-center gap-2">
+          <div className="mt-4 flex flex-wrap gap-2 border-b border-border px-4 pb-3">
             <Button
               type="button"
               size="sm"
@@ -427,7 +482,6 @@ export function MethodologyVersionWorkUnitsRoute() {
                 </span>
               ) : null}
             </Button>
-            <span className="text-xs text-muted-foreground">/</span>
             <Button
               type="button"
               size="sm"
@@ -447,163 +501,167 @@ export function MethodologyVersionWorkUnitsRoute() {
             </Button>
           </div>
 
-          {createDialogTab === "contract" ? (
-            <>
-              <label htmlFor="new-work-unit-key" className="grid gap-1 text-xs">
-                <span>Work Unit Key</span>
-                <input
-                  ref={newWorkUnitKeyRef}
-                  id="new-work-unit-key"
-                  aria-label="Work Unit Key"
-                  className="border-input placeholder:text-muted-foreground h-8 w-full rounded-none border bg-transparent px-2.5 py-1 text-xs outline-none"
-                  value={newWorkUnitKey}
-                  onChange={(event) => {
-                    setNewWorkUnitKey(event.target.value);
-                    if (createError) {
-                      setCreateError(null);
-                    }
-                  }}
-                  placeholder="WU.NEW_STEP"
-                />
-              </label>
-
-              <label htmlFor="new-work-unit-display-name" className="grid gap-1 text-xs">
-                <span>Display Name</span>
-                <input
-                  id="new-work-unit-display-name"
-                  aria-label="Display Name"
-                  className="border-input placeholder:text-muted-foreground h-8 w-full rounded-none border bg-transparent px-2.5 py-1 text-xs outline-none"
-                  value={newWorkUnitDisplayName}
-                  onChange={(event) => {
-                    setNewWorkUnitDisplayName(event.target.value);
-                    if (createError) {
-                      setCreateError(null);
-                    }
-                  }}
-                  placeholder="New Step"
-                />
-              </label>
-
-              <label htmlFor="new-work-unit-description" className="grid gap-1 text-xs">
-                <span>Description</span>
-                <textarea
-                  id="new-work-unit-description"
-                  aria-label="Description"
-                  className="border-input placeholder:text-muted-foreground min-h-20 w-full rounded-none border bg-transparent px-2.5 py-2 text-xs outline-none"
-                  value={newWorkUnitDescription}
-                  onChange={(event) => {
-                    setNewWorkUnitDescription(event.target.value);
-                    if (createError) {
-                      setCreateError(null);
-                    }
-                  }}
-                  placeholder="Operator-facing work unit summary."
-                />
-              </label>
-
-              <fieldset className="grid gap-2 text-xs" aria-label="Cardinality">
-                <legend className="text-xs">Cardinality</legend>
-                <div className="grid gap-2 md:grid-cols-2">
-                  <button
-                    type="button"
-                    className={[
-                      "rounded-none border p-3 text-left transition-colors",
-                      newWorkUnitCardinality === "many_per_project"
-                        ? "border-primary bg-primary/10"
-                        : "border-border/70 hover:bg-accent/40",
-                    ].join(" ")}
-                    aria-pressed={newWorkUnitCardinality === "many_per_project"}
-                    onClick={() => {
-                      setNewWorkUnitCardinality("many_per_project");
+          <div className="space-y-3 p-4 pt-3">
+            {createDialogTab === "contract" ? (
+              <>
+                <label htmlFor="new-work-unit-key" className="grid gap-1 text-xs">
+                  <span>Work Unit Key</span>
+                  <input
+                    ref={newWorkUnitKeyRef}
+                    id="new-work-unit-key"
+                    aria-label="Work Unit Key"
+                    className="border-input placeholder:text-muted-foreground h-8 w-full rounded-none border bg-transparent px-2.5 py-1 text-xs outline-none"
+                    value={newWorkUnitKey}
+                    onChange={(event) => {
+                      setNewWorkUnitKey(event.target.value);
                       if (createError) {
                         setCreateError(null);
                       }
                     }}
-                  >
-                    <Card className="rounded-none border-0 bg-transparent shadow-none">
-                      <CardHeader className="p-0">
-                        <CardTitle className="flex items-center gap-2 text-sm">
-                          <Layers3Icon className="size-4" aria-hidden="true" />
-                          Many per project
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="p-0 pt-1 text-xs text-muted-foreground">
-                        Create multiple instances of this work unit in a project lifecycle.
-                      </CardContent>
-                    </Card>
-                  </button>
-                  <button
-                    type="button"
-                    className={[
-                      "rounded-none border p-3 text-left transition-colors",
-                      newWorkUnitCardinality === "one_per_project"
-                        ? "border-primary bg-primary/10"
-                        : "border-border/70 hover:bg-accent/40",
-                    ].join(" ")}
-                    aria-pressed={newWorkUnitCardinality === "one_per_project"}
-                    onClick={() => {
-                      setNewWorkUnitCardinality("one_per_project");
+                    placeholder="WU.NEW_STEP"
+                  />
+                </label>
+
+                <label htmlFor="new-work-unit-display-name" className="grid gap-1 text-xs">
+                  <span>Display Name</span>
+                  <input
+                    id="new-work-unit-display-name"
+                    aria-label="Display Name"
+                    className="border-input placeholder:text-muted-foreground h-8 w-full rounded-none border bg-transparent px-2.5 py-1 text-xs outline-none"
+                    value={newWorkUnitDisplayName}
+                    onChange={(event) => {
+                      setNewWorkUnitDisplayName(event.target.value);
                       if (createError) {
                         setCreateError(null);
                       }
                     }}
-                  >
-                    <Card className="rounded-none border-0 bg-transparent shadow-none">
-                      <CardHeader className="p-0">
-                        <CardTitle className="flex items-center gap-2 text-sm">
-                          <RectangleHorizontalIcon className="size-4" aria-hidden="true" />
-                          One per project
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="p-0 pt-1 text-xs text-muted-foreground">
-                        Limit this work unit to a single instance per project lifecycle.
-                      </CardContent>
-                    </Card>
-                  </button>
-                </div>
-              </fieldset>
-            </>
-          ) : (
-            <>
-              <label htmlFor="new-work-unit-human-guidance" className="grid gap-1 text-xs">
-                <span>Human Guidance</span>
-                <textarea
-                  id="new-work-unit-human-guidance"
-                  aria-label="Human Guidance"
-                  className="border-input placeholder:text-muted-foreground min-h-20 w-full rounded-none border bg-transparent px-2.5 py-2 text-xs outline-none"
-                  value={newWorkUnitHumanGuidance}
-                  onChange={(event) => {
-                    setNewWorkUnitHumanGuidance(event.target.value);
-                    if (createError) {
-                      setCreateError(null);
-                    }
-                  }}
-                  placeholder="Guidance for operators working this work unit."
-                />
-              </label>
+                    placeholder="New Step"
+                  />
+                </label>
 
-              <label htmlFor="new-work-unit-agent-guidance" className="grid gap-1 text-xs">
-                <span>Agent Guidance</span>
-                <textarea
-                  id="new-work-unit-agent-guidance"
-                  aria-label="Agent Guidance"
-                  className="border-input placeholder:text-muted-foreground min-h-20 w-full rounded-none border bg-transparent px-2.5 py-2 text-xs outline-none"
-                  value={newWorkUnitAgentGuidance}
-                  onChange={(event) => {
-                    setNewWorkUnitAgentGuidance(event.target.value);
-                    if (createError) {
-                      setCreateError(null);
-                    }
-                  }}
-                  placeholder="Guidance for automated agents running this work unit."
-                />
-              </label>
-            </>
-          )}
+                <label htmlFor="new-work-unit-description" className="grid gap-1 text-xs">
+                  <span>Description</span>
+                  <textarea
+                    id="new-work-unit-description"
+                    aria-label="Description"
+                    className="border-input placeholder:text-muted-foreground min-h-20 w-full rounded-none border bg-transparent px-2.5 py-2 text-xs outline-none"
+                    value={newWorkUnitDescription}
+                    onChange={(event) => {
+                      setNewWorkUnitDescription(event.target.value);
+                      if (createError) {
+                        setCreateError(null);
+                      }
+                    }}
+                    placeholder="Operator-facing work unit summary."
+                  />
+                </label>
 
-          {createError ? <p className="text-xs text-destructive">{createError}</p> : null}
+                <fieldset className="grid gap-2 text-xs" aria-label="Cardinality">
+                  <legend className="text-xs">Cardinality</legend>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <button
+                      type="button"
+                      className={[
+                        "rounded-none border p-3 text-left transition-colors",
+                        newWorkUnitCardinality === "many_per_project"
+                          ? "border-primary bg-primary/10"
+                          : "border-border/70 hover:bg-accent/40",
+                      ].join(" ")}
+                      aria-pressed={newWorkUnitCardinality === "many_per_project"}
+                      onClick={() => {
+                        setNewWorkUnitCardinality("many_per_project");
+                        if (createError) {
+                          setCreateError(null);
+                        }
+                      }}
+                    >
+                      <Card className="rounded-none border-0 bg-transparent shadow-none">
+                        <CardHeader className="p-0">
+                          <CardTitle className="flex items-center gap-2 text-sm">
+                            <Layers3Icon className="size-4" aria-hidden="true" />
+                            Many per project
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-0 pt-1 text-xs text-muted-foreground">
+                          Create multiple instances of this work unit in a project lifecycle.
+                        </CardContent>
+                      </Card>
+                    </button>
+                    <button
+                      type="button"
+                      className={[
+                        "rounded-none border p-3 text-left transition-colors",
+                        newWorkUnitCardinality === "one_per_project"
+                          ? "border-primary bg-primary/10"
+                          : "border-border/70 hover:bg-accent/40",
+                      ].join(" ")}
+                      aria-pressed={newWorkUnitCardinality === "one_per_project"}
+                      onClick={() => {
+                        setNewWorkUnitCardinality("one_per_project");
+                        if (createError) {
+                          setCreateError(null);
+                        }
+                      }}
+                    >
+                      <Card className="rounded-none border-0 bg-transparent shadow-none">
+                        <CardHeader className="p-0">
+                          <CardTitle className="flex items-center gap-2 text-sm">
+                            <RectangleHorizontalIcon className="size-4" aria-hidden="true" />
+                            One per project
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-0 pt-1 text-xs text-muted-foreground">
+                          Limit this work unit to a single instance per project lifecycle.
+                        </CardContent>
+                      </Card>
+                    </button>
+                  </div>
+                </fieldset>
+              </>
+            ) : (
+              <>
+                <label htmlFor="new-work-unit-human-guidance" className="grid gap-1 text-xs">
+                  <span>Human Guidance</span>
+                  <textarea
+                    id="new-work-unit-human-guidance"
+                    aria-label="Human Guidance"
+                    className="border-input placeholder:text-muted-foreground min-h-20 w-full rounded-none border bg-transparent px-2.5 py-2 text-xs outline-none"
+                    value={newWorkUnitHumanGuidance}
+                    onChange={(event) => {
+                      setNewWorkUnitHumanGuidance(event.target.value);
+                      if (createError) {
+                        setCreateError(null);
+                      }
+                    }}
+                    placeholder="Guidance for operators working this work unit."
+                  />
+                </label>
 
-          <DialogFooter>
+                <label htmlFor="new-work-unit-agent-guidance" className="grid gap-1 text-xs">
+                  <span>Agent Guidance</span>
+                  <textarea
+                    id="new-work-unit-agent-guidance"
+                    aria-label="Agent Guidance"
+                    className="border-input placeholder:text-muted-foreground min-h-20 w-full rounded-none border bg-transparent px-2.5 py-2 text-xs outline-none"
+                    value={newWorkUnitAgentGuidance}
+                    onChange={(event) => {
+                      setNewWorkUnitAgentGuidance(event.target.value);
+                      if (createError) {
+                        setCreateError(null);
+                      }
+                    }}
+                    placeholder="Guidance for automated agents running this work unit."
+                  />
+                </label>
+              </>
+            )}
+
+            {createError ? <p className="text-xs text-destructive">{createError}</p> : null}
+          </div>
+
+          <Separator className="bg-border" />
+
+          <DialogFooter className="mt-0 px-4 py-3 sm:justify-end">
             <Button variant="outline" className="rounded-none" onClick={requestCloseCreateDialog}>
               Cancel
             </Button>

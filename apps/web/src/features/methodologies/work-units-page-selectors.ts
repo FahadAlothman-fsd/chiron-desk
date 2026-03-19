@@ -1,7 +1,7 @@
 type WorkUnitProjection = {
   key?: string;
   displayName?: string;
-  description?: string;
+  description?: unknown;
   cardinality?: string;
   guidance?: {
     human?: { markdown?: string; short?: string; long?: string };
@@ -76,6 +76,22 @@ function guidanceText(
   return "";
 }
 
+function descriptionText(description: WorkUnitProjection["description"]): string {
+  if (typeof description === "string") {
+    return description.trim();
+  }
+
+  if (
+    description &&
+    typeof description === "object" &&
+    typeof (description as { text?: unknown }).text === "string"
+  ) {
+    return (description as { text: string }).text.trim();
+  }
+
+  return "";
+}
+
 function relationshipCountForWorkUnit(relationships: ReadonlyArray<unknown> | undefined): number {
   if (!Array.isArray(relationships)) {
     return 0;
@@ -103,7 +119,7 @@ export function deriveWorkUnitsPageRows(
       typeof unit?.displayName === "string" && unit.displayName.trim().length > 0
         ? unit.displayName.trim()
         : key;
-    const description = typeof unit?.description === "string" ? unit.description.trim() : "";
+    const description = descriptionText(unit?.description);
     const cardinality =
       unit?.cardinality === "one_per_project" ? "one_per_project" : "many_per_project";
     const humanGuidance = guidanceText(unit?.guidance, "human").trim();

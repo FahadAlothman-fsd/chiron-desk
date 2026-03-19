@@ -94,6 +94,8 @@ describe("WorkUnitsGraphView", () => {
 
     const reactFlowProps = reactFlowMocks.ReactFlow.mock.calls.at(-1)?.[0] as {
       nodes: Array<{ style?: { width?: number } }>;
+      nodesDraggable: boolean;
+      onNodesChange: unknown;
       nodeTypes: {
         workUnitCard: (props: {
           data: {
@@ -114,7 +116,9 @@ describe("WorkUnitsGraphView", () => {
       };
     };
 
-    expect(reactFlowProps.nodes[0]?.style?.width).toBe(320);
+    expect(reactFlowProps.nodes[0]?.style?.width).toBe(360);
+    expect(reactFlowProps.nodesDraggable).toBe(true);
+    expect(typeof reactFlowProps.onNodesChange).toBe("function");
 
     const nodeRenderer = reactFlowProps.nodeTypes.workUnitCard;
     render(
@@ -143,6 +147,8 @@ describe("WorkUnitsGraphView", () => {
     expect(screen.getByRole("button", { name: "Guidance" })).toBeTruthy();
     expect(screen.getByText("No human guidance yet.")).toBeTruthy();
     expect(screen.getByText("No agent guidance yet.")).toBeTruthy();
+    expect(screen.getByText("Intake").className.includes("break-words")).toBe(true);
+    expect(screen.getByText("WU.INTAKE").className.includes("break-all")).toBe(true);
   });
 
   it("keeps graph nodes selectable for active work unit routing", () => {

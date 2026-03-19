@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Background,
   Controls,
@@ -6,6 +6,7 @@ import {
   ReactFlow,
   ReactFlowProvider,
   type Edge,
+  type NodeChange,
   type Node,
 } from "@xyflow/react";
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
@@ -52,11 +53,11 @@ function WorkUnitGraphCardNode({ data }: { data: WorkUnitNodeData }) {
     row.agentGuidance.trim().length > 0 ? row.agentGuidance : "No agent guidance yet.";
 
   return (
-    <div className="flex w-[320px] flex-col gap-2 text-left">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="font-medium">{row.displayName}</p>
-          <p className="text-xs text-muted-foreground">{row.key}</p>
+    <div className="flex w-[360px] flex-col gap-2 text-left">
+      <div className="work-unit-graph-drag-handle flex min-w-0 cursor-grab items-start justify-between gap-3 active:cursor-grabbing">
+        <div className="min-w-0">
+          <p className="font-medium break-words leading-5">{row.displayName}</p>
+          <p className="text-xs text-muted-foreground break-all">{row.key}</p>
         </div>
         <span className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
           Work Unit
@@ -73,7 +74,7 @@ function WorkUnitGraphCardNode({ data }: { data: WorkUnitNodeData }) {
         type="button"
         variant="outline"
         size="sm"
-        className="h-7 rounded-none px-2 text-[0.68rem] uppercase tracking-[0.16em]"
+        className="nodrag h-7 rounded-none px-2 text-[0.68rem] uppercase tracking-[0.16em]"
         onClick={(event) => {
           event.stopPropagation();
           data.onToggleExpand();
@@ -94,7 +95,7 @@ function WorkUnitGraphCardNode({ data }: { data: WorkUnitNodeData }) {
               type="button"
               size="sm"
               variant={isSummaryTab ? "default" : "outline"}
-              className="h-7 rounded-none px-2 text-[0.64rem] uppercase tracking-[0.14em]"
+              className="nodrag h-7 rounded-none px-2 text-[0.64rem] uppercase tracking-[0.14em]"
               onClick={(event) => {
                 event.stopPropagation();
                 data.onTabChange("summary");
@@ -106,7 +107,7 @@ function WorkUnitGraphCardNode({ data }: { data: WorkUnitNodeData }) {
               type="button"
               size="sm"
               variant={!isSummaryTab ? "default" : "outline"}
-              className="h-7 rounded-none px-2 text-[0.64rem] uppercase tracking-[0.14em]"
+              className="nodrag h-7 rounded-none px-2 text-[0.64rem] uppercase tracking-[0.14em]"
               onClick={(event) => {
                 event.stopPropagation();
                 data.onTabChange("guidance");
@@ -128,7 +129,7 @@ function WorkUnitGraphCardNode({ data }: { data: WorkUnitNodeData }) {
                 <p className="text-[0.64rem] uppercase tracking-[0.14em] text-muted-foreground">
                   Description
                 </p>
-                <p className="mt-1 whitespace-pre-wrap">{description}</p>
+                <p className="mt-1 whitespace-pre-wrap break-words">{description}</p>
               </div>
             </div>
           ) : (
@@ -137,13 +138,13 @@ function WorkUnitGraphCardNode({ data }: { data: WorkUnitNodeData }) {
                 <p className="text-[0.64rem] uppercase tracking-[0.14em] text-muted-foreground">
                   Human Guidance
                 </p>
-                <p className="mt-1 whitespace-pre-wrap">{humanGuidance}</p>
+                <p className="mt-1 whitespace-pre-wrap break-words">{humanGuidance}</p>
               </div>
               <div>
                 <p className="text-[0.64rem] uppercase tracking-[0.14em] text-muted-foreground">
                   Agent Guidance
                 </p>
-                <p className="mt-1 whitespace-pre-wrap">{agentGuidance}</p>
+                <p className="mt-1 whitespace-pre-wrap break-words">{agentGuidance}</p>
               </div>
             </div>
           )}
@@ -156,6 +157,9 @@ function WorkUnitGraphCardNode({ data }: { data: WorkUnitNodeData }) {
 export function WorkUnitsGraphView(props: WorkUnitsGraphViewProps) {
   const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
   const [nodeTabs, setNodeTabs] = useState<Record<string, GraphNodeTab>>({});
+  const [draggedNodePositions, setDraggedNodePositions] = useState<
+    Record<string, { x: number; y: number }>
+  >({});
 
   const rowByKey = useMemo(() => new Map(props.rows.map((row) => [row.key, row])), [props.rows]);
   const graphNodes = useMemo(
@@ -183,12 +187,13 @@ export function WorkUnitsGraphView(props: WorkUnitsGraphViewProps) {
     [props.graph.nodes, rowByKey],
   );
 
-  const flowNodes = useMemo<Node[]>(
+  const baseNodes = useMemo<Node[]>(
     () =>
       graphNodes.map(({ node, row }) => ({
         id: node.id,
         position: node.position,
-        draggable: false,
+        draggable: true,
+        dragHandle: ".work-unit-graph-drag-handle",
         selectable: true,
         data: {
           row,
@@ -208,7 +213,7 @@ export function WorkUnitsGraphView(props: WorkUnitsGraphViewProps) {
           },
         },
         style: {
-          width: 320,
+          width: 360,
           borderRadius: 0,
           border:
             row.key === props.activeWorkUnitKey
@@ -226,6 +231,40 @@ export function WorkUnitsGraphView(props: WorkUnitsGraphViewProps) {
       })),
     [expandedNodes, graphNodes, nodeTabs, props.activeWorkUnitKey],
   );
+
+  const flowNodes = useMemo<Node[]>(
+    () =>
+      baseNodes.map((node) => {
+        const draggedPosition = draggedNodePositions[node.id];
+        if (!draggedPosition) {
+          return node;
+        }
+
+        return {
+          ...node,
+          position: draggedPosition,
+        };
+      }),
+    [baseNodes, draggedNodePositions],
+  );
+
+  const handleNodesChange = useCallback((changes: NodeChange<Node>[]) => {
+    setDraggedNodePositions((previous) => {
+      const next = { ...previous };
+
+      for (const change of changes) {
+        if (change.type === "position" && change.position) {
+          next[change.id] = change.position;
+        }
+
+        if (change.type === "remove") {
+          delete next[change.id];
+        }
+      }
+
+      return next;
+    });
+  }, []);
 
   const flowEdges = useMemo<Edge[]>(
     () =>
@@ -266,7 +305,8 @@ export function WorkUnitsGraphView(props: WorkUnitsGraphViewProps) {
           maxZoom={1.8}
           nodes={flowNodes}
           edges={flowEdges}
-          nodesDraggable={false}
+          nodesDraggable
+          onNodesChange={handleNodesChange}
           nodesConnectable={false}
           elementsSelectable
           nodesFocusable
