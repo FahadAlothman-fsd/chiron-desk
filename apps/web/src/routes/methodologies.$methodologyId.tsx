@@ -2,7 +2,9 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { Link, Outlet, createFileRoute, useLocation } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
+import { AlertTriangleIcon } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 
 import { DataGrid } from "@/components/data-grid";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -30,8 +32,14 @@ export function MethodologyDetailsRoute() {
   const detailsQuery = useQuery(detailsQueryOptions);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
+  const [isCreateDraftDialogOpen, setIsCreateDraftDialogOpen] = useState(false);
   const [isVersionEditDialogOpen, setIsVersionEditDialogOpen] = useState(false);
   const [isVersionArchiveDialogOpen, setIsVersionArchiveDialogOpen] = useState(false);
+  const [nextDraftDisplayName, setNextDraftDisplayName] = useState("");
+  const [nextDraftVersion, setNextDraftVersion] = useState("");
+  const [nextDraftSeed, setNextDraftSeed] = useState<ReturnType<typeof buildNextDraftInput> | null>(
+    null,
+  );
   const [nextDisplayName, setNextDisplayName] = useState("");
   const [selectedVersionId, setSelectedVersionId] = useState("");
   const [nextVersionDisplayName, setNextVersionDisplayName] = useState("");
@@ -44,9 +52,28 @@ export function MethodologyDetailsRoute() {
           queryClient.invalidateQueries({ queryKey: detailsQueryOptions.queryKey }),
         ]);
 
+        toast.success("Draft created");
+        setIsCreateDraftDialogOpen(false);
+        setNextDraftSeed(null);
+
+        const versionId =
+          typeof result === "object" &&
+          result !== null &&
+          "version" in result &&
+          typeof result.version === "object" &&
+          result.version !== null &&
+          "id" in result.version &&
+          typeof result.version.id === "string"
+            ? result.version.id
+            : null;
+
+        if (!versionId) {
+          return;
+        }
+
         void navigate({
           to: "/methodologies/$methodologyId/versions/$versionId",
-          params: { methodologyId, versionId: result.version.id },
+          params: { methodologyId, versionId },
         });
       },
     }),
@@ -59,6 +86,7 @@ export function MethodologyDetailsRoute() {
           queryClient.invalidateQueries({ queryKey: detailsQueryOptions.queryKey }),
         ]);
         setIsEditDialogOpen(false);
+        toast.success("Methodology updated");
       },
     }),
   );
@@ -70,6 +98,7 @@ export function MethodologyDetailsRoute() {
           queryClient.invalidateQueries({ queryKey: detailsQueryOptions.queryKey }),
         ]);
         setIsArchiveDialogOpen(false);
+        toast.success("Methodology archived");
         void navigate({ to: "/methodologies" });
       },
     }),
@@ -82,6 +111,7 @@ export function MethodologyDetailsRoute() {
           queryClient.invalidateQueries({ queryKey: listQueryOptions.queryKey }),
           queryClient.invalidateQueries({ queryKey: detailsQueryOptions.queryKey }),
         ]);
+        toast.success("Version updated");
       },
     }),
   );
@@ -93,6 +123,7 @@ export function MethodologyDetailsRoute() {
           queryClient.invalidateQueries({ queryKey: listQueryOptions.queryKey }),
           queryClient.invalidateQueries({ queryKey: detailsQueryOptions.queryKey }),
         ]);
+        toast.success("Version archived");
       },
     }),
   );
@@ -309,7 +340,11 @@ export function MethodologyDetailsRoute() {
                     className="rounded-none"
                     disabled={createDraftMutation.isPending}
                     onClick={() => {
-                      createDraftMutation.mutate(buildNextDraftInput(details, methodologyId));
+                      const seedInput = buildNextDraftInput(details, methodologyId);
+                      setNextDraftSeed(seedInput);
+                      setNextDraftDisplayName(seedInput.displayName);
+                      setNextDraftVersion(seedInput.version);
+                      setIsCreateDraftDialogOpen(true);
                     }}
                   >
                     {createDraftMutation.isPending ? "Creating Draft..." : "Create Draft"}
@@ -433,6 +468,88 @@ export function MethodologyDetailsRoute() {
           </DialogPrimitive.Root>
 
           <DialogPrimitive.Root
+            open={isCreateDraftDialogOpen}
+            onOpenChange={(open) => {
+              setIsCreateDraftDialogOpen(open);
+              if (!open) {
+                setNextDraftSeed(null);
+              }
+            }}
+          >
+            <DialogPrimitive.Portal>
+              <DialogPrimitive.Backdrop className="fixed inset-0 z-50 bg-black/30 backdrop-blur-[1px]" />
+              <DialogPrimitive.Popup className="fixed top-1/2 left-1/2 z-50 w-[min(92vw,30rem)] -translate-x-1/2 -translate-y-1/2 border border-border/80 bg-background p-4 shadow-lg">
+                <DialogPrimitive.Title className="text-sm font-semibold uppercase tracking-[0.12em]">
+                  Create Draft Version
+                </DialogPrimitive.Title>
+                <DialogPrimitive.Description className="mt-2 text-sm text-muted-foreground">
+                  Confirm naming for the next draft before creating the version snapshot.
+                </DialogPrimitive.Description>
+                <form
+                  className="mt-4 grid gap-3"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    if (!nextDraftSeed) {
+                      return;
+                    }
+
+                    createDraftMutation.mutate({
+                      ...nextDraftSeed,
+                      displayName: nextDraftDisplayName.trim() || nextDraftSeed.displayName,
+                      version: nextDraftVersion.trim() || nextDraftSeed.version,
+                    });
+                  }}
+                >
+                  <label
+                    htmlFor="draft-display-name-input"
+                    className="space-y-1 text-xs uppercase tracking-[0.14em] text-muted-foreground"
+                  >
+                    Draft Display Name
+                    <input
+                      id="draft-display-name-input"
+                      value={nextDraftDisplayName}
+                      onChange={(event) => setNextDraftDisplayName(event.target.value)}
+                      className="flex h-10 w-full rounded-none border border-input bg-background px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label
+                    htmlFor="draft-version-input"
+                    className="space-y-1 text-xs uppercase tracking-[0.14em] text-muted-foreground"
+                  >
+                    Draft Version
+                    <input
+                      id="draft-version-input"
+                      value={nextDraftVersion}
+                      onChange={(event) => setNextDraftVersion(event.target.value)}
+                      className="flex h-10 w-full rounded-none border border-input bg-background px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-none"
+                      onClick={() => {
+                        setIsCreateDraftDialogOpen(false);
+                        setNextDraftSeed(null);
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      className="rounded-none"
+                      disabled={createDraftMutation.isPending || !nextDraftSeed}
+                    >
+                      Create Draft Version
+                    </Button>
+                  </div>
+                </form>
+              </DialogPrimitive.Popup>
+            </DialogPrimitive.Portal>
+          </DialogPrimitive.Root>
+
+          <DialogPrimitive.Root
             open={isVersionEditDialogOpen}
             onOpenChange={setIsVersionEditDialogOpen}
           >
@@ -505,13 +622,21 @@ export function MethodologyDetailsRoute() {
           >
             <DialogPrimitive.Portal>
               <DialogPrimitive.Backdrop className="fixed inset-0 z-50 bg-black/30 backdrop-blur-[1px]" />
-              <DialogPrimitive.Popup className="fixed top-1/2 left-1/2 z-50 w-[min(92vw,28rem)] -translate-x-1/2 -translate-y-1/2 border border-border/80 bg-background p-4 shadow-lg">
-                <DialogPrimitive.Title className="text-sm font-semibold uppercase tracking-[0.12em]">
+              <DialogPrimitive.Popup className="fixed top-1/2 left-1/2 z-50 w-[min(92vw,28rem)] -translate-x-1/2 -translate-y-1/2 border border-destructive/50 bg-background p-4 shadow-lg">
+                <div className="mb-2 inline-flex items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-destructive">
+                  <AlertTriangleIcon className="size-4" />
+                  <span>Destructive action</span>
+                </div>
+                <DialogPrimitive.Title className="text-sm font-semibold uppercase tracking-[0.12em] text-destructive">
                   Archive Version
                 </DialogPrimitive.Title>
                 <DialogPrimitive.Description className="mt-2 text-sm text-muted-foreground">
                   This archives the selected version and removes it from editable draft flow.
                 </DialogPrimitive.Description>
+                <p className="mt-3 border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive/90">
+                  Archiving a version can strand active references. Confirm only after validating
+                  downstream consumers and migration intent.
+                </p>
                 <div className="mt-4 flex justify-end gap-2">
                   <Button
                     type="button"
@@ -523,6 +648,7 @@ export function MethodologyDetailsRoute() {
                   </Button>
                   <Button
                     type="button"
+                    variant="destructive"
                     className="rounded-none"
                     disabled={archiveVersionMutation.isPending}
                     onClick={() => archiveVersionMutation.mutate({ versionId: selectedVersionId })}
