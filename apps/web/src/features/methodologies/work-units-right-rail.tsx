@@ -1,5 +1,7 @@
 import { Link } from "@tanstack/react-router";
 
+import { Button } from "@/components/ui/button";
+
 import type { WorkUnitsPageRow } from "./work-units-page-selectors";
 
 type WorkUnitsRightRailProps = {
@@ -75,9 +77,9 @@ export function WorkUnitsRightRail(props: WorkUnitsRightRailProps) {
               <span>{activeWorkUnit.factCount} facts</span>
               <span>{activeWorkUnit.relationshipCount} relationships</span>
             </div>
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-3 grid gap-2">
               <Link
-                className="underline"
+                className="inline-flex h-8 items-center justify-center rounded-none border border-border/70 px-3 text-xs uppercase tracking-[0.12em] transition-colors hover:bg-accent"
                 to="/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey"
                 params={{
                   methodologyId: props.methodologyId,
@@ -87,20 +89,24 @@ export function WorkUnitsRightRail(props: WorkUnitsRightRailProps) {
               >
                 Open details
               </Link>
-              <button
+              <Button
                 type="button"
-                className="underline"
+                size="sm"
+                variant="outline"
+                className="h-8 rounded-none justify-start px-3 text-[0.68rem] uppercase tracking-[0.12em]"
                 onClick={() => props.onOpenRelationshipView(activeWorkUnit.key)}
               >
                 Open Relationship View
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                className="underline"
+                size="sm"
+                variant="outline"
+                className="h-8 rounded-none justify-start px-3 text-[0.68rem] uppercase tracking-[0.12em]"
                 onClick={() => props.onEdit(activeWorkUnit.key)}
               >
                 Edit Work Unit
-              </button>
+              </Button>
             </div>
           </>
         ) : (

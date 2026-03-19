@@ -294,6 +294,8 @@ describe("methodology version shell routes", () => {
     renderWithQueryClient(<MethodologyVersionWorkUnitsRoute />);
 
     fireEvent.click(await screen.findByRole("button", { name: "+ Add Work Unit" }));
+    expect(screen.getByRole("button", { name: /Many per project/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /One per project/i })).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Work Unit Key"), { target: { value: "WU.INTAKE" } });
     fireEvent.change(screen.getByLabelText("Display Name"), { target: { value: "Intake" } });
     fireEvent.change(screen.getByLabelText("Description"), {
