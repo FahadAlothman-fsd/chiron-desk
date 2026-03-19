@@ -27,6 +27,10 @@ describe("WorkUnitsGraphView", () => {
           {
             key: "WU.INTAKE",
             displayName: "Intake",
+            description: "Collect intake context",
+            cardinality: "many_per_project",
+            humanGuidance: "Ask operator for intake context.",
+            agentGuidance: "Extract structured intake summary.",
             transitionCount: 2,
             workflowCount: 1,
             factCount: 2,
@@ -62,6 +66,10 @@ describe("WorkUnitsGraphView", () => {
           {
             key: "WU.INTAKE",
             displayName: "Intake",
+            description: "Collect intake context",
+            cardinality: "many_per_project",
+            humanGuidance: "Ask operator for intake context.",
+            agentGuidance: "Extract structured intake summary.",
             transitionCount: 2,
             workflowCount: 1,
             factCount: 2,
@@ -89,7 +97,14 @@ describe("WorkUnitsGraphView", () => {
       nodeTypes: {
         workUnitCard: (props: {
           data: {
-            row: { key: string; displayName: string };
+            row: {
+              key: string;
+              displayName: string;
+              description: string;
+              cardinality: "one_per_project" | "many_per_project";
+              humanGuidance: string;
+              agentGuidance: string;
+            };
             isExpanded: boolean;
             activeTab: "summary" | "guidance";
             onToggleExpand: () => void;
@@ -109,6 +124,10 @@ describe("WorkUnitsGraphView", () => {
             row: {
               key: "WU.INTAKE",
               displayName: "Intake",
+              description: "",
+              cardinality: "many_per_project",
+              humanGuidance: "",
+              agentGuidance: "",
             },
             isExpanded: true,
             activeTab: "guidance",
@@ -119,7 +138,7 @@ describe("WorkUnitsGraphView", () => {
       </>,
     );
 
-    expect(screen.getByRole("button", { name: "Collapse node details" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Collapse" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Summary" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Guidance" })).toBeTruthy();
     expect(screen.getByText("No human guidance yet.")).toBeTruthy();
@@ -135,6 +154,10 @@ describe("WorkUnitsGraphView", () => {
           {
             key: "WU.INTAKE",
             displayName: "Intake",
+            description: "Collect intake context",
+            cardinality: "many_per_project",
+            humanGuidance: "Ask operator for intake context.",
+            agentGuidance: "Extract structured intake summary.",
             transitionCount: 2,
             workflowCount: 1,
             factCount: 2,

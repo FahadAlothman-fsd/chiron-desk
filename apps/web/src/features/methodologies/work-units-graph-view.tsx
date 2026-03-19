@@ -8,6 +8,9 @@ import {
   type Edge,
   type Node,
 } from "@xyflow/react";
+import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
 
 import type { GraphProjectionOutput } from "./version-graph";
 import type { WorkUnitsPageRow } from "./work-units-page-selectors";
@@ -31,6 +34,123 @@ type WorkUnitNodeData = {
 
 function keyFromNodeId(nodeId: string): string | null {
   return nodeId.startsWith("wu:") ? nodeId.slice(3) : null;
+}
+
+function WorkUnitGraphCardNode({ data }: { data: WorkUnitNodeData }) {
+  const row = data.row;
+  const isSummaryTab = data.activeTab === "summary";
+  const cardinality =
+    row.cardinality === "one_per_project"
+      ? "One per project"
+      : row.cardinality === "many_per_project"
+        ? "Many per project"
+        : row.cardinality;
+  const description = row.description.trim().length > 0 ? row.description : "No description yet.";
+  const humanGuidance =
+    row.humanGuidance.trim().length > 0 ? row.humanGuidance : "No human guidance yet.";
+  const agentGuidance =
+    row.agentGuidance.trim().length > 0 ? row.agentGuidance : "No agent guidance yet.";
+
+  return (
+    <div className="flex w-[320px] flex-col gap-2 text-left">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-medium">{row.displayName}</p>
+          <p className="text-xs text-muted-foreground">{row.key}</p>
+        </div>
+        <span className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
+          Work Unit
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+        <span>{row.transitionCount} transitions</span>
+        <span>{row.workflowCount} workflows</span>
+        <span>{row.factCount} facts</span>
+        <span>{row.relationshipCount} relationships</span>
+      </div>
+
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-7 rounded-none px-2 text-[0.68rem] uppercase tracking-[0.16em]"
+        onClick={(event) => {
+          event.stopPropagation();
+          data.onToggleExpand();
+        }}
+      >
+        {data.isExpanded ? (
+          <ChevronUpIcon className="mr-1 size-3" aria-hidden="true" />
+        ) : (
+          <ChevronDownIcon className="mr-1 size-3" aria-hidden="true" />
+        )}
+        {data.isExpanded ? "Collapse" : "Expand"}
+      </Button>
+
+      {data.isExpanded ? (
+        <div className="space-y-2 border border-border/70 bg-background/70 p-2">
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={isSummaryTab ? "default" : "outline"}
+              className="h-7 rounded-none px-2 text-[0.64rem] uppercase tracking-[0.14em]"
+              onClick={(event) => {
+                event.stopPropagation();
+                data.onTabChange("summary");
+              }}
+            >
+              Summary
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={!isSummaryTab ? "default" : "outline"}
+              className="h-7 rounded-none px-2 text-[0.64rem] uppercase tracking-[0.14em]"
+              onClick={(event) => {
+                event.stopPropagation();
+                data.onTabChange("guidance");
+              }}
+            >
+              Guidance
+            </Button>
+          </div>
+
+          {isSummaryTab ? (
+            <div className="grid gap-2 border border-border/60 bg-background/60 p-2 text-xs">
+              <div>
+                <p className="text-[0.64rem] uppercase tracking-[0.14em] text-muted-foreground">
+                  Cardinality
+                </p>
+                <p className="mt-1">{cardinality}</p>
+              </div>
+              <div>
+                <p className="text-[0.64rem] uppercase tracking-[0.14em] text-muted-foreground">
+                  Description
+                </p>
+                <p className="mt-1 whitespace-pre-wrap">{description}</p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid gap-2 border border-border/60 bg-background/60 p-2 text-xs">
+              <div>
+                <p className="text-[0.64rem] uppercase tracking-[0.14em] text-muted-foreground">
+                  Human Guidance
+                </p>
+                <p className="mt-1 whitespace-pre-wrap">{humanGuidance}</p>
+              </div>
+              <div>
+                <p className="text-[0.64rem] uppercase tracking-[0.14em] text-muted-foreground">
+                  Agent Guidance
+                </p>
+                <p className="mt-1 whitespace-pre-wrap">{agentGuidance}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export function WorkUnitsGraphView(props: WorkUnitsGraphViewProps) {
@@ -159,108 +279,9 @@ export function WorkUnitsGraphView(props: WorkUnitsGraphViewProps) {
             }
           }}
           nodeTypes={{
-            workUnitCard: ({ data }: { data: WorkUnitNodeData }) => {
-              const row = data.row;
-              const isSummaryTab = data.activeTab === "summary";
-              const cardinality = row.cardinality ?? "unspecified";
-              const description = row.description ?? "No description yet.";
-              const humanGuidance = row.humanGuidance ?? "No human guidance yet.";
-              const agentGuidance = row.agentGuidance ?? "No agent guidance yet.";
-
-              return (
-                <div className="flex w-[320px] flex-col gap-2 text-left">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium">{row.displayName}</p>
-                      <p className="text-xs text-muted-foreground">{row.key}</p>
-                    </div>
-                    <span className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
-                      Work Unit
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                    <span>{row.transitionCount} transitions</span>
-                    <span>{row.workflowCount} workflows</span>
-                    <span>{row.factCount} facts</span>
-                    <span>{row.relationshipCount} relationships</span>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                    <button
-                      type="button"
-                      aria-label={data.isExpanded ? "Collapse node details" : "Expand node details"}
-                      className="h-6 border border-border/70 px-2 text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:bg-muted"
-                      onClick={data.onToggleExpand}
-                    >
-                      {data.isExpanded ? "Collapse" : "Expand"}
-                    </button>
-
-                    {data.isExpanded ? (
-                      <div className="inline-flex border border-border/70">
-                        <button
-                          type="button"
-                          className={[
-                            "h-6 px-2 text-[0.68rem] uppercase tracking-[0.14em] transition-colors",
-                            isSummaryTab
-                              ? "bg-primary/20 text-primary"
-                              : "text-muted-foreground hover:bg-muted",
-                          ].join(" ")}
-                          onClick={() => data.onTabChange("summary")}
-                        >
-                          Summary
-                        </button>
-                        <button
-                          type="button"
-                          className={[
-                            "h-6 border-l border-border/70 px-2 text-[0.68rem] uppercase tracking-[0.14em] transition-colors",
-                            !isSummaryTab
-                              ? "bg-primary/20 text-primary"
-                              : "text-muted-foreground hover:bg-muted",
-                          ].join(" ")}
-                          onClick={() => data.onTabChange("guidance")}
-                        >
-                          Guidance
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-
-                  {data.isExpanded ? (
-                    isSummaryTab ? (
-                      <div className="grid gap-2 border border-border/60 bg-background/60 p-2 text-xs">
-                        <div>
-                          <p className="text-[0.64rem] uppercase tracking-[0.14em] text-muted-foreground">
-                            Cardinality
-                          </p>
-                          <p className="mt-1">{cardinality}</p>
-                        </div>
-                        <div>
-                          <p className="text-[0.64rem] uppercase tracking-[0.14em] text-muted-foreground">
-                            Description
-                          </p>
-                          <p className="mt-1 whitespace-pre-wrap">{description}</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="grid gap-2 border border-border/60 bg-background/60 p-2 text-xs">
-                        <div>
-                          <p className="text-[0.64rem] uppercase tracking-[0.14em] text-muted-foreground">
-                            Human Guidance
-                          </p>
-                          <p className="mt-1 whitespace-pre-wrap">{humanGuidance}</p>
-                        </div>
-                        <div>
-                          <p className="text-[0.64rem] uppercase tracking-[0.14em] text-muted-foreground">
-                            Agent Guidance
-                          </p>
-                          <p className="mt-1 whitespace-pre-wrap">{agentGuidance}</p>
-                        </div>
-                      </div>
-                    )
-                  ) : null}
-                </div>
-              );
-            },
+            workUnitCard: ({ data }: { data: WorkUnitNodeData }) => (
+              <WorkUnitGraphCardNode data={data} />
+            ),
           }}
         >
           <Background

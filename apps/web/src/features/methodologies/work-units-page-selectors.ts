@@ -25,14 +25,14 @@ export type WorkUnitsPageDraftProjection = {
 export type WorkUnitsPageRow = {
   key: string;
   displayName: string;
+  description: string;
+  cardinality: "one_per_project" | "many_per_project";
+  humanGuidance: string;
+  agentGuidance: string;
   transitionCount: number;
   workflowCount: number;
   factCount: number;
   relationshipCount: number;
-  description?: string;
-  cardinality?: string;
-  humanGuidance?: string;
-  agentGuidance?: string;
 };
 
 function guidanceText(
@@ -99,39 +99,30 @@ export function deriveWorkUnitsPageRows(
 
   return workUnitTypes.map((unit, index) => {
     const key = unit?.key ?? `work-unit-${index + 1}`;
+    const displayName =
+      typeof unit?.displayName === "string" && unit.displayName.trim().length > 0
+        ? unit.displayName.trim()
+        : key;
     const description = typeof unit?.description === "string" ? unit.description.trim() : "";
-    const cardinality = typeof unit?.cardinality === "string" ? unit.cardinality.trim() : "";
+    const cardinality =
+      unit?.cardinality === "one_per_project" ? "one_per_project" : "many_per_project";
     const humanGuidance = guidanceText(unit?.guidance, "human").trim();
     const agentGuidance = guidanceText(unit?.guidance, "agent").trim();
 
-    const row: WorkUnitsPageRow = {
+    return {
       key,
-      displayName: unit?.displayName ?? key,
+      displayName,
+      description,
+      cardinality,
+      humanGuidance,
+      agentGuidance,
       transitionCount: Array.isArray(unit?.lifecycleTransitions)
         ? unit.lifecycleTransitions.length
         : 0,
       workflowCount: workflows.filter((workflow) => workflow?.workUnitTypeKey === key).length,
       factCount: Array.isArray(unit?.factSchemas) ? unit.factSchemas.length : 0,
       relationshipCount: relationshipCountForWorkUnit(unit?.relationships),
-    };
-
-    if (description.length > 0) {
-      row.description = description;
-    }
-
-    if (cardinality.length > 0) {
-      row.cardinality = cardinality;
-    }
-
-    if (humanGuidance.length > 0) {
-      row.humanGuidance = humanGuidance;
-    }
-
-    if (agentGuidance.length > 0) {
-      row.agentGuidance = agentGuidance;
-    }
-
-    return row;
+    } satisfies WorkUnitsPageRow;
   });
 }
 
