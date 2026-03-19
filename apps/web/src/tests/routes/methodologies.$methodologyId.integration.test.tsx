@@ -3,11 +3,14 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { useRouteContextMock, useLocationMock, useNavigateMock } = vi.hoisted(() => ({
-  useRouteContextMock: vi.fn(),
-  useLocationMock: vi.fn(),
-  useNavigateMock: vi.fn(),
-}));
+const { toastSuccessMock, useRouteContextMock, useLocationMock, useNavigateMock } = vi.hoisted(
+  () => ({
+    toastSuccessMock: vi.fn(),
+    useRouteContextMock: vi.fn(),
+    useLocationMock: vi.fn(),
+    useNavigateMock: vi.fn(),
+  }),
+);
 
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (options: Record<string, unknown>) => ({
@@ -26,9 +29,34 @@ vi.mock("@/features/methodologies/workspace-shell", () => ({
   MethodologyWorkspaceShell: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
+vi.mock("sonner", () => ({
+  toast: {
+    success: toastSuccessMock,
+    error: vi.fn(),
+  },
+}));
+
 import { MethodologyDetailsRoute } from "../../routes/methodologies.$methodologyId";
 
 function createTestHarness() {
+  const createDraftMock = vi.fn(
+    async ({
+      methodologyKey,
+      displayName,
+      version,
+    }: {
+      methodologyKey: string;
+      displayName: string;
+      version: string;
+    }) => ({
+      version: {
+        id: "mver_bmad_project_context_only_draft_2",
+        methodologyKey,
+        displayName,
+        version,
+      },
+    }),
+  );
   const updateVersionMetaMock = vi.fn(
     async ({
       versionId,
@@ -109,13 +137,38 @@ function createTestHarness() {
         }),
       },
       version: {
-        create: { mutationOptions: () => ({ mutationFn: async () => null }) },
-        updateMeta: { mutationOptions: () => ({ mutationFn: updateVersionMetaMock }) },
-        archive: { mutationOptions: () => ({ mutationFn: archiveVersionMock }) },
+        create: {
+          mutationOptions: (options?: Record<string, unknown>) => ({
+            mutationFn: createDraftMock,
+            ...options,
+          }),
+        },
+        updateMeta: {
+          mutationOptions: (options?: Record<string, unknown>) => ({
+            mutationFn: updateVersionMetaMock,
+            ...options,
+          }),
+        },
+        archive: {
+          mutationOptions: (options?: Record<string, unknown>) => ({
+            mutationFn: archiveVersionMock,
+            ...options,
+          }),
+        },
       },
       catalog: {
-        update: { mutationOptions: () => ({ mutationFn: updateCatalogMock }) },
-        delete: { mutationOptions: () => ({ mutationFn: archiveCatalogMock }) },
+        update: {
+          mutationOptions: (options?: Record<string, unknown>) => ({
+            mutationFn: updateCatalogMock,
+            ...options,
+          }),
+        },
+        delete: {
+          mutationOptions: (options?: Record<string, unknown>) => ({
+            mutationFn: archiveCatalogMock,
+            ...options,
+          }),
+        },
       },
     },
   };
@@ -130,6 +183,7 @@ function createTestHarness() {
   return {
     archiveCatalogMock,
     archiveVersionMock,
+    createDraftMock,
     queryClient,
     updateCatalogMock,
     updateVersionMetaMock,
@@ -139,6 +193,7 @@ function createTestHarness() {
 describe("methodology details route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    toastSuccessMock.mockReset();
   });
 
   afterEach(() => {
@@ -211,9 +266,8 @@ describe("methodology details route", () => {
         displayName: "BMAD v2",
         methodologyKey: "bmad.v1",
       });
+      expect(toastSuccessMock).toHaveBeenCalledWith("Methodology updated");
     });
-
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Archive Methodology" }));
     fireEvent.click(screen.getByRole("button", { name: "Confirm Archive" }));
@@ -227,6 +281,47 @@ describe("methodology details route", () => {
       expect(firstCall?.[0]).toEqual({
         methodologyKey: "bmad.v1",
       });
+      expect(toastSuccessMock).toHaveBeenCalledWith("Methodology archived");
+    });
+  });
+
+  it("opens a create draft naming dialog before running mutation", async () => {
+    const { createDraftMock, queryClient } = createTestHarness();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MethodologyDetailsRoute />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("Version Ledger")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Create Draft" }));
+
+    const draftDisplayNameInput = await screen.findByLabelText("Draft Display Name");
+    expect((draftDisplayNameInput as HTMLInputElement).value).toBe("BMAD v1 Draft 3");
+    fireEvent.change(draftDisplayNameInput, { target: { value: "BMAD v3 Draft" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create Draft Version" }));
+
+    await waitFor(() => {
+      expect(createDraftMock).toHaveBeenCalled();
+      const firstCall = createDraftMock.mock.calls[0] as unknown as [
+        {
+          methodologyKey: string;
+          displayName: string;
+          version: string;
+          workUnitTypes: unknown[];
+          agentTypes: unknown[];
+          artifactTemplates: unknown[];
+        },
+        unknown?,
+      ];
+      expect(firstCall?.[0]?.methodologyKey).toBe("bmad.v1");
+      expect(firstCall?.[0]?.displayName).toBe("BMAD v3 Draft");
+      expect(firstCall?.[0]?.version).toBe("0.3.0");
+      expect(Array.isArray(firstCall?.[0]?.workUnitTypes)).toBe(true);
+      expect(Array.isArray(firstCall?.[0]?.agentTypes)).toBe(true);
+      expect(Array.isArray(firstCall?.[0]?.artifactTemplates)).toBe(true);
+      expect(toastSuccessMock).toHaveBeenCalledWith("Draft created");
     });
   });
 
@@ -259,13 +354,15 @@ describe("methodology details route", () => {
         displayName: "BMAD v2 Draft",
         version: "v2-draft-updated",
       });
+      expect(toastSuccessMock).toHaveBeenCalledWith("Version updated");
     });
-
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
     const archiveButtons = screen.getAllByRole("button", { name: "Archive version" });
     fireEvent.click(archiveButtons[0]!);
-    fireEvent.click(screen.getByRole("button", { name: "Confirm Version Archive" }));
+    expect(screen.getByText("Destructive action")).toBeTruthy();
+    const confirmArchiveButton = screen.getByRole("button", { name: "Confirm Version Archive" });
+    expect(confirmArchiveButton.className.includes("text-destructive")).toBe(true);
+    fireEvent.click(confirmArchiveButton);
 
     await waitFor(() => {
       expect(archiveVersionMock).toHaveBeenCalled();
@@ -276,6 +373,7 @@ describe("methodology details route", () => {
       expect(firstCall?.[0]).toEqual({
         versionId: "mver_bmad_project_context_only_draft",
       });
+      expect(toastSuccessMock).toHaveBeenCalledWith("Version archived");
     });
   });
 });

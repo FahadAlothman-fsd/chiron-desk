@@ -1,6 +1,12 @@
 type WorkUnitProjection = {
   key?: string;
   displayName?: string;
+  description?: string;
+  cardinality?: string;
+  guidance?: {
+    human?: { markdown?: string; short?: string; long?: string };
+    agent?: { markdown?: string; intent?: string };
+  };
   lifecycleTransitions?: ReadonlyArray<unknown>;
   factSchemas?: ReadonlyArray<unknown>;
   relationships?: ReadonlyArray<unknown>;
@@ -23,7 +29,52 @@ export type WorkUnitsPageRow = {
   workflowCount: number;
   factCount: number;
   relationshipCount: number;
+  description?: string;
+  cardinality?: string;
+  humanGuidance?: string;
+  agentGuidance?: string;
 };
+
+function guidanceText(
+  guidance: WorkUnitProjection["guidance"] | undefined,
+  audience: "human" | "agent",
+) {
+  if (audience === "human") {
+    const value = guidance?.human;
+    if (!value) {
+      return "";
+    }
+
+    if (typeof value.markdown === "string" && value.markdown.trim().length > 0) {
+      return value.markdown;
+    }
+
+    if (typeof value.short === "string" && value.short.trim().length > 0) {
+      return value.short;
+    }
+
+    if (typeof value.long === "string" && value.long.trim().length > 0) {
+      return value.long;
+    }
+
+    return "";
+  }
+
+  const value = guidance?.agent;
+  if (!value) {
+    return "";
+  }
+
+  if (typeof value.markdown === "string" && value.markdown.trim().length > 0) {
+    return value.markdown;
+  }
+
+  if (typeof value.intent === "string" && value.intent.trim().length > 0) {
+    return value.intent;
+  }
+
+  return "";
+}
 
 function relationshipCountForWorkUnit(relationships: ReadonlyArray<unknown> | undefined): number {
   if (!Array.isArray(relationships)) {
@@ -48,8 +99,12 @@ export function deriveWorkUnitsPageRows(
 
   return workUnitTypes.map((unit, index) => {
     const key = unit?.key ?? `work-unit-${index + 1}`;
+    const description = typeof unit?.description === "string" ? unit.description.trim() : "";
+    const cardinality = typeof unit?.cardinality === "string" ? unit.cardinality.trim() : "";
+    const humanGuidance = guidanceText(unit?.guidance, "human").trim();
+    const agentGuidance = guidanceText(unit?.guidance, "agent").trim();
 
-    return {
+    const row: WorkUnitsPageRow = {
       key,
       displayName: unit?.displayName ?? key,
       transitionCount: Array.isArray(unit?.lifecycleTransitions)
@@ -59,6 +114,24 @@ export function deriveWorkUnitsPageRows(
       factCount: Array.isArray(unit?.factSchemas) ? unit.factSchemas.length : 0,
       relationshipCount: relationshipCountForWorkUnit(unit?.relationships),
     };
+
+    if (description.length > 0) {
+      row.description = description;
+    }
+
+    if (cardinality.length > 0) {
+      row.cardinality = cardinality;
+    }
+
+    if (humanGuidance.length > 0) {
+      row.humanGuidance = humanGuidance;
+    }
+
+    if (agentGuidance.length > 0) {
+      row.agentGuidance = agentGuidance;
+    }
+
+    return row;
   });
 }
 
