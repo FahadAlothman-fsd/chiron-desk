@@ -2,9 +2,9 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Lock a clear architecture where methodology design-time ownership lives in `@chiron/methodology-engine`, workflows are owned under work units, and runtime packages consume published contracts/projections without importing design-time persistence seams.
+**Goal:** Lock a clear architecture where methodology design-time ownership lives in `@chiron/methodology-engine` with phased boundaries: L1 handles version-level authoring and work-unit metadata, L2 owns full work-unit domain state, and L3 owns workflow internals.
 
-**Architecture:** Keep `methodology version` as the publish/release aggregate root, move workflow and transition-workflow binding ownership into the work-unit aggregate, and keep runtime-facing contract shape stable while allowing execution module internals to evolve. Use Effect layer composition so service interfaces stay dependency-light and wiring happens at the composition root.
+**Architecture:** Keep `methodology version` as the publish/release aggregate root and execute migration in strict layers: L1 (`methodology versions`, `methodology facts`, `methodology agents`, `dependency definitions`, `work-unit metadata`), L2 (work-unit domain: metadata relocation, work-unit facts, workflows, state machine), L3 (workflow domain: step definitions and handler-definition CRUD). Keep runtime-facing contract shape stable while execution internals evolve. Use Effect layer composition so service interfaces stay dependency-light and wiring happens at the composition root.
 
 **Tech Stack:** TypeScript, Effect (`Context.Tag`, `Layer`), oRPC/Hono API router, Drizzle repositories, TanStack web authoring UI, BMAD architecture artifacts.
 
@@ -102,32 +102,57 @@ Expected: original Story 3.1 outcomes remain intact; divergence is clearly addit
 - Future modify: `packages/db/src/methodology-repository.ts`
 - Future modify: `packages/api/src/routers/methodology.ts`
 
-**Step 1: L1 boundary extraction plan**
+**Step 1: L1 service boundary plan (version-level only)**
 
-Define dedicated service seams:
-- `MethodologyVersionService` (aggregate orchestration + publish),
-- `WorkUnitService` (work-unit metadata + state-machine/workflow ownership),
-- `WorkflowService` (workflow CRUD within a work-unit scope).
+Define and wire L1 services for only these domains:
+- `MethodologyVersionService`: version lifecycle, publish, and top-level orchestration,
+- version-level `facts`, `agents`, and `dependency definitions` operations,
+- `work-unit metadata` operations only (no work-unit facts, workflows, or state-machine CRUD in L1).
 
-**Step 2: L2 projection/runtime contract plan**
+L1 completion criteria:
+- route wiring and service interfaces reflect only the L1 domain list,
+- no introduction of L2/L3 write ownership in L1 scope.
 
-Define published resolver contracts:
+**Step 2: L2 service boundary plan (work-unit domain)**
+
+Define L2 ownership and services for work-unit internals:
+- migrate metadata ownership from L1 to L2,
+- add work-unit facts CRUD,
+- add workflows under work-unit ownership,
+- add state-machine CRUD (states/transitions and transition-workflow bindings).
+
+L2 completion criteria:
+- work-unit aggregate is authoritative for its internal facts/workflows/state machine,
+- compatibility adapters exist for any temporary version-root readers.
+
+**Step 3: L3 service boundary plan (workflow domain)**
+
+Define workflow-internal authoring services:
+- workflow step definitions CRUD,
+- handler-definition CRUD across step kinds,
+- workflow-level validation seams.
+
+L3 completion criteria:
+- step/handler-definition mutations are isolated from L1/L2 mutation paths,
+- workflow contracts remain runtime-consumable without design-time persistence leakage.
+
+**Step 4: Runtime resolver contract plan (cross-layer read boundary)**
+
+Define published read contracts that runtime modules consume at all phases:
 - `MethodologyRuntimeResolver`,
 - `WorkUnitRuntimeResolver`,
 - `WorkflowRuntimeResolver`,
 - `StepContractResolver`.
 
-**Step 3: L3 compatibility adapter plan**
+Rule: runtime packages consume published contracts/projections only and must not import methodology-engine mutation or repository seams.
 
-Keep temporary compatibility read models (version-root flattened workflow indexes) generated from work-unit-owned source-of-truth; reject mixed-write authority.
+**Step 5: Refactor test plan (TDD-first by layer)**
 
-**Step 4: Refactor test plan (TDD-first)**
-
-Before implementation, add failing tests for:
-- workflow identity scoping under work unit,
-- transition-workflow binding scoping,
-- runtime projection resolution via published contracts,
-- compatibility adapter parity for existing readers.
+Before implementation of each layer, add failing tests specific to that layer:
+- L1: version/fact/agent/dependency/work-unit-metadata route-to-service boundaries,
+- L2: work-unit-scoped workflow identity and transition-binding scope,
+- L3: step/handler definition CRUD and validation,
+- cross-layer: resolver contract stability and compatibility adapter parity for existing readers.
 
 ---
 
