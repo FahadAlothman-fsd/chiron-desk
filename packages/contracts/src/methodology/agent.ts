@@ -6,11 +6,17 @@ export const ModelReference = Schema.Struct({
 });
 export type ModelReference = typeof ModelReference.Type;
 
+export const AgentPromptTemplate = Schema.Struct({
+  markdown: Schema.NonEmptyString,
+});
+export type AgentPromptTemplate = typeof AgentPromptTemplate.Type;
+
 export const AgentTypeDefinition = Schema.Struct({
   key: Schema.NonEmptyString,
   displayName: Schema.optional(Schema.String),
   description: Schema.optional(Schema.String),
   persona: Schema.NonEmptyString,
+  promptTemplate: Schema.optional(AgentPromptTemplate),
   defaultModel: Schema.optional(ModelReference),
   mcpServers: Schema.optional(Schema.Array(Schema.NonEmptyString)),
   capabilities: Schema.optional(Schema.Array(Schema.NonEmptyString)),
