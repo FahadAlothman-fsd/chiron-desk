@@ -1,7 +1,9 @@
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
+import { AlertTriangleIcon } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { z } from "zod";
 
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -139,6 +141,7 @@ export function MethodologyVersionAgentsRoute() {
           queryKey: orpc.methodology.version.agent.list.queryOptions({ input: { versionId } })
             .queryKey,
         });
+        toast.success("Agent created");
         closeAgentEditor();
       },
     }),
@@ -151,6 +154,7 @@ export function MethodologyVersionAgentsRoute() {
           queryKey: orpc.methodology.version.agent.list.queryOptions({ input: { versionId } })
             .queryKey,
         });
+        toast.success("Agent updated");
         closeAgentEditor();
       },
     }),
@@ -163,6 +167,7 @@ export function MethodologyVersionAgentsRoute() {
           queryKey: orpc.methodology.version.agent.list.queryOptions({ input: { versionId } })
             .queryKey,
         });
+        toast.success("Agent deleted");
         setDeletingAgentKey(null);
       },
     }),
@@ -626,11 +631,15 @@ export function MethodologyVersionAgentsRoute() {
       >
         <DialogPrimitive.Portal>
           <DialogPrimitive.Backdrop className="fixed inset-0 bg-black/70" />
-          <DialogPrimitive.Popup className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 border border-border bg-background p-4 shadow-2xl">
-            <DialogPrimitive.Title className="text-sm font-semibold uppercase tracking-[0.18em]">
+          <DialogPrimitive.Popup className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 border border-destructive/40 bg-background p-4 shadow-2xl">
+            <DialogPrimitive.Title className="text-sm font-semibold uppercase tracking-[0.18em] text-destructive">
               Delete Agent
             </DialogPrimitive.Title>
-            <p className="mt-3 text-sm text-muted-foreground">
+            <div className="mt-3 inline-flex items-center gap-2 border border-destructive/30 bg-destructive/10 px-2 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-destructive">
+              <AlertTriangleIcon className="size-4" />
+              Destructive Action
+            </div>
+            <p className="mt-3 rounded-none border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive/90">
               Remove this agent definition from the current draft version.
             </p>
             <div className="mt-4 flex justify-end gap-2">
@@ -641,7 +650,7 @@ export function MethodologyVersionAgentsRoute() {
               >
                 Cancel
               </Button>
-              <Button className="rounded-none" onClick={confirmDeleteAgent}>
+              <Button variant="destructive" className="rounded-none" onClick={confirmDeleteAgent}>
                 Confirm Delete Agent
               </Button>
             </div>
