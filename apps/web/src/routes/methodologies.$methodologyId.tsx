@@ -541,7 +541,7 @@ export function MethodologyDetailsRoute() {
                       className="rounded-none"
                       disabled={createDraftMutation.isPending || !nextDraftSeed}
                     >
-                      Create Draft Version
+                      {createDraftMutation.isPending ? "Creating Draft..." : "Create Draft Version"}
                     </Button>
                   </div>
                 </form>
@@ -630,7 +630,7 @@ export function MethodologyDetailsRoute() {
                 <DialogPrimitive.Title className="text-sm font-semibold uppercase tracking-[0.12em] text-destructive">
                   Archive Version
                 </DialogPrimitive.Title>
-                <DialogPrimitive.Description className="mt-2 text-sm text-muted-foreground">
+                <DialogPrimitive.Description className="mt-2 border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive/90">
                   This archives the selected version and removes it from editable draft flow.
                 </DialogPrimitive.Description>
                 <p className="mt-3 border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive/90">
