@@ -12,6 +12,7 @@ type WorkUnitsRightRailProps = {
   onSearchChange: (value: string) => void;
   onSelect: (workUnitKey: string) => void;
   onOpenRelationshipView: (workUnitKey: string) => void;
+  onEdit: (workUnitKey: string) => void;
 };
 
 export function WorkUnitsRightRail(props: WorkUnitsRightRailProps) {
@@ -92,6 +93,13 @@ export function WorkUnitsRightRail(props: WorkUnitsRightRailProps) {
                 onClick={() => props.onOpenRelationshipView(activeWorkUnit.key)}
               >
                 Open Relationship View
+              </button>
+              <button
+                type="button"
+                className="underline"
+                onClick={() => props.onEdit(activeWorkUnit.key)}
+              >
+                Edit Work Unit
               </button>
             </div>
           </>

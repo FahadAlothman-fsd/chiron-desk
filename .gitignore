@@ -9,6 +9,14 @@ build
 apps/desktop/dist-electron
 apps/server/server
 *.tsbuildinfo
+apps/server/tsdown.config.js
+apps/server/tsdown.config.js.map
+apps/server/tsdown.config.d.ts
+apps/server/tsdown.config.d.ts.map
+apps/web/src/lib/runtime-backend.js
+apps/web/src/lib/runtime-backend.js.map
+apps/web/src/lib/runtime-backend.d.ts
+apps/web/src/lib/runtime-backend.d.ts.map
 
 # Environment variables
 .env

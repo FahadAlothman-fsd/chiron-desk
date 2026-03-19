@@ -1,6 +1,7 @@
-import { Schema } from "effect";
+import * as Schema from "effect/Schema";
 import { AgentTypeDefinition } from "./agent.js";
 import { FactSchema } from "./fact.js";
+import { AudienceGuidance } from "./guidance.js";
 
 export const GateClass = Schema.Literal("start_gate", "completion_gate");
 export type GateClass = typeof GateClass.Type;
@@ -63,12 +64,44 @@ export const WorkUnitTypeDefinition = Schema.Struct({
   key: Schema.NonEmptyString,
   displayName: Schema.optional(Schema.String),
   description: Schema.optional(Schema.String),
+  guidance: Schema.optional(AudienceGuidance),
   cardinality: CardinalityPolicy,
   lifecycleStates: Schema.Array(LifecycleState),
   lifecycleTransitions: Schema.Array(LifecycleTransition),
   factSchemas: Schema.Array(FactSchema),
 });
 export type WorkUnitTypeDefinition = typeof WorkUnitTypeDefinition.Type;
+
+export const CreateMethodologyWorkUnitTypeInput = Schema.Struct({
+  key: Schema.NonEmptyString,
+  displayName: Schema.optional(Schema.String),
+  description: Schema.optional(Schema.String),
+  guidance: Schema.optional(AudienceGuidance),
+  cardinality: Schema.optional(CardinalityPolicy),
+});
+export type CreateMethodologyWorkUnitTypeInput = typeof CreateMethodologyWorkUnitTypeInput.Type;
+
+export const CreateMethodologyWorkUnitInput = Schema.Struct({
+  versionId: Schema.NonEmptyString,
+  workUnitType: CreateMethodologyWorkUnitTypeInput,
+});
+export type CreateMethodologyWorkUnitInput = typeof CreateMethodologyWorkUnitInput.Type;
+
+export const UpdateMethodologyWorkUnitTypeInput = Schema.Struct({
+  key: Schema.NonEmptyString,
+  displayName: Schema.optional(Schema.String),
+  description: Schema.optional(Schema.String),
+  guidance: Schema.optional(AudienceGuidance),
+  cardinality: Schema.optional(CardinalityPolicy),
+});
+export type UpdateMethodologyWorkUnitTypeInput = typeof UpdateMethodologyWorkUnitTypeInput.Type;
+
+export const UpdateMethodologyWorkUnitInput = Schema.Struct({
+  versionId: Schema.NonEmptyString,
+  workUnitKey: Schema.NonEmptyString,
+  workUnitType: UpdateMethodologyWorkUnitTypeInput,
+});
+export type UpdateMethodologyWorkUnitInput = typeof UpdateMethodologyWorkUnitInput.Type;
 
 export const UpdateDraftLifecycleInput = Schema.Struct({
   versionId: Schema.NonEmptyString,

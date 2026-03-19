@@ -1,7 +1,8 @@
-import { Schema } from "effect";
+import * as Schema from "effect/Schema";
 
 import { MethodologyFactDefinitionInput } from "./fact.js";
-import { LayeredGuidance, WorkflowDefinition } from "./version.js";
+import { LayeredGuidance } from "./guidance.js";
+import { WorkflowDefinition } from "./version.js";
 
 export const MethodologyLifecycleAuthoringDto = Schema.Struct({
   workUnitTypes: Schema.Array(Schema.Unknown),

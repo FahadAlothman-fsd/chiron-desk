@@ -22,6 +22,7 @@ import type {
   MethodologyFactDefinitionInput,
   UpdateMethodologyFactInput,
 } from "@chiron/contracts/methodology/fact";
+import type { WorkUnitTypeDefinition } from "@chiron/contracts/methodology/lifecycle";
 import type { UpdateDraftWorkflowsInputDto } from "@chiron/contracts/methodology/dto";
 import type { MethodologyVersionProjection } from "@chiron/contracts/methodology/projection";
 import { Context, Effect, Schema } from "effect";
@@ -29,6 +30,8 @@ import { MethodologyVersionDefinition as MethodologyVersionDefinitionSchema } fr
 import path from "node:path";
 
 import {
+  DependencyDefinitionNotFoundError,
+  DuplicateDependencyDefinitionError,
   MethodologyNotFoundError,
   DraftVersionAlreadyExistsError,
   DuplicateVersionError,
@@ -37,6 +40,7 @@ import {
   VersionNotDraftError,
   VersionNotFoundError,
 } from "./errors";
+import type { CreateDraftParams, UpdateDraftParams } from "./repository";
 import type { MethodologyVersionEventRow, MethodologyVersionRow } from "./repository";
 import { MethodologyRepository } from "./repository";
 import { LifecycleRepository, type SaveLifecycleDefinitionParams } from "./lifecycle-repository";
@@ -156,21 +160,34 @@ export class MethodologyVersionService extends Context.Tag("MethodologyVersionSe
       actorId: string | null,
     ) => Effect.Effect<
       UpdateDraftResult,
-      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+      | VersionNotFoundError
+      | VersionNotDraftError
+      | DuplicateDependencyDefinitionError
+      | ValidationDecodeError
+      | RepositoryError
     >;
     readonly updateDependencyDefinition: (
       input: UpdateMethodologyDependencyDefinitionInput,
       actorId: string | null,
     ) => Effect.Effect<
       UpdateDraftResult,
-      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+      | VersionNotFoundError
+      | VersionNotDraftError
+      | DependencyDefinitionNotFoundError
+      | DuplicateDependencyDefinitionError
+      | ValidationDecodeError
+      | RepositoryError
     >;
     readonly deleteDependencyDefinition: (
       input: DeleteMethodologyDependencyDefinitionInput,
       actorId: string | null,
     ) => Effect.Effect<
       UpdateDraftResult,
-      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+      | VersionNotFoundError
+      | VersionNotDraftError
+      | DependencyDefinitionNotFoundError
+      | ValidationDecodeError
+      | RepositoryError
     >;
     readonly validateDraftVersion: (
       input: ValidateDraftVersionInput,
@@ -257,19 +274,16 @@ function mapFactDefinitionRowToInput(fact: {
 
 function mapLinkTypeDefinitionRowToInput(definition: {
   key: string;
+  name: string | null;
   descriptionJson: unknown;
-  allowedStrengthsJson: unknown;
+  guidanceJson: unknown;
 }): MethodologyLinkTypeDefinitionInput {
-  const allowedStrengths = Array.isArray(definition.allowedStrengthsJson)
-    ? definition.allowedStrengthsJson
-    : [];
-
   return {
     key: definition.key,
+    name: definition.name ?? undefined,
     description:
       typeof definition.descriptionJson === "string" ? definition.descriptionJson : undefined,
-    allowedStrengths:
-      allowedStrengths as unknown as MethodologyLinkTypeDefinitionInput["allowedStrengths"],
+    guidance: definition.guidanceJson as MethodologyLinkTypeDefinitionInput["guidance"],
   };
 }
 
@@ -531,6 +545,8 @@ function loadCanonicalLifecycleDefinition(
           key: workUnit.key,
           displayName: extractText(workUnit.displayName),
           description: workUnit.descriptionJson,
+          guidance:
+            (workUnit.guidanceJson as WorkUnitTypeDefinition["guidance"] | null) ?? undefined,
           cardinality: asCardinality(workUnit.cardinality),
           lifecycleStates: states.map((state) => ({
             key: state.key,
@@ -690,6 +706,7 @@ function toCanonicalLifecycleSaveInput(
     key: string;
     displayName?: string;
     description?: string;
+    guidance?: SaveLifecycleDefinitionParams["workUnitTypes"][number]["guidance"];
     cardinality: "one_per_project" | "many_per_project";
     lifecycleStates: MutableLifecycleState[];
     lifecycleTransitions: MutableLifecycleTransition[];
@@ -705,22 +722,34 @@ function toCanonicalLifecycleSaveInput(
 
   const workUnitTypes: MutableWorkUnitType[] = workUnitInputs
     .filter((workUnit) => typeof workUnit.key === "string" && workUnit.key.length > 0)
-    .map((workUnit) => ({
-      key: workUnit.key as string,
-      displayName: typeof workUnit.displayName === "string" ? workUnit.displayName : undefined,
-      description: typeof workUnit.description === "string" ? workUnit.description : undefined,
-      cardinality:
-        workUnit.cardinality === "many_per_project" ? "many_per_project" : "one_per_project",
-      lifecycleStates: Array.isArray(workUnit.lifecycleStates)
-        ? (workUnit.lifecycleStates as MutableLifecycleState[])
-        : [],
-      lifecycleTransitions: Array.isArray(workUnit.lifecycleTransitions)
-        ? (workUnit.lifecycleTransitions as MutableLifecycleTransition[])
-        : [],
-      factSchemas: Array.isArray(workUnit.factSchemas)
-        ? (workUnit.factSchemas as MutableFactSchema[])
-        : [],
-    }));
+    .map((workUnit) => {
+      const displayName =
+        typeof workUnit.displayName === "string" ? workUnit.displayName : undefined;
+      const description =
+        typeof workUnit.description === "string" ? workUnit.description : undefined;
+      const guidance =
+        workUnit.guidance && typeof workUnit.guidance === "object"
+          ? (workUnit.guidance as MutableWorkUnitType["guidance"])
+          : undefined;
+
+      return {
+        key: workUnit.key as string,
+        ...(displayName !== undefined ? { displayName } : {}),
+        ...(description !== undefined ? { description } : {}),
+        ...(guidance !== undefined ? { guidance } : {}),
+        cardinality:
+          workUnit.cardinality === "many_per_project" ? "many_per_project" : "one_per_project",
+        lifecycleStates: Array.isArray(workUnit.lifecycleStates)
+          ? (workUnit.lifecycleStates as MutableLifecycleState[])
+          : [],
+        lifecycleTransitions: Array.isArray(workUnit.lifecycleTransitions)
+          ? (workUnit.lifecycleTransitions as MutableLifecycleTransition[])
+          : [],
+        factSchemas: Array.isArray(workUnit.factSchemas)
+          ? (workUnit.factSchemas as MutableFactSchema[])
+          : [],
+      } satisfies MutableWorkUnitType;
+    });
 
   const workUnitTypeByKey = new Map(workUnitTypes.map((workUnit) => [workUnit.key, workUnit]));
 
@@ -890,19 +919,23 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
       const diagnostics = validateDraftDefinition(definition, timestamp);
       const lifecycleInput = toCanonicalLifecycleSaveInput(definition);
 
-      const { version } = yield* repo.createDraft({
+      const createDraftParams = {
         methodologyKey: input.methodologyKey,
         displayName: input.displayName,
         version: input.version,
         definitionExtensions: toDefinitionExtensions(definition),
         workflows: definition.workflows,
         transitionWorkflowBindings: definition.transitionWorkflowBindings,
-        guidance: definition.guidance,
-        factDefinitions: input.factDefinitions,
-        linkTypeDefinitions: input.linkTypeDefinitions,
+        ...(definition.guidance !== undefined ? { guidance: definition.guidance } : {}),
+        ...(input.factDefinitions !== undefined ? { factDefinitions: input.factDefinitions } : {}),
+        ...(input.linkTypeDefinitions !== undefined
+          ? { linkTypeDefinitions: input.linkTypeDefinitions }
+          : {}),
         actorId,
         validationDiagnostics: diagnostics,
-      });
+      } satisfies CreateDraftParams;
+
+      const { version } = yield* repo.createDraft(createDraftParams);
 
       yield* lifecycleRepo.saveLifecycleDefinition({
         versionId: version.id,
@@ -968,20 +1001,24 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
       const guidanceChanged =
         JSON.stringify(previousGuidance) !== JSON.stringify(definition.guidance);
 
-      const { version } = yield* repo.updateDraft({
+      const updateDraftParams = {
         versionId: input.versionId,
         displayName: input.displayName,
         version: input.version,
         definitionExtensions: toDefinitionExtensions(definition),
         workflows: definition.workflows,
         transitionWorkflowBindings: definition.transitionWorkflowBindings,
-        guidance: definition.guidance,
-        factDefinitions: input.factDefinitions,
-        linkTypeDefinitions: input.linkTypeDefinitions,
+        ...(definition.guidance !== undefined ? { guidance: definition.guidance } : {}),
+        ...(input.factDefinitions !== undefined ? { factDefinitions: input.factDefinitions } : {}),
+        ...(input.linkTypeDefinitions !== undefined
+          ? { linkTypeDefinitions: input.linkTypeDefinitions }
+          : {}),
         actorId,
         changedFieldsJson,
         validationDiagnostics: diagnostics,
-      });
+      } satisfies UpdateDraftParams;
+
+      const { version } = yield* repo.updateDraft(updateDraftParams);
 
       yield* lifecycleRepo.saveLifecycleDefinition({
         versionId: input.versionId,
@@ -1219,7 +1256,11 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
     actorId: string | null,
   ): Effect.Effect<
     UpdateDraftResult,
-    VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+    | VersionNotFoundError
+    | VersionNotDraftError
+    | DuplicateDependencyDefinitionError
+    | ValidationDecodeError
+    | RepositoryError
   > =>
     Effect.gen(function* () {
       const existing = yield* repo.findVersionById(input.versionId);
@@ -1233,6 +1274,17 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
       const lifecycleDefinition = yield* resolveLifecycleDefinition(existing, lifecycleRepo);
       const existingFacts = yield* repo.findFactDefinitionsByVersionId(existing.id);
       const existingLinkTypes = yield* repo.findLinkTypeDefinitionsByVersionId(existing.id);
+
+      if (
+        existingLinkTypes.some((definition) => definition.key === input.dependencyDefinition.key)
+      ) {
+        return yield* Effect.fail(
+          new DuplicateDependencyDefinitionError({
+            versionId: existing.id,
+            dependencyKey: input.dependencyDefinition.key,
+          }),
+        );
+      }
 
       return yield* updateDraftVersion(
         {
@@ -1262,7 +1314,12 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
     actorId: string | null,
   ): Effect.Effect<
     UpdateDraftResult,
-    VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+    | VersionNotFoundError
+    | VersionNotDraftError
+    | DependencyDefinitionNotFoundError
+    | DuplicateDependencyDefinitionError
+    | ValidationDecodeError
+    | RepositoryError
   > =>
     Effect.gen(function* () {
       const existing = yield* repo.findVersionById(input.versionId);
@@ -1276,6 +1333,27 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
       const lifecycleDefinition = yield* resolveLifecycleDefinition(existing, lifecycleRepo);
       const existingFacts = yield* repo.findFactDefinitionsByVersionId(existing.id);
       const existingLinkTypes = yield* repo.findLinkTypeDefinitionsByVersionId(existing.id);
+
+      if (!existingLinkTypes.some((definition) => definition.key === input.dependencyKey)) {
+        return yield* Effect.fail(
+          new DependencyDefinitionNotFoundError({
+            versionId: existing.id,
+            dependencyKey: input.dependencyKey,
+          }),
+        );
+      }
+
+      if (
+        input.dependencyDefinition.key !== input.dependencyKey &&
+        existingLinkTypes.some((definition) => definition.key === input.dependencyDefinition.key)
+      ) {
+        return yield* Effect.fail(
+          new DuplicateDependencyDefinitionError({
+            versionId: existing.id,
+            dependencyKey: input.dependencyDefinition.key,
+          }),
+        );
+      }
 
       return yield* updateDraftVersion(
         {
@@ -1306,7 +1384,11 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
     actorId: string | null,
   ): Effect.Effect<
     UpdateDraftResult,
-    VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+    | VersionNotFoundError
+    | VersionNotDraftError
+    | DependencyDefinitionNotFoundError
+    | ValidationDecodeError
+    | RepositoryError
   > =>
     Effect.gen(function* () {
       const existing = yield* repo.findVersionById(input.versionId);
@@ -1320,6 +1402,15 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
       const lifecycleDefinition = yield* resolveLifecycleDefinition(existing, lifecycleRepo);
       const existingFacts = yield* repo.findFactDefinitionsByVersionId(existing.id);
       const existingLinkTypes = yield* repo.findLinkTypeDefinitionsByVersionId(existing.id);
+
+      if (!existingLinkTypes.some((definition) => definition.key === input.dependencyKey)) {
+        return yield* Effect.fail(
+          new DependencyDefinitionNotFoundError({
+            versionId: existing.id,
+            dependencyKey: input.dependencyKey,
+          }),
+        );
+      }
 
       return yield* updateDraftVersion(
         {
@@ -1873,11 +1964,10 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
       }));
       const linkTypeDefinitions = linkTypeDefinitionRows.map((definition) => ({
         key: definition.key,
+        name: definition.name ?? undefined,
         description:
           typeof definition.descriptionJson === "string" ? definition.descriptionJson : undefined,
-        allowedStrengths: Array.isArray(definition.allowedStrengthsJson)
-          ? definition.allowedStrengthsJson
-          : [],
+        guidance: definition.guidanceJson as MethodologyLinkTypeDefinitionInput["guidance"],
       }));
 
       return {

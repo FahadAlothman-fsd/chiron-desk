@@ -53,13 +53,26 @@ function createRouteContext(options?: {
     options?.draftQueryFn ??
     (async () => ({
       workUnitTypes: [{ key: "WU.TASK", displayName: "Task" }],
-      agentTypes: [{ key: "agent.research", displayName: "Research Agent" }],
+      agentTypes: [
+        {
+          key: "agent.research",
+          displayName: "Research Agent",
+          persona: "Thorough reviewer",
+        },
+      ],
+      linkTypeDefinitions: [{ key: "link.requires", name: "Requires" }],
       transitionWorkflowBindings: { "link.requires": ["wf.a"] },
     }));
   const evidenceQueryFn = options?.evidenceQueryFn ?? (async () => []);
   const createAgentMock = vi.fn(async () => ({ validation: { valid: true, diagnostics: [] } }));
   const updateAgentMock = vi.fn(async () => ({ validation: { valid: true, diagnostics: [] } }));
   const deleteAgentMock = vi.fn(async () => ({ validation: { valid: true, diagnostics: [] } }));
+  const createWorkUnitMock = vi.fn(async (_input: unknown) => ({
+    validation: { valid: true, diagnostics: [] },
+  }));
+  const updateWorkUnitMock = vi.fn(async (_input: unknown) => ({
+    validation: { valid: true, diagnostics: [] },
+  }));
   const createDependencyDefinitionMock = vi.fn(async () => ({ diagnostics: [] }));
   const updateDependencyDefinitionMock = vi.fn(async () => ({ diagnostics: [] }));
   const deleteDependencyDefinitionMock = vi.fn(async () => ({ diagnostics: [] }));
@@ -168,7 +181,12 @@ function createRouteContext(options?: {
             },
             create: {
               mutationOptions: () => ({
-                mutationFn: async () => ({ validation: { valid: true, diagnostics: [] } }),
+                mutationFn: createWorkUnitMock,
+              }),
+            },
+            updateMeta: {
+              mutationOptions: () => ({
+                mutationFn: updateWorkUnitMock,
               }),
             },
             get: {
@@ -184,6 +202,8 @@ function createRouteContext(options?: {
     createAgentMock,
     updateAgentMock,
     deleteAgentMock,
+    createWorkUnitMock,
+    updateWorkUnitMock,
     createDependencyDefinitionMock,
     updateDependencyDefinitionMock,
     deleteDependencyDefinitionMock,
@@ -263,6 +283,52 @@ describe("methodology version shell routes", () => {
     expect(screen.getByText("Open Relationship View")).toBeTruthy();
   });
 
+  it("creates a work unit with guidance through version.workUnit.create", async () => {
+    const { MethodologyVersionWorkUnitsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
+    const routeContext = createRouteContext();
+    useParamsMock.mockReturnValue({ methodologyId: "equity-core", versionId: "draft-v2" });
+    useSearchMock.mockReturnValue({});
+    useRouteContextMock.mockReturnValue(routeContext);
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitsRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "+ Add Work Unit" }));
+    fireEvent.change(screen.getByLabelText("Work Unit Key"), { target: { value: "WU.INTAKE" } });
+    fireEvent.change(screen.getByLabelText("Display Name"), { target: { value: "Intake" } });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Collect intake guidance" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Guidance" }));
+    fireEvent.change(screen.getByLabelText("Human Guidance"), {
+      target: { value: "Ask operator for intake context." },
+    });
+    fireEvent.change(screen.getByLabelText("Agent Guidance"), {
+      target: { value: "Extract structured intake summary." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create Work Unit" }));
+
+    await waitFor(() => expect(routeContext.createWorkUnitMock).toHaveBeenCalledTimes(1));
+    const firstCreateCall = routeContext.createWorkUnitMock.mock.calls.at(0);
+    expect(firstCreateCall).toBeTruthy();
+    const createPayload = firstCreateCall?.[0];
+    expect(createPayload).toEqual(
+      expect.objectContaining({
+        versionId: "draft-v2",
+        workUnitType: expect.objectContaining({
+          key: "WU.INTAKE",
+          displayName: "Intake",
+          description: "Collect intake guidance",
+          guidance: {
+            human: { markdown: "Ask operator for intake context." },
+            agent: { markdown: "Extract structured intake summary." },
+          },
+          cardinality: "many_per_project",
+        }),
+      }),
+    );
+  });
+
   it("renders work-unit detail shell with preserved selected key", async () => {
     const { MethodologyVersionWorkUnitDetailsRoute } =
       await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey");
@@ -326,6 +392,7 @@ describe("methodology version shell routes", () => {
     fireEvent.change(screen.getByLabelText("Description"), {
       target: { value: "Reviews outputs" },
     });
+    fireEvent.click(screen.getByRole("button", { name: "Guidance" }));
     fireEvent.change(screen.getByLabelText("Persona"), { target: { value: "Thorough reviewer" } });
     fireEvent.click(screen.getByRole("button", { name: "Create Agent" }));
 
@@ -356,6 +423,7 @@ describe("methodology version shell routes", () => {
     fireEvent.change(screen.getByLabelText("Description"), {
       target: { value: "Reviews outputs" },
     });
+    fireEvent.click(screen.getByRole("button", { name: "Guidance" }));
     fireEvent.change(screen.getByLabelText("Persona"), { target: { value: "Thorough reviewer" } });
     fireEvent.click(screen.getByRole("button", { name: "Create Agent" }));
 
@@ -414,10 +482,17 @@ describe("methodology version shell routes", () => {
 
     expect(screen.getByLabelText("Link Type Key")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Link Type Key"), { target: { value: "depends_on" } });
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Depends On" } });
     fireEvent.change(screen.getByLabelText("Description"), {
       target: { value: "Depends on another work unit" },
     });
-    fireEvent.click(screen.getByLabelText("Hard"));
+    fireEvent.click(screen.getByRole("button", { name: "Guidance" }));
+    fireEvent.change(screen.getByLabelText("Human Guidance"), {
+      target: { value: "Require upstream completion before start." },
+    });
+    fireEvent.change(screen.getByLabelText("Agent Guidance"), {
+      target: { value: "Schedule this item after upstream dependencies close." },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Create Link Type" }));
 
     await waitFor(() =>
@@ -445,10 +520,17 @@ describe("methodology version shell routes", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "+ Add Link Type" }));
     fireEvent.change(screen.getByLabelText("Link Type Key"), { target: { value: "depends_on" } });
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Depends On" } });
     fireEvent.change(screen.getByLabelText("Description"), {
       target: { value: "Depends on another work unit" },
     });
-    fireEvent.click(screen.getByLabelText("Hard"));
+    fireEvent.click(screen.getByRole("button", { name: "Guidance" }));
+    fireEvent.change(screen.getByLabelText("Human Guidance"), {
+      target: { value: "Require upstream completion before start." },
+    });
+    fireEvent.change(screen.getByLabelText("Agent Guidance"), {
+      target: { value: "Schedule this item after upstream dependencies close." },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Create Link Type" }));
 
     await waitFor(() =>
@@ -470,7 +552,14 @@ describe("methodology version shell routes", () => {
     fireEvent.change(screen.getByLabelText("Description"), {
       target: { value: "Updated dependency description" },
     });
-    fireEvent.click(screen.getByLabelText("Soft"));
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Requires" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guidance" }));
+    fireEvent.change(screen.getByLabelText("Human Guidance"), {
+      target: { value: "Explain why this dependency must complete first." },
+    });
+    fireEvent.change(screen.getByLabelText("Agent Guidance"), {
+      target: { value: "Block workflow execution until dependency resolves." },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Save Link Type Changes" }));
 
     await waitFor(() =>

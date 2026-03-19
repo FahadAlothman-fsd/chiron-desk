@@ -26,6 +26,20 @@ export class DraftVersionAlreadyExistsError extends Data.TaggedError(
   readonly existingVersion: string;
 }> {}
 
+export class DuplicateDependencyDefinitionError extends Data.TaggedError(
+  "DuplicateDependencyDefinitionError",
+)<{
+  readonly versionId: string;
+  readonly dependencyKey: string;
+}> {}
+
+export class DependencyDefinitionNotFoundError extends Data.TaggedError(
+  "DependencyDefinitionNotFoundError",
+)<{
+  readonly versionId: string;
+  readonly dependencyKey: string;
+}> {}
+
 export class ValidationDecodeError extends Data.TaggedError("ValidationDecodeError")<{
   readonly message: string;
 }> {}
@@ -55,6 +69,8 @@ export type MethodologyError =
   | VersionNotDraftError
   | DuplicateVersionError
   | DraftVersionAlreadyExistsError
+  | DuplicateDependencyDefinitionError
+  | DependencyDefinitionNotFoundError
   | ValidationDecodeError
   | RepositoryError;
 

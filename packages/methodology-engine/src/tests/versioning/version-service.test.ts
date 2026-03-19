@@ -46,6 +46,7 @@ function makeTestRepo() {
         displayName: string | null;
         descriptionJson: unknown;
         cardinality: string;
+        guidanceJson?: unknown;
       }>;
       lifecycleStates: Array<{
         id: string;
@@ -118,6 +119,7 @@ function makeTestRepo() {
         descriptionJson: item.description ?? null,
         cardinality:
           item.cardinality === "many_per_project" ? "many_per_project" : "one_per_project",
+        guidanceJson: item.guidance ?? null,
       };
     });
 
@@ -523,6 +525,7 @@ function makeTestRepo() {
       }),
 
     findLinkTypeKeys: (_versionId: string) => Effect.succeed([] as readonly string[]),
+    findLinkTypeDefinitionsByVersionId: (_versionId: string) => Effect.succeed([] as const),
     findWorkflowSnapshot: (versionId: string) =>
       Effect.succeed(
         workflowSnapshots.get(versionId) ?? {
@@ -643,6 +646,7 @@ function makeTestRepo() {
         displayName: row.displayName,
         descriptionJson: row.descriptionJson,
         cardinality: row.cardinality,
+        guidanceJson: row.guidanceJson ?? null,
         createdAt: now,
         updatedAt: now,
       }));
@@ -1002,7 +1006,11 @@ describe("MethodologyVersionService", () => {
         linkTypeDefinitions: [
           {
             key: "depends-on",
-            allowedStrengths: ["hard"] as const,
+            name: "Depends On",
+            guidance: {
+              human: { markdown: "Respect declared dependencies." },
+              agent: { markdown: "Sequence execution after dependency completion." },
+            },
           },
         ],
       };
@@ -1122,6 +1130,50 @@ describe("MethodologyVersionService", () => {
 
       expect(result.version.displayName).toBe("Changed Name");
       expect(result.version.version).toBe("2.0.0");
+    });
+  });
+
+  describe("dependency definition CRUD guards", () => {
+    it("rejects update when dependency key is missing", async () => {
+      const error = await Effect.runPromise(
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionService;
+          const created = yield* svc.createDraftVersion(MINIMAL_INPUT, TEST_ACTOR_ID);
+
+          return yield* svc.updateDependencyDefinition(
+            {
+              versionId: created.version.id,
+              dependencyKey: "missing",
+              dependencyDefinition: {
+                key: "missing",
+                name: "Missing",
+              },
+            },
+            TEST_ACTOR_ID,
+          );
+        }).pipe(Effect.flip, Effect.provide(makeServiceLayer())),
+      );
+
+      expect(error._tag).toBe("DependencyDefinitionNotFoundError");
+    });
+
+    it("rejects delete when dependency key is missing", async () => {
+      const error = await Effect.runPromise(
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionService;
+          const created = yield* svc.createDraftVersion(MINIMAL_INPUT, TEST_ACTOR_ID);
+
+          return yield* svc.deleteDependencyDefinition(
+            {
+              versionId: created.version.id,
+              dependencyKey: "missing",
+            },
+            TEST_ACTOR_ID,
+          );
+        }).pipe(Effect.flip, Effect.provide(makeServiceLayer())),
+      );
+
+      expect(error._tag).toBe("DependencyDefinitionNotFoundError");
     });
   });
 
@@ -1580,6 +1632,41 @@ describe("MethodologyVersionService", () => {
         key: "effort",
         factType: "number",
         defaultValue: 3,
+      });
+    });
+
+    it("preserves work unit guidance from lifecycle repository rows", async () => {
+      const projection = await runWithService(
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionService;
+          const created = yield* svc.createDraftVersion(
+            {
+              ...MINIMAL_INPUT,
+              definition: {
+                ...VALID_DEFINITION,
+                workUnitTypes: [
+                  {
+                    ...VALID_DEFINITION.workUnitTypes[0],
+                    guidance: {
+                      human: { markdown: "Collect operator-facing intake notes." },
+                      agent: { markdown: "Draft the normalized intake summary." },
+                    },
+                  },
+                ],
+              },
+            },
+            TEST_ACTOR_ID,
+          );
+
+          return yield* svc.getDraftProjection(created.version.id);
+        }),
+      );
+
+      expect(projection.workUnitTypes[0]).toMatchObject({
+        guidance: {
+          human: { markdown: "Collect operator-facing intake notes." },
+          agent: { markdown: "Draft the normalized intake summary." },
+        },
       });
     });
 

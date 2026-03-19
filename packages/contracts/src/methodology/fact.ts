@@ -1,12 +1,10 @@
-import { Schema } from "effect";
+import * as Schema from "effect/Schema";
+import { AudienceGuidance, GuidanceMarkdownContent } from "./guidance.js";
 
-export const MarkdownContent = Schema.Struct({ markdown: Schema.String });
+export const MarkdownContent = GuidanceMarkdownContent;
 export type MarkdownContent = typeof MarkdownContent.Type;
 
-export const AudienceMarkdownJson = Schema.Struct({
-  human: MarkdownContent,
-  agent: MarkdownContent,
-});
+export const AudienceMarkdownJson = AudienceGuidance;
 export type AudienceMarkdownJson = typeof AudienceMarkdownJson.Type;
 
 export const FactType = Schema.Literal("string", "number", "boolean", "json");

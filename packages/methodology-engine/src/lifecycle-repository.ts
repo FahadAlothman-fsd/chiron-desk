@@ -12,6 +12,7 @@ export interface WorkUnitTypeRow {
   key: string;
   displayName: string | null;
   descriptionJson: unknown;
+  guidanceJson: unknown;
   cardinality: string;
   createdAt: Date;
   updatedAt: Date;

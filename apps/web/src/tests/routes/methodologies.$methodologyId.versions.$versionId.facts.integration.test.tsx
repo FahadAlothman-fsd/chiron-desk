@@ -237,7 +237,7 @@ describe("methodology version facts route", () => {
       code: "Enter",
     });
     expect(screen.getByText("greenfield")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Guidance" }));
     expect(await screen.findByLabelText("Human Guidance")).toBeTruthy();
     expect(screen.getByLabelText("Agent Guidance")).toBeTruthy();
     await waitFor(() => {
@@ -261,7 +261,7 @@ describe("methodology version facts route", () => {
     fireEvent.change(screen.getByLabelText("Display Name"), {
       target: { value: "Repository URL Updated" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Guidance" }));
     fireEvent.click(await screen.findByRole("button", { name: "Save" }));
     expect(await screen.findByText("Repository URL Updated")).toBeTruthy();
     expect(updateFactMock).toHaveBeenCalled();
@@ -269,7 +269,12 @@ describe("methodology version facts route", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Fact actions" })[0]!);
     fireEvent.click(await screen.findByRole("menuitem", { name: "Edit" }));
     expect(await screen.findByDisplayValue("Repository URL Updated")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Display Name"), {
+      target: { value: "Repository URL Draft" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(await screen.findByText("Discard unsaved changes?")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Discard Changes" }));
 
     fireEvent.click(screen.getAllByRole("button", { name: "Fact actions" })[0]!);
     fireEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));

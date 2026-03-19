@@ -26,13 +26,21 @@ export function MethodologyVersionAgentsRoute() {
   const navigate = useNavigate();
   const { orpc } = Route.useRouteContext();
   const queryClient = useQueryClient();
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isAgentEditorOpen, setIsAgentEditorOpen] = useState(false);
   const [editingAgentKey, setEditingAgentKey] = useState<string | null>(null);
   const [deletingAgentKey, setDeletingAgentKey] = useState<string | null>(null);
+  const [agentEditorTab, setAgentEditorTab] = useState<"contract" | "guidance">("contract");
+  const [pendingCloseAgentEditor, setPendingCloseAgentEditor] = useState(false);
   const [agentKey, setAgentKey] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [description, setDescription] = useState("");
   const [persona, setPersona] = useState("");
+  const [initialAgentFormValues, setInitialAgentFormValues] = useState({
+    agentKey: "",
+    displayName: "",
+    description: "",
+    persona: "",
+  });
 
   const draftQuery = useQuery(
     orpc.methodology.version.agent.list.queryOptions({
@@ -58,15 +66,7 @@ export function MethodologyVersionAgentsRoute() {
           queryKey: orpc.methodology.version.agent.list.queryOptions({ input: { versionId } })
             .queryKey,
         });
-        setIsCreateDialogOpen(false);
-        setAgentKey("");
-        setDisplayName("");
-        setDescription("");
-        setPersona("");
-
-        if (isCreateIntentActive) {
-          clearCreateIntent();
-        }
+        closeAgentEditor();
       },
     }),
   );
@@ -78,11 +78,7 @@ export function MethodologyVersionAgentsRoute() {
           queryKey: orpc.methodology.version.agent.list.queryOptions({ input: { versionId } })
             .queryKey,
         });
-        setEditingAgentKey(null);
-        setAgentKey("");
-        setDisplayName("");
-        setDescription("");
-        setPersona("");
+        closeAgentEditor();
       },
     }),
   );
@@ -99,20 +95,77 @@ export function MethodologyVersionAgentsRoute() {
     }),
   );
 
-  const agentTypes = ((
-    draftQuery.data as
-      | { agentTypes?: ReadonlyArray<{ key?: string; displayName?: string }> }
-      | undefined
-  )?.agentTypes ?? []) as ReadonlyArray<{ key?: string; displayName?: string }>;
+  const agentTypes =
+    draftQuery.data &&
+    typeof draftQuery.data === "object" &&
+    "agentTypes" in draftQuery.data &&
+    Array.isArray(draftQuery.data.agentTypes)
+      ? draftQuery.data.agentTypes
+      : [];
+
+  const trimmedAgentKey = agentKey.trim();
+  const trimmedDisplayName = displayName.trim();
+  const trimmedDescription = description.trim();
+  const trimmedPersona = persona.trim();
+  const isAgentEditorValid = trimmedAgentKey.length > 0 && trimmedPersona.length > 0;
+
+  const isContractTabDirty =
+    agentKey !== initialAgentFormValues.agentKey ||
+    displayName !== initialAgentFormValues.displayName ||
+    description !== initialAgentFormValues.description;
+  const isGuidanceTabDirty = persona !== initialAgentFormValues.persona;
+  const isAgentEditorDirty = isContractTabDirty || isGuidanceTabDirty;
+
+  function resetAgentFormState() {
+    setAgentKey("");
+    setDisplayName("");
+    setDescription("");
+    setPersona("");
+    setInitialAgentFormValues({
+      agentKey: "",
+      displayName: "",
+      description: "",
+      persona: "",
+    });
+    setAgentEditorTab("contract");
+  }
+
+  function closeAgentEditor() {
+    setIsAgentEditorOpen(false);
+    setEditingAgentKey(null);
+    setPendingCloseAgentEditor(false);
+    resetAgentFormState();
+    if (isCreateIntentActive) {
+      clearCreateIntent();
+    }
+  }
+
+  function requestCloseAgentEditor() {
+    if (isAgentEditorDirty) {
+      setPendingCloseAgentEditor(true);
+      return;
+    }
+    closeAgentEditor();
+  }
+
+  function openCreateAgent() {
+    setEditingAgentKey(null);
+    resetAgentFormState();
+    setIsAgentEditorOpen(true);
+  }
 
   function createAgent() {
+    if (!isAgentEditorValid) {
+      return;
+    }
+
     createAgentMutation.mutate({
       versionId,
       agent: {
-        key: agentKey.trim(),
-        displayName: displayName.trim(),
-        description: description.trim(),
-        persona: persona.trim(),
+        key: trimmedAgentKey,
+        displayName: trimmedDisplayName,
+        description: trimmedDescription,
+        persona: trimmedPersona,
       },
     });
   }
@@ -123,15 +176,27 @@ export function MethodologyVersionAgentsRoute() {
     description?: string;
     persona?: string;
   }) {
+    const nextAgentKey = agent.key ?? "";
+    const nextDisplayName = agent.displayName ?? "";
+    const nextDescription = agent.description ?? "";
+    const nextPersona = agent.persona ?? "";
     setEditingAgentKey(agent.key ?? null);
-    setAgentKey(agent.key ?? "");
-    setDisplayName(agent.displayName ?? "");
-    setDescription(agent.description ?? "");
-    setPersona(agent.persona ?? "");
+    setAgentKey(nextAgentKey);
+    setDisplayName(nextDisplayName);
+    setDescription(nextDescription);
+    setPersona(nextPersona);
+    setInitialAgentFormValues({
+      agentKey: nextAgentKey,
+      displayName: nextDisplayName,
+      description: nextDescription,
+      persona: nextPersona,
+    });
+    setAgentEditorTab("contract");
+    setIsAgentEditorOpen(true);
   }
 
   function saveAgentChanges() {
-    if (!editingAgentKey) {
+    if (!editingAgentKey || !isAgentEditorValid) {
       return;
     }
 
@@ -139,10 +204,10 @@ export function MethodologyVersionAgentsRoute() {
       versionId,
       agentKey: editingAgentKey,
       agent: {
-        key: agentKey.trim(),
-        displayName: displayName.trim(),
-        description: description.trim(),
-        persona: persona.trim(),
+        key: trimmedAgentKey,
+        displayName: trimmedDisplayName,
+        description: trimmedDescription,
+        persona: trimmedPersona,
       },
     });
   }
@@ -156,6 +221,14 @@ export function MethodologyVersionAgentsRoute() {
       versionId,
       agentKey: deletingAgentKey,
     });
+  }
+
+  function submitAgentEditor() {
+    if (editingAgentKey) {
+      saveAgentChanges();
+      return;
+    }
+    createAgent();
   }
 
   return (
@@ -202,7 +275,7 @@ export function MethodologyVersionAgentsRoute() {
               </Link>
             ))}
           </div>
-          <Button size="sm" className="rounded-none" onClick={() => setIsCreateDialogOpen(true)}>
+          <Button size="sm" className="rounded-none" onClick={openCreateAgent}>
             + Add Agent
           </Button>
         </div>
@@ -257,124 +330,138 @@ export function MethodologyVersionAgentsRoute() {
       ) : null}
 
       <DialogPrimitive.Root
-        open={isCreateDialogOpen || isCreateIntentActive}
+        open={isAgentEditorOpen || isCreateIntentActive}
         onOpenChange={(open) => {
-          setIsCreateDialogOpen(open);
-          if (!open && isCreateIntentActive) {
-            clearCreateIntent();
+          if (open) {
+            if (!isAgentEditorOpen && !editingAgentKey) {
+              openCreateAgent();
+            }
+            return;
           }
+          requestCloseAgentEditor();
         }}
       >
         <DialogPrimitive.Portal>
           <DialogPrimitive.Backdrop className="fixed inset-0 bg-black/70" />
-          <DialogPrimitive.Popup className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 border border-border bg-background p-4 shadow-2xl">
+          <DialogPrimitive.Popup className="fixed left-1/2 top-1/2 z-50 w-full max-w-5xl -translate-x-1/2 -translate-y-1/2 border border-border bg-background p-4 shadow-2xl">
             <DialogPrimitive.Title className="text-sm font-semibold uppercase tracking-[0.18em]">
-              Add Agent
+              {editingAgentKey ? "Edit Agent" : "Add Agent"}
             </DialogPrimitive.Title>
-            <div className="mt-4 space-y-3">
-              <label className="grid gap-1 text-sm">
-                <span>Agent Key</span>
-                <input
-                  value={agentKey}
-                  onChange={(event) => setAgentKey(event.target.value)}
-                  className="border border-border bg-background px-2 py-1"
-                />
-              </label>
-              <label className="grid gap-1 text-sm">
-                <span>Display Name</span>
-                <input
-                  value={displayName}
-                  onChange={(event) => setDisplayName(event.target.value)}
-                  className="border border-border bg-background px-2 py-1"
-                />
-              </label>
-              <label className="grid gap-1 text-sm">
-                <span>Description</span>
-                <textarea
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
-                  className="border border-border bg-background px-2 py-1"
-                />
-              </label>
-              <label className="grid gap-1 text-sm">
-                <span>Persona</span>
-                <textarea
-                  value={persona}
-                  onChange={(event) => setPersona(event.target.value)}
-                  className="border border-border bg-background px-2 py-1"
-                />
-              </label>
-            </div>
-            <div className="mt-4 flex justify-end gap-2">
+            <DialogPrimitive.Description className="mt-2 text-xs text-muted-foreground">
+              {editingAgentKey
+                ? "Update metadata and persona guidance while preserving methodology context."
+                : "Define an agent shell for this draft version."}
+            </DialogPrimitive.Description>
+
+            <div className="mt-4 flex flex-wrap gap-2 border-b border-border pb-3">
               <Button
-                variant="outline"
+                type="button"
+                size="sm"
+                variant={agentEditorTab === "contract" ? "default" : "outline"}
                 className="rounded-none"
-                onClick={() => setIsCreateDialogOpen(false)}
+                onClick={() => setAgentEditorTab("contract")}
               >
+                Contract{" "}
+                {isContractTabDirty ? (
+                  <span data-testid="agent-contract-modified-indicator">*</span>
+                ) : null}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={agentEditorTab === "guidance" ? "default" : "outline"}
+                className="rounded-none"
+                onClick={() => setAgentEditorTab("guidance")}
+              >
+                Guidance{" "}
+                {isGuidanceTabDirty ? (
+                  <span data-testid="agent-guidance-modified-indicator">*</span>
+                ) : null}
+              </Button>
+            </div>
+
+            {agentEditorTab === "contract" ? (
+              <div className="mt-4 space-y-3">
+                <label className="grid gap-1 text-sm">
+                  <span>Agent Key</span>
+                  <input
+                    value={agentKey}
+                    onChange={(event) => setAgentKey(event.target.value)}
+                    className="border border-border bg-background px-2 py-1"
+                  />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span>Display Name</span>
+                  <input
+                    value={displayName}
+                    onChange={(event) => setDisplayName(event.target.value)}
+                    className="border border-border bg-background px-2 py-1"
+                  />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span>Description</span>
+                  <textarea
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
+                    className="border border-border bg-background px-2 py-1"
+                  />
+                </label>
+              </div>
+            ) : (
+              <div className="mt-4 space-y-3">
+                <label className="grid gap-1 text-sm">
+                  <span>Persona</span>
+                  <textarea
+                    value={persona}
+                    onChange={(event) => setPersona(event.target.value)}
+                    className="border border-border bg-background px-2 py-1"
+                  />
+                </label>
+              </div>
+            )}
+
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="outline" className="rounded-none" onClick={requestCloseAgentEditor}>
                 Cancel
               </Button>
-              <Button className="rounded-none" onClick={createAgent}>
-                Create Agent
+              <Button
+                className="rounded-none"
+                onClick={submitAgentEditor}
+                disabled={!isAgentEditorValid}
+              >
+                {editingAgentKey ? "Save Agent Changes" : "Create Agent"}
               </Button>
             </div>
+            {trimmedPersona.length === 0 ? (
+              <p className="mt-2 text-xs text-destructive">Persona is required before saving.</p>
+            ) : null}
           </DialogPrimitive.Popup>
         </DialogPrimitive.Portal>
       </DialogPrimitive.Root>
 
       <DialogPrimitive.Root
-        open={editingAgentKey !== null}
-        onOpenChange={(open) => !open && setEditingAgentKey(null)}
+        open={pendingCloseAgentEditor}
+        onOpenChange={setPendingCloseAgentEditor}
       >
         <DialogPrimitive.Portal>
           <DialogPrimitive.Backdrop className="fixed inset-0 bg-black/70" />
           <DialogPrimitive.Popup className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 border border-border bg-background p-4 shadow-2xl">
             <DialogPrimitive.Title className="text-sm font-semibold uppercase tracking-[0.18em]">
-              Edit Agent
+              Discard unsaved changes?
             </DialogPrimitive.Title>
-            <div className="mt-4 space-y-3">
-              <label className="grid gap-1 text-sm">
-                <span>Agent Key</span>
-                <input
-                  value={agentKey}
-                  onChange={(event) => setAgentKey(event.target.value)}
-                  className="border border-border bg-background px-2 py-1"
-                />
-              </label>
-              <label className="grid gap-1 text-sm">
-                <span>Display Name</span>
-                <input
-                  value={displayName}
-                  onChange={(event) => setDisplayName(event.target.value)}
-                  className="border border-border bg-background px-2 py-1"
-                />
-              </label>
-              <label className="grid gap-1 text-sm">
-                <span>Description</span>
-                <textarea
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
-                  className="border border-border bg-background px-2 py-1"
-                />
-              </label>
-              <label className="grid gap-1 text-sm">
-                <span>Persona</span>
-                <textarea
-                  value={persona}
-                  onChange={(event) => setPersona(event.target.value)}
-                  className="border border-border bg-background px-2 py-1"
-                />
-              </label>
-            </div>
+            <DialogPrimitive.Description className="mt-3 text-sm text-muted-foreground">
+              Your agent changes are not saved yet.
+            </DialogPrimitive.Description>
             <div className="mt-4 flex justify-end gap-2">
               <Button
                 variant="outline"
                 className="rounded-none"
-                onClick={() => setEditingAgentKey(null)}
+                onClick={() => setPendingCloseAgentEditor(false)}
               >
-                Cancel
+                Keep Editing
               </Button>
-              <Button className="rounded-none" onClick={saveAgentChanges}>
-                Save Agent Changes
+              <Button className="rounded-none" onClick={closeAgentEditor}>
+                Discard Changes
               </Button>
             </div>
           </DialogPrimitive.Popup>

@@ -1,13 +1,9 @@
-import { Schema } from "effect";
+import * as Schema from "effect/Schema";
 
-import { LinkStrength, MethodologyLinkTypeDefinitionInput } from "./version.js";
-
-export const DependencyStrength = Schema.Literal("hard", "soft", "context");
-export type DependencyStrength = typeof DependencyStrength.Type;
+import { MethodologyLinkTypeDefinitionInput } from "./version.js";
 
 export const DependencyRequirement = Schema.Struct({
   linkTypeKey: Schema.NonEmptyString,
-  strength: DependencyStrength,
   required: Schema.optionalWith(Schema.Boolean, { default: () => true }),
 });
 export type DependencyRequirement = typeof DependencyRequirement.Type;
@@ -33,6 +29,3 @@ export const DeleteMethodologyDependencyDefinitionInput = Schema.Struct({
 });
 export type DeleteMethodologyDependencyDefinitionInput =
   typeof DeleteMethodologyDependencyDefinitionInput.Type;
-
-export const DependencyStrengthList = Schema.NonEmptyArray(LinkStrength);
-export type DependencyStrengthList = typeof DependencyStrengthList.Type;

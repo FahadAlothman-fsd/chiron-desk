@@ -29,13 +29,25 @@ export function MethodologyVersionDependencyDefinitionsRoute() {
   const navigate = useNavigate();
   const { orpc } = Route.useRouteContext();
   const queryClient = useQueryClient();
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isDependencyEditorOpen, setIsDependencyEditorOpen] = useState(false);
   const [editingDependencyKey, setEditingDependencyKey] = useState<string | null>(null);
   const [deletingDependencyKey, setDeletingDependencyKey] = useState<string | null>(null);
+  const [dependencyEditorTab, setDependencyEditorTab] = useState<"contract" | "guidance">(
+    "contract",
+  );
+  const [pendingCloseDependencyEditor, setPendingCloseDependencyEditor] = useState(false);
   const [linkTypeKey, setLinkTypeKey] = useState("");
+  const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [allowHard, setAllowHard] = useState(false);
-  const [allowSoft, setAllowSoft] = useState(false);
+  const [humanGuidance, setHumanGuidance] = useState("");
+  const [agentGuidance, setAgentGuidance] = useState("");
+  const [initialDependencyFormValues, setInitialDependencyFormValues] = useState({
+    linkTypeKey: "",
+    name: "",
+    description: "",
+    humanGuidance: "",
+    agentGuidance: "",
+  });
 
   const draftQuery = useQuery(
     orpc.methodology.version.dependencyDefinition.list.queryOptions({
@@ -62,15 +74,7 @@ export function MethodologyVersionDependencyDefinitionsRoute() {
             input: { versionId },
           }).queryKey,
         });
-        setIsCreateDialogOpen(false);
-        setLinkTypeKey("");
-        setDescription("");
-        setAllowHard(false);
-        setAllowSoft(false);
-
-        if (isCreateIntentActive) {
-          clearCreateIntent();
-        }
+        closeDependencyEditor();
       },
     }),
   );
@@ -83,11 +87,7 @@ export function MethodologyVersionDependencyDefinitionsRoute() {
             input: { versionId },
           }).queryKey,
         });
-        setEditingDependencyKey(null);
-        setLinkTypeKey("");
-        setDescription("");
-        setAllowHard(false);
-        setAllowSoft(false);
+        closeDependencyEditor();
       },
     }),
   );
@@ -105,22 +105,24 @@ export function MethodologyVersionDependencyDefinitionsRoute() {
     }),
   );
 
-  const linkTypeDefinitions = ((
-    draftQuery.data as
-      | {
-          linkTypeDefinitions?: ReadonlyArray<{
-            key?: string;
-            description?: string;
-            allowedStrengths?: ReadonlyArray<string>;
-          }>;
-          transitionWorkflowBindings?: Record<string, unknown>;
-        }
-      | undefined
-  )?.linkTypeDefinitions ?? []) as ReadonlyArray<{
-    key?: string;
-    description?: string;
-    allowedStrengths?: ReadonlyArray<string>;
-  }>;
+  const linkTypeDefinitions =
+    (
+      draftQuery.data as
+        | {
+            linkTypeDefinitions?: ReadonlyArray<{
+              key?: string;
+              name?: string;
+              description?: string;
+              guidance?: {
+                human?: { markdown?: string };
+                agent?: { markdown?: string };
+              };
+            }>;
+            transitionWorkflowBindings?: Record<string, unknown>;
+          }
+        | undefined
+    )?.linkTypeDefinitions ?? [];
+
   const bindings =
     (draftQuery.data as { transitionWorkflowBindings?: Record<string, unknown> } | undefined)
       ?.transitionWorkflowBindings ?? {};
@@ -129,55 +131,113 @@ export function MethodologyVersionDependencyDefinitionsRoute() {
       ? linkTypeDefinitions.map((definition) => definition.key ?? "").filter(Boolean)
       : Object.keys(bindings).sort();
 
-  function resetFormState() {
+  const isContractTabDirty =
+    linkTypeKey !== initialDependencyFormValues.linkTypeKey ||
+    name !== initialDependencyFormValues.name ||
+    description !== initialDependencyFormValues.description;
+  const isGuidanceTabDirty =
+    humanGuidance !== initialDependencyFormValues.humanGuidance ||
+    agentGuidance !== initialDependencyFormValues.agentGuidance;
+  const isDependencyEditorDirty = isContractTabDirty || isGuidanceTabDirty;
+
+  function resetDependencyFormState() {
     setLinkTypeKey("");
+    setName("");
     setDescription("");
-    setAllowHard(false);
-    setAllowSoft(false);
+    setHumanGuidance("");
+    setAgentGuidance("");
+    setInitialDependencyFormValues({
+      linkTypeKey: "",
+      name: "",
+      description: "",
+      humanGuidance: "",
+      agentGuidance: "",
+    });
+    setDependencyEditorTab("contract");
+  }
+
+  function closeDependencyEditor() {
+    setIsDependencyEditorOpen(false);
+    setEditingDependencyKey(null);
+    setPendingCloseDependencyEditor(false);
+    resetDependencyFormState();
+    if (isCreateIntentActive) {
+      clearCreateIntent();
+    }
+  }
+
+  function requestCloseDependencyEditor() {
+    if (isDependencyEditorDirty) {
+      setPendingCloseDependencyEditor(true);
+      return;
+    }
+    closeDependencyEditor();
+  }
+
+  function openCreateDependencyDefinition() {
+    setEditingDependencyKey(null);
+    resetDependencyFormState();
+    setIsDependencyEditorOpen(true);
   }
 
   function openEditDependencyDefinition(definition: {
     key?: string;
+    name?: string;
     description?: string;
-    allowedStrengths?: ReadonlyArray<string>;
+    guidance?: {
+      human?: { markdown?: string };
+      agent?: { markdown?: string };
+    };
   }) {
+    const nextLinkTypeKey = definition.key ?? "";
+    const nextName = definition.name ?? "";
+    const nextDescription = definition.description ?? "";
+    const nextHumanGuidance = definition.guidance?.human?.markdown ?? "";
+    const nextAgentGuidance = definition.guidance?.agent?.markdown ?? "";
     setEditingDependencyKey(definition.key ?? null);
-    setLinkTypeKey(definition.key ?? "");
-    setDescription(definition.description ?? "");
-    setAllowHard(definition.allowedStrengths?.includes("hard") ?? false);
-    setAllowSoft(definition.allowedStrengths?.includes("soft") ?? false);
+    setLinkTypeKey(nextLinkTypeKey);
+    setName(nextName);
+    setDescription(nextDescription);
+    setHumanGuidance(nextHumanGuidance);
+    setAgentGuidance(nextAgentGuidance);
+    setInitialDependencyFormValues({
+      linkTypeKey: nextLinkTypeKey,
+      name: nextName,
+      description: nextDescription,
+      humanGuidance: nextHumanGuidance,
+      agentGuidance: nextAgentGuidance,
+    });
+    setDependencyEditorTab("contract");
+    setIsDependencyEditorOpen(true);
   }
 
-  function allowedStrengthsTuple() {
-    const allowedStrengths = [allowHard ? "hard" : null, allowSoft ? "soft" : null].filter(
-      (value): value is "hard" | "soft" => value !== null,
-    );
-    if (allowedStrengths.length === 0) {
-      return null;
+  function buildGuidancePayload() {
+    const trimmedHumanGuidance = humanGuidance.trim();
+    const trimmedAgentGuidance = agentGuidance.trim();
+    if (!trimmedHumanGuidance && !trimmedAgentGuidance) {
+      return undefined;
     }
 
-    return allowedStrengths as ["hard" | "soft", ...("hard" | "soft")[]];
+    return {
+      human: { markdown: trimmedHumanGuidance },
+      agent: { markdown: trimmedAgentGuidance },
+    };
   }
 
   function createDependencyDefinition() {
-    const allowedStrengths = allowedStrengthsTuple();
-    if (!allowedStrengths) {
-      return;
-    }
-
     createDependencyDefinitionMutation.mutate({
       versionId,
       dependencyDefinition: {
         key: linkTypeKey.trim(),
+        name: name.trim(),
         description: description.trim(),
-        allowedStrengths: allowedStrengths as ["hard" | "soft", ...("hard" | "soft")[]],
+        guidance: buildGuidancePayload(),
       },
     });
   }
 
   function saveDependencyDefinitionChanges() {
-    const allowedStrengths = allowedStrengthsTuple();
-    if (!editingDependencyKey || !allowedStrengths) {
+    if (!editingDependencyKey) {
       return;
     }
 
@@ -186,10 +246,19 @@ export function MethodologyVersionDependencyDefinitionsRoute() {
       dependencyKey: editingDependencyKey,
       dependencyDefinition: {
         key: linkTypeKey.trim(),
+        name: name.trim(),
         description: description.trim(),
-        allowedStrengths,
+        guidance: buildGuidancePayload(),
       },
     });
+  }
+
+  function submitDependencyEditor() {
+    if (editingDependencyKey) {
+      saveDependencyDefinitionChanges();
+      return;
+    }
+    createDependencyDefinition();
   }
 
   function confirmDeleteDependencyDefinition() {
@@ -247,11 +316,11 @@ export function MethodologyVersionDependencyDefinitionsRoute() {
               </Link>
             ))}
           </div>
-          <Button size="sm" className="rounded-none" onClick={() => setIsCreateDialogOpen(true)}>
+          <Button size="sm" className="rounded-none" onClick={openCreateDependencyDefinition}>
             + Add Link Type
           </Button>
         </div>
-        {search.intent === "add-link-type" ? (
+        {isCreateIntentActive ? (
           <p className="mt-2 text-xs text-muted-foreground">
             Add Link Type requested from command palette.
           </p>
@@ -275,103 +344,157 @@ export function MethodologyVersionDependencyDefinitionsRoute() {
             <p className="mt-2 text-sm text-muted-foreground">No link types yet.</p>
           ) : (
             <ul className="mt-2 space-y-2 text-sm">
-              {linkTypeKeys.map((key) => (
-                <li key={key} className="border border-border/70 p-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <span>{key}</span>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="rounded-none"
-                        onClick={() =>
-                          openEditDependencyDefinition(
-                            linkTypeDefinitions.find((definition) => definition.key === key) ?? {
-                              key,
-                              description: "",
-                              allowedStrengths: [],
-                            },
-                          )
-                        }
-                      >
-                        {`Edit ${key}`}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="rounded-none"
-                        onClick={() => setDeletingDependencyKey(key)}
-                      >
-                        {`Delete ${key}`}
-                      </Button>
+              {linkTypeKeys.map((key) => {
+                const definition =
+                  linkTypeDefinitions.find((candidate) => candidate.key === key) ??
+                  ({
+                    key,
+                    name: "",
+                    description: "",
+                  } as const);
+                return (
+                  <li key={key} className="border border-border/70 p-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p>{definition.name?.trim() || key}</p>
+                        <p className="text-xs text-muted-foreground">{key}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-none"
+                          onClick={() => openEditDependencyDefinition(definition)}
+                        >
+                          {`Edit ${key}`}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-none"
+                          onClick={() => setDeletingDependencyKey(key)}
+                        >
+                          {`Delete ${key}`}
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>
       ) : null}
 
       <DialogPrimitive.Root
-        open={isCreateDialogOpen || isCreateIntentActive}
+        open={isDependencyEditorOpen || isCreateIntentActive}
         onOpenChange={(open) => {
-          setIsCreateDialogOpen(open);
-          if (!open && isCreateIntentActive) {
-            clearCreateIntent();
+          if (open) {
+            if (!isDependencyEditorOpen && !editingDependencyKey) {
+              openCreateDependencyDefinition();
+            }
+            return;
           }
+          requestCloseDependencyEditor();
         }}
       >
         <DialogPrimitive.Portal>
           <DialogPrimitive.Backdrop className="fixed inset-0 bg-black/70" />
-          <DialogPrimitive.Popup className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 border border-border bg-background p-4 shadow-2xl">
+          <DialogPrimitive.Popup className="fixed left-1/2 top-1/2 z-50 w-full max-w-5xl -translate-x-1/2 -translate-y-1/2 border border-border bg-background p-4 shadow-2xl">
             <DialogPrimitive.Title className="text-sm font-semibold uppercase tracking-[0.18em]">
-              Add Link Type
+              {editingDependencyKey ? "Edit Link Type" : "Add Link Type"}
             </DialogPrimitive.Title>
-            <div className="mt-4 space-y-3">
-              <label className="grid gap-1 text-sm">
-                <span>Link Type Key</span>
-                <input
-                  value={linkTypeKey}
-                  onChange={(event) => setLinkTypeKey(event.target.value)}
-                  className="border border-border bg-background px-2 py-1"
-                />
-              </label>
-              <label className="grid gap-1 text-sm">
-                <span>Description</span>
-                <textarea
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
-                  className="border border-border bg-background px-2 py-1"
-                />
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={allowHard}
-                  onChange={(event) => setAllowHard(event.target.checked)}
-                />
-                <span>Hard</span>
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={allowSoft}
-                  onChange={(event) => setAllowSoft(event.target.checked)}
-                />
-                <span>Soft</span>
-              </label>
+            <DialogPrimitive.Description className="mt-2 text-xs text-muted-foreground">
+              {editingDependencyKey
+                ? "Update dependency metadata and guidance while preserving draft context."
+                : "Define a dependency type for this draft version."}
+            </DialogPrimitive.Description>
+
+            <div className="mt-4 flex flex-wrap gap-2 border-b border-border pb-3">
+              <Button
+                type="button"
+                size="sm"
+                variant={dependencyEditorTab === "contract" ? "default" : "outline"}
+                className="rounded-none"
+                onClick={() => setDependencyEditorTab("contract")}
+              >
+                Contract{" "}
+                {isContractTabDirty ? (
+                  <span data-testid="dependency-contract-modified-indicator">*</span>
+                ) : null}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={dependencyEditorTab === "guidance" ? "default" : "outline"}
+                className="rounded-none"
+                onClick={() => setDependencyEditorTab("guidance")}
+              >
+                Guidance{" "}
+                {isGuidanceTabDirty ? (
+                  <span data-testid="dependency-guidance-modified-indicator">*</span>
+                ) : null}
+              </Button>
             </div>
+
+            {dependencyEditorTab === "contract" ? (
+              <div className="mt-4 space-y-3">
+                <label className="grid gap-1 text-sm">
+                  <span>Link Type Key</span>
+                  <input
+                    value={linkTypeKey}
+                    onChange={(event) => setLinkTypeKey(event.target.value)}
+                    className="border border-border bg-background px-2 py-1"
+                  />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span>Name</span>
+                  <input
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    className="border border-border bg-background px-2 py-1"
+                  />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span>Description</span>
+                  <textarea
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
+                    className="border border-border bg-background px-2 py-1"
+                  />
+                </label>
+              </div>
+            ) : (
+              <div className="mt-4 space-y-3">
+                <label className="grid gap-1 text-sm">
+                  <span>Human Guidance</span>
+                  <textarea
+                    value={humanGuidance}
+                    onChange={(event) => setHumanGuidance(event.target.value)}
+                    className="border border-border bg-background px-2 py-1"
+                  />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span>Agent Guidance</span>
+                  <textarea
+                    value={agentGuidance}
+                    onChange={(event) => setAgentGuidance(event.target.value)}
+                    className="border border-border bg-background px-2 py-1"
+                  />
+                </label>
+              </div>
+            )}
+
             <div className="mt-4 flex justify-end gap-2">
               <Button
                 variant="outline"
                 className="rounded-none"
-                onClick={() => setIsCreateDialogOpen(false)}
+                onClick={requestCloseDependencyEditor}
               >
                 Cancel
               </Button>
-              <Button className="rounded-none" onClick={createDependencyDefinition}>
-                Create Link Type
+              <Button className="rounded-none" onClick={submitDependencyEditor}>
+                {editingDependencyKey ? "Save Link Type Changes" : "Create Link Type"}
               </Button>
             </div>
           </DialogPrimitive.Popup>
@@ -379,67 +502,28 @@ export function MethodologyVersionDependencyDefinitionsRoute() {
       </DialogPrimitive.Root>
 
       <DialogPrimitive.Root
-        open={editingDependencyKey !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setEditingDependencyKey(null);
-            resetFormState();
-          }
-        }}
+        open={pendingCloseDependencyEditor}
+        onOpenChange={setPendingCloseDependencyEditor}
       >
         <DialogPrimitive.Portal>
           <DialogPrimitive.Backdrop className="fixed inset-0 bg-black/70" />
           <DialogPrimitive.Popup className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 border border-border bg-background p-4 shadow-2xl">
             <DialogPrimitive.Title className="text-sm font-semibold uppercase tracking-[0.18em]">
-              Edit Link Type
+              Discard unsaved changes?
             </DialogPrimitive.Title>
-            <div className="mt-4 space-y-3">
-              <label className="grid gap-1 text-sm">
-                <span>Link Type Key</span>
-                <input
-                  value={linkTypeKey}
-                  onChange={(event) => setLinkTypeKey(event.target.value)}
-                  className="border border-border bg-background px-2 py-1"
-                />
-              </label>
-              <label className="grid gap-1 text-sm">
-                <span>Description</span>
-                <textarea
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
-                  className="border border-border bg-background px-2 py-1"
-                />
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={allowHard}
-                  onChange={(event) => setAllowHard(event.target.checked)}
-                />
-                <span>Hard</span>
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={allowSoft}
-                  onChange={(event) => setAllowSoft(event.target.checked)}
-                />
-                <span>Soft</span>
-              </label>
-            </div>
+            <DialogPrimitive.Description className="mt-3 text-sm text-muted-foreground">
+              Your dependency definition changes are not saved yet.
+            </DialogPrimitive.Description>
             <div className="mt-4 flex justify-end gap-2">
               <Button
                 variant="outline"
                 className="rounded-none"
-                onClick={() => {
-                  setEditingDependencyKey(null);
-                  resetFormState();
-                }}
+                onClick={() => setPendingCloseDependencyEditor(false)}
               >
-                Cancel
+                Keep Editing
               </Button>
-              <Button className="rounded-none" onClick={saveDependencyDefinitionChanges}>
-                Save Link Type Changes
+              <Button className="rounded-none" onClick={closeDependencyEditor}>
+                Discard Changes
               </Button>
             </div>
           </DialogPrimitive.Popup>

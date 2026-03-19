@@ -80,8 +80,9 @@ function makeTestRepo(): MethodologyRepository["Type"] & ProjectContextRepositor
       id: string;
       methodologyVersionId: string;
       key: string;
+      name: string | null;
       descriptionJson: unknown;
-      allowedStrengthsJson: unknown;
+      guidanceJson: unknown;
       createdAt: Date;
       updatedAt: Date;
     }[]
@@ -197,7 +198,7 @@ function makeTestRepo(): MethodologyRepository["Type"] & ProjectContextRepositor
         workflowSnapshots.set(version.id, {
           workflows: params.workflows,
           transitionWorkflowBindings: params.transitionWorkflowBindings,
-          guidance: params.guidance,
+          ...(params.guidance !== undefined ? { guidance: params.guidance } : {}),
         });
         factSchemasByVersion.set(
           version.id,
@@ -219,8 +220,9 @@ function makeTestRepo(): MethodologyRepository["Type"] & ProjectContextRepositor
             id: nextId(),
             methodologyVersionId: version.id,
             key: definition.key,
+            name: definition.name ?? null,
             descriptionJson: definition.description ?? null,
-            allowedStrengthsJson: definition.allowedStrengths,
+            guidanceJson: definition.guidance ?? null,
             createdAt: new Date(),
             updatedAt: new Date(),
           })),
@@ -260,7 +262,7 @@ function makeTestRepo(): MethodologyRepository["Type"] & ProjectContextRepositor
         workflowSnapshots.set(params.versionId, {
           workflows: params.workflows,
           transitionWorkflowBindings: params.transitionWorkflowBindings,
-          guidance: params.guidance,
+          ...(params.guidance !== undefined ? { guidance: params.guidance } : {}),
         });
         if (params.factDefinitions) {
           factSchemasByVersion.set(
@@ -285,8 +287,9 @@ function makeTestRepo(): MethodologyRepository["Type"] & ProjectContextRepositor
               id: nextId(),
               methodologyVersionId: params.versionId,
               key: definition.key,
+              name: definition.name ?? null,
               descriptionJson: definition.description ?? null,
-              allowedStrengthsJson: definition.allowedStrengths,
+              guidanceJson: definition.guidance ?? null,
               createdAt: new Date(),
               updatedAt: new Date(),
             })),
@@ -345,7 +348,6 @@ function makeTestRepo(): MethodologyRepository["Type"] & ProjectContextRepositor
         workflowSnapshots.get(versionId) ?? {
           workflows: [],
           transitionWorkflowBindings: {},
-          guidance: undefined,
         },
       ),
     findFactSchemasByVersionId: (versionId: string) =>
@@ -660,6 +662,10 @@ function makeServiceLayer() {
           key: workUnitKey,
           displayName: typeof workUnit.displayName === "string" ? workUnit.displayName : null,
           descriptionJson: workUnit.description ?? null,
+          guidanceJson:
+            typeof workUnit.guidance === "object" && workUnit.guidance !== null
+              ? workUnit.guidance
+              : null,
           cardinality:
             workUnit.cardinality === "many_per_project" ? "many_per_project" : "one_per_project",
           createdAt: buildDate(),
@@ -1837,8 +1843,12 @@ describe("methodology router", () => {
           versionId: created.version.id,
           dependencyDefinition: {
             key: "depends_on",
+            name: "Depends On",
             description: "Depends on another work unit",
-            allowedStrengths: ["hard", "soft"],
+            guidance: {
+              human: { markdown: "Block until upstream work unit completes." },
+              agent: { markdown: "Respect dependency ordering during automation." },
+            },
           },
         },
         AUTHENTICATED_CTX,
@@ -1854,8 +1864,12 @@ describe("methodology router", () => {
         expect.arrayContaining([
           expect.objectContaining({
             key: "depends_on",
+            name: "Depends On",
             description: "Depends on another work unit",
-            allowedStrengths: expect.arrayContaining(["hard", "soft"]),
+            guidance: {
+              human: { markdown: "Block until upstream work unit completes." },
+              agent: { markdown: "Respect dependency ordering during automation." },
+            },
           }),
         ]),
       );
@@ -1867,8 +1881,12 @@ describe("methodology router", () => {
           dependencyKey: "depends_on",
           dependencyDefinition: {
             key: "depends_on",
+            name: "Blocking Dependency",
             description: "Strong dependency between work units",
-            allowedStrengths: ["hard"],
+            guidance: {
+              human: { markdown: "Require explicit unblock before proceeding." },
+              agent: { markdown: "Prevent transition when dependency remains open." },
+            },
           },
         },
         AUTHENTICATED_CTX,
@@ -1884,8 +1902,12 @@ describe("methodology router", () => {
         expect.arrayContaining([
           expect.objectContaining({
             key: "depends_on",
+            name: "Blocking Dependency",
             description: "Strong dependency between work units",
-            allowedStrengths: ["hard"],
+            guidance: {
+              human: { markdown: "Require explicit unblock before proceeding." },
+              agent: { markdown: "Prevent transition when dependency remains open." },
+            },
           }),
         ]),
       );
@@ -1907,6 +1929,248 @@ describe("methodology router", () => {
 
       expect(afterDelete.linkTypeDefinitions ?? []).not.toEqual(
         expect.arrayContaining([expect.objectContaining({ key: "depends_on" })]),
+      );
+    });
+
+    it("rejects duplicate dependency definition keys", async () => {
+      const router = createMethodologyRouter(
+        makeServiceLayer(),
+      ) as typeof createMethodologyRouter extends (...args: any[]) => infer T
+        ? T & {
+            version?: {
+              dependencyDefinition?: {
+                create?: unknown;
+              };
+            };
+          }
+        : never;
+
+      const created = await call(
+        router.version.create,
+        {
+          methodologyKey: "dependency-duplicate-method",
+          displayName: "Dependency Duplicate Method",
+          version: "0.1.0-draft",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const createRoute = router.version?.dependencyDefinition?.create as unknown as Parameters<
+        typeof call
+      >[0];
+
+      await call(
+        createRoute,
+        {
+          versionId: created.version.id,
+          dependencyDefinition: {
+            key: "depends_on",
+            name: "Depends On",
+          },
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await expect(
+        call(
+          createRoute,
+          {
+            versionId: created.version.id,
+            dependencyDefinition: {
+              key: "depends_on",
+              name: "Duplicate Depends On",
+            },
+          },
+          AUTHENTICATED_CTX,
+        ),
+      ).rejects.toThrow(/duplicate/i);
+    });
+
+    it("rejects dependency updates for unknown keys", async () => {
+      const router = createMethodologyRouter(
+        makeServiceLayer(),
+      ) as typeof createMethodologyRouter extends (...args: any[]) => infer T
+        ? T & {
+            version?: {
+              dependencyDefinition?: {
+                update?: unknown;
+              };
+            };
+          }
+        : never;
+
+      const created = await call(
+        router.version.create,
+        {
+          methodologyKey: "dependency-missing-key-method",
+          displayName: "Dependency Missing Key Method",
+          version: "0.1.0-draft",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await expect(
+        call(
+          router.version?.dependencyDefinition?.update as unknown as Parameters<typeof call>[0],
+          {
+            versionId: created.version.id,
+            dependencyKey: "missing",
+            dependencyDefinition: {
+              key: "missing",
+              name: "Missing",
+            },
+          },
+          AUTHENTICATED_CTX,
+        ),
+      ).rejects.toThrow(/DependencyDefinitionNotFoundError/);
+    });
+
+    it("rejects legacy strength payload fields", async () => {
+      const router = createMethodologyRouter(
+        makeServiceLayer(),
+      ) as typeof createMethodologyRouter extends (...args: any[]) => infer T
+        ? T & {
+            version?: {
+              dependencyDefinition?: {
+                create?: unknown;
+              };
+            };
+          }
+        : never;
+
+      const created = await call(
+        router.version.create,
+        {
+          methodologyKey: "dependency-legacy-fields-method",
+          displayName: "Dependency Legacy Fields Method",
+          version: "0.1.0-draft",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await expect(
+        call(
+          router.version?.dependencyDefinition?.create as unknown as Parameters<typeof call>[0],
+          {
+            versionId: created.version.id,
+            dependencyDefinition: {
+              key: "depends_on",
+              allowedStrengths: ["hard"],
+            },
+          } as unknown as Parameters<typeof call>[1],
+          AUTHENTICATED_CTX,
+        ),
+      ).rejects.toThrow();
+    });
+  });
+
+  describe("version.workUnit routes", () => {
+    it("preserves work unit guidance through version.workUnit create and updateMeta", async () => {
+      const router = createMethodologyRouter(
+        makeServiceLayer(),
+      ) as typeof createMethodologyRouter extends (...args: any[]) => infer T
+        ? T & {
+            version?: {
+              workUnit?: {
+                list?: unknown;
+                create?: unknown;
+                updateMeta?: unknown;
+              };
+            };
+          }
+        : never;
+
+      const created = await call(
+        router.version.create,
+        {
+          methodologyKey: "work-unit-guidance-crud-method",
+          displayName: "Work Unit Guidance CRUD Method",
+          version: "0.1.0-draft",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const authoredGuidance = {
+        human: { markdown: "Ask the operator for intake completion context." },
+        agent: { markdown: "Summarize intake readiness for downstream automation." },
+      };
+
+      await call(
+        router.version?.workUnit?.create as unknown as Parameters<typeof call>[0],
+        {
+          versionId: created.version.id,
+          workUnitType: {
+            key: "review",
+            displayName: "Review",
+            description: "Review the submitted intake package.",
+            guidance: authoredGuidance,
+            cardinality: "many_per_project",
+          },
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const afterCreate = await call(
+        router.version?.workUnit?.list as unknown as Parameters<typeof call>[0],
+        { versionId: created.version.id },
+        PUBLIC_CTX,
+      );
+
+      expect(afterCreate.workUnitTypes).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            key: "review",
+            guidance: authoredGuidance,
+          }),
+        ]),
+      );
+
+      const revisedGuidance = {
+        human: { markdown: "Capture reviewer-facing concerns before approval." },
+        agent: { markdown: "Highlight unresolved intake issues for the review step." },
+      };
+
+      await call(
+        router.version?.workUnit?.updateMeta as unknown as Parameters<typeof call>[0],
+        {
+          versionId: created.version.id,
+          workUnitKey: "review",
+          workUnitType: {
+            key: "review",
+            displayName: "Review",
+            description: "Review the submitted intake package.",
+            guidance: revisedGuidance,
+            cardinality: "many_per_project",
+          },
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const afterUpdate = await call(
+        router.version?.workUnit?.list as unknown as Parameters<typeof call>[0],
+        { versionId: created.version.id },
+        PUBLIC_CTX,
+      );
+
+      expect(afterUpdate.workUnitTypes).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            key: "review",
+            guidance: revisedGuidance,
+          }),
+        ]),
       );
     });
   });

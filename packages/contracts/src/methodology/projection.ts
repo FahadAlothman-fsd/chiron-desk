@@ -1,6 +1,7 @@
-import { Schema } from "effect";
+import * as Schema from "effect/Schema";
 
-import { LayeredGuidance, MethodologyVersionStatus, WorkflowDefinition } from "./version.js";
+import { LayeredGuidance } from "./guidance.js";
+import { MethodologyVersionStatus, WorkflowDefinition } from "./version.js";
 
 export const MethodologyVersionProjection = Schema.Struct({
   id: Schema.NonEmptyString,

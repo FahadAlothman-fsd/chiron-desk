@@ -106,8 +106,9 @@ export const methodologyLinkTypeDefinitions = sqliteTable(
       .notNull()
       .references(() => methodologyVersions.id, { onDelete: "cascade" }),
     key: text("key").notNull(),
+    name: text("display_name"),
     descriptionJson: text("description_json", { mode: "json" }),
-    allowedStrengthsJson: text("allowed_strengths_json", { mode: "json" }),
+    guidanceJson: text("guidance_json", { mode: "json" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .default(timestampDefault)

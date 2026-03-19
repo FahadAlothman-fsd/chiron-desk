@@ -1,4 +1,4 @@
-import { Schema } from "effect";
+import * as Schema from "effect/Schema";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -6,7 +6,6 @@ import {
   GetProjectPinLineageInput,
   GetDraftLineageInput,
   GetPublicationEvidenceInput,
-  LinkStrength,
   MethodologyFactDefinitionInput,
   ProjectMethodologyPinEvent,
   ProjectMethodologyPinEventType,
@@ -24,6 +23,7 @@ import {
   VariableValueType,
   VersionEventType,
 } from "../../methodology/version";
+import { WorkUnitTypeDefinition } from "../../methodology/lifecycle";
 
 const validDefinition = {
   workUnitTypes: [],
@@ -80,20 +80,6 @@ describe("VariableValueType", () => {
 
   it("rejects invalid type", () => {
     expect(() => decode("array")).toThrow();
-  });
-});
-
-describe("LinkStrength", () => {
-  const decode = Schema.decodeUnknownSync(LinkStrength);
-
-  it("accepts valid strengths", () => {
-    for (const s of ["hard", "soft", "context"]) {
-      expect(decode(s)).toBe(s);
-    }
-  });
-
-  it("rejects invalid strength", () => {
-    expect(() => decode("weak")).toThrow();
   });
 });
 
@@ -252,40 +238,73 @@ describe("MethodologyFactDefinitionInput", () => {
   });
 });
 
+describe("WorkUnitTypeDefinition", () => {
+  const decode = Schema.decodeUnknownSync(WorkUnitTypeDefinition);
+
+  it("accepts work unit guidance using the shared audience markdown shape", () => {
+    const result = decode({
+      key: "WU.INTAKE",
+      displayName: "Intake",
+      description: "Collect initial intake artifacts.",
+      guidance: {
+        human: { markdown: "Capture operator-facing intake steps." },
+        agent: { markdown: "Guide the agent through intake automation." },
+      },
+      cardinality: "many_per_project",
+      lifecycleStates: [],
+      lifecycleTransitions: [],
+      factSchemas: [],
+    });
+
+    expect(result.guidance).toEqual({
+      human: { markdown: "Capture operator-facing intake steps." },
+      agent: { markdown: "Guide the agent through intake automation." },
+    });
+  });
+});
+
 describe("MethodologyLinkTypeDefinitionInput", () => {
   const decode = Schema.decodeUnknownSync(MethodologyLinkTypeDefinitionInput);
 
   const validLink = {
     key: "blocks",
-    allowedStrengths: ["hard", "soft"] as const,
+    name: "Blocks",
   };
 
   it("accepts valid link type definition", () => {
     const result = decode(validLink);
     expect(result.key).toBe("blocks");
-    expect(result.allowedStrengths).toEqual(["hard", "soft"]);
+    expect(result.name).toBe("Blocks");
   });
 
   it("accepts link type with optional fields", () => {
     const full = {
       ...validLink,
       description: "Blocking dependency",
-      policyMetadata: { cascadeOnClose: true },
+      guidance: {
+        human: { markdown: "Avoid starting blocked work." },
+        agent: { markdown: "Enforce dependency ordering." },
+      },
     };
     const result = decode(full);
     expect(result.description).toBe("Blocking dependency");
+    expect(result.guidance).toEqual({
+      human: { markdown: "Avoid starting blocked work." },
+      agent: { markdown: "Enforce dependency ordering." },
+    });
   });
 
   it("rejects link type with empty key", () => {
     expect(() => decode({ ...validLink, key: "" })).toThrow();
   });
 
-  it("rejects link type with empty allowedStrengths", () => {
-    expect(() => decode({ ...validLink, allowedStrengths: [] })).toThrow();
-  });
-
-  it("rejects link type with invalid strength", () => {
-    expect(() => decode({ ...validLink, allowedStrengths: ["weak"] })).toThrow();
+  it("rejects malformed guidance payload", () => {
+    expect(() =>
+      decode({
+        ...validLink,
+        guidance: { human: { markdown: "valid" } },
+      }),
+    ).toThrow();
   });
 });
 
@@ -323,7 +342,7 @@ describe("CreateDraftVersionInput", () => {
   it("accepts create input with link type definitions", () => {
     const input = {
       ...validInput,
-      linkTypeDefinitions: [{ key: "blocks", allowedStrengths: ["hard"] }],
+      linkTypeDefinitions: [{ key: "blocks", name: "Blocks" }],
     };
     const result = decode(input);
     expect(result.linkTypeDefinitions).toHaveLength(1);

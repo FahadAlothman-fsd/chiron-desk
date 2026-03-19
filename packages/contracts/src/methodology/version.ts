@@ -1,10 +1,10 @@
-import { Schema } from "effect";
+import * as Schema from "effect/Schema";
 import {
-  AudienceMarkdownJson,
   FactType,
   MethodologyFactDefinitionInput as MethodologyFactDefinitionInputSchema,
   type FactType as FactTypeType,
 } from "./fact.js";
+import { AudienceGuidance, LayeredGuidance as LayeredGuidanceSchema } from "./guidance.js";
 
 export { MethodologyFactDefinitionInput } from "./fact.js";
 
@@ -25,9 +25,6 @@ export type VersionEventType = typeof VersionEventType.Type;
 export const VariableValueType = FactType;
 export type VariableValueType = FactTypeType;
 
-export const LinkStrength = Schema.Literal("hard", "soft", "context");
-export type LinkStrength = typeof LinkStrength.Type;
-
 export const WorkflowStepType = Schema.Literal(
   "form",
   "agent",
@@ -38,7 +35,7 @@ export const WorkflowStepType = Schema.Literal(
 );
 export type WorkflowStepType = typeof WorkflowStepType.Type;
 
-export const GuidanceJson = AudienceMarkdownJson;
+export const GuidanceJson = AudienceGuidance;
 export type GuidanceJson = typeof GuidanceJson.Type;
 
 export const WorkflowMetadataValue = Schema.Union(
@@ -108,22 +105,7 @@ export const WorkflowDefinition = Schema.Struct({
 });
 export type WorkflowDefinition = typeof WorkflowDefinition.Type;
 
-export const LayeredGuidance = Schema.Struct({
-  global: Schema.optional(Schema.Unknown),
-  byWorkUnitType: Schema.optionalWith(
-    Schema.Record({ key: Schema.String, value: Schema.Unknown }),
-    { default: () => ({}) },
-  ),
-  byAgentType: Schema.optionalWith(Schema.Record({ key: Schema.String, value: Schema.Unknown }), {
-    default: () => ({}),
-  }),
-  byTransition: Schema.optionalWith(Schema.Record({ key: Schema.String, value: Schema.Unknown }), {
-    default: () => ({}),
-  }),
-  byWorkflow: Schema.optionalWith(Schema.Record({ key: Schema.String, value: Schema.Unknown }), {
-    default: () => ({}),
-  }),
-});
+export const LayeredGuidance = LayeredGuidanceSchema;
 export type LayeredGuidance = typeof LayeredGuidance.Type;
 
 /**
@@ -173,9 +155,9 @@ export type MethodologyVersionDefinition = typeof MethodologyVersionDefinition.T
 
 export const MethodologyLinkTypeDefinitionInput = Schema.Struct({
   key: Schema.NonEmptyString,
+  name: Schema.optional(Schema.String),
   description: Schema.optional(Schema.String),
-  allowedStrengths: Schema.NonEmptyArray(LinkStrength),
-  policyMetadata: Schema.optional(Schema.Unknown),
+  guidance: Schema.optional(AudienceGuidance),
 });
 export type MethodologyLinkTypeDefinitionInput = typeof MethodologyLinkTypeDefinitionInput.Type;
 
@@ -340,8 +322,9 @@ export const MethodologyLinkTypeDefinition = Schema.Struct({
   id: Schema.String,
   methodologyVersionId: Schema.String,
   key: Schema.String,
+  name: Schema.NullOr(Schema.String),
   descriptionJson: Schema.NullOr(Schema.Unknown),
-  allowedStrengthsJson: Schema.Unknown,
+  guidanceJson: Schema.NullOr(Schema.Unknown),
   createdAt: Schema.DateFromSelf,
   updatedAt: Schema.DateFromSelf,
 });

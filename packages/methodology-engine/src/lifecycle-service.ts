@@ -1,4 +1,6 @@
 import {
+  type CreateMethodologyWorkUnitInput as CreateWorkUnitInput,
+  type UpdateMethodologyWorkUnitInput as UpdateWorkUnitInput,
   type UpdateDraftLifecycleInput,
   type WorkUnitTypeDefinition,
 } from "@chiron/contracts/methodology/lifecycle";
@@ -37,6 +39,20 @@ export class LifecycleService extends Context.Tag("LifecycleService")<
     >;
     readonly createAgent: (
       input: CreateAgentInput,
+      actorId: string,
+    ) => Effect.Effect<
+      UpdateDraftLifecycleResult,
+      VersionNotFoundError | VersionNotDraftError | RepositoryError
+    >;
+    readonly createWorkUnit: (
+      input: CreateWorkUnitInput,
+      actorId: string,
+    ) => Effect.Effect<
+      UpdateDraftLifecycleResult,
+      VersionNotFoundError | VersionNotDraftError | RepositoryError
+    >;
+    readonly updateWorkUnit: (
+      input: UpdateWorkUnitInput,
       actorId: string,
     ) => Effect.Effect<
       UpdateDraftLifecycleResult,
@@ -241,6 +257,8 @@ function loadPreviousLifecycleDefinition(
       key: workUnitTypeRow.key,
       displayName: workUnitTypeRow.displayName ?? undefined,
       description: extractText(workUnitTypeRow.descriptionJson),
+      guidance:
+        (workUnitTypeRow.guidanceJson as WorkUnitTypeDefinition["guidance"] | null) ?? undefined,
       cardinality: asCardinality(workUnitTypeRow.cardinality),
       lifecycleStates: (stateByWorkUnitType.get(workUnitTypeRow.id) ?? []).map((stateRow) => ({
         key: stateRow.key,
@@ -412,6 +430,47 @@ export const LifecycleServiceLive = Effect.gen(function* () {
       );
     });
 
+  const createWorkUnit = (
+    input: CreateWorkUnitInput,
+    actorId: string,
+  ): Effect.Effect<
+    UpdateDraftLifecycleResult,
+    VersionNotFoundError | VersionNotDraftError | RepositoryError
+  > =>
+    Effect.gen(function* () {
+      const existing = yield* repo.findVersionById(input.versionId);
+      if (!existing) {
+        return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+      }
+
+      yield* ensureVersionIsDraft(existing);
+
+      const previousDefinition = yield* loadPreviousLifecycleDefinition(
+        input.versionId,
+        lifecycleRepo,
+      );
+
+      const nextWorkUnit: WorkUnitTypeDefinition = {
+        key: input.workUnitType.key,
+        displayName: input.workUnitType.displayName,
+        description: input.workUnitType.description,
+        guidance: input.workUnitType.guidance,
+        cardinality: input.workUnitType.cardinality ?? "many_per_project",
+        lifecycleStates: [{ key: "draft" }],
+        lifecycleTransitions: [],
+        factSchemas: [],
+      };
+
+      return yield* updateDraftLifecycle(
+        {
+          versionId: input.versionId,
+          workUnitTypes: [...previousDefinition.workUnitTypes, nextWorkUnit],
+          agentTypes: previousDefinition.agentTypes,
+        },
+        actorId,
+      );
+    });
+
   const updateAgent = (
     input: UpdateAgentInput,
     actorId: string,
@@ -439,6 +498,47 @@ export const LifecycleServiceLive = Effect.gen(function* () {
           agentTypes: previousDefinition.agentTypes.map((agent) =>
             agent.key === input.agentKey ? input.agent : agent,
           ),
+        },
+        actorId,
+      );
+    });
+
+  const updateWorkUnit = (
+    input: UpdateWorkUnitInput,
+    actorId: string,
+  ): Effect.Effect<
+    UpdateDraftLifecycleResult,
+    VersionNotFoundError | VersionNotDraftError | RepositoryError
+  > =>
+    Effect.gen(function* () {
+      const existing = yield* repo.findVersionById(input.versionId);
+      if (!existing) {
+        return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+      }
+
+      yield* ensureVersionIsDraft(existing);
+
+      const previousDefinition = yield* loadPreviousLifecycleDefinition(
+        input.versionId,
+        lifecycleRepo,
+      );
+
+      return yield* updateDraftLifecycle(
+        {
+          versionId: input.versionId,
+          workUnitTypes: previousDefinition.workUnitTypes.map((workUnit) =>
+            workUnit.key === input.workUnitKey
+              ? {
+                  ...workUnit,
+                  key: input.workUnitType.key,
+                  displayName: input.workUnitType.displayName,
+                  description: input.workUnitType.description,
+                  guidance: input.workUnitType.guidance,
+                  cardinality: input.workUnitType.cardinality ?? workUnit.cardinality,
+                }
+              : workUnit,
+          ),
+          agentTypes: previousDefinition.agentTypes,
         },
         actorId,
       );
@@ -476,6 +576,8 @@ export const LifecycleServiceLive = Effect.gen(function* () {
 
   return LifecycleService.of({
     updateDraftLifecycle,
+    createWorkUnit,
+    updateWorkUnit,
     createAgent,
     updateAgent,
     deleteAgent,

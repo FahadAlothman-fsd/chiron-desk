@@ -44,6 +44,7 @@ function toWorkUnitTypeRow(row: typeof methodologyWorkUnitTypes.$inferSelect): W
     key: row.key,
     displayName: row.displayName,
     descriptionJson: row.descriptionJson,
+    guidanceJson: row.guidanceJson,
     cardinality: row.cardinality,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -414,6 +415,7 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
                 key: wut.key,
                 displayName: wut.displayName ?? null,
                 descriptionJson: wut.description ? { text: wut.description } : null,
+                guidanceJson: wut.guidance ?? null,
                 cardinality: wut.cardinality,
               })
               .returning();

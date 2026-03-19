@@ -13,7 +13,11 @@ import {
   type LifecycleError,
 } from "@chiron/methodology-engine";
 import { ProjectContextService } from "@chiron/project-context";
-import type { UpdateDraftLifecycleInput } from "@chiron/contracts/methodology/lifecycle";
+import type {
+  CreateMethodologyWorkUnitInput,
+  UpdateMethodologyWorkUnitInput,
+  UpdateDraftLifecycleInput,
+} from "@chiron/contracts/methodology/lifecycle";
 import type {
   CreateMethodologyAgentInput,
   DeleteMethodologyAgentInput,
@@ -70,29 +74,25 @@ const workflowSchema = z.object({
   edges: z.array(workflowEdgeSchema),
 });
 
+const guidanceMarkdownSchema = z.object({ markdown: z.string() });
+
+const audienceGuidanceSchema = z.object({
+  human: guidanceMarkdownSchema,
+  agent: guidanceMarkdownSchema,
+});
+
+const audienceMarkdownJsonSchema = audienceGuidanceSchema.optional();
+const factGuidanceSchema = audienceGuidanceSchema.optional();
+
+const guidanceOverlayMapSchema = z.record(z.string(), z.unknown()).default({});
+
 const guidanceSchema = z
   .object({
     global: z.unknown().optional(),
-    byWorkUnitType: z.record(z.string(), z.unknown()).default({}),
-    byAgentType: z.record(z.string(), z.unknown()).default({}),
-    byTransition: z.record(z.string(), z.unknown()).default({}),
-    byWorkflow: z.record(z.string(), z.unknown()).default({}),
-  })
-  .optional();
-
-const markdownAudienceSchema = z.object({ markdown: z.string() });
-
-const audienceMarkdownJsonSchema = z
-  .object({
-    human: markdownAudienceSchema,
-    agent: markdownAudienceSchema,
-  })
-  .optional();
-
-const factGuidanceSchema = z
-  .object({
-    human: markdownAudienceSchema,
-    agent: markdownAudienceSchema,
+    byWorkUnitType: guidanceOverlayMapSchema,
+    byAgentType: guidanceOverlayMapSchema,
+    byTransition: guidanceOverlayMapSchema,
+    byWorkflow: guidanceOverlayMapSchema,
   })
   .optional();
 
@@ -135,12 +135,14 @@ const variableDefinitionSchema = z.object({
   validation: factValidationSchema,
 });
 
-const linkTypeDefinitionSchema = z.object({
-  key: z.string().min(1),
-  description: z.string().optional(),
-  allowedStrengths: z.array(z.enum(["hard", "soft", "context"])).min(1),
-  policyMetadata: z.unknown().optional(),
-});
+const linkTypeDefinitionSchema = z
+  .object({
+    key: z.string().min(1),
+    name: z.string().optional(),
+    description: z.string().optional(),
+    guidance: factGuidanceSchema,
+  })
+  .strict();
 
 const createDraftInput = z.object({
   methodologyKey: z.string().min(1),
@@ -272,6 +274,7 @@ const workUnitTypeSchema = z.object({
   key: z.string().min(1),
   displayName: z.string().optional(),
   description: z.string().optional(),
+  guidance: factGuidanceSchema.optional(),
   cardinality: z.enum(["one_per_project", "many_per_project"]),
   lifecycleStates: z.array(lifecycleStateSchema),
   lifecycleTransitions: z.array(lifecycleTransitionSchema),
@@ -296,6 +299,29 @@ const agentTypeSchema = z.object({
 const createAgentInput = z.object({
   versionId: z.string().min(1),
   agent: agentTypeSchema,
+});
+
+const createWorkUnitInput = z.object({
+  versionId: z.string().min(1),
+  workUnitType: z.object({
+    key: z.string().min(1),
+    displayName: z.string().optional(),
+    description: z.string().optional(),
+    guidance: factGuidanceSchema.optional(),
+    cardinality: z.enum(["one_per_project", "many_per_project"]).optional(),
+  }),
+});
+
+const updateWorkUnitInput = z.object({
+  versionId: z.string().min(1),
+  workUnitKey: z.string().min(1),
+  workUnitType: z.object({
+    key: z.string().min(1),
+    displayName: z.string().optional(),
+    description: z.string().optional(),
+    guidance: audienceGuidanceSchema.optional(),
+    cardinality: z.enum(["one_per_project", "many_per_project"]).optional(),
+  }),
 });
 
 const updateAgentInput = z.object({
@@ -444,9 +470,12 @@ function mapEffectError(err: MethodologyError | LifecycleError | unknown): never
       throw new ORPCError("NOT_FOUND", { message: String(err) });
     case "DuplicateVersionError":
     case "DraftVersionAlreadyExistsError":
+    case "DuplicateDependencyDefinitionError":
       throw new ORPCError("CONFLICT", { message: String(err) });
     case "VersionNotDraftError":
       throw new ORPCError("PRECONDITION_FAILED", { message: String(err) });
+    case "DependencyDefinitionNotFoundError":
+      throw new ORPCError("NOT_FOUND", { message: String(err) });
     case "ValidationDecodeError":
       throw new ORPCError("BAD_REQUEST", { message: String(err) });
     case "RepositoryError":
@@ -985,6 +1014,65 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
       };
     }),
 
+    createWorkUnit: protectedProcedure
+      .input(createWorkUnitInput)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        const workUnitPayload: CreateMethodologyWorkUnitInput = {
+          versionId: input.versionId,
+          workUnitType: {
+            key: input.workUnitType.key,
+            displayName: input.workUnitType.displayName,
+            description: input.workUnitType.description,
+            guidance: input.workUnitType.guidance,
+            cardinality: input.workUnitType.cardinality,
+          },
+        };
+
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* LifecycleService;
+            return yield* svc.createWorkUnit(workUnitPayload, actorId);
+          }),
+        );
+
+        return {
+          version: serializeVersion(result.version),
+          diagnostics: result.validation,
+        };
+      }),
+
+    updateWorkUnit: protectedProcedure
+      .input(updateWorkUnitInput)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        const workUnitPayload: UpdateMethodologyWorkUnitInput = {
+          versionId: input.versionId,
+          workUnitKey: input.workUnitKey,
+          workUnitType: {
+            key: input.workUnitType.key,
+            displayName: input.workUnitType.displayName,
+            description: input.workUnitType.description,
+            guidance: input.workUnitType.guidance,
+            cardinality: input.workUnitType.cardinality,
+          },
+        };
+
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* LifecycleService;
+            return yield* svc.updateWorkUnit(workUnitPayload, actorId);
+          }),
+        );
+
+        return {
+          version: serializeVersion(result.version),
+          diagnostics: result.validation,
+        };
+      }),
+
     updateAgent: protectedProcedure.input(updateAgentInput).handler(async ({ input, context }) => {
       const actorId = context.session.user.id;
       const agentPayload: UpdateMethodologyAgentInput = {
@@ -1034,8 +1122,7 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
         const actorId = context.session.user.id;
         const dependencyPayload: CreateMethodologyDependencyDefinitionInput = {
           versionId: input.versionId,
-          dependencyDefinition:
-            input.dependencyDefinition as unknown as CreateMethodologyDependencyDefinitionInput["dependencyDefinition"],
+          dependencyDefinition: input.dependencyDefinition,
         };
 
         const result = await runEffect(
@@ -1059,8 +1146,7 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
         const dependencyPayload: UpdateMethodologyDependencyDefinitionInput = {
           versionId: input.versionId,
           dependencyKey: input.dependencyKey,
-          dependencyDefinition:
-            input.dependencyDefinition as unknown as UpdateMethodologyDependencyDefinitionInput["dependencyDefinition"],
+          dependencyDefinition: input.dependencyDefinition,
         };
 
         const result = await runEffect(
@@ -1169,9 +1255,9 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
       },
       workUnit: {
         list: router.getDraftProjection,
-        create: router.updateDraftLifecycle,
+        create: router.createWorkUnit,
         get: router.getDraftProjection,
-        updateMeta: router.updateDraftLifecycle,
+        updateMeta: router.updateWorkUnit,
         delete: router.updateDraftLifecycle,
       },
       getLineage: router.getDraftLineage,

@@ -513,8 +513,9 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               params.linkTypeDefinitions.map((l) => ({
                 methodologyVersionId: ver.id,
                 key: l.key,
+                name: l.name ?? null,
                 descriptionJson: l.description ?? null,
-                allowedStrengthsJson: l.allowedStrengths,
+                guidanceJson: l.guidance ?? null,
               })),
             );
           }
@@ -616,8 +617,9 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
                 params.linkTypeDefinitions.map((l) => ({
                   methodologyVersionId: ver.id,
                   key: l.key,
+                  name: l.name ?? null,
                   descriptionJson: l.description ?? null,
-                  allowedStrengthsJson: l.allowedStrengths,
+                  guidanceJson: l.guidance ?? null,
                 })),
               );
             }
@@ -703,8 +705,9 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           id: row.id,
           methodologyVersionId: row.methodologyVersionId,
           key: row.key,
+          name: row.name,
           descriptionJson: row.descriptionJson,
-          allowedStrengthsJson: row.allowedStrengthsJson,
+          guidanceJson: row.guidanceJson,
           createdAt: row.createdAt,
           updatedAt: row.updatedAt,
         }));
@@ -921,7 +924,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
         return {
           workflows,
           transitionWorkflowBindings,
-          guidance,
+          ...(guidance ? { guidance } : {}),
         } satisfies WorkflowSnapshot;
       }),
 

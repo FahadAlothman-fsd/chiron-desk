@@ -8,13 +8,17 @@ const {
   useSearchMock,
   useRouteContextMock,
   useNavigateMock,
-  updateDraftLifecycleMutationSpy,
+  createWorkUnitMutationSpy,
+  updateWorkUnitMutationSpy,
 } = vi.hoisted(() => ({
   useParamsMock: vi.fn(),
   useSearchMock: vi.fn(),
   useRouteContextMock: vi.fn(),
   useNavigateMock: vi.fn(),
-  updateDraftLifecycleMutationSpy: vi.fn(async () => ({
+  createWorkUnitMutationSpy: vi.fn(async () => ({
+    validation: { valid: true, diagnostics: [] },
+  })),
+  updateWorkUnitMutationSpy: vi.fn(async () => ({
     validation: { valid: true, diagnostics: [] },
   })),
 }));
@@ -36,6 +40,12 @@ function createRouteContext() {
       {
         key: "WU.INTAKE",
         displayName: "Intake",
+        description: "Collect intake guidance and initial operator context.",
+        guidance: {
+          human: { markdown: "Capture the intake packet from the operator." },
+          agent: { markdown: "Normalize the intake packet into structured fields." },
+        },
+        cardinality: "many_per_project",
         lifecycleStates: [{ key: "draft" }, { key: "ready" }],
         lifecycleTransitions: [
           { transitionKey: "draft__to__ready", toState: "ready" },
@@ -46,6 +56,12 @@ function createRouteContext() {
       {
         key: "WU.VALIDATION",
         displayName: "Validation",
+        description: "Validate the intake package before publication.",
+        guidance: {
+          human: { markdown: "Review the validation checklist before approval." },
+          agent: { markdown: "Flag any unresolved validation issues." },
+        },
+        cardinality: "one_per_project",
         lifecycleStates: [{ key: "draft" }, { key: "done" }],
         lifecycleTransitions: [{ transitionKey: "draft__to__done", toState: "done" }],
         factSchemas: [{ key: "fact.result" }],
@@ -92,7 +108,10 @@ function createRouteContext() {
               }),
             },
             create: {
-              mutationOptions: () => ({ mutationFn: updateDraftLifecycleMutationSpy }),
+              mutationOptions: () => ({ mutationFn: createWorkUnitMutationSpy }),
+            },
+            updateMeta: {
+              mutationOptions: () => ({ mutationFn: updateWorkUnitMutationSpy }),
             },
           },
         },
@@ -118,7 +137,8 @@ beforeEach(() => {
   useParamsMock.mockReturnValue({ methodologyId: "equity-core", versionId: "draft-v3" });
   useSearchMock.mockReturnValue({ view: "graph", selected: "WU.INTAKE" });
   useRouteContextMock.mockReturnValue(createRouteContext());
-  updateDraftLifecycleMutationSpy.mockClear();
+  createWorkUnitMutationSpy.mockClear();
+  updateWorkUnitMutationSpy.mockClear();
 });
 
 afterEach(() => {
@@ -239,7 +259,7 @@ describe("methodology version work units l1 route", () => {
     });
   });
 
-  it("opens a create flow with shallow metadata fields and submits the authored work unit", async () => {
+  it("creates a work unit through Contract and Guidance tabs", async () => {
     const { MethodologyVersionWorkUnitsRoute } =
       await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
 
@@ -247,9 +267,12 @@ describe("methodology version work units l1 route", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "+ Add Work Unit" }));
 
+    expect((await screen.findAllByText("Contract")).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Guidance").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByLabelText("Work Unit Key")).toBeTruthy();
     expect(screen.getByLabelText("Display Name")).toBeTruthy();
     expect(screen.getByLabelText("Description")).toBeTruthy();
+    expect(screen.getByLabelText("Cardinality")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Work Unit Key"), {
       target: { value: "WU.NEW_STEP" },
     });
@@ -259,35 +282,75 @@ describe("methodology version work units l1 route", () => {
     fireEvent.change(screen.getByLabelText("Description"), {
       target: { value: "Operator-facing work unit summary." },
     });
+    fireEvent.click(screen.getByRole("combobox", { name: "Cardinality" }));
+    const onePerProjectOption = await screen.findByRole("option", { name: "one_per_project" });
+    fireEvent.mouseMove(onePerProjectOption);
+    fireEvent.click(onePerProjectOption);
+    fireEvent.click(screen.getByRole("button", { name: /Guidance/ }));
+
+    expect(await screen.findByLabelText("Human Guidance")).toBeTruthy();
+    expect(screen.getByLabelText("Agent Guidance")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Human Guidance"), {
+      target: { value: "Capture the operator-facing definition of done." },
+    });
+    fireEvent.change(screen.getByLabelText("Agent Guidance"), {
+      target: { value: "Draft the normalized work-unit brief for downstream automation." },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Create Work Unit" }));
 
     await waitFor(() => {
-      expect(updateDraftLifecycleMutationSpy).toHaveBeenCalled();
+      expect(createWorkUnitMutationSpy).toHaveBeenCalled();
     });
 
-    const firstCall = updateDraftLifecycleMutationSpy.mock.calls[0] as
-      | [unknown, unknown?]
-      | undefined;
+    const firstCall = createWorkUnitMutationSpy.mock.calls[0] as [unknown, unknown?] | undefined;
 
     expect(firstCall?.[0]).toEqual(
       expect.objectContaining({
         versionId: "draft-v3",
-        workUnitTypes: expect.arrayContaining([
-          expect.objectContaining({
-            key: "WU.NEW_STEP",
-            displayName: "New Step",
-            description: "Operator-facing work unit summary.",
-          }),
-        ]),
-        agentTypes: expect.arrayContaining([
-          expect.objectContaining({ key: "agent.reviewer", persona: "draft" }),
-        ]),
+        workUnitType: expect.objectContaining({
+          key: "WU.NEW_STEP",
+          displayName: "New Step",
+          description: "Operator-facing work unit summary.",
+          cardinality: "one_per_project",
+          guidance: {
+            human: { markdown: "Capture the operator-facing definition of done." },
+            agent: {
+              markdown: "Draft the normalized work-unit brief for downstream automation.",
+            },
+          },
+        }),
       }),
     );
   });
 
+  it("opens edit with the same tabbed editor prefilled from the selected work unit", async () => {
+    const { MethodologyVersionWorkUnitsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitsRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit Work Unit" }));
+
+    expect((await screen.findAllByText("Contract")).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByDisplayValue("WU.INTAKE")).toBeTruthy();
+    expect(screen.getByDisplayValue("Intake")).toBeTruthy();
+    expect(
+      screen.getByDisplayValue("Collect intake guidance and initial operator context."),
+    ).toBeTruthy();
+    const cardinalitySelect = screen.getByRole("combobox", { name: "Cardinality" });
+    expect(cardinalitySelect.textContent).toContain("many_per_project");
+
+    fireEvent.click(screen.getByRole("button", { name: /Guidance/ }));
+
+    expect(await screen.findByLabelText("Human Guidance")).toBeTruthy();
+    expect(screen.getByDisplayValue("Capture the intake packet from the operator.")).toBeTruthy();
+    expect(
+      screen.getByDisplayValue("Normalize the intake packet into structured fields."),
+    ).toBeTruthy();
+  });
+
   it("surfaces a human-readable error when create work unit fails", async () => {
-    updateDraftLifecycleMutationSpy.mockRejectedValueOnce(new Error("BAD_REQUEST"));
+    createWorkUnitMutationSpy.mockRejectedValueOnce(new Error("BAD_REQUEST"));
 
     const { MethodologyVersionWorkUnitsRoute } =
       await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
@@ -306,5 +369,70 @@ describe("methodology version work units l1 route", () => {
       ),
     ).toBeTruthy();
     expect(screen.getByLabelText("Work Unit Key")).toBeTruthy();
+  });
+
+  it("saves edited work-unit metadata through updateMeta", async () => {
+    const { MethodologyVersionWorkUnitsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitsRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit Work Unit" }));
+    fireEvent.change(screen.getByLabelText("Display Name"), {
+      target: { value: "Intake Updated" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save Work Unit Changes" }));
+
+    await waitFor(() => {
+      expect(updateWorkUnitMutationSpy).toHaveBeenCalledTimes(1);
+    });
+
+    const firstUpdateCall = updateWorkUnitMutationSpy.mock.calls.at(0) as
+      | [unknown, unknown?]
+      | undefined;
+    expect(firstUpdateCall).toBeTruthy();
+    expect(firstUpdateCall?.[0]).toEqual(
+      expect.objectContaining({
+        versionId: "draft-v3",
+        workUnitKey: "WU.INTAKE",
+        workUnitType: expect.objectContaining({
+          key: "WU.INTAKE",
+          displayName: "Intake Updated",
+        }),
+      }),
+    );
+  });
+
+  it("shows dirty indicators and confirms cancel when dialog has unsaved changes", async () => {
+    const { MethodologyVersionWorkUnitsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitsRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "+ Add Work Unit" }));
+    fireEvent.change(screen.getByLabelText("Work Unit Key"), {
+      target: { value: "WU.UNSAVED" },
+    });
+
+    expect(screen.getByTestId("work-unit-contract-modified-indicator")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Guidance" }));
+    fireEvent.change(screen.getByLabelText("Human Guidance"), {
+      target: { value: "Unsaved guidance content" },
+    });
+
+    expect(screen.getByTestId("work-unit-guidance-modified-indicator")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(await screen.findByText("Discard unsaved changes?")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Keep Editing" }));
+    expect(screen.queryByText("Discard unsaved changes?")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Discard Changes" }));
+
+    expect(screen.queryByText("Discard unsaved changes?")).toBeNull();
+    expect(screen.queryByLabelText("Work Unit Key")).toBeNull();
   });
 });

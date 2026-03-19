@@ -164,18 +164,24 @@ function formValuesToFact(
     name: values.displayName,
     key: values.factKey,
     factType: values.factType,
-    defaultValue: values.defaultValue.length > 0 ? values.defaultValue : undefined,
-    description: values.description.length > 0 ? values.description : undefined,
-    guidance:
-      values.humanMarkdown.trim().length > 0 || values.agentMarkdown.trim().length > 0
-        ? {
-            human:
-              values.humanMarkdown.trim().length > 0 ? { short: values.humanMarkdown } : undefined,
-            agent:
-              values.agentMarkdown.trim().length > 0 ? { intent: values.agentMarkdown } : undefined,
-          }
-        : undefined,
-    validation: validation as FactEditorValue["validation"],
+    ...(values.defaultValue.length > 0 ? { defaultValue: values.defaultValue } : {}),
+    ...(values.description.length > 0 ? { description: values.description } : {}),
+    ...(values.humanMarkdown.trim().length > 0 || values.agentMarkdown.trim().length > 0
+      ? {
+          guidance: {
+            ...(values.humanMarkdown.trim().length > 0
+              ? { human: { short: values.humanMarkdown } }
+              : {}),
+            ...(values.agentMarkdown.trim().length > 0
+              ? { agent: { intent: values.agentMarkdown } }
+              : {}),
+          },
+        }
+      : {}),
+    validation: (validation ?? { kind: "none" }) as Exclude<
+      FactEditorValue["validation"],
+      undefined
+    >,
   };
 }
 
@@ -219,27 +225,60 @@ function FactEditorDialog({
   isEditing: boolean;
   onSave: (fact: FactEditorValue) => Promise<void>;
 }) {
-  const [step, setStep] = useState<FactEditorStep>("contract");
+  const [activeTab, setActiveTab] = useState<FactEditorStep>("contract");
+  const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
+  const [isContractTabDirty, setIsContractTabDirty] = useState(false);
+  const [isGuidanceTabDirty, setIsGuidanceTabDirty] = useState(false);
   const form = useForm({
     defaultValues: factToFormValues(initialFact),
     onSubmit: async ({ value }) => {
       await onSave(formValuesToFact(value, initialFact));
     },
   });
+  const isDialogDirty = isContractTabDirty || isGuidanceTabDirty;
+
+  const closeDialog = () => {
+    setIsDiscardDialogOpen(false);
+    setActiveTab("contract");
+    onOpenChange(false);
+  };
+
+  const requestClose = () => {
+    if (isDialogDirty) {
+      setIsDiscardDialogOpen(true);
+      return;
+    }
+
+    closeDialog();
+  };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (nextOpen) {
+          onOpenChange(true);
+          return;
+        }
+
+        requestClose();
+      }}
+    >
       <DialogContent className="chiron-cut-frame-thick w-[min(72rem,calc(100vw-2rem))] p-8 sm:max-w-none sm:p-10">
         <form
           className="flex flex-col gap-12"
+          onChangeCapture={() => {
+            if (activeTab === "contract") {
+              setIsContractTabDirty(true);
+              return;
+            }
+
+            setIsGuidanceTabDirty(true);
+          }}
           onSubmit={(event) => {
             event.preventDefault();
             event.stopPropagation();
-            if (step === "guidance") {
-              void form.handleSubmit();
-            } else {
-              setStep("guidance");
-            }
+            void form.handleSubmit();
           }}
         >
           <div className="flex flex-col gap-10">
@@ -254,7 +293,7 @@ function FactEditorDialog({
                     ["guidance", "Guidance"],
                   ] as const
                 ).map(([stepValue, label], index) => {
-                  const active = step === stepValue;
+                  const active = activeTab === stepValue;
                   return (
                     <div key={stepValue} className="flex items-center gap-2">
                       <button
@@ -264,9 +303,25 @@ function FactEditorDialog({
                             ? "chiron-frame-flat px-3 py-1 text-xs uppercase tracking-[0.14em]"
                             : "border border-border/70 px-3 py-1 text-xs uppercase tracking-[0.14em] text-muted-foreground"
                         }
-                        onClick={() => setStep(stepValue)}
+                        onClick={() => setActiveTab(stepValue)}
                       >
                         {label}
+                        {stepValue === "contract" && isContractTabDirty ? (
+                          <span
+                            data-testid="fact-contract-modified-indicator"
+                            className="ml-1 text-[0.85rem] leading-none"
+                          >
+                            *
+                          </span>
+                        ) : null}
+                        {stepValue === "guidance" && isGuidanceTabDirty ? (
+                          <span
+                            data-testid="fact-guidance-modified-indicator"
+                            className="ml-1 text-[0.85rem] leading-none"
+                          >
+                            *
+                          </span>
+                        ) : null}
                       </button>
                       {index === 0 ? (
                         <span className="text-xs text-muted-foreground">/</span>
@@ -277,7 +332,7 @@ function FactEditorDialog({
               </div>
             </DialogHeader>
 
-            {step === "contract" ? (
+            {activeTab === "contract" ? (
               <div className="grid grid-cols-2 gap-x-10 gap-y-6">
                 <form.Field name="displayName">
                   {(field) => (
@@ -598,36 +653,42 @@ function FactEditorDialog({
               variant="outline"
               className="rounded-none px-6"
               type="button"
-              onClick={() => onOpenChange(false)}
+              onClick={requestClose}
             >
               Cancel
             </Button>
-            {step === "guidance" ? (
-              <Button
-                variant="outline"
-                className="rounded-none px-6"
-                type="button"
-                onClick={() => setStep("contract")}
-              >
-                Back
-              </Button>
-            ) : null}
-            {step === "contract" ? (
-              <Button
-                className="rounded-none px-8"
-                type="button"
-                onClick={() => setStep("guidance")}
-              >
-                Next
-              </Button>
-            ) : (
-              <Button className="rounded-none px-8" type="submit">
-                Save
-              </Button>
-            )}
+            <Button className="rounded-none px-8" type="submit">
+              Save
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
+
+      <Dialog open={isDiscardDialogOpen} onOpenChange={setIsDiscardDialogOpen}>
+        <DialogContent className="max-w-md rounded-none">
+          <DialogHeader>
+            <DialogTitle>Discard unsaved changes?</DialogTitle>
+            <DialogDescription>
+              You have unsaved fact edits. Discarding now will close the dialog and lose those
+              changes.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="rounded-none"
+              type="button"
+              onClick={() => setIsDiscardDialogOpen(false)}
+            >
+              Keep Editing
+            </Button>
+            <Button className="rounded-none" type="button" onClick={closeDialog}>
+              Discard Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

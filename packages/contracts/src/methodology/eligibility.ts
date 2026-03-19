@@ -1,4 +1,4 @@
-import { Schema } from "effect";
+import * as Schema from "effect/Schema";
 import { GateClass } from "./lifecycle.js";
 import { TransitionConditionSet } from "./lifecycle.js";
 

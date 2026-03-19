@@ -12,6 +12,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { WorkUnitsGraphView } from "@/features/methodologies/work-units-graph-view";
 import {
   deriveActiveWorkUnit,
@@ -56,9 +63,25 @@ export function MethodologyVersionWorkUnitsRoute() {
   );
 
   const draftProjection = (draftQuery.data ?? null) as {
+    factDefinitions?: ReadonlyArray<{
+      key?: string;
+      name?: string;
+      factType?: "string" | "number" | "boolean" | "json";
+      description?: string;
+      guidance?: {
+        human?: { markdown?: string; short?: string; long?: string };
+        agent?: { markdown?: string; intent?: string };
+      };
+      validation?: unknown;
+    }>;
     workUnitTypes?: ReadonlyArray<{
       key?: string;
       displayName?: string;
+      description?: string;
+      guidance?: {
+        human?: { markdown?: string };
+        agent?: { markdown?: string };
+      };
       cardinality?: "one_per_project" | "many_per_project";
       lifecycleStates?: ReadonlyArray<{ key?: string }>;
       lifecycleTransitions?: ReadonlyArray<unknown>;
@@ -83,14 +106,36 @@ export function MethodologyVersionWorkUnitsRoute() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [editingWorkUnitKey, setEditingWorkUnitKey] = useState<string | null>(null);
+  const [createDialogTab, setCreateDialogTab] = useState<"contract" | "guidance">("contract");
   const [newWorkUnitKey, setNewWorkUnitKey] = useState("");
   const [newWorkUnitDisplayName, setNewWorkUnitDisplayName] = useState("");
   const [newWorkUnitDescription, setNewWorkUnitDescription] = useState("");
+  const [newWorkUnitCardinality, setNewWorkUnitCardinality] = useState<
+    "one_per_project" | "many_per_project"
+  >("many_per_project");
+  const [newWorkUnitHumanGuidance, setNewWorkUnitHumanGuidance] = useState("");
+  const [newWorkUnitAgentGuidance, setNewWorkUnitAgentGuidance] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
+  const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
   const newWorkUnitKeyRef = useRef<HTMLInputElement | null>(null);
 
-  const updateDraftLifecycleMutation = useMutation(
+  const isContractTabDirty =
+    newWorkUnitKey.trim().length > 0 ||
+    newWorkUnitDisplayName.trim().length > 0 ||
+    newWorkUnitDescription.trim().length > 0 ||
+    newWorkUnitCardinality !== "many_per_project";
+
+  const isGuidanceTabDirty =
+    newWorkUnitHumanGuidance.trim().length > 0 || newWorkUnitAgentGuidance.trim().length > 0;
+
+  const isCreateDialogDirty = isContractTabDirty || isGuidanceTabDirty;
+
+  const createWorkUnitMutation = useMutation(
     orpc.methodology.version.workUnit.create.mutationOptions(),
+  );
+  const updateWorkUnitMutation = useMutation(
+    orpc.methodology.version.workUnit.updateMeta.mutationOptions(),
   );
 
   const workUnits = useMemo(() => deriveWorkUnitsPageRows(draftProjection), [draftProjection]);
@@ -138,10 +183,7 @@ export function MethodologyVersionWorkUnitsRoute() {
     [draftProjection?.workUnitTypes],
   );
 
-  const existingAgentTypes = useMemo(
-    () => (Array.isArray(draftProjection?.agentTypes) ? draftProjection.agentTypes : []),
-    [draftProjection?.agentTypes],
-  );
+  const isEditMode = editingWorkUnitKey !== null;
 
   const updateSearch = (next: {
     view?: "graph" | "contracts" | "diagnostics";
@@ -159,21 +201,44 @@ export function MethodologyVersionWorkUnitsRoute() {
 
   const closeCreateDialog = () => {
     setIsCreateDialogOpen(false);
+    setEditingWorkUnitKey(null);
+    setCreateError(null);
+    setNewWorkUnitKey("");
+    setNewWorkUnitDisplayName("");
+    setNewWorkUnitDescription("");
+    setNewWorkUnitCardinality("many_per_project");
+    setNewWorkUnitHumanGuidance("");
+    setNewWorkUnitAgentGuidance("");
+    setCreateDialogTab("contract");
+    setIsDiscardDialogOpen(false);
     if (isCreateIntentActive) {
       clearCreateIntent();
     }
+  };
+
+  const requestCloseCreateDialog = () => {
+    if (isCreateDialogDirty) {
+      setIsDiscardDialogOpen(true);
+      return;
+    }
+
+    closeCreateDialog();
   };
 
   const handleCreateWorkUnit = async () => {
     const nextKey = (newWorkUnitKeyRef.current?.value ?? newWorkUnitKey).trim();
     const nextDisplayName = newWorkUnitDisplayName.trim() || nextKey;
     const nextDescription = newWorkUnitDescription.trim();
+    const nextHumanGuidance = newWorkUnitHumanGuidance.trim();
+    const nextAgentGuidance = newWorkUnitAgentGuidance.trim();
     if (!nextKey) {
       setCreateError("Work Unit Key is required.");
       return;
     }
 
-    const keyAlreadyExists = existingWorkUnitTypes.some((workUnit) => workUnit?.key === nextKey);
+    const keyAlreadyExists = existingWorkUnitTypes.some(
+      (workUnit) => workUnit?.key === nextKey && workUnit?.key !== editingWorkUnitKey,
+    );
     if (keyAlreadyExists) {
       setCreateError("Work Unit Key must be unique.");
       return;
@@ -182,64 +247,88 @@ export function MethodologyVersionWorkUnitsRoute() {
     setCreateError(null);
 
     try {
-      await updateDraftLifecycleMutation.mutateAsync({
-        versionId,
-        workUnitTypes: [
-          ...existingWorkUnitTypes,
-          {
+      if (isEditMode && editingWorkUnitKey) {
+        await updateWorkUnitMutation.mutateAsync({
+          versionId,
+          workUnitKey: editingWorkUnitKey,
+          workUnitType: {
             key: nextKey,
             displayName: nextDisplayName,
             description: nextDescription,
-            cardinality: "many_per_project",
-            lifecycleStates: [{ key: "draft" }],
-            lifecycleTransitions: [],
-            factSchemas: [],
+            guidance:
+              nextHumanGuidance || nextAgentGuidance
+                ? {
+                    human: { markdown: nextHumanGuidance },
+                    agent: { markdown: nextAgentGuidance },
+                  }
+                : undefined,
+            cardinality: newWorkUnitCardinality,
           },
-        ],
-        agentTypes: existingAgentTypes.map((agent) => ({
-          key: agent?.key ?? "",
-          displayName: agent?.displayName ?? agent?.key ?? "",
-          description: agent?.description ?? "",
-          persona:
-            typeof (agent as { persona?: unknown })?.persona === "string" &&
-            (agent as { persona?: string }).persona?.trim().length
-              ? (agent as { persona?: string }).persona!.trim()
-              : "draft",
-          defaultModel:
-            (agent as { defaultModel?: { provider?: string; model?: string } })?.defaultModel
-              ?.provider &&
-            (agent as { defaultModel?: { provider?: string; model?: string } })?.defaultModel?.model
-              ? {
-                  provider: (agent as { defaultModel?: { provider?: string; model?: string } })
-                    .defaultModel!.provider!,
-                  model: (agent as { defaultModel?: { provider?: string; model?: string } })
-                    .defaultModel!.model!,
-                }
-              : undefined,
-          mcpServers: Array.isArray((agent as { mcpServers?: unknown }).mcpServers)
-            ? ((agent as { mcpServers?: string[] }).mcpServers ?? [])
-            : [],
-          capabilities: Array.isArray((agent as { capabilities?: unknown }).capabilities)
-            ? ((agent as { capabilities?: string[] }).capabilities ?? [])
-            : [],
-        })),
-      });
+        });
+      } else {
+        await createWorkUnitMutation.mutateAsync({
+          versionId,
+          workUnitType: {
+            key: nextKey,
+            displayName: nextDisplayName,
+            description: nextDescription,
+            guidance:
+              nextHumanGuidance || nextAgentGuidance
+                ? {
+                    human: { markdown: nextHumanGuidance },
+                    agent: { markdown: nextAgentGuidance },
+                  }
+                : undefined,
+            cardinality: newWorkUnitCardinality,
+          },
+        });
+      }
 
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["methodology", "draft", versionId] }),
         queryClient.invalidateQueries({ queryKey: ["methodology", "details", methodologyId] }),
       ]);
 
-      setIsCreateDialogOpen(false);
-      setNewWorkUnitKey("");
-      setNewWorkUnitDisplayName("");
-      setNewWorkUnitDescription("");
+      closeCreateDialog();
       updateSearch({ selected: nextKey });
     } catch {
       setCreateError(
-        "Unable to create work unit. Review the current draft definitions and try again.",
+        isEditMode
+          ? "Unable to save work unit changes. Review the current draft definitions and try again."
+          : "Unable to create work unit. Review the current draft definitions and try again.",
       );
     }
+  };
+
+  const openCreateDialog = () => {
+    setCreateError(null);
+    setEditingWorkUnitKey(null);
+    setNewWorkUnitKey("");
+    setNewWorkUnitDisplayName("");
+    setNewWorkUnitDescription("");
+    setNewWorkUnitCardinality("many_per_project");
+    setNewWorkUnitHumanGuidance("");
+    setNewWorkUnitAgentGuidance("");
+    setCreateDialogTab("contract");
+    setIsCreateDialogOpen(true);
+  };
+
+  const openEditDialog = (workUnitKey: string) => {
+    const workUnit = existingWorkUnitTypes.find((candidate) => candidate?.key === workUnitKey);
+    if (!workUnit) {
+      return;
+    }
+
+    setCreateError(null);
+    setEditingWorkUnitKey(workUnitKey);
+    setNewWorkUnitKey(workUnit.key ?? "");
+    setNewWorkUnitDisplayName(workUnit.displayName ?? "");
+    setNewWorkUnitDescription(workUnit.description ?? "");
+    setNewWorkUnitCardinality(workUnit.cardinality ?? "many_per_project");
+    setNewWorkUnitHumanGuidance(workUnit.guidance?.human?.markdown ?? "");
+    setNewWorkUnitAgentGuidance(workUnit.guidance?.agent?.markdown ?? "");
+    setCreateDialogTab("contract");
+    setIsCreateDialogOpen(true);
   };
 
   return (
@@ -296,17 +385,7 @@ export function MethodologyVersionWorkUnitsRoute() {
               Diagnostics
             </Button>
           </div>
-          <Button
-            size="sm"
-            className="rounded-none"
-            onClick={() => {
-              setCreateError(null);
-              setNewWorkUnitKey("");
-              setNewWorkUnitDisplayName("");
-              setNewWorkUnitDescription("");
-              setIsCreateDialogOpen(true);
-            }}
-          >
+          <Button size="sm" className="rounded-none" onClick={openCreateDialog}>
             + Add Work Unit
           </Button>
         </div>
@@ -315,84 +394,218 @@ export function MethodologyVersionWorkUnitsRoute() {
       <Dialog
         open={isCreateDialogOpen || isCreateIntentActive}
         onOpenChange={(open) => {
-          setIsCreateDialogOpen(open);
-          if (!open && isCreateIntentActive) {
-            clearCreateIntent();
+          if (open) {
+            setIsCreateDialogOpen(true);
+            return;
           }
+
+          requestCloseCreateDialog();
         }}
       >
-        <DialogContent className="max-w-md rounded-none">
+        <DialogContent className="max-w-5xl rounded-none">
           <DialogHeader>
-            <DialogTitle>Add Work Unit</DialogTitle>
+            <DialogTitle>{isEditMode ? "Edit Work Unit" : "Add Work Unit"}</DialogTitle>
             <DialogDescription>
-              Create a new work unit in this methodology version using the minimal lifecycle shell.
+              {isEditMode
+                ? "Update the selected work unit metadata while preserving its lifecycle structure."
+                : "Create a new work unit in this methodology version using the minimal lifecycle shell."}
             </DialogDescription>
           </DialogHeader>
 
-          <label htmlFor="new-work-unit-key" className="grid gap-1 text-xs">
-            <span>Work Unit Key</span>
-            <input
-              ref={newWorkUnitKeyRef}
-              id="new-work-unit-key"
-              aria-label="Work Unit Key"
-              className="border-input placeholder:text-muted-foreground h-8 w-full rounded-none border bg-transparent px-2.5 py-1 text-xs outline-none"
-              value={newWorkUnitKey}
-              onChange={(event) => {
-                setNewWorkUnitKey(event.target.value);
-                if (createError) {
-                  setCreateError(null);
-                }
-              }}
-              placeholder="WU.NEW_STEP"
-            />
-          </label>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={createDialogTab === "contract" ? "default" : "outline"}
+              className="rounded-none"
+              onClick={() => setCreateDialogTab("contract")}
+            >
+              Contract
+              {isContractTabDirty ? (
+                <span
+                  data-testid="work-unit-contract-modified-indicator"
+                  className="ml-1 text-[0.85rem] leading-none"
+                >
+                  *
+                </span>
+              ) : null}
+            </Button>
+            <span className="text-xs text-muted-foreground">/</span>
+            <Button
+              type="button"
+              size="sm"
+              variant={createDialogTab === "guidance" ? "default" : "outline"}
+              className="rounded-none"
+              onClick={() => setCreateDialogTab("guidance")}
+            >
+              Guidance
+              {isGuidanceTabDirty ? (
+                <span
+                  data-testid="work-unit-guidance-modified-indicator"
+                  className="ml-1 text-[0.85rem] leading-none"
+                >
+                  *
+                </span>
+              ) : null}
+            </Button>
+          </div>
 
-          <label htmlFor="new-work-unit-display-name" className="grid gap-1 text-xs">
-            <span>Display Name</span>
-            <input
-              id="new-work-unit-display-name"
-              aria-label="Display Name"
-              className="border-input placeholder:text-muted-foreground h-8 w-full rounded-none border bg-transparent px-2.5 py-1 text-xs outline-none"
-              value={newWorkUnitDisplayName}
-              onChange={(event) => {
-                setNewWorkUnitDisplayName(event.target.value);
-                if (createError) {
-                  setCreateError(null);
-                }
-              }}
-              placeholder="New Step"
-            />
-          </label>
+          {createDialogTab === "contract" ? (
+            <>
+              <label htmlFor="new-work-unit-key" className="grid gap-1 text-xs">
+                <span>Work Unit Key</span>
+                <input
+                  ref={newWorkUnitKeyRef}
+                  id="new-work-unit-key"
+                  aria-label="Work Unit Key"
+                  className="border-input placeholder:text-muted-foreground h-8 w-full rounded-none border bg-transparent px-2.5 py-1 text-xs outline-none"
+                  value={newWorkUnitKey}
+                  onChange={(event) => {
+                    setNewWorkUnitKey(event.target.value);
+                    if (createError) {
+                      setCreateError(null);
+                    }
+                  }}
+                  placeholder="WU.NEW_STEP"
+                />
+              </label>
 
-          <label htmlFor="new-work-unit-description" className="grid gap-1 text-xs">
-            <span>Description</span>
-            <textarea
-              id="new-work-unit-description"
-              aria-label="Description"
-              className="border-input placeholder:text-muted-foreground min-h-20 w-full rounded-none border bg-transparent px-2.5 py-2 text-xs outline-none"
-              value={newWorkUnitDescription}
-              onChange={(event) => {
-                setNewWorkUnitDescription(event.target.value);
-                if (createError) {
-                  setCreateError(null);
-                }
-              }}
-              placeholder="Operator-facing work unit summary."
-            />
-          </label>
+              <label htmlFor="new-work-unit-display-name" className="grid gap-1 text-xs">
+                <span>Display Name</span>
+                <input
+                  id="new-work-unit-display-name"
+                  aria-label="Display Name"
+                  className="border-input placeholder:text-muted-foreground h-8 w-full rounded-none border bg-transparent px-2.5 py-1 text-xs outline-none"
+                  value={newWorkUnitDisplayName}
+                  onChange={(event) => {
+                    setNewWorkUnitDisplayName(event.target.value);
+                    if (createError) {
+                      setCreateError(null);
+                    }
+                  }}
+                  placeholder="New Step"
+                />
+              </label>
+
+              <label htmlFor="new-work-unit-description" className="grid gap-1 text-xs">
+                <span>Description</span>
+                <textarea
+                  id="new-work-unit-description"
+                  aria-label="Description"
+                  className="border-input placeholder:text-muted-foreground min-h-20 w-full rounded-none border bg-transparent px-2.5 py-2 text-xs outline-none"
+                  value={newWorkUnitDescription}
+                  onChange={(event) => {
+                    setNewWorkUnitDescription(event.target.value);
+                    if (createError) {
+                      setCreateError(null);
+                    }
+                  }}
+                  placeholder="Operator-facing work unit summary."
+                />
+              </label>
+
+              <label htmlFor="new-work-unit-cardinality" className="grid gap-1 text-xs">
+                <span>Cardinality</span>
+                <Select
+                  value={newWorkUnitCardinality}
+                  onValueChange={(value) => {
+                    if (value === "one_per_project" || value === "many_per_project") {
+                      setNewWorkUnitCardinality(value);
+                    }
+                    if (createError) {
+                      setCreateError(null);
+                    }
+                  }}
+                >
+                  <SelectTrigger
+                    id="new-work-unit-cardinality"
+                    aria-label="Cardinality"
+                    className="h-8 w-full rounded-none text-xs"
+                  >
+                    <SelectValue placeholder="Select cardinality" />
+                  </SelectTrigger>
+                  <SelectContent align="start" className="rounded-none border-border/70 text-xs">
+                    <SelectItem value="many_per_project">many_per_project</SelectItem>
+                    <SelectItem value="one_per_project">one_per_project</SelectItem>
+                  </SelectContent>
+                </Select>
+              </label>
+            </>
+          ) : (
+            <>
+              <label htmlFor="new-work-unit-human-guidance" className="grid gap-1 text-xs">
+                <span>Human Guidance</span>
+                <textarea
+                  id="new-work-unit-human-guidance"
+                  aria-label="Human Guidance"
+                  className="border-input placeholder:text-muted-foreground min-h-20 w-full rounded-none border bg-transparent px-2.5 py-2 text-xs outline-none"
+                  value={newWorkUnitHumanGuidance}
+                  onChange={(event) => {
+                    setNewWorkUnitHumanGuidance(event.target.value);
+                    if (createError) {
+                      setCreateError(null);
+                    }
+                  }}
+                  placeholder="Guidance for operators working this work unit."
+                />
+              </label>
+
+              <label htmlFor="new-work-unit-agent-guidance" className="grid gap-1 text-xs">
+                <span>Agent Guidance</span>
+                <textarea
+                  id="new-work-unit-agent-guidance"
+                  aria-label="Agent Guidance"
+                  className="border-input placeholder:text-muted-foreground min-h-20 w-full rounded-none border bg-transparent px-2.5 py-2 text-xs outline-none"
+                  value={newWorkUnitAgentGuidance}
+                  onChange={(event) => {
+                    setNewWorkUnitAgentGuidance(event.target.value);
+                    if (createError) {
+                      setCreateError(null);
+                    }
+                  }}
+                  placeholder="Guidance for automated agents running this work unit."
+                />
+              </label>
+            </>
+          )}
 
           {createError ? <p className="text-xs text-destructive">{createError}</p> : null}
 
           <DialogFooter>
-            <Button variant="outline" className="rounded-none" onClick={closeCreateDialog}>
+            <Button variant="outline" className="rounded-none" onClick={requestCloseCreateDialog}>
               Cancel
             </Button>
             <Button
               className="rounded-none"
               onClick={() => void handleCreateWorkUnit()}
-              disabled={updateDraftLifecycleMutation.isPending}
+              disabled={createWorkUnitMutation.isPending || updateWorkUnitMutation.isPending}
             >
-              Create Work Unit
+              {isEditMode ? "Save Work Unit Changes" : "Create Work Unit"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDiscardDialogOpen} onOpenChange={setIsDiscardDialogOpen}>
+        <DialogContent className="max-w-md rounded-none">
+          <DialogHeader>
+            <DialogTitle>Discard unsaved changes?</DialogTitle>
+            <DialogDescription>
+              You have unsaved work-unit edits. Discarding now will close the dialog and lose those
+              changes.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="rounded-none"
+              onClick={() => setIsDiscardDialogOpen(false)}
+            >
+              Keep Editing
+            </Button>
+            <Button className="rounded-none" onClick={closeCreateDialog}>
+              Discard Changes
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -472,6 +685,7 @@ export function MethodologyVersionWorkUnitsRoute() {
                 selected: workUnitKey,
               })
             }
+            onEdit={openEditDialog}
           />
         </section>
       ) : null}
