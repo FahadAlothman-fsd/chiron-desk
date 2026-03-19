@@ -1,7 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Background,
   Controls,
+  Position,
   ReactFlow,
   ReactFlowProvider,
   type Edge,
@@ -18,12 +19,25 @@ type WorkUnitsGraphViewProps = {
   onSelect: (workUnitKey: string) => void;
 };
 
+type GraphNodeTab = "summary" | "guidance";
+
+type WorkUnitNodeData = {
+  row: WorkUnitsPageRow;
+  isExpanded: boolean;
+  activeTab: GraphNodeTab;
+  onToggleExpand: () => void;
+  onTabChange: (tab: GraphNodeTab) => void;
+};
+
 function keyFromNodeId(nodeId: string): string | null {
   return nodeId.startsWith("wu:") ? nodeId.slice(3) : null;
 }
 
 export function WorkUnitsGraphView(props: WorkUnitsGraphViewProps) {
-  const rowByKey = new Map(props.rows.map((row) => [row.key, row]));
+  const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
+  const [nodeTabs, setNodeTabs] = useState<Record<string, GraphNodeTab>>({});
+
+  const rowByKey = useMemo(() => new Map(props.rows.map((row) => [row.key, row])), [props.rows]);
   const graphNodes = useMemo(
     () =>
       props.graph.nodes
@@ -56,9 +70,25 @@ export function WorkUnitsGraphView(props: WorkUnitsGraphViewProps) {
         position: node.position,
         draggable: false,
         selectable: true,
-        data: { row },
+        data: {
+          row,
+          isExpanded: expandedNodes[row.key] ?? false,
+          activeTab: nodeTabs[row.key] ?? "summary",
+          onToggleExpand: () => {
+            setExpandedNodes((previous) => ({
+              ...previous,
+              [row.key]: !previous[row.key],
+            }));
+          },
+          onTabChange: (tab: GraphNodeTab) => {
+            setNodeTabs((previous) => ({
+              ...previous,
+              [row.key]: tab,
+            }));
+          },
+        },
         style: {
-          width: 240,
+          width: 320,
           borderRadius: 0,
           border:
             row.key === props.activeWorkUnitKey
@@ -70,11 +100,11 @@ export function WorkUnitsGraphView(props: WorkUnitsGraphViewProps) {
               : "color-mix(in oklab, var(--background) 82%, transparent)",
           padding: 12,
         },
-        sourcePosition: "right" as Node["sourcePosition"],
-        targetPosition: "left" as Node["targetPosition"],
+        sourcePosition: Position.Right,
+        targetPosition: Position.Left,
         type: "workUnitCard",
       })),
-    [graphNodes, props.activeWorkUnitKey],
+    [expandedNodes, graphNodes, nodeTabs, props.activeWorkUnitKey],
   );
 
   const flowEdges = useMemo<Edge[]>(
@@ -129,10 +159,16 @@ export function WorkUnitsGraphView(props: WorkUnitsGraphViewProps) {
             }
           }}
           nodeTypes={{
-            workUnitCard: ({ data }: { data: { row: WorkUnitsPageRow } }) => {
+            workUnitCard: ({ data }: { data: WorkUnitNodeData }) => {
               const row = data.row;
+              const isSummaryTab = data.activeTab === "summary";
+              const cardinality = row.cardinality ?? "unspecified";
+              const description = row.description ?? "No description yet.";
+              const humanGuidance = row.humanGuidance ?? "No human guidance yet.";
+              const agentGuidance = row.agentGuidance ?? "No agent guidance yet.";
+
               return (
-                <div className="flex w-[240px] flex-col gap-2 text-left">
+                <div className="flex w-[320px] flex-col gap-2 text-left">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-medium">{row.displayName}</p>
@@ -148,6 +184,80 @@ export function WorkUnitsGraphView(props: WorkUnitsGraphViewProps) {
                     <span>{row.factCount} facts</span>
                     <span>{row.relationshipCount} relationships</span>
                   </div>
+
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      aria-label={data.isExpanded ? "Collapse node details" : "Expand node details"}
+                      className="h-6 border border-border/70 px-2 text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:bg-muted"
+                      onClick={data.onToggleExpand}
+                    >
+                      {data.isExpanded ? "Collapse" : "Expand"}
+                    </button>
+
+                    {data.isExpanded ? (
+                      <div className="inline-flex border border-border/70">
+                        <button
+                          type="button"
+                          className={[
+                            "h-6 px-2 text-[0.68rem] uppercase tracking-[0.14em] transition-colors",
+                            isSummaryTab
+                              ? "bg-primary/20 text-primary"
+                              : "text-muted-foreground hover:bg-muted",
+                          ].join(" ")}
+                          onClick={() => data.onTabChange("summary")}
+                        >
+                          Summary
+                        </button>
+                        <button
+                          type="button"
+                          className={[
+                            "h-6 border-l border-border/70 px-2 text-[0.68rem] uppercase tracking-[0.14em] transition-colors",
+                            !isSummaryTab
+                              ? "bg-primary/20 text-primary"
+                              : "text-muted-foreground hover:bg-muted",
+                          ].join(" ")}
+                          onClick={() => data.onTabChange("guidance")}
+                        >
+                          Guidance
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {data.isExpanded ? (
+                    isSummaryTab ? (
+                      <div className="grid gap-2 border border-border/60 bg-background/60 p-2 text-xs">
+                        <div>
+                          <p className="text-[0.64rem] uppercase tracking-[0.14em] text-muted-foreground">
+                            Cardinality
+                          </p>
+                          <p className="mt-1">{cardinality}</p>
+                        </div>
+                        <div>
+                          <p className="text-[0.64rem] uppercase tracking-[0.14em] text-muted-foreground">
+                            Description
+                          </p>
+                          <p className="mt-1 whitespace-pre-wrap">{description}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid gap-2 border border-border/60 bg-background/60 p-2 text-xs">
+                        <div>
+                          <p className="text-[0.64rem] uppercase tracking-[0.14em] text-muted-foreground">
+                            Human Guidance
+                          </p>
+                          <p className="mt-1 whitespace-pre-wrap">{humanGuidance}</p>
+                        </div>
+                        <div>
+                          <p className="text-[0.64rem] uppercase tracking-[0.14em] text-muted-foreground">
+                            Agent Guidance
+                          </p>
+                          <p className="mt-1 whitespace-pre-wrap">{agentGuidance}</p>
+                        </div>
+                      </div>
+                    )
+                  ) : null}
                 </div>
               );
             },
