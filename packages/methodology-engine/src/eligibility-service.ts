@@ -154,29 +154,35 @@ export const EligibilityServiceLive = Effect.gen(function* () {
       const eligibleTransitions: TransitionEligibility[] = [];
 
       for (const transition of transitions) {
-        const toStateKey = stateKeyById.get(transition.toStateId);
+        const toStateKey = transition.toStateId
+          ? (stateKeyById.get(transition.toStateId) ?? null)
+          : null;
         if (!toStateKey) {
-          throw new Error(
-            `Transition '${transition.transitionKey}' references missing toStateId '${transition.toStateId}'`,
-          );
-        }
-
-        if (!isGateClass(transition.gateClass)) {
-          throw new Error(
-            `Transition '${transition.transitionKey}' has invalid gateClass '${transition.gateClass}'`,
-          );
+          continue;
         }
 
         const conditionSets = transitionConditionSets
           .filter((conditionSet) => conditionSet.transitionId === transition.id)
           .sort((a, b) => a.key.localeCompare(b.key));
 
+        const derivedGateClass = conditionSets.some(
+          (conditionSet) => conditionSet.phase === "completion",
+        )
+          ? "completion_gate"
+          : "start_gate";
+
+        if (!isGateClass(derivedGateClass)) {
+          throw new Error(
+            `Transition '${transition.transitionKey}' has invalid gateClass '${derivedGateClass}'`,
+          );
+        }
+
         // Map to eligibility format
         const eligibility: TransitionEligibility = {
           transitionKey: transition.transitionKey,
           fromState: currentStateKey,
           toState: toStateKey,
-          gateClass: transition.gateClass,
+          gateClass: derivedGateClass,
           conditionSets: conditionSets.map((conditionSet) => ({
             key: conditionSet.key,
             phase: conditionSet.phase === "completion" ? "completion" : "start",

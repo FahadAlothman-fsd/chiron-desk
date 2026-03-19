@@ -78,9 +78,9 @@ so that published methodology versions have valid, deterministic execution contr
 
 ### `__absent__` Persistence Mapping (Normative)
 
-- Treat `__absent__` as a pseudo-state in contracts/API input only; do not create a `__absent__` row in `methodology_lifecycle_states`.
-- Store activation edges (`__absent__ -> defined_state`) by writing `from_state_id = NULL` and `to_state_id = <defined_state_id>` in `methodology_lifecycle_transitions`.
-- Enforce `to_state_id` as non-null and FK-bound to `methodology_lifecycle_states.id`.
+- Treat `__absent__` as a pseudo-state in contracts/API input only; do not create a `__absent__` row in `work_unit_lifecycle_states`.
+- Store activation edges (`__absent__ -> defined_state`) by writing `from_state_id = NULL` and `to_state_id = <defined_state_id>` in `work_unit_lifecycle_transitions`.
+- Enforce `to_state_id` as FK-bound to `work_unit_lifecycle_states.id`.
 - Reject any payload that sets `toStateKey = "__absent__"`.
 - Eligibility query semantics:
   - current state `__absent__`: only transitions where `from_state_id IS NULL` are eligible from state.

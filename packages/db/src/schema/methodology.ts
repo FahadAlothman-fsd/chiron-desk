@@ -82,7 +82,6 @@ export const methodologyFactDefinitions = sqliteTable(
     valueType: text("value_type").notNull(),
     descriptionJson: text("description_json", { mode: "json" }),
     guidanceJson: text("guidance_json", { mode: "json" }),
-    required: integer("required", { mode: "boolean" }).default(false).notNull(),
     defaultValueJson: text("default_value_json", { mode: "json" }),
     validationJson: text("validation_json", { mode: "json" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
@@ -171,8 +170,8 @@ export const methodologyAgentTypes = sqliteTable(
   (table) => [uniqueIndex("methodology_at_vid_key_idx").on(table.methodologyVersionId, table.key)],
 );
 
-export const methodologyLifecycleStates = sqliteTable(
-  "methodology_lifecycle_states",
+export const workUnitLifecycleStates = sqliteTable(
+  "work_unit_lifecycle_states",
   {
     id: text("id")
       .primaryKey()
@@ -203,8 +202,8 @@ export const methodologyLifecycleStates = sqliteTable(
   ],
 );
 
-export const methodologyLifecycleTransitions = sqliteTable(
-  "methodology_lifecycle_transitions",
+export const workUnitLifecycleTransitions = sqliteTable(
+  "work_unit_lifecycle_transitions",
   {
     id: text("id")
       .primaryKey()
@@ -215,14 +214,13 @@ export const methodologyLifecycleTransitions = sqliteTable(
     workUnitTypeId: text("work_unit_type_id")
       .notNull()
       .references(() => methodologyWorkUnitTypes.id, { onDelete: "cascade" }),
-    fromStateId: text("from_state_id").references(() => methodologyLifecycleStates.id, {
-      onDelete: "cascade",
+    fromStateId: text("from_state_id").references(() => workUnitLifecycleStates.id, {
+      onDelete: "set null",
     }),
-    toStateId: text("to_state_id")
-      .notNull()
-      .references(() => methodologyLifecycleStates.id, { onDelete: "cascade" }),
+    toStateId: text("to_state_id").references(() => workUnitLifecycleStates.id, {
+      onDelete: "set null",
+    }),
     transitionKey: text("transition_key").notNull(),
-    gateClass: text("gate_class").notNull(),
     guidanceJson: text("guidance_json", { mode: "json" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
@@ -243,7 +241,7 @@ export const methodologyLifecycleTransitions = sqliteTable(
 );
 
 export const methodologyFactSchemas = sqliteTable(
-  "methodology_fact_schemas",
+  "work_unit_fact_definitions",
   {
     id: text("id")
       .primaryKey()
@@ -257,7 +255,6 @@ export const methodologyFactSchemas = sqliteTable(
     name: text("name"),
     key: text("key").notNull(),
     factType: text("fact_type").notNull(),
-    required: integer("required", { mode: "boolean" }).default(true).notNull(),
     description: text("description"),
     defaultValueJson: text("default_value_json", { mode: "json" }),
     guidanceJson: text("guidance_json", { mode: "json" }),
@@ -278,8 +275,8 @@ export const methodologyFactSchemas = sqliteTable(
   ],
 );
 
-export const methodologyTransitionConditionSets = sqliteTable(
-  "methodology_transition_condition_sets",
+export const transitionConditionSets = sqliteTable(
+  "transition_condition_sets",
   {
     id: text("id")
       .primaryKey()
@@ -289,7 +286,7 @@ export const methodologyTransitionConditionSets = sqliteTable(
       .references(() => methodologyVersions.id, { onDelete: "cascade" }),
     transitionId: text("transition_id")
       .notNull()
-      .references(() => methodologyLifecycleTransitions.id, { onDelete: "cascade" }),
+      .references(() => workUnitLifecycleTransitions.id, { onDelete: "cascade" }),
     key: text("key").notNull(),
     phase: text("phase").notNull(),
     mode: text("mode").notNull().default("all"),
@@ -302,11 +299,9 @@ export const methodologyTransitionConditionSets = sqliteTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    uniqueIndex("methodology_tcs_vid_transition_phase_key_idx").on(
-      table.methodologyVersionId,
+    uniqueIndex("transition_condition_sets_transition_phase_idx").on(
       table.transitionId,
       table.phase,
-      table.key,
     ),
     index("methodology_tcs_vid_transition_idx").on(table.methodologyVersionId, table.transitionId),
   ],
@@ -328,8 +323,6 @@ export const methodologyWorkflows = sqliteTable(
     displayName: text("display_name"),
     metadataJson: text("metadata_json", { mode: "json" }),
     guidanceJson: text("guidance_json", { mode: "json" }),
-    inputContractJson: text("input_contract_json", { mode: "json" }),
-    outputContractJson: text("output_contract_json", { mode: "json" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .default(timestampDefault)
@@ -422,7 +415,7 @@ export const methodologyTransitionWorkflowBindings = sqliteTable(
       .references(() => methodologyVersions.id, { onDelete: "cascade" }),
     transitionId: text("transition_id")
       .notNull()
-      .references(() => methodologyLifecycleTransitions.id, { onDelete: "cascade" }),
+      .references(() => workUnitLifecycleTransitions.id, { onDelete: "cascade" }),
     workflowId: text("workflow_id")
       .notNull()
       .references(() => methodologyWorkflows.id, { onDelete: "cascade" }),

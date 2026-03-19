@@ -21,7 +21,6 @@ function makeDiagnostic(
 
 // Allowed sets for methodology lifecycle contract validation.
 const ALLOWED_CARDINALITY = new Set(["one_per_project", "many_per_project"]);
-const ALLOWED_GATE_CLASSES = new Set(["start_gate", "completion_gate"]);
 const ALLOWED_FACT_TYPES = new Set(["string", "number", "boolean", "json"]);
 const ABSENT_STATE = "__absent__";
 
@@ -231,27 +230,6 @@ export function validateLifecycleDefinition(
               observed: ABSENT_STATE,
               remediation:
                 "Use a defined state as target, or use fromState=undefined for activation from __absent__",
-            },
-            timestamp,
-          ),
-        );
-      }
-    }
-  }
-
-  // AC 9: Validate gate classes
-  for (const [wutIndex, wut] of workUnitTypes.entries()) {
-    for (const [transIndex, trans] of wut.lifecycleTransitions.entries()) {
-      if (!ALLOWED_GATE_CLASSES.has(trans.gateClass)) {
-        diagnostics.push(
-          makeDiagnostic(
-            {
-              code: "INVALID_GATE_CLASS",
-              scope: `workUnitTypes[${wutIndex}].lifecycleTransitions[${transIndex}].gateClass`,
-              blocking: true,
-              required: `One of: ${Array.from(ALLOWED_GATE_CLASSES).join(", ")}`,
-              observed: trans.gateClass,
-              remediation: "Use 'start_gate' or 'completion_gate'",
             },
             timestamp,
           ),

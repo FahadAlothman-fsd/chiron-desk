@@ -33,8 +33,8 @@ This document is the active mapping authority for the setup slice the documentat
 | Canonical Table | BMAD Source | Mapping Notes |
 | --- | --- | --- |
 | `methodology_work_unit_types` | workflow owner work unit (`WU.SETUP`) | one row for setup work unit type (`cardinality: one_per_project`) |
-| `methodology_lifecycle_states` | setup transition target state | one `done` state row |
-| `methodology_lifecycle_transitions` | setup transition (`__absent__ -> done`) | one transition row with `gateClass: start_gate` and `fromStateId: null` |
+| `work_unit_lifecycle_states` | setup transition target state | one `done` state row |
+| `work_unit_lifecycle_transitions` | setup transition (`__absent__ -> done`) | one transition row with `fromStateId: null` and condition-set-driven gate semantics |
 | `methodology_fact_schemas` | setup facts from seed fixture | `projectType`, `deliveryMode` as work-unit fact schemas |
 | `methodology_workflows` | `setup-project` workflow | one workflow row linked to setup work unit |
 | `methodology_workflow_steps` | `setup-project.definitionJson.steps` | `setup.init`, `setup.discover`, `setup.confirm` with `configJson.templateRef` |

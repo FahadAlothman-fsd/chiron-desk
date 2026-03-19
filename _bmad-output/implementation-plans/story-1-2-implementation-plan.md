@@ -17,8 +17,8 @@ Based on codebase analysis of Story 1.1 patterns, the following clarifications a
 | Table | Columns | Indexes |
 |-------|---------|---------|
 | `methodology_work_unit_types` | id, vid (FK), key, displayName, descriptionJson, cardinality, createdAt | unique(vid, key) |
-| `methodology_lifecycle_states` | id, vid (FK), workUnitTypeId (FK), key, displayName, descriptionJson, createdAt | unique(vid, workUnitTypeId, key), index(vid, workUnitTypeId) |
-| `methodology_lifecycle_transitions` | id, vid (FK), workUnitTypeId (FK), fromStateId (NULL FK), toStateId (FK), transitionKey, gateClass, createdAt | unique(vid, workUnitTypeId, transitionKey), index(vid, workUnitTypeId), index(fromStateId), index(toStateId) |
+| `work_unit_lifecycle_states` | id, vid (FK), workUnitTypeId (FK), key, displayName, descriptionJson, createdAt | unique(vid, workUnitTypeId, key), index(vid, workUnitTypeId) |
+| `work_unit_lifecycle_transitions` | id, vid (FK), workUnitTypeId (FK), fromStateId (NULL FK), toStateId (FK), transitionKey, createdAt | unique(vid, workUnitTypeId, transitionKey), index(vid, workUnitTypeId), index(fromStateId), index(toStateId) |
 | `methodology_fact_schemas` | id, vid (FK), workUnitTypeId (FK), key, factType, required, defaultValueJson, createdAt | unique(vid, workUnitTypeId, key), index(vid, workUnitTypeId) |
 | `methodology_transition_required_links` | id, vid (FK), transitionId (FK), linkTypeKey, strength, required, createdAt | unique(vid, transitionId, linkTypeKey), index(vid, transitionId) |
 

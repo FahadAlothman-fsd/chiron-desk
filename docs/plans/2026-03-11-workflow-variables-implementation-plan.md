@@ -2,24 +2,24 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Add a workflow variable contract (declared keys, explicit cardinality, optional deterministic bindings) to the methodology builder, plus validation guardrails that keep branching deterministic and entity selection unambiguous.
+**Goal:** Add workflow variable metadata (declared keys, explicit cardinality, optional deterministic bindings) to the methodology builder, plus validation guardrails that keep branching deterministic and entity selection unambiguous.
 
-**Architecture:** Extend the existing workflow input/output contract JSON stored on methodology workflows to a versioned V2 shape that can describe declared variables and optional source bindings. Validate these contracts deterministically in `@chiron/methodology-engine` and keep compatibility with the current V1 `workflow-io.v1` fact-reference contract.
+**Architecture:** Use workflow metadata (not workflow IO contracts) to describe variables and optional source bindings, and validate deterministically in `@chiron/methodology-engine`.
 
 **Tech Stack:** TypeScript, Effect Schema, Vitest, Drizzle (SQLite), Bun
 
 ---
 
-### Task 1: Add V2 workflow variable contract to `@chiron/contracts`
+### Task 1: Add workflow variable metadata to `@chiron/contracts`
 
 **Files:**
 - Modify: `packages/contracts/src/methodology/version.ts`
 - Test: `packages/contracts/src/methodology/version.test.ts`
 
-**Step 1: Write a failing decode test for V2 input contract**
+**Step 1: Write a failing decode test for workflow variable metadata**
 
 Add a new test case to `packages/contracts/src/methodology/version.test.ts` that decodes a `WorkflowDefinition` with:
-- `inputContract.kind = "workflow-io.v2"`
+- `workflow variable metadata` includes declared keys
 - inputs declared with:
   - `varKey: "workUnit.ref"`, `valueType: "json"`, `cardinality: "one"`
   - `varKey: "workUnit.snapshot"`, `valueType: "json"`, `cardinality: "one"`
@@ -28,8 +28,7 @@ Add a new test case to `packages/contracts/src/methodology/version.test.ts` that
 Example JSON payload for the test:
 
 ```ts
-const v2 = {
-  kind: "workflow-io.v2",
+const variableMetadata = {
   inputs: [
     {
       varKey: "workUnit.ref",
@@ -119,24 +118,26 @@ export const WorkflowInputBindingV1 = Schema.Struct({
 });
 export type WorkflowInputBindingV1 = typeof WorkflowInputBindingV1.Type;
 
-export const WorkflowIOContractV2 = Schema.Struct({
-  kind: Schema.Literal("workflow-io.v2"),
+export const WorkflowVariableMetadataV1 = Schema.Struct({
+  kind: Schema.Literal("workflow-variables.v1"),
   inputs: Schema.Array(WorkflowVariableSpecV2),
   outputs: Schema.Array(WorkflowVariableSpecV2),
   bindings: Schema.optionalWith(Schema.Array(WorkflowInputBindingV1), { default: () => [] }),
 });
-export type WorkflowIOContractV2 = typeof WorkflowIOContractV2.Type;
+export type WorkflowVariableMetadataV1 = typeof WorkflowVariableMetadataV1.Type;
 ```
 
-Then update `WorkflowInputContract` and `WorkflowOutputContract` to accept both V1 and V2. The simplest compatibility approach:
-- Keep existing V1 types untouched.
-- Create a new `WorkflowIOContract` union:
+Then update workflow metadata schemas without introducing workflow IO contract fields.
 
 ```ts
-export const WorkflowIOContract = Schema.Union(WorkflowInputContract, WorkflowOutputContract, WorkflowIOContractV2);
+export const WorkflowVariableMetadata = Schema.Struct({
+  inputs: Schema.Array(WorkflowVariableSpecV2),
+  outputs: Schema.Array(WorkflowVariableSpecV2),
+  bindings: Schema.optionalWith(Schema.Array(WorkflowInputBindingV1), { default: () => [] }),
+});
 ```
 
-and update `WorkflowDefinition.inputContract`/`outputContract` to use the new union (or add separate `ioContract` and keep old fields if you want less churn).
+and keep `WorkflowDefinition` free of workflow IO contract fields.
 
 **Step 4: Run tests to confirm they pass**
 
@@ -147,7 +148,7 @@ Expected: PASS.
 
 ```bash
 git add packages/contracts/src/methodology/version.ts packages/contracts/src/methodology/version.test.ts
-git commit -m "feat(contracts): add workflow-io.v2 variable contract"
+git commit -m "feat(contracts): add workflow variable metadata schema"
 ```
 
 ---
@@ -178,7 +179,7 @@ Expected: FAIL.
 **Step 3: Implement validation logic**
 
 In `packages/methodology-engine/src/validation.ts`, inside the per-workflow loop:
-- Detect V2 contract via `inputContract.kind === "workflow-io.v2"` (and same for output if used).
+- Detect variable metadata via the workflow metadata object.
 - Build a `Set` of declared `varKey` from inputs + outputs and emit diagnostics for duplicates.
 - For each binding:
   - if `sourceCardinality === "many"` and `aggregator` is missing => blocking diagnostic.
@@ -284,4 +285,3 @@ git commit -m "feat: enforce ref+snapshot selection pair guardrail"
 - `bun run --cwd packages/contracts test`
 - `bun run --cwd packages/methodology-engine test`
 - (Optional) `bun run test` at repo root
-

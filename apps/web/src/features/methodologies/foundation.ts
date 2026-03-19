@@ -94,7 +94,6 @@ export const DEFAULT_DEFINITION = {
           transitionKey: "start",
           fromState: "__absent__",
           toState: "done",
-          gateClass: "start_gate",
           conditionSets: [],
         },
       ],

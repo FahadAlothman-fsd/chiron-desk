@@ -111,10 +111,6 @@ function asCardinality(value: string): WorkUnitTypeDefinition["cardinality"] {
   return value === "one_per_project" ? "one_per_project" : "many_per_project";
 }
 
-function asGateClass(value: string): "start_gate" | "completion_gate" {
-  return value === "start_gate" ? "start_gate" : "completion_gate";
-}
-
 function asFactType(value: string): "string" | "number" | "boolean" | "json" {
   if (value === "number") {
     return "number";
@@ -230,7 +226,9 @@ function loadPreviousLifecycleDefinition(
       })),
       lifecycleTransitions: (transitionsByWorkUnitType.get(workUnitTypeRow.id) ?? [])
         .map((transitionRow) => {
-          const toState = stateKeyById.get(transitionRow.toStateId);
+          const toState = transitionRow.toStateId
+            ? stateKeyById.get(transitionRow.toStateId)
+            : undefined;
           if (!toState) {
             return null;
           }
@@ -242,7 +240,6 @@ function loadPreviousLifecycleDefinition(
                 ? undefined
                 : (stateKeyById.get(transitionRow.fromStateId) ?? undefined),
             toState,
-            gateClass: asGateClass(transitionRow.gateClass),
             conditionSets: (conditionSetsByTransition.get(transitionRow.id) ?? []).map(
               (conditionSetRow) => ({
                 key: conditionSetRow.key,

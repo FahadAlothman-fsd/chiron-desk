@@ -53,7 +53,6 @@ export const LifecycleTransition = Schema.Struct({
   transitionKey: Schema.NonEmptyString,
   fromState: Schema.optional(Schema.String), // null/undefined = __absent__
   toState: Schema.NonEmptyString,
-  gateClass: GateClass,
   conditionSets: Schema.Array(TransitionConditionSet),
 });
 export type LifecycleTransition = typeof LifecycleTransition.Type;

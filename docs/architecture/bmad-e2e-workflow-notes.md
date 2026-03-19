@@ -26,8 +26,8 @@ This note captures corrections and preferences from the latest architecture disc
 5. **Template usage should be explicit in more places.**
    - `systemPromptBlock`, `initialPrompt`, display messages, and file content generation should consistently use template-engine rendering where applicable.
 
-6. **Invoke input mapping must be generic and deterministic.**
-   - Since workflows do not enforce top-level I/O contracts yet, invoke must map variables into child execution context explicitly.
+6. **Invoke state handoff must be generic and deterministic.**
+   - Workflows do not define top-level handoff contracts; invoke must operate through persisted facts/artifacts and explicit runtime context.
    - Child context should be namespaced and traceable to avoid collisions.
 
 7. **Agent continuation via `contextAttachments` is promising but unproven.**

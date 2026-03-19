@@ -57,24 +57,6 @@ export const WorkflowFactReference = Schema.Struct({
 });
 export type WorkflowFactReference = typeof WorkflowFactReference.Type;
 
-export const WorkflowInputContract = Schema.Struct({
-  kind: Schema.Literal("workflow-io.v1"),
-  inputs: Schema.Array(WorkflowFactReference),
-});
-export type WorkflowInputContract = typeof WorkflowInputContract.Type;
-
-export const WorkflowOutputContract = Schema.Struct({
-  kind: Schema.Literal("workflow-io.v1"),
-  outputs: Schema.Array(
-    Schema.Struct({
-      factKey: Schema.NonEmptyString,
-      displayName: Schema.String,
-      validation: Schema.optional(Schema.Unknown),
-    }),
-  ),
-});
-export type WorkflowOutputContract = typeof WorkflowOutputContract.Type;
-
 export const WorkflowStep = Schema.Struct({
   key: Schema.NonEmptyString,
   type: WorkflowStepType,
@@ -98,8 +80,6 @@ export const WorkflowDefinition = Schema.Struct({
   workUnitTypeKey: Schema.optional(Schema.NonEmptyString),
   metadata: Schema.optional(WorkflowMetadata),
   guidance: Schema.optional(GuidanceJson),
-  inputContract: Schema.optional(WorkflowInputContract),
-  outputContract: Schema.optional(WorkflowOutputContract),
   steps: Schema.Array(WorkflowStep),
   edges: Schema.Array(WorkflowEdge),
 });

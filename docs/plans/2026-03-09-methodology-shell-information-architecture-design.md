@@ -120,7 +120,6 @@ When a work unit is selected in Methodology context, the main pane uses tabs:
 When a workflow is selected inside a work unit, the main pane uses tabs:
 
 - Overview
-- IO Contract
 - Steps
 
 This keeps the global shell stable while allowing deeper authoring without sidebar sprawl.

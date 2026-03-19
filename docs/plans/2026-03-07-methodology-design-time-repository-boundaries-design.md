@@ -103,7 +103,7 @@ Target 4-6 repositories (exact count is less important than stable boundaries):
 
 2) `LifecycleRepository` (already exists)
 - Owns: work unit types, states, transitions, required links, work-unit fact schemas, agent types (if lifecycle-scoped).
-- Tables: `methodology_work_unit_types`, `methodology_lifecycle_states`, `methodology_lifecycle_transitions`,
+- Tables: `methodology_work_unit_types`, `work_unit_lifecycle_states`, `work_unit_lifecycle_transitions`,
   `methodology_transition_required_links`, `methodology_fact_schemas`, `methodology_agent_types`.
 - Typical operations: validate-then-save lifecycle definition transactionally.
 

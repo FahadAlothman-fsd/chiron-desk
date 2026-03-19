@@ -278,7 +278,7 @@ Notes:
 - Compose final system prompt at execution time with injected variables, `step_objectives`, and output contract blocks.
 - Expand variable coverage beyond `step_objectives` so prompts stay deterministic without hardcoded path-loading instructions.
 
-### 3.3 methodology_lifecycle_states
+### 3.3 work_unit_lifecycle_states
 
 ```yaml
 - id: seed:state:wu.project_context:done
@@ -289,7 +289,7 @@ Notes:
   descriptionJson: Context artifacts generated, validated, and ready for downstream use.
 ```
 
-### 3.4 methodology_lifecycle_transitions
+### 3.4 work_unit_lifecycle_transitions
 
 ```yaml
 - id: seed:transition:wu.project_context:absent_done
@@ -304,7 +304,7 @@ Notes:
     - _bmad/bmm/workflows/generate-project-context/steps/step-03-complete.md:29
 ```
 
-### 3.5 methodology_transition_condition_sets
+### 3.5 transition_condition_sets
 
 ```yaml
 - id: seed:condition-set:wu.project_context:absent_done:start
@@ -1158,22 +1158,13 @@ tools:
       required: [discoverySummary]
 ```
 
-### 3.9.c Locked Step Sequence and IO Contracts (Pre-Config Freeze)
+### 3.9.c Locked Step Sequence (Pre-Config Freeze)
 
-This subsection is the authoritative lock for step order and workflow IO before final step-type config details.
+This subsection is the authoritative lock for step order before final step-type config details.
 
 `document-project` (`WU.PROJECT_CONTEXT` primary transition workflow)
 
 ```yaml
-ioContract:
-  inputs: []
-  outputs:
-    - selectedProjectType
-    - selectedProjectRootPath
-    - selectedProjectKnowledgePath
-    - needsContextGeneration
-    - summaryStatus
-
 steps:
   - intake.capture            # form
   - projectType.route         # branch
@@ -1627,7 +1618,7 @@ This section captures current implementation constraints so Epic 3 planning stay
    - Branch behavior today is validated through outgoing edge conditions.
    - Implication: richer branch semantics should evolve edge condition schema, not ad hoc keys.
 
-3. Transition gating target is `gateClass` + `transition condition sets`.
+3. Transition gating target is phase-specific `transition_condition_sets`.
    - Current implementation still uses `requiredLinks` in contracts/schema.
    - Implication: Story 2.7 is the migration gate to introduce canonical condition-set storage/evaluation and retire required-links authority.
 

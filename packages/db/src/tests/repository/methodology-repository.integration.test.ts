@@ -13,8 +13,8 @@ import { createMethodologyRepoLayer } from "../../methodology-repository";
 import { createProjectContextRepoLayer } from "../../project-context-repository";
 import {
   methodologyAgentTypes,
-  methodologyLifecycleStates,
-  methodologyLifecycleTransitions,
+  workUnitLifecycleStates,
+  workUnitLifecycleTransitions,
   methodologyVersions,
   methodologyWorkUnitTypes,
 } from "../../schema/methodology";
@@ -33,7 +33,8 @@ const SCHEMA_SQL = [
     name TEXT NOT NULL,
     description_json TEXT,
     created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
+    updated_at INTEGER NOT NULL,
+    archived_at INTEGER
   )`,
   `CREATE TABLE methodology_versions (
     id TEXT PRIMARY KEY,
@@ -84,7 +85,7 @@ const SCHEMA_SQL = [
     updated_at INTEGER NOT NULL,
     UNIQUE(methodology_version_id, key)
   )`,
-  `CREATE TABLE methodology_lifecycle_states (
+  `CREATE TABLE work_unit_lifecycle_states (
     id TEXT PRIMARY KEY,
     methodology_version_id TEXT NOT NULL,
     work_unit_type_id TEXT NOT NULL,
@@ -96,14 +97,13 @@ const SCHEMA_SQL = [
     updated_at INTEGER NOT NULL,
     UNIQUE(work_unit_type_id, key)
   )`,
-  `CREATE TABLE methodology_lifecycle_transitions (
+  `CREATE TABLE work_unit_lifecycle_transitions (
     id TEXT PRIMARY KEY,
     methodology_version_id TEXT NOT NULL,
     work_unit_type_id TEXT NOT NULL,
     transition_key TEXT NOT NULL,
     from_state_id TEXT,
-    to_state_id TEXT NOT NULL,
-    gate_class TEXT NOT NULL,
+    to_state_id TEXT,
     guidance_json TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
@@ -116,8 +116,6 @@ const SCHEMA_SQL = [
     key TEXT NOT NULL,
     display_name TEXT,
     metadata_json TEXT,
-    input_contract_json TEXT,
-    output_contract_json TEXT,
     guidance_json TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
@@ -163,7 +161,6 @@ const SCHEMA_SQL = [
     methodology_version_id TEXT NOT NULL,
     key TEXT NOT NULL,
     fact_type TEXT NOT NULL,
-    required INTEGER NOT NULL,
     default_value_json TEXT,
     description_json TEXT,
     guidance_json TEXT,
@@ -410,7 +407,7 @@ describe("methodology repository integration", () => {
       guidanceJson: null,
     });
 
-    await db.insert(methodologyLifecycleStates).values({
+    await db.insert(workUnitLifecycleStates).values({
       methodologyVersionId: versionId,
       workUnitTypeId: "wu-state-owner",
       key: "new",
@@ -429,26 +426,25 @@ describe("methodology repository integration", () => {
     }
 
     await db
-      .update(methodologyLifecycleStates)
+      .update(workUnitLifecycleStates)
       .set({ workUnitTypeId: workUnitId })
-      .where(eq(methodologyLifecycleStates.methodologyVersionId, versionId));
+      .where(eq(workUnitLifecycleStates.methodologyVersionId, versionId));
 
     const stateRows = await db
-      .select({ id: methodologyLifecycleStates.id })
-      .from(methodologyLifecycleStates)
-      .where(eq(methodologyLifecycleStates.methodologyVersionId, versionId));
+      .select({ id: workUnitLifecycleStates.id })
+      .from(workUnitLifecycleStates)
+      .where(eq(workUnitLifecycleStates.methodologyVersionId, versionId));
     const stateId = stateRows[0]?.id;
     if (!stateId) {
       throw new Error("Missing lifecycle state seed row");
     }
 
-    await db.insert(methodologyLifecycleTransitions).values({
+    await db.insert(workUnitLifecycleTransitions).values({
       methodologyVersionId: versionId,
       workUnitTypeId: workUnitId,
       transitionKey: "start",
       fromStateId: null,
       toStateId: stateId,
-      gateClass: "start_gate",
       guidanceJson: null,
     });
 

@@ -98,7 +98,6 @@ export interface PublishFactSchemaRow {
   name: string | null;
   key: string;
   factType: string;
-  required: boolean;
   description: string | null;
   defaultValueJson: unknown;
   guidanceJson: unknown;
@@ -109,7 +108,6 @@ export interface MethodologyFactDefinitionRow {
   name: string | null;
   key: string;
   valueType: string;
-  required: boolean;
   descriptionJson: unknown;
   guidanceJson: unknown;
   defaultValueJson: unknown;

@@ -976,3 +976,105 @@ Commands run for the L1 completion slice:
    - `packages/api/src/routers/index.ts`
    - `packages/api/src/routers/methodology.ts`
 3. `grep` verification of active router procedures including `updateDraftLifecycle` and `updateDraftWorkflows` usage in `packages/api/src/routers/methodology.ts`.
+
+## Story 3.2 Trajectory Addendum (2026-03-19) — Methodology-Engine L2 Design Path
+
+### Scope of this addendum
+
+- Capture the explicit backend design trajectory from completed Story 3.1 into Story 3.2 (Work Unit L2 tabs).
+- Record the concrete service/API/file plan so L2 implementation can proceed without re-litigating ownership.
+
+### Story 3.1 assessment (what is stable now)
+
+- L1 boundary-first shape is active and remains the Story 3.1 authority for:
+  - methodology catalog/version lifecycle,
+  - methodology-level facts/agents/dependency definitions,
+  - shallow work-unit metadata CRUD.
+- The active composition currently centers on:
+  - `packages/methodology-engine/src/layers/live.ts`
+  - `packages/methodology-engine/src/services/methodology-version-service.ts`
+  - `packages/methodology-engine/src/version-service.ts`
+  - `packages/api/src/routers/methodology.ts`
+- L2/L3 scaffolds are present but intentionally thin:
+  - `packages/methodology-engine/src/services/work-unit-service.ts`
+  - `packages/methodology-engine/src/services/workflow-service.ts`
+  - `packages/methodology-engine/src/contracts/runtime-resolvers.ts`
+
+### Story 3.2 backend design choice (locked for trajectory)
+
+- Keep **methodology version** as publish/release aggregate root.
+- Move/solidify **work-unit internals** under Story 3.2 L2 ownership and APIs:
+  - work-unit facts,
+  - work-unit workflows,
+  - state machine authoring (states/transitions/condition sets/bindings),
+  - artifact slots.
+- Keep L1 focused on version-level and shallow metadata concerns; do not re-expand L1 to own deep L2 mutation paths.
+
+### L2 namespace target under `methodology.version.workUnit.*`
+
+- `fact.{list,create,update,delete}`
+- `workflow.{list,create,update,delete}`
+- `stateMachine.state.{list,create,update,delete}`
+- `stateMachine.transition.{list,create,update,delete}`
+- `stateMachine.conditionSet.{list,create,update,delete}`
+- `stateMachine.binding.{list,create,update,delete}`
+- `artifactSlot.{list,create,update,delete}`
+- `artifactSlot.template.{list,create,update,delete}`
+
+### Current gaps that Story 3.2 must close
+
+- Router gap: `packages/api/src/routers/methodology.ts` currently exposes shallow `version.workUnit.*` aliases and still relies on `updateDraftLifecycle` / `updateDraftWorkflows` compatibility-shaped payload paths for deeper edits.
+- Contracts gap:
+  - `packages/contracts/src/methodology/fact.ts` defines methodology-level fact CRUD but no explicit nested `workUnit.fact.*` contracts.
+  - no dedicated artifact-slot contracts file exists yet.
+- Service gap:
+  - `packages/methodology-engine/src/services/work-unit-service.ts` and `workflow-service.ts` are scaffold tags only.
+  - L2 live implementations and repository boundaries for nested work-unit internals are not wired.
+- Schema gap:
+  - lifecycle/workflow tables exist in `packages/db/src/schema/methodology.ts`,
+  - artifact-slot tables are not yet present.
+
+### Planned service and file trajectory for Story 3.2
+
+- Design record (this trajectory):
+  - `docs/plans/2026-03-19-story-3-2-l2-methodology-engine-design.md`
+- Engine/services:
+  - **Create** `packages/methodology-engine/src/services/work-unit-fact-service.ts`
+  - **Create** `packages/methodology-engine/src/services/work-unit-state-machine-service.ts`
+  - **Create** `packages/methodology-engine/src/services/work-unit-artifact-slot-service.ts`
+  - **Update** `packages/methodology-engine/src/services/work-unit-service.ts` (from scaffold toward composed L2 boundary facade)
+  - **Update** `packages/methodology-engine/src/services/workflow-service.ts` (work-unit scoped workflow ownership)
+  - **Update** `packages/methodology-engine/src/layers/live.ts` to compose L2 live layers explicitly
+  - **Update** `packages/methodology-engine/src/index.ts` exports for new L2 boundary services
+- Contracts/API:
+  - **Update** `packages/contracts/src/methodology/fact.ts` with work-unit scoped contract variants
+  - **Create** `packages/contracts/src/methodology/artifact-slot.ts`
+  - **Update** `packages/contracts/src/methodology/index.ts` exports
+  - **Update** `packages/api/src/routers/methodology.ts` to add nested `version.workUnit.*` L2 routers
+- Persistence:
+  - **Update** `packages/db/src/schema/methodology.ts` for artifact-slot definitions/templates tables
+  - **Update** `packages/db/src/methodology-repository.ts` for corresponding persistence operations
+
+### Locked L2 interaction decisions (2026-03-19 follow-up)
+
+- L2 remains one selected-work-unit page with top-level tabs:
+  - `Overview`, `Facts`, `Workflows`, `State Machine`, `Artifact Slots`
+- `State Machine` contains inner tabs:
+  - `States`, `Transitions`
+- Facts tab stays methodology-facts style and list/table-first (no row expansion in this slice).
+- Workflow bindings are owned by State Machine transition editing; Workflows tab shows binding visibility but does not own binding writes.
+- Artifact-slot templates are edited inside Slot Details dialog (nested template table), not as a separate page/tab.
+- State deletion policy is warning-first (not hard-block):
+  - destructive confirmation lists affected transitions,
+  - default remediation allows disconnecting transition endpoints (set state refs to null where applicable),
+  - optional explicit transition cleanup/delete path can be offered in the same flow.
+- Unbound transition policy:
+  - warning severity,
+  - `Unbound` badge in transition rows,
+  - inline `Bind workflow` opens full Transition dialog on binding-focused tab.
+
+### Verification and evidence intent for Story 3.2 prep
+
+- Preserve Story 3.1 outcomes while adding L2 ownership incrementally.
+- Validate each slice with targeted methodology-engine + API + web route tests before broad repo checks.
+- Keep this addendum as the continuity anchor and track implementation detail in the new Story 3.2 design plan.

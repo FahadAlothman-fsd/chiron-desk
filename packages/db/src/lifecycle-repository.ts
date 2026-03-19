@@ -20,9 +20,9 @@ import {
   methodologyAgentTypes,
   methodologyWorkflows,
   methodologyTransitionWorkflowBindings,
-  methodologyLifecycleStates,
-  methodologyLifecycleTransitions,
-  methodologyTransitionConditionSets,
+  workUnitLifecycleStates,
+  workUnitLifecycleTransitions,
+  transitionConditionSets,
   methodologyFactSchemas,
   methodologyVersions,
   methodologyVersionEvents,
@@ -51,9 +51,7 @@ function toWorkUnitTypeRow(row: typeof methodologyWorkUnitTypes.$inferSelect): W
   };
 }
 
-function toLifecycleStateRow(
-  row: typeof methodologyLifecycleStates.$inferSelect,
-): LifecycleStateRow {
+function toLifecycleStateRow(row: typeof workUnitLifecycleStates.$inferSelect): LifecycleStateRow {
   return {
     id: row.id,
     methodologyVersionId: row.methodologyVersionId,
@@ -67,7 +65,7 @@ function toLifecycleStateRow(
 }
 
 function toLifecycleTransitionRow(
-  row: typeof methodologyLifecycleTransitions.$inferSelect,
+  row: typeof workUnitLifecycleTransitions.$inferSelect,
 ): LifecycleTransitionRow {
   return {
     id: row.id,
@@ -76,7 +74,6 @@ function toLifecycleTransitionRow(
     fromStateId: row.fromStateId,
     toStateId: row.toStateId,
     transitionKey: row.transitionKey,
-    gateClass: row.gateClass,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -90,7 +87,6 @@ function toFactSchemaRow(row: typeof methodologyFactSchemas.$inferSelect): FactS
     name: row.name,
     key: row.key,
     factType: row.factType,
-    required: row.required,
     description: row.description,
     defaultValueJson: row.defaultValueJson,
     guidanceJson: row.guidanceJson,
@@ -101,7 +97,7 @@ function toFactSchemaRow(row: typeof methodologyFactSchemas.$inferSelect): FactS
 }
 
 function toTransitionConditionSetRow(
-  row: typeof methodologyTransitionConditionSets.$inferSelect,
+  row: typeof transitionConditionSets.$inferSelect,
 ): TransitionConditionSetRow {
   return {
     id: row.id,
@@ -196,15 +192,15 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
 
     findLifecycleStates: (versionId: string, workUnitTypeId?: string) =>
       dbEffect("lifecycle.findLifecycleStates", async () => {
-        const conditions = [eq(methodologyLifecycleStates.methodologyVersionId, versionId)];
+        const conditions = [eq(workUnitLifecycleStates.methodologyVersionId, versionId)];
         if (workUnitTypeId) {
-          conditions.push(eq(methodologyLifecycleStates.workUnitTypeId, workUnitTypeId));
+          conditions.push(eq(workUnitLifecycleStates.workUnitTypeId, workUnitTypeId));
         }
         const rows = await db
           .select()
-          .from(methodologyLifecycleStates)
+          .from(workUnitLifecycleStates)
           .where(and(...conditions))
-          .orderBy(asc(methodologyLifecycleStates.key));
+          .orderBy(asc(workUnitLifecycleStates.key));
         return rows.map(toLifecycleStateRow) as readonly LifecycleStateRow[];
       }),
 
@@ -213,29 +209,27 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
       options?: { workUnitTypeId?: string; fromStateId?: string | null; toStateId?: string },
     ) =>
       dbEffect("lifecycle.findLifecycleTransitions", async () => {
-        let conditions = [eq(methodologyLifecycleTransitions.methodologyVersionId, versionId)];
+        let conditions = [eq(workUnitLifecycleTransitions.methodologyVersionId, versionId)];
 
         if (options?.workUnitTypeId) {
-          conditions.push(
-            eq(methodologyLifecycleTransitions.workUnitTypeId, options.workUnitTypeId),
-          );
+          conditions.push(eq(workUnitLifecycleTransitions.workUnitTypeId, options.workUnitTypeId));
         }
 
         if (options?.fromStateId === null) {
-          conditions.push(isNull(methodologyLifecycleTransitions.fromStateId));
+          conditions.push(isNull(workUnitLifecycleTransitions.fromStateId));
         } else if (options?.fromStateId !== undefined) {
-          conditions.push(eq(methodologyLifecycleTransitions.fromStateId, options.fromStateId));
+          conditions.push(eq(workUnitLifecycleTransitions.fromStateId, options.fromStateId));
         }
 
         if (options?.toStateId) {
-          conditions.push(eq(methodologyLifecycleTransitions.toStateId, options.toStateId));
+          conditions.push(eq(workUnitLifecycleTransitions.toStateId, options.toStateId));
         }
 
         const rows = await db
           .select()
-          .from(methodologyLifecycleTransitions)
+          .from(workUnitLifecycleTransitions)
           .where(and(...conditions))
-          .orderBy(asc(methodologyLifecycleTransitions.transitionKey));
+          .orderBy(asc(workUnitLifecycleTransitions.transitionKey));
 
         return rows.map(toLifecycleTransitionRow) as readonly LifecycleTransitionRow[];
       }),
@@ -255,20 +249,20 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
       }),
     findTransitionConditionSets: (versionId: string, transitionId?: string) =>
       dbEffect("lifecycle.findTransitionConditionSets", async () => {
-        const conditions = [eq(methodologyTransitionConditionSets.methodologyVersionId, versionId)];
+        const conditions = [eq(transitionConditionSets.methodologyVersionId, versionId)];
 
         if (transitionId) {
-          conditions.push(eq(methodologyTransitionConditionSets.transitionId, transitionId));
+          conditions.push(eq(transitionConditionSets.transitionId, transitionId));
         }
 
         const rows = await db
           .select()
-          .from(methodologyTransitionConditionSets)
+          .from(transitionConditionSets)
           .where(and(...conditions))
           .orderBy(
-            asc(methodologyTransitionConditionSets.transitionId),
-            asc(methodologyTransitionConditionSets.phase),
-            asc(methodologyTransitionConditionSets.key),
+            asc(transitionConditionSets.transitionId),
+            asc(transitionConditionSets.phase),
+            asc(transitionConditionSets.key),
           );
 
         return rows.map(toTransitionConditionSetRow) as readonly TransitionConditionSetRow[];
@@ -298,7 +292,7 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
             id: methodologyTransitionWorkflowBindings.id,
             methodologyVersionId: methodologyTransitionWorkflowBindings.methodologyVersionId,
             transitionId: methodologyTransitionWorkflowBindings.transitionId,
-            transitionKey: methodologyLifecycleTransitions.transitionKey,
+            transitionKey: workUnitLifecycleTransitions.transitionKey,
             workflowId: methodologyTransitionWorkflowBindings.workflowId,
             workflowKey: methodologyWorkflows.key,
             createdAt: methodologyTransitionWorkflowBindings.createdAt,
@@ -306,11 +300,8 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
           })
           .from(methodologyTransitionWorkflowBindings)
           .innerJoin(
-            methodologyLifecycleTransitions,
-            eq(
-              methodologyTransitionWorkflowBindings.transitionId,
-              methodologyLifecycleTransitions.id,
-            ),
+            workUnitLifecycleTransitions,
+            eq(methodologyTransitionWorkflowBindings.transitionId, workUnitLifecycleTransitions.id),
           )
           .leftJoin(
             methodologyWorkflows,
@@ -318,7 +309,7 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
           )
           .where(and(...conditions))
           .orderBy(
-            asc(methodologyLifecycleTransitions.transitionKey),
+            asc(workUnitLifecycleTransitions.transitionKey),
             asc(methodologyWorkflows.key),
             asc(methodologyTransitionWorkflowBindings.id),
           );
@@ -344,15 +335,15 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
 
           const existingBindingRows = await tx
             .select({
-              transitionKey: methodologyLifecycleTransitions.transitionKey,
+              transitionKey: workUnitLifecycleTransitions.transitionKey,
               workflowKey: methodologyWorkflows.key,
             })
             .from(methodologyTransitionWorkflowBindings)
             .innerJoin(
-              methodologyLifecycleTransitions,
+              workUnitLifecycleTransitions,
               eq(
                 methodologyTransitionWorkflowBindings.transitionId,
-                methodologyLifecycleTransitions.id,
+                workUnitLifecycleTransitions.id,
               ),
             )
             .leftJoin(
@@ -376,20 +367,20 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
 
           // Delete existing lifecycle data for this version (full replace)
           await tx
-            .delete(methodologyTransitionConditionSets)
-            .where(eq(methodologyTransitionConditionSets.methodologyVersionId, params.versionId));
+            .delete(transitionConditionSets)
+            .where(eq(transitionConditionSets.methodologyVersionId, params.versionId));
 
           await tx
-            .delete(methodologyLifecycleTransitions)
-            .where(eq(methodologyLifecycleTransitions.methodologyVersionId, params.versionId));
+            .delete(workUnitLifecycleTransitions)
+            .where(eq(workUnitLifecycleTransitions.methodologyVersionId, params.versionId));
 
           await tx
             .delete(methodologyFactSchemas)
             .where(eq(methodologyFactSchemas.methodologyVersionId, params.versionId));
 
           await tx
-            .delete(methodologyLifecycleStates)
-            .where(eq(methodologyLifecycleStates.methodologyVersionId, params.versionId));
+            .delete(workUnitLifecycleStates)
+            .where(eq(workUnitLifecycleStates.methodologyVersionId, params.versionId));
 
           await tx
             .delete(methodologyWorkUnitTypes)
@@ -429,7 +420,7 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
 
             // Insert lifecycle states for this work unit type
             for (const state of wut.lifecycleStates) {
-              await tx.insert(methodologyLifecycleStates).values({
+              await tx.insert(workUnitLifecycleStates).values({
                 methodologyVersionId: params.versionId,
                 workUnitTypeId: wutRow.id,
                 key: state.key,
@@ -446,7 +437,6 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
                 name: fact.name ?? null,
                 key: fact.key,
                 factType: fact.factType,
-                required: true,
                 description: fact.description ?? null,
                 defaultValueJson: fact.defaultValue ?? null,
                 guidanceJson: (fact.guidance ?? null) as unknown,
@@ -474,8 +464,8 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
           // Now insert transitions (need state IDs first, so query for them)
           const allStates = await tx
             .select()
-            .from(methodologyLifecycleStates)
-            .where(eq(methodologyLifecycleStates.methodologyVersionId, params.versionId));
+            .from(workUnitLifecycleStates)
+            .where(eq(workUnitLifecycleStates.methodologyVersionId, params.versionId));
 
           for (const wut of params.workUnitTypes) {
             const wutRow = workUnitTypeRows.find((w) => w.key === wut.key);
@@ -497,14 +487,13 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
                 );
 
               const transRows = await tx
-                .insert(methodologyLifecycleTransitions)
+                .insert(workUnitLifecycleTransitions)
                 .values({
                   methodologyVersionId: params.versionId,
                   workUnitTypeId: wutRow.id,
                   fromStateId: fromStateId,
                   toStateId: toStateId,
                   transitionKey: transition.transitionKey,
-                  gateClass: transition.gateClass,
                 })
                 .returning();
 
@@ -518,7 +507,7 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
               transitionIdByKey.set(transition.transitionKey, transRow.id);
 
               for (const conditionSet of transition.conditionSets) {
-                await tx.insert(methodologyTransitionConditionSets).values({
+                await tx.insert(transitionConditionSets).values({
                   methodologyVersionId: params.versionId,
                   transitionId: transRow.id,
                   key: conditionSet.key,

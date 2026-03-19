@@ -78,7 +78,6 @@ type TransitionDraftRow = {
   transitionKey: string;
   fromState?: string;
   toState?: string;
-  gateClass?: string;
   conditionSets?: unknown[];
 };
 
@@ -347,6 +346,15 @@ function parseJsonRecord(value: string): DraftRecord | null {
   return asRecord(parseJsonUnknown(value));
 }
 
+function deriveGateClassFromConditionSets(
+  conditionSets: unknown[] | undefined,
+): "start_gate" | "completion_gate" {
+  return Array.isArray(conditionSets) &&
+    conditionSets.some((conditionSet) => asRecord(conditionSet)?.phase === "completion")
+    ? "completion_gate"
+    : "start_gate";
+}
+
 function extractTransitionRowsFromWorkUnits(
   workUnitTypes: readonly unknown[],
 ): TransitionDraftRow[] {
@@ -369,14 +377,24 @@ function extractTransitionRowsFromWorkUnits(
         continue;
       }
 
-      rows.push({
+      const row: TransitionDraftRow = {
         workUnitTypeKey,
         transitionKey: record.transitionKey,
-        fromState: typeof record.fromState === "string" ? record.fromState : undefined,
-        toState: typeof record.toState === "string" ? record.toState : undefined,
-        gateClass: typeof record.gateClass === "string" ? record.gateClass : undefined,
-        conditionSets: Array.isArray(record.conditionSets) ? record.conditionSets : [],
-      });
+      };
+
+      if (typeof record.fromState === "string") {
+        row.fromState = record.fromState;
+      }
+
+      if (typeof record.toState === "string") {
+        row.toState = record.toState;
+      }
+
+      if (Array.isArray(record.conditionSets)) {
+        row.conditionSets = record.conditionSets;
+      }
+
+      rows.push(row);
     }
   }
 
@@ -586,7 +604,7 @@ export function VersionWorkspaceGraph({
   const [workUnitInspectorTab, setWorkUnitInspectorTab] = useState<
     "overview" | "facts" | "transitions" | "workflows"
   >("overview");
-  const [workflowInspectorTab, setWorkflowInspectorTab] = useState<"overview" | "io" | "steps">(
+  const [workflowInspectorTab, setWorkflowInspectorTab] = useState<"overview" | "steps">(
     "overview",
   );
 
@@ -805,7 +823,7 @@ export function VersionWorkspaceGraph({
         transition.transitionKey,
         transition.workUnitTypeKey,
         transition.toState ?? "",
-        transition.gateClass ?? "",
+        deriveGateClassFromConditionSets(transition.conditionSets),
       ].some((value) => value.toLowerCase().includes(normalizedListFilter));
     });
 
@@ -841,7 +859,7 @@ export function VersionWorkspaceGraph({
         return [
           transition.transitionKey,
           transition.toState ?? "",
-          transition.gateClass ?? "",
+          deriveGateClassFromConditionSets(transition.conditionSets),
         ].some((value) => value.toLowerCase().includes(normalizedListFilter));
       }),
     [transitionsForScope, normalizedListFilter],
@@ -946,7 +964,7 @@ export function VersionWorkspaceGraph({
         boundCount,
         fromState: row.fromState,
         toState: row.toState,
-        gateClass: row.gateClass,
+        derivedGateClass: deriveGateClassFromConditionSets(row.conditionSets),
       };
     }
 
@@ -1155,7 +1173,6 @@ export function VersionWorkspaceGraph({
             transitionKey,
             fromState: "__absent__",
             toState: "done",
-            gateClass: "completion_gate",
             conditionSets: [],
           },
         ],
@@ -2020,7 +2037,9 @@ export function VersionWorkspaceGraph({
                                   </td>
                                   <td className="px-2 py-1">{transition.workUnitTypeKey}</td>
                                   <td className="px-2 py-1">{transition.toState ?? "-"}</td>
-                                  <td className="px-2 py-1">{transition.gateClass ?? "-"}</td>
+                                  <td className="px-2 py-1">
+                                    {deriveGateClassFromConditionSets(transition.conditionSets)}
+                                  </td>
                                 </tr>
                               ))}
                             </tbody>
@@ -2105,7 +2124,9 @@ export function VersionWorkspaceGraph({
                                     </button>
                                   </td>
                                   <td className="px-2 py-1">{transition.toState ?? "-"}</td>
-                                  <td className="px-2 py-1">{transition.gateClass ?? "-"}</td>
+                                  <td className="px-2 py-1">
+                                    {deriveGateClassFromConditionSets(transition.conditionSets)}
+                                  </td>
                                 </tr>
                               ))}
                             </tbody>
@@ -2319,15 +2340,6 @@ export function VersionWorkspaceGraph({
                   <Button
                     type="button"
                     size="sm"
-                    variant={workflowInspectorTab === "io" ? "default" : "outline"}
-                    aria-label="IO Contract Tab"
-                    onClick={() => setWorkflowInspectorTab("io")}
-                  >
-                    IO Contract
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
                     variant={workflowInspectorTab === "steps" ? "default" : "outline"}
                     aria-label="Steps Tab"
                     onClick={() => setWorkflowInspectorTab("steps")}
@@ -2349,52 +2361,6 @@ export function VersionWorkspaceGraph({
                       }}
                     />
                   </label>
-                ) : null}
-                {workflowInspectorTab === "io" ? (
-                  <div className="space-y-3">
-                    <label className="flex flex-col gap-1">
-                      <span className="text-muted-foreground">Workflow Input Contract</span>
-                      <textarea
-                        aria-label="Workflow Input Contract"
-                        className="min-h-28 border border-border/70 bg-background px-2 py-1 font-mono text-xs"
-                        value={JSON.stringify(
-                          activeWorkflow.inputContract ?? { kind: "workflow-io.v1", inputs: [] },
-                          null,
-                          2,
-                        )}
-                        onChange={(event) => {
-                          try {
-                            const nextValue = JSON.parse(event.target.value) as DraftRecord;
-                            updateWorkflowDraft(activeWorkflow.key, (record) => ({
-                              ...record,
-                              inputContract: nextValue,
-                            }));
-                          } catch {}
-                        }}
-                      />
-                    </label>
-                    <label className="flex flex-col gap-1">
-                      <span className="text-muted-foreground">Workflow Output Contract</span>
-                      <textarea
-                        aria-label="Workflow Output Contract"
-                        className="min-h-28 border border-border/70 bg-background px-2 py-1 font-mono text-xs"
-                        value={JSON.stringify(
-                          activeWorkflow.outputContract ?? { kind: "workflow-io.v1", outputs: [] },
-                          null,
-                          2,
-                        )}
-                        onChange={(event) => {
-                          try {
-                            const nextValue = JSON.parse(event.target.value) as DraftRecord;
-                            updateWorkflowDraft(activeWorkflow.key, (record) => ({
-                              ...record,
-                              outputContract: nextValue,
-                            }));
-                          } catch {}
-                        }}
-                      />
-                    </label>
-                  </div>
                 ) : null}
                 {workflowInspectorTab === "steps" ? (
                   <Button
@@ -2437,26 +2403,10 @@ export function VersionWorkspaceGraph({
                   />
                 </label>
 
-                <label className="flex flex-col gap-1">
-                  <span className="text-muted-foreground">Gate Class</span>
-                  <select
-                    className="border border-border/70 bg-background px-2 py-1 text-sm"
-                    value={selectedTransition.gateClass ?? "completion_gate"}
-                    onChange={(event) => {
-                      updateTransitionDraft(
-                        selectedTransition.workUnitTypeKey,
-                        selectedTransition.transitionKey,
-                        (record) => ({
-                          ...record,
-                          gateClass: event.target.value,
-                        }),
-                      );
-                    }}
-                  >
-                    <option value="start_gate">Start Gate (entry)</option>
-                    <option value="completion_gate">Completion Gate (exit)</option>
-                  </select>
-                </label>
+                <div className="flex flex-col gap-1">
+                  <span className="text-muted-foreground">Derived Gate Class</span>
+                  <p>{selectedTransition.derivedGateClass.replace("_", " ")}</p>
+                </div>
               </div>
             ) : null}
 

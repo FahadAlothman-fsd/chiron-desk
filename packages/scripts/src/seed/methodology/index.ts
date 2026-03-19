@@ -19,10 +19,10 @@ export * from "./tables";
 export const METHODOLOGY_CANONICAL_TABLE_SEED_ORDER = [
   "methodology_work_unit_types",
   "methodology_agent_types",
-  "methodology_lifecycle_states",
-  "methodology_lifecycle_transitions",
-  "methodology_transition_condition_sets",
-  "methodology_fact_schemas",
+  "work_unit_lifecycle_states",
+  "work_unit_lifecycle_transitions",
+  "transition_condition_sets",
+  "work_unit_fact_definitions",
   "methodology_link_type_definitions",
   "methodology_workflows",
   "methodology_workflow_steps",
@@ -34,10 +34,10 @@ export const METHODOLOGY_CANONICAL_TABLE_SEED_ORDER = [
 export const methodologyCanonicalTableSeedRows = {
   methodology_work_unit_types: methodologyWorkUnitTypeSeedRows,
   methodology_agent_types: methodologyAgentTypeSeedRows,
-  methodology_lifecycle_states: methodologyLifecycleStateSeedRows,
-  methodology_lifecycle_transitions: methodologyLifecycleTransitionSeedRows,
-  methodology_transition_condition_sets: methodologyTransitionConditionSetSeedRows,
-  methodology_fact_schemas: methodologyFactSchemaSeedRows,
+  work_unit_lifecycle_states: methodologyLifecycleStateSeedRows,
+  work_unit_lifecycle_transitions: methodologyLifecycleTransitionSeedRows,
+  transition_condition_sets: methodologyTransitionConditionSetSeedRows,
+  work_unit_fact_definitions: methodologyFactSchemaSeedRows,
   methodology_link_type_definitions: methodologyLinkTypeDefinitionSeedRows,
   methodology_workflows: methodologyWorkflowSeedRows,
   methodology_workflow_steps: methodologyWorkflowStepSeedRows,
@@ -47,5 +47,5 @@ export const methodologyCanonicalTableSeedRows = {
 } as const;
 
 export const methodologySeedSlices = {
-  project_context: setupSeedMetadata,
+  baseline_metadata: setupSeedMetadata,
 } as const;

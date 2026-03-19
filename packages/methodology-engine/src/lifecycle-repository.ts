@@ -34,9 +34,8 @@ export interface LifecycleTransitionRow {
   methodologyVersionId: string;
   workUnitTypeId: string;
   fromStateId: string | null; // NULL = __absent__
-  toStateId: string;
+  toStateId: string | null;
   transitionKey: string;
-  gateClass: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -48,7 +47,6 @@ export interface FactSchemaRow {
   name: string | null;
   key: string;
   factType: string;
-  required: boolean;
   description: string | null;
   defaultValueJson: unknown;
   guidanceJson: unknown;

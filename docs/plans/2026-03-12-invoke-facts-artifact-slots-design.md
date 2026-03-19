@@ -53,7 +53,7 @@ Remove these as supported invoke features:
 - `output.selectors`
 - any parent-side namespace capture of child variables
 
-Also stop treating workflow `inputContractJson` and `outputContractJson` as a cross-workflow invoke API. If the columns remain temporarily for compatibility, they are legacy storage only and not part of the approved v1 orchestration model.
+Legacy workflow IO contract columns are removed from the model and are not part of the approved v1 orchestration design.
 
 ### 4) Parent awareness for `child_work_unit`
 

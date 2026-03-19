@@ -20,8 +20,6 @@ export type GraphWorkflow = {
   key: string;
   displayName?: string;
   workUnitTypeKey?: string;
-  inputContract?: unknown;
-  outputContract?: unknown;
   steps?: Array<{ key: string; type: string }>;
   edges?: Array<{ fromStepKey?: string | null; toStepKey?: string | null; edgeKey?: string }>;
 };

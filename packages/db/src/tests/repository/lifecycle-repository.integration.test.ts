@@ -66,7 +66,7 @@ const SCHEMA_SQL = [
     updated_at INTEGER NOT NULL,
     UNIQUE(methodology_version_id, key)
   )`,
-  `CREATE TABLE methodology_lifecycle_states (
+  `CREATE TABLE work_unit_lifecycle_states (
     id TEXT PRIMARY KEY,
     methodology_version_id TEXT NOT NULL,
     work_unit_type_id TEXT NOT NULL,
@@ -78,20 +78,19 @@ const SCHEMA_SQL = [
     updated_at INTEGER NOT NULL,
     UNIQUE(work_unit_type_id, key)
   )`,
-  `CREATE TABLE methodology_lifecycle_transitions (
+  `CREATE TABLE work_unit_lifecycle_transitions (
     id TEXT PRIMARY KEY,
     methodology_version_id TEXT NOT NULL,
     work_unit_type_id TEXT NOT NULL,
     transition_key TEXT NOT NULL,
     from_state_id TEXT,
-    to_state_id TEXT NOT NULL,
-    gate_class TEXT NOT NULL,
+    to_state_id TEXT,
     guidance_json TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
     UNIQUE(work_unit_type_id, transition_key)
   )`,
-  `CREATE TABLE methodology_transition_condition_sets (
+  `CREATE TABLE transition_condition_sets (
     id TEXT PRIMARY KEY,
     methodology_version_id TEXT NOT NULL,
     transition_id TEXT NOT NULL,
@@ -102,16 +101,15 @@ const SCHEMA_SQL = [
     guidance_json TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
-    UNIQUE(transition_id, key)
+    UNIQUE(transition_id, phase)
   )`,
-  `CREATE TABLE methodology_fact_schemas (
+  `CREATE TABLE work_unit_fact_definitions (
     id TEXT PRIMARY KEY,
     methodology_version_id TEXT NOT NULL,
     work_unit_type_id TEXT NOT NULL,
     name TEXT,
     key TEXT NOT NULL,
     fact_type TEXT NOT NULL,
-    required INTEGER NOT NULL DEFAULT 1,
     description TEXT,
     default_value_json TEXT,
     guidance_json TEXT,
@@ -127,8 +125,6 @@ const SCHEMA_SQL = [
     key TEXT NOT NULL,
     display_name TEXT,
     metadata_json TEXT,
-    input_contract_json TEXT,
-    output_contract_json TEXT,
     guidance_json TEXT,
     definition_json TEXT NOT NULL,
     execution_modes_json TEXT,
@@ -217,7 +213,6 @@ describe("lifecycle repository integration", () => {
                 transitionKey: "start",
                 fromState: undefined,
                 toState: "done",
-                gateClass: "start_gate",
                 conditionSets: [],
               },
             ],

@@ -258,7 +258,6 @@ const lifecycleTransitionSchema = z.object({
   transitionKey: z.string().min(1),
   fromState: z.string().optional(), // undefined/null = __absent__
   toState: z.string().min(1),
-  gateClass: z.enum(["start_gate", "completion_gate"]),
   conditionSets: z.array(transitionConditionSetSchema),
 });
 

@@ -27,7 +27,6 @@ const SAMPLE_DRAFT: MethodologyVersionWorkspaceDraft = {
         {
           transitionKey: "start",
           toState: "draft",
-          gateClass: "start_gate",
           requiredLinks: [],
         },
       ],
@@ -305,12 +304,7 @@ describe("methodology version workspace baseline", () => {
     fireEvent.click(screen.getByRole("button", { name: "L3 Workflow" }));
 
     expect(screen.getByRole("button", { name: "Workflow Overview Tab" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "IO Contract Tab" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Steps Tab" })).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("button", { name: "IO Contract Tab" }));
-    expect(screen.getByLabelText("Workflow Input Contract")).toBeTruthy();
-    expect(screen.getByLabelText("Workflow Output Contract")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Steps Tab" }));
     expect(screen.getByRole("button", { name: "+ Step" })).toBeTruthy();

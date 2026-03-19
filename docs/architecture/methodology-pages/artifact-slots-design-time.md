@@ -45,11 +45,11 @@ Implementation must preserve that split. Design-time slot editing must not write
 │ Slot Key            Cardinality   Templates   Rules Summary                   Actions       │
 │ story_doc           single        1           output path configured          [Edit]        │
 │ architecture_doc    single        1           output path configured          [Edit]        │
-│ code_changes        set           0/optional  include/exclude globs           [Edit]       │
+│ code_changes        fileset       0/optional  include/exclude globs           [Edit]       │
 │                                                                                            │
 │ Row expand:                                                                                │
 │ - description                                                                              │
-│ - template attachments (purpose/order/required)                                            │
+│ - template attachments (key/name summary)                                                    │
 │ - include/exclude summary                                                                   │
 │ - findings                                                                                 │
 └────────────────────────────────────────────────────────────────────────────────────────────┘
@@ -64,7 +64,7 @@ Implementation must preserve that split. Design-time slot editing must not write
 ## Slot contract rules
 
 - `slot_key` is unique per methodology version and work-unit type.
-- `cardinality` is `single` or `set`.
+- `cardinality` is `single` or `fileset`.
 - Git-tracking expectations belong on the slot definition.
 - Include and exclude glob rules plus output path strategy belong to slot rules.
 - Slot-level requiredness is not the main enforcement mechanism. Transition gate policy owns whether a slot is required for readiness.
@@ -72,7 +72,7 @@ Implementation must preserve that split. Design-time slot editing must not write
 ## Template contract rules
 
 - Templates are attached under a slot, not authored as free-floating artifacts.
-- Template metadata includes purpose, sort order, required flag, content format, and allowed variable namespaces.
+- Template metadata includes key/name/description/guidance and content.
 - Template rendering hints live with the template contract, not with runtime snapshot records.
 - Variable usage inside templates should follow `docs/architecture/methodology-pages/workflow-editor/variable-target-model.md`.
 
@@ -82,7 +82,43 @@ The Artifact Slots tab uses stacked dialog editing:
 
 - `Level 1 - Basics`: `slot_key`, `display_name`, description, `cardinality`, git-tracking note
 - `Level 2 - Rules`: include globs, exclude globs, output path strategy
-- `Level 3 - Templates`: attach templates and set purpose, order, and requiredness
+- `Level 3 - Templates`: attach templates and edit key/name/description/guidance/content
+
+## Frozen schema baseline (Story 3.2)
+
+Design-time implementation for Story 3.2 uses this minimal schema baseline:
+
+- `methodology_artifact_slot_definitions`
+  - `id`
+  - `methodology_version_id`
+  - `work_unit_type_id`
+  - `key`
+  - `display_name`
+  - `description_json`
+  - `guidance_json`
+  - `cardinality` (`single | fileset`)
+  - `rules_json` (optional, machine-evaluated structured rules only)
+  - `created_at`
+  - `updated_at`
+- `methodology_artifact_slot_templates`
+  - `id`
+  - `slot_definition_id`
+  - `key`
+  - `display_name`
+  - `description_json`
+  - `guidance_json`
+  - `content`
+  - `created_at`
+  - `updated_at`
+
+Excluded from v1 by design (YAGNI):
+
+- `purpose`
+- `allowed_namespaces_json`
+- `default_content_json`
+- separate persisted `variables` column
+
+Variable namespaces are validated through the shared variable target model and are not stored per template row.
 
 Validation and findings behavior should follow `docs/architecture/methodology-pages/workflow-editor/step-dialog-patterns.md` and `docs/architecture/ux-patterns/diagnostics-visual-treatment.md` where shared shell rules apply.
 

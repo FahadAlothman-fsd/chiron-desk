@@ -15,8 +15,8 @@ If a domain has a dedicated table, that table is authoritative.
 
 - Work unit types: `methodology_work_unit_types`
 - Agent types: `methodology_agent_types`
-- Lifecycle states: `methodology_lifecycle_states`
-- Lifecycle transitions: `methodology_lifecycle_transitions`
+- Lifecycle states: `work_unit_lifecycle_states`
+- Lifecycle transitions: `work_unit_lifecycle_transitions`
 - Transition required links: `methodology_transition_required_links`
 - Work-unit fact schemas: `methodology_fact_schemas`
 - Workflows: `methodology_workflows`

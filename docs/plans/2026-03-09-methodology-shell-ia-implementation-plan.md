@@ -209,7 +209,6 @@ Confirm the work-unit tab structure renders correctly.
 
 Expect that when a workflow is selected inside a work unit, the main pane shows tabs:
 - Overview
-- IO Contract
 - Steps
 
 **Step 2: Run the failing integration test**

@@ -35,8 +35,6 @@ const definition = {
   transitionWorkflowBindings: { "__absent__->done": ["document-project"] },
   workflows: [{
     key: "document-project",
-    inputContract: { kind: "workflow-io.v1", inputs: [] },
-    outputContract: { kind: "workflow-io.v1", outputs: [] },
     steps: [{
       key: "run-child",
       type: "invoke",
@@ -91,16 +89,7 @@ if (step.type === "invoke" && step.config && typeof step.config === "object") {
   }
 }
 
-if (workflow.inputContract || workflow.outputContract) {
-  diagnostics.push(makeDiagnostic({
-    code: "LEGACY_WORKFLOW_IO_CONTRACT",
-    scope: `definition.workflows.${workflow.key}`,
-    blocking: true,
-    required: "Workflow invoke handoff to use persisted facts/artifact slots only",
-    observed: "inputContract/outputContract present",
-    remediation: "Remove workflow IO contracts from active methodology definitions",
-  }, timestamp));
-}
+// Workflow-level IO contracts are not part of the model.
 ```
 
 Keep the implementation narrow: validation only, no schema rewrite in this task.
@@ -130,9 +119,6 @@ git commit -m "feat(methodology-engine): reject legacy invoke io config"
 Update the seed integrity test so the seeded workflows no longer expect workflow IO contracts and the invoke step uses the new target-mode naming without legacy IO keys:
 
 ```ts
-expect(workflow.inputContractJson).toBeNull()
-expect(workflow.outputContractJson).toBeNull()
-
 expect(invokeStep.configJson).toMatchObject({
   contract: "invoke.v1",
   targetMode: "current_work_unit",
@@ -149,13 +135,12 @@ Fetch the invoke step from `methodologyCanonicalTableSeedRows.methodology_workfl
 **Step 2: Run test to verify it fails**
 
 Run: `bunx vitest run "packages/scripts/src/__tests__/methodology-seed-integrity.test.ts"`
-Expected: FAIL because the seed still writes legacy workflow IO contracts and invoke mapping.
+Expected: FAIL because the seed still writes legacy invoke mapping.
 
 **Step 3: Write minimal implementation**
 
 In `packages/scripts/src/seed/methodology/setup/setup-bmad-mapping.ts`:
 
-- set `inputContractJson` and `outputContractJson` to `null` for the active workflows
 - rename the invoke config key to `targetMode`
 - remove `inputMapping` and `output` from `brownfield.context.invoke`
 - update the step guidance so it says the sub-workflow reads/writes persisted facts and artifact slots in the current work unit

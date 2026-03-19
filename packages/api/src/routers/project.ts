@@ -75,7 +75,6 @@ export function createProjectRouter(
   type ProjectionFactSchema = {
     key: string;
     factType: "string" | "number" | "boolean" | "json";
-    required?: boolean;
     defaultValue?: unknown;
   };
 
@@ -124,7 +123,6 @@ export function createProjectRouter(
     factDefinitions?: Array<{
       key: string;
       factType: ProjectionFactSchema["factType"];
-      required?: boolean;
       defaultValue?: unknown;
       guidance?: unknown;
       description?: string;
@@ -227,22 +225,6 @@ export function createProjectRouter(
               null;
             const activeWorkUnitTypeKey = activeWorkUnitType?.key ?? null;
             const layeredGuidance = draftProjection?.guidance;
-            const requiredFacts = (activeWorkUnitType?.factSchemas ?? []).filter((factSchema) =>
-              Boolean(factSchema.required),
-            );
-            const missingRequiredFactDiagnostics = requiredFacts.map((factSchema) => ({
-              code: "MISSING_PREVIEW_PREREQUISITE_FACT",
-              scope: `work-unit.${activeWorkUnitTypeKey ?? "unknown"}.fact.${factSchema.key}`,
-              blocking: true,
-              required: `${factSchema.key} fact present`,
-              observed: "missing",
-              remediation: "Run setup workflow in Epic 3 to persist required facts.",
-              timestamp: latestPublicationEvidence?.timestamp ?? pin.timestamp,
-              evidenceRef: latestPublicationEvidence?.evidenceRef ?? null,
-            }));
-            const shouldBlockOnMissingFacts =
-              missingRequiredFactDiagnostics.length > 0 &&
-              activeWorkUnitTypeKey !== projectContextWorkUnitKey;
 
             const eligibleTransitions = activeWorkUnitTypeKey
               ? (yield* eligibilitySvc.getTransitionEligibility({
@@ -302,6 +284,13 @@ export function createProjectRouter(
 
             const transitions = transitionDefinitions.map((transition) => {
               const eligibility = eligibilityByTransition.get(transition.key);
+              const transitionConditionSets =
+                eligibility?.conditionSets ?? transition.conditionSets ?? [];
+              const resolvedGateClass =
+                eligibility?.gateClass ??
+                (transitionConditionSets.some((conditionSet) => conditionSet.phase === "completion")
+                  ? "completion_gate"
+                  : "start_gate");
               const draftBoundWorkflowKeys =
                 draftProjection?.transitionWorkflowBindings?.[transition.key]?.slice().sort() ?? [];
               const boundWorkflowKeys =
@@ -318,7 +307,6 @@ export function createProjectRouter(
                 | "HAS_ALLOWED_WORKFLOW"
                 | "NO_WORKFLOW_BOUND"
                 | "UNRESOLVED_WORKFLOW_BINDING"
-                | "MISSING_PREVIEW_PREREQUISITE_FACT"
                 | "FUTURE_NO_START_GATE"
                 | "FUTURE_NOT_IN_CURRENT_CONTEXT";
 
@@ -332,13 +320,10 @@ export function createProjectRouter(
                 } else {
                   status = "future";
                   statusReasonCode =
-                    transition.gateClass === "start_gate" && !transition.fromState
+                    resolvedGateClass === "start_gate" && !transition.fromState
                       ? "FUTURE_NO_START_GATE"
                       : "FUTURE_NOT_IN_CURRENT_CONTEXT";
                 }
-              } else if (shouldBlockOnMissingFacts) {
-                status = "blocked";
-                statusReasonCode = "MISSING_PREVIEW_PREREQUISITE_FACT";
               } else if (eligibility.workflowBlocked) {
                 status = "blocked";
                 statusReasonCode = eligibility.workflowDiagnostics.some(
@@ -362,10 +347,6 @@ export function createProjectRouter(
                   timestamp: latestPublicationEvidence?.timestamp ?? pin.timestamp,
                   evidenceRef: latestPublicationEvidence?.evidenceRef ?? null,
                 })) ?? []),
-                ...(shouldBlockOnMissingFacts &&
-                statusReasonCode === "MISSING_PREVIEW_PREREQUISITE_FACT"
-                  ? missingRequiredFactDiagnostics
-                  : []),
               ];
               const transitionGuidance =
                 transition.guidance ?? layeredGuidance?.byTransition?.[transition.key] ?? null;
@@ -374,16 +355,14 @@ export function createProjectRouter(
                 transitionKey: transition.key,
                 fromState: eligibility?.fromState ?? transition.fromState ?? null,
                 toState: eligibility?.toState ?? transition.toState,
-                gateClass: eligibility?.gateClass ?? transition.gateClass,
-                conditionSets: (eligibility?.conditionSets ?? transition.conditionSets ?? []).map(
-                  (conditionSet) => ({
-                    key: conditionSet.key,
-                    phase: conditionSet.phase,
-                    mode: conditionSet.mode,
-                    groups: conditionSet.groups,
-                    guidance: conditionSet.guidance,
-                  }),
-                ),
+                gateClass: resolvedGateClass,
+                conditionSets: transitionConditionSets.map((conditionSet) => ({
+                  key: conditionSet.key,
+                  phase: conditionSet.phase,
+                  mode: conditionSet.mode,
+                  groups: conditionSet.groups,
+                  guidance: conditionSet.guidance,
+                })),
                 status,
                 statusReasonCode,
                 guidance: transitionGuidance,
@@ -515,11 +494,15 @@ export function createProjectRouter(
                   .sort((a, b) => a.agentTypeKey.localeCompare(b.agentTypeKey)),
                 transitions: (draftProjection?.transitions ?? [])
                   .map((transition) => ({
+                    gateClass: transition.conditionSets?.some(
+                      (conditionSet) => conditionSet.phase === "completion",
+                    )
+                      ? "completion_gate"
+                      : "start_gate",
                     transitionKey: transition.key,
                     workUnitTypeKey: transition.workUnitTypeKey ?? null,
                     fromState: transition.fromState ?? null,
                     toState: transition.toState,
-                    gateClass: transition.gateClass,
                   }))
                   .sort((a, b) =>
                     a.workUnitTypeKey === b.workUnitTypeKey
@@ -532,7 +515,6 @@ export function createProjectRouter(
                       workUnitTypeKey: workUnitType.key,
                       key: factSchema.key,
                       type: factSchema.factType,
-                      required: Boolean(factSchema.required),
                       defaultValue: factSchema.defaultValue ?? null,
                     })),
                   )
@@ -541,7 +523,6 @@ export function createProjectRouter(
                       workUnitTypeKey: "__PROJECT__",
                       key: factDefinition.key,
                       type: factDefinition.factType,
-                      required: Boolean(factDefinition.required),
                       defaultValue: factDefinition.defaultValue ?? null,
                     })),
                   )
@@ -553,12 +534,11 @@ export function createProjectRouter(
               },
               facts: (activeWorkUnitType?.factSchemas ?? []).map((factSchema) => {
                 const value = factSchema.defaultValue ?? null;
-                const missing = Boolean(factSchema.required) && value == null;
+                const missing = value == null;
                 return {
                   key: factSchema.key,
                   type: factSchema.factType,
                   value,
-                  required: Boolean(factSchema.required),
                   missing,
                   indicator: missing ? "blocking" : "ok",
                   sourceExecutionId: null,

@@ -70,7 +70,7 @@ development_status:
   cc-foundation-retrospective: done
   epic-3: in-progress
   3-1-complete-design-time-ia-and-page-shell-baseline: done
-  3-2-complete-work-unit-l2-tabs-overview-workflows-artifact-slots-facts-state-machine: backlog
+  3-2-complete-work-unit-l2-tabs-overview-workflows-artifact-slots-facts-state-machine: in-progress
   3-3-complete-workflow-editor-and-step-dialog-surfaces: backlog
   3-4-canonical-persistence-and-schema-recovery-hardening: backlog
   3-5-design-time-verification-harnesses-and-runtime-entry-gate: backlog

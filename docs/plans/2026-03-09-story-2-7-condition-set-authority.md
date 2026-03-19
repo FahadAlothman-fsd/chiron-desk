@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Make `methodology_transition_condition_sets` the transition-check authority for Story 2.7 seed/runtime path and remove `transition_required_links` from transition gating semantics.
+**Goal:** Make `transition_condition_sets` the transition-check authority for Story 2.7 seed/runtime path and remove `transition_required_links` from transition gating semantics.
 
 **Architecture:** Keep canonical ownership in methodology tables and repository/services. Represent transition gates using condition sets rows and derive runtime transition checks from those rows instead of required-links rows. Keep `transition_required_links` as non-authoritative migration-debt table (empty for this slice).
 
@@ -19,7 +19,7 @@
 **Steps:**
 1. Add transition condition set row type to lifecycle repository contracts.
 2. Add repository query method for condition sets by version/transition.
-3. Implement DB adapter query against `methodology_transition_condition_sets`.
+3. Implement DB adapter query against `transition_condition_sets`.
 4. Keep required-links method available only for migration/debt compatibility.
 
 ### Task 2: Switch Transition Checks To Condition Sets

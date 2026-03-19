@@ -30,7 +30,7 @@ import {
   methodologyLinkTypeDefinitions,
   methodologyWorkUnitTypes,
   methodologyAgentTypes,
-  methodologyLifecycleTransitions,
+  workUnitLifecycleTransitions,
   methodologyWorkflows,
   methodologyWorkflowSteps,
   methodologyWorkflowEdges,
@@ -218,11 +218,11 @@ async function syncWorkflowGraph(
 
   const transitionRows = await tx
     .select({
-      id: methodologyLifecycleTransitions.id,
-      transitionKey: methodologyLifecycleTransitions.transitionKey,
+      id: workUnitLifecycleTransitions.id,
+      transitionKey: workUnitLifecycleTransitions.transitionKey,
     })
-    .from(methodologyLifecycleTransitions)
-    .where(eq(methodologyLifecycleTransitions.methodologyVersionId, versionId));
+    .from(workUnitLifecycleTransitions)
+    .where(eq(workUnitLifecycleTransitions.methodologyVersionId, versionId));
   const transitionIdByKey = new Map(transitionRows.map((row) => [row.transitionKey, row.id]));
 
   const workflowIdByKey = new Map<string, string>();
@@ -245,8 +245,6 @@ async function syncWorkflowGraph(
         displayName: workflowDisplayName,
         metadataJson: workflow.metadata ?? null,
         guidanceJson: workflow.guidance ?? guidance?.byWorkflow?.[workflowKey] ?? null,
-        inputContractJson: workflow.inputContract ?? null,
-        outputContractJson: workflow.outputContract ?? null,
       })
       .returning();
     const workflowRow = workflowRows[0];
@@ -511,7 +509,6 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               valueType: v.factType,
               descriptionJson: v.description ?? null,
               guidanceJson: v.guidance ?? null,
-              required: false,
               defaultValueJson: v.defaultValue ?? null,
               validationJson: v.validation ?? null,
             }));
@@ -610,7 +607,6 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
                 valueType: v.factType,
                 descriptionJson: v.description ?? null,
                 guidanceJson: v.guidance ?? null,
-                required: false,
                 defaultValueJson: v.defaultValue ?? null,
                 validationJson: v.validation ?? null,
               }));
@@ -743,8 +739,6 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               workUnitTypeKey: methodologyWorkUnitTypes.key,
               metadataJson: methodologyWorkflows.metadataJson,
               guidanceJson: methodologyWorkflows.guidanceJson,
-              inputContractJson: methodologyWorkflows.inputContractJson,
-              outputContractJson: methodologyWorkflows.outputContractJson,
             })
             .from(methodologyWorkflows)
             .leftJoin(
@@ -780,16 +774,16 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             .orderBy(asc(methodologyWorkflowEdges.workflowId), asc(methodologyWorkflowEdges.id)),
           db
             .select({
-              transitionKey: methodologyLifecycleTransitions.transitionKey,
+              transitionKey: workUnitLifecycleTransitions.transitionKey,
               workflowKey: methodologyWorkflows.key,
               guidanceJson: methodologyTransitionWorkflowBindings.guidanceJson,
             })
             .from(methodologyTransitionWorkflowBindings)
             .innerJoin(
-              methodologyLifecycleTransitions,
+              workUnitLifecycleTransitions,
               eq(
                 methodologyTransitionWorkflowBindings.transitionId,
-                methodologyLifecycleTransitions.id,
+                workUnitLifecycleTransitions.id,
               ),
             )
             .innerJoin(
@@ -798,7 +792,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             )
             .where(eq(methodologyTransitionWorkflowBindings.methodologyVersionId, versionId))
             .orderBy(
-              asc(methodologyLifecycleTransitions.transitionKey),
+              asc(workUnitLifecycleTransitions.transitionKey),
               asc(methodologyWorkflows.key),
               asc(methodologyTransitionWorkflowBindings.id),
             ),
@@ -844,12 +838,6 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           workUnitTypeKey: workflowRow.workUnitTypeKey ?? undefined,
           metadata: workflowRow.metadataJson as WorkflowDefinition["metadata"] | undefined,
           guidance: workflowRow.guidanceJson as WorkflowDefinition["guidance"] | undefined,
-          inputContract: workflowRow.inputContractJson as
-            | WorkflowDefinition["inputContract"]
-            | undefined,
-          outputContract: workflowRow.outputContractJson as
-            | WorkflowDefinition["outputContract"]
-            | undefined,
           steps: (stepsByWorkflowId.get(workflowRow.id) ?? []).map((stepRow) => ({
             key: stepRow.key,
             type: asWorkflowStepType(stepRow.type),
@@ -946,7 +934,6 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             name: methodologyFactSchemas.name,
             key: methodologyFactSchemas.key,
             factType: methodologyFactSchemas.factType,
-            required: methodologyFactSchemas.required,
             description: methodologyFactSchemas.description,
             defaultValueJson: methodologyFactSchemas.defaultValueJson,
             guidanceJson: methodologyFactSchemas.guidanceJson,
@@ -960,7 +947,6 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           name: row.name,
           key: row.key,
           factType: row.factType,
-          required: row.required,
           description: row.description,
           defaultValueJson: row.defaultValueJson,
           guidanceJson: row.guidanceJson,
@@ -975,7 +961,6 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             name: methodologyFactDefinitions.name,
             key: methodologyFactDefinitions.key,
             valueType: methodologyFactDefinitions.valueType,
-            required: methodologyFactDefinitions.required,
             descriptionJson: methodologyFactDefinitions.descriptionJson,
             guidanceJson: methodologyFactDefinitions.guidanceJson,
             defaultValueJson: methodologyFactDefinitions.defaultValueJson,

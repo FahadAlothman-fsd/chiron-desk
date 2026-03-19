@@ -458,14 +458,6 @@ function asCardinality(value: unknown): "one_per_project" | "many_per_project" {
     : "one_per_project";
 }
 
-const ALLOWED_GATE_CLASSES = new Set(["start_gate", "completion_gate"]);
-
-function asGateClass(value: unknown): "start_gate" | "completion_gate" {
-  return typeof value === "string" && ALLOWED_GATE_CLASSES.has(value)
-    ? (value as "start_gate" | "completion_gate")
-    : "start_gate";
-}
-
 const ALLOWED_CANONICAL_FACT_TYPES = new Set(["string", "number", "boolean", "json"]);
 
 function asCanonicalFactType(value: unknown): "string" | "number" | "boolean" | "json" {
@@ -583,17 +575,18 @@ function loadCanonicalLifecycleDefinition(
             displayName: extractText(state.displayName),
             description: extractText(state.descriptionJson),
           })),
-          lifecycleTransitions: transitions.map((transition) => ({
-            transitionKey: transition.transitionKey,
-            fromState:
-              transition.fromStateId && stateKeyById.has(transition.fromStateId)
-                ? (stateKeyById.get(transition.fromStateId) ?? "")
-                : "__absent__",
-            toState: stateKeyById.get(transition.toStateId) ?? "",
-            gateClass: asGateClass(transition.gateClass),
-            conditionSets: (conditionSetsByTransition.get(transition.id) ?? [])
-              .sort((a, b) => a.key.localeCompare(b.key))
-              .map((conditionSet) => ({
+          lifecycleTransitions: transitions.map((transition) => {
+            const transitionConditionSets = (
+              conditionSetsByTransition.get(transition.id) ?? []
+            ).sort((a, b) => a.key.localeCompare(b.key));
+            return {
+              transitionKey: transition.transitionKey,
+              fromState:
+                transition.fromStateId && stateKeyById.has(transition.fromStateId)
+                  ? (stateKeyById.get(transition.fromStateId) ?? "")
+                  : "__absent__",
+              toState: transition.toStateId ? (stateKeyById.get(transition.toStateId) ?? "") : "",
+              conditionSets: transitionConditionSets.map((conditionSet) => ({
                 key: conditionSet.key,
                 phase: conditionSet.phase === "completion" ? "completion" : ("start" as const),
                 mode: conditionSet.mode === "any" ? "any" : ("all" as const),
@@ -614,12 +607,12 @@ function loadCanonicalLifecycleDefinition(
                     ? conditionSet.guidanceJson
                     : undefined,
               })),
-          })),
+            };
+          }),
           factSchemas: factSchemas.map((fact) => ({
             name: extractText(fact.name),
             key: fact.key,
             factType: asCanonicalFactType(fact.factType),
-            required: fact.required,
             description: extractText(fact.description),
             defaultValue: fact.defaultValueJson,
             guidance: fact.guidanceJson,
@@ -647,7 +640,6 @@ function loadCanonicalLifecycleDefinition(
         workUnitTypeKey: workUnit.key,
         fromState: transition.fromState,
         toState: transition.toState,
-        gateClass: transition.gateClass,
         conditionSets: transition.conditionSets,
       })),
     );
@@ -725,7 +717,6 @@ function toCanonicalLifecycleSaveInput(
     transitionKey: string;
     fromState?: string;
     toState: string;
-    gateClass: "start_gate" | "completion_gate";
     conditionSets: Array<
       SaveLifecycleDefinitionParams["workUnitTypes"][number]["lifecycleTransitions"][number]["conditionSets"][number]
     >;
@@ -860,7 +851,6 @@ function toCanonicalLifecycleSaveInput(
       transitionKey,
       fromState,
       toState,
-      gateClass: transition.gateClass === "completion_gate" ? "completion_gate" : "start_gate",
       conditionSets: Array.isArray(transition.conditionSets)
         ? (transition.conditionSets as MutableLifecycleTransition["conditionSets"])
         : [],
@@ -2022,7 +2012,6 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
         name: fact.name,
         key: fact.key,
         factType: fact.valueType,
-        required: fact.required,
         description: fact.descriptionJson,
         guidance: fact.guidanceJson,
         defaultValue: fact.defaultValueJson,

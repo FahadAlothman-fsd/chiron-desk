@@ -232,69 +232,6 @@ describe("lifecycle-validation", () => {
     });
   });
 
-  describe("AC 9: Gate Class Validation", () => {
-    it("should reject invalid gate classes", () => {
-      const workUnitTypes = [
-        {
-          key: "task",
-          cardinality: "one_per_project",
-          lifecycleStates: [
-            { key: "todo", displayName: "To Do" },
-            { key: "done", displayName: "Done" },
-          ],
-          lifecycleTransitions: [
-            {
-              transitionKey: "complete",
-              fromState: "todo",
-              toState: "done",
-              gateClass: "invalid_gate", // Invalid
-              conditionSets: [],
-            },
-          ],
-          factSchemas: [],
-        },
-      ] as WorkUnitTypeDefinition[];
-
-      const result = validateLifecycleDefinition(workUnitTypes, timestamp);
-
-      expect(result.valid).toBe(false);
-      expect(result.diagnostics.some((d) => d.code === "INVALID_GATE_CLASS")).toBe(true);
-    });
-
-    it("should accept valid gate classes", () => {
-      const validClasses = ["start_gate", "completion_gate"];
-
-      for (const gateClass of validClasses) {
-        const workUnitTypes: WorkUnitTypeDefinition[] = [
-          {
-            key: "task",
-            cardinality: "one_per_project",
-            lifecycleStates: [
-              { key: "todo", displayName: "To Do" },
-              { key: "done", displayName: "Done" },
-            ],
-            lifecycleTransitions: [
-              {
-                transitionKey: "complete",
-                fromState: "todo",
-                toState: "done",
-                gateClass: gateClass as "start_gate" | "completion_gate",
-                conditionSets: [],
-              },
-            ],
-            factSchemas: [],
-          },
-        ];
-
-        const result = validateLifecycleDefinition(workUnitTypes, timestamp);
-        const gateClassError = result.diagnostics.find(
-          (d) => d.scope === "task.lifecycleTransitions[0].gateClass",
-        );
-        expect(gateClassError).toBeUndefined();
-      }
-    });
-  });
-
   describe("AC 10: __absent__ Directionality", () => {
     it("should reject defined_state -> __absent__ transitions", () => {
       const workUnitTypes: WorkUnitTypeDefinition[] = [
