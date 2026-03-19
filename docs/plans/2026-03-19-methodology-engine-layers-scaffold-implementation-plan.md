@@ -8,6 +8,25 @@
 
 **Tech Stack:** TypeScript, Effect (`Context.Tag`, `Layer`), oRPC/Hono routers, Bun, Vitest, Drizzle adapters.
 
+## Execution Status (2026-03-19)
+
+Status: **Implemented in current branch history** (merged via `74cbb68b5`, core refactor commit `8c0a93313`).
+
+Completion highlights:
+- L1 services are active and routed through boundary-first API handlers.
+- Legacy/lifecycle compatibility seam was removed from active code paths.
+- `packages/methodology-engine/src/lifecycle-service.ts` was deleted after migration.
+- L2/L3 scaffold contracts were introduced and exported.
+- Version CRUD and archive-not-delete behavior were re-verified after seam removal.
+
+Verification snapshot:
+- `packages/methodology-engine/src/tests/l1/l1-port-exports.characterization.test.ts` ✅
+- `packages/methodology-engine/src/tests/l1/methodology-version-service.test.ts` ✅
+- `packages/methodology-engine/src/tests/l1/l1-route-boundary.characterization.test.ts` ✅
+- `packages/api/src/tests/routers/methodology.test.ts` ✅
+- `apps/web/src/tests/routes/methodologies.$methodologyId.integration.test.tsx` ✅
+- `bunx turbo -F @chiron/api -F @chiron/methodology-engine -F web build` ✅
+
 ---
 
 ### Task 1: Baseline and Characterization Safety Net
@@ -250,6 +269,8 @@ Expected: PASS.
 ```bash
 git add packages/methodology-engine/src/lifecycle-service.ts packages/methodology-engine/src/index.ts packages/methodology-engine/src/tests/l1/lifecycle-compatibility.test.ts
 git commit -m "refactor(methodology-engine): demote lifecycle service to compatibility seam"
+
+> Final implemented state superseded this step by fully removing the lifecycle seam from active code paths and deleting `lifecycle-service.ts`.
 ```
 
 ---

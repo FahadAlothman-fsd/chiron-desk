@@ -235,6 +235,6 @@ Before calling L1 complete, fresh evidence should show:
 
 - Story 3.1 remains complete for the approved L1 product scope captured in this document.
 - Canonical architecture direction now locks workflow authoring ownership under work units, while methodology version remains the release/publish root.
-- Remaining compatibility seams that still traverse broad lifecycle persistence paths are transitional and not long-term ownership contracts.
+- The former compatibility seams were removed in the 2026-03-19 refactor implementation (`refactor(methodology): remove lifecycle compatibility seam and finalize version archive flows`).
 - Refactor sequencing and boundary hardening follow:
   - `docs/plans/2026-03-19-methodology-design-runtime-boundary-refactor-plan.md`.

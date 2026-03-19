@@ -8,6 +8,20 @@
 
 **Tech Stack:** TypeScript, Effect (`Context.Tag`, `Layer`), oRPC/Hono API router, Drizzle repositories, TanStack web authoring UI, BMAD architecture artifacts.
 
+## Implementation Status (2026-03-19)
+
+Status: **IMPLEMENTED** on `feat/effect-migration`.
+
+Primary implementation commits:
+- `8c0a93313` — `refactor(methodology): remove lifecycle compatibility seam and finalize version archive flows`
+- `74cbb68b5` — merge of `chore/l1-layers-scaffold` into `feat/effect-migration`
+
+Outcome summary:
+- L1 boundary routing is active for methodology mutation flows.
+- Legacy/lifecycle compatibility seam was removed from active composition (`lifecycle-service.ts` deleted).
+- API routes use L1 boundary services instead of legacy service tags.
+- Version CRUD and archive-not-delete behavior verified through targeted web/API/L1 test suites and scoped build.
+
 ---
 
 ### Task 1: Lock Canonical Architecture Wording (Docs First)
@@ -92,15 +106,21 @@ Expected: original Story 3.1 outcomes remain intact; divergence is clearly addit
 
 ---
 
-### Task 4: L1/L2/L3 Refactor Execution Skeleton (Planned, Not Yet Executed)
+### Task 4: L1/L2/L3 Refactor Execution Skeleton (Implemented)
 
 **Files:**
-- Future modify: `packages/contracts/src/methodology/version.ts`
-- Future modify: `packages/methodology-engine/src/version-service.ts`
-- Future modify: `packages/methodology-engine/src/lifecycle-service.ts`
-- Future modify: `packages/methodology-engine/src/repository.ts`
-- Future modify: `packages/db/src/methodology-repository.ts`
-- Future modify: `packages/api/src/routers/methodology.ts`
+- Implemented in:
+  - `packages/methodology-engine/src/services/methodology-version-service.ts`
+  - `packages/methodology-engine/src/services/methodology-validation-service.ts`
+  - `packages/methodology-engine/src/services/published-methodology-service.ts`
+  - `packages/methodology-engine/src/layers/live.ts`
+  - `packages/methodology-engine/src/index.ts`
+  - `packages/methodology-engine/src/version-service.ts`
+  - `packages/methodology-engine/src/repository.ts`
+  - `packages/db/src/methodology-repository.ts`
+  - `packages/api/src/routers/methodology.ts`
+  - `packages/api/src/routers/project.ts`
+  - `packages/api/src/routers/index.ts`
 
 **Step 1: L1 service boundary plan (version-level only)**
 
@@ -156,7 +176,7 @@ Before implementation of each layer, add failing tests specific to that layer:
 
 ---
 
-### Task 5: Verification and Handoff
+### Task 5: Verification and Handoff (Completed)
 
 **Files:**
 - Modify: `docs/plans/2026-03-19-methodology-design-runtime-boundary-refactor-plan.md` (checklist updates)
@@ -184,3 +204,9 @@ Run:
 `git commit -m "docs(architecture): lock design-time/runtime ownership boundaries"`
 
 Expected: one coherent docs commit, ready for subsequent L1/L2 implementation sessions.
+
+Observed completion evidence (2026-03-19):
+- `packages/methodology-engine` L1 characterization and boundary tests: pass.
+- `packages/api/src/tests/routers/methodology.test.ts`: pass (44/44).
+- `apps/web/src/tests/routes/methodologies.$methodologyId.integration.test.tsx`: pass (3/3).
+- `bunx turbo -F @chiron/api -F @chiron/methodology-engine -F web build`: pass.
