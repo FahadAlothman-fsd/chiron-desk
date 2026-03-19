@@ -282,10 +282,11 @@ describe("methodology version work units l1 route", () => {
     fireEvent.change(screen.getByLabelText("Description"), {
       target: { value: "Operator-facing work unit summary." },
     });
-    fireEvent.click(screen.getByRole("combobox", { name: "Cardinality" }));
-    const onePerProjectOption = await screen.findByRole("option", { name: "one_per_project" });
-    fireEvent.mouseMove(onePerProjectOption);
-    fireEvent.click(onePerProjectOption);
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /One per project Limit this work unit to a single instance per project lifecycle\./,
+      }),
+    );
     fireEvent.click(screen.getByRole("button", { name: /Guidance/ }));
 
     expect(await screen.findByLabelText("Human Guidance")).toBeTruthy();
@@ -337,8 +338,13 @@ describe("methodology version work units l1 route", () => {
     expect(
       screen.getByDisplayValue("Collect intake guidance and initial operator context."),
     ).toBeTruthy();
-    const cardinalitySelect = screen.getByRole("combobox", { name: "Cardinality" });
-    expect(cardinalitySelect.textContent).toContain("many_per_project");
+    expect(
+      screen
+        .getByRole("button", {
+          name: /Many per project Create multiple instances of this work unit in a project lifecycle\./,
+        })
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
 
     fireEvent.click(screen.getByRole("button", { name: /Guidance/ }));
 

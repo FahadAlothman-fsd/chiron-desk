@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import { Layers3Icon, RectangleHorizontalIcon } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { z } from "zod";
 
 import {
@@ -12,13 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { WorkUnitsGraphView } from "@/features/methodologies/work-units-graph-view";
 import {
   deriveActiveWorkUnit,
@@ -291,6 +287,7 @@ export function MethodologyVersionWorkUnitsRoute() {
 
       closeCreateDialog();
       updateSearch({ selected: nextKey });
+      toast.success(isEditMode ? "Work unit updated." : "Work unit created.");
     } catch {
       setCreateError(
         isEditMode
@@ -504,32 +501,67 @@ export function MethodologyVersionWorkUnitsRoute() {
                 />
               </label>
 
-              <label htmlFor="new-work-unit-cardinality" className="grid gap-1 text-xs">
-                <span>Cardinality</span>
-                <Select
-                  value={newWorkUnitCardinality}
-                  onValueChange={(value) => {
-                    if (value === "one_per_project" || value === "many_per_project") {
-                      setNewWorkUnitCardinality(value);
-                    }
-                    if (createError) {
-                      setCreateError(null);
-                    }
-                  }}
-                >
-                  <SelectTrigger
-                    id="new-work-unit-cardinality"
-                    aria-label="Cardinality"
-                    className="h-8 w-full rounded-none text-xs"
+              <fieldset className="grid gap-2 text-xs" aria-label="Cardinality">
+                <legend className="text-xs">Cardinality</legend>
+                <div className="grid gap-2 md:grid-cols-2">
+                  <button
+                    type="button"
+                    className={[
+                      "rounded-none border p-3 text-left transition-colors",
+                      newWorkUnitCardinality === "many_per_project"
+                        ? "border-primary bg-primary/10"
+                        : "border-border/70 hover:bg-accent/40",
+                    ].join(" ")}
+                    aria-pressed={newWorkUnitCardinality === "many_per_project"}
+                    onClick={() => {
+                      setNewWorkUnitCardinality("many_per_project");
+                      if (createError) {
+                        setCreateError(null);
+                      }
+                    }}
                   >
-                    <SelectValue placeholder="Select cardinality" />
-                  </SelectTrigger>
-                  <SelectContent align="start" className="rounded-none border-border/70 text-xs">
-                    <SelectItem value="many_per_project">many_per_project</SelectItem>
-                    <SelectItem value="one_per_project">one_per_project</SelectItem>
-                  </SelectContent>
-                </Select>
-              </label>
+                    <Card className="rounded-none border-0 bg-transparent shadow-none">
+                      <CardHeader className="p-0">
+                        <CardTitle className="flex items-center gap-2 text-sm">
+                          <Layers3Icon className="size-4" aria-hidden="true" />
+                          Many per project
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-0 pt-1 text-xs text-muted-foreground">
+                        Create multiple instances of this work unit in a project lifecycle.
+                      </CardContent>
+                    </Card>
+                  </button>
+                  <button
+                    type="button"
+                    className={[
+                      "rounded-none border p-3 text-left transition-colors",
+                      newWorkUnitCardinality === "one_per_project"
+                        ? "border-primary bg-primary/10"
+                        : "border-border/70 hover:bg-accent/40",
+                    ].join(" ")}
+                    aria-pressed={newWorkUnitCardinality === "one_per_project"}
+                    onClick={() => {
+                      setNewWorkUnitCardinality("one_per_project");
+                      if (createError) {
+                        setCreateError(null);
+                      }
+                    }}
+                  >
+                    <Card className="rounded-none border-0 bg-transparent shadow-none">
+                      <CardHeader className="p-0">
+                        <CardTitle className="flex items-center gap-2 text-sm">
+                          <RectangleHorizontalIcon className="size-4" aria-hidden="true" />
+                          One per project
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-0 pt-1 text-xs text-muted-foreground">
+                        Limit this work unit to a single instance per project lifecycle.
+                      </CardContent>
+                    </Card>
+                  </button>
+                </div>
+              </fieldset>
             </>
           ) : (
             <>
