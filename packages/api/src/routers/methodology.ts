@@ -2,6 +2,7 @@ import { ORPCError } from "@orpc/server";
 import {
   MethodologyRepository,
   MethodologyVersionService,
+  MethodologyVersionBoundaryService,
   type MethodologyVersionRow,
   type MethodologyVersionEventRow,
   type MethodologyError,
@@ -988,7 +989,7 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
       const result = await runEffect(
         serviceLayer,
         Effect.gen(function* () {
-          const svc = yield* MethodologyVersionService;
+          const svc = yield* MethodologyVersionBoundaryService;
           return yield* svc.createFact(factPayload, actorId);
         }),
       );
@@ -1010,7 +1011,7 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
       const result = await runEffect(
         serviceLayer,
         Effect.gen(function* () {
-          const svc = yield* MethodologyVersionService;
+          const svc = yield* MethodologyVersionBoundaryService;
           return yield* svc.updateFact(factPayload, actorId);
         }),
       );
@@ -1031,7 +1032,7 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
       const result = await runEffect(
         serviceLayer,
         Effect.gen(function* () {
-          const svc = yield* MethodologyVersionService;
+          const svc = yield* MethodologyVersionBoundaryService;
           return yield* svc.deleteFact(factPayload, actorId);
         }),
       );
@@ -1062,7 +1063,7 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
       const result = await runEffect(
         serviceLayer,
         Effect.gen(function* () {
-          const svc = yield* LifecycleService;
+          const svc = yield* MethodologyVersionBoundaryService;
           return yield* svc.createAgent(agentPayload, actorId);
         }),
       );
@@ -1091,8 +1092,8 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
         const result = await runEffect(
           serviceLayer,
           Effect.gen(function* () {
-            const svc = yield* LifecycleService;
-            return yield* svc.createWorkUnit(workUnitPayload, actorId);
+            const svc = yield* MethodologyVersionBoundaryService;
+            return yield* svc.createWorkUnitMetadata(workUnitPayload, actorId);
           }),
         );
 
@@ -1121,8 +1122,8 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
         const result = await runEffect(
           serviceLayer,
           Effect.gen(function* () {
-            const svc = yield* LifecycleService;
-            return yield* svc.updateWorkUnit(workUnitPayload, actorId);
+            const svc = yield* MethodologyVersionBoundaryService;
+            return yield* svc.updateWorkUnitMetadata(workUnitPayload, actorId);
           }),
         );
 
@@ -1153,7 +1154,7 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
       const result = await runEffect(
         serviceLayer,
         Effect.gen(function* () {
-          const svc = yield* LifecycleService;
+          const svc = yield* MethodologyVersionBoundaryService;
           return yield* svc.updateAgent(agentPayload, actorId);
         }),
       );
@@ -1174,7 +1175,7 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
       const result = await runEffect(
         serviceLayer,
         Effect.gen(function* () {
-          const svc = yield* LifecycleService;
+          const svc = yield* MethodologyVersionBoundaryService;
           return yield* svc.deleteAgent(agentPayload, actorId);
         }),
       );
@@ -1197,7 +1198,7 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
         const result = await runEffect(
           serviceLayer,
           Effect.gen(function* () {
-            const svc = yield* MethodologyVersionService;
+            const svc = yield* MethodologyVersionBoundaryService;
             return yield* svc.createDependencyDefinition(dependencyPayload, actorId);
           }),
         );
@@ -1221,7 +1222,7 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
         const result = await runEffect(
           serviceLayer,
           Effect.gen(function* () {
-            const svc = yield* MethodologyVersionService;
+            const svc = yield* MethodologyVersionBoundaryService;
             return yield* svc.updateDependencyDefinition(dependencyPayload, actorId);
           }),
         );
@@ -1244,7 +1245,7 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
         const result = await runEffect(
           serviceLayer,
           Effect.gen(function* () {
-            const svc = yield* MethodologyVersionService;
+            const svc = yield* MethodologyVersionBoundaryService;
             return yield* svc.deleteDependencyDefinition(dependencyPayload, actorId);
           }),
         );

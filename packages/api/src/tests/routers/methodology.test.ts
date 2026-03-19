@@ -5,6 +5,7 @@ import {
   MethodologyRepository,
   MethodologyVersionService,
   MethodologyVersionServiceLive,
+  MethodologyVersionBoundaryServiceLive,
   LifecycleService,
   LifecycleServiceLive,
   LifecycleRepository,
@@ -804,6 +805,13 @@ function makeServiceLayer() {
         displayName: typeof agentType.displayName === "string" ? agentType.displayName : null,
         description: typeof agentType.description === "string" ? agentType.description : null,
         persona: typeof agentType.persona === "string" ? agentType.persona : "",
+        promptTemplateJson:
+          typeof agentType.promptTemplate === "object" && agentType.promptTemplate !== null
+            ? agentType.promptTemplate
+            : typeof agentType.persona === "string"
+              ? { markdown: agentType.persona }
+              : null,
+        promptTemplateVersion: 1,
         defaultModelJson:
           typeof agentType.defaultModel === "object" && agentType.defaultModel !== null
             ? agentType.defaultModel
@@ -929,9 +937,13 @@ function makeServiceLayer() {
   const projectRepo = repo as ProjectContextRepository["Type"];
   const projectContextRepoLayer = Layer.succeed(ProjectContextRepository, projectRepo);
   const allRepos = Layer.mergeAll(repoLayer, lifecycleRepoLayer, projectContextRepoLayer);
-  return Layer.mergeAll(
+  const legacyServices = Layer.mergeAll(
     Layer.provide(Layer.effect(MethodologyVersionService, MethodologyVersionServiceLive), allRepos),
     Layer.provide(Layer.effect(LifecycleService, LifecycleServiceLive), allRepos),
+  );
+  return Layer.mergeAll(
+    legacyServices,
+    Layer.provide(MethodologyVersionBoundaryServiceLive, legacyServices),
     Layer.provide(Layer.effect(EligibilityService, EligibilityServiceLive), allRepos),
     Layer.provide(ProjectContextServiceLive, allRepos),
   );
@@ -2285,11 +2297,11 @@ describe("methodology router", () => {
         AUTHENTICATED_CTX,
       );
 
-      const result = await call(
+      const result = (await call(
         router.version.workspace.get,
         { versionId: created.version.id },
         PUBLIC_CTX,
-      );
+      )) as Record<string, unknown>;
 
       expect(result.id).toBe(created.version.id);
       expect(result.displayName).toBe("Workspace Bootstrap");
