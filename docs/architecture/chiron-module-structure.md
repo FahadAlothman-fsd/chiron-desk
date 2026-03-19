@@ -1,6 +1,6 @@
 # Chiron Module Structure (Canonical)
 
-> **Last Updated:** 2026-02-08
+> **Last Updated:** 2026-03-19
 
 This document freezes the module boundaries, ownership, and execution model for Chiron. It is the source of truth for module names, responsibilities, step-type mapping, and concurrency architecture.
 
@@ -152,6 +152,13 @@ Design-time ownership is locked as:
 - `Workflow` owns steps and edges within its parent work unit scope.
 
 Compatibility read models may expose flattened version-level workflow indexes for legacy callers, but those are projections only and are not write-authoritative sources.
+
+### Layered boundary implementation status (2026-03-19)
+
+- L1 service boundary is implemented in `@chiron/methodology-engine` via `MethodologyVersionBoundaryService` and companion L1 services.
+- Legacy lifecycle compatibility seam (`lifecycle-service.ts`) is removed from the active design-time path.
+- API methodology and project routers now resolve methodology mutations through L1 boundary services instead of legacy/lifecycle direct injections.
+- Version and catalog destructive actions remain archive-first (soft-delete semantics), not hard-delete.
 
 ## Runtime Boundary Lock
 

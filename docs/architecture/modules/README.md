@@ -1,6 +1,6 @@
 # Module Design Docs
 
-**Last Updated:** 2026-02-12  
+**Last Updated:** 2026-03-19  
 **Status:** Active
 
 These docs define the detailed design for modules that are scaffold-only or underdesigned.
@@ -52,6 +52,13 @@ These docs define the detailed design for modules that are scaffold-only or unde
 - `methodology version` remains publish/release root.
 - workflow authoring ownership is under `work unit` (not version-root writable collections).
 - transition-workflow bindings are scoped under work-unit transition identity; version-level workflow summaries are compatibility projections only.
+
+### Methodology-engine boundary lock (implemented 2026-03-19)
+
+- L1 boundary ownership is now enforced through `MethodologyVersionBoundaryService` and L1 companion services.
+- Legacy `LifecycleService` compatibility wiring has been removed from active service composition.
+- API routers consume L1 boundary services for methodology mutation flows.
+- Runtime consumers remain projection/contract readers only and must not import design-time mutation or repository seams.
 
 ### Stability disclaimer
 

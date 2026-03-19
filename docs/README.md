@@ -1,6 +1,6 @@
 # Chiron Documentation
 
-**Last Updated:** 2026-03-16  
+**Last Updated:** 2026-03-19  
 **Status:** Active canonical index
 
 ## Source Of Truth
@@ -10,11 +10,14 @@ Use these files for current architecture and planning decisions.
 - `docs/architecture/epic-3-authority.md` - Epic 3 routing authority, promotion status, stale-doc handling, and precedence rules
 - `docs/architecture/chiron-module-structure.md` - Module boundaries and execution model
 - `docs/architecture/modules/README.md` - Detailed module design docs for scaffold-only and underdesigned packages
+- `docs/plans/2026-03-19-methodology-design-runtime-boundary-refactor-plan.md` - Implemented L1/L2/L3 methodology boundary refactor record and verification evidence
 - `_bmad-output/planning-artifacts/ux-design-specification.md` - Canonical UX implementation contract and visual direction
 - `_bmad-output/planning-artifacts/reset-baseline-checklist.md` - Canonical reset/setup decisions before sprint planning
 - `_bmad-output/planning-artifacts/epics.md` - Current epic planning status, sequencing, and story-level acceptance criteria, not surface-level contract authority
 
 For Epic 3 work, start with `docs/architecture/epic-3-authority.md`, then follow the stable `docs/architecture/...` path it lists for the surface you are changing. Use dated plans only when that authority doc says a surface has not been promoted yet.
+
+Methodology-engine update (2026-03-19): the lifecycle/legacy compatibility seam was removed, API routing is boundary-first through L1 services, and version CRUD keeps archive-not-delete behavior for version/catalog flows.
 
 ## Active Supporting Docs
 
