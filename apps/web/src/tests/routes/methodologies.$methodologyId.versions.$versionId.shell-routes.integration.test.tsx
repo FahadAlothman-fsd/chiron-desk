@@ -57,7 +57,7 @@ function createRouteContext(options?: {
         {
           key: "agent.research",
           displayName: "Research Agent",
-          persona: "Thorough reviewer",
+          promptTemplate: { markdown: "Thorough reviewer" },
         },
       ],
       linkTypeDefinitions: [{ key: "link.requires", name: "Requires" }],
@@ -393,7 +393,9 @@ describe("methodology version shell routes", () => {
       target: { value: "Reviews outputs" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Guidance" }));
-    fireEvent.change(screen.getByLabelText("Persona"), { target: { value: "Thorough reviewer" } });
+    fireEvent.change(screen.getByLabelText("System Prompt (Markdown)"), {
+      target: { value: "Thorough reviewer" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Create Agent" }));
 
     await waitFor(() => expect(routeContext.createAgentMock).toHaveBeenCalledTimes(1));
@@ -424,10 +426,45 @@ describe("methodology version shell routes", () => {
       target: { value: "Reviews outputs" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Guidance" }));
-    fireEvent.change(screen.getByLabelText("Persona"), { target: { value: "Thorough reviewer" } });
+    fireEvent.change(screen.getByLabelText("System Prompt (Markdown)"), {
+      target: { value: "Thorough reviewer" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Advanced (Deferred)" }));
+    expect(
+      screen.getByText(
+        "Advanced runtime settings are deferred in v1; this raw JSON editor is temporary.",
+      ),
+    ).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Advanced JSON"), {
+      target: {
+        value: "{ invalid",
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create Agent" }));
+
+    expect(routeContext.createAgentMock).toHaveBeenCalledTimes(0);
+    expect(screen.getByText("Advanced JSON must be valid JSON before saving.")).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("Advanced JSON"), {
+      target: {
+        value:
+          '{"defaultModel":{"provider":"openai","model":"gpt-5"},"mcpServers":["filesystem","github"],"capabilities":["reasoning","tool-use"]}',
+      },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Create Agent" }));
 
     await waitFor(() => expect(routeContext.createAgentMock).toHaveBeenCalledTimes(1));
+    expect(routeContext.createAgentMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agent: expect.objectContaining({
+          defaultModel: { provider: "openai", model: "gpt-5" },
+          mcpServers: ["filesystem", "github"],
+          capabilities: ["reasoning", "tool-use"],
+        }),
+      }),
+      expect.anything(),
+    );
   });
 
   it("updates an agent through version.agent.update", async () => {

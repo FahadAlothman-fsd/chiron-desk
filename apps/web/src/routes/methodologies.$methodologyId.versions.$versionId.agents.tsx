@@ -14,6 +14,74 @@ const agentsSearchSchema = z.object({
 
 type AgentsSearch = z.infer<typeof agentsSearchSchema>;
 
+const deferredAgentAdvancedSchema = z
+  .object({
+    defaultModel: z
+      .object({
+        provider: z.string().min(1),
+        model: z.string().min(1),
+      })
+      .optional(),
+    mcpServers: z.array(z.string().min(1)).optional(),
+    capabilities: z.array(z.string().min(1)).optional(),
+  })
+  .strict();
+
+type DeferredAgentAdvanced = z.infer<typeof deferredAgentAdvancedSchema>;
+
+type DraftAgent = {
+  key?: string;
+  displayName?: string;
+  description?: string;
+  persona?: string;
+  promptTemplate?: { markdown?: string };
+  defaultModel?: unknown;
+  mcpServers?: unknown;
+  capabilities?: unknown;
+};
+
+const emptyAdvancedPayload = "{}";
+
+function stableJson(value: unknown): string {
+  return JSON.stringify(value, null, 2);
+}
+
+function parseAdvancedJson(
+  raw: string,
+): { ok: true; value: DeferredAgentAdvanced } | { ok: false; message: string } {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) {
+    return { ok: true, value: {} };
+  }
+
+  const parsed = z
+    .string()
+    .transform((value, context) => {
+      try {
+        return JSON.parse(value) as unknown;
+      } catch {
+        context.addIssue({ code: "custom", message: "json_parse_failed" });
+        return z.NEVER;
+      }
+    })
+    .safeParse(trimmed);
+
+  if (!parsed.success) {
+    return { ok: false, message: "Advanced JSON must be valid JSON before saving." };
+  }
+
+  const validated = deferredAgentAdvancedSchema.safeParse(parsed.data);
+  if (!validated.success) {
+    return {
+      ok: false,
+      message:
+        "Advanced JSON must include only defaultModel, mcpServers (string[]), and capabilities (string[]).",
+    };
+  }
+
+  return { ok: true, value: validated.data };
+}
+
 export const Route = createFileRoute("/methodologies/$methodologyId/versions/$versionId/agents")({
   validateSearch: (search): AgentsSearch => agentsSearchSchema.parse(search),
   component: MethodologyVersionAgentsRoute,
@@ -29,17 +97,22 @@ export function MethodologyVersionAgentsRoute() {
   const [isAgentEditorOpen, setIsAgentEditorOpen] = useState(false);
   const [editingAgentKey, setEditingAgentKey] = useState<string | null>(null);
   const [deletingAgentKey, setDeletingAgentKey] = useState<string | null>(null);
-  const [agentEditorTab, setAgentEditorTab] = useState<"contract" | "guidance">("contract");
+  const [agentEditorTab, setAgentEditorTab] = useState<"contract" | "guidance" | "advanced">(
+    "contract",
+  );
   const [pendingCloseAgentEditor, setPendingCloseAgentEditor] = useState(false);
   const [agentKey, setAgentKey] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [description, setDescription] = useState("");
-  const [persona, setPersona] = useState("");
+  const [systemPromptMarkdown, setSystemPromptMarkdown] = useState("");
+  const [advancedJson, setAdvancedJson] = useState(emptyAdvancedPayload);
+  const [advancedJsonError, setAdvancedJsonError] = useState<string | null>(null);
   const [initialAgentFormValues, setInitialAgentFormValues] = useState({
     agentKey: "",
     displayName: "",
     description: "",
-    persona: "",
+    systemPromptMarkdown: "",
+    advancedJson: emptyAdvancedPayload,
   });
 
   const draftQuery = useQuery(
@@ -95,37 +168,41 @@ export function MethodologyVersionAgentsRoute() {
     }),
   );
 
-  const agentTypes =
+  const agentTypes: DraftAgent[] =
     draftQuery.data &&
     typeof draftQuery.data === "object" &&
     "agentTypes" in draftQuery.data &&
     Array.isArray(draftQuery.data.agentTypes)
-      ? draftQuery.data.agentTypes
+      ? (draftQuery.data.agentTypes as DraftAgent[])
       : [];
 
   const trimmedAgentKey = agentKey.trim();
   const trimmedDisplayName = displayName.trim();
   const trimmedDescription = description.trim();
-  const trimmedPersona = persona.trim();
-  const isAgentEditorValid = trimmedAgentKey.length > 0 && trimmedPersona.length > 0;
+  const trimmedSystemPromptMarkdown = systemPromptMarkdown.trim();
+  const isAgentEditorValid = trimmedAgentKey.length > 0 && trimmedSystemPromptMarkdown.length > 0;
 
   const isContractTabDirty =
     agentKey !== initialAgentFormValues.agentKey ||
     displayName !== initialAgentFormValues.displayName ||
     description !== initialAgentFormValues.description;
-  const isGuidanceTabDirty = persona !== initialAgentFormValues.persona;
-  const isAgentEditorDirty = isContractTabDirty || isGuidanceTabDirty;
+  const isGuidanceTabDirty = systemPromptMarkdown !== initialAgentFormValues.systemPromptMarkdown;
+  const isAdvancedTabDirty = advancedJson !== initialAgentFormValues.advancedJson;
+  const isAgentEditorDirty = isContractTabDirty || isGuidanceTabDirty || isAdvancedTabDirty;
 
   function resetAgentFormState() {
     setAgentKey("");
     setDisplayName("");
     setDescription("");
-    setPersona("");
+    setSystemPromptMarkdown("");
+    setAdvancedJson(emptyAdvancedPayload);
+    setAdvancedJsonError(null);
     setInitialAgentFormValues({
       agentKey: "",
       displayName: "",
       description: "",
-      persona: "",
+      systemPromptMarkdown: "",
+      advancedJson: emptyAdvancedPayload,
     });
     setAgentEditorTab("contract");
   }
@@ -159,37 +236,59 @@ export function MethodologyVersionAgentsRoute() {
       return;
     }
 
+    const advancedParse = parseAdvancedJson(advancedJson);
+    if (!advancedParse.ok) {
+      setAgentEditorTab("advanced");
+      setAdvancedJsonError(advancedParse.message);
+      return;
+    }
+
+    setAdvancedJsonError(null);
+
     createAgentMutation.mutate({
       versionId,
       agent: {
         key: trimmedAgentKey,
         displayName: trimmedDisplayName,
         description: trimmedDescription,
-        persona: trimmedPersona,
+        promptTemplate: { markdown: trimmedSystemPromptMarkdown },
+        ...(advancedParse.value.defaultModel
+          ? { defaultModel: advancedParse.value.defaultModel }
+          : {}),
+        ...(advancedParse.value.mcpServers ? { mcpServers: advancedParse.value.mcpServers } : {}),
+        ...(advancedParse.value.capabilities
+          ? { capabilities: advancedParse.value.capabilities }
+          : {}),
       },
     });
   }
 
-  function openEditAgent(agent: {
-    key?: string;
-    displayName?: string;
-    description?: string;
-    persona?: string;
-  }) {
+  function openEditAgent(agent: DraftAgent) {
     const nextAgentKey = agent.key ?? "";
     const nextDisplayName = agent.displayName ?? "";
     const nextDescription = agent.description ?? "";
-    const nextPersona = agent.persona ?? "";
+    const nextSystemPromptMarkdown =
+      (typeof agent.promptTemplate?.markdown === "string" ? agent.promptTemplate.markdown : null) ??
+      agent.persona ??
+      "";
+    const nextAdvanced = stableJson({
+      ...(agent.defaultModel ? { defaultModel: agent.defaultModel } : {}),
+      ...(Array.isArray(agent.mcpServers) ? { mcpServers: agent.mcpServers } : {}),
+      ...(Array.isArray(agent.capabilities) ? { capabilities: agent.capabilities } : {}),
+    });
     setEditingAgentKey(agent.key ?? null);
     setAgentKey(nextAgentKey);
     setDisplayName(nextDisplayName);
     setDescription(nextDescription);
-    setPersona(nextPersona);
+    setSystemPromptMarkdown(nextSystemPromptMarkdown);
+    setAdvancedJson(nextAdvanced);
+    setAdvancedJsonError(null);
     setInitialAgentFormValues({
       agentKey: nextAgentKey,
       displayName: nextDisplayName,
       description: nextDescription,
-      persona: nextPersona,
+      systemPromptMarkdown: nextSystemPromptMarkdown,
+      advancedJson: nextAdvanced,
     });
     setAgentEditorTab("contract");
     setIsAgentEditorOpen(true);
@@ -200,6 +299,15 @@ export function MethodologyVersionAgentsRoute() {
       return;
     }
 
+    const advancedParse = parseAdvancedJson(advancedJson);
+    if (!advancedParse.ok) {
+      setAgentEditorTab("advanced");
+      setAdvancedJsonError(advancedParse.message);
+      return;
+    }
+
+    setAdvancedJsonError(null);
+
     updateAgentMutation.mutate({
       versionId,
       agentKey: editingAgentKey,
@@ -207,7 +315,14 @@ export function MethodologyVersionAgentsRoute() {
         key: trimmedAgentKey,
         displayName: trimmedDisplayName,
         description: trimmedDescription,
-        persona: trimmedPersona,
+        promptTemplate: { markdown: trimmedSystemPromptMarkdown },
+        ...(advancedParse.value.defaultModel
+          ? { defaultModel: advancedParse.value.defaultModel }
+          : {}),
+        ...(advancedParse.value.mcpServers ? { mcpServers: advancedParse.value.mcpServers } : {}),
+        ...(advancedParse.value.capabilities
+          ? { capabilities: advancedParse.value.capabilities }
+          : {}),
       },
     });
   }
@@ -349,7 +464,7 @@ export function MethodologyVersionAgentsRoute() {
             </DialogPrimitive.Title>
             <DialogPrimitive.Description className="mt-2 text-xs text-muted-foreground">
               {editingAgentKey
-                ? "Update metadata and persona guidance while preserving methodology context."
+                ? "Update metadata and system prompt guidance while preserving methodology context."
                 : "Define an agent shell for this draft version."}
             </DialogPrimitive.Description>
 
@@ -376,6 +491,18 @@ export function MethodologyVersionAgentsRoute() {
                 Guidance{" "}
                 {isGuidanceTabDirty ? (
                   <span data-testid="agent-guidance-modified-indicator">*</span>
+                ) : null}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={agentEditorTab === "advanced" ? "default" : "outline"}
+                className="rounded-none"
+                onClick={() => setAgentEditorTab("advanced")}
+              >
+                Advanced (Deferred){" "}
+                {isAdvancedTabDirty ? (
+                  <span data-testid="agent-advanced-modified-indicator">*</span>
                 ) : null}
               </Button>
             </div>
@@ -407,16 +534,39 @@ export function MethodologyVersionAgentsRoute() {
                   />
                 </label>
               </div>
-            ) : (
+            ) : agentEditorTab === "guidance" ? (
               <div className="mt-4 space-y-3">
                 <label className="grid gap-1 text-sm">
-                  <span>Persona</span>
+                  <span>System Prompt (Markdown)</span>
                   <textarea
-                    value={persona}
-                    onChange={(event) => setPersona(event.target.value)}
+                    value={systemPromptMarkdown}
+                    onChange={(event) => setSystemPromptMarkdown(event.target.value)}
                     className="border border-border bg-background px-2 py-1"
                   />
                 </label>
+              </div>
+            ) : (
+              <div className="mt-4 space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  Advanced runtime settings are deferred in v1; this raw JSON editor is temporary.
+                </p>
+                <label className="grid gap-1 text-sm">
+                  <span>Advanced JSON</span>
+                  <textarea
+                    aria-label="Advanced JSON"
+                    value={advancedJson}
+                    onChange={(event) => {
+                      setAdvancedJson(event.target.value);
+                      if (advancedJsonError) {
+                        setAdvancedJsonError(null);
+                      }
+                    }}
+                    className="min-h-[220px] border border-border bg-background px-2 py-1 font-mono text-xs"
+                  />
+                </label>
+                {advancedJsonError ? (
+                  <p className="text-xs text-destructive">{advancedJsonError}</p>
+                ) : null}
               </div>
             )}
 
@@ -432,8 +582,10 @@ export function MethodologyVersionAgentsRoute() {
                 {editingAgentKey ? "Save Agent Changes" : "Create Agent"}
               </Button>
             </div>
-            {trimmedPersona.length === 0 ? (
-              <p className="mt-2 text-xs text-destructive">Persona is required before saving.</p>
+            {trimmedSystemPromptMarkdown.length === 0 ? (
+              <p className="mt-2 text-xs text-destructive">
+                System prompt markdown is required before saving.
+              </p>
             ) : null}
           </DialogPrimitive.Popup>
         </DialogPrimitive.Portal>
