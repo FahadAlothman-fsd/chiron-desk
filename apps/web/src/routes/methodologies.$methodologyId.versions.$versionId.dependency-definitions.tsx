@@ -1,7 +1,9 @@
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
+import { AlertTriangleIcon } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { z } from "zod";
 
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -74,6 +76,7 @@ export function MethodologyVersionDependencyDefinitionsRoute() {
             input: { versionId },
           }).queryKey,
         });
+        toast.success("Link type created");
         closeDependencyEditor();
       },
     }),
@@ -87,6 +90,7 @@ export function MethodologyVersionDependencyDefinitionsRoute() {
             input: { versionId },
           }).queryKey,
         });
+        toast.success("Link type updated");
         closeDependencyEditor();
       },
     }),
@@ -100,6 +104,7 @@ export function MethodologyVersionDependencyDefinitionsRoute() {
             input: { versionId },
           }).queryKey,
         });
+        toast.success("Link type deleted");
         setDeletingDependencyKey(null);
       },
     }),
@@ -540,12 +545,19 @@ export function MethodologyVersionDependencyDefinitionsRoute() {
       >
         <DialogPrimitive.Portal>
           <DialogPrimitive.Backdrop className="fixed inset-0 bg-black/70" />
-          <DialogPrimitive.Popup className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 border border-border bg-background p-4 shadow-2xl">
-            <DialogPrimitive.Title className="text-sm font-semibold uppercase tracking-[0.18em]">
+          <DialogPrimitive.Popup className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 border border-destructive/50 bg-background p-4 shadow-2xl">
+            <div className="mb-3 flex items-center gap-2 text-destructive">
+              <AlertTriangleIcon className="size-4" />
+              <span className="text-[0.65rem] font-semibold uppercase tracking-[0.18em]">
+                Destructive action
+              </span>
+            </div>
+            <DialogPrimitive.Title className="text-sm font-semibold uppercase tracking-[0.18em] text-destructive">
               Delete Link Type
             </DialogPrimitive.Title>
-            <p className="mt-3 text-sm text-muted-foreground">
-              Remove this link type definition from the current draft version.
+            <p className="mt-3 border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+              This will permanently remove this link type definition from this draft version.
+              Existing transitions that reference this key may need to be updated.
             </p>
             <div className="mt-4 flex justify-end gap-2">
               <Button
@@ -555,8 +567,12 @@ export function MethodologyVersionDependencyDefinitionsRoute() {
               >
                 Cancel
               </Button>
-              <Button className="rounded-none" onClick={confirmDeleteDependencyDefinition}>
-                Confirm Delete Link Type
+              <Button
+                variant="destructive"
+                className="rounded-none"
+                onClick={confirmDeleteDependencyDefinition}
+              >
+                Delete Link Type Permanently
               </Button>
             </div>
           </DialogPrimitive.Popup>

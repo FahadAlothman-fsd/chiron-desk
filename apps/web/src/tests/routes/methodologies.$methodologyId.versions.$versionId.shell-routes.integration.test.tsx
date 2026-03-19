@@ -578,7 +578,7 @@ describe("methodology version shell routes", () => {
     renderWithQueryClient(<MethodologyVersionDependencyDefinitionsRoute />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Delete link.requires" }));
-    fireEvent.click(screen.getByRole("button", { name: "Confirm Delete Link Type" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete Link Type Permanently" }));
 
     await waitFor(() =>
       expect(routeContext.deleteDependencyDefinitionMock).toHaveBeenCalledTimes(1),
