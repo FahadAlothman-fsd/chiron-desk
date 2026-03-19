@@ -125,6 +125,8 @@ function toAgentTypeRow(row: typeof methodologyAgentTypes.$inferSelect): AgentTy
     displayName: row.displayName,
     description: row.description,
     persona: row.persona,
+    promptTemplateJson: row.promptTemplateJson,
+    promptTemplateVersion: row.promptTemplateVersion,
     defaultModelJson: row.defaultModelJson,
     mcpServersJson: row.mcpServersJson,
     capabilitiesJson: row.capabilitiesJson,
@@ -454,12 +456,15 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
           }
 
           for (const agent of params.agentTypes) {
+            const promptMarkdown = agent.promptTemplate?.markdown ?? agent.persona;
             await tx.insert(methodologyAgentTypes).values({
               methodologyVersionId: params.versionId,
               key: agent.key,
               displayName: agent.displayName ?? null,
               description: agent.description ?? null,
               persona: agent.persona,
+              promptTemplateJson: { markdown: promptMarkdown },
+              promptTemplateVersion: 1,
               defaultModelJson: agent.defaultModel ?? null,
               mcpServersJson: agent.mcpServers ?? null,
               capabilitiesJson: agent.capabilities ?? null,

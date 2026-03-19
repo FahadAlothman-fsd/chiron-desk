@@ -77,6 +77,8 @@ export interface AgentTypeRow {
   displayName: string | null;
   description: string | null;
   persona: string;
+  promptTemplateJson: unknown;
+  promptTemplateVersion: number;
   defaultModelJson: unknown;
   mcpServersJson: unknown;
   capabilitiesJson: unknown;

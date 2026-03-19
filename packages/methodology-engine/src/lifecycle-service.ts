@@ -316,15 +316,27 @@ function loadPreviousLifecycleDefinition(
       })),
     }));
 
-    const agentTypes: AgentTypeDefinition[] = agentTypeRows.map((agentTypeRow) => ({
-      key: agentTypeRow.key,
-      displayName: agentTypeRow.displayName ?? undefined,
-      description: agentTypeRow.description ?? undefined,
-      persona: agentTypeRow.persona,
-      defaultModel: asModelReference(agentTypeRow.defaultModelJson),
-      mcpServers: asStringArray(agentTypeRow.mcpServersJson),
-      capabilities: asStringArray(agentTypeRow.capabilitiesJson),
-    }));
+    const agentTypes: AgentTypeDefinition[] = agentTypeRows.map((agentTypeRow) => {
+      const promptMarkdown =
+        agentTypeRow.promptTemplateJson && typeof agentTypeRow.promptTemplateJson === "object"
+          ? (agentTypeRow.promptTemplateJson as { markdown?: unknown }).markdown
+          : undefined;
+      const resolvedPersona =
+        typeof promptMarkdown === "string" && promptMarkdown.length > 0
+          ? promptMarkdown
+          : agentTypeRow.persona;
+
+      return {
+        key: agentTypeRow.key,
+        displayName: agentTypeRow.displayName ?? undefined,
+        description: agentTypeRow.description ?? undefined,
+        persona: resolvedPersona,
+        promptTemplate: { markdown: resolvedPersona },
+        defaultModel: asModelReference(agentTypeRow.defaultModelJson),
+        mcpServers: asStringArray(agentTypeRow.mcpServersJson),
+        capabilities: asStringArray(agentTypeRow.capabilitiesJson),
+      };
+    });
 
     return { workUnitTypes, agentTypes };
   });
