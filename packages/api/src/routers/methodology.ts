@@ -286,19 +286,47 @@ const modelReferenceSchema = z.object({
   model: z.string().min(1),
 });
 
-const agentTypeSchema = z.object({
+const promptTemplateSchema = z.object({
+  markdown: z.string().min(1),
+});
+
+const lifecycleAgentTypeSchema = z.object({
   key: z.string().min(1),
   displayName: z.string().optional(),
   description: z.string().optional(),
   persona: z.string().min(1),
+  promptTemplate: promptTemplateSchema.optional(),
   defaultModel: modelReferenceSchema.optional(),
   mcpServers: z.array(z.string().min(1)).optional(),
   capabilities: z.array(z.string().min(1)).optional(),
 });
 
+const agentMutationSchema = z
+  .object({
+    key: z.string().min(1),
+    displayName: z.string().optional(),
+    description: z.string().optional(),
+    persona: z.string().min(1).optional(),
+    promptTemplate: promptTemplateSchema.optional(),
+    defaultModel: modelReferenceSchema.optional(),
+    mcpServers: z.array(z.string().min(1)).optional(),
+    capabilities: z.array(z.string().min(1)).optional(),
+  })
+  .superRefine((agent, context) => {
+    const hasPromptTemplate = typeof agent.promptTemplate?.markdown === "string";
+    const hasPersona = typeof agent.persona === "string";
+    if (!hasPromptTemplate && !hasPersona) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["promptTemplate"],
+        message: "Either promptTemplate.markdown or persona is required.",
+      });
+    }
+  });
+
 const createAgentInput = z.object({
   versionId: z.string().min(1),
-  agent: agentTypeSchema,
+  agent: agentMutationSchema,
 });
 
 const createWorkUnitInput = z.object({
@@ -327,7 +355,7 @@ const updateWorkUnitInput = z.object({
 const updateAgentInput = z.object({
   versionId: z.string().min(1),
   agentKey: z.string().min(1),
-  agent: agentTypeSchema,
+  agent: agentMutationSchema,
 });
 
 const deleteAgentInput = z.object({
@@ -354,7 +382,7 @@ const deleteDependencyDefinitionInput = z.object({
 const updateDraftLifecycleInput = z.object({
   versionId: z.string().min(1),
   workUnitTypes: z.array(workUnitTypeSchema),
-  agentTypes: z.array(agentTypeSchema).optional().default([]),
+  agentTypes: z.array(lifecycleAgentTypeSchema).optional().default([]),
 });
 
 const getTransitionEligibilityInput = z.object({
@@ -728,7 +756,28 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
         serviceLayer,
         Effect.gen(function* () {
           const svc = yield* MethodologyVersionService;
-          return yield* svc.getDraftProjection(input.versionId);
+          const projection = yield* svc.getDraftProjection(input.versionId);
+          const projectionRecord = projection as Record<string, unknown>;
+          const agentTypes = Array.isArray(projectionRecord.agentTypes)
+            ? projectionRecord.agentTypes.map((value) => {
+                const agent = value as Record<string, unknown>;
+                const persona = typeof agent.persona === "string" ? agent.persona : undefined;
+                const promptTemplate =
+                  agent.promptTemplate && typeof agent.promptTemplate === "object"
+                    ? agent.promptTemplate
+                    : persona && persona.length > 0
+                      ? { markdown: persona }
+                      : undefined;
+                return {
+                  ...agent,
+                  ...(promptTemplate ? { promptTemplate } : {}),
+                };
+              })
+            : [];
+          return {
+            ...projectionRecord,
+            agentTypes,
+          };
         }),
       );
     }),
@@ -995,9 +1044,19 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
 
     createAgent: protectedProcedure.input(createAgentInput).handler(async ({ input, context }) => {
       const actorId = context.session.user.id;
+      const persona = input.agent.promptTemplate?.markdown ?? input.agent.persona ?? "";
       const agentPayload: CreateMethodologyAgentInput = {
         versionId: input.versionId,
-        agent: input.agent,
+        agent: {
+          key: input.agent.key,
+          displayName: input.agent.displayName,
+          description: input.agent.description,
+          persona,
+          promptTemplate: input.agent.promptTemplate,
+          defaultModel: input.agent.defaultModel,
+          mcpServers: input.agent.mcpServers,
+          capabilities: input.agent.capabilities,
+        },
       };
 
       const result = await runEffect(
@@ -1075,10 +1134,20 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
 
     updateAgent: protectedProcedure.input(updateAgentInput).handler(async ({ input, context }) => {
       const actorId = context.session.user.id;
+      const persona = input.agent.promptTemplate?.markdown ?? input.agent.persona ?? "";
       const agentPayload: UpdateMethodologyAgentInput = {
         versionId: input.versionId,
         agentKey: input.agentKey,
-        agent: input.agent,
+        agent: {
+          key: input.agent.key,
+          displayName: input.agent.displayName,
+          description: input.agent.description,
+          persona,
+          promptTemplate: input.agent.promptTemplate,
+          defaultModel: input.agent.defaultModel,
+          mcpServers: input.agent.mcpServers,
+          capabilities: input.agent.capabilities,
+        },
       };
 
       const result = await runEffect(

@@ -111,6 +111,10 @@ export function createProjectRouter(
     agentTypes?: Array<{
       key: string;
       guidance?: unknown;
+      persona?: string;
+      promptTemplate?: {
+        markdown?: string;
+      };
     }>;
     transitions: ProjectionTransition[];
     transitionWorkflowBindings?: Record<string, string[]>;
@@ -505,7 +509,11 @@ export function createProjectRouter(
                   .map((agentType) => ({
                     agentTypeKey: agentType.key,
                     guidance:
-                      agentType.guidance ?? layeredGuidance?.byAgentType?.[agentType.key] ?? null,
+                      agentType.guidance ??
+                      layeredGuidance?.byAgentType?.[agentType.key] ??
+                      agentType.promptTemplate?.markdown ??
+                      agentType.persona ??
+                      null,
                   }))
                   .sort((a, b) => a.agentTypeKey.localeCompare(b.agentTypeKey)),
                 transitions: (draftProjection?.transitions ?? [])

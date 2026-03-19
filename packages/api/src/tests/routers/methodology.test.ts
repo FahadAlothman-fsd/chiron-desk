@@ -1733,7 +1733,7 @@ describe("methodology router", () => {
             key: "reviewer",
             displayName: "Reviewer",
             description: "Reviews outputs",
-            persona: "Thorough reviewer",
+            promptTemplate: { markdown: "Thorough reviewer" },
           },
         },
         AUTHENTICATED_CTX,
@@ -1750,7 +1750,7 @@ describe("methodology router", () => {
           expect.objectContaining({
             key: "reviewer",
             displayName: "Reviewer",
-            persona: "Thorough reviewer",
+            promptTemplate: { markdown: "Thorough reviewer" },
           }),
         ]),
       );
@@ -1764,7 +1764,7 @@ describe("methodology router", () => {
             key: "reviewer",
             displayName: "Senior Reviewer",
             description: "Reviews outputs carefully",
-            persona: "Senior reviewer",
+            promptTemplate: { markdown: "Senior reviewer" },
           },
         },
         AUTHENTICATED_CTX,
@@ -1781,7 +1781,7 @@ describe("methodology router", () => {
           expect.objectContaining({
             key: "reviewer",
             displayName: "Senior Reviewer",
-            persona: "Senior reviewer",
+            promptTemplate: { markdown: "Senior reviewer" },
           }),
         ]),
       );
@@ -3053,6 +3053,81 @@ describe("methodology router", () => {
 
       const listed = await call(router.listProjects, {}, PUBLIC_CTX);
       expect(listed.some((project) => project.id === createResult.project.id)).toBe(true);
+    });
+
+    it("uses agent persona as projectionSummary guidance fallback", async () => {
+      const serviceLayer = makeServiceLayer();
+      const router = createProjectRouter(serviceLayer);
+      const methodologyRouter = createMethodologyRouter(serviceLayer);
+
+      await call(
+        methodologyRouter.createMethodology,
+        {
+          methodologyKey: "agent-fallback-method",
+          displayName: "Agent Fallback Method",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const draft = await call(
+        methodologyRouter.createDraftVersion,
+        {
+          methodologyKey: "agent-fallback-method",
+          displayName: "Agent Fallback Method",
+          version: "1.0.0",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: [
+            {
+              key: "reviewer",
+              persona: "Review pull requests thoroughly before approval.",
+            },
+          ],
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        methodologyRouter.updateDraftWorkflows,
+        {
+          versionId: draft.version.id,
+          workflows: VALID_DEFINITION.workflows,
+          transitionWorkflowBindings: VALID_DEFINITION.transitionWorkflowBindings,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        methodologyRouter.publishDraftVersion,
+        {
+          versionId: draft.version.id,
+          publishedVersion: "1.0.0",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const createResult = await call(
+        router.createAndPinProject,
+        {
+          methodologyKey: "agent-fallback-method",
+          publishedVersion: "1.0.0",
+          name: "Agent Fallback Project",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const details = await call(
+        router.getProjectDetails,
+        {
+          projectId: createResult.project.id,
+        },
+        PUBLIC_CTX,
+      );
+
+      const reviewer = details.baselinePreview?.projectionSummary.agents.find(
+        (agent) => agent.agentTypeKey === "reviewer",
+      );
+      expect(reviewer?.guidance).toBe("Review pull requests thoroughly before approval.");
     });
 
     it("returns deterministic diagnostics when create+pin targets invalid version", async () => {
