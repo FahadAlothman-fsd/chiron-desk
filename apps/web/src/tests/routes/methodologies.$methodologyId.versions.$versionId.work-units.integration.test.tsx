@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -8,6 +8,7 @@ const {
   useSearchMock,
   useRouteContextMock,
   useNavigateMock,
+  useLocationMock,
   createWorkUnitMutationSpy,
   updateWorkUnitMutationSpy,
 } = vi.hoisted(() => ({
@@ -15,6 +16,7 @@ const {
   useSearchMock: vi.fn(),
   useRouteContextMock: vi.fn(),
   useNavigateMock: vi.fn(),
+  useLocationMock: vi.fn(),
   createWorkUnitMutationSpy: vi.fn(async () => ({
     validation: { valid: true, diagnostics: [] },
   })),
@@ -87,6 +89,7 @@ let draftProjectionState = createDraftProjection();
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children }: { children: ReactNode }) => <a href="/">{children}</a>,
+  Outlet: () => <div data-testid="work-units-nested-outlet">Nested work-unit details route</div>,
   createFileRoute: () => (options: Record<string, unknown>) => ({
     ...options,
     useParams: useParamsMock,
@@ -94,6 +97,7 @@ vi.mock("@tanstack/react-router", () => ({
     useRouteContext: useRouteContextMock,
     useNavigate: () => useNavigateMock,
   }),
+  useLocation: useLocationMock,
 }));
 
 function createRouteContext() {
@@ -140,9 +144,13 @@ beforeEach(() => {
   useSearchMock.mockReset();
   useRouteContextMock.mockReset();
   useNavigateMock.mockReset();
+  useLocationMock.mockReset();
 
   useParamsMock.mockReturnValue({ methodologyId: "equity-core", versionId: "draft-v3" });
   useSearchMock.mockReturnValue({ view: "graph", selected: "WU.INTAKE" });
+  useLocationMock.mockReturnValue({
+    pathname: "/methodologies/equity-core/versions/draft-v3/work-units",
+  });
   useRouteContextMock.mockReturnValue(createRouteContext());
   draftProjectionState = createDraftProjection();
   createWorkUnitMutationSpy.mockClear();
@@ -220,51 +228,42 @@ describe("methodology version work units l1 route", () => {
     });
   });
 
-  it("renders the canonical l1 shell with graph/contracts/diagnostics, right rail, and active summary actions", async () => {
+  it("renders a clear list-only work-units shell", async () => {
     const { MethodologyVersionWorkUnitsRoute } =
       await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
 
     renderWithQueryClient(<MethodologyVersionWorkUnitsRoute />);
 
     expect(await screen.findByPlaceholderText("Search work units...")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Graph" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Contracts" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Diagnostics" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "List" })).toBeNull();
+    expect(await screen.findByRole("columnheader", { name: "Work Unit" })).toBeTruthy();
+    expect(await screen.findByRole("columnheader", { name: "Cardinality" })).toBeTruthy();
+    expect(await screen.findByRole("columnheader", { name: "Human Guidance" })).toBeTruthy();
+    expect(await screen.findByRole("columnheader", { name: "Agent Guidance" })).toBeTruthy();
+    expect(await screen.findByRole("columnheader", { name: "Facts" })).toBeTruthy();
+    expect(await screen.findByRole("columnheader", { name: "Actions" })).toBeTruthy();
+    expect(screen.getByText("Capture the intake packet from the operator.")).toBeTruthy();
+    expect(screen.getByText("Flag any unresolved validation issues.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Graph" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Contracts" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Diagnostics" })).toBeNull();
     expect(screen.getByText("+ Add Work Unit")).toBeTruthy();
-    expect(screen.getByText("ACTIVE WORK UNIT")).toBeTruthy();
-    expect(screen.getByText("key: WU.INTAKE")).toBeTruthy();
-    expect(screen.getByText("Open details")).toBeTruthy();
-    expect(screen.getByText("Open Relationship View")).toBeTruthy();
+    expect(screen.queryByText("ACTIVE WORK UNIT")).toBeNull();
+    expect(screen.queryByText("Open details")).toBeNull();
+    expect(screen.queryByText("Open Relationship View")).toBeNull();
   });
 
-  it("opens the relationship view by switching back to graph mode for the active work unit", async () => {
-    useSearchMock.mockReturnValue({ view: "contracts", selected: "WU.INTAKE" });
-
+  it("renders nested detail outlet when URL is on work-unit child route", async () => {
     const { MethodologyVersionWorkUnitsRoute } =
       await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
 
+    useLocationMock.mockReturnValue({
+      pathname: "/methodologies/equity-core/versions/draft-v3/work-units/WU.VALIDATION",
+    });
+
     renderWithQueryClient(<MethodologyVersionWorkUnitsRoute />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Open Relationship View" }));
-
-    expect(useNavigateMock).toHaveBeenCalledTimes(1);
-
-    const firstCall = useNavigateMock.mock.calls[0] as
-      | [
-          {
-            search?: (previous: {
-              view?: "graph" | "contracts" | "diagnostics";
-              selected?: string;
-            }) => unknown;
-          },
-        ]
-      | undefined;
-
-    expect(firstCall?.[0]?.search?.({ view: "contracts", selected: "WU.INTAKE" })).toEqual({
-      view: "graph",
-      selected: "WU.INTAKE",
-    });
+    expect(await screen.findByTestId("work-units-nested-outlet")).toBeTruthy();
+    expect(screen.queryByPlaceholderText("Search work units...")).toBeNull();
   });
 
   it("navigates to work-unit detail route when selecting a work unit from the list", async () => {
@@ -273,7 +272,13 @@ describe("methodology version work units l1 route", () => {
 
     renderWithQueryClient(<MethodologyVersionWorkUnitsRoute />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /Validation/i }));
+    const validationCell = await screen.findByText("Validation");
+    const validationRow = validationCell.closest("tr");
+    expect(validationRow).not.toBeNull();
+
+    fireEvent.click(
+      within(validationRow as HTMLTableRowElement).getByRole("button", { name: /View details/i }),
+    );
 
     expect(useNavigateMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -285,6 +290,25 @@ describe("methodology version work units l1 route", () => {
         },
       }),
     );
+  });
+
+  it("opens edit dialog from the actions column", async () => {
+    const { MethodologyVersionWorkUnitsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitsRoute />);
+
+    const intakeCell = await screen.findByText("Intake");
+    const intakeRow = intakeCell.closest("tr");
+    expect(intakeRow).not.toBeNull();
+
+    fireEvent.click(
+      within(intakeRow as HTMLTableRowElement).getByRole("button", { name: /^Edit$/i }),
+    );
+
+    expect(await screen.findByLabelText("Work Unit Key")).toBeTruthy();
+    expect(screen.getByDisplayValue("WU.INTAKE")).toBeTruthy();
+    expect(screen.getByDisplayValue("Intake")).toBeTruthy();
   });
 
   it("creates a work unit through Contract and Guidance tabs", async () => {
@@ -390,62 +414,6 @@ describe("methodology version work units l1 route", () => {
     });
   });
 
-  it("opens edit with the same tabbed editor prefilled from the selected work unit", async () => {
-    const { MethodologyVersionWorkUnitsRoute } =
-      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
-
-    renderWithQueryClient(<MethodologyVersionWorkUnitsRoute />);
-
-    fireEvent.click(await screen.findByRole("button", { name: "Edit Work Unit" }));
-
-    expect((await screen.findAllByText("Contract")).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByDisplayValue("WU.INTAKE")).toBeTruthy();
-    expect(screen.getByDisplayValue("Intake")).toBeTruthy();
-    expect(
-      screen.getByDisplayValue("Collect intake guidance and initial operator context."),
-    ).toBeTruthy();
-    expect(
-      screen
-        .getByRole("button", {
-          name: /Many per project Create multiple instances of this work unit in a project lifecycle\./,
-        })
-        .getAttribute("aria-pressed"),
-    ).toBe("true");
-
-    fireEvent.click(screen.getByRole("button", { name: /Guidance/ }));
-
-    expect(await screen.findByLabelText("Human Guidance")).toBeTruthy();
-    expect(screen.getByDisplayValue("Capture the intake packet from the operator.")).toBeTruthy();
-    expect(
-      screen.getByDisplayValue("Normalize the intake packet into structured fields."),
-    ).toBeTruthy();
-  });
-
-  it("normalizes json-style work-unit descriptions before opening the editor", async () => {
-    draftProjectionState = {
-      ...createDraftProjection(),
-      workUnitTypes: createDraftProjection().workUnitTypes.map((workUnit) =>
-        workUnit.key === "WU.INTAKE"
-          ? {
-              ...workUnit,
-              description: { text: "Description from lifecycle json" } as unknown as string,
-            }
-          : workUnit,
-      ),
-    };
-
-    useRouteContextMock.mockReturnValue(createRouteContext());
-
-    const { MethodologyVersionWorkUnitsRoute } =
-      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
-
-    renderWithQueryClient(<MethodologyVersionWorkUnitsRoute />);
-
-    fireEvent.click(await screen.findByRole("button", { name: "Edit Work Unit" }));
-
-    expect(await screen.findByDisplayValue("Description from lifecycle json")).toBeTruthy();
-  });
-
   it("surfaces a human-readable error when create work unit fails", async () => {
     createWorkUnitMutationSpy.mockRejectedValueOnce(new Error("BAD_REQUEST"));
 
@@ -466,80 +434,6 @@ describe("methodology version work units l1 route", () => {
       ),
     ).toBeTruthy();
     expect(screen.getByLabelText("Work Unit Key")).toBeTruthy();
-  });
-
-  it("saves edited work-unit metadata through updateMeta", async () => {
-    updateWorkUnitMutationSpy.mockImplementationOnce(async (...args: unknown[]) => {
-      const [{ workUnitType }] = args as [
-        { workUnitType: Partial<(typeof draftProjectionState.workUnitTypes)[number]> },
-      ];
-      draftProjectionState = {
-        ...draftProjectionState,
-        workUnitTypes: draftProjectionState.workUnitTypes.map((workUnit) =>
-          workUnit.key === "WU.INTAKE"
-            ? {
-                ...workUnit,
-                ...workUnitType,
-              }
-            : workUnit,
-        ),
-      };
-
-      return {
-        validation: { valid: true, diagnostics: [] },
-      };
-    });
-
-    const { MethodologyVersionWorkUnitsRoute } =
-      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
-
-    renderWithQueryClient(<MethodologyVersionWorkUnitsRoute />);
-
-    fireEvent.click(await screen.findByRole("button", { name: "Edit Work Unit" }));
-    fireEvent.change(screen.getByLabelText("Display Name"), {
-      target: { value: "Intake Updated" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Save Work Unit Changes" }));
-
-    await waitFor(() => {
-      expect(updateWorkUnitMutationSpy).toHaveBeenCalledTimes(1);
-    });
-
-    const firstUpdateCall = updateWorkUnitMutationSpy.mock.calls.at(0) as
-      | [unknown, unknown?]
-      | undefined;
-    expect(firstUpdateCall).toBeTruthy();
-    expect(firstUpdateCall?.[0]).toEqual(
-      expect.objectContaining({
-        versionId: "draft-v3",
-        workUnitKey: "WU.INTAKE",
-        workUnitType: expect.objectContaining({
-          key: "WU.INTAKE",
-          displayName: "Intake Updated",
-        }),
-      }),
-    );
-
-    await waitFor(() => {
-      expect(screen.getAllByText("Intake Updated").length).toBeGreaterThan(0);
-    });
-  });
-
-  it("closes a pristine edit dialog without discard confirmation", async () => {
-    const { MethodologyVersionWorkUnitsRoute } =
-      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
-
-    renderWithQueryClient(<MethodologyVersionWorkUnitsRoute />);
-
-    fireEvent.click(await screen.findByRole("button", { name: "Edit Work Unit" }));
-    expect(await screen.findByLabelText("Work Unit Key")).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-
-    await waitFor(() => {
-      expect(screen.queryByText("Discard unsaved changes?")).toBeNull();
-      expect(screen.queryByLabelText("Work Unit Key")).toBeNull();
-    });
   });
 
   it("shows dirty indicators and confirms cancel when dialog has unsaved changes", async () => {

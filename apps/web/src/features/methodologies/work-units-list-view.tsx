@@ -3,7 +3,8 @@ import type { WorkUnitsPageRow } from "./work-units-page-selectors";
 type WorkUnitsListViewProps = {
   rows: readonly WorkUnitsPageRow[];
   activeWorkUnitKey: string | null;
-  onSelect: (workUnitKey: string) => void;
+  onViewDetails: (workUnitKey: string) => void;
+  onEdit: (workUnitKey: string) => void;
 };
 
 export function WorkUnitsListView(props: WorkUnitsListViewProps) {
@@ -21,10 +22,11 @@ export function WorkUnitsListView(props: WorkUnitsListViewProps) {
         <thead>
           <tr className="border-b border-border/70 bg-background/50 text-left text-xs uppercase tracking-[0.18em] text-muted-foreground">
             <th className="px-3 py-2 font-medium">Work Unit</th>
-            <th className="px-3 py-2 font-medium">Transitions</th>
-            <th className="px-3 py-2 font-medium">Workflows</th>
+            <th className="px-3 py-2 font-medium">Cardinality</th>
+            <th className="px-3 py-2 font-medium">Human Guidance</th>
+            <th className="px-3 py-2 font-medium">Agent Guidance</th>
             <th className="px-3 py-2 font-medium">Facts</th>
-            <th className="px-3 py-2 font-medium">Relations</th>
+            <th className="px-3 py-2 font-medium">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -32,19 +34,41 @@ export function WorkUnitsListView(props: WorkUnitsListViewProps) {
             <tr
               key={row.key}
               className={[
-                "cursor-pointer border-b border-border/50 transition-colors",
+                "border-b border-border/50 transition-colors",
                 row.key === props.activeWorkUnitKey ? "bg-primary/10" : "hover:bg-background/50",
               ].join(" ")}
-              onClick={() => props.onSelect(row.key)}
             >
               <td className="px-3 py-3">
                 <div className="font-medium">{row.displayName}</div>
                 <div className="text-xs text-muted-foreground">{row.key}</div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {row.description || "No description"}
+                </div>
               </td>
-              <td className="px-3 py-3 text-muted-foreground">{row.transitionCount}</td>
-              <td className="px-3 py-3 text-muted-foreground">{row.workflowCount}</td>
+              <td className="px-3 py-3 text-muted-foreground">
+                {row.cardinality === "one_per_project" ? "One per project" : "Many per project"}
+              </td>
+              <td className="px-3 py-3 text-muted-foreground">{row.humanGuidance || "—"}</td>
+              <td className="px-3 py-3 text-muted-foreground">{row.agentGuidance || "—"}</td>
               <td className="px-3 py-3 text-muted-foreground">{row.factCount}</td>
-              <td className="px-3 py-3 text-muted-foreground">{row.relationshipCount}</td>
+              <td className="px-3 py-3">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="inline-flex h-7 items-center justify-center rounded-none border border-border/70 px-2 text-xs uppercase tracking-[0.12em] transition-colors hover:bg-accent"
+                    onClick={() => props.onViewDetails(row.key)}
+                  >
+                    View details
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex h-7 items-center justify-center rounded-none border border-border/70 px-2 text-xs uppercase tracking-[0.12em] transition-colors hover:bg-accent"
+                    onClick={() => props.onEdit(row.key)}
+                  >
+                    Edit
+                  </button>
+                </div>
+              </td>
             </tr>
           ))}
         </tbody>

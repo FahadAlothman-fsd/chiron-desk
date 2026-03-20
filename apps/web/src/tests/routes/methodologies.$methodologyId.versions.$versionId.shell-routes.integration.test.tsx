@@ -265,22 +265,22 @@ describe("methodology version shell routes", () => {
     expect(screen.getAllByTestId("surface-card-corner")).toHaveLength(16);
   });
 
-  it("renders work-units shell with graph/contracts/diagnostics views and active summary", async () => {
+  it("renders work-units shell as a clear list with actions", async () => {
     const { MethodologyVersionWorkUnitsRoute } =
       await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
     useParamsMock.mockReturnValue({ methodologyId: "equity-core", versionId: "draft-v2" });
-    useSearchMock.mockReturnValue({ view: "graph", selected: "WU.TASK" });
+    useSearchMock.mockReturnValue({ selected: "WU.TASK" });
 
     renderWithQueryClient(<MethodologyVersionWorkUnitsRoute />);
 
     expect(await screen.findByPlaceholderText("Search work units...")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Graph" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Contracts" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Diagnostics" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "List" })).toBeNull();
-    expect(screen.getByText("ACTIVE WORK UNIT")).toBeTruthy();
-    expect(screen.getByText("Open details")).toBeTruthy();
-    expect(screen.getByText("Open Relationship View")).toBeTruthy();
+    expect(await screen.findByRole("columnheader", { name: "Work Unit" })).toBeTruthy();
+    expect(await screen.findByRole("columnheader", { name: "Actions" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Graph" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Contracts" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Diagnostics" })).toBeNull();
+    expect(screen.getAllByRole("button", { name: /View details/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /^Edit$/i }).length).toBeGreaterThan(0);
   });
 
   it("creates a work unit with guidance through version.workUnit.create", async () => {

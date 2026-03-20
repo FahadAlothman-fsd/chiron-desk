@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { Outlet, createFileRoute, useLocation } from "@tanstack/react-router";
 import { Layers3Icon, RectangleHorizontalIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -17,13 +17,8 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { WorkUnitsGraphView } from "@/features/methodologies/work-units-graph-view";
-import {
-  deriveActiveWorkUnit,
-  deriveWorkUnitsPageRows,
-} from "@/features/methodologies/work-units-page-selectors";
-import { WorkUnitsRightRail } from "@/features/methodologies/work-units-right-rail";
-import { projectMethodologyGraph } from "@/features/methodologies/version-graph";
+import { WorkUnitsListView } from "@/features/methodologies/work-units-list-view";
+import { deriveWorkUnitsPageRows } from "@/features/methodologies/work-units-page-selectors";
 import { MethodologyWorkspaceShell } from "@/features/methodologies/workspace-shell";
 
 export const Route = createFileRoute(
@@ -77,10 +72,15 @@ function extractWorkUnitText(value: unknown): string {
 
 export function MethodologyVersionWorkUnitsRoute() {
   const { methodologyId, versionId } = Route.useParams();
+  const location = useLocation();
   const search = Route.useSearch();
   const { orpc } = Route.useRouteContext();
   const navigate = Route.useNavigate();
   const queryClient = useQueryClient();
+
+  const workUnitsPath = `/methodologies/${methodologyId}/versions/${versionId}/work-units`;
+  const isChildDetailRoute =
+    location.pathname !== workUnitsPath && location.pathname !== `${workUnitsPath}/`;
 
   const detailsQueryOptions = orpc.methodology.getMethodologyDetails.queryOptions({
     input: { methodologyKey: methodologyId },
@@ -187,30 +187,8 @@ export function MethodologyVersionWorkUnitsRoute() {
     );
   }, [searchQuery, workUnits]);
 
-  const activeWorkUnit = deriveActiveWorkUnit(workUnits, search.selected ?? null);
-  const activeWorkUnitKey = activeWorkUnit?.key ?? null;
-  const activeView = search.view ?? "graph";
-  const isGraphView = activeView === "graph";
+  const activeWorkUnitKey = search.selected ?? null;
   const isCreateIntentActive = search.intent === "add-work-unit";
-
-  const graphProjection = useMemo(
-    () =>
-      projectMethodologyGraph(
-        {
-          workUnitTypes: Array.isArray(draftProjection?.workUnitTypes)
-            ? draftProjection.workUnitTypes
-            : [],
-          workflows: Array.isArray(draftProjection?.workflows) ? draftProjection.workflows : [],
-          transitionWorkflowBindings:
-            draftProjection?.transitionWorkflowBindings &&
-            typeof draftProjection.transitionWorkflowBindings === "object"
-              ? draftProjection.transitionWorkflowBindings
-              : {},
-        },
-        { level: "L1" },
-      ),
-    [draftProjection],
-  );
 
   const existingWorkUnitTypes = useMemo(
     () => (Array.isArray(draftProjection?.workUnitTypes) ? draftProjection.workUnitTypes : []),
@@ -397,7 +375,9 @@ export function MethodologyVersionWorkUnitsRoute() {
     }
   }, [isCreateDialogOpen, isCreateIntentActive, isEditMode]);
 
-  return (
+  return isChildDetailRoute ? (
+    <Outlet />
+  ) : (
     <MethodologyWorkspaceShell
       title="Work Units"
       stateLabel={
@@ -425,32 +405,13 @@ export function MethodologyVersionWorkUnitsRoute() {
     >
       <section className="chiron-frame-flat chiron-tone-navigation p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              variant={isGraphView ? "default" : "outline"}
-              className="rounded-none"
-              onClick={() => updateSearch({ view: "graph" })}
-            >
-              Graph
-            </Button>
-            <Button
-              size="sm"
-              variant={activeView === "contracts" ? "default" : "outline"}
-              className="rounded-none"
-              onClick={() => updateSearch({ view: "contracts" })}
-            >
-              Contracts
-            </Button>
-            <Button
-              size="sm"
-              variant={activeView === "diagnostics" ? "default" : "outline"}
-              className="rounded-none"
-              onClick={() => updateSearch({ view: "diagnostics" })}
-            >
-              Diagnostics
-            </Button>
-          </div>
+          <input
+            className="h-8 w-full rounded-none border border-border/70 bg-background px-2.5 text-sm md:max-w-sm"
+            placeholder="Search work units..."
+            type="text"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+          />
           <Button size="sm" className="rounded-none" onClick={openCreateDialog}>
             + Add Work Unit
           </Button>
@@ -730,69 +691,11 @@ export function MethodologyVersionWorkUnitsRoute() {
       ) : null}
 
       {!draftQuery.isLoading && !draftQuery.isError ? (
-        <section className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_22rem]">
-          {isGraphView ? (
-            <WorkUnitsGraphView
-              rows={filteredWorkUnits}
-              graph={graphProjection}
-              activeWorkUnitKey={activeWorkUnitKey}
-              onSelect={openWorkUnitDetails}
-            />
-          ) : activeView === "contracts" ? (
-            <section className="chiron-frame-flat flex min-h-[28rem] flex-col justify-between p-4">
-              <div className="space-y-2">
-                <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
-                  Contracts
-                </p>
-                <h2 className="text-base font-semibold">Work-unit contract shell</h2>
-                <p className="text-sm text-muted-foreground">
-                  State: loading contracts overview while preserving selected work-unit context.
-                </p>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Contract details remain anchored to the selected summary and will replace this
-                placeholder as Story 3.1 follow-on surfaces land.
-              </p>
-            </section>
-          ) : activeView === "diagnostics" ? (
-            <section className="chiron-frame-flat flex min-h-[28rem] flex-col justify-between p-4">
-              <div className="space-y-2">
-                <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
-                  Diagnostics
-                </p>
-                <h2 className="text-base font-semibold">Work-unit diagnostics shell</h2>
-                <p className="text-sm text-muted-foreground">
-                  State: loading diagnostics overview while preserving selected work-unit context.
-                </p>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Deterministic diagnostics remain version-scoped here until the dedicated findings
-                surface replaces this baseline shell.
-              </p>
-            </section>
-          ) : (
-            <section className="chiron-frame-flat flex min-h-[28rem] items-center justify-center p-4">
-              <p className="text-sm text-muted-foreground">
-                State: failed - Unsupported Work Units tab selection.
-              </p>
-            </section>
-          )}
-
-          <WorkUnitsRightRail
-            methodologyId={methodologyId}
-            versionId={versionId}
+        <section className="grid gap-3">
+          <WorkUnitsListView
             rows={filteredWorkUnits}
-            activeWorkUnit={activeWorkUnit}
             activeWorkUnitKey={activeWorkUnitKey}
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-            onSelect={openWorkUnitDetails}
-            onOpenRelationshipView={(workUnitKey) =>
-              updateSearch({
-                view: "graph",
-                selected: workUnitKey,
-              })
-            }
+            onViewDetails={openWorkUnitDetails}
             onEdit={openEditDialog}
           />
         </section>
