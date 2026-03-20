@@ -128,7 +128,7 @@ Target 4-6 repositories (exact count is less important than stable boundaries):
 
 ### Read models / projections
 
-- Keep one canonical projection pathway per read model (e.g., draft projection composes lifecycle + workflow snapshots).
+- Keep one canonical projection pathway per read model (e.g., authoring snapshot composes lifecycle + workflow snapshots).
 - Do not duplicate snapshot assembly logic across multiple repos.
 
 ### Error and diagnostics contract

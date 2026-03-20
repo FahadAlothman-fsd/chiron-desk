@@ -4,7 +4,6 @@ export * from "./validation";
 export { VersionRepository } from "./ports/version-repository";
 export { WorkUnitRepository } from "./ports/work-unit-repository";
 export { WorkflowRepository } from "./ports/workflow-repository";
-export { ProjectionRepository } from "./ports/projection-repository";
 export { MethodologyTx } from "./ports/methodology-tx";
 export {
   MethodologyVersionService as MethodologyVersionBoundaryService,

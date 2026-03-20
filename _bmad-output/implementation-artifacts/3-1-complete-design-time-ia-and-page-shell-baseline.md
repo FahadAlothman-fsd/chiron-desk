@@ -143,7 +143,7 @@ so that methodology authoring surfaces are reachable and consistent before runti
 - Reuse current facts authoring surfaces instead of building a second methodology-facts implementation.
 - Reuse graph/list/inspector behavior from `version-workspace-graph.tsx` where the stable page specs align.
 - Reuse the current command-palette primitives and navigation helpers before introducing a second palette stack.
-- Do not introduce duplicate methodology stores, shadow route-context providers, or a second graph data model for the same draft projection.
+- Do not introduce duplicate methodology stores, shadow route-context providers, or a second graph data model for the same authoring snapshot.
 - Do not implement inline spreadsheet CRUD for Facts, Agents, or Dependency Definitions.
 - Do not implement work-unit creation directly inside the graph canvas.
 - Do not hand-edit generated route tree files.

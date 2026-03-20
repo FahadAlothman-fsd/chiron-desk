@@ -94,7 +94,7 @@ export function createProjectRouter(
     }>;
   };
 
-  type DraftProjection = {
+  type VersionWorkspaceSnapshotView = {
     workUnitTypes: Array<{
       key: string;
       guidance?: unknown;
@@ -204,27 +204,25 @@ export function createProjectRouter(
               methodologyVersionId: pin.methodologyVersionId,
             });
             const latestPublicationEvidence = publicationEvidence.at(-1) ?? null;
-            const draftProjection = (yield* Effect.catchTag(
-              methodologySvc.getDraftProjection(pin.methodologyVersionId),
-              "ValidationDecodeError",
-              () => Effect.succeed(null),
-            )) as DraftProjection | null;
+            const workspaceSnapshot = (yield* methodologySvc.getVersionWorkspaceSnapshot(
+              pin.methodologyVersionId,
+            )) as VersionWorkspaceSnapshotView;
 
             const projectContextWorkUnitKey = "WU.PROJECT_CONTEXT";
             const requestedWorkUnitType = input.workUnitTypeKey
-              ? (draftProjection?.workUnitTypes.find(
+              ? (workspaceSnapshot?.workUnitTypes.find(
                   (workUnitType) => workUnitType.key === input.workUnitTypeKey,
                 ) ?? null)
               : null;
             const activeWorkUnitType =
               requestedWorkUnitType ??
-              draftProjection?.workUnitTypes.find(
+              workspaceSnapshot?.workUnitTypes.find(
                 (workUnitType) => workUnitType.key === projectContextWorkUnitKey,
               ) ??
-              draftProjection?.workUnitTypes[0] ??
+              workspaceSnapshot?.workUnitTypes[0] ??
               null;
             const activeWorkUnitTypeKey = activeWorkUnitType?.key ?? null;
-            const layeredGuidance = draftProjection?.guidance;
+            const layeredGuidance = workspaceSnapshot?.guidance;
 
             const eligibleTransitions = activeWorkUnitTypeKey
               ? (yield* eligibilitySvc.getTransitionEligibility({
@@ -257,7 +255,7 @@ export function createProjectRouter(
                 : null;
             };
 
-            const transitionDefinitions = (draftProjection?.transitions ?? [])
+            const transitionDefinitions = (workspaceSnapshot?.transitions ?? [])
               .filter((transition) => {
                 if (!activeWorkUnitTypeKey) {
                   return false;
@@ -292,7 +290,8 @@ export function createProjectRouter(
                   ? "completion_gate"
                   : "start_gate");
               const draftBoundWorkflowKeys =
-                draftProjection?.transitionWorkflowBindings?.[transition.key]?.slice().sort() ?? [];
+                workspaceSnapshot?.transitionWorkflowBindings?.[transition.key]?.slice().sort() ??
+                [];
               const boundWorkflowKeys =
                 publishedContract?.transitionWorkflowBindings[transition.key]?.slice().sort() ??
                 draftBoundWorkflowKeys;
@@ -368,7 +367,7 @@ export function createProjectRouter(
                 guidance: transitionGuidance,
                 diagnostics,
                 workflows: workflowKeys.map((workflowKey) => {
-                  const workflowDefinition = draftProjection?.workflows?.find(
+                  const workflowDefinition = workspaceSnapshot?.workflows?.find(
                     (workflow) => workflow.key === workflowKey,
                   );
 
@@ -457,19 +456,19 @@ export function createProjectRouter(
                 transitions,
               },
               projectionSummary: {
-                workUnits: (draftProjection?.workUnitTypes ?? [])
+                workUnits: (workspaceSnapshot?.workUnitTypes ?? [])
                   .map((workUnitType) => ({
                     workUnitTypeKey: workUnitType.key,
                     guidance:
                       workUnitType.guidance ??
                       layeredGuidance?.byWorkUnitType?.[workUnitType.key] ??
-                      (draftProjection?.transitions ?? [])
+                      (workspaceSnapshot?.transitions ?? [])
                         .filter((transition) => {
                           const transitionWorkUnitTypeKey =
                             resolveTransitionWorkUnitTypeKey(transition);
                           return transitionWorkUnitTypeKey
                             ? transitionWorkUnitTypeKey === workUnitType.key
-                            : (draftProjection?.workUnitTypes.length ?? 0) === 1;
+                            : (workspaceSnapshot?.workUnitTypes.length ?? 0) === 1;
                         })
                         .map(
                           (transition) =>
@@ -481,7 +480,7 @@ export function createProjectRouter(
                       null,
                   }))
                   .sort((a, b) => a.workUnitTypeKey.localeCompare(b.workUnitTypeKey)),
-                agents: (draftProjection?.agentTypes ?? [])
+                agents: (workspaceSnapshot?.agentTypes ?? [])
                   .map((agentType) => ({
                     agentTypeKey: agentType.key,
                     guidance:
@@ -492,7 +491,7 @@ export function createProjectRouter(
                       null,
                   }))
                   .sort((a, b) => a.agentTypeKey.localeCompare(b.agentTypeKey)),
-                transitions: (draftProjection?.transitions ?? [])
+                transitions: (workspaceSnapshot?.transitions ?? [])
                   .map((transition) => ({
                     gateClass: transition.conditionSets?.some(
                       (conditionSet) => conditionSet.phase === "completion",
@@ -509,7 +508,7 @@ export function createProjectRouter(
                       ? a.transitionKey.localeCompare(b.transitionKey)
                       : (a.workUnitTypeKey ?? "").localeCompare(b.workUnitTypeKey ?? ""),
                   ),
-                facts: (draftProjection?.workUnitTypes ?? [])
+                facts: (workspaceSnapshot?.workUnitTypes ?? [])
                   .flatMap((workUnitType) =>
                     (workUnitType.factSchemas ?? []).map((factSchema) => ({
                       workUnitTypeKey: workUnitType.key,
@@ -519,7 +518,7 @@ export function createProjectRouter(
                     })),
                   )
                   .concat(
-                    (draftProjection?.factDefinitions ?? []).map((factDefinition) => ({
+                    (workspaceSnapshot?.factDefinitions ?? []).map((factDefinition) => ({
                       workUnitTypeKey: "__PROJECT__",
                       key: factDefinition.key,
                       type: factDefinition.factType,

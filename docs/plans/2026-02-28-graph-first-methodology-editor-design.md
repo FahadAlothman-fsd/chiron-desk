@@ -63,7 +63,7 @@ JSON strings are derived views:
 Ownership is explicit and non-overlapping:
 
 1. Server truth (remote base)
-   - Owned by TanStack Query (`getDraftProjection(versionId)`).
+   - Owned by TanStack Query (`version.workspace.get(versionId)`).
    - Treated as immutable input.
 
 2. Canonical local edit state
@@ -209,7 +209,7 @@ The existing determinism test pattern (persist -> refetch -> rebuild -> equality
 ## Migration Steps (from current JSON-authoritative UI)
 
 1) Add graph store + deterministic hydrator
-- Hydrate graph from `getDraftProjection` (do not create JSON strings).
+- Hydrate graph from `version.workspace.get` (do not create JSON strings).
 
 2) Switch React Flow to graph store
 - Graph canvas reads projection from store and updates selection/scope in store.

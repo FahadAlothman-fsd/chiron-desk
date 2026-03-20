@@ -18,7 +18,7 @@ In Epic 2 preview surfaces (project-scoped lists + baseline preview), ensure:
 - Story seed (`packages/scripts/src/story-seed.mjs`) upserts methodology definitions/versions (including `definitionExtensions`) but does not seed normalized lifecycle tables.
 - `EligibilityService.getTransitionEligibility` currently depends on normalized lifecycle rows; when those rows are missing, it returns zero eligible transitions.
 - As a result, transition preview statuses in `baselinePreview.transitionPreview.transitions` degrade to `future` for seed-only versions.
-- Agents list in `/projects/$projectId/agents` uses `baselinePreview.projectionSummary.agents`, which is derived from the draft projection agent types; seed currently sets `agentTypes: []`.
+- Agents list in `/projects/$projectId/agents` uses `baselinePreview.projectionSummary.agents`, which is derived from the authoring snapshot agent types; seed currently sets `agentTypes: []`.
 
 ## Primary Decision (Recommended)
 Keep the project details contract stable and minimize blast radius by:

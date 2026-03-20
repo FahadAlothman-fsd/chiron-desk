@@ -34,7 +34,7 @@ Expected: FAIL because the current route still renders the placeholder shell and
 
 **Step 3: Write minimal implementation**
 
-Refactor the route so it validates `view=graph|list` and `selected`, derives selection from the draft projection, and renders the approved L1 shell contract.
+Refactor the route so it validates `view=graph|list` and `selected`, derives selection from the authoring snapshot, and renders the approved L1 shell contract.
 
 **Step 4: Run test to verify it passes**
 

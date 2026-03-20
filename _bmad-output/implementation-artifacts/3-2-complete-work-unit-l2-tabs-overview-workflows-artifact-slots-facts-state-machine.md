@@ -831,7 +831,7 @@ bunx playwright test tests/e2e/story-3-2-l2-authoring.spec.ts
   - expanded lifecycle contracts with work-unit scoped state-machine mutation inputs for states, transitions, condition-sets, and bindings.
   - expanded fact contracts with work-unit scoped get/replace inputs.
   - implemented `work-unit-state-machine-service.ts` list/upsert/delete flows plus transition binding updates through workflow authoring path.
-  - implemented `work-unit-fact-service.ts` list/replace flows mapped to draft projection and lifecycle update APIs.
+  - implemented `work-unit-fact-service.ts` list/replace flows mapped to authoring snapshot and lifecycle update APIs.
   - added L2-L3 tests for state deletion disconnect behavior, binding replacement routing, and work-unit fact replacement.
 - Completed Story 3.2 Overview command-surface and routing stabilization slice:
   - implemented Overview tab command-card surface and count summaries in work-unit detail route.

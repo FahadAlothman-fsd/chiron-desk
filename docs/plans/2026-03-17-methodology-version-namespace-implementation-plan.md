@@ -144,7 +144,7 @@ Expected: FAIL because `methodology.version.workspace.get` is not yet exposed.
 
 **Step 3: Write minimal implementation**
 
-Add `methodology.version.workspace.get` as the approved Story 3.1 workspace bootstrap read. It may initially wrap existing projection logic, but its public name should be version-owned and workspace-oriented rather than `getDraftProjection`.
+Add `methodology.version.workspace.get` as the approved Story 3.1 workspace bootstrap read. It may initially wrap existing projection logic, but its public name should be version-owned and workspace-oriented rather than `version.workspace.get`.
 
 **Step 4: Run test to verify it passes**
 

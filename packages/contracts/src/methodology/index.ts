@@ -1,6 +1,7 @@
 export * from "./lifecycle.js";
 export * from "./agent.js";
 export * from "./fact.js";
+export * from "./workflow.js";
 export * from "./artifact-slot.js";
 export * from "./dependency.js";
 export * from "./eligibility.js";

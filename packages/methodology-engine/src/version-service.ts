@@ -23,8 +23,6 @@ import type {
   UpdateMethodologyFactInput,
 } from "@chiron/contracts/methodology/fact";
 import type { WorkUnitTypeDefinition } from "@chiron/contracts/methodology/lifecycle";
-import type { UpdateDraftWorkflowsInputDto } from "@chiron/contracts/methodology/dto";
-import type { MethodologyVersionProjection } from "@chiron/contracts/methodology/projection";
 import { Context, Effect, Schema } from "effect";
 import { MethodologyVersionDefinition as MethodologyVersionDefinitionSchema } from "@chiron/contracts/methodology/version";
 import path from "node:path";
@@ -45,7 +43,6 @@ import type { MethodologyVersionEventRow, MethodologyVersionRow } from "./reposi
 import { MethodologyRepository } from "./repository";
 import { LifecycleRepository, type SaveLifecycleDefinitionParams } from "./lifecycle-repository";
 import { validateDraftDefinition } from "./validation";
-import { mergeLayeredGuidance } from "./guidance";
 
 export interface CreateDraftResult {
   version: MethodologyVersionRow;
@@ -133,13 +130,6 @@ export class MethodologyVersionService extends Context.Tag("MethodologyVersionSe
     >;
     readonly updateDraftVersion: (
       input: UpdateDraftVersionInput,
-      actorId: string | null,
-    ) => Effect.Effect<
-      UpdateDraftResult,
-      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
-    >;
-    readonly updateDraftWorkflows: (
-      input: UpdateDraftWorkflowsInputDto,
       actorId: string | null,
     ) => Effect.Effect<
       UpdateDraftResult,
@@ -249,12 +239,6 @@ export class MethodologyVersionService extends Context.Tag("MethodologyVersionSe
     readonly getMethodologyDetails: (
       methodologyKey: string,
     ) => Effect.Effect<MethodologyDetails | null, RepositoryError>;
-    readonly getDraftProjection: (
-      versionId: string,
-    ) => Effect.Effect<
-      MethodologyVersionProjection,
-      VersionNotFoundError | ValidationDecodeError | RepositoryError
-    >;
     readonly getPublishedContractByVersionAndWorkUnitType: (
       input: GetPublishedContractInput,
     ) => Effect.Effect<PublishedContractQueryResult, VersionNotFoundError | RepositoryError>;
@@ -1109,45 +1093,6 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
       return diagnostics;
     });
 
-  const updateDraftWorkflows = (
-    input: UpdateDraftWorkflowsInputDto,
-    actorId: string | null,
-  ): Effect.Effect<
-    UpdateDraftResult,
-    VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
-  > =>
-    Effect.gen(function* () {
-      const existing = yield* repo.findVersionById(input.versionId);
-      if (!existing) {
-        return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
-      }
-
-      yield* ensureVersionIsDraft(existing);
-
-      const snapshot = yield* repo.findWorkflowSnapshot(existing.id);
-      const lifecycleDefinition = yield* resolveLifecycleDefinition(existing, lifecycleRepo);
-
-      const nextDefinition: MethodologyVersionDefinition = {
-        workUnitTypes: lifecycleDefinition.workUnitTypes,
-        agentTypes: lifecycleDefinition.agentTypes,
-        transitions: lifecycleDefinition.transitions,
-        workflows: input.workflows,
-        transitionWorkflowBindings: input.transitionWorkflowBindings,
-        guidance: mergeLayeredGuidance(snapshot.guidance, input.guidance),
-      };
-
-      return yield* updateDraftVersion(
-        {
-          versionId: input.versionId,
-          displayName: existing.displayName,
-          version: existing.version,
-          definition: nextDefinition,
-          factDefinitions: input.factDefinitions,
-        },
-        actorId,
-      );
-    });
-
   const updateVersionMetadata = (
     input: UpdateVersionMetadataInput,
     actorId: string | null,
@@ -1231,12 +1176,21 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
       const snapshot = yield* repo.findWorkflowSnapshot(existing.id);
       const existingFacts = yield* repo.findFactDefinitionsByVersionId(existing.id);
 
-      return yield* updateDraftWorkflows(
+      const lifecycleDefinition = yield* resolveLifecycleDefinition(existing, lifecycleRepo);
+
+      return yield* updateDraftVersion(
         {
           versionId: existing.id,
-          workflows: snapshot.workflows,
-          transitionWorkflowBindings: snapshot.transitionWorkflowBindings,
-          guidance: snapshot.guidance,
+          displayName: existing.displayName,
+          version: existing.version,
+          definition: {
+            workUnitTypes: lifecycleDefinition.workUnitTypes,
+            agentTypes: lifecycleDefinition.agentTypes,
+            transitions: lifecycleDefinition.transitions,
+            workflows: snapshot.workflows,
+            transitionWorkflowBindings: snapshot.transitionWorkflowBindings,
+            guidance: snapshot.guidance,
+          },
           factDefinitions: [...existingFacts.map(mapFactDefinitionRowToInput), input.fact],
         },
         actorId,
@@ -1261,12 +1215,21 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
       const snapshot = yield* repo.findWorkflowSnapshot(existing.id);
       const existingFacts = yield* repo.findFactDefinitionsByVersionId(existing.id);
 
-      return yield* updateDraftWorkflows(
+      const lifecycleDefinition = yield* resolveLifecycleDefinition(existing, lifecycleRepo);
+
+      return yield* updateDraftVersion(
         {
           versionId: existing.id,
-          workflows: snapshot.workflows,
-          transitionWorkflowBindings: snapshot.transitionWorkflowBindings,
-          guidance: snapshot.guidance,
+          displayName: existing.displayName,
+          version: existing.version,
+          definition: {
+            workUnitTypes: lifecycleDefinition.workUnitTypes,
+            agentTypes: lifecycleDefinition.agentTypes,
+            transitions: lifecycleDefinition.transitions,
+            workflows: snapshot.workflows,
+            transitionWorkflowBindings: snapshot.transitionWorkflowBindings,
+            guidance: snapshot.guidance,
+          },
           factDefinitions: existingFacts.map((fact) =>
             fact.key === input.factKey ? input.fact : mapFactDefinitionRowToInput(fact),
           ),
@@ -1293,12 +1256,21 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
       const snapshot = yield* repo.findWorkflowSnapshot(existing.id);
       const existingFacts = yield* repo.findFactDefinitionsByVersionId(existing.id);
 
-      return yield* updateDraftWorkflows(
+      const lifecycleDefinition = yield* resolveLifecycleDefinition(existing, lifecycleRepo);
+
+      return yield* updateDraftVersion(
         {
           versionId: existing.id,
-          workflows: snapshot.workflows,
-          transitionWorkflowBindings: snapshot.transitionWorkflowBindings,
-          guidance: snapshot.guidance,
+          displayName: existing.displayName,
+          version: existing.version,
+          definition: {
+            workUnitTypes: lifecycleDefinition.workUnitTypes,
+            agentTypes: lifecycleDefinition.agentTypes,
+            transitions: lifecycleDefinition.transitions,
+            workflows: snapshot.workflows,
+            transitionWorkflowBindings: snapshot.transitionWorkflowBindings,
+            guidance: snapshot.guidance,
+          },
           factDefinitions: existingFacts
             .filter((fact) => fact.key !== input.factKey)
             .map(mapFactDefinitionRowToInput),
@@ -1992,56 +1964,6 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
       } satisfies MethodologyDetails;
     });
 
-  const getDraftProjection = (
-    versionId: string,
-  ): Effect.Effect<
-    MethodologyVersionProjection,
-    VersionNotFoundError | ValidationDecodeError | RepositoryError
-  > =>
-    Effect.gen(function* () {
-      const version = yield* repo.findVersionById(versionId);
-      if (!version) {
-        return yield* Effect.fail(new VersionNotFoundError({ versionId }));
-      }
-
-      const snapshot = yield* repo.findWorkflowSnapshot(version.id);
-      const lifecycleDefinition = yield* resolveLifecycleDefinition(version, lifecycleRepo);
-      const factDefinitionsRows = yield* repo.findFactDefinitionsByVersionId(version.id);
-      const linkTypeDefinitionRows = yield* repo.findLinkTypeDefinitionsByVersionId(version.id);
-      const factDefinitions = factDefinitionsRows.map((fact) => ({
-        name: fact.name,
-        key: fact.key,
-        factType: fact.valueType,
-        description: fact.descriptionJson,
-        guidance: fact.guidanceJson,
-        defaultValue: fact.defaultValueJson,
-        validation: fact.validationJson,
-      }));
-      const linkTypeDefinitions = linkTypeDefinitionRows.map((definition) => ({
-        key: definition.key,
-        name: definition.name ?? undefined,
-        description:
-          typeof definition.descriptionJson === "string" ? definition.descriptionJson : undefined,
-        guidance: definition.guidanceJson as MethodologyLinkTypeDefinitionInput["guidance"],
-      }));
-
-      return {
-        id: version.id,
-        methodologyId: version.methodologyId,
-        version: version.version,
-        status: version.status as MethodologyVersionProjection["status"],
-        displayName: version.displayName,
-        workUnitTypes: lifecycleDefinition.workUnitTypes,
-        agentTypes: lifecycleDefinition.agentTypes,
-        transitions: lifecycleDefinition.transitions,
-        workflows: snapshot.workflows,
-        transitionWorkflowBindings: snapshot.transitionWorkflowBindings,
-        guidance: snapshot.guidance,
-        factDefinitions,
-        linkTypeDefinitions,
-      } satisfies MethodologyVersionProjection;
-    });
-
   const getPublishedContractByVersionAndWorkUnitType = (
     input: GetPublishedContractInput,
   ): Effect.Effect<PublishedContractQueryResult, VersionNotFoundError | RepositoryError> =>
@@ -2097,7 +2019,6 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
   return MethodologyVersionService.of({
     createDraftVersion,
     updateDraftVersion,
-    updateDraftWorkflows,
     updateVersionMetadata,
     archiveVersion,
     createFact,
@@ -2115,7 +2036,6 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
     archiveMethodology,
     listMethodologies,
     getMethodologyDetails,
-    getDraftProjection,
     getPublishedContractByVersionAndWorkUnitType,
   });
 });

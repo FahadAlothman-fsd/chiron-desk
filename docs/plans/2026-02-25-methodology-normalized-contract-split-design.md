@@ -44,7 +44,7 @@ export const UpdateDraftWorkflowDto = Schema.Struct({ ... });
 export interface WorkflowGraphEntity { ... }
 
 // projection.ts
-export const MethodologyVersionProjection = Schema.Struct({ ... });
+export const VersionWorkspaceSnapshot = Schema.Struct({ ... });
 ```
 
 **Step 4: Run test to verify it passes**

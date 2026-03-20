@@ -313,7 +313,7 @@ openai/gpt-5.3-codex
 ### Completion Notes List
 
 - Added deterministic methodology version authoring surface with editable metadata/work-unit/fact/transition/workflow/step/binding sections and explicit draft/non-executable posture.
-- Added contract-backed draft projection read path (`getDraftProjection`) in methodology service/router and wired deterministic save + invalidate + refetch flow in route.
+- Added contract-backed authoring snapshot read path (`version.workspace.get`) in methodology service/router and wired deterministic save + invalidate + refetch flow in route.
 - Implemented React Flow scope graph system (L1/L2/L3), breadcrumb/scope-jump, Enter/Esc keyboard drill, and binding catalog vs transition-eligible separation controls.
 - Added cut-frame utility styles and applied cut-frame surfaces to graph/breadcrumb/catalog/eligibility blocks.
 - Added actionable diagnostics mapping from lifecycle/workflow validation responses to field-tied workspace diagnostics while preserving exact runtime deferment rationale copy.

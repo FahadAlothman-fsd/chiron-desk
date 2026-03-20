@@ -11,6 +11,7 @@ import { EligibilityService, type LifecycleError } from "@chiron/methodology-eng
 import { ProjectContextService } from "@chiron/project-context";
 import type {
   CreateMethodologyWorkUnitInput,
+  ReplaceWorkUnitTransitionBindingsInput,
   UpdateMethodologyWorkUnitInput,
   UpdateDraftLifecycleInput,
 } from "@chiron/contracts/methodology/lifecycle";
@@ -41,12 +42,18 @@ import type {
 import type {
   CreateMethodologyFactInput,
   DeleteMethodologyFactInput,
+  FactSchema,
   UpdateMethodologyFactInput,
 } from "@chiron/contracts/methodology/fact";
 import type {
   GetWorkUnitArtifactSlotsInput,
   ReplaceWorkUnitArtifactSlotsInput,
 } from "@chiron/contracts/methodology/artifact-slot";
+import type {
+  CreateWorkUnitWorkflowInput,
+  DeleteWorkUnitWorkflowInput,
+  UpdateWorkUnitWorkflowInput,
+} from "@chiron/contracts/methodology/workflow";
 import type { UpdateDraftWorkflowsInputDto } from "@chiron/contracts/methodology/dto";
 import { Effect, type Layer } from "effect";
 import { z } from "zod";
@@ -167,6 +174,37 @@ const updateDraftWorkflowsInput = z.object({
   factDefinitions: z.array(variableDefinitionSchema).optional(),
 });
 
+const listWorkUnitWorkflowsInput = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+});
+
+const createWorkUnitWorkflowInput = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  workflow: workflowSchema,
+});
+
+const updateWorkUnitWorkflowInput = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  workflowKey: z.string().min(1),
+  workflow: workflowSchema,
+});
+
+const deleteWorkUnitWorkflowInput = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  workflowKey: z.string().min(1),
+});
+
+const replaceTransitionBindingsInput = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  transitionKey: z.string().min(1),
+  workflowKeys: z.array(z.string().min(1)),
+});
+
 const createFactInput = z.object({
   versionId: z.string().min(1),
   fact: variableDefinitionSchema,
@@ -200,6 +238,11 @@ const deleteWorkUnitFactInput = z.object({
   versionId: z.string().min(1),
   workUnitTypeKey: z.string().min(1),
   factKey: z.string().min(1),
+});
+
+const deleteWorkUnitInput = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
 });
 
 const validateDraftInput = z.object({
@@ -282,6 +325,36 @@ const lifecycleTransitionSchema = z.object({
   fromState: z.string().optional(), // undefined/null = __absent__
   toState: z.string().min(1),
   conditionSets: z.array(transitionConditionSetSchema),
+});
+
+const replaceWorkUnitLifecycleStatesInput = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  states: z.array(lifecycleStateSchema),
+});
+
+const replaceWorkUnitLifecycleTransitionsInput = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  transitions: z.array(lifecycleTransitionSchema),
+});
+
+const replaceWorkUnitTransitionConditionSetsInput = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  transitionKey: z.string().min(1),
+  conditionSets: z.array(transitionConditionSetSchema),
+});
+
+const listWorkUnitStateMachineInput = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+});
+
+const listWorkUnitTransitionConditionSetsInput = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  transitionKey: z.string().min(1),
 });
 
 const factSchemaDefinition = z.object({
@@ -578,23 +651,18 @@ function runEffect<A>(
   );
 }
 
-type DraftProjectionLike = {
-  workUnitTypes?: readonly unknown[];
-  agentTypes?: readonly unknown[];
-};
-
-type WorkUnitTypeLike = {
-  key?: string;
-  factSchemas?: readonly unknown[];
-};
-
-function toWorkUnitFactArray(value: unknown): Array<Record<string, unknown>> {
-  if (!Array.isArray(value)) {
-    return [];
+function extractText(value: unknown): string | undefined {
+  if (typeof value !== "object" || value === null || !("human" in value)) {
+    return undefined;
   }
-  return value.filter(
-    (entry): entry is Record<string, unknown> => !!entry && typeof entry === "object",
-  );
+
+  const human = (value as { human?: unknown }).human;
+  if (typeof human !== "object" || human === null || !("markdown" in human)) {
+    return undefined;
+  }
+
+  const markdown = (human as { markdown?: unknown }).markdown;
+  return typeof markdown === "string" ? markdown : undefined;
 }
 
 export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
@@ -866,10 +934,10 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
         serviceLayer,
         Effect.gen(function* () {
           const svc = yield* MethodologyVersionBoundaryService;
-          const projection = yield* svc.getDraftProjection(input.versionId);
-          const projectionRecord = projection as Record<string, unknown>;
-          const agentTypes = Array.isArray(projectionRecord.agentTypes)
-            ? projectionRecord.agentTypes.map((value) => {
+          const workspaceSnapshot = yield* svc.getVersionWorkspaceSnapshot(input.versionId);
+          const snapshotRecord = workspaceSnapshot as Record<string, unknown>;
+          const agentTypes = Array.isArray(snapshotRecord.agentTypes)
+            ? snapshotRecord.agentTypes.map((value) => {
                 const agent = value as Record<string, unknown>;
                 const persona = typeof agent.persona === "string" ? agent.persona : undefined;
                 const promptTemplate =
@@ -885,7 +953,7 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
               })
             : [];
           return {
-            ...projectionRecord,
+            ...snapshotRecord,
             agentTypes,
           };
         }),
@@ -1079,7 +1147,7 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
           serviceLayer,
           Effect.gen(function* () {
             const svc = yield* MethodologyVersionBoundaryService;
-            return yield* svc.updateDraftWorkflows(workflowPayload, actorId);
+            return yield* svc.replaceDraftWorkflowSnapshot(workflowPayload, actorId);
           }),
         );
         return {
@@ -1087,6 +1155,214 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
           diagnostics: result.diagnostics,
         };
       }),
+
+    listWorkUnitWorkflows: publicProcedure
+      .input(listWorkUnitWorkflowsInput)
+      .handler(async ({ input }) =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionBoundaryService;
+            return yield* svc.listWorkUnitWorkflows({
+              versionId: input.versionId,
+              workUnitTypeKey: input.workUnitTypeKey,
+            });
+          }),
+        ),
+      ),
+
+    createWorkUnitWorkflow: protectedProcedure
+      .input(createWorkUnitWorkflowInput)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        const payload: CreateWorkUnitWorkflowInput = {
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+          workflow: {
+            ...input.workflow,
+            workUnitTypeKey: input.workUnitTypeKey,
+          },
+        };
+
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionBoundaryService;
+            return yield* svc.createWorkUnitWorkflow(payload, actorId);
+          }),
+        );
+
+        return {
+          version: serializeVersion(result.version),
+          diagnostics: result.diagnostics,
+        };
+      }),
+
+    updateWorkUnitWorkflow: protectedProcedure
+      .input(updateWorkUnitWorkflowInput)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        const payload: UpdateWorkUnitWorkflowInput = {
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+          workflowKey: input.workflowKey,
+          workflow: {
+            ...input.workflow,
+            workUnitTypeKey: input.workUnitTypeKey,
+          },
+        };
+
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionBoundaryService;
+            return yield* svc.updateWorkUnitWorkflow(payload, actorId);
+          }),
+        );
+
+        return {
+          version: serializeVersion(result.version),
+          diagnostics: result.diagnostics,
+        };
+      }),
+
+    deleteWorkUnitWorkflow: protectedProcedure
+      .input(deleteWorkUnitWorkflowInput)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        const payload: DeleteWorkUnitWorkflowInput = {
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+          workflowKey: input.workflowKey,
+        };
+
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionBoundaryService;
+            return yield* svc.deleteWorkUnitWorkflow(payload, actorId);
+          }),
+        );
+
+        return {
+          version: serializeVersion(result.version),
+          diagnostics: result.diagnostics,
+        };
+      }),
+
+    replaceTransitionBindings: protectedProcedure
+      .input(replaceTransitionBindingsInput)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        const payload: ReplaceWorkUnitTransitionBindingsInput = {
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+          transitionKey: input.transitionKey,
+          workflowKeys: input.workflowKeys,
+        };
+
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionBoundaryService;
+            return yield* svc.replaceTransitionBindings(payload, actorId);
+          }),
+        );
+
+        return {
+          version: serializeVersion(result.version),
+          diagnostics: result.diagnostics,
+        };
+      }),
+
+    listFactDefinitions: publicProcedure.input(versionInput).handler(async ({ input }) => {
+      return runEffect(
+        serviceLayer,
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionBoundaryService;
+          const snapshot = yield* svc.getAuthoringSnapshot(input.versionId);
+          return {
+            factDefinitions: snapshot.factDefinitions,
+          };
+        }),
+      );
+    }),
+
+    listAgentDefinitions: publicProcedure.input(versionInput).handler(async ({ input }) => {
+      return runEffect(
+        serviceLayer,
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionBoundaryService;
+          const snapshot = yield* svc.getAuthoringSnapshot(input.versionId);
+          return {
+            agentTypes: snapshot.agentTypes,
+          };
+        }),
+      );
+    }),
+
+    listDependencyDefinitions: publicProcedure.input(versionInput).handler(async ({ input }) => {
+      return runEffect(
+        serviceLayer,
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionBoundaryService;
+          const snapshot = yield* svc.getAuthoringSnapshot(input.versionId);
+          return {
+            linkTypeDefinitions: snapshot.linkTypeDefinitions,
+            transitionWorkflowBindings: snapshot.transitionWorkflowBindings,
+          };
+        }),
+      );
+    }),
+
+    listWorkUnitDefinitions: publicProcedure.input(versionInput).handler(async ({ input }) => {
+      return runEffect(
+        serviceLayer,
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionBoundaryService;
+          const snapshot = yield* svc.getAuthoringSnapshot(input.versionId);
+          return {
+            workUnitTypes: snapshot.workUnitTypes,
+            workflows: snapshot.workflows,
+          };
+        }),
+      );
+    }),
+
+    getWorkUnitDefinitions: publicProcedure.input(versionInput).handler(async ({ input }) => {
+      return runEffect(
+        serviceLayer,
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionBoundaryService;
+          const snapshot = yield* svc.getAuthoringSnapshot(input.versionId);
+          return {
+            workUnitTypes: snapshot.workUnitTypes,
+            workflows: snapshot.workflows,
+            linkTypeDefinitions: snapshot.linkTypeDefinitions,
+            transitionWorkflowBindings: snapshot.transitionWorkflowBindings,
+            factDefinitions: snapshot.factDefinitions,
+            agentTypes: snapshot.agentTypes,
+          };
+        }),
+      );
+    }),
+
+    listWorkUnitFacts: publicProcedure.input(versionInput).handler(async ({ input }) => {
+      return runEffect(
+        serviceLayer,
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionBoundaryService;
+          const snapshot = yield* svc.getAuthoringSnapshot(input.versionId);
+          return {
+            workUnitTypes: snapshot.workUnitTypes.map((workUnitType) => ({
+              key: workUnitType.key,
+              factSchemas: workUnitType.factSchemas,
+            })),
+            factDefinitions: snapshot.factDefinitions,
+          };
+        }),
+      );
+    }),
 
     createFact: protectedProcedure.input(createFactInput).handler(async ({ input, context }) => {
       const actorId = context.session.user.id;
@@ -1157,27 +1433,24 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
       .handler(async ({ input, context }) => {
         const actorId = context.session.user.id;
 
-        const projection = (await runEffect(
+        const snapshot = await runEffect(
           serviceLayer,
           Effect.gen(function* () {
             const svc = yield* MethodologyVersionBoundaryService;
-            return yield* svc.getDraftProjection(input.versionId);
+            return yield* svc.getAuthoringSnapshot(input.versionId);
           }),
-        )) as unknown as DraftProjectionLike;
+        );
 
-        const workUnitTypes = Array.isArray(projection.workUnitTypes)
-          ? projection.workUnitTypes.filter(
-              (entry): entry is WorkUnitTypeLike => !!entry && typeof entry === "object",
-            )
-          : [];
-        const workUnit = workUnitTypes.find((entry) => entry.key === input.workUnitTypeKey);
+        const workUnit = snapshot.workUnitTypes.find(
+          (entry) => entry.key === input.workUnitTypeKey,
+        );
         if (!workUnit) {
           throw new ORPCError("NOT_FOUND", {
             message: `Work unit type '${input.workUnitTypeKey}' not found in draft '${input.versionId}'`,
           });
         }
 
-        const currentFacts = toWorkUnitFactArray(workUnit.factSchemas);
+        const currentFacts = workUnit.factSchemas;
         const duplicate = currentFacts.some((fact) => fact.key === input.fact.key);
         if (duplicate) {
           throw new ORPCError("CONFLICT", {
@@ -1185,29 +1458,36 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
           });
         }
 
-        const nextWorkUnitTypes = workUnitTypes.map((entry) =>
-          entry.key === input.workUnitTypeKey
-            ? { ...entry, factSchemas: [...currentFacts, input.fact] }
-            : entry,
-        );
+        const mappedFact: FactSchema = {
+          key: input.fact.key,
+          name: input.fact.name,
+          factType: input.fact.factType,
+          defaultValue: input.fact.defaultValue,
+          description: extractText(input.fact.description),
+          guidance: input.fact.guidance,
+          validation: input.fact.validation,
+        };
 
-        const lifecyclePayload = {
-          versionId: input.versionId,
-          workUnitTypes: nextWorkUnitTypes,
-          agentTypes: Array.isArray(projection.agentTypes) ? projection.agentTypes : [],
-        } as unknown as UpdateDraftLifecycleInput;
+        const nextFacts: readonly FactSchema[] = [...currentFacts, mappedFact];
 
         const result = await runEffect(
           serviceLayer,
           Effect.gen(function* () {
             const svc = yield* MethodologyVersionBoundaryService;
-            return yield* svc.updateDraftLifecycle(lifecyclePayload, actorId);
+            return yield* svc.replaceWorkUnitFacts(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+                facts: nextFacts,
+              },
+              actorId,
+            );
           }),
         );
 
         return {
           version: serializeVersion(result.version),
-          diagnostics: result.validation,
+          diagnostics: result.diagnostics,
         };
       }),
 
@@ -1216,27 +1496,24 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
       .handler(async ({ input, context }) => {
         const actorId = context.session.user.id;
 
-        const projection = (await runEffect(
+        const snapshot = await runEffect(
           serviceLayer,
           Effect.gen(function* () {
             const svc = yield* MethodologyVersionBoundaryService;
-            return yield* svc.getDraftProjection(input.versionId);
+            return yield* svc.getAuthoringSnapshot(input.versionId);
           }),
-        )) as unknown as DraftProjectionLike;
+        );
 
-        const workUnitTypes = Array.isArray(projection.workUnitTypes)
-          ? projection.workUnitTypes.filter(
-              (entry): entry is WorkUnitTypeLike => !!entry && typeof entry === "object",
-            )
-          : [];
-        const workUnit = workUnitTypes.find((entry) => entry.key === input.workUnitTypeKey);
+        const workUnit = snapshot.workUnitTypes.find(
+          (entry) => entry.key === input.workUnitTypeKey,
+        );
         if (!workUnit) {
           throw new ORPCError("NOT_FOUND", {
             message: `Work unit type '${input.workUnitTypeKey}' not found in draft '${input.versionId}'`,
           });
         }
 
-        const currentFacts = toWorkUnitFactArray(workUnit.factSchemas);
+        const currentFacts = workUnit.factSchemas;
         const found = currentFacts.some((fact) => fact.key === input.factKey);
         if (!found) {
           throw new ORPCError("NOT_FOUND", {
@@ -1244,30 +1521,38 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
           });
         }
 
-        const nextFacts = currentFacts.map((fact) =>
-          fact.key === input.factKey ? { ...input.fact } : fact,
-        );
-        const nextWorkUnitTypes = workUnitTypes.map((entry) =>
-          entry.key === input.workUnitTypeKey ? { ...entry, factSchemas: nextFacts } : entry,
-        );
+        const mappedFact: FactSchema = {
+          key: input.fact.key,
+          name: input.fact.name,
+          factType: input.fact.factType,
+          defaultValue: input.fact.defaultValue,
+          description: extractText(input.fact.description),
+          guidance: input.fact.guidance,
+          validation: input.fact.validation,
+        };
 
-        const lifecyclePayload = {
-          versionId: input.versionId,
-          workUnitTypes: nextWorkUnitTypes,
-          agentTypes: Array.isArray(projection.agentTypes) ? projection.agentTypes : [],
-        } as unknown as UpdateDraftLifecycleInput;
+        const nextFacts: readonly FactSchema[] = currentFacts.map((fact) =>
+          fact.key === input.factKey ? mappedFact : fact,
+        );
 
         const result = await runEffect(
           serviceLayer,
           Effect.gen(function* () {
             const svc = yield* MethodologyVersionBoundaryService;
-            return yield* svc.updateDraftLifecycle(lifecyclePayload, actorId);
+            return yield* svc.replaceWorkUnitFacts(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+                facts: nextFacts,
+              },
+              actorId,
+            );
           }),
         );
 
         return {
           version: serializeVersion(result.version),
-          diagnostics: result.validation,
+          diagnostics: result.diagnostics,
         };
       }),
 
@@ -1276,49 +1561,46 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
       .handler(async ({ input, context }) => {
         const actorId = context.session.user.id;
 
-        const projection = (await runEffect(
+        const snapshot = await runEffect(
           serviceLayer,
           Effect.gen(function* () {
             const svc = yield* MethodologyVersionBoundaryService;
-            return yield* svc.getDraftProjection(input.versionId);
+            return yield* svc.getAuthoringSnapshot(input.versionId);
           }),
-        )) as unknown as DraftProjectionLike;
+        );
 
-        const workUnitTypes = Array.isArray(projection.workUnitTypes)
-          ? projection.workUnitTypes.filter(
-              (entry): entry is WorkUnitTypeLike => !!entry && typeof entry === "object",
-            )
-          : [];
-        const workUnit = workUnitTypes.find((entry) => entry.key === input.workUnitTypeKey);
+        const workUnit = snapshot.workUnitTypes.find(
+          (entry) => entry.key === input.workUnitTypeKey,
+        );
         if (!workUnit) {
           throw new ORPCError("NOT_FOUND", {
             message: `Work unit type '${input.workUnitTypeKey}' not found in draft '${input.versionId}'`,
           });
         }
 
-        const currentFacts = toWorkUnitFactArray(workUnit.factSchemas);
-        const nextFacts = currentFacts.filter((fact) => fact.key !== input.factKey);
-        const nextWorkUnitTypes = workUnitTypes.map((entry) =>
-          entry.key === input.workUnitTypeKey ? { ...entry, factSchemas: nextFacts } : entry,
+        const currentFacts = workUnit.factSchemas;
+        const nextFacts: readonly FactSchema[] = currentFacts.filter(
+          (fact) => fact.key !== input.factKey,
         );
-
-        const lifecyclePayload = {
-          versionId: input.versionId,
-          workUnitTypes: nextWorkUnitTypes,
-          agentTypes: Array.isArray(projection.agentTypes) ? projection.agentTypes : [],
-        } as unknown as UpdateDraftLifecycleInput;
 
         const result = await runEffect(
           serviceLayer,
           Effect.gen(function* () {
             const svc = yield* MethodologyVersionBoundaryService;
-            return yield* svc.updateDraftLifecycle(lifecyclePayload, actorId);
+            return yield* svc.replaceWorkUnitFacts(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+                facts: nextFacts,
+              },
+              actorId,
+            );
           }),
         );
 
         return {
           version: serializeVersion(result.version),
-          diagnostics: result.validation,
+          diagnostics: result.diagnostics,
         };
       }),
 
@@ -1410,6 +1692,289 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
           version: serializeVersion(result.version),
           diagnostics: result.validation,
         };
+      }),
+
+    deleteWorkUnit: protectedProcedure
+      .input(deleteWorkUnitInput)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionBoundaryService;
+            return yield* svc.deleteWorkUnit(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+              },
+              actorId,
+            );
+          }),
+        );
+
+        return {
+          version: serializeVersion(result.version),
+          diagnostics: result.diagnostics,
+        };
+      }),
+
+    replaceWorkUnitLifecycleStates: protectedProcedure
+      .input(replaceWorkUnitLifecycleStatesInput)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionBoundaryService;
+            return yield* svc.replaceWorkUnitLifecycleStates(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+                states: input.states,
+              },
+              actorId,
+            );
+          }),
+        );
+
+        return {
+          version: serializeVersion(result.version),
+          diagnostics: result.diagnostics,
+        };
+      }),
+
+    replaceWorkUnitLifecycleTransitions: protectedProcedure
+      .input(replaceWorkUnitLifecycleTransitionsInput)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionBoundaryService;
+            return yield* svc.replaceWorkUnitLifecycleTransitions(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+                transitions: input.transitions.map((transition) => ({
+                  ...transition,
+                  conditionSets: transition.conditionSets.map((conditionSet) => ({
+                    ...conditionSet,
+                    groups: conditionSet.groups.map((group) => ({
+                      ...group,
+                      conditions: group.conditions.map((condition) => ({
+                        ...condition,
+                        required: condition.required ?? true,
+                      })),
+                    })),
+                  })),
+                })),
+              },
+              actorId,
+            );
+          }),
+        );
+
+        return {
+          version: serializeVersion(result.version),
+          diagnostics: result.diagnostics,
+        };
+      }),
+
+    replaceWorkUnitTransitionConditionSets: protectedProcedure
+      .input(replaceWorkUnitTransitionConditionSetsInput)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionBoundaryService;
+            return yield* svc.replaceWorkUnitTransitionConditionSets(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+                transitionKey: input.transitionKey,
+                conditionSets: input.conditionSets.map((conditionSet) => ({
+                  ...conditionSet,
+                  groups: conditionSet.groups.map((group) => ({
+                    ...group,
+                    conditions: group.conditions.map((condition) => ({
+                      ...condition,
+                      required: condition.required ?? true,
+                    })),
+                  })),
+                })),
+              },
+              actorId,
+            );
+          }),
+        );
+
+        return {
+          version: serializeVersion(result.version),
+          diagnostics: result.diagnostics,
+        };
+      }),
+
+    listWorkUnitLifecycleStates: publicProcedure
+      .input(listWorkUnitStateMachineInput)
+      .handler(async ({ input }) => {
+        return runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionBoundaryService;
+            const snapshot = yield* svc.getAuthoringSnapshot(input.versionId);
+            const workUnitTypes = Array.isArray(snapshot.workUnitTypes)
+              ? snapshot.workUnitTypes.filter(
+                  (entry): entry is Record<string, unknown> => !!entry && typeof entry === "object",
+                )
+              : [];
+            const workUnit = workUnitTypes.find((entry) => entry.key === input.workUnitTypeKey);
+            const lifecycleStates = Array.isArray(workUnit?.lifecycleStates)
+              ? workUnit.lifecycleStates.filter(
+                  (state): state is Record<string, unknown> => !!state && typeof state === "object",
+                )
+              : [];
+
+            return lifecycleStates
+              .filter((state) => typeof state.key === "string")
+              .map((state) => ({
+                key: state.key as string,
+                ...(typeof state.displayName === "string"
+                  ? { displayName: state.displayName }
+                  : {}),
+                ...(typeof state.description === "string"
+                  ? { description: state.description }
+                  : {}),
+              }));
+          }),
+        );
+      }),
+
+    listWorkUnitLifecycleTransitions: publicProcedure
+      .input(listWorkUnitStateMachineInput)
+      .handler(async ({ input }) => {
+        return runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionBoundaryService;
+            const snapshot = yield* svc.getAuthoringSnapshot(input.versionId);
+            const workUnitTypes = Array.isArray(snapshot.workUnitTypes)
+              ? snapshot.workUnitTypes.filter(
+                  (entry): entry is Record<string, unknown> => !!entry && typeof entry === "object",
+                )
+              : [];
+            const workUnit = workUnitTypes.find((entry) => entry.key === input.workUnitTypeKey);
+            const lifecycleTransitions = Array.isArray(workUnit?.lifecycleTransitions)
+              ? workUnit.lifecycleTransitions.filter(
+                  (transition): transition is Record<string, unknown> =>
+                    !!transition && typeof transition === "object",
+                )
+              : [];
+
+            return lifecycleTransitions
+              .filter(
+                (transition) =>
+                  typeof transition.transitionKey === "string" &&
+                  typeof transition.toState === "string",
+              )
+              .map((transition) => ({
+                transitionKey: transition.transitionKey as string,
+                ...(typeof transition.fromState === "string"
+                  ? { fromState: transition.fromState }
+                  : {}),
+                toState: transition.toState as string,
+                conditionSets: Array.isArray(transition.conditionSets)
+                  ? transition.conditionSets
+                  : [],
+              }));
+          }),
+        );
+      }),
+
+    listWorkUnitTransitionConditionSets: publicProcedure
+      .input(listWorkUnitTransitionConditionSetsInput)
+      .handler(async ({ input }) => {
+        return runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionBoundaryService;
+            const snapshot = yield* svc.getAuthoringSnapshot(input.versionId);
+            const workUnitTypes = Array.isArray(snapshot.workUnitTypes)
+              ? snapshot.workUnitTypes.filter(
+                  (entry): entry is Record<string, unknown> => !!entry && typeof entry === "object",
+                )
+              : [];
+            const workUnit = workUnitTypes.find((entry) => entry.key === input.workUnitTypeKey);
+            const transitions = Array.isArray(workUnit?.lifecycleTransitions)
+              ? workUnit.lifecycleTransitions.filter(
+                  (transition): transition is Record<string, unknown> =>
+                    !!transition && typeof transition === "object",
+                )
+              : [];
+
+            const matched = transitions.find(
+              (transition) => transition.transitionKey === input.transitionKey,
+            );
+            return Array.isArray(matched?.conditionSets)
+              ? matched.conditionSets.filter(
+                  (conditionSet): conditionSet is Record<string, unknown> =>
+                    !!conditionSet && typeof conditionSet === "object",
+                )
+              : [];
+          }),
+        );
+      }),
+
+    listWorkUnitTransitionBindings: publicProcedure
+      .input(listWorkUnitStateMachineInput)
+      .handler(async ({ input }) => {
+        return runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const versionService = yield* MethodologyVersionBoundaryService;
+            const snapshot = yield* versionService.getAuthoringSnapshot(input.versionId);
+
+            const workUnitTypes = Array.isArray(snapshot.workUnitTypes)
+              ? snapshot.workUnitTypes.filter(
+                  (entry): entry is Record<string, unknown> => !!entry && typeof entry === "object",
+                )
+              : [];
+            const workUnit = workUnitTypes.find((entry) => entry.key === input.workUnitTypeKey);
+            const transitions = Array.isArray(workUnit?.lifecycleTransitions)
+              ? workUnit.lifecycleTransitions.filter(
+                  (transition): transition is Record<string, unknown> =>
+                    !!transition && typeof transition === "object",
+                )
+              : [];
+            const transitionKeys = new Set(
+              transitions
+                .map((transition) => transition.transitionKey)
+                .filter(
+                  (transitionKey): transitionKey is string => typeof transitionKey === "string",
+                ),
+            );
+
+            if (!snapshot.transitionWorkflowBindings) {
+              return {} as Record<string, string[]>;
+            }
+
+            const entries = Object.entries(snapshot.transitionWorkflowBindings)
+              .filter(([transitionKey]) => transitionKeys.has(transitionKey))
+              .map(
+                ([transitionKey, workflowKeys]) =>
+                  [
+                    transitionKey,
+                    Array.isArray(workflowKeys)
+                      ? workflowKeys.filter(
+                          (workflowKey): workflowKey is string => typeof workflowKey === "string",
+                        )
+                      : [],
+                  ] as const,
+              );
+
+            return Object.fromEntries(entries);
+          }),
+        );
       }),
 
     getWorkUnitArtifactSlots: publicProcedure
@@ -1628,55 +2193,57 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
         get: router.getDraftProjection,
       },
       fact: {
-        list: router.getDraftProjection,
+        list: router.listFactDefinitions,
         create: router.createFact,
         update: router.updateFact,
         delete: router.deleteFact,
       },
       agent: {
-        list: router.getDraftProjection,
+        list: router.listAgentDefinitions,
         create: router.createAgent,
         update: router.updateAgent,
         delete: router.deleteAgent,
       },
       dependencyDefinition: {
-        list: router.getDraftProjection,
+        list: router.listDependencyDefinitions,
         create: router.createDependencyDefinition,
         update: router.updateDependencyDefinition,
         delete: router.deleteDependencyDefinition,
       },
       workUnit: {
-        list: router.getDraftProjection,
+        list: router.listWorkUnitDefinitions,
         create: router.createWorkUnit,
-        get: router.getDraftProjection,
+        get: router.getWorkUnitDefinitions,
         updateMeta: router.updateWorkUnit,
-        delete: router.updateDraftLifecycle,
+        delete: router.deleteWorkUnit,
         fact: {
-          list: router.getDraftProjection,
+          list: router.listWorkUnitFacts,
           create: router.createWorkUnitFact,
           update: router.updateWorkUnitFact,
           delete: router.deleteWorkUnitFact,
         },
         workflow: {
-          list: router.getDraftProjection,
-          update: router.updateDraftWorkflows,
+          list: router.listWorkUnitWorkflows,
+          create: router.createWorkUnitWorkflow,
+          update: router.updateWorkUnitWorkflow,
+          delete: router.deleteWorkUnitWorkflow,
         },
         stateMachine: {
           state: {
-            list: router.getDraftProjection,
-            update: router.updateDraftLifecycle,
+            list: router.listWorkUnitLifecycleStates,
+            update: router.replaceWorkUnitLifecycleStates,
           },
           transition: {
-            list: router.getDraftProjection,
-            update: router.updateDraftLifecycle,
+            list: router.listWorkUnitLifecycleTransitions,
+            update: router.replaceWorkUnitLifecycleTransitions,
           },
           conditionSet: {
-            list: router.getDraftProjection,
-            update: router.updateDraftLifecycle,
+            list: router.listWorkUnitTransitionConditionSets,
+            update: router.replaceWorkUnitTransitionConditionSets,
           },
           binding: {
-            list: router.getDraftProjection,
-            update: router.updateDraftWorkflows,
+            list: router.listWorkUnitTransitionBindings,
+            update: router.replaceTransitionBindings,
           },
         },
         artifactSlot: {

@@ -8,6 +8,12 @@ import type {
   ValidationResult,
   WorkflowDefinition,
 } from "@chiron/contracts/methodology/version";
+import type {
+  LifecycleState,
+  LifecycleTransition,
+  TransitionConditionSet,
+} from "@chiron/contracts/methodology/lifecycle";
+import type { FactSchema } from "@chiron/contracts/methodology/fact";
 import { Context, Effect } from "effect";
 import type { RepositoryError } from "./errors";
 
@@ -92,6 +98,62 @@ export interface WorkflowSnapshot {
   workflows: readonly WorkflowDefinition[];
   transitionWorkflowBindings: MethodologyVersionDefinition["transitionWorkflowBindings"];
   guidance?: LayeredGuidance;
+}
+
+export interface CreateWorkflowParams {
+  versionId: string;
+  workUnitTypeKey: string;
+  workflow: WorkflowDefinition;
+}
+
+export interface UpdateWorkflowParams {
+  versionId: string;
+  workUnitTypeKey: string;
+  workflowKey: string;
+  workflow: WorkflowDefinition;
+}
+
+export interface DeleteWorkflowParams {
+  versionId: string;
+  workUnitTypeKey: string;
+  workflowKey: string;
+}
+
+export interface ReplaceTransitionWorkflowBindingsParams {
+  versionId: string;
+  workUnitTypeKey: string;
+  transitionKey: string;
+  workflowKeys: readonly string[];
+}
+
+export interface DeleteWorkUnitTypeParams {
+  versionId: string;
+  workUnitTypeKey: string;
+}
+
+export interface ReplaceWorkUnitFactsParams {
+  versionId: string;
+  workUnitTypeKey: string;
+  facts: readonly FactSchema[];
+}
+
+export interface ReplaceWorkUnitLifecycleStatesParams {
+  versionId: string;
+  workUnitTypeKey: string;
+  states: readonly LifecycleState[];
+}
+
+export interface ReplaceWorkUnitLifecycleTransitionsParams {
+  versionId: string;
+  workUnitTypeKey: string;
+  transitions: readonly LifecycleTransition[];
+}
+
+export interface ReplaceWorkUnitTransitionConditionSetsParams {
+  versionId: string;
+  workUnitTypeKey: string;
+  transitionKey: string;
+  conditionSets: readonly TransitionConditionSet[];
 }
 
 export interface PublishFactSchemaRow {
@@ -208,6 +270,37 @@ export class MethodologyRepository extends Context.Tag("MethodologyRepository")<
     readonly findWorkflowSnapshot: (
       versionId: string,
     ) => Effect.Effect<WorkflowSnapshot, RepositoryError>;
+    readonly listWorkflowsByWorkUnitType?: (params: {
+      versionId: string;
+      workUnitTypeKey: string;
+    }) => Effect.Effect<readonly WorkflowDefinition[], RepositoryError>;
+    readonly createWorkflow?: (
+      params: CreateWorkflowParams,
+    ) => Effect.Effect<void, RepositoryError>;
+    readonly updateWorkflow?: (
+      params: UpdateWorkflowParams,
+    ) => Effect.Effect<void, RepositoryError>;
+    readonly deleteWorkflow?: (
+      params: DeleteWorkflowParams,
+    ) => Effect.Effect<boolean, RepositoryError>;
+    readonly replaceTransitionWorkflowBindings?: (
+      params: ReplaceTransitionWorkflowBindingsParams,
+    ) => Effect.Effect<void, RepositoryError>;
+    readonly deleteWorkUnitType?: (
+      params: DeleteWorkUnitTypeParams,
+    ) => Effect.Effect<boolean, RepositoryError>;
+    readonly replaceWorkUnitFacts?: (
+      params: ReplaceWorkUnitFactsParams,
+    ) => Effect.Effect<boolean, RepositoryError>;
+    readonly replaceWorkUnitLifecycleStates?: (
+      params: ReplaceWorkUnitLifecycleStatesParams,
+    ) => Effect.Effect<boolean, RepositoryError>;
+    readonly replaceWorkUnitLifecycleTransitions?: (
+      params: ReplaceWorkUnitLifecycleTransitionsParams,
+    ) => Effect.Effect<boolean, RepositoryError>;
+    readonly replaceWorkUnitTransitionConditionSets?: (
+      params: ReplaceWorkUnitTransitionConditionSetsParams,
+    ) => Effect.Effect<boolean, RepositoryError>;
     readonly findFactSchemasByVersionId: (
       versionId: string,
     ) => Effect.Effect<readonly PublishFactSchemaRow[], RepositoryError>;

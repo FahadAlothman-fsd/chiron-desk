@@ -113,7 +113,7 @@ Tab shortcuts are attached to each tab label and shown as subtle keycaps:
 
 ## Data/Behavior Requirements
 
-Overview reads aggregate data already available in draft projection (or lightweight selectors):
+Overview reads aggregate data already available in authoring snapshot (or lightweight selectors):
 
 - facts count
 - workflows count

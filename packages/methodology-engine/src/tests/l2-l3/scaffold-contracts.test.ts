@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { Effect } from "effect";
 
 import * as Engine from "../../index";
 
@@ -16,5 +17,74 @@ describe("L2/L3 scaffold contracts", () => {
     expect(Engine).toHaveProperty("WorkUnitRuntimeResolver");
     expect(Engine).toHaveProperty("WorkflowRuntimeResolver");
     expect(Engine).toHaveProperty("StepContractResolver");
+  });
+
+  it("defines explicit workflow seam CRUD contracts", () => {
+    const workflowService = Engine.WorkflowService.of({
+      listWorkUnitWorkflows: () => Effect.succeed([]),
+      createWorkUnitWorkflow: () =>
+        Effect.succeed({
+          version: {
+            id: "ver-1",
+            methodologyId: "method-1",
+            version: "v1",
+            status: "draft",
+            displayName: "Draft",
+            definitionExtensions: null,
+            createdAt: new Date(),
+            retiredAt: null,
+          },
+          diagnostics: { valid: true, diagnostics: [] },
+        }),
+      updateWorkUnitWorkflow: () =>
+        Effect.succeed({
+          version: {
+            id: "ver-1",
+            methodologyId: "method-1",
+            version: "v1",
+            status: "draft",
+            displayName: "Draft",
+            definitionExtensions: null,
+            createdAt: new Date(),
+            retiredAt: null,
+          },
+          diagnostics: { valid: true, diagnostics: [] },
+        }),
+      deleteWorkUnitWorkflow: () =>
+        Effect.succeed({
+          version: {
+            id: "ver-1",
+            methodologyId: "method-1",
+            version: "v1",
+            status: "draft",
+            displayName: "Draft",
+            definitionExtensions: null,
+            createdAt: new Date(),
+            retiredAt: null,
+          },
+          diagnostics: { valid: true, diagnostics: [] },
+        }),
+      replaceTransitionBindings: () =>
+        Effect.succeed({
+          version: {
+            id: "ver-1",
+            methodologyId: "method-1",
+            version: "v1",
+            status: "draft",
+            displayName: "Draft",
+            definitionExtensions: null,
+            createdAt: new Date(),
+            retiredAt: null,
+          },
+          diagnostics: { valid: true, diagnostics: [] },
+        }),
+      updateWorkflowDefinition: () => Effect.void,
+    });
+
+    expect(typeof workflowService.listWorkUnitWorkflows).toBe("function");
+    expect(typeof workflowService.createWorkUnitWorkflow).toBe("function");
+    expect(typeof workflowService.updateWorkUnitWorkflow).toBe("function");
+    expect(typeof workflowService.deleteWorkUnitWorkflow).toBe("function");
+    expect(typeof workflowService.replaceTransitionBindings).toBe("function");
   });
 });

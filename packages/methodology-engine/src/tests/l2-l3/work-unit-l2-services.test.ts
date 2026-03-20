@@ -1,4 +1,3 @@
-import type { MethodologyVersionProjection } from "@chiron/contracts/methodology/projection";
 import { Context, Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 
@@ -23,13 +22,8 @@ const versionRow = {
   retiredAt: null,
 };
 
-function makeProjection(): MethodologyVersionProjection {
+function makeAuthoringSnapshot() {
   return {
-    id: "ver-1",
-    methodologyId: "meth-1",
-    version: "v1",
-    status: "draft",
-    displayName: "Draft",
     workUnitTypes: [
       {
         key: "project_context",
@@ -60,7 +54,6 @@ function makeProjection(): MethodologyVersionProjection {
     transitionWorkflowBindings: {
       "to-ready": ["wf-a"],
     },
-    guidance: undefined,
     factDefinitions: [],
     linkTypeDefinitions: [],
   };
@@ -73,7 +66,7 @@ describe("WorkUnitFactService", () => {
     const layer = Layer.provide(
       WorkUnitFactServiceLive,
       Layer.succeed(MethodologyVersionService, {
-        getDraftProjection: () => Effect.succeed(makeProjection()),
+        getAuthoringSnapshot: () => Effect.succeed(makeAuthoringSnapshot()),
         updateDraftLifecycle: (input: { workUnitTypes: unknown }) => {
           capturedWorkUnitTypes = input.workUnitTypes;
           return Effect.succeed({
@@ -114,7 +107,7 @@ describe("WorkUnitStateMachineService", () => {
     const layer = Layer.provide(
       WorkUnitStateMachineServiceLive,
       Layer.succeed(MethodologyVersionService, {
-        getDraftProjection: () => Effect.succeed(makeProjection()),
+        getAuthoringSnapshot: () => Effect.succeed(makeAuthoringSnapshot()),
         updateDraftLifecycle: (input: { workUnitTypes: unknown }) => {
           capturedWorkUnitTypes = input.workUnitTypes;
           return Effect.succeed({
@@ -122,8 +115,6 @@ describe("WorkUnitStateMachineService", () => {
             validation: { valid: true, diagnostics: [] },
           });
         },
-        updateDraftWorkflows: () =>
-          Effect.succeed({ version: versionRow, diagnostics: { valid: true, diagnostics: [] } }),
       } as unknown as Context.Tag.Service<typeof MethodologyVersionService>),
     );
 
@@ -158,15 +149,14 @@ describe("WorkUnitStateMachineService", () => {
     ]);
   });
 
-  it("replaces transition workflow bindings via workflow update path", async () => {
-    let capturedBindings: unknown = null;
+  it("replaces transition workflow bindings via direct binding path", async () => {
+    let capturedPayload: unknown = null;
 
     const layer = Layer.provide(
       WorkUnitStateMachineServiceLive,
       Layer.succeed(MethodologyVersionService, {
-        getDraftProjection: () => Effect.succeed(makeProjection()),
-        updateDraftWorkflows: (input: { transitionWorkflowBindings: unknown }) => {
-          capturedBindings = input.transitionWorkflowBindings;
+        replaceTransitionBindings: (input: unknown) => {
+          capturedPayload = input;
           return Effect.succeed({
             version: versionRow,
             diagnostics: { valid: true, diagnostics: [] },
@@ -190,8 +180,11 @@ describe("WorkUnitStateMachineService", () => {
       }).pipe(Effect.provide(layer)),
     );
 
-    expect(capturedBindings).toEqual({
-      "to-ready": ["wf-b", "wf-c"],
+    expect(capturedPayload).toEqual({
+      versionId: "ver-1",
+      workUnitTypeKey: "project_context",
+      transitionKey: "to-ready",
+      workflowKeys: ["wf-b", "wf-c"],
     });
   });
 });

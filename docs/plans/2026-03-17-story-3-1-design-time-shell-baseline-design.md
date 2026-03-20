@@ -59,7 +59,7 @@ Recommended search models:
 Recommended TanStack Query ownership:
 
 - `getMethodologyDetails(methodologyId)` for methodology name, versions, and version labels
-- `getDraftProjection(versionId)` as the shared design-time read model for facts, work units, agents, and dependency definitions
+- `version.workspace.get(versionId)` as the shared design-time read model for facts, work units, agents, and dependency definitions
 - route-level `select` helpers to derive page-specific slices rather than adding Story 3.1-specific transport or a second app store
 
 Rules:
@@ -220,4 +220,4 @@ Revisit this architecture only if one of these becomes true:
 
 - Story 3.2 or later requires independently cacheable page slices with materially different data-shape costs
 - Work Unit L2 tabs need first-class deep-link routes instead of search-param tabs
-- Story 3.1 verification shows the shared draft projection is too heavy for acceptable route-level responsiveness
+- Story 3.1 verification shows the shared authoring snapshot is too heavy for acceptable route-level responsiveness

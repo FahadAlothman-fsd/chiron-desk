@@ -4,7 +4,7 @@
 
 **Goal:** Complete Story 3.1 version-scoped methodology routing, page shells, command parity, and regression coverage without introducing a second client-side data model.
 
-**Architecture:** Keep version-owned surfaces under `/methodologies/:methodologyId/versions/:versionId/...`, use route params plus search params as the durable state contract, and derive page slices from the existing `getDraftProjection(versionId)` query. Reuse the current workspace shell, facts inventory, and graph primitives by extraction, then route all create/navigation actions through one shared resolver so visible controls and command palette behavior stay identical.
+**Architecture:** Keep version-owned surfaces under `/methodologies/:methodologyId/versions/:versionId/...`, use route params plus search params as the durable state contract, and derive page slices from the existing `version.workspace.get(versionId)` query. Reuse the current workspace shell, facts inventory, and graph primitives by extraction, then route all create/navigation actions through one shared resolver so visible controls and command palette behavior stay identical.
 
 **Tech Stack:** TanStack Router file-routes, React 19, TanStack Query v5, Vitest, Testing Library, Playwright, Bun.
 
@@ -95,7 +95,7 @@ Expected: FAIL because the route files/helpers do not exist yet.
 Add route files using `createFileRoute(...)` and fetch route-scoped data from:
 
 - `orpc.methodology.getMethodologyDetails.queryOptions({ input: { methodologyKey: methodologyId } })`
-- `orpc.methodology.getDraftProjection.queryOptions({ input: { versionId } })`
+- `orpc.methodology.version.workspace.get.queryOptions({ input: { versionId } })`
 
 Create `version-page-selectors.ts` with pure helpers such as:
 

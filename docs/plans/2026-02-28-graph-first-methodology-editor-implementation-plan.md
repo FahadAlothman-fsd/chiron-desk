@@ -4,7 +4,7 @@
 
 **Goal:** Replace JSON-authoritative methodology draft editing with a canonical client-side graph store across L1/L2/L3 scopes, keeping JSON as import/export fallback only.
 
-**Architecture:** Hydrate a normalized graph store from `orpc.methodology.getDraftProjection`, project L1/L2/L3 views via the existing `projectMethodologyGraph` shape (`apps/web/src/features/methodologies/version-graph.ts`), compile the graph into the existing two persistence DTOs (`updateDraftLifecycle`, `updateDraftWorkflows`), and enforce deterministic reload semantics by refetching and rehydrating after successful saves.
+**Architecture:** Hydrate a normalized graph store from `orpc.methodology.version.workspace.get`, project L1/L2/L3 views via the existing `projectMethodologyGraph` shape (`apps/web/src/features/methodologies/version-graph.ts`), compile the graph into the existing two persistence DTOs (`updateDraftLifecycle`, `updateDraftWorkflows`), and enforce deterministic reload semantics by refetching and rehydrating after successful saves.
 
 **Tech Stack:** React 19, TanStack Router, TanStack Query v5, TypeScript, `@xyflow/react`, Vitest, Testing Library.
 
@@ -167,7 +167,7 @@ git commit -m "feat(web): add methodology graph store skeleton"
 
 ---
 
-### Task 2: Add deterministic hydrator from draft projection
+### Task 2: Add deterministic hydrator from authoring snapshot
 
 **Files:**
 - Create: `apps/web/src/features/methodologies/graph-hydrate.ts`

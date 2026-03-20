@@ -1,10 +1,9 @@
-import { AgentTypeDefinition } from "@chiron/contracts/methodology/agent";
 import type {
   GetWorkUnitFactsInput,
   ReplaceWorkUnitFactsInput,
 } from "@chiron/contracts/methodology/fact";
 import { WorkUnitTypeDefinition } from "@chiron/contracts/methodology/lifecycle";
-import { Context, Effect, Layer, Schema } from "effect";
+import { Context, Effect, Layer } from "effect";
 
 import {
   RepositoryError,
@@ -14,22 +13,6 @@ import {
 } from "../errors";
 import { MethodologyVersionService } from "./methodology-version-service";
 import type { UpdateDraftLifecycleResult } from "./methodology-version-service";
-
-function decodeWorkUnitTypes(
-  value: unknown,
-): Effect.Effect<readonly WorkUnitTypeDefinition[], ValidationDecodeError> {
-  return Schema.decodeUnknown(Schema.Array(WorkUnitTypeDefinition))(value).pipe(
-    Effect.mapError((error) => new ValidationDecodeError({ message: String(error) })),
-  );
-}
-
-function decodeAgentTypes(
-  value: unknown,
-): Effect.Effect<readonly (typeof AgentTypeDefinition.Type)[], ValidationDecodeError> {
-  return Schema.decodeUnknown(Schema.Array(AgentTypeDefinition))(value).pipe(
-    Effect.mapError((error) => new ValidationDecodeError({ message: String(error) })),
-  );
-}
 
 export class WorkUnitFactService extends Context.Tag("WorkUnitFactService")<
   WorkUnitFactService,
@@ -57,17 +40,17 @@ export const WorkUnitFactServiceLive = Layer.effect(
 
     const listByWorkUnitType = (input: GetWorkUnitFactsInput) =>
       Effect.gen(function* () {
-        const projection = yield* versionService.getDraftProjection(input.versionId);
-        const workUnitTypes = yield* decodeWorkUnitTypes(projection.workUnitTypes);
+        const snapshot = yield* versionService.getAuthoringSnapshot(input.versionId);
+        const workUnitTypes = snapshot.workUnitTypes;
         const workUnit = workUnitTypes.find((item) => item.key === input.workUnitTypeKey);
         return workUnit ? workUnit.factSchemas : [];
       });
 
     const replaceForWorkUnitType = (input: ReplaceWorkUnitFactsInput, actorId: string | null) =>
       Effect.gen(function* () {
-        const projection = yield* versionService.getDraftProjection(input.versionId);
-        const workUnitTypes = yield* decodeWorkUnitTypes(projection.workUnitTypes);
-        const agentTypes = yield* decodeAgentTypes(projection.agentTypes);
+        const snapshot = yield* versionService.getAuthoringSnapshot(input.versionId);
+        const workUnitTypes = snapshot.workUnitTypes;
+        const agentTypes = snapshot.agentTypes;
 
         const nextWorkUnitTypes = workUnitTypes.map((workUnit) =>
           workUnit.key === input.workUnitTypeKey

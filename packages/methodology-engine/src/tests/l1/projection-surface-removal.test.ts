@@ -1,5 +1,7 @@
 import { Context, Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
+
+import * as MethodologyEnginePublicApi from "../../index";
 import { LifecycleRepository } from "../../lifecycle-repository";
 import { MethodologyRepository } from "../../repository";
 import {
@@ -18,26 +20,25 @@ const compatibilityLayer = Layer.mergeAll(
   ),
 );
 
-describe("L1 MethodologyVersionService scaffold", () => {
-  it("exposes L1 version and metadata mutation methods only", async () => {
+describe("projection surface removal", () => {
+  it("does not expose projection or bulk workflow compatibility methods on MethodologyVersionService", async () => {
     const service = await Effect.runPromise(
       Effect.gen(function* () {
         return yield* MethodologyVersionService;
       }).pipe(Effect.provide(Layer.provide(MethodologyVersionServiceLive, compatibilityLayer))),
     );
 
-    expect(typeof service.createFact).toBe("function");
-    expect(typeof service.updateFact).toBe("function");
-    expect(typeof service.createDependencyDefinition).toBe("function");
-    expect(typeof service.createAgent).toBe("function");
-    expect(typeof service.createWorkUnitMetadata).toBe("function");
-    expect(typeof service.updateVersionMetadata).toBe("function");
-    expect(typeof service.archiveVersion).toBe("function");
-    const legacyWorkflowBulkKey = ["update", "Draft", "Workflows"].join("");
+    const surface = service as Record<string, unknown>;
     const removedWorkspaceReadKey = ["get", "Draft", "Projection"].join("");
+    const legacyWorkflowBulkKey = ["update", "Draft", "Workflows"].join("");
 
-    expect((service as Record<string, unknown>)[legacyWorkflowBulkKey]).toBeUndefined();
-    expect(typeof (service as Record<string, unknown>).updateDraftLifecycle).toBe("function");
-    expect((service as Record<string, unknown>)[removedWorkspaceReadKey]).toBeUndefined();
+    expect(surface[removedWorkspaceReadKey]).toBeUndefined();
+    expect(surface[legacyWorkflowBulkKey]).toBeUndefined();
+  });
+
+  it("does not export removed projection port from methodology-engine public index", () => {
+    const publicSurface = MethodologyEnginePublicApi as Record<string, unknown>;
+    const removedProjectionPortKey = ["Projection", "Repository"].join("");
+    expect(publicSurface[removedProjectionPortKey]).toBeUndefined();
   });
 });

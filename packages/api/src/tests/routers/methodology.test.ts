@@ -4,6 +4,7 @@ import { Effect, Layer } from "effect";
 import {
   MethodologyRepository,
   MethodologyEngineL1Live,
+  WorkUnitStateMachineServiceLive,
   LifecycleRepository,
   EligibilityService,
   EligibilityServiceLive,
@@ -379,6 +380,85 @@ function makeTestRepo(): MethodologyRepository["Type"] & ProjectContextRepositor
           transitionWorkflowBindings: {},
         },
       ),
+    listWorkflowsByWorkUnitType: ({ versionId, workUnitTypeKey }) =>
+      Effect.succeed(
+        (workflowSnapshots.get(versionId)?.workflows ?? []).filter(
+          (workflow) => workflow.workUnitTypeKey === workUnitTypeKey,
+        ),
+      ),
+    createWorkflow: ({ versionId, workUnitTypeKey, workflow }) =>
+      Effect.sync(() => {
+        const snapshot = workflowSnapshots.get(versionId) ?? {
+          workflows: [],
+          transitionWorkflowBindings: {},
+        };
+        const nextWorkflows = [...snapshot.workflows, { ...workflow, workUnitTypeKey }];
+        workflowSnapshots.set(versionId, {
+          ...snapshot,
+          workflows: nextWorkflows,
+        });
+      }),
+    updateWorkflow: ({ versionId, workUnitTypeKey, workflowKey, workflow }) =>
+      Effect.sync(() => {
+        const snapshot = workflowSnapshots.get(versionId) ?? {
+          workflows: [],
+          transitionWorkflowBindings: {},
+        };
+        const nextWorkflows = snapshot.workflows.map((entry) =>
+          entry.key === workflowKey && entry.workUnitTypeKey === workUnitTypeKey
+            ? { ...workflow, workUnitTypeKey }
+            : entry,
+        );
+        workflowSnapshots.set(versionId, {
+          ...snapshot,
+          workflows: nextWorkflows,
+        });
+      }),
+    deleteWorkflow: ({ versionId, workUnitTypeKey, workflowKey }) =>
+      Effect.sync(() => {
+        const snapshot = workflowSnapshots.get(versionId) ?? {
+          workflows: [],
+          transitionWorkflowBindings: {},
+        };
+        const exists = snapshot.workflows.some(
+          (entry) => entry.key === workflowKey && entry.workUnitTypeKey === workUnitTypeKey,
+        );
+        if (!exists) {
+          return false;
+        }
+
+        const nextWorkflows = snapshot.workflows.filter(
+          (entry) => !(entry.key === workflowKey && entry.workUnitTypeKey === workUnitTypeKey),
+        );
+        const nextBindings = Object.fromEntries(
+          Object.entries(snapshot.transitionWorkflowBindings).map(([transitionKey, keys]) => [
+            transitionKey,
+            keys.filter((key) => key !== workflowKey),
+          ]),
+        );
+
+        workflowSnapshots.set(versionId, {
+          ...snapshot,
+          workflows: nextWorkflows,
+          transitionWorkflowBindings: nextBindings,
+        });
+
+        return true;
+      }),
+    replaceTransitionWorkflowBindings: ({ versionId, transitionKey, workflowKeys }) =>
+      Effect.sync(() => {
+        const snapshot = workflowSnapshots.get(versionId) ?? {
+          workflows: [],
+          transitionWorkflowBindings: {},
+        };
+        workflowSnapshots.set(versionId, {
+          ...snapshot,
+          transitionWorkflowBindings: {
+            ...snapshot.transitionWorkflowBindings,
+            [transitionKey]: [...workflowKeys],
+          },
+        });
+      }),
     findFactSchemasByVersionId: (versionId: string) =>
       Effect.succeed(factSchemasByVersion.get(versionId) ?? []),
     findFactDefinitionsByVersionId: (versionId: string) =>
@@ -892,6 +972,330 @@ function makeServiceLayer() {
       },
     );
 
+  Object.assign(repo, {
+    deleteWorkUnitType: ({
+      versionId,
+      workUnitTypeKey,
+    }: {
+      versionId: string;
+      workUnitTypeKey: string;
+    }) =>
+      Effect.sync(() => {
+        const rows = lifecycleDataByVersion.get(versionId);
+        if (!rows) {
+          return false;
+        }
+
+        const target = rows.workUnitTypes.find((workUnit) => workUnit.key === workUnitTypeKey);
+        if (!target) {
+          return false;
+        }
+
+        const remainingWorkUnits = rows.workUnitTypes.filter(
+          (workUnit) => workUnit.id !== target.id,
+        );
+        const remainingStates = rows.states.filter((state) => state.workUnitTypeId !== target.id);
+        const stateIds = new Set(remainingStates.map((state) => state.id));
+        const remainingTransitions = rows.transitions
+          .filter((transition) => transition.workUnitTypeId !== target.id)
+          .map((transition) => ({
+            ...transition,
+            fromStateId:
+              transition.fromStateId && stateIds.has(transition.fromStateId)
+                ? transition.fromStateId
+                : null,
+            toStateId:
+              transition.toStateId && stateIds.has(transition.toStateId)
+                ? transition.toStateId
+                : null,
+          }));
+        const transitionIds = new Set(remainingTransitions.map((transition) => transition.id));
+
+        lifecycleDataByVersion.set(versionId, {
+          ...rows,
+          workUnitTypes: remainingWorkUnits,
+          states: remainingStates,
+          transitions: remainingTransitions,
+          transitionConditionSets: rows.transitionConditionSets.filter((set) =>
+            transitionIds.has(set.transitionId),
+          ),
+          transitionWorkflowBindings: rows.transitionWorkflowBindings.filter((binding) =>
+            transitionIds.has(binding.transitionId),
+          ),
+          factSchemas: rows.factSchemas.filter((fact) => fact.workUnitTypeId !== target.id),
+        });
+
+        return true;
+      }),
+    replaceWorkUnitFacts: ({
+      versionId,
+      workUnitTypeKey,
+      facts,
+    }: {
+      versionId: string;
+      workUnitTypeKey: string;
+      facts: readonly {
+        key: string;
+        factType: string;
+        name?: string;
+        description?: string;
+        defaultValue?: unknown;
+        guidance?: unknown;
+        validation: unknown;
+      }[];
+    }) =>
+      Effect.sync(() => {
+        const rows = lifecycleDataByVersion.get(versionId);
+        if (!rows) {
+          return false;
+        }
+
+        const target = rows.workUnitTypes.find((workUnit) => workUnit.key === workUnitTypeKey);
+        if (!target) {
+          return false;
+        }
+
+        const nextFacts = facts.map((fact) => ({
+          id: `${versionId}:fact:${workUnitTypeKey}:${fact.key}`,
+          methodologyVersionId: versionId,
+          workUnitTypeId: target.id,
+          name: fact.name ?? null,
+          key: fact.key,
+          factType: fact.factType,
+          description: fact.description ?? null,
+          defaultValueJson: fact.defaultValue ?? null,
+          guidanceJson: fact.guidance ?? null,
+          validationJson: fact.validation ?? null,
+          createdAt: buildDate(),
+          updatedAt: buildDate(),
+        }));
+
+        lifecycleDataByVersion.set(versionId, {
+          ...rows,
+          factSchemas: [
+            ...rows.factSchemas.filter((fact) => fact.workUnitTypeId !== target.id),
+            ...nextFacts,
+          ],
+        });
+
+        return true;
+      }),
+    replaceWorkUnitLifecycleStates: ({
+      versionId,
+      workUnitTypeKey,
+      states,
+    }: {
+      versionId: string;
+      workUnitTypeKey: string;
+      states: readonly { key: string; displayName?: string; description?: string }[];
+    }) =>
+      Effect.sync(() => {
+        const rows = lifecycleDataByVersion.get(versionId);
+        if (!rows) {
+          return false;
+        }
+
+        const target = rows.workUnitTypes.find((workUnit) => workUnit.key === workUnitTypeKey);
+        if (!target) {
+          return false;
+        }
+
+        const nextStates = states.map((state) => ({
+          id: `${target.id}:state:${state.key}`,
+          methodologyVersionId: versionId,
+          workUnitTypeId: target.id,
+          key: state.key,
+          displayName: state.displayName ?? null,
+          descriptionJson: state.description ?? null,
+          createdAt: buildDate(),
+          updatedAt: buildDate(),
+        }));
+        const nextStateIds = new Set(nextStates.map((state) => state.id));
+
+        const nextTransitions = rows.transitions.map((transition) =>
+          transition.workUnitTypeId !== target.id
+            ? transition
+            : {
+                ...transition,
+                fromStateId:
+                  transition.fromStateId && nextStateIds.has(transition.fromStateId)
+                    ? transition.fromStateId
+                    : null,
+                toStateId:
+                  transition.toStateId && nextStateIds.has(transition.toStateId)
+                    ? transition.toStateId
+                    : null,
+              },
+        );
+
+        lifecycleDataByVersion.set(versionId, {
+          ...rows,
+          states: [
+            ...rows.states.filter((state) => state.workUnitTypeId !== target.id),
+            ...nextStates,
+          ],
+          transitions: nextTransitions,
+        });
+
+        return true;
+      }),
+    replaceWorkUnitLifecycleTransitions: ({
+      versionId,
+      workUnitTypeKey,
+      transitions,
+    }: {
+      versionId: string;
+      workUnitTypeKey: string;
+      transitions: readonly {
+        transitionKey: string;
+        fromState?: string;
+        toState: string;
+        conditionSets: readonly {
+          key: string;
+          phase: string;
+          mode: string;
+          groups: unknown[];
+          guidance?: string;
+        }[];
+      }[];
+    }) =>
+      Effect.sync(() => {
+        const rows = lifecycleDataByVersion.get(versionId);
+        if (!rows) {
+          return false;
+        }
+
+        const target = rows.workUnitTypes.find((workUnit) => workUnit.key === workUnitTypeKey);
+        if (!target) {
+          return false;
+        }
+
+        const stateIdByKey = new Map(
+          rows.states
+            .filter((state) => state.workUnitTypeId === target.id)
+            .map((state) => [state.key, state.id]),
+        );
+        const nextTransitions = transitions.map((transition) => ({
+          id: `${versionId}:transition:${transition.transitionKey}`,
+          methodologyVersionId: versionId,
+          workUnitTypeId: target.id,
+          fromStateId: transition.fromState
+            ? (stateIdByKey.get(transition.fromState) ?? null)
+            : null,
+          toStateId: stateIdByKey.get(transition.toState) ?? null,
+          transitionKey: transition.transitionKey,
+          createdAt: buildDate(),
+          updatedAt: buildDate(),
+        }));
+
+        const nextTransitionConditionSets = transitions.flatMap((transition) =>
+          transition.conditionSets.map((conditionSet, conditionSetIndex) => ({
+            id: `${versionId}:transition:${transition.transitionKey}:condition-set:${conditionSetIndex}`,
+            methodologyVersionId: versionId,
+            transitionId: `${versionId}:transition:${transition.transitionKey}`,
+            key: conditionSet.key,
+            phase: conditionSet.phase === "completion" ? "completion" : "start",
+            mode: conditionSet.mode === "any" ? "any" : "all",
+            groupsJson: Array.isArray(conditionSet.groups) ? conditionSet.groups : [],
+            guidanceJson: conditionSet.guidance ?? null,
+            createdAt: buildDate(),
+            updatedAt: buildDate(),
+          })),
+        );
+
+        const nextTransitionIds = new Set(nextTransitions.map((transition) => transition.id));
+
+        lifecycleDataByVersion.set(versionId, {
+          ...rows,
+          transitions: [
+            ...rows.transitions.filter((transition) => transition.workUnitTypeId !== target.id),
+            ...nextTransitions,
+          ],
+          transitionConditionSets: [
+            ...rows.transitionConditionSets.filter(
+              (conditionSet) =>
+                !rows.transitions.some(
+                  (transition) =>
+                    transition.workUnitTypeId === target.id &&
+                    transition.id === conditionSet.transitionId,
+                ),
+            ),
+            ...nextTransitionConditionSets,
+          ],
+          transitionWorkflowBindings: rows.transitionWorkflowBindings.filter((binding) =>
+            binding.transitionId
+              ? nextTransitionIds.has(binding.transitionId) ||
+                !rows.transitions.some(
+                  (transition) =>
+                    transition.id === binding.transitionId &&
+                    transition.workUnitTypeId === target.id,
+                )
+              : true,
+          ),
+        });
+
+        return true;
+      }),
+    replaceWorkUnitTransitionConditionSets: ({
+      versionId,
+      workUnitTypeKey,
+      transitionKey,
+      conditionSets,
+    }: {
+      versionId: string;
+      workUnitTypeKey: string;
+      transitionKey: string;
+      conditionSets: readonly {
+        key: string;
+        phase: string;
+        mode: string;
+        groups: unknown[];
+        guidance?: string;
+      }[];
+    }) =>
+      Effect.sync(() => {
+        const rows = lifecycleDataByVersion.get(versionId);
+        if (!rows) {
+          return false;
+        }
+
+        const target = rows.workUnitTypes.find((workUnit) => workUnit.key === workUnitTypeKey);
+        if (!target) {
+          return false;
+        }
+
+        const transition = rows.transitions.find(
+          (entry) => entry.workUnitTypeId === target.id && entry.transitionKey === transitionKey,
+        );
+        if (!transition) {
+          return false;
+        }
+
+        const nextSets = conditionSets.map((conditionSet, index) => ({
+          id: `${transition.id}:condition-set:${index}`,
+          methodologyVersionId: versionId,
+          transitionId: transition.id,
+          key: conditionSet.key,
+          phase: conditionSet.phase === "completion" ? "completion" : "start",
+          mode: conditionSet.mode === "any" ? "any" : "all",
+          groupsJson: Array.isArray(conditionSet.groups) ? conditionSet.groups : [],
+          guidanceJson: conditionSet.guidance ?? null,
+          createdAt: buildDate(),
+          updatedAt: buildDate(),
+        }));
+
+        lifecycleDataByVersion.set(versionId, {
+          ...rows,
+          transitionConditionSets: [
+            ...rows.transitionConditionSets.filter((set) => set.transitionId !== transition.id),
+            ...nextSets,
+          ],
+        });
+
+        return true;
+      }),
+  });
+
   const lifecycleRepoLayer = Layer.succeed(
     LifecycleRepository,
     LifecycleRepository.of({
@@ -970,8 +1374,10 @@ function makeServiceLayer() {
   const projectRepo = repo as ProjectContextRepository["Type"];
   const projectContextRepoLayer = Layer.succeed(ProjectContextRepository, projectRepo);
   const allRepos = Layer.mergeAll(repoLayer, lifecycleRepoLayer, projectContextRepoLayer);
+  const methodologyCoreLayer = Layer.provide(MethodologyEngineL1Live, allRepos);
   return Layer.mergeAll(
-    Layer.provide(MethodologyEngineL1Live, allRepos),
+    methodologyCoreLayer,
+    Layer.provide(WorkUnitStateMachineServiceLive, methodologyCoreLayer),
     Layer.provide(Layer.effect(EligibilityService, EligibilityServiceLive), allRepos),
     Layer.provide(ProjectContextServiceLive, allRepos),
   );
@@ -1721,6 +2127,380 @@ describe("methodology router", () => {
 
       expect(result.version.id).toBe(created.version.id);
       expect(result.diagnostics).toBeDefined();
+    });
+
+    it("version.workUnit.workflow CRUD manages workflows without batch workflow mutation", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const created = await call(
+        router.version.create,
+        {
+          methodologyKey: "workflow-crud",
+          displayName: "Workflow CRUD",
+          version: "1.0.0",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const baseWorkflow = {
+        ...VALID_DEFINITION.workflows[0]!,
+        workUnitTypeKey: "task",
+      };
+
+      const createResult = await call(
+        router.version.workUnit.workflow.create,
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+          workflow: baseWorkflow,
+        },
+        AUTHENTICATED_CTX,
+      );
+      expect(createResult.version.id).toBe(created.version.id);
+
+      const listedAfterCreate = await call(
+        router.version.workUnit.workflow.list,
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+        },
+        AUTHENTICATED_CTX,
+      );
+      expect(listedAfterCreate).toHaveLength(1);
+      expect(listedAfterCreate[0]?.key).toBe(baseWorkflow.key);
+
+      const updateResult = await call(
+        router.version.workUnit.workflow.update,
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+          workflowKey: baseWorkflow.key,
+          workflow: {
+            ...baseWorkflow,
+            displayName: "Updated workflow display",
+          },
+        },
+        AUTHENTICATED_CTX,
+      );
+      expect(updateResult.version.id).toBe(created.version.id);
+
+      const listedAfterUpdate = await call(
+        router.version.workUnit.workflow.list,
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+        },
+        AUTHENTICATED_CTX,
+      );
+      expect(listedAfterUpdate[0]?.displayName).toBe("Updated workflow display");
+
+      const deleteResult = await call(
+        router.version.workUnit.workflow.delete,
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+          workflowKey: baseWorkflow.key,
+        },
+        AUTHENTICATED_CTX,
+      );
+      expect(deleteResult.version.id).toBe(created.version.id);
+
+      const listedAfterDelete = await call(
+        router.version.workUnit.workflow.list,
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+        },
+        AUTHENTICATED_CTX,
+      );
+      expect(listedAfterDelete).toHaveLength(0);
+    });
+
+    it("version.workUnit.stateMachine.binding.update updates only transition bindings", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const created = await call(
+        router.version.create,
+        {
+          methodologyKey: "binding-update",
+          displayName: "Binding Update",
+          version: "1.0.0",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.version.workUnit.workflow.create,
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+          workflow: {
+            ...VALID_DEFINITION.workflows[0]!,
+            key: "task-wf-a",
+            workUnitTypeKey: "task",
+          },
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.version.workUnit.workflow.create,
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+          workflow: {
+            ...VALID_DEFINITION.workflows[0]!,
+            key: "task-wf-b",
+            workUnitTypeKey: "task",
+          },
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const updateResult = await call(
+        router.version.workUnit.stateMachine.binding.update,
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+          transitionKey: "start",
+          workflowKeys: ["task-wf-b"],
+        },
+        AUTHENTICATED_CTX,
+      );
+      expect(updateResult.version.id).toBe(created.version.id);
+
+      const projection = await call(
+        router.version.workspace.get,
+        { versionId: created.version.id },
+        AUTHENTICATED_CTX,
+      );
+
+      const projectionRecord = projection as unknown as {
+        transitionWorkflowBindings: Record<string, string[]>;
+        workflows: Array<{ key: string }>;
+      };
+
+      expect(projectionRecord.transitionWorkflowBindings.start).toEqual(["task-wf-b"]);
+      expect(
+        projectionRecord.workflows.some(
+          (workflow: { key: string }) => workflow.key === "task-wf-a",
+        ),
+      ).toBe(true);
+      expect(
+        projectionRecord.workflows.some(
+          (workflow: { key: string }) => workflow.key === "task-wf-b",
+        ),
+      ).toBe(true);
+    });
+
+    it("version.workUnit.stateMachine.state.update replaces lifecycle states for a work unit", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const created = await call(
+        router.version.create,
+        {
+          methodologyKey: "state-update",
+          displayName: "State Update",
+          version: "1.0.0",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.version.workUnit.stateMachine.state.update,
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+          states: [
+            { key: "queued", displayName: "Queued" },
+            { key: "done", displayName: "Done" },
+          ],
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const projection = await call(
+        router.version.workspace.get,
+        { versionId: created.version.id },
+        AUTHENTICATED_CTX,
+      );
+
+      const projectionRecord = projection as unknown as {
+        workUnitTypes: Array<{
+          key: string;
+          lifecycleStates: Array<{ key: string }>;
+        }>;
+      };
+      const taskType = projectionRecord.workUnitTypes.find((workUnit) => workUnit.key === "task");
+      expect(taskType?.lifecycleStates.map((state) => state.key)).toEqual(
+        expect.arrayContaining(["queued", "done"]),
+      );
+    });
+
+    it("version.workUnit.stateMachine.conditionSet.update updates transition condition sets", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const created = await call(
+        router.version.create,
+        {
+          methodologyKey: "condition-set-update",
+          displayName: "Condition Set Update",
+          version: "1.0.0",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.version.workUnit.stateMachine.conditionSet.update,
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+          transitionKey: "start",
+          conditionSets: [
+            {
+              key: "gate.activate.task.updated",
+              phase: "start",
+              mode: "all",
+              groups: [],
+            },
+          ],
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const projection = await call(
+        router.version.workspace.get,
+        { versionId: created.version.id },
+        AUTHENTICATED_CTX,
+      );
+
+      const projectionRecord = projection as unknown as {
+        workUnitTypes: Array<{
+          key: string;
+          lifecycleTransitions: Array<{
+            transitionKey: string;
+            conditionSets: Array<{ key: string }>;
+          }>;
+        }>;
+      };
+      const taskType = projectionRecord.workUnitTypes.find((workUnit) => workUnit.key === "task");
+      const transition = taskType?.lifecycleTransitions.find(
+        (item) => item.transitionKey === "start",
+      );
+      expect(transition?.conditionSets.map((conditionSet) => conditionSet.key)).toEqual([
+        "gate.activate.task.updated",
+      ]);
+    });
+
+    it("version.workUnit.delete removes the targeted work unit type", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const created = await call(
+        router.version.create,
+        {
+          methodologyKey: "work-unit-delete",
+          displayName: "Work Unit Delete",
+          version: "1.0.0",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.version.workUnit.delete,
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const projection = await call(
+        router.version.workspace.get,
+        { versionId: created.version.id },
+        AUTHENTICATED_CTX,
+      );
+      const projectionRecord = projection as unknown as {
+        workUnitTypes: Array<{ key: string }>;
+      };
+
+      expect(projectionRecord.workUnitTypes.some((workUnit) => workUnit.key === "task")).toBe(
+        false,
+      );
+    });
+
+    it("version.workUnit.stateMachine list routes return scoped data instead of full projection", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const created = await call(
+        router.version.create,
+        {
+          methodologyKey: "state-machine-listing",
+          displayName: "State Machine Listing",
+          version: "1.0.0",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const states = await call(
+        router.version.workUnit.stateMachine.state.list,
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+        },
+        AUTHENTICATED_CTX,
+      );
+      expect(Array.isArray(states)).toBe(true);
+
+      const transitions = await call(
+        router.version.workUnit.stateMachine.transition.list,
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+        },
+        AUTHENTICATED_CTX,
+      );
+      expect(Array.isArray(transitions)).toBe(true);
+
+      const conditionSets = await call(
+        router.version.workUnit.stateMachine.conditionSet.list,
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+          transitionKey: "start",
+        },
+        AUTHENTICATED_CTX,
+      );
+      expect(Array.isArray(conditionSets)).toBe(true);
+
+      const bindings = await call(
+        router.version.workUnit.stateMachine.binding.list,
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+        },
+        AUTHENTICATED_CTX,
+      );
+      expect(typeof bindings).toBe("object");
+      expect(bindings).not.toBeNull();
+      expect(bindings).not.toHaveProperty("workUnitTypes");
     });
   });
 

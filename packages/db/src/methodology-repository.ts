@@ -15,6 +15,11 @@ import {
   type MethodologyFactDefinitionRow,
   type PublishDraftVersionParams,
   type WorkflowSnapshot,
+  type DeleteWorkUnitTypeParams,
+  type ReplaceWorkUnitFactsParams,
+  type ReplaceWorkUnitLifecycleStatesParams,
+  type ReplaceWorkUnitLifecycleTransitionsParams,
+  type ReplaceWorkUnitTransitionConditionSetsParams,
 } from "@chiron/methodology-engine";
 import type {
   PublicationEvidence,
@@ -30,7 +35,9 @@ import {
   methodologyLinkTypeDefinitions,
   methodologyWorkUnitTypes,
   methodologyAgentTypes,
+  workUnitLifecycleStates,
   workUnitLifecycleTransitions,
+  transitionConditionSets,
   methodologyWorkflows,
   methodologyWorkflowSteps,
   methodologyWorkflowEdges,
@@ -928,6 +935,650 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           ...(guidance ? { guidance } : {}),
         } satisfies WorkflowSnapshot;
       }),
+
+    listWorkflowsByWorkUnitType: ({ versionId, workUnitTypeKey }) =>
+      dbEffect("methodology.listWorkflowsByWorkUnitType", async () => {
+        const workflowRows = await db
+          .select({
+            id: methodologyWorkflows.id,
+            key: methodologyWorkflows.key,
+            displayName: methodologyWorkflows.displayName,
+            workUnitTypeKey: methodologyWorkUnitTypes.key,
+            metadataJson: methodologyWorkflows.metadataJson,
+            guidanceJson: methodologyWorkflows.guidanceJson,
+          })
+          .from(methodologyWorkflows)
+          .innerJoin(
+            methodologyWorkUnitTypes,
+            eq(methodologyWorkflows.workUnitTypeId, methodologyWorkUnitTypes.id),
+          )
+          .where(
+            and(
+              eq(methodologyWorkflows.methodologyVersionId, versionId),
+              eq(methodologyWorkUnitTypes.key, workUnitTypeKey),
+            ),
+          )
+          .orderBy(asc(methodologyWorkflows.key));
+
+        if (workflowRows.length === 0) {
+          return [] as const;
+        }
+
+        const workflowIdSet = new Set(workflowRows.map((row) => row.id));
+
+        const stepRows = await db
+          .select({
+            id: methodologyWorkflowSteps.id,
+            workflowId: methodologyWorkflowSteps.workflowId,
+            key: methodologyWorkflowSteps.key,
+            type: methodologyWorkflowSteps.type,
+            displayName: methodologyWorkflowSteps.displayName,
+            configJson: methodologyWorkflowSteps.configJson,
+            guidanceJson: methodologyWorkflowSteps.guidanceJson,
+          })
+          .from(methodologyWorkflowSteps)
+          .where(eq(methodologyWorkflowSteps.methodologyVersionId, versionId))
+          .orderBy(asc(methodologyWorkflowSteps.workflowId), asc(methodologyWorkflowSteps.key));
+
+        const edgeRows = await db
+          .select({
+            workflowId: methodologyWorkflowEdges.workflowId,
+            fromStepId: methodologyWorkflowEdges.fromStepId,
+            toStepId: methodologyWorkflowEdges.toStepId,
+            edgeKey: methodologyWorkflowEdges.edgeKey,
+            conditionJson: methodologyWorkflowEdges.conditionJson,
+          })
+          .from(methodologyWorkflowEdges)
+          .where(eq(methodologyWorkflowEdges.methodologyVersionId, versionId))
+          .orderBy(asc(methodologyWorkflowEdges.workflowId), asc(methodologyWorkflowEdges.id));
+
+        const stepsByWorkflowId = new Map<string, typeof stepRows>();
+        const stepKeyById = new Map<string, string>();
+        for (const stepRow of stepRows) {
+          if (!workflowIdSet.has(stepRow.workflowId)) {
+            continue;
+          }
+          const steps = stepsByWorkflowId.get(stepRow.workflowId) ?? [];
+          steps.push(stepRow);
+          stepsByWorkflowId.set(stepRow.workflowId, steps);
+          stepKeyById.set(stepRow.id, stepRow.key);
+        }
+
+        const edgesByWorkflowId = new Map<string, typeof edgeRows>();
+        for (const edgeRow of edgeRows) {
+          if (!workflowIdSet.has(edgeRow.workflowId)) {
+            continue;
+          }
+          const edges = edgesByWorkflowId.get(edgeRow.workflowId) ?? [];
+          edges.push(edgeRow);
+          edgesByWorkflowId.set(edgeRow.workflowId, edges);
+        }
+
+        return workflowRows.map((workflowRow) => ({
+          key: workflowRow.key,
+          displayName: workflowRow.displayName ?? undefined,
+          workUnitTypeKey: workflowRow.workUnitTypeKey,
+          metadata: workflowRow.metadataJson as WorkflowDefinition["metadata"] | undefined,
+          guidance: workflowRow.guidanceJson as WorkflowDefinition["guidance"] | undefined,
+          steps: (stepsByWorkflowId.get(workflowRow.id) ?? []).map((stepRow) => ({
+            key: stepRow.key,
+            type: asWorkflowStepType(stepRow.type),
+            displayName: stepRow.displayName ?? undefined,
+            config: stepRow.configJson ?? undefined,
+            guidance: stepRow.guidanceJson as
+              | WorkflowDefinition["steps"][number]["guidance"]
+              | undefined,
+          })),
+          edges: (edgesByWorkflowId.get(workflowRow.id) ?? []).map((edgeRow) => ({
+            fromStepKey: edgeRow.fromStepId ? (stepKeyById.get(edgeRow.fromStepId) ?? null) : null,
+            toStepKey: edgeRow.toStepId ? (stepKeyById.get(edgeRow.toStepId) ?? null) : null,
+            edgeKey: edgeRow.edgeKey ?? undefined,
+            condition: edgeRow.conditionJson ?? undefined,
+          })),
+        }));
+      }),
+
+    createWorkflow: ({ versionId, workUnitTypeKey, workflow }) =>
+      dbEffect("methodology.createWorkflow", () =>
+        db.transaction(async (tx) => {
+          const workUnitRows = await tx
+            .select({ id: methodologyWorkUnitTypes.id })
+            .from(methodologyWorkUnitTypes)
+            .where(
+              and(
+                eq(methodologyWorkUnitTypes.methodologyVersionId, versionId),
+                eq(methodologyWorkUnitTypes.key, workUnitTypeKey),
+              ),
+            )
+            .limit(1);
+          const workUnitTypeId = workUnitRows[0]?.id;
+          if (!workUnitTypeId) {
+            return;
+          }
+
+          const workflowRows = await tx
+            .insert(methodologyWorkflows)
+            .values({
+              methodologyVersionId: versionId,
+              workUnitTypeId,
+              key: workflow.key,
+              displayName: workflow.displayName ?? null,
+              metadataJson: workflow.metadata ?? null,
+              guidanceJson: workflow.guidance ?? null,
+            })
+            .returning({ id: methodologyWorkflows.id });
+          const workflowId = workflowRows[0]?.id;
+          if (!workflowId) {
+            return;
+          }
+
+          const stepIdByKey = new Map<string, string>();
+          for (const step of workflow.steps) {
+            const stepRows = await tx
+              .insert(methodologyWorkflowSteps)
+              .values({
+                methodologyVersionId: versionId,
+                workflowId,
+                key: step.key,
+                type: step.type,
+                displayName: step.displayName ?? null,
+                configJson: step.config ?? null,
+                guidanceJson: step.guidance ?? null,
+              })
+              .returning({ id: methodologyWorkflowSteps.id });
+            const stepId = stepRows[0]?.id;
+            if (stepId) {
+              stepIdByKey.set(step.key, stepId);
+            }
+          }
+
+          for (const edge of workflow.edges) {
+            const fromStepId =
+              edge.fromStepKey === null ? null : (stepIdByKey.get(edge.fromStepKey) ?? null);
+            const toStepId =
+              edge.toStepKey === null ? null : (stepIdByKey.get(edge.toStepKey) ?? null);
+
+            await tx.insert(methodologyWorkflowEdges).values({
+              methodologyVersionId: versionId,
+              workflowId,
+              fromStepId,
+              toStepId,
+              edgeKey: edge.edgeKey ?? null,
+              conditionJson: edge.condition ?? null,
+              guidanceJson: null,
+            });
+          }
+        }),
+      ),
+
+    updateWorkflow: ({ versionId, workUnitTypeKey, workflowKey, workflow }) =>
+      dbEffect("methodology.updateWorkflow", () =>
+        db.transaction(async (tx) => {
+          const workUnitRows = await tx
+            .select({ id: methodologyWorkUnitTypes.id })
+            .from(methodologyWorkUnitTypes)
+            .where(
+              and(
+                eq(methodologyWorkUnitTypes.methodologyVersionId, versionId),
+                eq(methodologyWorkUnitTypes.key, workUnitTypeKey),
+              ),
+            )
+            .limit(1);
+          const workUnitTypeId = workUnitRows[0]?.id;
+          if (!workUnitTypeId) {
+            return;
+          }
+
+          const existingRows = await tx
+            .select({ id: methodologyWorkflows.id })
+            .from(methodologyWorkflows)
+            .where(
+              and(
+                eq(methodologyWorkflows.methodologyVersionId, versionId),
+                eq(methodologyWorkflows.workUnitTypeId, workUnitTypeId),
+                eq(methodologyWorkflows.key, workflowKey),
+              ),
+            )
+            .limit(1);
+          const existingId = existingRows[0]?.id;
+          if (!existingId) {
+            return;
+          }
+
+          await tx
+            .update(methodologyWorkflows)
+            .set({
+              key: workflow.key,
+              displayName: workflow.displayName ?? null,
+              metadataJson: workflow.metadata ?? null,
+              guidanceJson: workflow.guidance ?? null,
+              workUnitTypeId,
+            })
+            .where(eq(methodologyWorkflows.id, existingId));
+
+          await tx
+            .delete(methodologyWorkflowEdges)
+            .where(eq(methodologyWorkflowEdges.workflowId, existingId));
+          await tx
+            .delete(methodologyWorkflowSteps)
+            .where(eq(methodologyWorkflowSteps.workflowId, existingId));
+
+          const stepIdByKey = new Map<string, string>();
+          for (const step of workflow.steps) {
+            const stepRows = await tx
+              .insert(methodologyWorkflowSteps)
+              .values({
+                methodologyVersionId: versionId,
+                workflowId: existingId,
+                key: step.key,
+                type: step.type,
+                displayName: step.displayName ?? null,
+                configJson: step.config ?? null,
+                guidanceJson: step.guidance ?? null,
+              })
+              .returning({ id: methodologyWorkflowSteps.id });
+            const stepId = stepRows[0]?.id;
+            if (stepId) {
+              stepIdByKey.set(step.key, stepId);
+            }
+          }
+
+          for (const edge of workflow.edges) {
+            const fromStepId =
+              edge.fromStepKey === null ? null : (stepIdByKey.get(edge.fromStepKey) ?? null);
+            const toStepId =
+              edge.toStepKey === null ? null : (stepIdByKey.get(edge.toStepKey) ?? null);
+
+            await tx.insert(methodologyWorkflowEdges).values({
+              methodologyVersionId: versionId,
+              workflowId: existingId,
+              fromStepId,
+              toStepId,
+              edgeKey: edge.edgeKey ?? null,
+              conditionJson: edge.condition ?? null,
+              guidanceJson: null,
+            });
+          }
+        }),
+      ),
+
+    deleteWorkflow: ({ versionId, workUnitTypeKey, workflowKey }) =>
+      dbEffect("methodology.deleteWorkflow", () =>
+        db.transaction(async (tx) => {
+          const rows = await tx
+            .select({ id: methodologyWorkflows.id })
+            .from(methodologyWorkflows)
+            .innerJoin(
+              methodologyWorkUnitTypes,
+              eq(methodologyWorkflows.workUnitTypeId, methodologyWorkUnitTypes.id),
+            )
+            .where(
+              and(
+                eq(methodologyWorkflows.methodologyVersionId, versionId),
+                eq(methodologyWorkflows.key, workflowKey),
+                eq(methodologyWorkUnitTypes.key, workUnitTypeKey),
+              ),
+            )
+            .limit(1);
+          const workflowId = rows[0]?.id;
+          if (!workflowId) {
+            return false;
+          }
+
+          await tx.delete(methodologyWorkflows).where(eq(methodologyWorkflows.id, workflowId));
+          return true;
+        }),
+      ),
+
+    replaceTransitionWorkflowBindings: ({
+      versionId,
+      workUnitTypeKey,
+      transitionKey,
+      workflowKeys,
+    }) =>
+      dbEffect("methodology.replaceTransitionWorkflowBindings", () =>
+        db.transaction(async (tx) => {
+          const transitionRows = await tx
+            .select({ id: workUnitLifecycleTransitions.id })
+            .from(workUnitLifecycleTransitions)
+            .innerJoin(
+              methodologyWorkUnitTypes,
+              eq(workUnitLifecycleTransitions.workUnitTypeId, methodologyWorkUnitTypes.id),
+            )
+            .where(
+              and(
+                eq(workUnitLifecycleTransitions.methodologyVersionId, versionId),
+                eq(workUnitLifecycleTransitions.transitionKey, transitionKey),
+                eq(methodologyWorkUnitTypes.key, workUnitTypeKey),
+              ),
+            )
+            .limit(1);
+          const transitionId = transitionRows[0]?.id;
+          if (!transitionId) {
+            return;
+          }
+
+          await tx
+            .delete(methodologyTransitionWorkflowBindings)
+            .where(
+              and(
+                eq(methodologyTransitionWorkflowBindings.methodologyVersionId, versionId),
+                eq(methodologyTransitionWorkflowBindings.transitionId, transitionId),
+              ),
+            );
+
+          const uniqueWorkflowKeys = [...new Set(workflowKeys)].filter((key) => key.length > 0);
+          if (uniqueWorkflowKeys.length === 0) {
+            return;
+          }
+
+          const workflowRows = await tx
+            .select({ id: methodologyWorkflows.id, key: methodologyWorkflows.key })
+            .from(methodologyWorkflows)
+            .innerJoin(
+              methodologyWorkUnitTypes,
+              eq(methodologyWorkflows.workUnitTypeId, methodologyWorkUnitTypes.id),
+            )
+            .where(
+              and(
+                eq(methodologyWorkflows.methodologyVersionId, versionId),
+                eq(methodologyWorkUnitTypes.key, workUnitTypeKey),
+              ),
+            );
+
+          const workflowIdByKey = new Map(workflowRows.map((row) => [row.key, row.id]));
+
+          for (const workflowKey of uniqueWorkflowKeys) {
+            const workflowId = workflowIdByKey.get(workflowKey);
+            if (!workflowId) {
+              continue;
+            }
+
+            await tx.insert(methodologyTransitionWorkflowBindings).values({
+              methodologyVersionId: versionId,
+              transitionId,
+              workflowId,
+              guidanceJson: null,
+            });
+          }
+        }),
+      ),
+
+    deleteWorkUnitType: ({ versionId, workUnitTypeKey }: DeleteWorkUnitTypeParams) =>
+      dbEffect("methodology.deleteWorkUnitType", () =>
+        db.transaction(async (tx) => {
+          const rows = await tx
+            .select({ id: methodologyWorkUnitTypes.id })
+            .from(methodologyWorkUnitTypes)
+            .where(
+              and(
+                eq(methodologyWorkUnitTypes.methodologyVersionId, versionId),
+                eq(methodologyWorkUnitTypes.key, workUnitTypeKey),
+              ),
+            )
+            .limit(1);
+          const workUnitTypeId = rows[0]?.id;
+          if (!workUnitTypeId) {
+            return false;
+          }
+
+          await tx
+            .delete(methodologyWorkUnitTypes)
+            .where(eq(methodologyWorkUnitTypes.id, workUnitTypeId));
+          return true;
+        }),
+      ),
+
+    replaceWorkUnitFacts: ({ versionId, workUnitTypeKey, facts }: ReplaceWorkUnitFactsParams) =>
+      dbEffect("methodology.replaceWorkUnitFacts", () =>
+        db.transaction(async (tx) => {
+          const rows = await tx
+            .select({ id: methodologyWorkUnitTypes.id })
+            .from(methodologyWorkUnitTypes)
+            .where(
+              and(
+                eq(methodologyWorkUnitTypes.methodologyVersionId, versionId),
+                eq(methodologyWorkUnitTypes.key, workUnitTypeKey),
+              ),
+            )
+            .limit(1);
+          const workUnitTypeId = rows[0]?.id;
+          if (!workUnitTypeId) {
+            return false;
+          }
+
+          await tx
+            .delete(workUnitFactDefinitions)
+            .where(
+              and(
+                eq(workUnitFactDefinitions.methodologyVersionId, versionId),
+                eq(workUnitFactDefinitions.workUnitTypeId, workUnitTypeId),
+              ),
+            );
+
+          if (facts.length > 0) {
+            await tx.insert(workUnitFactDefinitions).values(
+              facts.map((fact) => ({
+                methodologyVersionId: versionId,
+                workUnitTypeId,
+                key: fact.key,
+                name: fact.name ?? null,
+                factType: fact.factType,
+                description: fact.description ?? null,
+                defaultValueJson: fact.defaultValue ?? null,
+                guidanceJson: fact.guidance ?? null,
+                validationJson: fact.validation ?? null,
+              })),
+            );
+          }
+
+          return true;
+        }),
+      ),
+
+    replaceWorkUnitLifecycleStates: ({
+      versionId,
+      workUnitTypeKey,
+      states,
+    }: ReplaceWorkUnitLifecycleStatesParams) =>
+      dbEffect("methodology.replaceWorkUnitLifecycleStates", () =>
+        db.transaction(async (tx) => {
+          const workUnitRows = await tx
+            .select({ id: methodologyWorkUnitTypes.id })
+            .from(methodologyWorkUnitTypes)
+            .where(
+              and(
+                eq(methodologyWorkUnitTypes.methodologyVersionId, versionId),
+                eq(methodologyWorkUnitTypes.key, workUnitTypeKey),
+              ),
+            )
+            .limit(1);
+          const workUnitTypeId = workUnitRows[0]?.id;
+          if (!workUnitTypeId) {
+            return false;
+          }
+
+          const existingStates = await tx
+            .select({ id: workUnitLifecycleStates.id, key: workUnitLifecycleStates.key })
+            .from(workUnitLifecycleStates)
+            .where(
+              and(
+                eq(workUnitLifecycleStates.methodologyVersionId, versionId),
+                eq(workUnitLifecycleStates.workUnitTypeId, workUnitTypeId),
+              ),
+            );
+          const existingByKey = new Map(existingStates.map((state) => [state.key, state.id]));
+          const incomingKeys = new Set(states.map((state) => state.key));
+
+          for (const existing of existingStates) {
+            if (incomingKeys.has(existing.key)) {
+              continue;
+            }
+            await tx
+              .delete(workUnitLifecycleStates)
+              .where(eq(workUnitLifecycleStates.id, existing.id));
+          }
+
+          for (const state of states) {
+            const existingId = existingByKey.get(state.key);
+            if (existingId) {
+              await tx
+                .update(workUnitLifecycleStates)
+                .set({
+                  displayName: state.displayName ?? null,
+                  descriptionJson: state.description ?? null,
+                  guidanceJson: null,
+                })
+                .where(eq(workUnitLifecycleStates.id, existingId));
+              continue;
+            }
+
+            await tx.insert(workUnitLifecycleStates).values({
+              methodologyVersionId: versionId,
+              workUnitTypeId,
+              key: state.key,
+              displayName: state.displayName ?? null,
+              descriptionJson: state.description ?? null,
+              guidanceJson: null,
+            });
+          }
+
+          return true;
+        }),
+      ),
+
+    replaceWorkUnitLifecycleTransitions: ({
+      versionId,
+      workUnitTypeKey,
+      transitions,
+    }: ReplaceWorkUnitLifecycleTransitionsParams) =>
+      dbEffect("methodology.replaceWorkUnitLifecycleTransitions", () =>
+        db.transaction(async (tx) => {
+          const workUnitRows = await tx
+            .select({ id: methodologyWorkUnitTypes.id })
+            .from(methodologyWorkUnitTypes)
+            .where(
+              and(
+                eq(methodologyWorkUnitTypes.methodologyVersionId, versionId),
+                eq(methodologyWorkUnitTypes.key, workUnitTypeKey),
+              ),
+            )
+            .limit(1);
+          const workUnitTypeId = workUnitRows[0]?.id;
+          if (!workUnitTypeId) {
+            return false;
+          }
+
+          const states = await tx
+            .select({ id: workUnitLifecycleStates.id, key: workUnitLifecycleStates.key })
+            .from(workUnitLifecycleStates)
+            .where(
+              and(
+                eq(workUnitLifecycleStates.methodologyVersionId, versionId),
+                eq(workUnitLifecycleStates.workUnitTypeId, workUnitTypeId),
+              ),
+            );
+          const stateIdByKey = new Map(states.map((state) => [state.key, state.id]));
+
+          await tx
+            .delete(workUnitLifecycleTransitions)
+            .where(
+              and(
+                eq(workUnitLifecycleTransitions.methodologyVersionId, versionId),
+                eq(workUnitLifecycleTransitions.workUnitTypeId, workUnitTypeId),
+              ),
+            );
+
+          for (const transition of transitions) {
+            const transitionRows = await tx
+              .insert(workUnitLifecycleTransitions)
+              .values({
+                methodologyVersionId: versionId,
+                workUnitTypeId,
+                transitionKey: transition.transitionKey,
+                fromStateId: transition.fromState
+                  ? (stateIdByKey.get(transition.fromState) ?? null)
+                  : null,
+                toStateId: stateIdByKey.get(transition.toState) ?? null,
+                guidanceJson: null,
+              })
+              .returning({ id: workUnitLifecycleTransitions.id });
+            const transitionId = transitionRows[0]?.id;
+            if (!transitionId || transition.conditionSets.length === 0) {
+              continue;
+            }
+
+            await tx.insert(transitionConditionSets).values(
+              transition.conditionSets.map((conditionSet) => ({
+                methodologyVersionId: versionId,
+                transitionId,
+                key: conditionSet.key,
+                phase: conditionSet.phase,
+                mode: conditionSet.mode,
+                groupsJson: conditionSet.groups,
+                guidanceJson: conditionSet.guidance ?? null,
+              })),
+            );
+          }
+
+          return true;
+        }),
+      ),
+
+    replaceWorkUnitTransitionConditionSets: ({
+      versionId,
+      workUnitTypeKey,
+      transitionKey,
+      conditionSets,
+    }: ReplaceWorkUnitTransitionConditionSetsParams) =>
+      dbEffect("methodology.replaceWorkUnitTransitionConditionSets", () =>
+        db.transaction(async (tx) => {
+          const transitionRows = await tx
+            .select({ id: workUnitLifecycleTransitions.id })
+            .from(workUnitLifecycleTransitions)
+            .innerJoin(
+              methodologyWorkUnitTypes,
+              eq(workUnitLifecycleTransitions.workUnitTypeId, methodologyWorkUnitTypes.id),
+            )
+            .where(
+              and(
+                eq(workUnitLifecycleTransitions.methodologyVersionId, versionId),
+                eq(workUnitLifecycleTransitions.transitionKey, transitionKey),
+                eq(methodologyWorkUnitTypes.key, workUnitTypeKey),
+              ),
+            )
+            .limit(1);
+          const transitionId = transitionRows[0]?.id;
+          if (!transitionId) {
+            return false;
+          }
+
+          await tx
+            .delete(transitionConditionSets)
+            .where(
+              and(
+                eq(transitionConditionSets.methodologyVersionId, versionId),
+                eq(transitionConditionSets.transitionId, transitionId),
+              ),
+            );
+
+          if (conditionSets.length > 0) {
+            await tx.insert(transitionConditionSets).values(
+              conditionSets.map((conditionSet) => ({
+                methodologyVersionId: versionId,
+                transitionId,
+                key: conditionSet.key,
+                phase: conditionSet.phase,
+                mode: conditionSet.mode,
+                groupsJson: conditionSet.groups,
+                guidanceJson: conditionSet.guidance ?? null,
+              })),
+            );
+          }
+
+          return true;
+        }),
+      ),
 
     findFactSchemasByVersionId: (versionId: string) =>
       dbEffect("methodology.findFactSchemasByVersionId", async () => {

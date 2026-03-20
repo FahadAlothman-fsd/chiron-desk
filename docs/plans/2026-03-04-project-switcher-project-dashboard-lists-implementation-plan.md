@@ -231,7 +231,7 @@ Expected: FAIL (no real data; contract not present).
 
 **Step 3: Implement server mapping**
 In `packages/api/src/routers/project.ts`:
-- When a pin exists, call `svc.getDraftProjection(pin.methodologyVersionId)`.
+- When a pin exists, call `svc.version.workspace.get(pin.methodologyVersionId)`.
 - Map `projection.workUnitTypes` and `projection.agentTypes` into `projectionSummary` with conservative type guards.
 - If no pin or decode fails, return `projectionSummary: null`.
 

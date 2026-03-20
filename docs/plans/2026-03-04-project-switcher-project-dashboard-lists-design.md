@@ -127,7 +127,7 @@ Proposed shape:
   - `mcpServers?: string[]`
   - `capabilities?: string[]`
 
-Derivation source (server-side): `MethodologyVersionService.getDraftProjection(pin.methodologyVersionId)`.
+Derivation source (server-side): `MethodologyVersionService.version.workspace.get(pin.methodologyVersionId)`.
 
 ### Degradation Rules
 - If the project has no pin:

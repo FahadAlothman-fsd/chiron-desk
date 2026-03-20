@@ -6,6 +6,8 @@ import type {
 import type {
   CreateMethodologyFactInput,
   DeleteMethodologyFactInput,
+  FactSchema,
+  MethodologyFactDefinitionInput,
   UpdateMethodologyFactInput,
 } from "@chiron/contracts/methodology/fact";
 import type {
@@ -14,9 +16,18 @@ import type {
   DeleteMethodologyAgentInput,
   UpdateMethodologyAgentInput,
 } from "@chiron/contracts/methodology/agent";
-import type { ValidationResult } from "@chiron/contracts/methodology/version";
+import type {
+  MethodologyLinkTypeDefinitionInput,
+  MethodologyVersionDefinition,
+  ValidationResult,
+  WorkflowDefinition,
+} from "@chiron/contracts/methodology/version";
 import type {
   CreateMethodologyWorkUnitInput,
+  LifecycleState,
+  LifecycleTransition,
+  ReplaceWorkUnitTransitionBindingsInput,
+  TransitionConditionSet,
   UpdateDraftLifecycleInput,
   UpdateMethodologyWorkUnitInput,
   WorkUnitTypeDefinition,
@@ -26,6 +37,11 @@ import type {
   GetWorkUnitArtifactSlotsInput,
   ReplaceWorkUnitArtifactSlotsInput,
 } from "@chiron/contracts/methodology/artifact-slot";
+import type {
+  CreateWorkUnitWorkflowInput,
+  DeleteWorkUnitWorkflowInput,
+  UpdateWorkUnitWorkflowInput,
+} from "@chiron/contracts/methodology/workflow";
 import { Context, Effect, Layer } from "effect";
 
 import {
@@ -38,6 +54,7 @@ import {
 } from "../errors";
 import { LifecycleRepository } from "../lifecycle-repository";
 import { validateLifecycleDefinition } from "../lifecycle-validation";
+import { mergeLayeredGuidance } from "../guidance";
 import type { MethodologyVersionRow } from "../repository";
 import { MethodologyRepository } from "../repository";
 import {
@@ -47,6 +64,7 @@ import {
   type UpdateDraftResult,
   type UpdateVersionMetadataInput,
 } from "../version-service";
+import { WorkflowService } from "./workflow-service";
 
 type CoreVersionService = Context.Tag.Service<typeof CoreMethodologyVersionServiceTag>;
 
@@ -154,6 +172,60 @@ function asStringArray(value: unknown): readonly string[] | undefined {
 
   const items = value.filter((item): item is string => typeof item === "string");
   return items.length === value.length ? items : undefined;
+}
+
+function mapFactDefinitionRowToInput(fact: {
+  name: string | null;
+  key: string;
+  valueType: string;
+  descriptionJson: unknown;
+  guidanceJson: unknown;
+  defaultValueJson: unknown;
+  validationJson: unknown;
+}): MethodologyFactDefinitionInput {
+  return {
+    name: fact.name ?? undefined,
+    key: fact.key,
+    factType: asFactType(fact.valueType),
+    description: fact.descriptionJson as MethodologyFactDefinitionInput["description"],
+    guidance: fact.guidanceJson as MethodologyFactDefinitionInput["guidance"],
+    defaultValue: fact.defaultValueJson,
+    validation: fact.validationJson as MethodologyFactDefinitionInput["validation"],
+  };
+}
+
+function mapLinkTypeDefinitionRowToInput(definition: {
+  key: string;
+  name: string | null;
+  descriptionJson: unknown;
+  guidanceJson: unknown;
+}): MethodologyLinkTypeDefinitionInput {
+  return {
+    key: definition.key,
+    name: definition.name ?? undefined,
+    description:
+      typeof definition.descriptionJson === "string" ? definition.descriptionJson : undefined,
+    guidance: definition.guidanceJson as MethodologyLinkTypeDefinitionInput["guidance"],
+  };
+}
+
+export interface AuthoringSnapshot {
+  readonly workUnitTypes: readonly WorkUnitTypeDefinition[];
+  readonly agentTypes: readonly AgentTypeDefinition[];
+  readonly workflows: readonly WorkflowDefinition[];
+  readonly transitionWorkflowBindings: Record<string, readonly string[]>;
+  readonly guidance?: MethodologyVersionDefinition["guidance"];
+  readonly factDefinitions: readonly MethodologyFactDefinitionInput[];
+  readonly linkTypeDefinitions: readonly MethodologyLinkTypeDefinitionInput[];
+}
+
+export interface VersionWorkspaceSnapshot extends AuthoringSnapshot {
+  readonly id: string;
+  readonly methodologyId: string;
+  readonly version: string;
+  readonly status: MethodologyVersionRow["status"];
+  readonly displayName: string;
+  readonly transitions: readonly MethodologyVersionDefinition["transitions"][number][];
 }
 
 function loadPreviousLifecycleDefinition(
@@ -318,7 +390,19 @@ export class MethodologyVersionService extends Context.Tag("MethodologyVersionSe
     readonly createDraftVersion: CoreVersionService["createDraftVersion"];
     readonly updateDraftVersion: CoreVersionService["updateDraftVersion"];
     readonly validateDraftVersion: CoreVersionService["validateDraftVersion"];
-    readonly getDraftProjection: CoreVersionService["getDraftProjection"];
+    readonly getAuthoringSnapshot: (
+      versionId: string,
+    ) => Effect.Effect<AuthoringSnapshot, VersionNotFoundError | RepositoryError>;
+    readonly getVersionWorkspaceSnapshot: (
+      versionId: string,
+    ) => Effect.Effect<VersionWorkspaceSnapshot, VersionNotFoundError | RepositoryError>;
+    readonly replaceDraftWorkflowSnapshot: (
+      input: UpdateDraftWorkflowsInputDto,
+      actorId: string | null,
+    ) => Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+    >;
     readonly getDraftLineage: CoreVersionService["getDraftLineage"];
     readonly publishDraftVersion: CoreVersionService["publishDraftVersion"];
     readonly getPublicationEvidence: CoreVersionService["getPublicationEvidence"];
@@ -425,8 +509,88 @@ export class MethodologyVersionService extends Context.Tag("MethodologyVersionSe
       UpdateDraftLifecycleResult,
       VersionNotFoundError | VersionNotDraftError | RepositoryError
     >;
-    readonly updateDraftWorkflows: (
-      input: UpdateDraftWorkflowsInputDto,
+    readonly listWorkUnitWorkflows: (input: {
+      versionId: string;
+      workUnitTypeKey: string;
+    }) => Effect.Effect<readonly WorkflowDefinition[], RepositoryError>;
+    readonly createWorkUnitWorkflow: (
+      input: CreateWorkUnitWorkflowInput,
+      actorId: string | null,
+    ) => Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+    >;
+    readonly updateWorkUnitWorkflow: (
+      input: UpdateWorkUnitWorkflowInput,
+      actorId: string | null,
+    ) => Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+    >;
+    readonly deleteWorkUnitWorkflow: (
+      input: DeleteWorkUnitWorkflowInput,
+      actorId: string | null,
+    ) => Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+    >;
+    readonly replaceTransitionBindings: (
+      input: ReplaceWorkUnitTransitionBindingsInput,
+      actorId: string | null,
+    ) => Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+    >;
+    readonly deleteWorkUnit: (
+      input: {
+        versionId: string;
+        workUnitTypeKey: string;
+      },
+      actorId: string | null,
+    ) => Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+    >;
+    readonly replaceWorkUnitFacts: (
+      input: {
+        versionId: string;
+        workUnitTypeKey: string;
+        facts: readonly FactSchema[];
+      },
+      actorId: string | null,
+    ) => Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+    >;
+    readonly replaceWorkUnitLifecycleStates: (
+      input: {
+        versionId: string;
+        workUnitTypeKey: string;
+        states: readonly LifecycleState[];
+      },
+      actorId: string | null,
+    ) => Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+    >;
+    readonly replaceWorkUnitLifecycleTransitions: (
+      input: {
+        versionId: string;
+        workUnitTypeKey: string;
+        transitions: readonly LifecycleTransition[];
+      },
+      actorId: string | null,
+    ) => Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+    >;
+    readonly replaceWorkUnitTransitionConditionSets: (
+      input: {
+        versionId: string;
+        workUnitTypeKey: string;
+        transitionKey: string;
+        conditionSets: readonly TransitionConditionSet[];
+      },
       actorId: string | null,
     ) => Effect.Effect<
       UpdateDraftResult,
@@ -785,6 +949,607 @@ export const MethodologyVersionServiceLive = Layer.effect(
         };
       });
 
+    const listWorkUnitWorkflows = (input: {
+      versionId: string;
+      workUnitTypeKey: string;
+    }): Effect.Effect<readonly WorkflowDefinition[], RepositoryError> =>
+      repo.listWorkflowsByWorkUnitType
+        ? repo.listWorkflowsByWorkUnitType(input)
+        : Effect.fail(
+            new RepositoryError({
+              operation: "methodology.listWorkUnitWorkflows",
+              cause: new Error("Workflow CRUD repository capability is not configured"),
+            }),
+          );
+
+    const createWorkUnitWorkflow = (
+      input: CreateWorkUnitWorkflowInput,
+      actorId: string,
+    ): Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+    > =>
+      Effect.gen(function* () {
+        const existing = yield* repo.findVersionById(input.versionId);
+        if (!existing) {
+          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+        }
+
+        yield* ensureVersionIsDraft(existing);
+
+        if (!repo.createWorkflow) {
+          return yield* Effect.fail(
+            new RepositoryError({
+              operation: "methodology.createWorkUnitWorkflow",
+              cause: new Error("Workflow CRUD repository capability is not configured"),
+            }),
+          );
+        }
+
+        yield* repo.createWorkflow({
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+          workflow: {
+            ...input.workflow,
+            workUnitTypeKey: input.workUnitTypeKey,
+          },
+        });
+
+        yield* repo.recordEvent({
+          methodologyVersionId: input.versionId,
+          eventType: "workflows_updated",
+          actorId,
+          changedFieldsJson: {
+            operation: "create_workflow",
+            workUnitTypeKey: input.workUnitTypeKey,
+            workflowKey: input.workflow.key,
+          },
+          diagnosticsJson: null,
+        });
+
+        const diagnostics = yield* coreService.validateDraftVersion(
+          { versionId: input.versionId },
+          actorId,
+        );
+
+        return { version: existing, diagnostics };
+      });
+
+    const updateWorkUnitWorkflow = (
+      input: UpdateWorkUnitWorkflowInput,
+      actorId: string,
+    ): Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+    > =>
+      Effect.gen(function* () {
+        const existing = yield* repo.findVersionById(input.versionId);
+        if (!existing) {
+          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+        }
+
+        yield* ensureVersionIsDraft(existing);
+
+        if (!repo.updateWorkflow) {
+          return yield* Effect.fail(
+            new RepositoryError({
+              operation: "methodology.updateWorkUnitWorkflow",
+              cause: new Error("Workflow CRUD repository capability is not configured"),
+            }),
+          );
+        }
+
+        yield* repo.updateWorkflow({
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+          workflowKey: input.workflowKey,
+          workflow: {
+            ...input.workflow,
+            workUnitTypeKey: input.workUnitTypeKey,
+          },
+        });
+
+        yield* repo.recordEvent({
+          methodologyVersionId: input.versionId,
+          eventType: "workflows_updated",
+          actorId,
+          changedFieldsJson: {
+            operation: "update_workflow",
+            workUnitTypeKey: input.workUnitTypeKey,
+            workflowKey: input.workflowKey,
+            nextWorkflowKey: input.workflow.key,
+          },
+          diagnosticsJson: null,
+        });
+
+        const diagnostics = yield* coreService.validateDraftVersion(
+          { versionId: input.versionId },
+          actorId,
+        );
+
+        return { version: existing, diagnostics };
+      });
+
+    const deleteWorkUnitWorkflow = (
+      input: DeleteWorkUnitWorkflowInput,
+      actorId: string,
+    ): Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+    > =>
+      Effect.gen(function* () {
+        const existing = yield* repo.findVersionById(input.versionId);
+        if (!existing) {
+          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+        }
+
+        yield* ensureVersionIsDraft(existing);
+
+        if (!repo.deleteWorkflow) {
+          return yield* Effect.fail(
+            new RepositoryError({
+              operation: "methodology.deleteWorkUnitWorkflow",
+              cause: new Error("Workflow CRUD repository capability is not configured"),
+            }),
+          );
+        }
+
+        yield* repo.deleteWorkflow({
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+          workflowKey: input.workflowKey,
+        });
+
+        yield* repo.recordEvent({
+          methodologyVersionId: input.versionId,
+          eventType: "workflows_updated",
+          actorId,
+          changedFieldsJson: {
+            operation: "delete_workflow",
+            workUnitTypeKey: input.workUnitTypeKey,
+            workflowKey: input.workflowKey,
+          },
+          diagnosticsJson: null,
+        });
+
+        const diagnostics = yield* coreService.validateDraftVersion(
+          { versionId: input.versionId },
+          actorId,
+        );
+
+        return { version: existing, diagnostics };
+      });
+
+    const replaceTransitionBindings = (
+      input: ReplaceWorkUnitTransitionBindingsInput,
+      actorId: string,
+    ): Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+    > =>
+      Effect.gen(function* () {
+        const existing = yield* repo.findVersionById(input.versionId);
+        if (!existing) {
+          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+        }
+
+        yield* ensureVersionIsDraft(existing);
+
+        if (!repo.replaceTransitionWorkflowBindings) {
+          return yield* Effect.fail(
+            new RepositoryError({
+              operation: "methodology.replaceTransitionBindings",
+              cause: new Error("Transition binding repository capability is not configured"),
+            }),
+          );
+        }
+
+        yield* repo.replaceTransitionWorkflowBindings({
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+          transitionKey: input.transitionKey,
+          workflowKeys: input.workflowKeys,
+        });
+
+        yield* repo.recordEvent({
+          methodologyVersionId: input.versionId,
+          eventType: "transition_bindings_updated",
+          actorId,
+          changedFieldsJson: {
+            operation: "replace_transition_bindings",
+            workUnitTypeKey: input.workUnitTypeKey,
+            transitionKey: input.transitionKey,
+          },
+          diagnosticsJson: null,
+        });
+
+        const diagnostics = yield* coreService.validateDraftVersion(
+          { versionId: input.versionId },
+          actorId,
+        );
+
+        return { version: existing, diagnostics };
+      });
+
+    const deleteWorkUnit = (
+      input: {
+        versionId: string;
+        workUnitTypeKey: string;
+      },
+      actorId: string,
+    ): Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+    > =>
+      Effect.gen(function* () {
+        const existing = yield* repo.findVersionById(input.versionId);
+        if (!existing) {
+          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+        }
+
+        yield* ensureVersionIsDraft(existing);
+
+        if (!repo.deleteWorkUnitType) {
+          return yield* Effect.fail(
+            new RepositoryError({
+              operation: "methodology.deleteWorkUnit",
+              cause: new Error("Work unit repository capability is not configured"),
+            }),
+          );
+        }
+
+        yield* repo.deleteWorkUnitType({
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+        });
+
+        yield* repo.recordEvent({
+          methodologyVersionId: input.versionId,
+          eventType: "lifecycle_updated",
+          actorId,
+          changedFieldsJson: {
+            operation: "delete_work_unit",
+            workUnitTypeKey: input.workUnitTypeKey,
+          },
+          diagnosticsJson: null,
+        });
+
+        const diagnostics = yield* coreService.validateDraftVersion(
+          { versionId: input.versionId },
+          actorId,
+        );
+        return { version: existing, diagnostics };
+      });
+
+    const replaceWorkUnitFacts = (
+      input: {
+        versionId: string;
+        workUnitTypeKey: string;
+        facts: readonly FactSchema[];
+      },
+      actorId: string,
+    ): Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+    > =>
+      Effect.gen(function* () {
+        const existing = yield* repo.findVersionById(input.versionId);
+        if (!existing) {
+          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+        }
+
+        yield* ensureVersionIsDraft(existing);
+
+        if (!repo.replaceWorkUnitFacts) {
+          return yield* Effect.fail(
+            new RepositoryError({
+              operation: "methodology.replaceWorkUnitFacts",
+              cause: new Error("Work unit fact repository capability is not configured"),
+            }),
+          );
+        }
+
+        yield* repo.replaceWorkUnitFacts({
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+          facts: input.facts,
+        });
+
+        yield* repo.recordEvent({
+          methodologyVersionId: input.versionId,
+          eventType: "lifecycle_updated",
+          actorId,
+          changedFieldsJson: {
+            operation: "replace_work_unit_facts",
+            workUnitTypeKey: input.workUnitTypeKey,
+          },
+          diagnosticsJson: null,
+        });
+
+        const diagnostics = yield* coreService.validateDraftVersion(
+          { versionId: input.versionId },
+          actorId,
+        );
+        return { version: existing, diagnostics };
+      });
+
+    const replaceWorkUnitLifecycleStates = (
+      input: {
+        versionId: string;
+        workUnitTypeKey: string;
+        states: readonly LifecycleState[];
+      },
+      actorId: string,
+    ): Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+    > =>
+      Effect.gen(function* () {
+        const existing = yield* repo.findVersionById(input.versionId);
+        if (!existing) {
+          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+        }
+
+        yield* ensureVersionIsDraft(existing);
+
+        if (!repo.replaceWorkUnitLifecycleStates) {
+          return yield* Effect.fail(
+            new RepositoryError({
+              operation: "methodology.replaceWorkUnitLifecycleStates",
+              cause: new Error("Lifecycle state repository capability is not configured"),
+            }),
+          );
+        }
+
+        yield* repo.replaceWorkUnitLifecycleStates({
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+          states: input.states,
+        });
+
+        yield* repo.recordEvent({
+          methodologyVersionId: input.versionId,
+          eventType: "lifecycle_updated",
+          actorId,
+          changedFieldsJson: {
+            operation: "replace_lifecycle_states",
+            workUnitTypeKey: input.workUnitTypeKey,
+          },
+          diagnosticsJson: null,
+        });
+
+        const diagnostics = yield* coreService.validateDraftVersion(
+          { versionId: input.versionId },
+          actorId,
+        );
+        return { version: existing, diagnostics };
+      });
+
+    const replaceWorkUnitLifecycleTransitions = (
+      input: {
+        versionId: string;
+        workUnitTypeKey: string;
+        transitions: readonly LifecycleTransition[];
+      },
+      actorId: string,
+    ): Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+    > =>
+      Effect.gen(function* () {
+        const existing = yield* repo.findVersionById(input.versionId);
+        if (!existing) {
+          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+        }
+
+        yield* ensureVersionIsDraft(existing);
+
+        if (!repo.replaceWorkUnitLifecycleTransitions) {
+          return yield* Effect.fail(
+            new RepositoryError({
+              operation: "methodology.replaceWorkUnitLifecycleTransitions",
+              cause: new Error("Lifecycle transition repository capability is not configured"),
+            }),
+          );
+        }
+
+        yield* repo.replaceWorkUnitLifecycleTransitions({
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+          transitions: input.transitions,
+        });
+
+        yield* repo.recordEvent({
+          methodologyVersionId: input.versionId,
+          eventType: "lifecycle_updated",
+          actorId,
+          changedFieldsJson: {
+            operation: "replace_lifecycle_transitions",
+            workUnitTypeKey: input.workUnitTypeKey,
+          },
+          diagnosticsJson: null,
+        });
+
+        const diagnostics = yield* coreService.validateDraftVersion(
+          { versionId: input.versionId },
+          actorId,
+        );
+        return { version: existing, diagnostics };
+      });
+
+    const replaceWorkUnitTransitionConditionSets = (
+      input: {
+        versionId: string;
+        workUnitTypeKey: string;
+        transitionKey: string;
+        conditionSets: readonly TransitionConditionSet[];
+      },
+      actorId: string,
+    ): Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+    > =>
+      Effect.gen(function* () {
+        const existing = yield* repo.findVersionById(input.versionId);
+        if (!existing) {
+          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+        }
+
+        yield* ensureVersionIsDraft(existing);
+
+        if (!repo.replaceWorkUnitTransitionConditionSets) {
+          return yield* Effect.fail(
+            new RepositoryError({
+              operation: "methodology.replaceWorkUnitTransitionConditionSets",
+              cause: new Error("Transition condition-set repository capability is not configured"),
+            }),
+          );
+        }
+
+        yield* repo.replaceWorkUnitTransitionConditionSets({
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+          transitionKey: input.transitionKey,
+          conditionSets: input.conditionSets,
+        });
+
+        yield* repo.recordEvent({
+          methodologyVersionId: input.versionId,
+          eventType: "lifecycle_updated",
+          actorId,
+          changedFieldsJson: {
+            operation: "replace_transition_condition_sets",
+            workUnitTypeKey: input.workUnitTypeKey,
+            transitionKey: input.transitionKey,
+          },
+          diagnosticsJson: null,
+        });
+
+        const diagnostics = yield* coreService.validateDraftVersion(
+          { versionId: input.versionId },
+          actorId,
+        );
+        return { version: existing, diagnostics };
+      });
+
+    const replaceDraftWorkflowSnapshot = (
+      input: UpdateDraftWorkflowsInputDto,
+      actorId: string | null,
+    ): Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+    > =>
+      Effect.gen(function* () {
+        const existing = yield* repo.findVersionById(input.versionId);
+        if (!existing) {
+          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+        }
+
+        yield* ensureVersionIsDraft(existing);
+
+        const snapshot = yield* getAuthoringSnapshot(existing.id);
+
+        return yield* coreService.updateDraftVersion(
+          {
+            versionId: existing.id,
+            displayName: existing.displayName,
+            version: existing.version,
+            definition: {
+              workUnitTypes: snapshot.workUnitTypes,
+              agentTypes: snapshot.agentTypes,
+              transitions: snapshot.workUnitTypes.flatMap((workUnitType) =>
+                (workUnitType.lifecycleTransitions ?? []).map((transition) => ({
+                  workUnitTypeKey: workUnitType.key,
+                  transitionKey: transition.transitionKey,
+                  fromState: transition.fromState,
+                  toState: transition.toState,
+                })),
+              ),
+              workflows: input.workflows,
+              transitionWorkflowBindings: input.transitionWorkflowBindings,
+              guidance: mergeLayeredGuidance(snapshot.guidance, input.guidance),
+            },
+            factDefinitions: input.factDefinitions ?? snapshot.factDefinitions,
+            linkTypeDefinitions: snapshot.linkTypeDefinitions,
+          },
+          actorId,
+        );
+      });
+
+    const getAuthoringSnapshot = (
+      versionId: string,
+    ): Effect.Effect<AuthoringSnapshot, VersionNotFoundError | RepositoryError> =>
+      Effect.gen(function* () {
+        const existing = yield* repo.findVersionById(versionId);
+        if (!existing) {
+          return yield* Effect.fail(new VersionNotFoundError({ versionId }));
+        }
+
+        const [{ workUnitTypes, agentTypes }, workflowSnapshot, factDefinitionRows, linkTypeRows] =
+          yield* Effect.all([
+            loadPreviousLifecycleDefinition(versionId, lifecycleRepo),
+            repo.findWorkflowSnapshot(versionId),
+            repo.findFactDefinitionsByVersionId(versionId),
+            repo.findLinkTypeDefinitionsByVersionId(versionId),
+          ]);
+
+        return {
+          workUnitTypes,
+          agentTypes,
+          workflows: workflowSnapshot.workflows,
+          transitionWorkflowBindings: workflowSnapshot.transitionWorkflowBindings,
+          guidance: workflowSnapshot.guidance,
+          factDefinitions: factDefinitionRows.map(mapFactDefinitionRowToInput),
+          linkTypeDefinitions: linkTypeRows.map(mapLinkTypeDefinitionRowToInput),
+        };
+      });
+
+    const getVersionWorkspaceSnapshot = (
+      versionId: string,
+    ): Effect.Effect<VersionWorkspaceSnapshot, VersionNotFoundError | RepositoryError> =>
+      Effect.gen(function* () {
+        const version = yield* repo.findVersionById(versionId);
+        if (!version) {
+          return yield* Effect.fail(new VersionNotFoundError({ versionId }));
+        }
+
+        const snapshot = yield* getAuthoringSnapshot(versionId);
+        const transitions = snapshot.workUnitTypes.flatMap((workUnitType) =>
+          (workUnitType.lifecycleTransitions ?? []).map((transition) => ({
+            key: transition.transitionKey,
+            workUnitTypeKey: workUnitType.key,
+            fromState: transition.fromState,
+            toState: transition.toState,
+            conditionSets: transition.conditionSets,
+            guidance: transition.guidance,
+            gateClass: transition.conditionSets.some(
+              (conditionSet) => conditionSet.phase === "completion",
+            )
+              ? "completion_gate"
+              : "start_gate",
+          })),
+        );
+
+        return {
+          id: version.id,
+          methodologyId: version.methodologyId,
+          version: version.version,
+          status: version.status,
+          displayName: version.displayName,
+          ...snapshot,
+          transitions,
+        };
+      });
+
+    const workflowService = WorkflowService.of({
+      listWorkUnitWorkflows,
+      createWorkUnitWorkflow,
+      updateWorkUnitWorkflow,
+      deleteWorkUnitWorkflow,
+      replaceTransitionBindings,
+      updateWorkflowDefinition: () => Effect.void,
+    });
+
     return MethodologyVersionService.of({
       createMethodology: (methodologyKey, displayName) =>
         coreService.createMethodology(methodologyKey, displayName),
@@ -796,7 +1561,9 @@ export const MethodologyVersionServiceLive = Layer.effect(
       createDraftVersion: (input, actorId) => coreService.createDraftVersion(input, actorId),
       updateDraftVersion: (input, actorId) => coreService.updateDraftVersion(input, actorId),
       validateDraftVersion: (input, actorId) => coreService.validateDraftVersion(input, actorId),
-      getDraftProjection: (versionId) => coreService.getDraftProjection(versionId),
+      getAuthoringSnapshot,
+      getVersionWorkspaceSnapshot,
+      replaceDraftWorkflowSnapshot,
       getDraftLineage: (input) => coreService.getDraftLineage(input),
       publishDraftVersion: (input, actorId) => coreService.publishDraftVersion(input, actorId),
       getPublicationEvidence: (input) => coreService.getPublicationEvidence(input),
@@ -811,7 +1578,23 @@ export const MethodologyVersionServiceLive = Layer.effect(
         coreService.updateDependencyDefinition(input, actorId),
       deleteDependencyDefinition: (input, actorId) =>
         coreService.deleteDependencyDefinition(input, actorId),
-      updateDraftWorkflows: (input, actorId) => coreService.updateDraftWorkflows(input, actorId),
+      listWorkUnitWorkflows: (input) => workflowService.listWorkUnitWorkflows(input),
+      createWorkUnitWorkflow: (input, actorId) =>
+        workflowService.createWorkUnitWorkflow(input, actorId ?? "system"),
+      updateWorkUnitWorkflow: (input, actorId) =>
+        workflowService.updateWorkUnitWorkflow(input, actorId ?? "system"),
+      deleteWorkUnitWorkflow: (input, actorId) =>
+        workflowService.deleteWorkUnitWorkflow(input, actorId ?? "system"),
+      replaceTransitionBindings: (input, actorId) =>
+        workflowService.replaceTransitionBindings(input, actorId ?? "system"),
+      deleteWorkUnit: (input, actorId) => deleteWorkUnit(input, actorId ?? "system"),
+      replaceWorkUnitFacts: (input, actorId) => replaceWorkUnitFacts(input, actorId ?? "system"),
+      replaceWorkUnitLifecycleStates: (input, actorId) =>
+        replaceWorkUnitLifecycleStates(input, actorId ?? "system"),
+      replaceWorkUnitLifecycleTransitions: (input, actorId) =>
+        replaceWorkUnitLifecycleTransitions(input, actorId ?? "system"),
+      replaceWorkUnitTransitionConditionSets: (input, actorId) =>
+        replaceWorkUnitTransitionConditionSets(input, actorId ?? "system"),
       updateVersionMetadata: (input, actorId) => coreService.updateVersionMetadata(input, actorId),
       archiveVersion: (input, actorId) => coreService.archiveVersion(input, actorId),
       createAgent: (input, actorId) => createAgent(input, actorId ?? "system"),

@@ -26,8 +26,11 @@ const loadService = () =>
 describe("L1 route boundary characterization", () => {
   it("L1 exposes workflow/state-machine updates only as a compatibility seam", async () => {
     const service = await Effect.runPromise(loadService());
+    const legacyWorkflowBulkKey = ["update", "Draft", "Workflows"].join("");
+    const removedWorkspaceReadKey = ["get", "Draft", "Projection"].join("");
 
-    expect("updateDraftWorkflows" in (service as Record<string, unknown>)).toBe(true);
+    expect(legacyWorkflowBulkKey in (service as Record<string, unknown>)).toBe(false);
+    expect(removedWorkspaceReadKey in (service as Record<string, unknown>)).toBe(false);
   });
 
   it("L1 work-unit update accepts metadata fields only", async () => {

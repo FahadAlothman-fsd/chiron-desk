@@ -78,7 +78,7 @@ git commit -m "test(methodology-engine): characterize L1 ownership boundaries"
 - Create: `packages/methodology-engine/src/ports/version-repository.ts`
 - Create: `packages/methodology-engine/src/ports/work-unit-repository.ts`
 - Create: `packages/methodology-engine/src/ports/workflow-repository.ts`
-- Create: `packages/methodology-engine/src/ports/projection-repository.ts`
+- Create: `packages/methodology-engine/src/ports/workspace-snapshot-port.ts`
 - Create: `packages/methodology-engine/src/ports/methodology-tx.ts`
 - Modify: `packages/methodology-engine/src/index.ts`
 
