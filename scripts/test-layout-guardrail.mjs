@@ -1,5 +1,6 @@
 import { readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
+import { Result } from "better-result";
 
 const root = process.cwd();
 const roots = [join(root, "apps"), join(root, "packages")];
@@ -39,13 +40,16 @@ function walk(dir) {
 }
 
 for (const scanRoot of roots) {
-  try {
-    if (statSync(scanRoot).isDirectory()) {
-      walk(scanRoot);
-    }
-  } catch {
-    // Root does not exist in some environments; ignore.
+  const statResult = Result.try({
+    try: () => statSync(scanRoot),
+    catch: () => null,
+  });
+
+  if (statResult.isErr() || !statResult.value || !statResult.value.isDirectory()) {
+    continue;
   }
+
+  walk(scanRoot);
 }
 
 if (violations.length > 0) {

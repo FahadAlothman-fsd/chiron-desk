@@ -2,6 +2,7 @@ import { chmod, copyFile, cp, mkdir, readFile, readdir, realpath, rm } from "nod
 import { basename, dirname, join, relative, sep } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { Result } from "better-result";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const serverRoot = dirname(scriptDir);
@@ -113,25 +114,49 @@ async function copyPackageDependencies(packageDir) {
       ? join(owningNodeModulesDir, dependencyName)
       : null;
 
-    try {
-      await copyRuntimePackage(localDependencyPath);
+    const localCopyResult = await Result.tryPromise({
+      try: async () => {
+        await copyRuntimePackage(localDependencyPath);
+      },
+      catch: (error) => error,
+    });
+
+    if (localCopyResult.isOk()) {
       continue;
-    } catch (error) {
-      if (!(error && typeof error === "object" && "code" in error && error.code === "ENOENT")) {
-        throw error;
-      }
+    }
+
+    if (
+      !(
+        localCopyResult.error &&
+        typeof localCopyResult.error === "object" &&
+        "code" in localCopyResult.error &&
+        localCopyResult.error.code === "ENOENT"
+      )
+    ) {
+      throw localCopyResult.error;
     }
 
     if (!siblingDependencyPath) {
       continue;
     }
 
-    try {
-      await copyRuntimePackage(siblingDependencyPath);
-    } catch (error) {
-      if (!(error && typeof error === "object" && "code" in error && error.code === "ENOENT")) {
-        throw error;
-      }
+    const siblingCopyResult = await Result.tryPromise({
+      try: async () => {
+        await copyRuntimePackage(siblingDependencyPath);
+      },
+      catch: (error) => error,
+    });
+
+    if (
+      siblingCopyResult.isErr() &&
+      !(
+        siblingCopyResult.error &&
+        typeof siblingCopyResult.error === "object" &&
+        "code" in siblingCopyResult.error &&
+        siblingCopyResult.error.code === "ENOENT"
+      )
+    ) {
+      throw siblingCopyResult.error;
     }
   }
 }
