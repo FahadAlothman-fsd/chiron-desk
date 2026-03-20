@@ -309,18 +309,12 @@ describe("methodology details route", () => {
           methodologyKey: string;
           displayName: string;
           version: string;
-          workUnitTypes: unknown[];
-          agentTypes: unknown[];
-          artifactTemplates: unknown[];
         },
         unknown?,
       ];
       expect(firstCall?.[0]?.methodologyKey).toBe("bmad.v1");
       expect(firstCall?.[0]?.displayName).toBe("BMAD v3 Draft");
       expect(firstCall?.[0]?.version).toBe("0.3.0");
-      expect(Array.isArray(firstCall?.[0]?.workUnitTypes)).toBe(true);
-      expect(Array.isArray(firstCall?.[0]?.agentTypes)).toBe(true);
-      expect(Array.isArray(firstCall?.[0]?.artifactTemplates)).toBe(true);
       expect(toastSuccessMock).toHaveBeenCalledWith("Draft created");
     });
   });

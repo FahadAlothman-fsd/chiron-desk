@@ -233,25 +233,6 @@ describe("methodology command palette helpers", () => {
       methodologyKey: "equity-core",
       displayName: "Equity Core Draft 3",
       version: "0.3.0",
-      workUnitTypes: [
-        {
-          key: "task",
-          cardinality: "one_per_project",
-          lifecycleStates: [{ key: "done" }],
-          lifecycleTransitions: [
-            {
-              transitionKey: "start",
-              fromState: "__absent__",
-              toState: "done",
-              gateClass: "start_gate",
-              conditionSets: [],
-            },
-          ],
-          factSchemas: [],
-        },
-      ],
-      agentTypes: [],
-      artifactTemplates: [],
     });
   });
 });
