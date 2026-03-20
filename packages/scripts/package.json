@@ -13,10 +13,10 @@
   "scripts": {
     "test": "bunx vitest run",
     "module:wiring-smoke": "bun run src/module-wiring-smoke.ts",
-    "db:seed": "DOTENV_CONFIG_PATH=../../apps/server/.env bun run src/seed.mjs",
-    "db:seed:reset": "DOTENV_CONFIG_PATH=../../apps/server/.env bun run src/seed.mjs --reset",
-    "db:seed:story": "DOTENV_CONFIG_PATH=../../apps/server/.env bun run src/story-seed.mjs",
-    "db:seed:story:reset": "DOTENV_CONFIG_PATH=../../apps/server/.env bun run src/story-seed.mjs --reset"
+    "db:seed": "DOTENV_CONFIG_PATH=../../apps/server/.env bun run src/manual-seed.mjs",
+    "db:seed:reset": "DOTENV_CONFIG_PATH=../../apps/server/.env bun run src/manual-seed.mjs --reset",
+    "db:seed:test": "DOTENV_CONFIG_PATH=../../apps/server/.env bun run src/seed.mjs",
+    "db:seed:test:reset": "DOTENV_CONFIG_PATH=../../apps/server/.env bun run src/seed.mjs --reset"
   },
   "dependencies": {
     "@chiron/agent-runtime": "workspace:*",

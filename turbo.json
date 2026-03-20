@@ -45,10 +45,10 @@
     "db:seed:reset": {
       "cache": false
     },
-    "db:seed:story": {
+    "db:seed:test": {
       "cache": false
     },
-    "db:seed:story:reset": {
+    "db:seed:test:reset": {
       "cache": false
     }
   }
