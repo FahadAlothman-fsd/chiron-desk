@@ -5,6 +5,7 @@ import { AlertTriangleIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
+import { Result } from "better-result";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { MethodologyWorkspaceShell } from "@/features/methodologies/workspace-shell";
@@ -56,23 +57,16 @@ function parseAdvancedJson(
     return { ok: true, value: {} };
   }
 
-  const parsed = z
-    .string()
-    .transform((value, context) => {
-      try {
-        return JSON.parse(value) as unknown;
-      } catch {
-        context.addIssue({ code: "custom", message: "json_parse_failed" });
-        return z.NEVER;
-      }
-    })
-    .safeParse(trimmed);
+  const parsed = Result.try({
+    try: () => JSON.parse(trimmed) as unknown,
+    catch: () => null,
+  });
 
-  if (!parsed.success) {
+  if (parsed.isErr()) {
     return { ok: false, message: "Advanced JSON must be valid JSON before saving." };
   }
 
-  const validated = deferredAgentAdvancedSchema.safeParse(parsed.data);
+  const validated = deferredAgentAdvancedSchema.safeParse(parsed.value);
   if (!validated.success) {
     return {
       ok: false,

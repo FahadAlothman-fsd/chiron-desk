@@ -4,6 +4,7 @@ import { Layers3Icon, RectangleHorizontalIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
+import { Result } from "better-result";
 
 import {
   Dialog,
@@ -284,59 +285,65 @@ export function MethodologyVersionWorkUnitsRoute() {
 
     setCreateError(null);
 
-    try {
-      if (isEditMode && editingWorkUnitKey) {
-        await updateWorkUnitMutation.mutateAsync({
-          versionId,
-          workUnitKey: editingWorkUnitKey,
-          workUnitType: {
-            key: nextKey,
-            displayName: nextDisplayName,
-            description: nextDescription,
-            guidance:
-              nextHumanGuidance || nextAgentGuidance
-                ? {
-                    human: { markdown: nextHumanGuidance },
-                    agent: { markdown: nextAgentGuidance },
-                  }
-                : undefined,
-            cardinality: newWorkUnitCardinality,
-          },
-        });
-      } else {
-        await createWorkUnitMutation.mutateAsync({
-          versionId,
-          workUnitType: {
-            key: nextKey,
-            displayName: nextDisplayName,
-            description: nextDescription,
-            guidance:
-              nextHumanGuidance || nextAgentGuidance
-                ? {
-                    human: { markdown: nextHumanGuidance },
-                    agent: { markdown: nextAgentGuidance },
-                  }
-                : undefined,
-            cardinality: newWorkUnitCardinality,
-          },
-        });
-      }
+    const mutationResult = await Result.tryPromise({
+      try: async () => {
+        if (isEditMode && editingWorkUnitKey) {
+          await updateWorkUnitMutation.mutateAsync({
+            versionId,
+            workUnitKey: editingWorkUnitKey,
+            workUnitType: {
+              key: nextKey,
+              displayName: nextDisplayName,
+              description: nextDescription,
+              guidance:
+                nextHumanGuidance || nextAgentGuidance
+                  ? {
+                      human: { markdown: nextHumanGuidance },
+                      agent: { markdown: nextAgentGuidance },
+                    }
+                  : undefined,
+              cardinality: newWorkUnitCardinality,
+            },
+          });
+        } else {
+          await createWorkUnitMutation.mutateAsync({
+            versionId,
+            workUnitType: {
+              key: nextKey,
+              displayName: nextDisplayName,
+              description: nextDescription,
+              guidance:
+                nextHumanGuidance || nextAgentGuidance
+                  ? {
+                      human: { markdown: nextHumanGuidance },
+                      agent: { markdown: nextAgentGuidance },
+                    }
+                  : undefined,
+              cardinality: newWorkUnitCardinality,
+            },
+          });
+        }
 
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: draftQueryOptions.queryKey }),
-        queryClient.invalidateQueries({ queryKey: detailsQueryOptions.queryKey }),
-      ]);
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: draftQueryOptions.queryKey }),
+          queryClient.invalidateQueries({ queryKey: detailsQueryOptions.queryKey }),
+        ]);
+      },
+      catch: (error: unknown) => error,
+    });
 
-      closeCreateDialog();
-      updateSearch({ selected: nextKey });
-      toast.success(isEditMode ? "Work unit updated." : "Work unit created.");
-    } catch {
+    if (mutationResult.isErr()) {
       setCreateError(
         isEditMode
           ? "Unable to save work unit changes. Review the current draft definitions and try again."
           : "Unable to create work unit. Review the current draft definitions and try again.",
       );
+      return;
     }
+
+    closeCreateDialog();
+    updateSearch({ selected: nextKey });
+    toast.success(isEditMode ? "Work unit updated." : "Work unit created.");
   };
 
   const openCreateDialog = () => {

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { ArrowRightIcon } from "lucide-react";
+import { Result } from "better-result";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -137,11 +138,12 @@ function formatGuidance(guidance: unknown): string {
     return "No guidance provided.";
   }
 
-  try {
-    return JSON.stringify(guidance, null, 2);
-  } catch {
-    return String(guidance);
-  }
+  const stringifyResult = Result.try({
+    try: () => JSON.stringify(guidance, null, 2),
+    catch: () => String(guidance),
+  });
+
+  return stringifyResult.isErr() ? stringifyResult.error : stringifyResult.value;
 }
 
 export function BaselineVisibilitySection({
