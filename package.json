@@ -58,6 +58,7 @@
   },
   "dependencies": {
     "@chiron/env": "workspace:*",
+    "better-result": "^2.7.0",
     "dotenv": "catalog:",
     "zod": "catalog:"
   },

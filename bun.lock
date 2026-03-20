@@ -6,6 +6,7 @@
       "name": "chiron",
       "dependencies": {
         "@chiron/env": "workspace:*",
+        "better-result": "^2.7.0",
         "dotenv": "catalog:",
         "zod": "catalog:",
       },
@@ -28,6 +29,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@chiron/contracts": "workspace:*",
+        "better-result": "^2.7.0",
       },
       "devDependencies": {
         "@chiron/config": "workspace:*",
@@ -51,6 +53,7 @@
         "@orpc/server": "catalog:",
         "@orpc/zod": "catalog:",
         "better-auth": "catalog:",
+        "better-result": "^2.7.0",
         "dotenv": "catalog:",
         "effect": "catalog:",
         "hono": "catalog:",
@@ -189,6 +192,7 @@
     "packages/contracts": {
       "name": "@chiron/contracts",
       "dependencies": {
+        "better-result": "^2.7.0",
         "effect": "catalog:",
       },
       "devDependencies": {

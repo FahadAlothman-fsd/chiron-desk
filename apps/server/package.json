@@ -21,6 +21,7 @@
     "@orpc/server": "catalog:",
     "@orpc/zod": "catalog:",
     "better-auth": "catalog:",
+    "better-result": "^2.7.0",
     "dotenv": "catalog:",
     "effect": "catalog:",
     "hono": "catalog:",

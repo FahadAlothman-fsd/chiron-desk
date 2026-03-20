@@ -24,6 +24,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "better-result": "^2.7.0",
     "effect": "catalog:"
   },
   "devDependencies": {

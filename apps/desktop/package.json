@@ -14,7 +14,8 @@
     "check-types": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@chiron/contracts": "workspace:*"
+    "@chiron/contracts": "workspace:*",
+    "better-result": "^2.7.0"
   },
   "devDependencies": {
     "@chiron/config": "workspace:*",
