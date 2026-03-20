@@ -13,12 +13,12 @@ const handleFailure = (error, stage, shouldReset) => {
   const failureType = classifySeedError(error);
 
   if (failureType === "missing_tables") {
-    console.error("[seed] missing tables: run `bun run db:push` first");
+    console.error("[seed:test] missing tables: run `bun run db:push` first");
     process.exit(1);
   }
 
   if (stage === "seed" && shouldSkipSeedError(error, shouldReset)) {
-    console.log("[seed] existing rows detected; skipping because --reset was not provided");
+    console.log("[seed:test] existing rows detected; skipping because --reset was not provided");
     return true;
   }
 
@@ -35,17 +35,17 @@ const runSeed = async (shouldReset) => {
     if (resetResult.isErr()) {
       handleFailure(resetResult.error, "reset", shouldReset);
     } else {
-      console.log("[seed] database reset complete");
+      console.log("[seed:test] database reset complete");
     }
   }
 
   const seedResult = await Result.tryPromise({
-    try: async () => seed(db, schema),
+    try: async () => seed(db, schema, { count: 1 }),
     catch: (error) => error,
   });
 
   if (seedResult.isOk()) {
-    console.log("[seed] drizzle-seed completed");
+    console.log("[seed:test] drizzle-seed completed");
   } else {
     const skipped = handleFailure(seedResult.error, "seed", shouldReset);
 

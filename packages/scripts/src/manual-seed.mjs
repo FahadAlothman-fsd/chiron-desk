@@ -8,26 +8,23 @@ import {
   METHODOLOGY_CANONICAL_TABLE_SEED_ORDER,
   methodologyCanonicalTableSeedRows,
 } from "./seed/methodology/index.ts";
-
 import { classifySeedError, shouldSkipSeedError } from "./seed-error-handling.ts";
-import { formatStorySeedNotFoundError, getStorySeedPlan } from "./story-seed-fixtures.ts";
+import { BASELINE_MANUAL_SEED_PLAN } from "./manual-seed-fixtures.ts";
 
 const parseArgs = (args) => {
   const reset = args.includes("--reset") || args.includes("-r");
-  const storyArg = args.find((arg) => arg.startsWith("--story="));
-  const storyId = storyArg ? storyArg.slice("--story=".length) : "2-7";
 
-  return { reset, storyId };
+  return { reset };
 };
 
-const storySeedDbError = (operation, cause) => ({
-  _tag: "StorySeedDbError",
+const manualSeedDbError = (operation, cause) => ({
+  _tag: "ManualSeedDbError",
   operation,
   cause,
 });
 
-const storySeedAuthError = (operation, email, cause) => ({
-  _tag: "StorySeedAuthError",
+const manualSeedAuthError = (operation, email, cause) => ({
+  _tag: "ManualSeedAuthError",
   operation,
   email,
   cause,
@@ -36,7 +33,7 @@ const storySeedAuthError = (operation, email, cause) => ({
 const tryDb = (operation, run) =>
   Effect.tryPromise({
     try: run,
-    catch: (cause) => storySeedDbError(operation, cause),
+    catch: (cause) => manualSeedDbError(operation, cause),
   });
 
 const upsertMethodologyDefinitions = (plan) => {
@@ -85,10 +82,10 @@ const upsertMethodologyVersions = (plan) => {
 const CANONICAL_TABLES = {
   methodology_work_unit_types: schema.methodologyWorkUnitTypes,
   methodology_agent_types: schema.methodologyAgentTypes,
-  methodology_lifecycle_states: schema.methodologyLifecycleStates,
-  methodology_lifecycle_transitions: schema.methodologyLifecycleTransitions,
-  methodology_transition_condition_sets: schema.methodologyTransitionConditionSets,
-  methodology_fact_schemas: schema.methodologyFactSchemas,
+  work_unit_lifecycle_states: schema.workUnitLifecycleStates,
+  work_unit_lifecycle_transitions: schema.workUnitLifecycleTransitions,
+  transition_condition_sets: schema.transitionConditionSets,
+  work_unit_fact_definitions: schema.methodologyFactSchemas,
   methodology_link_type_definitions: schema.methodologyLinkTypeDefinitions,
   methodology_workflows: schema.methodologyWorkflows,
   methodology_workflow_steps: schema.methodologyWorkflowSteps,
@@ -172,12 +169,12 @@ const seedUsers = (plan) =>
                 origin: process.env.CORS_ORIGIN ?? "http://localhost:3001",
               }),
             }),
-          catch: (cause) => storySeedAuthError("sign_up_email", seededUser.email, cause),
+          catch: (cause) => manualSeedAuthError("sign_up_email", seededUser.email, cause),
         }).pipe(
           Effect.flatMap((result) => {
             if (result && typeof result === "object" && "error" in result && result.error) {
               return Effect.fail(
-                storySeedAuthError("sign_up_email_rejected", seededUser.email, result.error),
+                manualSeedAuthError("sign_up_email_rejected", seededUser.email, result.error),
               );
             }
 
@@ -192,12 +189,12 @@ const seedUsers = (plan) =>
 const options = parseArgs(process.argv.slice(2));
 
 const program = Effect.gen(function* () {
-  const plan = yield* getStorySeedPlan(options.storyId);
+  const plan = BASELINE_MANUAL_SEED_PLAN;
 
   if (options.reset) {
     yield* Effect.tryPromise({
       try: () => drizzleReset(db, schema),
-      catch: (cause) => storySeedDbError("reset_database", cause),
+      catch: (cause) => manualSeedDbError("reset_database", cause),
     });
     yield* Console.log("Database reset complete.");
   }
@@ -207,7 +204,7 @@ const program = Effect.gen(function* () {
   yield* seedCanonicalMethodologyTables(plan);
   yield* seedUsers(plan);
 
-  yield* Console.log(`Story seed '${plan.storyId}' applied successfully.`);
+  yield* Console.log("Manual baseline seed applied successfully.");
   if (plan.users.length > 0) {
     yield* Console.log(
       `Seed login: ${plan.users[0].email} / ${plan.users[0].password} (deterministic with --reset).`,
@@ -216,10 +213,6 @@ const program = Effect.gen(function* () {
 }).pipe(
   Effect.as(0),
   Effect.catchAll((error) => {
-    if (error && typeof error === "object" && error._tag === "StorySeedNotFoundError") {
-      return Console.error(formatStorySeedNotFoundError(error)).pipe(Effect.as(1));
-    }
-
     const errorType = classifySeedError(error);
 
     if (errorType === "missing_tables") {
@@ -234,7 +227,7 @@ const program = Effect.gen(function* () {
       );
     }
 
-    return Console.error(`Story seed failed with an unexpected error: ${String(error)}`).pipe(
+    return Console.error(`Manual seed failed with an unexpected error: ${String(error)}`).pipe(
       Effect.as(1),
     );
   }),

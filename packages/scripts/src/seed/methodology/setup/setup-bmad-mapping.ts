@@ -16,7 +16,7 @@ export type MethodologyWorkflowEdgeSeedRow = typeof schema.methodologyWorkflowEd
 export type MethodologyTransitionWorkflowBindingSeedRow =
   typeof schema.methodologyTransitionWorkflowBindings.$inferInsert;
 
-const methodologyVersionId = "mver_bmad_project_context_only_draft";
+const methodologyVersionId = "mver_bmad_v1_active";
 
 function toDescriptionJson(markdown: string) {
   return {
