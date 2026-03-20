@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { Effect, Layer } from "effect";
 import {
@@ -14,6 +14,7 @@ import {
   type MethodologyVersionEventRow,
   type MethodologyFactDefinitionRow,
   type PublishDraftVersionParams,
+  type VersionWorkspaceStats,
   type WorkflowSnapshot,
   type DeleteWorkUnitTypeParams,
   type ReplaceWorkUnitFactsParams,
@@ -934,6 +935,46 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           transitionWorkflowBindings,
           ...(guidance ? { guidance } : {}),
         } satisfies WorkflowSnapshot;
+      }),
+
+    findVersionWorkspaceStats: (versionId: string) =>
+      dbEffect("methodology.findVersionWorkspaceStats", async () => {
+        const rows = await db
+          .select({
+            workUnitTypes:
+              sql<number>`(select count(*) from ${methodologyWorkUnitTypes} where ${methodologyWorkUnitTypes.methodologyVersionId} = ${versionId})`.as(
+                "workUnitTypes",
+              ),
+            states:
+              sql<number>`(select count(*) from ${workUnitLifecycleStates} where ${workUnitLifecycleStates.methodologyVersionId} = ${versionId})`.as(
+                "states",
+              ),
+            transitions:
+              sql<number>`(select count(*) from ${workUnitLifecycleTransitions} where ${workUnitLifecycleTransitions.methodologyVersionId} = ${versionId})`.as(
+                "transitions",
+              ),
+            workflows:
+              sql<number>`(select count(*) from ${methodologyWorkflows} where ${methodologyWorkflows.methodologyVersionId} = ${versionId})`.as(
+                "workflows",
+              ),
+            factDefinitions:
+              sql<number>`(select count(*) from ${methodologyFactDefinitions} where ${methodologyFactDefinitions.methodologyVersionId} = ${versionId})`.as(
+                "factDefinitions",
+              ),
+          })
+          .from(methodologyVersions)
+          .where(eq(methodologyVersions.id, versionId))
+          .limit(1);
+
+        const row = rows[0];
+
+        return {
+          workUnitTypes: row?.workUnitTypes ?? 0,
+          states: row?.states ?? 0,
+          transitions: row?.transitions ?? 0,
+          workflows: row?.workflows ?? 0,
+          factDefinitions: row?.factDefinitions ?? 0,
+        } satisfies VersionWorkspaceStats;
       }),
 
     listWorkflowsByWorkUnitType: ({ versionId, workUnitTypeKey }) =>

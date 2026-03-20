@@ -2219,7 +2219,7 @@ describe("methodology router", () => {
       expect(listedAfterDelete).toHaveLength(0);
     });
 
-    it("version.workUnit.stateMachine.binding.update updates only transition bindings", async () => {
+    it("version.workUnit.stateMachine.transition.binding.update updates only transition bindings", async () => {
       const router = createMethodologyRouter(makeServiceLayer());
 
       const created = await call(
@@ -2264,7 +2264,7 @@ describe("methodology router", () => {
       );
 
       const updateResult = await call(
-        router.version.workUnit.stateMachine.binding.update,
+        router.version.workUnit.stateMachine.transition.binding.update,
         {
           versionId: created.version.id,
           workUnitTypeKey: "task",
@@ -2297,6 +2297,138 @@ describe("methodology router", () => {
           (workflow: { key: string }) => workflow.key === "task-wf-b",
         ),
       ).toBe(true);
+    });
+
+    it("version.workUnit.stateMachine.transition.binding.create adds workflow binding for transition", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const created = await call(
+        router.version.create,
+        {
+          methodologyKey: "binding-create",
+          displayName: "Binding Create",
+          version: "1.0.0",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.version.workUnit.workflow.create,
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+          workflow: {
+            ...VALID_DEFINITION.workflows[0]!,
+            key: "task-wf-create",
+            workUnitTypeKey: "task",
+          },
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.version.workUnit.stateMachine.transition.binding.create,
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+          transitionKey: "start",
+          workflowKey: "task-wf-create",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const projection = await call(
+        router.version.workspace.get,
+        { versionId: created.version.id },
+        AUTHENTICATED_CTX,
+      );
+
+      const projectionRecord = projection as unknown as {
+        transitionWorkflowBindings: Record<string, string[]>;
+      };
+
+      expect(projectionRecord.transitionWorkflowBindings.start).toEqual(["task-wf-create"]);
+    });
+
+    it("version.workUnit.stateMachine.transition.binding.delete removes one workflow binding from transition", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const created = await call(
+        router.version.create,
+        {
+          methodologyKey: "binding-delete",
+          displayName: "Binding Delete",
+          version: "1.0.0",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.version.workUnit.workflow.create,
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+          workflow: {
+            ...VALID_DEFINITION.workflows[0]!,
+            key: "task-wf-a",
+            workUnitTypeKey: "task",
+          },
+        },
+        AUTHENTICATED_CTX,
+      );
+      await call(
+        router.version.workUnit.workflow.create,
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+          workflow: {
+            ...VALID_DEFINITION.workflows[0]!,
+            key: "task-wf-b",
+            workUnitTypeKey: "task",
+          },
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.version.workUnit.stateMachine.transition.binding.update,
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+          transitionKey: "start",
+          workflowKeys: ["task-wf-a", "task-wf-b"],
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.version.workUnit.stateMachine.transition.binding.delete,
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+          transitionKey: "start",
+          workflowKey: "task-wf-a",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const projection = await call(
+        router.version.workspace.get,
+        { versionId: created.version.id },
+        AUTHENTICATED_CTX,
+      );
+
+      const projectionRecord = projection as unknown as {
+        transitionWorkflowBindings: Record<string, string[]>;
+      };
+
+      expect(projectionRecord.transitionWorkflowBindings.start).toEqual(["task-wf-b"]);
     });
 
     it("version.workUnit.stateMachine.state.update replaces lifecycle states for a work unit", async () => {
@@ -2346,7 +2478,7 @@ describe("methodology router", () => {
       );
     });
 
-    it("version.workUnit.stateMachine.conditionSet.update updates transition condition sets", async () => {
+    it("version.workUnit.stateMachine.transition.conditionSet.update updates transition condition sets", async () => {
       const router = createMethodologyRouter(makeServiceLayer());
 
       const created = await call(
@@ -2363,7 +2495,7 @@ describe("methodology router", () => {
       );
 
       await call(
-        router.version.workUnit.stateMachine.conditionSet.update,
+        router.version.workUnit.stateMachine.transition.conditionSet.update,
         {
           versionId: created.version.id,
           workUnitTypeKey: "task",
@@ -2480,7 +2612,7 @@ describe("methodology router", () => {
       expect(Array.isArray(transitions)).toBe(true);
 
       const conditionSets = await call(
-        router.version.workUnit.stateMachine.conditionSet.list,
+        router.version.workUnit.stateMachine.transition.conditionSet.list,
         {
           versionId: created.version.id,
           workUnitTypeKey: "task",
@@ -2491,10 +2623,11 @@ describe("methodology router", () => {
       expect(Array.isArray(conditionSets)).toBe(true);
 
       const bindings = await call(
-        router.version.workUnit.stateMachine.binding.list,
+        router.version.workUnit.stateMachine.transition.binding.list,
         {
           versionId: created.version.id,
           workUnitTypeKey: "task",
+          transitionKey: "start",
         },
         AUTHENTICATED_CTX,
       );
@@ -3295,6 +3428,50 @@ describe("methodology router", () => {
       expect(result.transitions).toBeDefined();
       expect(result.workflows).toBeDefined();
       expect(result.transitionWorkflowBindings).toBeDefined();
+    });
+
+    it("exposes methodology.version.workspace.stats for one-shot workspace counters", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const created = await call(
+        router.version.create,
+        {
+          methodologyKey: "workspace-stats",
+          displayName: "Workspace Stats",
+          version: "0.1.0-draft",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.updateDraftWorkflows,
+        {
+          versionId: created.version.id,
+          workflows: VALID_DEFINITION.workflows.map((workflow) => ({
+            ...workflow,
+            workUnitTypeKey: "task",
+          })),
+          transitionWorkflowBindings: VALID_DEFINITION.transitionWorkflowBindings,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const stats = await call(
+        router.version.workspace.stats,
+        { versionId: created.version.id },
+        PUBLIC_CTX,
+      );
+
+      expect(stats).toEqual({
+        workUnitTypes: 1,
+        states: 1,
+        transitions: 1,
+        workflows: 1,
+        factDefinitions: 0,
+      });
     });
   });
 

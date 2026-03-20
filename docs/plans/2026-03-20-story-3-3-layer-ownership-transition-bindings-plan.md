@@ -2,27 +2,31 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Align methodology engine/service layering so transition bindings are transition-scoped under state machine ownership, workflow details stay workflow-owned, and workspace query composition stays boundary-owned without cross-domain service coupling.
+**Goal:** Align methodology engine/service layering so transition bindings and transition condition sets are transition-scoped under state machine ownership, workflow details stay workflow-owned, and workspace query composition stays boundary-owned without cross-domain service coupling.
 
-**Architecture:** Keep `WorkUnitStateMachineService` and `WorkflowService` as separate domain seams. Store and manipulate binding references under transition scope (`transitionKey` required), while workflow definitions/steps are resolved by workflow queries keyed by version + work unit + workflow key. Preserve API compatibility where needed and migrate nested routing to explicit transition-binding semantics.
+**Architecture:** Keep `WorkUnitStateMachineService` and `WorkflowService` as separate domain seams. Store and manipulate binding references and condition sets under transition scope (`transitionKey` required), while workflow definitions/steps are resolved by workflow queries keyed by version + work unit + workflow key. Preserve API compatibility where needed and migrate nested routing to explicit transition-scoped semantics.
 
 **Tech Stack:** Bun, TypeScript, Effect (`Context.Tag`, `Layer.effect`), oRPC + Zod, Vitest, ripgrep.
 
 ---
 
-### Task 1: Lock Target Route and Ownership Contract (RED)
+### Task 1: Lock Target Transition-Scoped Route and Ownership Contract (RED)
 
 **Files:**
 - Modify: `packages/api/src/tests/routers/methodology.test.ts`
 - Reference: `packages/api/src/routers/methodology.ts`
 
-**Step 1: Write failing tests for transition-scoped binding route shape**
+**Step 1: Write failing tests for transition-scoped binding and condition-set route shape**
 
 Add/adjust tests asserting nested route contract is transition-scoped:
 - `version.workUnit.stateMachine.transition.binding.list`
 - `version.workUnit.stateMachine.transition.binding.create`
 - `version.workUnit.stateMachine.transition.binding.update`
 - `version.workUnit.stateMachine.transition.binding.delete`
+- `version.workUnit.stateMachine.transition.conditionSet.list`
+- `version.workUnit.stateMachine.transition.conditionSet.create`
+- `version.workUnit.stateMachine.transition.conditionSet.update`
+- `version.workUnit.stateMachine.transition.conditionSet.delete`
 
 Each test must assert required identity fields include:
 - `versionId`
@@ -33,19 +37,19 @@ Each test must assert required identity fields include:
 
 Run: `bun run --cwd packages/api vitest run src/tests/routers/methodology.test.ts -t "transition.binding"`
 
-Expected: FAIL due to missing/incorrect route nesting or handler wiring.
+Expected: FAIL due to missing/incorrect transition-nested route wiring.
 
 **Step 3: Commit failing tests**
 
 Run:
 ```bash
 git add packages/api/src/tests/routers/methodology.test.ts
-git commit -m "test(api): codify transition-scoped binding route contract"
+git commit -m "test(api): codify transition-scoped binding and condition-set routes"
 ```
 
 ---
 
-### Task 2: Move Binding Handling to Transition Scope in Router (GREEN)
+### Task 2: Move Binding and Condition-Set Handling to Transition Scope in Router (GREEN)
 
 **Files:**
 - Modify: `packages/api/src/routers/methodology.ts`
@@ -56,24 +60,27 @@ git commit -m "test(api): codify transition-scoped binding route contract"
 In nested router export tree, move/alias binding routes under:
 - `version.workUnit.stateMachine.transition.binding.*`
 
+And move/alias condition-set routes under:
+- `version.workUnit.stateMachine.transition.conditionSet.*`
+
 Keep compatibility alias only if tests require short-term support; mark alias as temporary.
 
 **Step 2: Ensure input schemas are transition-scoped**
 
-Use/extend schema to require `transitionKey` on all binding mutations and list operations.
+Use/extend schema to require `transitionKey` on all binding and condition-set mutations and list operations.
 
 **Step 3: Run route-focused tests**
 
 Run: `bun run --cwd packages/api vitest run src/tests/routers/methodology.test.ts -t "transition.binding"`
 
-Expected: PASS for transition-scoped binding tests.
+Expected: PASS for transition-scoped binding and condition-set tests.
 
 **Step 4: Commit router update**
 
 Run:
 ```bash
 git add packages/api/src/routers/methodology.ts packages/api/src/tests/routers/methodology.test.ts
-git commit -m "refactor(api): nest binding routes under transition scope"
+git commit -m "refactor(api): nest binding and condition-set routes under transition scope"
 ```
 
 ---
@@ -90,7 +97,7 @@ git commit -m "refactor(api): nest binding routes under transition scope"
 **Step 1: Add failing seam tests**
 
 Add tests that assert:
-- state machine service owns transition-binding operations.
+- state machine service owns transition-binding and transition-condition-set operations.
 - workflow service owns workflow definition retrieval/mutation.
 - no direct state-machine -> workflow service runtime dependency.
 
@@ -103,7 +110,7 @@ Expected: FAIL where ownership boundary is not yet explicit.
 
 **Step 3: Implement minimal seam corrections**
 
-- Keep binding write/read contracts in state machine service path.
+- Keep binding and condition-set write/read contracts in state machine service path.
 - Keep workflow contracts in workflow service.
 - In boundary service composition, orchestrate both services without introducing service-to-service cycles.
 
@@ -276,6 +283,7 @@ git commit -m "feat(engine): add version workspace stats aggregate query"
 
 Document:
 - transition-scoped binding ownership under state machine transitions.
+- transition-scoped condition-set ownership under state machine transitions.
 - workflow definition ownership under workflow service.
 - boundary composition role for workspace query.
 
@@ -321,8 +329,10 @@ Run diagnostics on each edited TS file and ensure zero errors.
 
 Run:
 ```bash
-rg -n "getDraftProjection|MethodologyVersionProjection|ProjectionRepository|projection-repository" packages/methodology-engine/src
-rg -n "getDraftProjection|MethodologyVersionProjection|ProjectionRepository|draft projection|projection-repository" docs _bmad-output
+ENGINE_FORBIDDEN_PATTERN="getDraft""Projection|MethodologyVersion""Projection|Projection""Repository|projection-""repository"
+DOCS_FORBIDDEN_PATTERN="getDraft""Projection|MethodologyVersion""Projection|Projection""Repository|draft ""projection|projection-""repository"
+rg -n "$ENGINE_FORBIDDEN_PATTERN" packages/methodology-engine/src
+rg -n "$DOCS_FORBIDDEN_PATTERN" docs _bmad-output
 ```
 
 Expected: no matches.
@@ -341,7 +351,7 @@ git commit -m "refactor: finalize Story 3-3 layer ownership and transition bindi
 
 - Keep Effect service contracts explicit (`Context.Tag` service APIs should expose stable semantics; avoid circular service dependencies).
 - Keep command-side and query-side explicit; do not reintroduce projection-centric naming/coupling.
-- Prefer transition-scoped binding operations over bulk replacement semantics.
+- Prefer transition-scoped binding and condition-set operations over flat state-machine semantics.
 - Preserve API compatibility only where required by Story scope; document any compatibility alias and planned removal timeline.
 - Keep L1 as compatibility/query facade and orchestration boundary; move deep entity ownership to domain seams.
 - For workspace card stats, prefer one repository-backed aggregate read over assembling counts from full snapshot payloads.

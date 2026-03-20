@@ -64,7 +64,19 @@ describe("L2/L3 scaffold contracts", () => {
           },
           diagnostics: { valid: true, diagnostics: [] },
         }),
-      replaceTransitionBindings: () =>
+      updateWorkflowDefinition: () => Effect.void,
+    });
+
+    expect(typeof workflowService.listWorkUnitWorkflows).toBe("function");
+    expect(typeof workflowService.createWorkUnitWorkflow).toBe("function");
+    expect(typeof workflowService.updateWorkUnitWorkflow).toBe("function");
+    expect(typeof workflowService.deleteWorkUnitWorkflow).toBe("function");
+    expect((workflowService as Record<string, unknown>).replaceTransitionBindings).toBeUndefined();
+  });
+
+  it("defines explicit work-unit seam metadata ownership contracts", () => {
+    const workUnitService = Engine.WorkUnitService.of({
+      createMetadata: () =>
         Effect.succeed({
           version: {
             id: "ver-1",
@@ -76,15 +88,40 @@ describe("L2/L3 scaffold contracts", () => {
             createdAt: new Date(),
             retiredAt: null,
           },
-          diagnostics: { valid: true, diagnostics: [] },
+          validation: { valid: true, diagnostics: [] },
         }),
-      updateWorkflowDefinition: () => Effect.void,
+      updateMetadata: () =>
+        Effect.succeed({
+          version: {
+            id: "ver-1",
+            methodologyId: "method-1",
+            version: "v1",
+            status: "draft",
+            displayName: "Draft",
+            definitionExtensions: null,
+            createdAt: new Date(),
+            retiredAt: null,
+          },
+          validation: { valid: true, diagnostics: [] },
+        }),
+      deleteWorkUnit: () =>
+        Effect.succeed({
+          version: {
+            id: "ver-1",
+            methodologyId: "method-1",
+            version: "v1",
+            status: "draft",
+            displayName: "Draft",
+            definitionExtensions: null,
+            createdAt: new Date(),
+            retiredAt: null,
+          },
+          validation: { valid: true, diagnostics: [] },
+        }),
     });
 
-    expect(typeof workflowService.listWorkUnitWorkflows).toBe("function");
-    expect(typeof workflowService.createWorkUnitWorkflow).toBe("function");
-    expect(typeof workflowService.updateWorkUnitWorkflow).toBe("function");
-    expect(typeof workflowService.deleteWorkUnitWorkflow).toBe("function");
-    expect(typeof workflowService.replaceTransitionBindings).toBe("function");
+    expect(typeof (workUnitService as Record<string, unknown>).createMetadata).toBe("function");
+    expect(typeof workUnitService.updateMetadata).toBe("function");
+    expect(typeof (workUnitService as Record<string, unknown>).deleteWorkUnit).toBe("function");
   });
 });

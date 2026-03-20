@@ -1016,8 +1016,8 @@ Commands run for the L1 completion slice:
 - `workflow.{list,create,update,delete}`
 - `stateMachine.state.{list,create,update,delete}`
 - `stateMachine.transition.{list,create,update,delete}`
-- `stateMachine.conditionSet.{list,create,update,delete}`
-- `stateMachine.binding.{list,create,update,delete}`
+- `stateMachine.transition.conditionSet.{list,create,update,delete}`
+- `stateMachine.transition.binding.{list,create,update,delete}`
 - `artifactSlot.{list,create,update,delete}`
 - `artifactSlot.template.{list,create,update,delete}`
 

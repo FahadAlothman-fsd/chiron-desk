@@ -55,7 +55,7 @@ import {
 import { LifecycleRepository } from "../lifecycle-repository";
 import { validateLifecycleDefinition } from "../lifecycle-validation";
 import { mergeLayeredGuidance } from "../guidance";
-import type { MethodologyVersionRow } from "../repository";
+import type { MethodologyVersionRow, VersionWorkspaceStats } from "../repository";
 import { MethodologyRepository } from "../repository";
 import {
   MethodologyVersionService as CoreMethodologyVersionServiceTag,
@@ -64,6 +64,7 @@ import {
   type UpdateDraftResult,
   type UpdateVersionMetadataInput,
 } from "../version-service";
+import { WorkUnitService } from "./work-unit-service";
 import { WorkflowService } from "./workflow-service";
 
 type CoreVersionService = Context.Tag.Service<typeof CoreMethodologyVersionServiceTag>;
@@ -396,6 +397,9 @@ export class MethodologyVersionService extends Context.Tag("MethodologyVersionSe
     readonly getVersionWorkspaceSnapshot: (
       versionId: string,
     ) => Effect.Effect<VersionWorkspaceSnapshot, VersionNotFoundError | RepositoryError>;
+    readonly getVersionWorkspaceStats: (
+      versionId: string,
+    ) => Effect.Effect<VersionWorkspaceStats, VersionNotFoundError | RepositoryError>;
     readonly replaceDraftWorkflowSnapshot: (
       input: UpdateDraftWorkflowsInputDto,
       actorId: string | null,
@@ -1521,7 +1525,6 @@ export const MethodologyVersionServiceLive = Layer.effect(
             fromState: transition.fromState,
             toState: transition.toState,
             conditionSets: transition.conditionSets,
-            guidance: transition.guidance,
             gateClass: transition.conditionSets.some(
               (conditionSet) => conditionSet.phase === "completion",
             )
@@ -1541,13 +1544,53 @@ export const MethodologyVersionServiceLive = Layer.effect(
         };
       });
 
+    const getVersionWorkspaceStats = (
+      versionId: string,
+    ): Effect.Effect<VersionWorkspaceStats, VersionNotFoundError | RepositoryError> =>
+      Effect.gen(function* () {
+        const version = yield* repo.findVersionById(versionId);
+        if (!version) {
+          return yield* Effect.fail(new VersionNotFoundError({ versionId }));
+        }
+
+        if (repo.findVersionWorkspaceStats) {
+          return yield* repo.findVersionWorkspaceStats(versionId);
+        }
+
+        const snapshot = yield* getAuthoringSnapshot(versionId);
+        const states = snapshot.workUnitTypes.reduce(
+          (total, workUnitType) => total + (workUnitType.lifecycleStates?.length ?? 0),
+          0,
+        );
+        const transitions = snapshot.workUnitTypes.reduce(
+          (total, workUnitType) => total + (workUnitType.lifecycleTransitions?.length ?? 0),
+          0,
+        );
+
+        return {
+          workUnitTypes: snapshot.workUnitTypes.length,
+          states,
+          transitions,
+          workflows: snapshot.workflows.length,
+          factDefinitions: snapshot.factDefinitions.length,
+        };
+      });
+
     const workflowService = WorkflowService.of({
       listWorkUnitWorkflows,
-      createWorkUnitWorkflow,
-      updateWorkUnitWorkflow,
-      deleteWorkUnitWorkflow,
-      replaceTransitionBindings,
+      createWorkUnitWorkflow: (input, actorId) =>
+        createWorkUnitWorkflow(input, actorId ?? "system"),
+      updateWorkUnitWorkflow: (input, actorId) =>
+        updateWorkUnitWorkflow(input, actorId ?? "system"),
+      deleteWorkUnitWorkflow: (input, actorId) =>
+        deleteWorkUnitWorkflow(input, actorId ?? "system"),
       updateWorkflowDefinition: () => Effect.void,
+    });
+
+    const workUnitService = WorkUnitService.of({
+      createMetadata: (input, actorId) => createWorkUnit(input, actorId ?? "system"),
+      updateMetadata: (input, actorId) => updateWorkUnit(input, actorId ?? "system"),
+      deleteWorkUnit: (input, actorId) => deleteWorkUnit(input, actorId ?? "system"),
     });
 
     return MethodologyVersionService.of({
@@ -1563,6 +1606,7 @@ export const MethodologyVersionServiceLive = Layer.effect(
       validateDraftVersion: (input, actorId) => coreService.validateDraftVersion(input, actorId),
       getAuthoringSnapshot,
       getVersionWorkspaceSnapshot,
+      getVersionWorkspaceStats,
       replaceDraftWorkflowSnapshot,
       getDraftLineage: (input) => coreService.getDraftLineage(input),
       publishDraftVersion: (input, actorId) => coreService.publishDraftVersion(input, actorId),
@@ -1586,8 +1630,8 @@ export const MethodologyVersionServiceLive = Layer.effect(
       deleteWorkUnitWorkflow: (input, actorId) =>
         workflowService.deleteWorkUnitWorkflow(input, actorId ?? "system"),
       replaceTransitionBindings: (input, actorId) =>
-        workflowService.replaceTransitionBindings(input, actorId ?? "system"),
-      deleteWorkUnit: (input, actorId) => deleteWorkUnit(input, actorId ?? "system"),
+        replaceTransitionBindings(input, actorId ?? "system"),
+      deleteWorkUnit: (input, actorId) => workUnitService.deleteWorkUnit(input, actorId),
       replaceWorkUnitFacts: (input, actorId) => replaceWorkUnitFacts(input, actorId ?? "system"),
       replaceWorkUnitLifecycleStates: (input, actorId) =>
         replaceWorkUnitLifecycleStates(input, actorId ?? "system"),
@@ -1602,9 +1646,9 @@ export const MethodologyVersionServiceLive = Layer.effect(
       deleteAgent: (input, actorId) => deleteAgent(input, actorId ?? "system"),
       createWorkUnitMetadata: (input, actorId) =>
         "workUnitKey" in input
-          ? updateWorkUnit(input, actorId ?? "system")
-          : createWorkUnit(input, actorId ?? "system"),
-      updateWorkUnitMetadata: (input, actorId) => updateWorkUnit(input, actorId ?? "system"),
+          ? workUnitService.updateMetadata(input, actorId)
+          : workUnitService.createMetadata(input, actorId),
+      updateWorkUnitMetadata: (input, actorId) => workUnitService.updateMetadata(input, actorId),
       updateDraftLifecycle: (input, actorId) => updateDraftLifecycle(input, actorId ?? "system"),
       getWorkUnitArtifactSlots,
       replaceWorkUnitArtifactSlots: (input, actorId) =>

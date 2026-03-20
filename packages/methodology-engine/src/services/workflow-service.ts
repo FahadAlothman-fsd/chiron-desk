@@ -1,4 +1,3 @@
-import type { ReplaceWorkUnitTransitionBindingsInput } from "@chiron/contracts/methodology/lifecycle";
 import type {
   CreateWorkUnitWorkflowInput,
   DeleteWorkUnitWorkflowInput,
@@ -38,13 +37,6 @@ export class WorkflowService extends Context.Tag("WorkflowService")<
     >;
     readonly deleteWorkUnitWorkflow: (
       input: DeleteWorkUnitWorkflowInput,
-      actorId: string | null,
-    ) => Effect.Effect<
-      UpdateDraftResult,
-      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
-    >;
-    readonly replaceTransitionBindings: (
-      input: ReplaceWorkUnitTransitionBindingsInput,
       actorId: string | null,
     ) => Effect.Effect<
       UpdateDraftResult,

@@ -100,6 +100,14 @@ export interface WorkflowSnapshot {
   guidance?: LayeredGuidance;
 }
 
+export interface VersionWorkspaceStats {
+  workUnitTypes: number;
+  states: number;
+  transitions: number;
+  workflows: number;
+  factDefinitions: number;
+}
+
 export interface CreateWorkflowParams {
   versionId: string;
   workUnitTypeKey: string;
@@ -270,6 +278,9 @@ export class MethodologyRepository extends Context.Tag("MethodologyRepository")<
     readonly findWorkflowSnapshot: (
       versionId: string,
     ) => Effect.Effect<WorkflowSnapshot, RepositoryError>;
+    readonly findVersionWorkspaceStats?: (
+      versionId: string,
+    ) => Effect.Effect<VersionWorkspaceStats, RepositoryError>;
     readonly listWorkflowsByWorkUnitType?: (params: {
       versionId: string;
       workUnitTypeKey: string;

@@ -205,6 +205,20 @@ const replaceTransitionBindingsInput = z.object({
   workflowKeys: z.array(z.string().min(1)),
 });
 
+const createTransitionBindingInput = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  transitionKey: z.string().min(1),
+  workflowKey: z.string().min(1),
+});
+
+const deleteTransitionBindingInput = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  transitionKey: z.string().min(1),
+  workflowKey: z.string().min(1),
+});
+
 const createFactInput = z.object({
   versionId: z.string().min(1),
   fact: variableDefinitionSchema,
@@ -349,6 +363,12 @@ const replaceWorkUnitTransitionConditionSetsInput = z.object({
 const listWorkUnitStateMachineInput = z.object({
   versionId: z.string().min(1),
   workUnitTypeKey: z.string().min(1),
+});
+
+const listWorkUnitTransitionBindingsInput = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  transitionKey: z.string().min(1),
 });
 
 const listWorkUnitTransitionConditionSetsInput = z.object({
@@ -935,7 +955,7 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
         Effect.gen(function* () {
           const svc = yield* MethodologyVersionBoundaryService;
           const workspaceSnapshot = yield* svc.getVersionWorkspaceSnapshot(input.versionId);
-          const snapshotRecord = workspaceSnapshot as Record<string, unknown>;
+          const snapshotRecord = workspaceSnapshot as unknown as Record<string, unknown>;
           const agentTypes = Array.isArray(snapshotRecord.agentTypes)
             ? snapshotRecord.agentTypes.map((value) => {
                 const agent = value as Record<string, unknown>;
@@ -956,6 +976,16 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
             ...snapshotRecord,
             agentTypes,
           };
+        }),
+      );
+    }),
+
+    getVersionWorkspaceStats: publicProcedure.input(versionInput).handler(async ({ input }) => {
+      return runEffect(
+        serviceLayer,
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionBoundaryService;
+          return yield* svc.getVersionWorkspaceStats(input.versionId);
         }),
       );
     }),
@@ -1926,7 +1956,7 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
       }),
 
     listWorkUnitTransitionBindings: publicProcedure
-      .input(listWorkUnitStateMachineInput)
+      .input(listWorkUnitTransitionBindingsInput)
       .handler(async ({ input }) => {
         return runEffect(
           serviceLayer,
@@ -1934,47 +1964,102 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
             const versionService = yield* MethodologyVersionBoundaryService;
             const snapshot = yield* versionService.getAuthoringSnapshot(input.versionId);
 
-            const workUnitTypes = Array.isArray(snapshot.workUnitTypes)
-              ? snapshot.workUnitTypes.filter(
-                  (entry): entry is Record<string, unknown> => !!entry && typeof entry === "object",
+            const workflowKeys = snapshot.transitionWorkflowBindings?.[input.transitionKey];
+            return Array.isArray(workflowKeys)
+              ? workflowKeys.filter(
+                  (workflowKey): workflowKey is string => typeof workflowKey === "string",
                 )
               : [];
-            const workUnit = workUnitTypes.find((entry) => entry.key === input.workUnitTypeKey);
-            const transitions = Array.isArray(workUnit?.lifecycleTransitions)
-              ? workUnit.lifecycleTransitions.filter(
-                  (transition): transition is Record<string, unknown> =>
-                    !!transition && typeof transition === "object",
-                )
-              : [];
-            const transitionKeys = new Set(
-              transitions
-                .map((transition) => transition.transitionKey)
-                .filter(
-                  (transitionKey): transitionKey is string => typeof transitionKey === "string",
-                ),
-            );
-
-            if (!snapshot.transitionWorkflowBindings) {
-              return {} as Record<string, string[]>;
-            }
-
-            const entries = Object.entries(snapshot.transitionWorkflowBindings)
-              .filter(([transitionKey]) => transitionKeys.has(transitionKey))
-              .map(
-                ([transitionKey, workflowKeys]) =>
-                  [
-                    transitionKey,
-                    Array.isArray(workflowKeys)
-                      ? workflowKeys.filter(
-                          (workflowKey): workflowKey is string => typeof workflowKey === "string",
-                        )
-                      : [],
-                  ] as const,
-              );
-
-            return Object.fromEntries(entries);
           }),
         );
+      }),
+
+    createTransitionBinding: protectedProcedure
+      .input(createTransitionBindingInput)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+
+        const currentKeys = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionBoundaryService;
+            const snapshot = yield* svc.getAuthoringSnapshot(input.versionId);
+            const existing = snapshot.transitionWorkflowBindings[input.transitionKey];
+            return Array.isArray(existing)
+              ? existing.filter(
+                  (workflowKey): workflowKey is string => typeof workflowKey === "string",
+                )
+              : [];
+          }),
+        );
+
+        const nextWorkflowKeys = Array.from(new Set([...currentKeys, input.workflowKey]));
+
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionBoundaryService;
+            return yield* svc.replaceTransitionBindings(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+                transitionKey: input.transitionKey,
+                workflowKeys: nextWorkflowKeys,
+              },
+              actorId,
+            );
+          }),
+        );
+
+        return {
+          version: serializeVersion(result.version),
+          diagnostics: result.diagnostics,
+        };
+      }),
+
+    deleteTransitionBinding: protectedProcedure
+      .input(deleteTransitionBindingInput)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+
+        const currentKeys = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionBoundaryService;
+            const snapshot = yield* svc.getAuthoringSnapshot(input.versionId);
+            const existing = snapshot.transitionWorkflowBindings[input.transitionKey];
+            return Array.isArray(existing)
+              ? existing.filter(
+                  (workflowKey): workflowKey is string => typeof workflowKey === "string",
+                )
+              : [];
+          }),
+        );
+
+        const nextWorkflowKeys = currentKeys.filter(
+          (workflowKey) => workflowKey !== input.workflowKey,
+        );
+
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionBoundaryService;
+            return yield* svc.replaceTransitionBindings(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+                transitionKey: input.transitionKey,
+                workflowKeys: nextWorkflowKeys,
+              },
+              actorId,
+            );
+          }),
+        );
+
+        return {
+          version: serializeVersion(result.version),
+          diagnostics: result.diagnostics,
+        };
       }),
 
     getWorkUnitArtifactSlots: publicProcedure
@@ -2191,6 +2276,7 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
       validate: router.validateDraftVersion,
       workspace: {
         get: router.getDraftProjection,
+        stats: router.getVersionWorkspaceStats,
       },
       fact: {
         list: router.listFactDefinitions,
@@ -2236,6 +2322,16 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
           transition: {
             list: router.listWorkUnitLifecycleTransitions,
             update: router.replaceWorkUnitLifecycleTransitions,
+            conditionSet: {
+              list: router.listWorkUnitTransitionConditionSets,
+              update: router.replaceWorkUnitTransitionConditionSets,
+            },
+            binding: {
+              list: router.listWorkUnitTransitionBindings,
+              create: router.createTransitionBinding,
+              update: router.replaceTransitionBindings,
+              delete: router.deleteTransitionBinding,
+            },
           },
           conditionSet: {
             list: router.listWorkUnitTransitionConditionSets,
@@ -2244,6 +2340,8 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
           binding: {
             list: router.listWorkUnitTransitionBindings,
             update: router.replaceTransitionBindings,
+            create: router.createTransitionBinding,
+            delete: router.deleteTransitionBinding,
           },
         },
         artifactSlot: {

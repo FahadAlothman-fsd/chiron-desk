@@ -24,7 +24,7 @@
 ### High-risk aliasing in router
 - `packages/api/src/routers/methodology.ts`
   - `version.workUnit.workflow.update -> router.updateDraftWorkflows`
-  - `version.workUnit.stateMachine.binding.update -> router.updateDraftWorkflows`
+- `version.workUnit.stateMachine.transition.binding.update -> router.updateDraftWorkflows`
   - `version.workUnit.stateMachine.{state,transition,conditionSet}.update -> router.updateDraftLifecycle`
   - many nested `.list/.get` aliases still point to `router.version.workspace.get`
 
@@ -132,7 +132,7 @@ Run:
 - Direct binding persistence via repository/service.
 
 **Step 3: Rewire router alias**
-- `version.workUnit.stateMachine.binding.update` must not point to `router.updateDraftWorkflows`.
+- `version.workUnit.stateMachine.transition.binding.update` must not point to `router.updateDraftWorkflows`.
 
 **Step 4: Add binding isolation and transition-coupling tests**
 

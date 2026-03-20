@@ -175,8 +175,8 @@ so that topology, contracts, and lifecycle can be authored in one coherent surfa
 - `methodology.version.workUnit.workflow.*`
 - `methodology.version.workUnit.stateMachine.state.*`
 - `methodology.version.workUnit.stateMachine.transition.*`
-- `methodology.version.workUnit.stateMachine.conditionSet.*`
-- `methodology.version.workUnit.stateMachine.binding.*`
+- `methodology.version.workUnit.stateMachine.transition.conditionSet.*`
+- `methodology.version.workUnit.stateMachine.transition.binding.*`
 - `methodology.version.workUnit.artifactSlot.*`
 - `methodology.version.workUnit.artifactSlot.template.*`
 
