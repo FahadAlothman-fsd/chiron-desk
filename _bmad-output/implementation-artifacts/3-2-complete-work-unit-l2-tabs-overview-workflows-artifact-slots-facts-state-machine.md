@@ -306,16 +306,17 @@ so that topology, contracts, and lifecycle can be authored in one coherent surfa
 
 ### Frontend Overview Tab (Slice 3)
 - [ ] Task 3.1: Implement Overview Tab Core Structure (AC: 1)
-  - [ ] Mini-graph component with dependency visualization
-  - [ ] Summary chips for facts, workflows, states, transitions, findings
-  - [ ] Quick action buttons with routing
-  - [ ] Artifact slots summary section
+  - [x] Overview command surface rendered in L2 detail route with four cards (Facts, Workflows, State Machine, Artifact Slots)
+  - [x] Summary counts surfaced for facts, workflows, states, transitions, and artifact slots
+  - [x] Quick action buttons wired for add-flow entry points
+  - [x] Keymap helper (`?`/`Shift+/`) implemented with toggle behavior and viewport-anchored bottom-right menu
+  - [x] UX override applied: no mini-graph in Overview for current approved design direction
 
 ### Frontend Facts Tab (Slice 4)
 - [ ] Task 4.1: Implement Facts Tab (AC: 2)
-  - [ ] List/table-first view (methodology-facts style)
-  - [ ] Extra columns for L2 metadata
-  - [ ] Dialog-first CRUD (NO row expansion)
+  - [x] List/table-first view (methodology-facts style)
+  - [x] Extra columns for L2 metadata
+  - [x] Dialog-first CRUD (NO row expansion)
   - [ ] Integration with `methodology.version.workUnit.fact.*` API
 
 ### Frontend Workflows Tab (Slice 5)
@@ -370,7 +371,7 @@ so that topology, contracts, and lifecycle can be authored in one coherent surfa
   - [ ] Tab navigation shell with stable ordering
   - [ ] Selected work-unit context preservation
   - [ ] Loading/empty/error state handling
-  - [ ] Route integration from L1
+  - [x] Route integration from L1 to dedicated detail route (`.../work-units/$workUnitKey`) via list actions
 - [ ] Task 8.2: Findings and Diagnostics (AC: 1-7)
   - [ ] Shared findings components
   - [ ] Severity display (error, warning, info)
@@ -769,6 +770,8 @@ bunx playwright test tests/e2e/story-3-2-l2-authoring.spec.ts
 - [Source: _bmad-output/planning-artifacts/architecture.md#Backend Architecture]
 - [Source: _bmad-output/planning-artifacts/ux-design-specification.md]
 - [Source: docs/plans/2026-03-20-story-3-2-l2-implementation-plan.md]
+- [Source: docs/plans/2026-03-20-story-3-2-overview-command-surface-design.md]
+- [Source: docs/plans/2026-03-20-story-3-2-overview-command-surface-implementation-plan.md]
 - [Source: docs/plans/2026-03-20-story-3-2-pre-implementation-cleanup-plan.md]
 - [Source: docs/plans/2026-03-20-story-3-2-artifact-slots-implementation-plan.md]
 
@@ -830,6 +833,21 @@ bunx playwright test tests/e2e/story-3-2-l2-authoring.spec.ts
   - implemented `work-unit-state-machine-service.ts` list/upsert/delete flows plus transition binding updates through workflow authoring path.
   - implemented `work-unit-fact-service.ts` list/replace flows mapped to draft projection and lifecycle update APIs.
   - added L2-L3 tests for state deletion disconnect behavior, binding replacement routing, and work-unit fact replacement.
+- Completed Story 3.2 Overview command-surface and routing stabilization slice:
+  - implemented Overview tab command-card surface and count summaries in work-unit detail route.
+  - implemented detail keymap helper with keyboard toggle (`?`/`Shift+/`) and `Escape` close behavior.
+  - fixed duplicate breadcrumb rendering in detail page by adding shell-level breadcrumb visibility control.
+  - fixed keymap positioning root cause (class conflict between `fixed` and `chiron-frame-flat`) and anchored helper to viewport bottom-right.
+- Reworked L1 work-units page to clearer list-first surface:
+  - removed graph/contracts/diagnostics layout from L1 work-units shell.
+  - added metadata-first columns (cardinality, human guidance, agent guidance) plus explicit row actions.
+  - wired row-level “View details” navigation to dedicated work-unit detail route and retained row-level edit action.
+- Started Facts tab UI slice with approved keymap and badge treatment:
+  - added `work-unit-l2/FactsTab.tsx` table-first surface (Fact / Type / Validation / Guidance / Actions).
+  - implemented dialog-first add/edit/delete behavior without row expansion.
+  - rendered dependency as validation badge (`DEP: ...`) and expanded semantic badge colors for type/validation/dependency.
+  - wired Facts tab rendering in L2 detail route and route-level `F` hotkey to open create dialog.
+  - removed newly introduced Facts-tab `useEffect` patterns and switched to render-derived/event-driven state flow.
 
 ### File List
 
@@ -853,7 +871,12 @@ bunx playwright test tests/e2e/story-3-2-l2-authoring.spec.ts
 
 > Note: As of this in-progress update, backend L2 contracts/services/router foundations are implemented and validated; remaining work is UI tab behavior slices and end-to-end evidence/verification.
 
+> Note: Overview command-surface UX is implemented and validated, with explicit product-direction override to omit mini-graph. Facts tab list/dialog behavior is implemented and validated; API-backed work-unit-fact mutations plus Workflows/State Machine/Artifact Slots behaviors and full story evidence pack remain pending.
+
 #### Frontend Files Created/Updated
+- `apps/web/src/features/methodologies/work-units-list-view.tsx` (update)
+- `apps/web/src/features/methodologies/workspace-shell.tsx` (update)
+- `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.tsx` (update)
 - `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.tsx` (update)
 - `apps/web/src/features/methodologies/work-unit-l2/OverviewTab.tsx` (create)
 - `apps/web/src/features/methodologies/work-unit-l2/FactsTab.tsx` (create)
@@ -873,6 +896,8 @@ bunx playwright test tests/e2e/story-3-2-l2-authoring.spec.ts
 - `apps/web/src/features/methodologies/transitions/components/ConditionList.tsx` (create)
 
 #### Test Files Created/Updated
+- `apps/web/src/tests/routes/methodologies.$methodologyId.versions.$versionId.work-units.integration.test.tsx` (update)
+- `apps/web/src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx` (update)
 - `packages/db/src/tests/repository/methodology-repository.integration.test.ts` (update)
 - `packages/api/src/tests/routers/methodology.test.ts` (update)
 - `packages/methodology-engine/src/tests/l2-l3/scaffold-contracts.test.ts` (update)
