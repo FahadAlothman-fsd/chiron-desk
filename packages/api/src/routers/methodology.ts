@@ -183,6 +183,25 @@ const deleteFactInput = z.object({
   factKey: z.string().min(1),
 });
 
+const createWorkUnitFactInput = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  fact: variableDefinitionSchema,
+});
+
+const updateWorkUnitFactInput = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  factKey: z.string().min(1),
+  fact: variableDefinitionSchema,
+});
+
+const deleteWorkUnitFactInput = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  factKey: z.string().min(1),
+});
+
 const validateDraftInput = z.object({
   versionId: z.string().min(1),
 });
@@ -556,6 +575,25 @@ function runEffect<A>(
       Effect.provide(serviceLayer as Layer.Layer<any>),
       Effect.catchAll((err) => Effect.sync(() => mapEffectError(err))),
     ) as Effect.Effect<A, never, never>,
+  );
+}
+
+type DraftProjectionLike = {
+  workUnitTypes?: readonly unknown[];
+  agentTypes?: readonly unknown[];
+};
+
+type WorkUnitTypeLike = {
+  key?: string;
+  factSchemas?: readonly unknown[];
+};
+
+function toWorkUnitFactArray(value: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter(
+    (entry): entry is Record<string, unknown> => !!entry && typeof entry === "object",
   );
 }
 
@@ -1114,6 +1152,176 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
       };
     }),
 
+    createWorkUnitFact: protectedProcedure
+      .input(createWorkUnitFactInput)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+
+        const projection = (await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionBoundaryService;
+            return yield* svc.getDraftProjection(input.versionId);
+          }),
+        )) as unknown as DraftProjectionLike;
+
+        const workUnitTypes = Array.isArray(projection.workUnitTypes)
+          ? projection.workUnitTypes.filter(
+              (entry): entry is WorkUnitTypeLike => !!entry && typeof entry === "object",
+            )
+          : [];
+        const workUnit = workUnitTypes.find((entry) => entry.key === input.workUnitTypeKey);
+        if (!workUnit) {
+          throw new ORPCError("NOT_FOUND", {
+            message: `Work unit type '${input.workUnitTypeKey}' not found in draft '${input.versionId}'`,
+          });
+        }
+
+        const currentFacts = toWorkUnitFactArray(workUnit.factSchemas);
+        const duplicate = currentFacts.some((fact) => fact.key === input.fact.key);
+        if (duplicate) {
+          throw new ORPCError("CONFLICT", {
+            message: `Fact '${input.fact.key}' already exists for work unit '${input.workUnitTypeKey}'`,
+          });
+        }
+
+        const nextWorkUnitTypes = workUnitTypes.map((entry) =>
+          entry.key === input.workUnitTypeKey
+            ? { ...entry, factSchemas: [...currentFacts, input.fact] }
+            : entry,
+        );
+
+        const lifecyclePayload = {
+          versionId: input.versionId,
+          workUnitTypes: nextWorkUnitTypes,
+          agentTypes: Array.isArray(projection.agentTypes) ? projection.agentTypes : [],
+        } as unknown as UpdateDraftLifecycleInput;
+
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionBoundaryService;
+            return yield* svc.updateDraftLifecycle(lifecyclePayload, actorId);
+          }),
+        );
+
+        return {
+          version: serializeVersion(result.version),
+          diagnostics: result.validation,
+        };
+      }),
+
+    updateWorkUnitFact: protectedProcedure
+      .input(updateWorkUnitFactInput)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+
+        const projection = (await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionBoundaryService;
+            return yield* svc.getDraftProjection(input.versionId);
+          }),
+        )) as unknown as DraftProjectionLike;
+
+        const workUnitTypes = Array.isArray(projection.workUnitTypes)
+          ? projection.workUnitTypes.filter(
+              (entry): entry is WorkUnitTypeLike => !!entry && typeof entry === "object",
+            )
+          : [];
+        const workUnit = workUnitTypes.find((entry) => entry.key === input.workUnitTypeKey);
+        if (!workUnit) {
+          throw new ORPCError("NOT_FOUND", {
+            message: `Work unit type '${input.workUnitTypeKey}' not found in draft '${input.versionId}'`,
+          });
+        }
+
+        const currentFacts = toWorkUnitFactArray(workUnit.factSchemas);
+        const found = currentFacts.some((fact) => fact.key === input.factKey);
+        if (!found) {
+          throw new ORPCError("NOT_FOUND", {
+            message: `Fact '${input.factKey}' not found for work unit '${input.workUnitTypeKey}'`,
+          });
+        }
+
+        const nextFacts = currentFacts.map((fact) =>
+          fact.key === input.factKey ? { ...input.fact } : fact,
+        );
+        const nextWorkUnitTypes = workUnitTypes.map((entry) =>
+          entry.key === input.workUnitTypeKey ? { ...entry, factSchemas: nextFacts } : entry,
+        );
+
+        const lifecyclePayload = {
+          versionId: input.versionId,
+          workUnitTypes: nextWorkUnitTypes,
+          agentTypes: Array.isArray(projection.agentTypes) ? projection.agentTypes : [],
+        } as unknown as UpdateDraftLifecycleInput;
+
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionBoundaryService;
+            return yield* svc.updateDraftLifecycle(lifecyclePayload, actorId);
+          }),
+        );
+
+        return {
+          version: serializeVersion(result.version),
+          diagnostics: result.validation,
+        };
+      }),
+
+    deleteWorkUnitFact: protectedProcedure
+      .input(deleteWorkUnitFactInput)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+
+        const projection = (await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionBoundaryService;
+            return yield* svc.getDraftProjection(input.versionId);
+          }),
+        )) as unknown as DraftProjectionLike;
+
+        const workUnitTypes = Array.isArray(projection.workUnitTypes)
+          ? projection.workUnitTypes.filter(
+              (entry): entry is WorkUnitTypeLike => !!entry && typeof entry === "object",
+            )
+          : [];
+        const workUnit = workUnitTypes.find((entry) => entry.key === input.workUnitTypeKey);
+        if (!workUnit) {
+          throw new ORPCError("NOT_FOUND", {
+            message: `Work unit type '${input.workUnitTypeKey}' not found in draft '${input.versionId}'`,
+          });
+        }
+
+        const currentFacts = toWorkUnitFactArray(workUnit.factSchemas);
+        const nextFacts = currentFacts.filter((fact) => fact.key !== input.factKey);
+        const nextWorkUnitTypes = workUnitTypes.map((entry) =>
+          entry.key === input.workUnitTypeKey ? { ...entry, factSchemas: nextFacts } : entry,
+        );
+
+        const lifecyclePayload = {
+          versionId: input.versionId,
+          workUnitTypes: nextWorkUnitTypes,
+          agentTypes: Array.isArray(projection.agentTypes) ? projection.agentTypes : [],
+        } as unknown as UpdateDraftLifecycleInput;
+
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionBoundaryService;
+            return yield* svc.updateDraftLifecycle(lifecyclePayload, actorId);
+          }),
+        );
+
+        return {
+          version: serializeVersion(result.version),
+          diagnostics: result.validation,
+        };
+      }),
+
     createAgent: protectedProcedure.input(createAgentInput).handler(async ({ input, context }) => {
       const actorId = context.session.user.id;
       const persona = input.agent.promptTemplate?.markdown ?? input.agent.persona ?? "";
@@ -1445,9 +1653,9 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
         delete: router.updateDraftLifecycle,
         fact: {
           list: router.getDraftProjection,
-          create: router.createFact,
-          update: router.updateFact,
-          delete: router.deleteFact,
+          create: router.createWorkUnitFact,
+          update: router.updateWorkUnitFact,
+          delete: router.deleteWorkUnitFact,
         },
         workflow: {
           list: router.getDraftProjection,

@@ -1841,6 +1841,76 @@ describe("methodology router", () => {
     });
   });
 
+  describe("version.workUnit.fact routes", () => {
+    it("creates work-unit facts inside the selected work unit without mutating methodology fact definitions", async () => {
+      const router = createMethodologyRouter(
+        makeServiceLayer(),
+      ) as typeof createMethodologyRouter extends (...args: any[]) => infer T
+        ? T & {
+            version?: {
+              workUnit?: {
+                fact?: {
+                  list?: unknown;
+                  create?: unknown;
+                };
+              };
+            };
+          }
+        : never;
+
+      const created = await call(
+        router.version.create,
+        {
+          methodologyKey: "work-unit-fact-crud-method",
+          displayName: "Work Unit Fact CRUD Method",
+          version: "0.1.0-draft",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.version?.workUnit?.fact?.create as unknown as Parameters<typeof call>[0],
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+          fact: {
+            key: "task_owner",
+            name: "Task Owner",
+            factType: "string",
+          },
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const projection = await call(
+        router.version?.workUnit?.fact?.list as unknown as Parameters<typeof call>[0],
+        { versionId: created.version.id },
+        PUBLIC_CTX,
+      );
+
+      const taskWorkUnit = (
+        projection.workUnitTypes as Array<{ key: string; factSchemas?: unknown[] }>
+      ).find((workUnit) => workUnit.key === "task");
+
+      expect(taskWorkUnit?.factSchemas).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            key: "task_owner",
+            name: "Task Owner",
+            factType: "string",
+          }),
+        ]),
+      );
+
+      expect(projection.factDefinitions ?? []).not.toEqual(
+        expect.arrayContaining([expect.objectContaining({ key: "task_owner" })]),
+      );
+    });
+  });
+
   describe("version.agent routes", () => {
     it("creates, updates, and deletes agent definitions through version.agent CRUD", async () => {
       const router = createMethodologyRouter(
