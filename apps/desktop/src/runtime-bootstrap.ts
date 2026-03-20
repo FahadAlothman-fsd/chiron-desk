@@ -6,6 +6,7 @@ import {
   replaceRuntimePort,
   type RuntimeConfig,
 } from "./runtime-config.js";
+import { Result } from "better-result";
 import { resolveRuntimePaths, type RuntimePaths } from "./runtime-paths.js";
 import { createSecrets, readSecrets, type RuntimeSecrets } from "./runtime-secrets.js";
 
@@ -97,9 +98,13 @@ async function loadConfig(
 }
 
 function recoverPersistedConfig(storedConfig: unknown): RuntimeConfig | null {
-  try {
-    return migrateRuntimeConfig(storedConfig);
-  } catch (error) {
+  const migrationResult = Result.try({
+    try: () => migrateRuntimeConfig(storedConfig),
+    catch: (error: unknown) => error,
+  });
+
+  if (migrationResult.isErr()) {
+    const error = migrationResult.error;
     if (
       isExplicitUnsupportedRuntimeConfig(storedConfig) &&
       isUnsupportedRuntimeConfigError(error)
@@ -109,6 +114,8 @@ function recoverPersistedConfig(storedConfig: unknown): RuntimeConfig | null {
 
     return null;
   }
+
+  return migrationResult.value;
 }
 
 function isExplicitUnsupportedRuntimeConfig(config: unknown): boolean {
