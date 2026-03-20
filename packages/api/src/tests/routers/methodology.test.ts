@@ -1377,7 +1377,7 @@ function makeServiceLayer() {
   const methodologyCoreLayer = Layer.provide(MethodologyEngineL1Live, allRepos);
   return Layer.mergeAll(
     methodologyCoreLayer,
-    Layer.provide(WorkUnitStateMachineServiceLive, methodologyCoreLayer),
+    Layer.provide(WorkUnitStateMachineServiceLive, allRepos),
     Layer.provide(Layer.effect(EligibilityService, EligibilityServiceLive), allRepos),
     Layer.provide(ProjectContextServiceLive, allRepos),
   );
