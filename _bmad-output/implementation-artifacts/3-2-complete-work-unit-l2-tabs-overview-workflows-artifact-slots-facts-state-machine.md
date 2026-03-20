@@ -313,11 +313,11 @@ so that topology, contracts, and lifecycle can be authored in one coherent surfa
   - [x] UX override applied: no mini-graph in Overview for current approved design direction
 
 ### Frontend Facts Tab (Slice 4)
-- [ ] Task 4.1: Implement Facts Tab (AC: 2)
+- [x] Task 4.1: Implement Facts Tab (AC: 2)
   - [x] List/table-first view (methodology-facts style)
   - [x] Extra columns for L2 metadata
   - [x] Dialog-first CRUD (NO row expansion)
-  - [ ] Integration with `methodology.version.workUnit.fact.*` API
+  - [x] Integration with `methodology.version.workUnit.fact.*` API
 
 ### Frontend Workflows Tab (Slice 5)
 - [ ] Task 5.1: Implement Workflows Tab (AC: 3)
@@ -694,7 +694,7 @@ bunx playwright test tests/e2e/story-3-2-l2-authoring.spec.ts
 
 ### 2) Frontend Tab Completion
 - [ ] Overview tab displays mini-graph, summary chips, quick actions
-- [ ] Facts tab is list/table-first with methodology-facts style + extra columns, NO row expansion
+- [x] Facts tab is list/table-first with methodology-facts style + extra columns, NO row expansion
 - [ ] Workflows tab shows workflow catalog with read-only allowed workflows visibility
 - [ ] State Machine tab has States + Transitions inner tabs
 - [ ] **Transition Details Page** with 4 tabs (Overview, Gate Policy, Binding, Diagnostics)
@@ -871,7 +871,7 @@ bunx playwright test tests/e2e/story-3-2-l2-authoring.spec.ts
 
 > Note: As of this in-progress update, backend L2 contracts/services/router foundations are implemented and validated; remaining work is UI tab behavior slices and end-to-end evidence/verification.
 
-> Note: Overview command-surface UX is implemented and validated, with explicit product-direction override to omit mini-graph. Facts tab list/dialog behavior is implemented and validated; API-backed work-unit-fact mutations plus Workflows/State Machine/Artifact Slots behaviors and full story evidence pack remain pending.
+> Note: Overview command-surface UX is implemented and validated, with explicit product-direction override to omit mini-graph. Facts tab slice is complete (list/dialog behavior, work-unit dependency selector/autocomplete, API-backed work-unit fact mutations, and destructive delete UX); Workflows/State Machine/Artifact Slots behaviors and full story evidence pack remain pending.
 
 #### Frontend Files Created/Updated
 - `apps/web/src/features/methodologies/work-units-list-view.tsx` (update)
