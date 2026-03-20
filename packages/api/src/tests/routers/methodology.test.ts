@@ -4,6 +4,7 @@ import { Effect, Layer } from "effect";
 import {
   MethodologyRepository,
   MethodologyEngineL1Live,
+  WorkflowServiceLive,
   WorkUnitStateMachineServiceLive,
   LifecycleRepository,
   EligibilityService,
@@ -1377,6 +1378,7 @@ function makeServiceLayer() {
   const methodologyCoreLayer = Layer.provide(MethodologyEngineL1Live, allRepos);
   return Layer.mergeAll(
     methodologyCoreLayer,
+    Layer.provide(WorkflowServiceLive, allRepos),
     Layer.provide(WorkUnitStateMachineServiceLive, allRepos),
     Layer.provide(Layer.effect(EligibilityService, EligibilityServiceLive), allRepos),
     Layer.provide(ProjectContextServiceLive, allRepos),
@@ -2146,7 +2148,8 @@ describe("methodology router", () => {
       );
 
       const baseWorkflow = {
-        ...VALID_DEFINITION.workflows[0]!,
+        key: "default-wf",
+        displayName: "Default workflow",
         workUnitTypeKey: "task",
       };
 
@@ -2171,6 +2174,8 @@ describe("methodology router", () => {
       );
       expect(listedAfterCreate).toHaveLength(1);
       expect(listedAfterCreate[0]?.key).toBe(baseWorkflow.key);
+      expect(listedAfterCreate[0]).not.toHaveProperty("steps");
+      expect(listedAfterCreate[0]).not.toHaveProperty("edges");
 
       const updateResult = await call(
         router.version.workUnit.workflow.update,
@@ -2241,8 +2246,8 @@ describe("methodology router", () => {
           versionId: created.version.id,
           workUnitTypeKey: "task",
           workflow: {
-            ...VALID_DEFINITION.workflows[0]!,
             key: "task-wf-a",
+            displayName: "Task WF A",
             workUnitTypeKey: "task",
           },
         },
@@ -2255,8 +2260,8 @@ describe("methodology router", () => {
           versionId: created.version.id,
           workUnitTypeKey: "task",
           workflow: {
-            ...VALID_DEFINITION.workflows[0]!,
             key: "task-wf-b",
+            displayName: "Task WF B",
             workUnitTypeKey: "task",
           },
         },
@@ -2299,6 +2304,47 @@ describe("methodology router", () => {
       ).toBe(true);
     });
 
+    it("version.workUnit.workflow.create rejects step and edge graph payloads in metadata layer", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const created = await call(
+        router.version.create,
+        {
+          methodologyKey: "workflow-l2-metadata-only",
+          displayName: "Workflow L2 Metadata",
+          version: "1.0.0",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await expect(
+        call(
+          router.version.workUnit.workflow.create,
+          {
+            versionId: created.version.id,
+            workUnitTypeKey: "task",
+            workflow: {
+              key: "wf-with-graph",
+              workUnitTypeKey: "task",
+              steps: [{ key: "s1", type: "form" }],
+              edges: [{ fromStepKey: null, toStepKey: "s1" }],
+            } as unknown as {
+              key: string;
+              workUnitTypeKey: string;
+            },
+          } as unknown as {
+            versionId: string;
+            workUnitTypeKey: string;
+            workflow: { key: string; workUnitTypeKey: string };
+          },
+          AUTHENTICATED_CTX,
+        ),
+      ).rejects.toThrow();
+    });
+
     it("version.workUnit.stateMachine.transition.binding.create adds workflow binding for transition", async () => {
       const router = createMethodologyRouter(makeServiceLayer());
 
@@ -2321,8 +2367,8 @@ describe("methodology router", () => {
           versionId: created.version.id,
           workUnitTypeKey: "task",
           workflow: {
-            ...VALID_DEFINITION.workflows[0]!,
             key: "task-wf-create",
+            displayName: "Task WF Create",
             workUnitTypeKey: "task",
           },
         },
@@ -2375,8 +2421,8 @@ describe("methodology router", () => {
           versionId: created.version.id,
           workUnitTypeKey: "task",
           workflow: {
-            ...VALID_DEFINITION.workflows[0]!,
             key: "task-wf-a",
+            displayName: "Task WF A",
             workUnitTypeKey: "task",
           },
         },
@@ -2388,8 +2434,8 @@ describe("methodology router", () => {
           versionId: created.version.id,
           workUnitTypeKey: "task",
           workflow: {
-            ...VALID_DEFINITION.workflows[0]!,
             key: "task-wf-b",
+            displayName: "Task WF B",
             workUnitTypeKey: "task",
           },
         },

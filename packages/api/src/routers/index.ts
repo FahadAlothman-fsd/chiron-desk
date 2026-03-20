@@ -13,6 +13,8 @@ import {
   EligibilityService,
   EligibilityServiceLive,
   LifecycleRepository,
+  WorkflowService,
+  WorkflowServiceLive,
 } from "@chiron/methodology-engine";
 import {
   ProjectContextRepository,
@@ -29,11 +31,13 @@ export function createAppRouter(
   const methodologyCoreLayer = Layer.provide(MethodologyEngineL1Live, allRepos);
   const methodologyServiceLayer = Layer.mergeAll(
     methodologyCoreLayer,
+    Layer.provide(WorkflowServiceLive, allRepos),
     Layer.provide(WorkUnitStateMachineServiceLive, allRepos),
     Layer.provide(Layer.effect(EligibilityService, EligibilityServiceLive), allRepos),
     Layer.provide(ProjectContextServiceLive, allRepos),
   ) as Layer.Layer<
     | MethodologyVersionBoundaryService
+    | WorkflowService
     | WorkUnitStateMachineService
     | EligibilityService
     | ProjectContextService

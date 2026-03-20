@@ -19,7 +19,7 @@ export {
 } from "./services/published-methodology-service";
 export { MethodologyEngineL1ServicesLive, MethodologyEngineL1Live } from "./layers/live";
 export { WorkUnitService } from "./services/work-unit-service";
-export { WorkflowService } from "./services/workflow-service";
+export { WorkflowService, WorkflowServiceLive } from "./services/workflow-service";
 export { WorkUnitFactService, WorkUnitFactServiceLive } from "./services/work-unit-fact-service";
 export {
   WorkUnitStateMachineService,

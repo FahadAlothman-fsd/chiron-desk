@@ -2,6 +2,7 @@ import { ORPCError } from "@orpc/server";
 import {
   MethodologyRepository,
   MethodologyVersionBoundaryService,
+  WorkflowService,
   type MethodologyVersionRow,
   type MethodologyVersionEventRow,
   type MethodologyError,
@@ -80,6 +81,28 @@ const workflowSchema = z.object({
   steps: z.array(workflowStepSchema),
   edges: z.array(workflowEdgeSchema),
 });
+
+const workflowMetadataValueSchema = z.union([
+  z.string(),
+  z.number(),
+  z.boolean(),
+  z.array(z.string()),
+]);
+
+const workflowMetadataSchema = z
+  .object({
+    key: z.string().min(1),
+    displayName: z.string().optional(),
+    workUnitTypeKey: z.string().min(1).optional(),
+    metadata: z.record(z.string(), workflowMetadataValueSchema).optional(),
+    guidance: z
+      .object({
+        human: z.object({ markdown: z.string() }),
+        agent: z.object({ markdown: z.string() }),
+      })
+      .optional(),
+  })
+  .strict();
 
 const guidanceMarkdownSchema = z.object({ markdown: z.string() });
 
@@ -182,14 +205,14 @@ const listWorkUnitWorkflowsInput = z.object({
 const createWorkUnitWorkflowInput = z.object({
   versionId: z.string().min(1),
   workUnitTypeKey: z.string().min(1),
-  workflow: workflowSchema,
+  workflow: workflowMetadataSchema,
 });
 
 const updateWorkUnitWorkflowInput = z.object({
   versionId: z.string().min(1),
   workUnitTypeKey: z.string().min(1),
   workflowKey: z.string().min(1),
-  workflow: workflowSchema,
+  workflow: workflowMetadataSchema,
 });
 
 const deleteWorkUnitWorkflowInput = z.object({
@@ -1192,11 +1215,18 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
         runEffect(
           serviceLayer,
           Effect.gen(function* () {
-            const svc = yield* MethodologyVersionBoundaryService;
-            return yield* svc.listWorkUnitWorkflows({
+            const svc = yield* WorkflowService;
+            const workflows = yield* svc.listWorkUnitWorkflows({
               versionId: input.versionId,
               workUnitTypeKey: input.workUnitTypeKey,
             });
+            return workflows.map((workflow) => ({
+              key: workflow.key,
+              displayName: workflow.displayName,
+              workUnitTypeKey: workflow.workUnitTypeKey,
+              metadata: workflow.metadata,
+              guidance: workflow.guidance,
+            }));
           }),
         ),
       ),
@@ -1211,13 +1241,15 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
           workflow: {
             ...input.workflow,
             workUnitTypeKey: input.workUnitTypeKey,
+            steps: [],
+            edges: [],
           },
         };
 
         const result = await runEffect(
           serviceLayer,
           Effect.gen(function* () {
-            const svc = yield* MethodologyVersionBoundaryService;
+            const svc = yield* WorkflowService;
             return yield* svc.createWorkUnitWorkflow(payload, actorId);
           }),
         );
@@ -1239,13 +1271,15 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
           workflow: {
             ...input.workflow,
             workUnitTypeKey: input.workUnitTypeKey,
+            steps: [],
+            edges: [],
           },
         };
 
         const result = await runEffect(
           serviceLayer,
           Effect.gen(function* () {
-            const svc = yield* MethodologyVersionBoundaryService;
+            const svc = yield* WorkflowService;
             return yield* svc.updateWorkUnitWorkflow(payload, actorId);
           }),
         );
@@ -1269,7 +1303,7 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
         const result = await runEffect(
           serviceLayer,
           Effect.gen(function* () {
-            const svc = yield* MethodologyVersionBoundaryService;
+            const svc = yield* WorkflowService;
             return yield* svc.deleteWorkUnitWorkflow(payload, actorId);
           }),
         );
