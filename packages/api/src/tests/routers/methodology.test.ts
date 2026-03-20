@@ -369,7 +369,6 @@ function makeTestRepo(): MethodologyRepository["Type"] & ProjectContextRepositor
           key: fact.key,
           name: fact.name,
           valueType: fact.factType,
-          required: fact.required,
           descriptionJson: fact.description
             ? {
                 human: { markdown: fact.description },
@@ -753,7 +752,6 @@ function makeServiceLayer() {
             fromStateKey === "__absent__" ? null : ensureState(workUnitTypeId, fromStateKey),
           toStateId: ensureState(workUnitTypeId, toStateKey),
           transitionKey,
-          gateClass: transition.gateClass === "completion_gate" ? "completion_gate" : "start_gate",
           createdAt: buildDate(),
           updatedAt: buildDate(),
         });
@@ -794,7 +792,6 @@ function makeServiceLayer() {
           name: typeof fact.name === "string" ? fact.name : null,
           key: fact.key,
           factType: typeof fact.factType === "string" ? fact.factType : "string",
-          required: Boolean(fact.required),
           description: typeof fact.description === "string" ? fact.description : null,
           defaultValueJson: fact.defaultValue ?? null,
           guidanceJson: fact.guidance ?? null,
