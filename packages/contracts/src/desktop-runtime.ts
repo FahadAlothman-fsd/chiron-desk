@@ -1,3 +1,5 @@
+import { Result } from "better-result";
+
 export type DesktopRuntimeStatus = {
   backend: "unknown" | "attached" | "started" | "error";
   message?: string;
@@ -30,19 +32,26 @@ export function resolveDesktopRuntimeMetadata(
     return {};
   }
 
-  try {
-    const backendUrl = decodeURIComponent(
-      runtimeArgument.slice(DESKTOP_RUNTIME_BACKEND_URL_ARG.length),
-    );
+  const backendUrlResult = Result.try({
+    try: () => decodeURIComponent(runtimeArgument.slice(DESKTOP_RUNTIME_BACKEND_URL_ARG.length)),
+    catch: () => "",
+  });
 
-    if (!backendUrl) {
-      return {};
-    }
-
-    new URL(backendUrl);
-
-    return { backendUrl };
-  } catch {
+  if (backendUrlResult.isErr() || !backendUrlResult.value) {
     return {};
   }
+
+  const backendUrl = backendUrlResult.value;
+
+  const validatedUrlResult = Result.try({
+    try: () => {
+      new URL(backendUrl);
+      return backendUrl;
+    },
+    catch: () => "",
+  });
+
+  return validatedUrlResult.isErr() || !validatedUrlResult.value
+    ? {}
+    : { backendUrl: validatedUrlResult.value };
 }
