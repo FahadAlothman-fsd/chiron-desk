@@ -218,21 +218,22 @@ describe("runtime orchestration contract", () => {
       });
     });
 
-    try {
-      const port = await chooseAvailablePort(address.port);
-      expect(port).not.toBe(address.port);
-    } finally {
-      await new Promise<void>((resolve, reject) => {
-        occupiedServer.close((error) => {
-          if (error) {
-            reject(error);
-            return;
-          }
+    await chooseAvailablePort(address.port)
+      .then((port) => {
+        expect(port).not.toBe(address.port);
+      })
+      .finally(async () => {
+        await new Promise<void>((resolve, reject) => {
+          occupiedServer.close((error) => {
+            if (error) {
+              reject(error);
+              return;
+            }
 
-          resolve();
+            resolve();
+          });
         });
       });
-    }
   });
 
   it("propagates non-EADDRINUSE preferred-port errors", async () => {

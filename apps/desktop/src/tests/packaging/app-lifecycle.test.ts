@@ -135,42 +135,40 @@ describe("desktop app lifecycle", () => {
       whenReady: vi.fn().mockResolvedValue(undefined),
     };
 
-    try {
-      await runDesktopApp({
-        appRoot: "/opt/Chiron/resources/app.asar",
-        resourcesPath: "/opt/Chiron/resources",
-        electronModule: {
-          app,
-          ipcMain: { handle: vi.fn() },
-          BrowserWindow: vi.fn(),
-          dialog: { showErrorBox: vi.fn() },
+    await runDesktopApp({
+      appRoot: "/opt/Chiron/resources/app.asar",
+      resourcesPath: "/opt/Chiron/resources",
+      electronModule: {
+        app,
+        ipcMain: { handle: vi.fn() },
+        BrowserWindow: vi.fn(),
+        dialog: { showErrorBox: vi.fn() },
+      },
+      bootstrapRuntimeState: vi.fn().mockResolvedValue({
+        paths: {
+          runtimeRoot: "/tmp/chiron/runtime",
+          configFile: "/tmp/chiron/runtime/config.json",
+          secretsFile: "/tmp/chiron/runtime/secrets.json",
+          dataDir: "/tmp/chiron/runtime/data",
+          databaseFile: "/tmp/chiron/runtime/data/chiron.db",
+          logsDir: "/tmp/chiron/runtime/logs",
         },
-        bootstrapRuntimeState: vi.fn().mockResolvedValue({
-          paths: {
-            runtimeRoot: "/tmp/chiron/runtime",
-            configFile: "/tmp/chiron/runtime/config.json",
-            secretsFile: "/tmp/chiron/runtime/secrets.json",
-            dataDir: "/tmp/chiron/runtime/data",
-            databaseFile: "/tmp/chiron/runtime/data/chiron.db",
-            logsDir: "/tmp/chiron/runtime/logs",
+        config: {
+          version: 1,
+          mode: "local",
+          server: { kind: "bundled", port: 43110 },
+          database: {
+            kind: "local",
+            url: "file:///tmp/chiron/runtime/data/chiron.db",
           },
-          config: {
-            version: 1,
-            mode: "local",
-            server: { kind: "bundled", port: 43110 },
-            database: {
-              kind: "local",
-              url: "file:///tmp/chiron/runtime/data/chiron.db",
-            },
-          },
-          secrets: { betterAuthSecret: "secret" },
-        }),
-        startDesktopAppImpl,
-        createOwnedRuntimeHandleImpl,
-      });
-    } finally {
+        },
+        secrets: { betterAuthSecret: "secret" },
+      }),
+      startDesktopAppImpl,
+      createOwnedRuntimeHandleImpl,
+    }).finally(() => {
       restoreRendererUrl(originalRendererUrl);
-    }
+    });
 
     expect(app.getPath).toHaveBeenCalledWith("userData");
     expect(startDesktopAppImpl).toHaveBeenCalledOnce();
@@ -192,55 +190,59 @@ describe("desktop app lifecycle", () => {
     const originalRendererUrl = process.env.ELECTRON_RENDERER_URL;
     process.env.ELECTRON_RENDERER_URL = "http://localhost:3001";
 
-    try {
-      await expect(
-        runDesktopApp({
-          appRoot: "/opt/Chiron/resources/app.asar",
-          resourcesPath: "/opt/Chiron/resources",
-          electronModule: {
-            app: {
-              getPath: vi.fn().mockReturnValue("/tmp/chiron"),
-              on: vi.fn(),
-              quit: vi.fn(),
-              whenReady: vi.fn().mockResolvedValue(undefined),
-            },
-            ipcMain: { handle: vi.fn() },
-            BrowserWindow: vi.fn(),
-            dialog: { showErrorBox: vi.fn() },
+    const failingStartup = runDesktopApp({
+      appRoot: "/opt/Chiron/resources/app.asar",
+      resourcesPath: "/opt/Chiron/resources",
+      electronModule: {
+        app: {
+          getPath: vi.fn().mockReturnValue("/tmp/chiron"),
+          on: vi.fn(),
+          quit: vi.fn(),
+          whenReady: vi.fn().mockResolvedValue(undefined),
+        },
+        ipcMain: { handle: vi.fn() },
+        BrowserWindow: vi.fn(),
+        dialog: { showErrorBox: vi.fn() },
+      },
+      bootstrapRuntimeState: vi.fn().mockResolvedValue({
+        paths: {
+          runtimeRoot: "/tmp/chiron/runtime",
+          configFile: "/tmp/chiron/runtime/config.json",
+          secretsFile: "/tmp/chiron/runtime/secrets.json",
+          dataDir: "/tmp/chiron/runtime/data",
+          databaseFile: "/tmp/chiron/runtime/data/chiron.db",
+          logsDir: "/tmp/chiron/runtime/logs",
+        },
+        config: {
+          version: 1,
+          mode: "local",
+          server: { kind: "bundled", port: 43110 },
+          database: {
+            kind: "local",
+            url: "file:///tmp/chiron/runtime/data/chiron.db",
           },
-          bootstrapRuntimeState: vi.fn().mockResolvedValue({
-            paths: {
-              runtimeRoot: "/tmp/chiron/runtime",
-              configFile: "/tmp/chiron/runtime/config.json",
-              secretsFile: "/tmp/chiron/runtime/secrets.json",
-              dataDir: "/tmp/chiron/runtime/data",
-              databaseFile: "/tmp/chiron/runtime/data/chiron.db",
-              logsDir: "/tmp/chiron/runtime/logs",
-            },
-            config: {
-              version: 1,
-              mode: "local",
-              server: { kind: "bundled", port: 43110 },
-              database: {
-                kind: "local",
-                url: "file:///tmp/chiron/runtime/data/chiron.db",
-              },
-            },
-            secrets: { betterAuthSecret: "secret" },
-          }),
-          startDesktopAppImpl: vi.fn(async () => {
-            throw new Error("boom");
-          }),
-          createOwnedRuntimeHandleImpl: vi.fn().mockResolvedValue({
-            owned: true,
-            stop: vi.fn().mockResolvedValue(undefined),
-          }),
-        }),
-      ).rejects.toThrow("boom");
+        },
+        secrets: { betterAuthSecret: "secret" },
+      }),
+      startDesktopAppImpl: vi.fn(async () => {
+        throw new Error("boom");
+      }),
+      createOwnedRuntimeHandleImpl: vi.fn().mockResolvedValue({
+        owned: true,
+        stop: vi.fn().mockResolvedValue(undefined),
+      }),
+    });
 
-      expect(process.env.ELECTRON_RENDERER_URL).toBe("http://localhost:3001");
-    } finally {
-      restoreRendererUrl(originalRendererUrl);
-    }
+    await failingStartup
+      .then(() => {
+        throw new Error("expected startup to fail");
+      })
+      .catch((error: unknown) => {
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).message).toContain("boom");
+      });
+
+    expect(process.env.ELECTRON_RENDERER_URL).toBe("http://localhost:3001");
+    restoreRendererUrl(originalRendererUrl);
   });
 });
