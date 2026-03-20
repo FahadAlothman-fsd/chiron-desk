@@ -184,6 +184,17 @@ describe("methodology version work units l1 route", () => {
     expect(routeModule.Route.validateSearch({ intent: "add-work-unit" })).toEqual({
       intent: "add-work-unit",
     });
+    expect(
+      routeModule.Route.validateSearch({
+        view: "contracts",
+        selected: "WU.INTAKE",
+        tab: "facts",
+      }),
+    ).toEqual({
+      view: "contracts",
+      selected: "WU.INTAKE",
+      tab: "facts",
+    });
   });
 
   it("opens the create dialog from add-work-unit intent and clears only the intent on close", async () => {

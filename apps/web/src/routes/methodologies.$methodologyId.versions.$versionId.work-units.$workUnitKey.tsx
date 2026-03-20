@@ -1,10 +1,11 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { CircleHelp, FilePlus2, PackagePlus, Workflow, X, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { z } from "zod";
 
 import { buttonVariants } from "@/components/ui/button";
+import { FactsTab } from "@/features/methodologies/work-unit-l2/FactsTab";
 import { OverviewTab } from "@/features/methodologies/work-unit-l2/OverviewTab";
 import { MethodologyWorkspaceShell } from "@/features/methodologies/workspace-shell";
 
@@ -26,8 +27,9 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
   const { methodologyId, versionId, workUnitKey } = Route.useParams();
   const search = Route.useSearch();
   const tab = search.tab ?? "overview";
-  const { orpc } = Route.useRouteContext();
+  const { orpc, queryClient } = Route.useRouteContext();
   const [isKeymapOpen, setIsKeymapOpen] = useState(false);
+  const [isFactsCreateOpen, setIsFactsCreateOpen] = useState(false);
 
   const toggleKeymap = useCallback(() => setIsKeymapOpen((value) => !value), []);
 
@@ -52,6 +54,12 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
         return;
       }
 
+      if (tab === "facts" && event.key.toLowerCase() === "f") {
+        event.preventDefault();
+        setIsFactsCreateOpen(true);
+        return;
+      }
+
       if (event.key === "Escape") {
         setIsKeymapOpen(false);
       }
@@ -59,12 +67,20 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [toggleKeymap]);
+  }, [tab, toggleKeymap]);
 
-  const draftQuery = useQuery(
-    orpc.methodology.version.workUnit.get.queryOptions({
-      input: { versionId },
-    }),
+  const draftQueryOptions = orpc.methodology.version.workUnit.get.queryOptions({
+    input: { versionId },
+  });
+  const draftQuery = useQuery(draftQueryOptions);
+  const createWorkUnitFactMutation = useMutation(
+    orpc.methodology.version.workUnit.fact.create.mutationOptions(),
+  );
+  const updateWorkUnitFactMutation = useMutation(
+    orpc.methodology.version.workUnit.fact.update.mutationOptions(),
+  );
+  const deleteWorkUnitFactMutation = useMutation(
+    orpc.methodology.version.workUnit.fact.delete.mutationOptions(),
   );
 
   const workUnitTypes = Array.isArray(
@@ -86,6 +102,16 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
         artifactSlots?: unknown[];
       }
     | undefined;
+  const dependencyDefinitions = Array.isArray(
+    (
+      draftQuery.data as
+        | { linkTypeDefinitions?: ReadonlyArray<{ key?: string; name?: string }> }
+        | undefined
+    )?.linkTypeDefinitions,
+  )
+    ? ((draftQuery.data as { linkTypeDefinitions?: ReadonlyArray<{ key?: string; name?: string }> })
+        .linkTypeDefinitions ?? [])
+    : [];
 
   const factsCount = Array.isArray(selectedWorkUnit?.factSchemas)
     ? selectedWorkUnit.factSchemas.length
@@ -228,6 +254,136 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
           statesCount={statesCount}
           transitionsCount={transitionsCount}
           artifactSlotsCount={artifactSlotsCount}
+        />
+      ) : tab === "facts" ? (
+        <FactsTab
+          initialFacts={
+            Array.isArray(selectedWorkUnit?.factSchemas) ? selectedWorkUnit.factSchemas : []
+          }
+          dependencyDefinitions={dependencyDefinitions}
+          createDialogOpen={isFactsCreateOpen}
+          onCreateDialogOpenChange={setIsFactsCreateOpen}
+          onCreateFact={async ({ fact }) => {
+            const humanGuidance =
+              fact.guidance?.human?.markdown?.trim() ?? fact.guidance?.human?.short?.trim() ?? "";
+            const agentGuidance =
+              fact.guidance?.agent?.markdown?.trim() ?? fact.guidance?.agent?.intent?.trim() ?? "";
+            const rawValidation = fact.validation as Record<string, unknown> | undefined;
+            const rawPath = rawValidation?.path;
+            const rawKind = rawValidation?.kind;
+            const pathValidation =
+              rawKind === "path" && rawPath && typeof rawPath === "object"
+                ? (rawPath as {
+                    pathKind?: "file" | "directory";
+                    normalization?: { mode?: "posix"; trimWhitespace?: boolean };
+                    safety?: { disallowAbsolute?: boolean; preventTraversal?: boolean };
+                  })
+                : undefined;
+            const apiValidation =
+              fact.factType === "work unit"
+                ? ({ kind: "none" } as const)
+                : rawKind === "path" && pathValidation?.pathKind
+                  ? {
+                      kind: "path" as const,
+                      path: {
+                        pathKind: pathValidation.pathKind,
+                        normalization: pathValidation.normalization,
+                        safety: pathValidation.safety,
+                      },
+                    }
+                  : rawKind === "json-schema" && typeof rawValidation?.schemaDialect === "string"
+                    ? {
+                        kind: "json-schema" as const,
+                        schemaDialect: rawValidation.schemaDialect,
+                        schema: rawValidation.schema,
+                      }
+                    : ({ kind: "none" } as const);
+            const apiFact = {
+              name: fact.name,
+              key: fact.key ?? "",
+              factType: fact.factType === "work unit" ? "string" : fact.factType,
+              defaultValue: fact.defaultValue,
+              guidance:
+                humanGuidance.length > 0 || agentGuidance.length > 0
+                  ? {
+                      human: { markdown: humanGuidance },
+                      agent: { markdown: agentGuidance },
+                    }
+                  : undefined,
+              validation: apiValidation,
+            };
+            await createWorkUnitFactMutation.mutateAsync({
+              versionId,
+              workUnitTypeKey: workUnitKey,
+              fact: apiFact,
+            });
+            await queryClient.invalidateQueries({ queryKey: draftQueryOptions.queryKey });
+          }}
+          onUpdateFact={async ({ factKey, fact }) => {
+            const humanGuidance =
+              fact.guidance?.human?.markdown?.trim() ?? fact.guidance?.human?.short?.trim() ?? "";
+            const agentGuidance =
+              fact.guidance?.agent?.markdown?.trim() ?? fact.guidance?.agent?.intent?.trim() ?? "";
+            const rawValidation = fact.validation as Record<string, unknown> | undefined;
+            const rawPath = rawValidation?.path;
+            const rawKind = rawValidation?.kind;
+            const pathValidation =
+              rawKind === "path" && rawPath && typeof rawPath === "object"
+                ? (rawPath as {
+                    pathKind?: "file" | "directory";
+                    normalization?: { mode?: "posix"; trimWhitespace?: boolean };
+                    safety?: { disallowAbsolute?: boolean; preventTraversal?: boolean };
+                  })
+                : undefined;
+            const apiValidation =
+              fact.factType === "work unit"
+                ? ({ kind: "none" } as const)
+                : rawKind === "path" && pathValidation?.pathKind
+                  ? {
+                      kind: "path" as const,
+                      path: {
+                        pathKind: pathValidation.pathKind,
+                        normalization: pathValidation.normalization,
+                        safety: pathValidation.safety,
+                      },
+                    }
+                  : rawKind === "json-schema" && typeof rawValidation?.schemaDialect === "string"
+                    ? {
+                        kind: "json-schema" as const,
+                        schemaDialect: rawValidation.schemaDialect,
+                        schema: rawValidation.schema,
+                      }
+                    : ({ kind: "none" } as const);
+            const apiFact = {
+              name: fact.name,
+              key: fact.key ?? "",
+              factType: fact.factType === "work unit" ? "string" : fact.factType,
+              defaultValue: fact.defaultValue,
+              guidance:
+                humanGuidance.length > 0 || agentGuidance.length > 0
+                  ? {
+                      human: { markdown: humanGuidance },
+                      agent: { markdown: agentGuidance },
+                    }
+                  : undefined,
+              validation: apiValidation,
+            };
+            await updateWorkUnitFactMutation.mutateAsync({
+              versionId,
+              workUnitTypeKey: workUnitKey,
+              factKey,
+              fact: apiFact,
+            });
+            await queryClient.invalidateQueries({ queryKey: draftQueryOptions.queryKey });
+          }}
+          onDeleteFact={async ({ factKey }) => {
+            await deleteWorkUnitFactMutation.mutateAsync({
+              versionId,
+              workUnitTypeKey: workUnitKey,
+              factKey,
+            });
+            await queryClient.invalidateQueries({ queryKey: draftQueryOptions.queryKey });
+          }}
         />
       ) : (
         <section className="grid gap-3 lg:grid-cols-[2fr_1fr]">

@@ -31,7 +31,7 @@ export const Route = createFileRoute(
         selected: z.string().min(1).optional(),
         intent: z.literal("add-work-unit").optional(),
       })
-      .strict()
+      .passthrough()
       .parse(search),
   component: MethodologyVersionWorkUnitsRoute,
 });

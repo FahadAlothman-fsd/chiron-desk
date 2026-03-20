@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -52,7 +52,30 @@ function createRouteContext(options?: {
   const draftQueryFn =
     options?.draftQueryFn ??
     (async () => ({
-      workUnitTypes: [{ key: "WU.TASK", displayName: "Task" }],
+      workUnitTypes: [
+        {
+          key: "WU.TASK",
+          displayName: "Task",
+          factSchemas: [
+            {
+              key: "fact.input_path",
+              name: "Input Path",
+              factType: "string",
+              validation: { kind: "path", dependencyType: "depends_on" },
+              guidance: {
+                human: { markdown: "Provide an input path." },
+                agent: { markdown: "Use path as dependency context." },
+              },
+            },
+            {
+              key: "fact.contract_json",
+              name: "Contract JSON",
+              factType: "json",
+              validation: { kind: "json-schema" },
+            },
+          ],
+        },
+      ],
       agentTypes: [
         {
           key: "agent.research",
@@ -76,6 +99,9 @@ function createRouteContext(options?: {
   const createDependencyDefinitionMock = vi.fn(async () => ({ diagnostics: [] }));
   const updateDependencyDefinitionMock = vi.fn(async () => ({ diagnostics: [] }));
   const deleteDependencyDefinitionMock = vi.fn(async () => ({ diagnostics: [] }));
+  const createWorkUnitFactMock = vi.fn(async () => ({ diagnostics: [] }));
+  const updateWorkUnitFactMock = vi.fn(async () => ({ diagnostics: [] }));
+  const deleteWorkUnitFactMock = vi.fn(async () => ({ diagnostics: [] }));
 
   return {
     queryClient: new QueryClient({
@@ -195,6 +221,29 @@ function createRouteContext(options?: {
                 queryFn: draftQueryFn,
               }),
             },
+            fact: {
+              list: {
+                queryOptions: ({ input }: { input: { versionId: string } }) => ({
+                  queryKey: ["methodology", "draft", input.versionId, "work-unit", "facts"],
+                  queryFn: draftQueryFn,
+                }),
+              },
+              create: {
+                mutationOptions: () => ({
+                  mutationFn: createWorkUnitFactMock,
+                }),
+              },
+              update: {
+                mutationOptions: () => ({
+                  mutationFn: updateWorkUnitFactMock,
+                }),
+              },
+              delete: {
+                mutationOptions: () => ({
+                  mutationFn: deleteWorkUnitFactMock,
+                }),
+              },
+            },
           },
         },
       },
@@ -207,7 +256,26 @@ function createRouteContext(options?: {
     createDependencyDefinitionMock,
     updateDependencyDefinitionMock,
     deleteDependencyDefinitionMock,
+    createWorkUnitFactMock,
+    updateWorkUnitFactMock,
+    deleteWorkUnitFactMock,
   };
+}
+
+function comboboxForField(label: string): HTMLButtonElement {
+  const field = screen.getByText(label).closest("div");
+  if (!field) {
+    throw new Error(`Field not found for ${label}`);
+  }
+
+  return within(field).getByRole("combobox") as HTMLButtonElement;
+}
+
+function chooseOption(label: string, optionName: string) {
+  fireEvent.click(comboboxForField(label));
+  const option = screen.getByRole("option", { name: new RegExp(optionName, "i") });
+  fireEvent.mouseMove(option);
+  fireEvent.click(option);
 }
 
 function renderWithQueryClient(node: ReactNode) {
@@ -218,6 +286,10 @@ function renderWithQueryClient(node: ReactNode) {
 }
 
 beforeEach(() => {
+  Object.defineProperty(window.HTMLElement.prototype, "scrollIntoView", {
+    configurable: true,
+    value: vi.fn(),
+  });
   useParamsMock.mockReset();
   useSearchMock.mockReset();
   useRouteContextMock.mockReset();
@@ -372,6 +444,92 @@ describe("methodology version shell routes", () => {
     expect(screen.getAllByTestId("surface-card-corner")).toHaveLength(16);
     expect(screen.getAllByTestId("surface-card-overlay")).toHaveLength(4);
     expect(screen.queryByText("Focused Dependency Graph")).toBeNull();
+  });
+
+  it("renders facts tab with validation + dependency badges and opens add dialog via F", async () => {
+    const { MethodologyVersionWorkUnitDetailsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey");
+    useParamsMock.mockReturnValue({
+      methodologyId: "equity-core",
+      versionId: "draft-v2",
+      workUnitKey: "WU.TASK",
+    });
+    useSearchMock.mockReturnValue({ tab: "facts" });
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitDetailsRoute />);
+
+    expect(await screen.findByRole("columnheader", { name: "Fact" })).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Type" })).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Validation" })).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Guidance" })).toBeTruthy();
+    expect(await screen.findByText("Input Path")).toBeTruthy();
+    expect(await screen.findByText("DEP: depends_on")).toBeTruthy();
+
+    fireEvent.keyDown(window, { key: "f" });
+    expect(await screen.findByText("Add Fact")).toBeTruthy();
+  });
+
+  it("shows dependency selector for work unit fact type and saves through workUnit.fact.create", async () => {
+    const { MethodologyVersionWorkUnitDetailsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey");
+    const routeContext = createRouteContext();
+    useParamsMock.mockReturnValue({
+      methodologyId: "equity-core",
+      versionId: "draft-v2",
+      workUnitKey: "WU.TASK",
+    });
+    useSearchMock.mockReturnValue({ tab: "facts" });
+    useRouteContextMock.mockReturnValue(routeContext);
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitDetailsRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "+ Add Fact" }));
+    chooseOption("Fact Type", "work unit");
+    expect(comboboxForField("Dependency Type")).toBeTruthy();
+    chooseOption("Dependency Type", "link.requires");
+    fireEvent.change(screen.getByLabelText("Fact Key"), {
+      target: { value: "fact.upstream_unit" },
+    });
+    fireEvent.change(screen.getByLabelText("Display Name"), {
+      target: { value: "Upstream Work Unit" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(routeContext.createWorkUnitFactMock).toHaveBeenCalledTimes(1);
+    });
+    expect(routeContext.createWorkUnitFactMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        versionId: "draft-v2",
+        workUnitTypeKey: "WU.TASK",
+        fact: expect.objectContaining({
+          key: "fact.upstream_unit",
+          factType: "string",
+        }),
+      }),
+      expect.anything(),
+    );
+  });
+
+  it("shows destructive delete confirmation style for work-unit facts", async () => {
+    const { MethodologyVersionWorkUnitDetailsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey");
+    useParamsMock.mockReturnValue({
+      methodologyId: "equity-core",
+      versionId: "draft-v2",
+      workUnitKey: "WU.TASK",
+    });
+    useSearchMock.mockReturnValue({ tab: "facts" });
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitDetailsRoute />);
+
+    const deleteButtons = await screen.findAllByRole("button", { name: "Delete" });
+    fireEvent.click(deleteButtons[0]!);
+
+    expect(await screen.findByText("Destructive action")).toBeTruthy();
+    const destructiveConfirm = screen.getByRole("button", { name: "Delete Fact Permanently" });
+    expect(destructiveConfirm.className).toContain("text-destructive");
   });
 
   it("toggles the keymap helper with the same shortcut and supports Escape close", async () => {
