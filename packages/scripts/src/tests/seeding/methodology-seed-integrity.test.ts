@@ -1,17 +1,6 @@
-import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 
-import { availableStorySeedIds, getStorySeedPlan } from "../../story-seed-fixtures";
-
-const FORBIDDEN_EXTENSION_KEYS = [
-  "workUnitTypes",
-  "agentTypes",
-  "transitions",
-  "workflows",
-  "transitionWorkflowBindings",
-  "factDefinitions",
-  "linkTypeDefinitions",
-] as const;
+import { BASELINE_MANUAL_SEED_PLAN } from "../../manual-seed-fixtures";
 
 async function loadMethodologySeedArtifacts() {
   process.env.DATABASE_URL ??= "file:test.db";
@@ -23,23 +12,14 @@ async function loadMethodologySeedArtifacts() {
 }
 
 describe("methodology seed integrity", () => {
-  it("keeps all story seed plans free of forbidden canonical extension keys", () => {
-    for (const storySeedId of availableStorySeedIds) {
-      const plan = Effect.runSync(getStorySeedPlan(storySeedId));
-
-      for (const version of plan.methodologyVersions) {
-        const versionRecord = version as Record<string, unknown>;
-        const definitionExtensions =
-          versionRecord.definitionExtensions &&
-          typeof versionRecord.definitionExtensions === "object"
-            ? (versionRecord.definitionExtensions as Record<string, unknown>)
-            : {};
-
-        for (const forbiddenKey of FORBIDDEN_EXTENSION_KEYS) {
-          expect(definitionExtensions[forbiddenKey]).toBeUndefined();
-        }
-      }
-    }
+  it("keeps manual seed baseline deterministic for operator journey", () => {
+    expect(BASELINE_MANUAL_SEED_PLAN.planId).toBe("baseline_manual");
+    expect(BASELINE_MANUAL_SEED_PLAN.users).toHaveLength(1);
+    expect(BASELINE_MANUAL_SEED_PLAN.users[0]?.email).toBe("operator@chiron.local");
+    expect(BASELINE_MANUAL_SEED_PLAN.methodologyDefinitions).toHaveLength(1);
+    expect(BASELINE_MANUAL_SEED_PLAN.methodologyDefinitions[0]?.key).toBe("bmad.v1");
+    expect(BASELINE_MANUAL_SEED_PLAN.methodologyVersions).toHaveLength(1);
+    expect(BASELINE_MANUAL_SEED_PLAN.methodologyVersions[0]?.id).toBe("mver_bmad_v1_active");
   });
 
   it("keeps the canonical slice metadata-only until L2 implementation", async () => {
