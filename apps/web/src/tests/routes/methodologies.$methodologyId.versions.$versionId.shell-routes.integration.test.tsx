@@ -374,6 +374,57 @@ describe("methodology version shell routes", () => {
     expect(screen.queryByText("Focused Dependency Graph")).toBeNull();
   });
 
+  it("toggles the keymap helper with the same shortcut and supports Escape close", async () => {
+    const { MethodologyVersionWorkUnitDetailsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey");
+    useParamsMock.mockReturnValue({
+      methodologyId: "equity-core",
+      versionId: "draft-v2",
+      workUnitKey: "WU.TASK",
+    });
+    useSearchMock.mockReturnValue({ tab: "overview" });
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitDetailsRoute />);
+
+    expect(screen.queryByText("KEYMAP")).toBeNull();
+    expect(screen.queryByText("Methodologies")).toBeNull();
+
+    fireEvent.keyDown(window, { key: "?", shiftKey: true });
+    expect(await screen.findByText("KEYMAP")).toBeTruthy();
+    const keymapMenu = screen.getByTestId("keymap-menu");
+    expect(keymapMenu.className).toContain("fixed");
+    expect(keymapMenu.className).not.toContain("chiron-frame-flat");
+    expect(keymapMenu.className).toContain("bottom-0");
+    expect(keymapMenu.className).toContain("right-0");
+    expect(keymapMenu.className).not.toContain("bottom-4");
+    expect(keymapMenu.className).not.toContain("right-4");
+
+    expect(screen.getByText("? — Toggle helper")).toBeTruthy();
+    expect(screen.getByText("Esc — Close helper")).toBeTruthy();
+    expect(screen.getByText("F — Add Fact")).toBeTruthy();
+    expect(screen.getByText("W — Add Workflow")).toBeTruthy();
+    expect(screen.getByText("S — Add State")).toBeTruthy();
+    expect(screen.getByText("A — Add Artifact Slot")).toBeTruthy();
+
+    fireEvent.keyDown(window, { key: "?", shiftKey: true });
+    await waitFor(() => {
+      expect(screen.queryByText("KEYMAP")).toBeNull();
+    });
+
+    expect(screen.getByRole("button", { name: "Open keymap" }).className).toContain("fixed");
+    expect(screen.getByRole("button", { name: "Open keymap" }).className).not.toContain(
+      "chiron-frame-flat",
+    );
+
+    fireEvent.keyDown(window, { key: "?", shiftKey: true });
+    expect(await screen.findByText("KEYMAP")).toBeTruthy();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => {
+      expect(screen.queryByText("KEYMAP")).toBeNull();
+    });
+  });
+
   it("renders a failed shell when the selected work unit key does not exist in the draft", async () => {
     const { MethodologyVersionWorkUnitDetailsRoute } =
       await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey");
