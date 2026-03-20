@@ -144,7 +144,7 @@ const createDraftInput = z.object({
   methodologyKey: z.string().min(1),
   displayName: z.string().min(1),
   version: z.string().min(1),
-  workUnitTypes: z.array(z.unknown()),
+  workUnitTypes: z.array(z.unknown()).optional().default([]),
   agentTypes: z.array(z.unknown()).optional().default([]),
   transitions: z.array(z.unknown()).optional().default([]),
   factDefinitions: z.array(variableDefinitionSchema).optional(),
