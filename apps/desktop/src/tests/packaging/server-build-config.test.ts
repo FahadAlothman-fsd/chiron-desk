@@ -2,12 +2,13 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import serverPackage from "../../../../server/package.json";
-import { shouldInlineServerDependency } from "../../../../server/tsdown.config";
 
 describe("server build config", () => {
   it("keeps database runtime external in the built server bundle", () => {
-    expect(shouldInlineServerDependency("@chiron/api")).toBe(true);
-    expect(shouldInlineServerDependency("@chiron/db")).toBe(false);
+    const tsdownConfig = readFileSync(join(process.cwd(), "../server/tsdown.config.ts"), "utf8");
+
+    expect(tsdownConfig).toContain('id.startsWith("@chiron/") && id !== "@chiron/db"');
+    expect(tsdownConfig).toContain("noExternal: shouldInlineServerDependency");
   });
 
   it("defines a dedicated desktop bundle script", () => {

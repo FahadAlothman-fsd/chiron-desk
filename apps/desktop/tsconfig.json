@@ -7,5 +7,5 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src/**/*.ts", "main.ts", "preload.ts"]
+  "include": ["src/**/*.ts", "main.ts", "preload.ts", "package.json"]
 }

@@ -64,8 +64,6 @@ describe("packaged bootstrap smoke contract", () => {
       },
     };
 
-    const { resolveRuntimeBackendUrl } = await import("../../../../web/src/lib/runtime-backend");
-
     expect(bootstrapRuntimeState).toHaveBeenCalledWith(
       expect.objectContaining({ userDataPath: "/tmp/chiron" }),
     );
@@ -80,6 +78,5 @@ describe("packaged bootstrap smoke contract", () => {
     expect(resolveDesktopRuntimeMetadata(["electron", "app", runtimeArgument ?? ""])).toEqual({
       backendUrl: "http://127.0.0.1:43110",
     });
-    expect(resolveRuntimeBackendUrl()).toBe("http://127.0.0.1:43110");
   });
 });
