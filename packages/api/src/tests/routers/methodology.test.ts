@@ -71,6 +71,24 @@ function makeTestRepo(): MethodologyRepository["Type"] & ProjectContextRepositor
   }> = [];
   const workflowSnapshots = new Map<string, WorkflowSnapshot>();
   const factSchemasByVersion = new Map<string, readonly PublishFactSchemaRow[]>();
+  const artifactSlotsByVersionAndWorkUnit = new Map<
+    string,
+    readonly {
+      key: string;
+      displayName: string | null;
+      descriptionJson: unknown;
+      guidanceJson: unknown;
+      cardinality: "single" | "fileset";
+      rulesJson: unknown;
+      templates: readonly {
+        key: string;
+        displayName: string | null;
+        descriptionJson: unknown;
+        guidanceJson: unknown;
+        content: string | null;
+      }[];
+    }[]
+  >();
   const linkTypeDefinitionsByVersion = new Map<
     string,
     readonly {
@@ -379,6 +397,14 @@ function makeTestRepo(): MethodologyRepository["Type"] & ProjectContextRepositor
           defaultValueJson: fact.defaultValueJson,
           validationJson: fact.validationJson,
         })),
+      ),
+    replaceArtifactSlotsForWorkUnitType: ({ versionId, workUnitTypeKey, slots }) =>
+      Effect.sync(() => {
+        artifactSlotsByVersionAndWorkUnit.set(`${versionId}:${workUnitTypeKey}`, slots);
+      }),
+    findArtifactSlotsByWorkUnitType: ({ versionId, workUnitTypeKey }) =>
+      Effect.succeed(
+        artifactSlotsByVersionAndWorkUnit.get(`${versionId}:${workUnitTypeKey}`) ?? [],
       ),
     publishDraftVersion: (params: PublishDraftVersionParams) =>
       Effect.gen(function* () {
@@ -1140,10 +1166,74 @@ describe("methodology router", () => {
       expect(versionRouter.workUnit?.get).toBeDefined();
       expect(versionRouter.workUnit?.updateMeta).toBeDefined();
       expect(versionRouter.workUnit?.delete).toBeDefined();
+      expect(versionRouter.workUnit?.fact).toBeDefined();
+      expect(versionRouter.workUnit?.workflow).toBeDefined();
+      expect(versionRouter.workUnit?.stateMachine).toBeDefined();
+      expect(versionRouter.workUnit?.artifactSlot).toBeDefined();
       expect(router.version.getLineage).toBeDefined();
       expect(router.version.publish).toBeDefined();
       expect(router.version.getPublicationEvidence).toBeDefined();
-      expect(versionRouter.workUnit?.stateMachine).toBeUndefined();
+    });
+
+    it("replaces and lists work-unit artifact slots via nested namespace", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const created = await call(
+        router.version.create,
+        {
+          methodologyKey: "artifact-slot-method",
+          displayName: "Artifact Slot Method",
+          version: "0.1.0",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const nestedRouter = router.version.workUnit as Record<string, unknown> & {
+        artifactSlot?: {
+          replace?: unknown;
+          list?: unknown;
+        };
+      };
+
+      await call(
+        nestedRouter.artifactSlot?.replace as Parameters<typeof call>[0],
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+          slots: [
+            {
+              key: "implementation-plan",
+              displayName: "Implementation Plan",
+              cardinality: "single",
+              templates: [
+                {
+                  key: "default",
+                  displayName: "Default",
+                  content: "# Plan",
+                },
+              ],
+            },
+          ],
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const slots = await call(
+        nestedRouter.artifactSlot?.list as Parameters<typeof call>[0],
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+        },
+        PUBLIC_CTX,
+      );
+
+      expect(slots).toHaveLength(1);
+      expect(slots[0]?.key).toBe("implementation-plan");
+      expect(slots[0]?.templates).toHaveLength(1);
+      expect(slots[0]?.templates[0]?.key).toBe("default");
     });
 
     it("lists methodologies deterministically with draft and version summary", async () => {

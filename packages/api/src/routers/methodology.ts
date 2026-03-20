@@ -43,6 +43,10 @@ import type {
   DeleteMethodologyFactInput,
   UpdateMethodologyFactInput,
 } from "@chiron/contracts/methodology/fact";
+import type {
+  GetWorkUnitArtifactSlotsInput,
+  ReplaceWorkUnitArtifactSlotsInput,
+} from "@chiron/contracts/methodology/artifact-slot";
 import type { UpdateDraftWorkflowsInputDto } from "@chiron/contracts/methodology/dto";
 import { Effect, type Layer } from "effect";
 import { z } from "zod";
@@ -390,6 +394,35 @@ const getTransitionEligibilityInput = z.object({
   projectId: z.string().min(1),
   workUnitTypeKey: z.string().min(1),
   currentState: z.string().optional(),
+});
+
+const artifactSlotTemplateInput = z.object({
+  key: z.string().min(1),
+  displayName: z.string().optional(),
+  description: audienceGuidanceSchema.optional(),
+  guidance: audienceGuidanceSchema.optional(),
+  content: z.string().optional(),
+});
+
+const artifactSlotInput = z.object({
+  key: z.string().min(1),
+  displayName: z.string().optional(),
+  description: audienceGuidanceSchema.optional(),
+  guidance: audienceGuidanceSchema.optional(),
+  cardinality: z.enum(["single", "fileset"]),
+  rules: z.unknown().optional(),
+  templates: z.array(artifactSlotTemplateInput).default([]),
+});
+
+const getWorkUnitArtifactSlotsInput = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+});
+
+const replaceWorkUnitArtifactSlotsInput = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  slots: z.array(artifactSlotInput),
 });
 
 const methodologyKeyInput = z.object({
@@ -1171,6 +1204,47 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
         };
       }),
 
+    getWorkUnitArtifactSlots: publicProcedure
+      .input(getWorkUnitArtifactSlotsInput)
+      .handler(async ({ input }) => {
+        const payload: GetWorkUnitArtifactSlotsInput = {
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+        };
+
+        return runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionBoundaryService;
+            return yield* svc.getWorkUnitArtifactSlots(payload);
+          }),
+        );
+      }),
+
+    replaceWorkUnitArtifactSlots: protectedProcedure
+      .input(replaceWorkUnitArtifactSlotsInput)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        const payload: ReplaceWorkUnitArtifactSlotsInput = {
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+          slots: input.slots,
+        };
+
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionBoundaryService;
+            return yield* svc.replaceWorkUnitArtifactSlots(payload, actorId);
+          }),
+        );
+
+        return {
+          version: serializeVersion(result.version),
+          diagnostics: result.diagnostics,
+        };
+      }),
+
     updateAgent: protectedProcedure.input(updateAgentInput).handler(async ({ input, context }) => {
       const actorId = context.session.user.id;
       const persona = input.agent.promptTemplate?.markdown ?? input.agent.persona ?? "";
@@ -1369,6 +1443,42 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
         get: router.getDraftProjection,
         updateMeta: router.updateWorkUnit,
         delete: router.updateDraftLifecycle,
+        fact: {
+          list: router.getDraftProjection,
+          create: router.createFact,
+          update: router.updateFact,
+          delete: router.deleteFact,
+        },
+        workflow: {
+          list: router.getDraftProjection,
+          update: router.updateDraftWorkflows,
+        },
+        stateMachine: {
+          state: {
+            list: router.getDraftProjection,
+            update: router.updateDraftLifecycle,
+          },
+          transition: {
+            list: router.getDraftProjection,
+            update: router.updateDraftLifecycle,
+          },
+          conditionSet: {
+            list: router.getDraftProjection,
+            update: router.updateDraftLifecycle,
+          },
+          binding: {
+            list: router.getDraftProjection,
+            update: router.updateDraftWorkflows,
+          },
+        },
+        artifactSlot: {
+          list: router.getWorkUnitArtifactSlots,
+          replace: router.replaceWorkUnitArtifactSlots,
+          template: {
+            list: router.getWorkUnitArtifactSlots,
+            replace: router.replaceWorkUnitArtifactSlots,
+          },
+        },
       },
       getLineage: router.getDraftLineage,
       publish: router.publishDraftVersion,

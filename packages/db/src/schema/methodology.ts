@@ -275,6 +275,69 @@ export const methodologyFactSchemas = sqliteTable(
   ],
 );
 
+export const methodologyArtifactSlotDefinitions = sqliteTable(
+  "methodology_artifact_slot_definitions",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    methodologyVersionId: text("methodology_version_id")
+      .notNull()
+      .references(() => methodologyVersions.id, { onDelete: "cascade" }),
+    workUnitTypeId: text("work_unit_type_id")
+      .notNull()
+      .references(() => methodologyWorkUnitTypes.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    displayName: text("display_name"),
+    descriptionJson: text("description_json", { mode: "json" }),
+    guidanceJson: text("guidance_json", { mode: "json" }),
+    cardinality: text("cardinality").notNull(),
+    rulesJson: text("rules_json", { mode: "json" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .default(timestampDefault)
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("methodology_asd_vid_wut_key_idx").on(
+      table.methodologyVersionId,
+      table.workUnitTypeId,
+      table.key,
+    ),
+    index("methodology_asd_vid_wut_idx").on(table.methodologyVersionId, table.workUnitTypeId),
+  ],
+);
+
+export const methodologyArtifactSlotTemplates = sqliteTable(
+  "methodology_artifact_slot_templates",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    methodologyVersionId: text("methodology_version_id")
+      .notNull()
+      .references(() => methodologyVersions.id, { onDelete: "cascade" }),
+    slotDefinitionId: text("slot_definition_id")
+      .notNull()
+      .references(() => methodologyArtifactSlotDefinitions.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    displayName: text("display_name"),
+    descriptionJson: text("description_json", { mode: "json" }),
+    guidanceJson: text("guidance_json", { mode: "json" }),
+    content: text("content"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .default(timestampDefault)
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("methodology_ast_slot_key_idx").on(table.slotDefinitionId, table.key),
+    index("methodology_ast_vid_slot_idx").on(table.methodologyVersionId, table.slotDefinitionId),
+  ],
+);
+
 export const transitionConditionSets = sqliteTable(
   "transition_condition_sets",
   {

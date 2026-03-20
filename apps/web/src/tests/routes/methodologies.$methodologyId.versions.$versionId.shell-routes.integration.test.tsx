@@ -349,6 +349,31 @@ describe("methodology version shell routes", () => {
     expect(screen.getByText("Artifact Slots")).toBeTruthy();
   });
 
+  it("renders overview as four command cards without mini-graph", async () => {
+    const { MethodologyVersionWorkUnitDetailsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey");
+    useParamsMock.mockReturnValue({
+      methodologyId: "equity-core",
+      versionId: "draft-v2",
+      workUnitKey: "WU.TASK",
+    });
+    useSearchMock.mockReturnValue({ tab: "overview" });
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitDetailsRoute />);
+
+    expect(await screen.findByRole("heading", { name: "Facts" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Workflows" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "State Machine" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Artifact Slots" })).toBeTruthy();
+    expect(screen.getByText("Add Fact")).toBeTruthy();
+    expect(screen.getByText("Add Workflow")).toBeTruthy();
+    expect(screen.getByText("Add State")).toBeTruthy();
+    expect(screen.getByText("Add Artifact Slot")).toBeTruthy();
+    expect(screen.getAllByTestId("surface-card-corner")).toHaveLength(16);
+    expect(screen.getAllByTestId("surface-card-overlay")).toHaveLength(4);
+    expect(screen.queryByText("Focused Dependency Graph")).toBeNull();
+  });
+
   it("renders a failed shell when the selected work unit key does not exist in the draft", async () => {
     const { MethodologyVersionWorkUnitDetailsRoute } =
       await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey");

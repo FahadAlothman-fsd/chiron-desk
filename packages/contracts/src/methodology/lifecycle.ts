@@ -108,3 +108,63 @@ export const UpdateDraftLifecycleInput = Schema.Struct({
   agentTypes: Schema.optionalWith(Schema.Array(AgentTypeDefinition), { default: () => [] }),
 });
 export type UpdateDraftLifecycleInput = typeof UpdateDraftLifecycleInput.Type;
+
+export const GetWorkUnitStateMachineInput = Schema.Struct({
+  versionId: Schema.NonEmptyString,
+  workUnitTypeKey: Schema.NonEmptyString,
+});
+export type GetWorkUnitStateMachineInput = typeof GetWorkUnitStateMachineInput.Type;
+
+export const UpsertWorkUnitLifecycleStateInput = Schema.Struct({
+  versionId: Schema.NonEmptyString,
+  workUnitTypeKey: Schema.NonEmptyString,
+  state: LifecycleState,
+});
+export type UpsertWorkUnitLifecycleStateInput = typeof UpsertWorkUnitLifecycleStateInput.Type;
+
+export const DeleteWorkUnitLifecycleStateStrategy = Schema.Literal("disconnect", "cleanup");
+export type DeleteWorkUnitLifecycleStateStrategy = typeof DeleteWorkUnitLifecycleStateStrategy.Type;
+
+export const DeleteWorkUnitLifecycleStateInput = Schema.Struct({
+  versionId: Schema.NonEmptyString,
+  workUnitTypeKey: Schema.NonEmptyString,
+  stateKey: Schema.NonEmptyString,
+  strategy: Schema.optionalWith(DeleteWorkUnitLifecycleStateStrategy, {
+    default: () => "disconnect",
+  }),
+});
+export type DeleteWorkUnitLifecycleStateInput = typeof DeleteWorkUnitLifecycleStateInput.Type;
+
+export const UpsertWorkUnitLifecycleTransitionInput = Schema.Struct({
+  versionId: Schema.NonEmptyString,
+  workUnitTypeKey: Schema.NonEmptyString,
+  transition: LifecycleTransition,
+});
+export type UpsertWorkUnitLifecycleTransitionInput =
+  typeof UpsertWorkUnitLifecycleTransitionInput.Type;
+
+export const DeleteWorkUnitLifecycleTransitionInput = Schema.Struct({
+  versionId: Schema.NonEmptyString,
+  workUnitTypeKey: Schema.NonEmptyString,
+  transitionKey: Schema.NonEmptyString,
+});
+export type DeleteWorkUnitLifecycleTransitionInput =
+  typeof DeleteWorkUnitLifecycleTransitionInput.Type;
+
+export const ReplaceWorkUnitTransitionConditionSetsInput = Schema.Struct({
+  versionId: Schema.NonEmptyString,
+  workUnitTypeKey: Schema.NonEmptyString,
+  transitionKey: Schema.NonEmptyString,
+  conditionSets: Schema.Array(TransitionConditionSet),
+});
+export type ReplaceWorkUnitTransitionConditionSetsInput =
+  typeof ReplaceWorkUnitTransitionConditionSetsInput.Type;
+
+export const ReplaceWorkUnitTransitionBindingsInput = Schema.Struct({
+  versionId: Schema.NonEmptyString,
+  workUnitTypeKey: Schema.NonEmptyString,
+  transitionKey: Schema.NonEmptyString,
+  workflowKeys: Schema.Array(Schema.NonEmptyString),
+});
+export type ReplaceWorkUnitTransitionBindingsInput =
+  typeof ReplaceWorkUnitTransitionBindingsInput.Type;

@@ -22,6 +22,10 @@ import type {
   WorkUnitTypeDefinition,
 } from "@chiron/contracts/methodology/lifecycle";
 import type { UpdateDraftWorkflowsInputDto } from "@chiron/contracts/methodology/dto";
+import type {
+  GetWorkUnitArtifactSlotsInput,
+  ReplaceWorkUnitArtifactSlotsInput,
+} from "@chiron/contracts/methodology/artifact-slot";
 import { Context, Effect, Layer } from "effect";
 
 import {
@@ -439,6 +443,31 @@ export class MethodologyVersionService extends Context.Tag("MethodologyVersionSe
       input: ArchiveVersionInput,
       actorId: string | null,
     ) => Effect.Effect<MethodologyVersionRow, VersionNotFoundError | RepositoryError>;
+    readonly getWorkUnitArtifactSlots: (input: GetWorkUnitArtifactSlotsInput) => Effect.Effect<
+      readonly {
+        key: string;
+        displayName: string | null;
+        description: unknown;
+        guidance: unknown;
+        cardinality: "single" | "fileset";
+        rules: unknown;
+        templates: readonly {
+          key: string;
+          displayName: string | null;
+          description: unknown;
+          guidance: unknown;
+          content: string | null;
+        }[];
+      }[],
+      RepositoryError
+    >;
+    readonly replaceWorkUnitArtifactSlots: (
+      input: ReplaceWorkUnitArtifactSlotsInput,
+      actorId: string | null,
+    ) => Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | RepositoryError
+    >;
   }
 >() {}
 
@@ -677,6 +706,85 @@ export const MethodologyVersionServiceLive = Layer.effect(
         );
       });
 
+    const getWorkUnitArtifactSlots = (input: GetWorkUnitArtifactSlotsInput) =>
+      repo
+        .findArtifactSlotsByWorkUnitType({
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+        })
+        .pipe(
+          Effect.map((slots) =>
+            slots.map((slot) => ({
+              key: slot.key,
+              displayName: slot.displayName,
+              description: slot.descriptionJson,
+              guidance: slot.guidanceJson,
+              cardinality: slot.cardinality,
+              rules: slot.rulesJson,
+              templates: slot.templates.map((template) => ({
+                key: template.key,
+                displayName: template.displayName,
+                description: template.descriptionJson,
+                guidance: template.guidanceJson,
+                content: template.content,
+              })),
+            })),
+          ),
+        );
+
+    const replaceWorkUnitArtifactSlots = (
+      input: ReplaceWorkUnitArtifactSlotsInput,
+      actorId: string,
+    ): Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | RepositoryError
+    > =>
+      Effect.gen(function* () {
+        const existing = yield* repo.findVersionById(input.versionId);
+        if (!existing) {
+          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+        }
+
+        yield* ensureVersionIsDraft(existing);
+
+        yield* repo.replaceArtifactSlotsForWorkUnitType({
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+          slots: input.slots.map((slot) => ({
+            key: slot.key,
+            displayName: slot.displayName ?? null,
+            descriptionJson: slot.description ?? null,
+            guidanceJson: slot.guidance ?? null,
+            cardinality: slot.cardinality,
+            rulesJson: slot.rules ?? null,
+            templates: slot.templates.map((template) => ({
+              key: template.key,
+              displayName: template.displayName ?? null,
+              descriptionJson: template.description ?? null,
+              guidanceJson: template.guidance ?? null,
+              content: template.content ?? null,
+            })),
+          })),
+        });
+
+        yield* repo.recordEvent({
+          methodologyVersionId: input.versionId,
+          eventType: "updated",
+          actorId,
+          changedFieldsJson: {
+            workUnitTypeKey: input.workUnitTypeKey,
+            artifactSlots: true,
+          },
+          diagnosticsJson: null,
+        });
+
+        const diagnostics: ValidationResult = { valid: true, diagnostics: [] };
+        return {
+          version: existing,
+          diagnostics,
+        };
+      });
+
     return MethodologyVersionService.of({
       createMethodology: (methodologyKey, displayName) =>
         coreService.createMethodology(methodologyKey, displayName),
@@ -715,6 +823,9 @@ export const MethodologyVersionServiceLive = Layer.effect(
           : createWorkUnit(input, actorId ?? "system"),
       updateWorkUnitMetadata: (input, actorId) => updateWorkUnit(input, actorId ?? "system"),
       updateDraftLifecycle: (input, actorId) => updateDraftLifecycle(input, actorId ?? "system"),
+      getWorkUnitArtifactSlots,
+      replaceWorkUnitArtifactSlots: (input, actorId) =>
+        replaceWorkUnitArtifactSlots(input, actorId ?? "system"),
     });
   }),
 );

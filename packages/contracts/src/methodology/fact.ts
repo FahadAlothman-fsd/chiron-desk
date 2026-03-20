@@ -92,3 +92,16 @@ export const DeleteMethodologyFactInput = Schema.Struct({
   factKey: Schema.NonEmptyString,
 });
 export type DeleteMethodologyFactInput = typeof DeleteMethodologyFactInput.Type;
+
+export const GetWorkUnitFactsInput = Schema.Struct({
+  versionId: Schema.NonEmptyString,
+  workUnitTypeKey: Schema.NonEmptyString,
+});
+export type GetWorkUnitFactsInput = typeof GetWorkUnitFactsInput.Type;
+
+export const ReplaceWorkUnitFactsInput = Schema.Struct({
+  versionId: Schema.NonEmptyString,
+  workUnitTypeKey: Schema.NonEmptyString,
+  facts: Schema.Array(FactSchema),
+});
+export type ReplaceWorkUnitFactsInput = typeof ReplaceWorkUnitFactsInput.Type;

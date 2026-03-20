@@ -270,39 +270,39 @@ so that topology, contracts, and lifecycle can be authored in one coherent surfa
 - [x] Design-time work-unit fact table name locked to **`work_unit_fact_definitions`** (separate from methodology-level fact definitions).
 
 ### Backend Foundation (Slice 1 - Low-Risk)
-- [ ] Pre-Implementation Cleanup Gate (must complete before Slice 1)
-  - [ ] Remove deprecated fact `required` persistence/typing/projection usage for methodology + work-unit fact definitions.
-  - [ ] Align canonical seed scope to metadata-only pre-L2 baseline (no project-context lifecycle/workflow seeding yet).
-  - [ ] Complete and verify plan in `docs/plans/2026-03-20-story-3-2-pre-implementation-cleanup-plan.md`.
-- [ ] Task 1.1: Create artifact-slot contracts and schema (AC: 9)
+- [x] Pre-Implementation Cleanup Gate (must complete before Slice 1)
+  - [x] Remove deprecated fact `required` persistence/typing/projection usage for methodology + work-unit fact definitions.
+  - [x] Align canonical seed scope to metadata-only pre-L2 baseline (no project-context lifecycle/workflow seeding yet).
+  - [x] Complete and verify plan in `docs/plans/2026-03-20-story-3-2-pre-implementation-cleanup-plan.md`.
+- [x] Task 1.1: Create artifact-slot contracts and schema (AC: 9)
   - [x] Include completed baseline schema migration context before new deferred work:
     - `work_unit_lifecycle_states`, `work_unit_lifecycle_transitions`, `transition_condition_sets`
     - gate class derived from condition-set phase in authoring surfaces
     - workflow I/O contracts removed from active model
-  - [ ] Align fact persistence split naming before L2 tab implementation:
+  - [x] Align fact persistence split naming before L2 tab implementation:
     - methodology-level facts remain in `methodology_fact_definitions`
     - work-unit-scoped design-time facts move/use `work_unit_fact_definitions`
-  - [ ] Create `packages/contracts/src/methodology/artifact-slot.ts`
-  - [ ] Update `packages/db/src/schema/methodology.ts` with artifact-slot tables
-  - [ ] Add repository methods in `packages/db/src/methodology-repository.ts`
-  - [ ] Add targeted tests for artifact-slot CRUD paths
+  - [x] Create `packages/contracts/src/methodology/artifact-slot.ts`
+  - [x] Update `packages/db/src/schema/methodology.ts` with artifact-slot tables
+  - [x] Add repository methods in `packages/db/src/methodology-repository.ts`
+  - [x] Add targeted tests for artifact-slot CRUD paths
 
 ### Backend State Machine & Workflow Ownership (Slice 2)
-- [ ] Task 2.1: Create state-machine nested contracts and service (AC: 9)
-  - [ ] Update `packages/contracts/src/methodology/lifecycle.ts` with state-machine inputs
-  - [ ] Create `packages/methodology-engine/src/services/work-unit-state-machine-service.ts`
-  - [ ] Implement state CRUD with deletion impact handling
-  - [ ] Implement transition CRUD with unbound detection
-  - [ ] Implement condition set and binding CRUD
-- [ ] Task 2.2: Create work-unit fact service (AC: 9)
-  - [ ] Update `packages/contracts/src/methodology/fact.ts` with work-unit-scoped variants
-  - [ ] Create `packages/methodology-engine/src/services/work-unit-fact-service.ts`
-- [ ] Task 2.3: Update API router with L2 nested paths (AC: 9)
-  - [ ] Add `methodology.version.workUnit.fact.*` procedures
-  - [ ] Add `methodology.version.workUnit.workflow.*` procedures
-  - [ ] Add `methodology.version.workUnit.stateMachine.*` procedures
-  - [ ] Add `methodology.version.workUnit.artifactSlot.*` procedures
-  - [ ] Keep compatibility aliases during transition
+- [x] Task 2.1: Create state-machine nested contracts and service (AC: 9)
+  - [x] Update `packages/contracts/src/methodology/lifecycle.ts` with state-machine inputs
+  - [x] Create `packages/methodology-engine/src/services/work-unit-state-machine-service.ts`
+  - [x] Implement state CRUD with deletion impact handling
+  - [x] Implement transition CRUD with unbound detection
+  - [x] Implement condition set and binding CRUD
+- [x] Task 2.2: Create work-unit fact service (AC: 9)
+  - [x] Update `packages/contracts/src/methodology/fact.ts` with work-unit-scoped variants
+  - [x] Create `packages/methodology-engine/src/services/work-unit-fact-service.ts`
+- [x] Task 2.3: Update API router with L2 nested paths (AC: 9)
+  - [x] Add `methodology.version.workUnit.fact.*` procedures
+  - [x] Add `methodology.version.workUnit.workflow.*` procedures
+  - [x] Add `methodology.version.workUnit.stateMachine.*` procedures
+  - [x] Add `methodology.version.workUnit.artifactSlot.*` procedures
+  - [x] Keep compatibility aliases during transition
 
 ### Frontend Overview Tab (Slice 3)
 - [ ] Task 3.1: Implement Overview Tab Core Structure (AC: 1)
@@ -809,7 +809,27 @@ bunx playwright test tests/e2e/story-3-2-l2-authoring.spec.ts
 - Verified no remaining old lifecycle table names or workflow I/O contract terms in active `*.{ts,tsx,md,sql}` surfaces.
 - Verified methodology workspace authoring tests remain green after gate derivation shift.
 - Remaining Story 3.2 scope now centered on deferred implementation:
-  - artifact slot + artifact slot template schema/contracts/repository/API/service/UI.
+  - remaining backend L2 services + nested API + UI tabs (Overview/Facts/Workflows/State Machine/Artifact Slots).
+- Completed cleanup-gate verification and Task 1.1 backend foundation for artifact slots:
+  - verified cleanup gate suites (db/api/engine/scripts) remain green with required-field deprecation and metadata-only seed scope.
+  - added artifact-slot contracts (`packages/contracts/src/methodology/artifact-slot.ts`) and export wiring.
+  - added artifact-slot definition/template schema tables in DB schema.
+  - implemented repository methods for replacing and reading work-unit scoped artifact slots with nested templates.
+  - added repository integration coverage proving nested template persistence and retrieval.
+- Added nested work-unit API namespace surface and artifact-slot route behavior:
+  - `methodology.version.workUnit.fact.*`, `.workflow.*`, `.stateMachine.*`, and `.artifactSlot.*` paths now exist on router aliases.
+  - added artifact-slot replace/list behavior through `MethodologyVersionBoundaryService` with repository-backed persistence.
+  - added router integration test coverage validating nested namespace exposure and artifact-slot round-trip.
+- Added L2 service-contract scaffolding for pending backend slices:
+  - created `work-unit-fact-service.ts`, `work-unit-state-machine-service.ts`, and `work-unit-artifact-slot-service.ts` contracts/tags.
+  - exported new service contracts from methodology-engine index and validated scaffold export tests.
+  - attempted to wire artifact-slot live layer into L1 aggregate, then reverted after runtime dependency failure in API router tests; service remains exported and available for explicit composition.
+- Completed Task 2 state-machine/fact ownership implementation slice:
+  - expanded lifecycle contracts with work-unit scoped state-machine mutation inputs for states, transitions, condition-sets, and bindings.
+  - expanded fact contracts with work-unit scoped get/replace inputs.
+  - implemented `work-unit-state-machine-service.ts` list/upsert/delete flows plus transition binding updates through workflow authoring path.
+  - implemented `work-unit-fact-service.ts` list/replace flows mapped to draft projection and lifecycle update APIs.
+  - added L2-L3 tests for state deletion disconnect behavior, binding replacement routing, and work-unit fact replacement.
 
 ### File List
 
@@ -819,8 +839,10 @@ bunx playwright test tests/e2e/story-3-2-l2-authoring.spec.ts
 - `packages/methodology-engine/src/services/work-unit-artifact-slot-service.ts` (create)
 - `packages/methodology-engine/src/services/work-unit-service.ts` (update)
 - `packages/methodology-engine/src/services/workflow-service.ts` (update)
+- `packages/methodology-engine/src/services/methodology-version-service.ts` (update)
 - `packages/methodology-engine/src/layers/live.ts` (update)
 - `packages/methodology-engine/src/index.ts` (update)
+- `packages/methodology-engine/src/repository.ts` (update)
 - `packages/contracts/src/methodology/artifact-slot.ts` (create)
 - `packages/contracts/src/methodology/fact.ts` (update)
 - `packages/contracts/src/methodology/lifecycle.ts` (update)
@@ -829,7 +851,7 @@ bunx playwright test tests/e2e/story-3-2-l2-authoring.spec.ts
 - `packages/db/src/schema/methodology.ts` (update)
 - `packages/db/src/methodology-repository.ts` (update)
 
-> Note: As of this in-progress update, the files above represent story target scope. Completed updates to date are concentrated in schema/contracts/repository/API/web migration files listed in the repository working tree; artifact-slot-specific service/contract files are still pending creation.
+> Note: As of this in-progress update, backend L2 contracts/services/router foundations are implemented and validated; remaining work is UI tab behavior slices and end-to-end evidence/verification.
 
 #### Frontend Files Created/Updated
 - `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.tsx` (update)
@@ -851,7 +873,9 @@ bunx playwright test tests/e2e/story-3-2-l2-authoring.spec.ts
 - `apps/web/src/features/methodologies/transitions/components/ConditionList.tsx` (create)
 
 #### Test Files Created/Updated
-- Test files for backend services (create)
-- Test files for API router L2 procedures (update)
+- `packages/db/src/tests/repository/methodology-repository.integration.test.ts` (update)
+- `packages/api/src/tests/routers/methodology.test.ts` (update)
+- `packages/methodology-engine/src/tests/l2-l3/scaffold-contracts.test.ts` (update)
+- `packages/methodology-engine/src/tests/l2-l3/work-unit-l2-services.test.ts` (create)
 - Test files for frontend L2 components (create)
 - Playwright E2E spec for Story 3.2 (create)

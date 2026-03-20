@@ -21,6 +21,15 @@ export {
 export { MethodologyEngineL1ServicesLive, MethodologyEngineL1Live } from "./layers/live";
 export { WorkUnitService } from "./services/work-unit-service";
 export { WorkflowService } from "./services/workflow-service";
+export { WorkUnitFactService, WorkUnitFactServiceLive } from "./services/work-unit-fact-service";
+export {
+  WorkUnitStateMachineService,
+  WorkUnitStateMachineServiceLive,
+} from "./services/work-unit-state-machine-service";
+export {
+  WorkUnitArtifactSlotService,
+  WorkUnitArtifactSlotServiceLive,
+} from "./services/work-unit-artifact-slot-service";
 export {
   MethodologyRuntimeResolver,
   WorkUnitRuntimeResolver,

@@ -114,6 +114,35 @@ export interface MethodologyFactDefinitionRow {
   validationJson: unknown;
 }
 
+export interface ArtifactSlotTemplateDefinitionRow {
+  key: string;
+  displayName: string | null;
+  descriptionJson: unknown;
+  guidanceJson: unknown;
+  content: string | null;
+}
+
+export interface ArtifactSlotDefinitionRow {
+  key: string;
+  displayName: string | null;
+  descriptionJson: unknown;
+  guidanceJson: unknown;
+  cardinality: "single" | "fileset";
+  rulesJson: unknown;
+  templates: readonly ArtifactSlotTemplateDefinitionRow[];
+}
+
+export interface ReplaceArtifactSlotsForWorkUnitTypeParams {
+  versionId: string;
+  workUnitTypeKey: string;
+  slots: readonly ArtifactSlotDefinitionRow[];
+}
+
+export interface FindArtifactSlotsByWorkUnitTypeParams {
+  versionId: string;
+  workUnitTypeKey: string;
+}
+
 export type MethodologyLinkTypeDefinitionRow = MethodologyLinkTypeDefinition;
 
 export class MethodologyRepository extends Context.Tag("MethodologyRepository")<
@@ -185,6 +214,12 @@ export class MethodologyRepository extends Context.Tag("MethodologyRepository")<
     readonly findFactDefinitionsByVersionId: (
       versionId: string,
     ) => Effect.Effect<readonly MethodologyFactDefinitionRow[], RepositoryError>;
+    readonly replaceArtifactSlotsForWorkUnitType: (
+      params: ReplaceArtifactSlotsForWorkUnitTypeParams,
+    ) => Effect.Effect<void, RepositoryError>;
+    readonly findArtifactSlotsByWorkUnitType: (
+      params: FindArtifactSlotsByWorkUnitTypeParams,
+    ) => Effect.Effect<readonly ArtifactSlotDefinitionRow[], RepositoryError>;
     readonly publishDraftVersion: (params: PublishDraftVersionParams) => Effect.Effect<
       {
         version: MethodologyVersionRow;

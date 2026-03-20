@@ -29,10 +29,12 @@ export function SurfaceCard(props: {
   badge?: ReactNode;
   actions?: SurfaceCardAction[];
   decorative?: boolean;
+  overlayContrast?: "default" | "high";
 }) {
   const secondaryValues = props.secondaryValues ?? [];
   const actions = props.actions ?? [];
   const decorative = props.decorative ?? true;
+  const overlayContrast = props.overlayContrast ?? "default";
 
   return (
     <article
@@ -49,8 +51,12 @@ export function SurfaceCard(props: {
             className="pointer-events-none absolute inset-0 opacity-100"
             style={{
               background: [
-                "linear-gradient(to bottom, color-mix(in oklab, var(--frame-bg) 92%, transparent), color-mix(in oklab, var(--frame-bg) 82%, transparent))",
-                "repeating-linear-gradient(45deg, transparent, transparent 10px, color-mix(in oklab, var(--section-accent) 32%, transparent) 10px, color-mix(in oklab, var(--section-accent) 32%, transparent) 11px)",
+                overlayContrast === "high"
+                  ? "linear-gradient(to bottom, color-mix(in oklab, var(--frame-bg) 96%, transparent), color-mix(in oklab, var(--frame-bg) 74%, transparent))"
+                  : "linear-gradient(to bottom, color-mix(in oklab, var(--frame-bg) 92%, transparent), color-mix(in oklab, var(--frame-bg) 82%, transparent))",
+                overlayContrast === "high"
+                  ? "repeating-linear-gradient(45deg, transparent, transparent 9px, color-mix(in oklab, var(--section-accent) 52%, transparent) 9px, color-mix(in oklab, var(--section-accent) 52%, transparent) 10px)"
+                  : "repeating-linear-gradient(45deg, transparent, transparent 10px, color-mix(in oklab, var(--section-accent) 32%, transparent) 10px, color-mix(in oklab, var(--section-accent) 32%, transparent) 11px)",
               ].join(", "),
             }}
           />

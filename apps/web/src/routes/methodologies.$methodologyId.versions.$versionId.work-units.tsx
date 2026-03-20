@@ -231,6 +231,17 @@ export function MethodologyVersionWorkUnitsRoute() {
     });
   };
 
+  const openWorkUnitDetails = (workUnitKey: string) => {
+    void navigate({
+      to: "/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey",
+      params: {
+        methodologyId,
+        versionId,
+        workUnitKey,
+      },
+    });
+  };
+
   const clearCreateIntent = () => updateSearch({});
 
   const resetWorkUnitFormState = (values: WorkUnitFormValues) => {
@@ -725,7 +736,7 @@ export function MethodologyVersionWorkUnitsRoute() {
               rows={filteredWorkUnits}
               graph={graphProjection}
               activeWorkUnitKey={activeWorkUnitKey}
-              onSelect={(workUnitKey) => updateSearch({ selected: workUnitKey })}
+              onSelect={openWorkUnitDetails}
             />
           ) : activeView === "contracts" ? (
             <section className="chiron-frame-flat flex min-h-[28rem] flex-col justify-between p-4">
@@ -775,7 +786,7 @@ export function MethodologyVersionWorkUnitsRoute() {
             activeWorkUnitKey={activeWorkUnitKey}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
-            onSelect={(workUnitKey) => updateSearch({ selected: workUnitKey })}
+            onSelect={openWorkUnitDetails}
             onOpenRelationshipView={(workUnitKey) =>
               updateSearch({
                 view: "graph",

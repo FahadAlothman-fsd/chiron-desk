@@ -36,6 +36,8 @@ import {
   methodologyWorkflowEdges,
   methodologyTransitionWorkflowBindings,
   methodologyFactSchemas,
+  methodologyArtifactSlotDefinitions,
+  methodologyArtifactSlotTemplates,
 } from "./schema/methodology";
 
 type DB = LibSQLDatabase<Record<string, unknown>>;
@@ -971,6 +973,193 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           .orderBy(asc(methodologyFactDefinitions.key));
 
         return rows as readonly MethodologyFactDefinitionRow[];
+      }),
+
+    replaceArtifactSlotsForWorkUnitType: ({ versionId, workUnitTypeKey, slots }) =>
+      dbEffect("methodology.replaceArtifactSlotsForWorkUnitType", () =>
+        db.transaction(async (tx) => {
+          const workUnitRows = await tx
+            .select({ id: methodologyWorkUnitTypes.id })
+            .from(methodologyWorkUnitTypes)
+            .where(
+              and(
+                eq(methodologyWorkUnitTypes.methodologyVersionId, versionId),
+                eq(methodologyWorkUnitTypes.key, workUnitTypeKey),
+              ),
+            )
+            .limit(1);
+          const workUnitTypeId = workUnitRows[0]?.id;
+
+          if (!workUnitTypeId) {
+            return;
+          }
+
+          const existingSlots = await tx
+            .select({ id: methodologyArtifactSlotDefinitions.id })
+            .from(methodologyArtifactSlotDefinitions)
+            .where(
+              and(
+                eq(methodologyArtifactSlotDefinitions.methodologyVersionId, versionId),
+                eq(methodologyArtifactSlotDefinitions.workUnitTypeId, workUnitTypeId),
+              ),
+            );
+
+          if (existingSlots.length > 0) {
+            const slotIds = existingSlots.map((row) => row.id);
+            for (const slotId of slotIds) {
+              await tx
+                .delete(methodologyArtifactSlotTemplates)
+                .where(eq(methodologyArtifactSlotTemplates.slotDefinitionId, slotId));
+            }
+            await tx
+              .delete(methodologyArtifactSlotDefinitions)
+              .where(
+                and(
+                  eq(methodologyArtifactSlotDefinitions.methodologyVersionId, versionId),
+                  eq(methodologyArtifactSlotDefinitions.workUnitTypeId, workUnitTypeId),
+                ),
+              );
+          }
+
+          for (const slot of slots) {
+            const insertedSlotRows = await tx
+              .insert(methodologyArtifactSlotDefinitions)
+              .values({
+                methodologyVersionId: versionId,
+                workUnitTypeId,
+                key: slot.key,
+                displayName: slot.displayName,
+                descriptionJson: slot.descriptionJson,
+                guidanceJson: slot.guidanceJson,
+                cardinality: slot.cardinality,
+                rulesJson: slot.rulesJson,
+              })
+              .returning({ id: methodologyArtifactSlotDefinitions.id });
+            const slotDefinitionId = insertedSlotRows[0]?.id;
+
+            if (!slotDefinitionId || slot.templates.length === 0) {
+              continue;
+            }
+
+            await tx.insert(methodologyArtifactSlotTemplates).values(
+              slot.templates.map((template) => ({
+                methodologyVersionId: versionId,
+                slotDefinitionId,
+                key: template.key,
+                displayName: template.displayName,
+                descriptionJson: template.descriptionJson,
+                guidanceJson: template.guidanceJson,
+                content: template.content,
+              })),
+            );
+          }
+        }),
+      ),
+
+    findArtifactSlotsByWorkUnitType: ({ versionId, workUnitTypeKey }) =>
+      dbEffect("methodology.findArtifactSlotsByWorkUnitType", async () => {
+        const rows = await db
+          .select({
+            slotKey: methodologyArtifactSlotDefinitions.key,
+            slotDisplayName: methodologyArtifactSlotDefinitions.displayName,
+            slotDescriptionJson: methodologyArtifactSlotDefinitions.descriptionJson,
+            slotGuidanceJson: methodologyArtifactSlotDefinitions.guidanceJson,
+            slotCardinality: methodologyArtifactSlotDefinitions.cardinality,
+            slotRulesJson: methodologyArtifactSlotDefinitions.rulesJson,
+            templateKey: methodologyArtifactSlotTemplates.key,
+            templateDisplayName: methodologyArtifactSlotTemplates.displayName,
+            templateDescriptionJson: methodologyArtifactSlotTemplates.descriptionJson,
+            templateGuidanceJson: methodologyArtifactSlotTemplates.guidanceJson,
+            templateContent: methodologyArtifactSlotTemplates.content,
+          })
+          .from(methodologyArtifactSlotDefinitions)
+          .innerJoin(
+            methodologyWorkUnitTypes,
+            eq(methodologyArtifactSlotDefinitions.workUnitTypeId, methodologyWorkUnitTypes.id),
+          )
+          .leftJoin(
+            methodologyArtifactSlotTemplates,
+            eq(
+              methodologyArtifactSlotDefinitions.id,
+              methodologyArtifactSlotTemplates.slotDefinitionId,
+            ),
+          )
+          .where(
+            and(
+              eq(methodologyArtifactSlotDefinitions.methodologyVersionId, versionId),
+              eq(methodologyWorkUnitTypes.key, workUnitTypeKey),
+            ),
+          )
+          .orderBy(
+            asc(methodologyArtifactSlotDefinitions.key),
+            asc(methodologyArtifactSlotTemplates.key),
+          );
+
+        const slots = new Map<
+          string,
+          {
+            key: string;
+            displayName: string | null;
+            descriptionJson: unknown;
+            guidanceJson: unknown;
+            cardinality: "single" | "fileset";
+            rulesJson: unknown;
+            templates: Array<{
+              key: string;
+              displayName: string | null;
+              descriptionJson: unknown;
+              guidanceJson: unknown;
+              content: string | null;
+            }>;
+          }
+        >();
+
+        for (const row of rows) {
+          const existing = slots.get(row.slotKey);
+          if (existing) {
+            if (row.templateKey) {
+              existing.templates.push({
+                key: row.templateKey,
+                displayName: row.templateDisplayName,
+                descriptionJson: row.templateDescriptionJson,
+                guidanceJson: row.templateGuidanceJson,
+                content: row.templateContent,
+              });
+            }
+            continue;
+          }
+
+          const slot = {
+            key: row.slotKey,
+            displayName: row.slotDisplayName,
+            descriptionJson: row.slotDescriptionJson,
+            guidanceJson: row.slotGuidanceJson,
+            cardinality:
+              row.slotCardinality === "fileset" ? ("fileset" as const) : ("single" as const),
+            rulesJson: row.slotRulesJson,
+            templates: [] as Array<{
+              key: string;
+              displayName: string | null;
+              descriptionJson: unknown;
+              guidanceJson: unknown;
+              content: string | null;
+            }>,
+          };
+
+          if (row.templateKey) {
+            slot.templates.push({
+              key: row.templateKey,
+              displayName: row.templateDisplayName,
+              descriptionJson: row.templateDescriptionJson,
+              guidanceJson: row.templateGuidanceJson,
+              content: row.templateContent,
+            });
+          }
+
+          slots.set(row.slotKey, slot);
+        }
+
+        return [...slots.values()];
       }),
 
     publishDraftVersion: (params: PublishDraftVersionParams) =>

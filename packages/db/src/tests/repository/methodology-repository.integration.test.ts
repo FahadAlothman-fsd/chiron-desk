@@ -168,6 +168,33 @@ const SCHEMA_SQL = [
     updated_at INTEGER NOT NULL,
     UNIQUE(methodology_version_id, key)
   )`,
+  `CREATE TABLE methodology_artifact_slot_definitions (
+    id TEXT PRIMARY KEY,
+    methodology_version_id TEXT NOT NULL,
+    work_unit_type_id TEXT NOT NULL,
+    key TEXT NOT NULL,
+    display_name TEXT,
+    description_json TEXT,
+    guidance_json TEXT,
+    cardinality TEXT NOT NULL,
+    rules_json TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    UNIQUE(methodology_version_id, work_unit_type_id, key)
+  )`,
+  `CREATE TABLE methodology_artifact_slot_templates (
+    id TEXT PRIMARY KEY,
+    methodology_version_id TEXT NOT NULL,
+    slot_definition_id TEXT NOT NULL,
+    key TEXT NOT NULL,
+    display_name TEXT,
+    description_json TEXT,
+    guidance_json TEXT,
+    content TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    UNIQUE(slot_definition_id, key)
+  )`,
   `CREATE TABLE methodology_link_type_definitions (
     id TEXT PRIMARY KEY,
     methodology_version_id TEXT NOT NULL,
@@ -643,6 +670,72 @@ describe("methodology repository integration", () => {
     ).catch((error) => error);
 
     expect(String(conflictError)).toContain("PUBLISH_CONCURRENT_WRITE_CONFLICT");
+  });
+
+  it("persists and reads artifact slots with nested templates for a work-unit type", async () => {
+    const created = await runRepo((repo) =>
+      repo.createDraft({
+        methodologyKey: "artifact-slot-methodology",
+        displayName: "Artifact Slot Methodology",
+        version: "0.1.0-draft",
+        definitionExtensions: {},
+        workflows: [],
+        transitionWorkflowBindings: {},
+        actorId: "user-1",
+        validationDiagnostics: VALIDATION_OK,
+      }),
+    );
+
+    const versionId = created.version.id;
+
+    await db.insert(methodologyWorkUnitTypes).values({
+      methodologyVersionId: versionId,
+      key: "task",
+      displayName: "Task",
+      descriptionJson: null,
+      cardinality: "many_per_project",
+      guidanceJson: null,
+    });
+
+    await runRepo((repo) =>
+      repo.replaceArtifactSlotsForWorkUnitType({
+        versionId,
+        workUnitTypeKey: "task",
+        slots: [
+          {
+            key: "project_brief",
+            displayName: "Project Brief",
+            descriptionJson: { human: { markdown: "Project brief" }, agent: { markdown: "" } },
+            guidanceJson: { human: { markdown: "Keep concise" }, agent: { markdown: "" } },
+            cardinality: "single",
+            rulesJson: { maxFiles: 1 },
+            templates: [
+              {
+                key: "default",
+                displayName: "Default Brief",
+                descriptionJson: {
+                  human: { markdown: "Default template" },
+                  agent: { markdown: "" },
+                },
+                guidanceJson: { human: { markdown: "Fill all sections" }, agent: { markdown: "" } },
+                content: "# Brief\n\n- Context\n- Goals",
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    const slots = await runRepo((repo) =>
+      repo.findArtifactSlotsByWorkUnitType({ versionId, workUnitTypeKey: "task" }),
+    );
+
+    expect(slots).toHaveLength(1);
+    expect(slots[0]?.key).toBe("project_brief");
+    expect(slots[0]?.cardinality).toBe("single");
+    expect(slots[0]?.templates).toHaveLength(1);
+    expect(slots[0]?.templates[0]?.key).toBe("default");
+    expect(slots[0]?.templates[0]?.content).toContain("# Brief");
   });
 
   it("returns atomicity guard code and preserves draft state on event-write failure", async () => {

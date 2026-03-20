@@ -267,6 +267,26 @@ describe("methodology version work units l1 route", () => {
     });
   });
 
+  it("navigates to work-unit detail route when selecting a work unit from the list", async () => {
+    const { MethodologyVersionWorkUnitsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitsRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Validation/i }));
+
+    expect(useNavigateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey",
+        params: {
+          methodologyId: "equity-core",
+          versionId: "draft-v3",
+          workUnitKey: "WU.VALIDATION",
+        },
+      }),
+    );
+  });
+
   it("creates a work unit through Contract and Guidance tabs", async () => {
     createWorkUnitMutationSpy.mockImplementationOnce(async (...args: unknown[]) => {
       const [{ workUnitType }] = args as [
