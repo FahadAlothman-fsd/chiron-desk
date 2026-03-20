@@ -1,5 +1,4 @@
 import {
-  DEFAULT_DEFINITION,
   RUNTIME_DEFERRED_RATIONALE,
   selectLatestDraft,
   sortCatalogDeterministically,
@@ -401,8 +400,5 @@ export function buildNextDraftInput(details: MethodologyDetails, methodologyKey:
     methodologyKey,
     displayName: `${details.displayName} Draft ${nextIndex}`,
     version: `0.${nextIndex}.0`,
-    workUnitTypes: [...DEFAULT_DEFINITION.workUnitTypes],
-    agentTypes: [...DEFAULT_DEFINITION.agentTypes],
-    artifactTemplates: [...DEFAULT_DEFINITION.artifactTemplates],
   };
 }
