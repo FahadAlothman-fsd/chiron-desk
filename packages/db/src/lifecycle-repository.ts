@@ -23,7 +23,7 @@ import {
   workUnitLifecycleStates,
   workUnitLifecycleTransitions,
   transitionConditionSets,
-  methodologyFactSchemas,
+  workUnitFactDefinitions,
   methodologyVersions,
   methodologyVersionEvents,
 } from "./schema/methodology";
@@ -79,7 +79,7 @@ function toLifecycleTransitionRow(
   };
 }
 
-function toFactSchemaRow(row: typeof methodologyFactSchemas.$inferSelect): FactSchemaRow {
+function toFactSchemaRow(row: typeof workUnitFactDefinitions.$inferSelect): FactSchemaRow {
   return {
     id: row.id,
     methodologyVersionId: row.methodologyVersionId,
@@ -236,15 +236,15 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
 
     findFactSchemas: (versionId: string, workUnitTypeId?: string) =>
       dbEffect("lifecycle.findFactSchemas", async () => {
-        const conditions = [eq(methodologyFactSchemas.methodologyVersionId, versionId)];
+        const conditions = [eq(workUnitFactDefinitions.methodologyVersionId, versionId)];
         if (workUnitTypeId) {
-          conditions.push(eq(methodologyFactSchemas.workUnitTypeId, workUnitTypeId));
+          conditions.push(eq(workUnitFactDefinitions.workUnitTypeId, workUnitTypeId));
         }
         const rows = await db
           .select()
-          .from(methodologyFactSchemas)
+          .from(workUnitFactDefinitions)
           .where(and(...conditions))
-          .orderBy(asc(methodologyFactSchemas.key));
+          .orderBy(asc(workUnitFactDefinitions.key));
         return rows.map(toFactSchemaRow) as readonly FactSchemaRow[];
       }),
     findTransitionConditionSets: (versionId: string, transitionId?: string) =>
@@ -375,8 +375,8 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
             .where(eq(workUnitLifecycleTransitions.methodologyVersionId, params.versionId));
 
           await tx
-            .delete(methodologyFactSchemas)
-            .where(eq(methodologyFactSchemas.methodologyVersionId, params.versionId));
+            .delete(workUnitFactDefinitions)
+            .where(eq(workUnitFactDefinitions.methodologyVersionId, params.versionId));
 
           await tx
             .delete(workUnitLifecycleStates)
@@ -431,7 +431,7 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
 
             // Insert fact schemas for this work unit type
             for (const fact of wut.factSchemas) {
-              await tx.insert(methodologyFactSchemas).values({
+              await tx.insert(workUnitFactDefinitions).values({
                 methodologyVersionId: params.versionId,
                 workUnitTypeId: wutRow.id,
                 name: fact.name ?? null,

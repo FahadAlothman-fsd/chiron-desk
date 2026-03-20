@@ -240,7 +240,7 @@ export const workUnitLifecycleTransitions = sqliteTable(
   ],
 );
 
-export const methodologyFactSchemas = sqliteTable(
+export const workUnitFactDefinitions = sqliteTable(
   "work_unit_fact_definitions",
   {
     id: text("id")

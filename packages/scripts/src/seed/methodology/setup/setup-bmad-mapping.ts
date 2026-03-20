@@ -7,7 +7,7 @@ export type MethodologyLifecycleTransitionSeedRow =
   typeof schema.workUnitLifecycleTransitions.$inferInsert;
 export type MethodologyTransitionConditionSetSeedRow =
   typeof schema.transitionConditionSets.$inferInsert;
-export type MethodologyFactSchemaSeedRow = typeof schema.methodologyFactSchemas.$inferInsert;
+export type MethodologyFactSchemaSeedRow = typeof schema.workUnitFactDefinitions.$inferInsert;
 export type MethodologyFactDefinitionSeedRow =
   typeof schema.methodologyFactDefinitions.$inferInsert;
 export type MethodologyWorkflowSeedRow = typeof schema.methodologyWorkflows.$inferInsert;

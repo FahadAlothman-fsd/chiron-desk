@@ -147,7 +147,7 @@ Expected: PASS.
 
 In `packages/db/src/schema/methodology.ts`:
 - Add `guidanceJson` to `methodologyFactDefinitions`.
-- Add `validationJson` to `methodologyFactSchemas`.
+- Add `validationJson` to `workUnitFactDefinitions`.
 
 Expected: TypeScript compiles.
 

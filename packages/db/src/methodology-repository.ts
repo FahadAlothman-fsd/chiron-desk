@@ -35,7 +35,7 @@ import {
   methodologyWorkflowSteps,
   methodologyWorkflowEdges,
   methodologyTransitionWorkflowBindings,
-  methodologyFactSchemas,
+  workUnitFactDefinitions,
   methodologyArtifactSlotDefinitions,
   methodologyArtifactSlotTemplates,
 } from "./schema/methodology";
@@ -933,17 +933,17 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
       dbEffect("methodology.findFactSchemasByVersionId", async () => {
         const rows = await db
           .select({
-            name: methodologyFactSchemas.name,
-            key: methodologyFactSchemas.key,
-            factType: methodologyFactSchemas.factType,
-            description: methodologyFactSchemas.description,
-            defaultValueJson: methodologyFactSchemas.defaultValueJson,
-            guidanceJson: methodologyFactSchemas.guidanceJson,
-            validationJson: methodologyFactSchemas.validationJson,
+            name: workUnitFactDefinitions.name,
+            key: workUnitFactDefinitions.key,
+            factType: workUnitFactDefinitions.factType,
+            description: workUnitFactDefinitions.description,
+            defaultValueJson: workUnitFactDefinitions.defaultValueJson,
+            guidanceJson: workUnitFactDefinitions.guidanceJson,
+            validationJson: workUnitFactDefinitions.validationJson,
           })
-          .from(methodologyFactSchemas)
-          .where(eq(methodologyFactSchemas.methodologyVersionId, versionId))
-          .orderBy(asc(methodologyFactSchemas.key));
+          .from(workUnitFactDefinitions)
+          .where(eq(workUnitFactDefinitions.methodologyVersionId, versionId))
+          .orderBy(asc(workUnitFactDefinitions.key));
 
         return rows.map((row) => ({
           name: row.name,
