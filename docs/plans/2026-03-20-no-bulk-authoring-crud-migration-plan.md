@@ -8,6 +8,13 @@
 
 **Tech Stack:** TypeScript, Effect, oRPC, Hono, Drizzle/SQLite, Vitest, TanStack Query.
 
+## Status Note (2026-03-21)
+
+- Story 3-2 design-time web closure now consumes nested explicit CRUD surfaces for L2 (`workUnit.workflow.*`, `workUnit.stateMachine.transition.conditionSet.*`, `workUnit.artifactSlot.*`) without adding new bulk authoring paths.
+- L2 workflows remain metadata-only in Story 3-2, with editor behavior explicitly deferred to Story 3-3 route deep-linking.
+- Facts UI no longer uses `required` semantics; dependency-type remains treatment/badge semantics only.
+- This migration plan remains the authority for removing remaining transitional aliasing and preserving the no-bulk policy.
+
 ---
 
 ## Ground Rules (Locked)

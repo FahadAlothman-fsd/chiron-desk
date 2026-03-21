@@ -37,6 +37,10 @@ test("deriveWorkUnitsPageRows returns deterministic L1 work-unit summaries", () 
     {
       key: "WU.INTAKE",
       displayName: "Intake",
+      description: "",
+      cardinality: "many_per_project",
+      humanGuidance: "",
+      agentGuidance: "",
       transitionCount: 2,
       workflowCount: 1,
       factCount: 2,
@@ -45,6 +49,10 @@ test("deriveWorkUnitsPageRows returns deterministic L1 work-unit summaries", () 
     {
       key: "WU.VALIDATION",
       displayName: "Validation",
+      description: "",
+      cardinality: "many_per_project",
+      humanGuidance: "",
+      agentGuidance: "",
       transitionCount: 1,
       workflowCount: 2,
       factCount: 1,

@@ -2350,14 +2350,18 @@ export function mapValidationDiagnosticsToWorkspaceDiagnostics(
   const diagnostics = "diagnostics" in input ? input.diagnostics : input;
 
   return diagnostics
-    .map((diagnostic: ValidationDiagnosticShape) => ({
-      field: scopeToWorkspaceField(diagnostic.scope),
-      message: formatValidationDiagnostic(diagnostic),
-      blocking: diagnostic.blocking ?? true,
-      group: deriveDiagnosticGroup(diagnostic.scope),
-      scope: diagnostic.scope,
-      focusTarget: deriveFocusTarget(diagnostic.scope),
-    }))
+    .map((diagnostic: ValidationDiagnosticShape) => {
+      const focusTarget = deriveFocusTarget(diagnostic.scope);
+
+      return {
+        field: scopeToWorkspaceField(diagnostic.scope),
+        message: formatValidationDiagnostic(diagnostic),
+        blocking: diagnostic.blocking ?? true,
+        group: deriveDiagnosticGroup(diagnostic.scope),
+        scope: diagnostic.scope,
+        ...(focusTarget ? { focusTarget } : {}),
+      };
+    })
     .sort(compareDiagnosticsDeterministically);
 }
 

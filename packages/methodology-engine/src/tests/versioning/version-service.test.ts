@@ -1131,6 +1131,41 @@ describe("MethodologyVersionService", () => {
       expect(result.version.displayName).toBe("Changed Name");
       expect(result.version.version).toBe("2.0.0");
     });
+
+    it("does not record spurious changes for omitted-vs-undefined optional fields", async () => {
+      const layer = makeServiceLayer();
+
+      const events = await Effect.runPromise(
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionService;
+          const repo = yield* MethodologyRepository;
+          const created = yield* svc.createDraftVersion(MINIMAL_INPUT, TEST_ACTOR_ID);
+
+          const existing = yield* repo.findVersionById(created.version.id);
+          if (existing) {
+            (existing as { definitionExtensions: unknown }).definitionExtensions = {};
+          }
+
+          yield* svc.updateDraftVersion(
+            {
+              versionId: created.version.id,
+              displayName: MINIMAL_INPUT.displayName,
+              version: MINIMAL_INPUT.version,
+              definition: MINIMAL_INPUT.definition,
+            },
+            TEST_ACTOR_ID,
+          );
+
+          return yield* svc.getDraftLineage({ methodologyVersionId: created.version.id });
+        }).pipe(Effect.provide(layer)),
+      );
+
+      const updatedEvent = [...events]
+        .reverse()
+        .find((event: MethodologyVersionEventRow) => event.eventType === "updated");
+      expect(updatedEvent?.changedFieldsJson).toBeNull();
+      expect(events.map((event) => event.eventType)).not.toContain("workflows_updated");
+    });
   });
 
   describe("dependency definition CRUD guards", () => {

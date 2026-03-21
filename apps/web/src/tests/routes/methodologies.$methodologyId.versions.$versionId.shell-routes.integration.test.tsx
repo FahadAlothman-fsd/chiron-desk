@@ -56,6 +56,46 @@ function createRouteContext(options?: {
         {
           key: "WU.TASK",
           displayName: "Task",
+          lifecycle: {
+            states: [
+              { key: "todo", displayName: "To Do", description: "Awaiting work" },
+              { key: "done", displayName: "Done", description: "Completed" },
+            ],
+            transitions: [
+              {
+                transitionKey: "todo_to_done",
+                fromState: "todo",
+                toState: "done",
+                conditionSets: [],
+              },
+            ],
+          },
+          workflows: [
+            {
+              key: "wf.intake",
+              displayName: "Intake Workflow",
+              workUnitTypeKey: "WU.TASK",
+              metadata: { owner: "ops", stage: "intake" },
+              guidance: { human: { markdown: "Run intake checks" } },
+              steps: [],
+              edges: [],
+            },
+          ],
+          artifactSlots: [
+            {
+              key: "slot.summary",
+              displayName: "Summary Slot",
+              cardinality: "single",
+              rules: { format: "markdown" },
+              templates: [
+                {
+                  key: "tpl.default",
+                  displayName: "Default Template",
+                  content: "# Summary",
+                },
+              ],
+            },
+          ],
           factSchemas: [
             {
               key: "fact.input_path",
@@ -102,6 +142,61 @@ function createRouteContext(options?: {
   const createWorkUnitFactMock = vi.fn(async () => ({ diagnostics: [] }));
   const updateWorkUnitFactMock = vi.fn(async () => ({ diagnostics: [] }));
   const deleteWorkUnitFactMock = vi.fn(async () => ({ diagnostics: [] }));
+  const deleteWorkUnitMock = vi.fn(async () => ({ diagnostics: [] }));
+  const listWorkUnitWorkflowMock = vi.fn(async () => [
+    {
+      key: "wf.intake",
+      displayName: "Intake Workflow",
+      workUnitTypeKey: "WU.TASK",
+      metadata: { owner: "ops", stage: "intake" },
+      guidance: { human: { markdown: "Run intake checks" } },
+      steps: [],
+      edges: [],
+    },
+  ]);
+  const createWorkUnitWorkflowMock = vi.fn(async () => ({ diagnostics: [] }));
+  const updateWorkUnitWorkflowMock = vi.fn(async () => ({ diagnostics: [] }));
+  const deleteWorkUnitWorkflowMock = vi.fn(async () => ({ diagnostics: [] }));
+  const listStateMachineStatesMock = vi.fn(async () => [
+    { key: "todo", displayName: "To Do", description: "Awaiting work" },
+    { key: "done", displayName: "Done", description: "Completed" },
+  ]);
+  const updateStateMachineStatesMock = vi.fn(async () => ({ diagnostics: [] }));
+  const listStateMachineTransitionsMock = vi.fn(async () => [
+    {
+      transitionKey: "todo_to_done",
+      fromState: "todo",
+      toState: "done",
+      conditionSets: [],
+    },
+  ]);
+  const updateStateMachineTransitionsMock = vi.fn(async () => ({ diagnostics: [] }));
+  const listTransitionConditionSetsMock = vi.fn(async () => [
+    {
+      key: "done_guard",
+      phase: "completion",
+      mode: "all",
+      groups: [],
+      guidance: "Require evidence",
+    },
+  ]);
+  const updateTransitionConditionSetsMock = vi.fn(async () => ({ diagnostics: [] }));
+  const listArtifactSlotsMock = vi.fn(async () => [
+    {
+      key: "slot.summary",
+      displayName: "Summary Slot",
+      cardinality: "single",
+      rules: { format: "markdown" },
+      templates: [
+        {
+          key: "tpl.default",
+          displayName: "Default Template",
+          content: "# Summary",
+        },
+      ],
+    },
+  ]);
+  const replaceArtifactSlotsMock = vi.fn(async () => ({ diagnostics: [] }));
 
   return {
     queryClient: new QueryClient({
@@ -210,6 +305,11 @@ function createRouteContext(options?: {
                 mutationFn: createWorkUnitMock,
               }),
             },
+            delete: {
+              mutationOptions: () => ({
+                mutationFn: deleteWorkUnitMock,
+              }),
+            },
             updateMeta: {
               mutationOptions: () => ({
                 mutationFn: updateWorkUnitMock,
@@ -244,6 +344,143 @@ function createRouteContext(options?: {
                 }),
               },
             },
+            workflow: {
+              list: {
+                queryOptions: ({
+                  input,
+                }: {
+                  input: { versionId: string; workUnitTypeKey: string };
+                }) => ({
+                  queryKey: [
+                    "methodology",
+                    "draft",
+                    input.versionId,
+                    "work-unit",
+                    input.workUnitTypeKey,
+                    "workflows",
+                  ],
+                  queryFn: listWorkUnitWorkflowMock,
+                }),
+              },
+              create: {
+                mutationOptions: () => ({
+                  mutationFn: createWorkUnitWorkflowMock,
+                }),
+              },
+              update: {
+                mutationOptions: () => ({
+                  mutationFn: updateWorkUnitWorkflowMock,
+                }),
+              },
+              delete: {
+                mutationOptions: () => ({
+                  mutationFn: deleteWorkUnitWorkflowMock,
+                }),
+              },
+            },
+            stateMachine: {
+              state: {
+                list: {
+                  queryOptions: ({
+                    input,
+                  }: {
+                    input: { versionId: string; workUnitTypeKey: string };
+                  }) => ({
+                    queryKey: [
+                      "methodology",
+                      "draft",
+                      input.versionId,
+                      "work-unit",
+                      input.workUnitTypeKey,
+                      "state-machine",
+                      "states",
+                    ],
+                    queryFn: listStateMachineStatesMock,
+                  }),
+                },
+                update: {
+                  mutationOptions: () => ({
+                    mutationFn: updateStateMachineStatesMock,
+                  }),
+                },
+              },
+              transition: {
+                list: {
+                  queryOptions: ({
+                    input,
+                  }: {
+                    input: { versionId: string; workUnitTypeKey: string };
+                  }) => ({
+                    queryKey: [
+                      "methodology",
+                      "draft",
+                      input.versionId,
+                      "work-unit",
+                      input.workUnitTypeKey,
+                      "state-machine",
+                      "transitions",
+                    ],
+                    queryFn: listStateMachineTransitionsMock,
+                  }),
+                },
+                update: {
+                  mutationOptions: () => ({
+                    mutationFn: updateStateMachineTransitionsMock,
+                  }),
+                },
+                conditionSet: {
+                  list: {
+                    queryOptions: ({
+                      input,
+                    }: {
+                      input: { versionId: string; workUnitTypeKey: string; transitionKey: string };
+                    }) => ({
+                      queryKey: [
+                        "methodology",
+                        "draft",
+                        input.versionId,
+                        "work-unit",
+                        input.workUnitTypeKey,
+                        "state-machine",
+                        "transition",
+                        input.transitionKey,
+                        "condition-sets",
+                      ],
+                      queryFn: listTransitionConditionSetsMock,
+                    }),
+                  },
+                  update: {
+                    mutationOptions: () => ({
+                      mutationFn: updateTransitionConditionSetsMock,
+                    }),
+                  },
+                },
+              },
+            },
+            artifactSlot: {
+              list: {
+                queryOptions: ({
+                  input,
+                }: {
+                  input: { versionId: string; workUnitTypeKey: string };
+                }) => ({
+                  queryKey: [
+                    "methodology",
+                    "draft",
+                    input.versionId,
+                    "work-unit",
+                    input.workUnitTypeKey,
+                    "artifact-slots",
+                  ],
+                  queryFn: listArtifactSlotsMock,
+                }),
+              },
+              replace: {
+                mutationOptions: () => ({
+                  mutationFn: replaceArtifactSlotsMock,
+                }),
+              },
+            },
           },
         },
       },
@@ -259,6 +496,19 @@ function createRouteContext(options?: {
     createWorkUnitFactMock,
     updateWorkUnitFactMock,
     deleteWorkUnitFactMock,
+    deleteWorkUnitMock,
+    listWorkUnitWorkflowMock,
+    createWorkUnitWorkflowMock,
+    updateWorkUnitWorkflowMock,
+    deleteWorkUnitWorkflowMock,
+    listStateMachineStatesMock,
+    updateStateMachineStatesMock,
+    listStateMachineTransitionsMock,
+    updateStateMachineTransitionsMock,
+    listTransitionConditionSetsMock,
+    updateTransitionConditionSetsMock,
+    listArtifactSlotsMock,
+    replaceArtifactSlotsMock,
   };
 }
 
@@ -353,6 +603,7 @@ describe("methodology version shell routes", () => {
     expect(screen.queryByRole("button", { name: "Diagnostics" })).toBeNull();
     expect(screen.getAllByRole("button", { name: /View details/i }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("button", { name: /^Edit$/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /^Delete$/i }).length).toBeGreaterThan(0);
   });
 
   it("creates a work unit with guidance through version.workUnit.create", async () => {
@@ -416,7 +667,6 @@ describe("methodology version shell routes", () => {
     renderWithQueryClient(<MethodologyVersionWorkUnitDetailsRoute />);
 
     expect(await screen.findByText("Work Unit · WU.TASK")).toBeTruthy();
-    expect(screen.getByText("Work Unit: WU.TASK")).toBeTruthy();
     expect(screen.getByText("State Machine")).toBeTruthy();
     expect(screen.getByText("Artifact Slots")).toBeTruthy();
   });
@@ -446,7 +696,7 @@ describe("methodology version shell routes", () => {
     expect(screen.queryByText("Focused Dependency Graph")).toBeNull();
   });
 
-  it("renders facts tab with validation + dependency badges and opens add dialog via F", async () => {
+  it("renders facts tab with validation + dependency badges and opens add dialog via 1", async () => {
     const { MethodologyVersionWorkUnitDetailsRoute } =
       await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey");
     useParamsMock.mockReturnValue({
@@ -462,11 +712,147 @@ describe("methodology version shell routes", () => {
     expect(screen.getByRole("columnheader", { name: "Type" })).toBeTruthy();
     expect(screen.getByRole("columnheader", { name: "Validation" })).toBeTruthy();
     expect(screen.getByRole("columnheader", { name: "Guidance" })).toBeTruthy();
+    expect(screen.queryByRole("columnheader", { name: "Dependency" })).toBeNull();
     expect(await screen.findByText("Input Path")).toBeTruthy();
     expect(await screen.findByText("DEP: depends_on")).toBeTruthy();
 
-    fireEvent.keyDown(window, { key: "f" });
-    expect(await screen.findByText("Add Fact")).toBeTruthy();
+    fireEvent.keyDown(window, { key: "1" });
+    expect(await screen.findByRole("button", { name: "+ Add Fact" })).toBeTruthy();
+  });
+
+  it("does not show required fact semantics and still saves through workUnit.fact.create", async () => {
+    const { MethodologyVersionWorkUnitDetailsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey");
+    const routeContext = createRouteContext();
+    useParamsMock.mockReturnValue({
+      methodologyId: "equity-core",
+      versionId: "draft-v2",
+      workUnitKey: "WU.TASK",
+    });
+    useSearchMock.mockReturnValue({ tab: "facts" });
+    useRouteContextMock.mockReturnValue(routeContext);
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitDetailsRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "+ Add Fact" }));
+    fireEvent.change(screen.getByLabelText("Display Name"), {
+      target: { value: "Fact Without Explicit Key" },
+    });
+
+    expect(screen.queryByTestId("fact-key-required-message")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(routeContext.createWorkUnitFactMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("wires workflows tab CRUD and keeps metadata-only with open editor deep-link", async () => {
+    const { MethodologyVersionWorkUnitDetailsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey");
+    const routeContext = createRouteContext();
+    useParamsMock.mockReturnValue({
+      methodologyId: "equity-core",
+      versionId: "draft-v2",
+      workUnitKey: "WU.TASK",
+    });
+    useSearchMock.mockReturnValue({ tab: "workflows" });
+    useRouteContextMock.mockReturnValue(routeContext);
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitDetailsRoute />);
+
+    expect(await screen.findByText("Workflow Metadata")).toBeTruthy();
+    expect(await screen.findByText("Intake Workflow")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Open Workflow Editor" })).toBeTruthy();
+    expect(screen.queryByText("steps")).toBeNull();
+    expect(screen.queryByText("edges")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Add Workflow" }));
+    fireEvent.change(screen.getByLabelText("Workflow Key"), { target: { value: "wf.review" } });
+    fireEvent.change(screen.getByLabelText("Display Name"), { target: { value: "Review Flow" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => {
+      expect(routeContext.createWorkUnitWorkflowMock).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit Metadata" }));
+    fireEvent.change(screen.getByLabelText("Display Name"), {
+      target: { value: "Intake Workflow Updated" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => {
+      expect(routeContext.updateWorkUnitWorkflowMock).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete Workflow" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Delete Workflow" }));
+    await waitFor(() => {
+      expect(routeContext.deleteWorkUnitWorkflowMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("wires state-machine tab list/update for states, transitions, and condition sets", async () => {
+    const { MethodologyVersionWorkUnitDetailsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey");
+    const routeContext = createRouteContext();
+    useParamsMock.mockReturnValue({
+      methodologyId: "equity-core",
+      versionId: "draft-v2",
+      workUnitKey: "WU.TASK",
+    });
+    useSearchMock.mockReturnValue({ tab: "state-machine" });
+    useRouteContextMock.mockReturnValue(routeContext);
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitDetailsRoute />);
+
+    expect(await screen.findByText("State Machine")).toBeTruthy();
+    expect(await screen.findByText("To Do")).toBeTruthy();
+    expect(await screen.findByText("todo_to_done")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Save States" }));
+    await waitFor(() => {
+      expect(routeContext.updateStateMachineStatesMock).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Save Transitions" }));
+    await waitFor(() => {
+      expect(routeContext.updateStateMachineTransitionsMock).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit Condition Sets" }));
+    expect(await screen.findByText("Transition Condition Sets")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Save Condition Sets" }));
+    await waitFor(() => {
+      expect(routeContext.updateTransitionConditionSetsMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("wires artifact slots tab list/replace with nested templates dialog", async () => {
+    const { MethodologyVersionWorkUnitDetailsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey");
+    const routeContext = createRouteContext();
+    useParamsMock.mockReturnValue({
+      methodologyId: "equity-core",
+      versionId: "draft-v2",
+      workUnitKey: "WU.TASK",
+    });
+    useSearchMock.mockReturnValue({ tab: "artifact-slots" });
+    useRouteContextMock.mockReturnValue(routeContext);
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitDetailsRoute />);
+
+    expect(await screen.findByText("Artifact Slot Definitions")).toBeTruthy();
+    expect(await screen.findByText("Summary Slot")).toBeTruthy();
+    expect(screen.queryByText(/occupied|occupancy/i)).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Slot Details" }));
+    expect(await screen.findByRole("tab", { name: "Templates" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /Templates page/i })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Save Slots" }));
+    await waitFor(() => {
+      expect(routeContext.replaceArtifactSlotsMock).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("shows dependency selector for work unit fact type and saves through workUnit.fact.create", async () => {
@@ -532,7 +918,24 @@ describe("methodology version shell routes", () => {
     expect(destructiveConfirm.className).toContain("text-destructive");
   });
 
-  it("toggles the keymap helper with the same shortcut and supports Escape close", async () => {
+  it("deletes work units through version.workUnit.delete", async () => {
+    const { MethodologyVersionWorkUnitsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
+    const routeContext = createRouteContext();
+    useParamsMock.mockReturnValue({ methodologyId: "equity-core", versionId: "draft-v2" });
+    useSearchMock.mockReturnValue({});
+    useRouteContextMock.mockReturnValue(routeContext);
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitsRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete Work Unit Permanently" }));
+    await waitFor(() => {
+      expect(routeContext.deleteWorkUnitMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("toggles keymap helper and uses consistent 1..5 tab hotkeys while preserving tab-local keys", async () => {
     const { MethodologyVersionWorkUnitDetailsRoute } =
       await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey");
     useParamsMock.mockReturnValue({
@@ -547,7 +950,7 @@ describe("methodology version shell routes", () => {
     expect(screen.queryByText("KEYMAP")).toBeNull();
     expect(screen.queryByText("Methodologies")).toBeNull();
 
-    fireEvent.keyDown(window, { key: "?", shiftKey: true });
+    fireEvent.click(screen.getByRole("button", { name: "Open keymap" }));
     expect(await screen.findByText("KEYMAP")).toBeTruthy();
     const keymapMenu = screen.getByTestId("keymap-menu");
     expect(keymapMenu.className).toContain("fixed");
@@ -559,12 +962,14 @@ describe("methodology version shell routes", () => {
 
     expect(screen.getByText("? — Toggle helper")).toBeTruthy();
     expect(screen.getByText("Esc — Close helper")).toBeTruthy();
-    expect(screen.getByText("F — Add Fact")).toBeTruthy();
-    expect(screen.getByText("W — Add Workflow")).toBeTruthy();
-    expect(screen.getByText("S — Add State")).toBeTruthy();
-    expect(screen.getByText("A — Add Artifact Slot")).toBeTruthy();
+    expect(screen.getByText("1 — Facts")).toBeTruthy();
+    expect(screen.getByText("2 — Workflows")).toBeTruthy();
+    expect(screen.getByText("3 — State Machine")).toBeTruthy();
+    expect(screen.getByText("4 — Artifact Slots")).toBeTruthy();
+    expect(screen.getByText("5 — Overview")).toBeTruthy();
+    expect(screen.getByText("F — Add Fact (Facts tab)")).toBeTruthy();
 
-    fireEvent.keyDown(window, { key: "?", shiftKey: true });
+    fireEvent.click(screen.getByRole("button", { name: "Close keymap" }));
     await waitFor(() => {
       expect(screen.queryByText("KEYMAP")).toBeNull();
     });
@@ -574,10 +979,10 @@ describe("methodology version shell routes", () => {
       "chiron-frame-flat",
     );
 
-    fireEvent.keyDown(window, { key: "?", shiftKey: true });
+    fireEvent.click(screen.getByRole("button", { name: "Open keymap" }));
     expect(await screen.findByText("KEYMAP")).toBeTruthy();
 
-    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "Close keymap" }));
     await waitFor(() => {
       expect(screen.queryByText("KEYMAP")).toBeNull();
     });

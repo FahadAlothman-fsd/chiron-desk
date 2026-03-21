@@ -97,12 +97,13 @@ export const WorkUnitStateMachineServiceLive = Layer.effect(
       Effect.gen(function* () {
         const version = yield* repo.findVersionById(versionId);
         if (!version) {
-          return yield* Effect.fail(new VersionNotFoundError({ versionId }));
+          return yield* new VersionNotFoundError({ versionId });
         }
         if (version.status !== "draft") {
-          return yield* Effect.fail(
-            new VersionNotDraftError({ versionId: version.id, currentStatus: version.status }),
-          );
+          return yield* new VersionNotDraftError({
+            versionId: version.id,
+            currentStatus: version.status,
+          });
         }
         return version;
       });
@@ -112,12 +113,10 @@ export const WorkUnitStateMachineServiceLive = Layer.effect(
         const workUnitTypeRows = yield* lifecycleRepo.findWorkUnitTypes(input.versionId);
         const workUnitTypeRow = workUnitTypeRows.find((row) => row.key === input.workUnitTypeKey);
         if (!workUnitTypeRow) {
-          return yield* Effect.fail(
-            new RepositoryError({
-              operation: "workUnitStateMachine.loadWorkUnitStateMachine",
-              cause: new Error(`work unit type '${input.workUnitTypeKey}' not found`),
-            }),
-          );
+          return yield* new RepositoryError({
+            operation: "workUnitStateMachine.loadWorkUnitStateMachine",
+            cause: new Error(`work unit type '${input.workUnitTypeKey}' not found`),
+          });
         }
 
         const [stateRows, transitionRows, conditionSetRows] = yield* Effect.all([
@@ -221,12 +220,10 @@ export const WorkUnitStateMachineServiceLive = Layer.effect(
       Effect.gen(function* () {
         const version = yield* ensureDraftVersion(input.versionId);
         if (!repo.replaceWorkUnitLifecycleStates) {
-          return yield* Effect.fail(
-            new RepositoryError({
-              operation: "workUnitStateMachine.upsertState",
-              cause: new Error("Lifecycle state repository capability is not configured"),
-            }),
-          );
+          return yield* new RepositoryError({
+            operation: "workUnitStateMachine.upsertState",
+            cause: new Error("Lifecycle state repository capability is not configured"),
+          });
         }
 
         const stateMachine = yield* loadWorkUnitStateMachine({
@@ -259,12 +256,10 @@ export const WorkUnitStateMachineServiceLive = Layer.effect(
       Effect.gen(function* () {
         const version = yield* ensureDraftVersion(input.versionId);
         if (!repo.replaceWorkUnitLifecycleStates || !repo.replaceWorkUnitLifecycleTransitions) {
-          return yield* Effect.fail(
-            new RepositoryError({
-              operation: "workUnitStateMachine.deleteState",
-              cause: new Error("Lifecycle repository capabilities are not configured"),
-            }),
-          );
+          return yield* new RepositoryError({
+            operation: "workUnitStateMachine.deleteState",
+            cause: new Error("Lifecycle repository capabilities are not configured"),
+          });
         }
 
         const stateMachine = yield* loadWorkUnitStateMachine({
@@ -317,12 +312,10 @@ export const WorkUnitStateMachineServiceLive = Layer.effect(
       Effect.gen(function* () {
         const version = yield* ensureDraftVersion(input.versionId);
         if (!repo.replaceWorkUnitLifecycleTransitions) {
-          return yield* Effect.fail(
-            new RepositoryError({
-              operation: "workUnitStateMachine.upsertTransition",
-              cause: new Error("Lifecycle transition repository capability is not configured"),
-            }),
-          );
+          return yield* new RepositoryError({
+            operation: "workUnitStateMachine.upsertTransition",
+            cause: new Error("Lifecycle transition repository capability is not configured"),
+          });
         }
 
         const stateMachine = yield* loadWorkUnitStateMachine({
@@ -362,12 +355,10 @@ export const WorkUnitStateMachineServiceLive = Layer.effect(
       Effect.gen(function* () {
         const version = yield* ensureDraftVersion(input.versionId);
         if (!repo.replaceWorkUnitLifecycleTransitions) {
-          return yield* Effect.fail(
-            new RepositoryError({
-              operation: "workUnitStateMachine.deleteTransition",
-              cause: new Error("Lifecycle transition repository capability is not configured"),
-            }),
-          );
+          return yield* new RepositoryError({
+            operation: "workUnitStateMachine.deleteTransition",
+            cause: new Error("Lifecycle transition repository capability is not configured"),
+          });
         }
 
         const stateMachine = yield* loadWorkUnitStateMachine({
@@ -400,12 +391,10 @@ export const WorkUnitStateMachineServiceLive = Layer.effect(
       Effect.gen(function* () {
         const version = yield* ensureDraftVersion(input.versionId);
         if (!repo.replaceWorkUnitTransitionConditionSets) {
-          return yield* Effect.fail(
-            new RepositoryError({
-              operation: "workUnitStateMachine.replaceConditionSets",
-              cause: new Error("Transition condition-set repository capability is not configured"),
-            }),
-          );
+          return yield* new RepositoryError({
+            operation: "workUnitStateMachine.replaceConditionSets",
+            cause: new Error("Transition condition-set repository capability is not configured"),
+          });
         }
 
         yield* repo.replaceWorkUnitTransitionConditionSets({
@@ -432,12 +421,10 @@ export const WorkUnitStateMachineServiceLive = Layer.effect(
         const version = yield* ensureDraftVersion(input.versionId);
 
         if (!repo.replaceTransitionWorkflowBindings) {
-          return yield* Effect.fail(
-            new RepositoryError({
-              operation: "workUnitStateMachine.replaceBindings",
-              cause: new Error("Workflow binding repository capability is not configured"),
-            }),
-          );
+          return yield* new RepositoryError({
+            operation: "workUnitStateMachine.replaceBindings",
+            cause: new Error("Workflow binding repository capability is not configured"),
+          });
         }
 
         yield* repo.replaceTransitionWorkflowBindings({

@@ -1,4 +1,5 @@
 import type { AppRouterClient } from "@chiron/api/routers/index";
+import type { RouterUtils } from "@orpc/tanstack-query";
 
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
@@ -32,4 +33,4 @@ export const link = new RPCLink({
 
 export const client: AppRouterClient = createORPCClient(link);
 
-export const orpc = createTanstackQueryUtils(client);
+export const orpc: RouterUtils<AppRouterClient> = createTanstackQueryUtils(client);

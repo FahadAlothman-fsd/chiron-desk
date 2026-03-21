@@ -444,7 +444,10 @@ export function AppSidebar({
                 {section.items.map((item) => (
                   <SidebarMenuItem key={`${section.title}-${item.label}`}>
                     {item.to && !item.disabled ? (
-                      <SidebarMenuButton isActive={item.isActive} render={<Link to={item.to} />}>
+                      <SidebarMenuButton
+                        isActive={item.isActive ?? false}
+                        render={<Link to={item.to} />}
+                      >
                         {item.icon}
                         <span>{item.label}</span>
                         {item.badge ? <SidebarMenuBadge>{item.badge}</SidebarMenuBadge> : null}
@@ -464,7 +467,7 @@ export function AppSidebar({
         ))}
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={user} />
+        <NavUser {...(user ? { user } : {})} />
       </SidebarFooter>
     </Sidebar>
   );

@@ -430,7 +430,7 @@ export const ProjectContextServiceLive = Layer.effect(
       name?: string,
     ): Effect.Effect<ProjectSummary, RepositoryError> =>
       projectRepo
-        .createProject({ projectId, name })
+        .createProject({ projectId, ...(name !== undefined ? { name } : {}) })
         .pipe(Effect.map((project) => toProjectSummary(project)));
 
     const listProjects = (): Effect.Effect<readonly ProjectSummary[], RepositoryError> =>

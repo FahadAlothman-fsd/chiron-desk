@@ -265,6 +265,64 @@ describe("project dashboard route", () => {
     expect(screen.getByText("evidenceRef: publish-evidence-1")).toBeTruthy();
   });
 
+  it("normalizes baseline preview facts when required is omitted by the API", async () => {
+    const routeModule = (await import("../../routes/projects.$projectId.index")) as Record<
+      string,
+      unknown
+    >;
+    const toBaselinePreview = routeModule.toBaselinePreview;
+
+    expect(typeof toBaselinePreview).toBe("function");
+
+    const preview = (toBaselinePreview as (value: unknown) => unknown)({
+      summary: {
+        methodologyKey: "spiral.v1",
+        pinnedVersion: "1.0.0",
+        publishState: "published",
+        validationStatus: "pass",
+        setupFactsStatus: "ready",
+      },
+      transitionPreview: {
+        workUnitTypeKey: "WU.PROJECT_CONTEXT",
+        currentState: "__absent__",
+        transitions: [],
+      },
+      projectionSummary: {
+        workUnits: [],
+        agents: [],
+        transitions: [],
+        facts: [
+          {
+            workUnitTypeKey: "__PROJECT__",
+            key: "deliveryMode",
+            type: "string",
+            defaultValue: null,
+          },
+        ],
+      },
+      facts: [
+        {
+          key: "deliveryMode",
+          type: "string",
+          value: null,
+          missing: true,
+          indicator: "blocking",
+          sourceExecutionId: null,
+          updatedAt: null,
+        },
+      ],
+      diagnosticsHistory: {},
+      evidenceTimeline: [],
+    }) as {
+      projectionSummary?: { facts: Array<{ required: boolean }> };
+      facts: Array<{ required: boolean }>;
+    } | null;
+
+    expect(preview).not.toBeNull();
+    expect(preview?.facts[0]?.required).toBe(false);
+    expect(preview?.projectionSummary?.facts[0]?.required).toBe(false);
+  });
+
   it("keeps transition workflow controls focusable with aria-disabled rationale", async () => {
     const { queryClient } = createHarness();
 

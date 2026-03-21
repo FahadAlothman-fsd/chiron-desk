@@ -1,6 +1,15 @@
 # Story 3.2: Work Unit L2 Authoring Surface and Backend Ownership
 
-Status: in-progress
+Status: complete
+
+## Closure Addendum (2026-03-21)
+
+- Story 3-2 design-time frontend closure is complete for the finalized acceptance contract in `docs/plans/2026-03-21-story-3-2-design-time-closure-plan.md`.
+- Facts tab: `required` semantics removed from UI/validation/interactions; dependency type remains badge/treatment semantics (not a dedicated column contract).
+- Workflows tab: metadata-only CRUD at L2, with row-level `Open Workflow Editor` deep-link to mock Story 3-3 route behavior.
+- Artifact Slots tab: definition-time only (cardinality, rules JSON, templates), with templates nested inside Slot Details dialog and no occupancy concept.
+- Keyboard UX: shared TanStack hotkeys normalized to stable `1..5` tab switching across L2 tabs while preserving tab-local shortcuts.
+- Work Units L1 surface includes destructive delete flow via dialog confirmation and existing backend contracts only.
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 

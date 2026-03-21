@@ -101,18 +101,16 @@ export const WorkflowServiceLive = Layer.effect(
       Effect.gen(function* () {
         const existing = yield* repo.findVersionById(input.versionId);
         if (!existing) {
-          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+          return yield* new VersionNotFoundError({ versionId: input.versionId });
         }
 
         yield* ensureDraftVersion(existing);
 
         if (!repo.createWorkflow) {
-          return yield* Effect.fail(
-            new RepositoryError({
-              operation: "methodology.createWorkUnitWorkflow",
-              cause: new Error("Workflow CRUD repository capability is not configured"),
-            }),
-          );
+          return yield* new RepositoryError({
+            operation: "methodology.createWorkUnitWorkflow",
+            cause: new Error("Workflow CRUD repository capability is not configured"),
+          });
         }
 
         const resolvedActorId = actorId ?? "system";
@@ -156,18 +154,16 @@ export const WorkflowServiceLive = Layer.effect(
       Effect.gen(function* () {
         const existing = yield* repo.findVersionById(input.versionId);
         if (!existing) {
-          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+          return yield* new VersionNotFoundError({ versionId: input.versionId });
         }
 
         yield* ensureDraftVersion(existing);
 
         if (!repo.updateWorkflow) {
-          return yield* Effect.fail(
-            new RepositoryError({
-              operation: "methodology.updateWorkUnitWorkflow",
-              cause: new Error("Workflow CRUD repository capability is not configured"),
-            }),
-          );
+          return yield* new RepositoryError({
+            operation: "methodology.updateWorkUnitWorkflow",
+            cause: new Error("Workflow CRUD repository capability is not configured"),
+          });
         }
 
         const resolvedActorId = actorId ?? "system";
@@ -213,18 +209,16 @@ export const WorkflowServiceLive = Layer.effect(
       Effect.gen(function* () {
         const existing = yield* repo.findVersionById(input.versionId);
         if (!existing) {
-          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+          return yield* new VersionNotFoundError({ versionId: input.versionId });
         }
 
         yield* ensureDraftVersion(existing);
 
         if (!repo.deleteWorkflow) {
-          return yield* Effect.fail(
-            new RepositoryError({
-              operation: "methodology.deleteWorkUnitWorkflow",
-              cause: new Error("Workflow CRUD repository capability is not configured"),
-            }),
-          );
+          return yield* new RepositoryError({
+            operation: "methodology.deleteWorkUnitWorkflow",
+            cause: new Error("Workflow CRUD repository capability is not configured"),
+          });
         }
 
         const resolvedActorId = actorId ?? "system";

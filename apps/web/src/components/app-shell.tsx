@@ -28,6 +28,23 @@ function toLabel(value: string): string {
   return value.replaceAll("-", " ").replace(/\b\w/g, (match) => match.toUpperCase());
 }
 
+function readProjectionVersion(
+  value: unknown,
+  versionId: string,
+): { id: string; displayName: string; version: string; status: string } | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  return {
+    id: versionId,
+    displayName: typeof record.displayName === "string" ? record.displayName : versionId,
+    version: typeof record.version === "string" ? record.version : versionId,
+    status: typeof record.status === "string" ? record.status : "draft",
+  };
+}
+
 export default function AppShell({ children }: { children: ReactNode }) {
   const { data: session, isPending } = authClient.useSession();
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
@@ -70,15 +87,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const currentVersionFromDetails = versionId
     ? methodologyVersions.find((version) => version.id === versionId)
     : null;
-  const currentVersionFromProjection =
-    versionId && methodologyVersionProjectionQuery.data
-      ? {
-          id: versionId,
-          displayName: methodologyVersionProjectionQuery.data.displayName,
-          version: methodologyVersionProjectionQuery.data.version,
-          status: methodologyVersionProjectionQuery.data.status,
-        }
-      : null;
+  const currentVersionFromProjection = versionId
+    ? readProjectionVersion(methodologyVersionProjectionQuery.data, versionId)
+    : null;
   const currentVersion = currentVersionFromProjection ?? currentVersionFromDetails;
   const currentVersionLooksDraft =
     Boolean(versionId && versionId.toLowerCase().includes("draft")) ||
@@ -159,8 +170,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
   const navSections = buildSidebarSections(pathname, sidebarScope, {
     projectId,
-    methodologyId,
-    methodologyVersionId: versionId,
+    methodologyId: methodologyId ?? null,
+    methodologyVersionId: versionId ?? null,
     methodologyVersionLabel: versionId !== null ? currentVersionLabel : null,
   });
 

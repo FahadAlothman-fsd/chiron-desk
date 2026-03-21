@@ -59,7 +59,7 @@ export function MethodologyVersionWorkspaceAuthorHub(props: {
             key={card.title}
             card={card}
             summary={props.summaries[card.summaryKey]}
-            actions={props.actions}
+            {...(props.actions ? { actions: props.actions } : {})}
           />
         ))}
       </div>
@@ -129,13 +129,13 @@ function AuthorHubSurfaceCard(props: {
         {
           label: props.card.open.label,
           shortcut: props.card.open.shortcutLabel,
-          disabledReason: openDisabledReason ?? undefined,
+          ...(openDisabledReason ? { disabledReason: openDisabledReason } : {}),
           onTrigger: () => openAction?.onTrigger?.(),
         },
         {
           label: props.card.create.label,
           shortcut: props.card.create.shortcutLabel,
-          disabledReason: createDisabledReason ?? undefined,
+          ...(createDisabledReason ? { disabledReason: createDisabledReason } : {}),
           onTrigger: () => createAction?.onTrigger?.(),
         },
       ]}

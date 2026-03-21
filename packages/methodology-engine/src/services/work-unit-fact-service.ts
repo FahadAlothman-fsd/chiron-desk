@@ -60,12 +60,10 @@ export const WorkUnitFactServiceLive = Layer.effect(
 
         const found = nextWorkUnitTypes.some((workUnit) => workUnit.key === input.workUnitTypeKey);
         if (!found) {
-          return yield* Effect.fail(
-            new RepositoryError({
-              operation: "workUnitFact.replaceForWorkUnitType",
-              cause: new Error(`work unit type '${input.workUnitTypeKey}' not found`),
-            }),
-          );
+          return yield* new RepositoryError({
+            operation: "workUnitFact.replaceForWorkUnitType",
+            cause: new Error(`work unit type '${input.workUnitTypeKey}' not found`),
+          });
         }
 
         return yield* versionService.updateDraftLifecycle(

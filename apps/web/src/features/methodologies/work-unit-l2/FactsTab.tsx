@@ -169,10 +169,18 @@ function getTypeBadgeClass(type: FactType): string {
 }
 
 function toMutationFact(formState: FactFormState): RawFact {
+  const trimmedName = formState.name.trim();
+  const derivedKeyFromName = trimmedName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  const resolvedKey =
+    formState.key.trim() ||
+    (derivedKeyFromName.length > 0 ? `fact.${derivedKeyFromName}` : "fact.new");
   const dependencyType = formState.dependencyType.trim();
   return {
-    name: formState.name.trim(),
-    key: formState.key.trim(),
+    name: trimmedName,
+    key: resolvedKey,
     factType: formState.factType,
     ...(formState.humanGuidance.trim().length > 0 || formState.agentGuidance.trim().length > 0
       ? {
@@ -279,11 +287,14 @@ export function FactsTab({
   };
 
   const saveFact = async () => {
-    const key = formState.key.trim();
-    if (key.length === 0) {
-      setActiveTab("contract");
-      return;
-    }
+    const trimmedName = formState.name.trim();
+    const derivedKeyFromName = trimmedName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+    const key =
+      formState.key.trim() ||
+      (derivedKeyFromName.length > 0 ? `fact.${derivedKeyFromName}` : "fact.new");
 
     const mutationFact = toMutationFact(formState);
     const nextFact: UiFact = {
@@ -489,14 +500,6 @@ export function FactsTab({
                     setFormState((prev) => ({ ...prev, key: event.target.value }))
                   }
                 />
-                {formState.key.trim().length === 0 ? (
-                  <p
-                    data-testid="fact-key-required-message"
-                    className="text-[10px] uppercase tracking-[0.12em] text-destructive"
-                  >
-                    Fact key is required to save.
-                  </p>
-                ) : null}
               </div>
               <div className="space-y-2">
                 <Label>Fact Type</Label>

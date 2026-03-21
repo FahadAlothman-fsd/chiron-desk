@@ -656,7 +656,7 @@ export const MethodologyVersionServiceLive = Layer.effect(
       Effect.gen(function* () {
         const existing = yield* repo.findVersionById(input.versionId);
         if (!existing) {
-          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+          return yield* new VersionNotFoundError({ versionId: input.versionId });
         }
 
         yield* ensureVersionIsDraft(existing);
@@ -713,7 +713,7 @@ export const MethodologyVersionServiceLive = Layer.effect(
       Effect.gen(function* () {
         const existing = yield* repo.findVersionById(input.versionId);
         if (!existing) {
-          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+          return yield* new VersionNotFoundError({ versionId: input.versionId });
         }
 
         yield* ensureVersionIsDraft(existing);
@@ -742,7 +742,7 @@ export const MethodologyVersionServiceLive = Layer.effect(
       Effect.gen(function* () {
         const existing = yield* repo.findVersionById(input.versionId);
         if (!existing) {
-          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+          return yield* new VersionNotFoundError({ versionId: input.versionId });
         }
 
         yield* ensureVersionIsDraft(existing);
@@ -782,7 +782,7 @@ export const MethodologyVersionServiceLive = Layer.effect(
       Effect.gen(function* () {
         const existing = yield* repo.findVersionById(input.versionId);
         if (!existing) {
-          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+          return yield* new VersionNotFoundError({ versionId: input.versionId });
         }
 
         yield* ensureVersionIsDraft(existing);
@@ -813,7 +813,7 @@ export const MethodologyVersionServiceLive = Layer.effect(
       Effect.gen(function* () {
         const existing = yield* repo.findVersionById(input.versionId);
         if (!existing) {
-          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+          return yield* new VersionNotFoundError({ versionId: input.versionId });
         }
 
         yield* ensureVersionIsDraft(existing);
@@ -853,7 +853,7 @@ export const MethodologyVersionServiceLive = Layer.effect(
       Effect.gen(function* () {
         const existing = yield* repo.findVersionById(input.versionId);
         if (!existing) {
-          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+          return yield* new VersionNotFoundError({ versionId: input.versionId });
         }
 
         yield* ensureVersionIsDraft(existing);
@@ -910,7 +910,7 @@ export const MethodologyVersionServiceLive = Layer.effect(
       Effect.gen(function* () {
         const existing = yield* repo.findVersionById(input.versionId);
         if (!existing) {
-          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+          return yield* new VersionNotFoundError({ versionId: input.versionId });
         }
 
         yield* ensureVersionIsDraft(existing);
@@ -976,18 +976,16 @@ export const MethodologyVersionServiceLive = Layer.effect(
       Effect.gen(function* () {
         const existing = yield* repo.findVersionById(input.versionId);
         if (!existing) {
-          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+          return yield* new VersionNotFoundError({ versionId: input.versionId });
         }
 
         yield* ensureVersionIsDraft(existing);
 
         if (!repo.createWorkflow) {
-          return yield* Effect.fail(
-            new RepositoryError({
-              operation: "methodology.createWorkUnitWorkflow",
-              cause: new Error("Workflow CRUD repository capability is not configured"),
-            }),
-          );
+          return yield* new RepositoryError({
+            operation: "methodology.createWorkUnitWorkflow",
+            cause: new Error("Workflow CRUD repository capability is not configured"),
+          });
         }
 
         yield* repo.createWorkflow({
@@ -1029,18 +1027,16 @@ export const MethodologyVersionServiceLive = Layer.effect(
       Effect.gen(function* () {
         const existing = yield* repo.findVersionById(input.versionId);
         if (!existing) {
-          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+          return yield* new VersionNotFoundError({ versionId: input.versionId });
         }
 
         yield* ensureVersionIsDraft(existing);
 
         if (!repo.updateWorkflow) {
-          return yield* Effect.fail(
-            new RepositoryError({
-              operation: "methodology.updateWorkUnitWorkflow",
-              cause: new Error("Workflow CRUD repository capability is not configured"),
-            }),
-          );
+          return yield* new RepositoryError({
+            operation: "methodology.updateWorkUnitWorkflow",
+            cause: new Error("Workflow CRUD repository capability is not configured"),
+          });
         }
 
         yield* repo.updateWorkflow({
@@ -1084,18 +1080,16 @@ export const MethodologyVersionServiceLive = Layer.effect(
       Effect.gen(function* () {
         const existing = yield* repo.findVersionById(input.versionId);
         if (!existing) {
-          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+          return yield* new VersionNotFoundError({ versionId: input.versionId });
         }
 
         yield* ensureVersionIsDraft(existing);
 
         if (!repo.deleteWorkflow) {
-          return yield* Effect.fail(
-            new RepositoryError({
-              operation: "methodology.deleteWorkUnitWorkflow",
-              cause: new Error("Workflow CRUD repository capability is not configured"),
-            }),
-          );
+          return yield* new RepositoryError({
+            operation: "methodology.deleteWorkUnitWorkflow",
+            cause: new Error("Workflow CRUD repository capability is not configured"),
+          });
         }
 
         yield* repo.deleteWorkflow({
@@ -1134,18 +1128,16 @@ export const MethodologyVersionServiceLive = Layer.effect(
       Effect.gen(function* () {
         const existing = yield* repo.findVersionById(input.versionId);
         if (!existing) {
-          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+          return yield* new VersionNotFoundError({ versionId: input.versionId });
         }
 
         yield* ensureVersionIsDraft(existing);
 
         if (!repo.replaceTransitionWorkflowBindings) {
-          return yield* Effect.fail(
-            new RepositoryError({
-              operation: "methodology.replaceTransitionBindings",
-              cause: new Error("Transition binding repository capability is not configured"),
-            }),
-          );
+          return yield* new RepositoryError({
+            operation: "methodology.replaceTransitionBindings",
+            cause: new Error("Transition binding repository capability is not configured"),
+          });
         }
 
         yield* repo.replaceTransitionWorkflowBindings({
@@ -1188,18 +1180,16 @@ export const MethodologyVersionServiceLive = Layer.effect(
       Effect.gen(function* () {
         const existing = yield* repo.findVersionById(input.versionId);
         if (!existing) {
-          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+          return yield* new VersionNotFoundError({ versionId: input.versionId });
         }
 
         yield* ensureVersionIsDraft(existing);
 
         if (!repo.deleteWorkUnitType) {
-          return yield* Effect.fail(
-            new RepositoryError({
-              operation: "methodology.deleteWorkUnit",
-              cause: new Error("Work unit repository capability is not configured"),
-            }),
-          );
+          return yield* new RepositoryError({
+            operation: "methodology.deleteWorkUnit",
+            cause: new Error("Work unit repository capability is not configured"),
+          });
         }
 
         yield* repo.deleteWorkUnitType({
@@ -1239,18 +1229,16 @@ export const MethodologyVersionServiceLive = Layer.effect(
       Effect.gen(function* () {
         const existing = yield* repo.findVersionById(input.versionId);
         if (!existing) {
-          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+          return yield* new VersionNotFoundError({ versionId: input.versionId });
         }
 
         yield* ensureVersionIsDraft(existing);
 
         if (!repo.replaceWorkUnitFacts) {
-          return yield* Effect.fail(
-            new RepositoryError({
-              operation: "methodology.replaceWorkUnitFacts",
-              cause: new Error("Work unit fact repository capability is not configured"),
-            }),
-          );
+          return yield* new RepositoryError({
+            operation: "methodology.replaceWorkUnitFacts",
+            cause: new Error("Work unit fact repository capability is not configured"),
+          });
         }
 
         yield* repo.replaceWorkUnitFacts({
@@ -1291,18 +1279,16 @@ export const MethodologyVersionServiceLive = Layer.effect(
       Effect.gen(function* () {
         const existing = yield* repo.findVersionById(input.versionId);
         if (!existing) {
-          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+          return yield* new VersionNotFoundError({ versionId: input.versionId });
         }
 
         yield* ensureVersionIsDraft(existing);
 
         if (!repo.replaceWorkUnitLifecycleStates) {
-          return yield* Effect.fail(
-            new RepositoryError({
-              operation: "methodology.replaceWorkUnitLifecycleStates",
-              cause: new Error("Lifecycle state repository capability is not configured"),
-            }),
-          );
+          return yield* new RepositoryError({
+            operation: "methodology.replaceWorkUnitLifecycleStates",
+            cause: new Error("Lifecycle state repository capability is not configured"),
+          });
         }
 
         yield* repo.replaceWorkUnitLifecycleStates({
@@ -1343,18 +1329,16 @@ export const MethodologyVersionServiceLive = Layer.effect(
       Effect.gen(function* () {
         const existing = yield* repo.findVersionById(input.versionId);
         if (!existing) {
-          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+          return yield* new VersionNotFoundError({ versionId: input.versionId });
         }
 
         yield* ensureVersionIsDraft(existing);
 
         if (!repo.replaceWorkUnitLifecycleTransitions) {
-          return yield* Effect.fail(
-            new RepositoryError({
-              operation: "methodology.replaceWorkUnitLifecycleTransitions",
-              cause: new Error("Lifecycle transition repository capability is not configured"),
-            }),
-          );
+          return yield* new RepositoryError({
+            operation: "methodology.replaceWorkUnitLifecycleTransitions",
+            cause: new Error("Lifecycle transition repository capability is not configured"),
+          });
         }
 
         yield* repo.replaceWorkUnitLifecycleTransitions({
@@ -1396,18 +1380,16 @@ export const MethodologyVersionServiceLive = Layer.effect(
       Effect.gen(function* () {
         const existing = yield* repo.findVersionById(input.versionId);
         if (!existing) {
-          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+          return yield* new VersionNotFoundError({ versionId: input.versionId });
         }
 
         yield* ensureVersionIsDraft(existing);
 
         if (!repo.replaceWorkUnitTransitionConditionSets) {
-          return yield* Effect.fail(
-            new RepositoryError({
-              operation: "methodology.replaceWorkUnitTransitionConditionSets",
-              cause: new Error("Transition condition-set repository capability is not configured"),
-            }),
-          );
+          return yield* new RepositoryError({
+            operation: "methodology.replaceWorkUnitTransitionConditionSets",
+            cause: new Error("Transition condition-set repository capability is not configured"),
+          });
         }
 
         yield* repo.replaceWorkUnitTransitionConditionSets({
@@ -1446,7 +1428,7 @@ export const MethodologyVersionServiceLive = Layer.effect(
       Effect.gen(function* () {
         const existing = yield* repo.findVersionById(input.versionId);
         if (!existing) {
-          return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+          return yield* new VersionNotFoundError({ versionId: input.versionId });
         }
 
         yield* ensureVersionIsDraft(existing);
@@ -1486,7 +1468,7 @@ export const MethodologyVersionServiceLive = Layer.effect(
       Effect.gen(function* () {
         const existing = yield* repo.findVersionById(versionId);
         if (!existing) {
-          return yield* Effect.fail(new VersionNotFoundError({ versionId }));
+          return yield* new VersionNotFoundError({ versionId });
         }
 
         const [{ workUnitTypes, agentTypes }, workflowSnapshot, factDefinitionRows, linkTypeRows] =
@@ -1514,7 +1496,7 @@ export const MethodologyVersionServiceLive = Layer.effect(
       Effect.gen(function* () {
         const version = yield* repo.findVersionById(versionId);
         if (!version) {
-          return yield* Effect.fail(new VersionNotFoundError({ versionId }));
+          return yield* new VersionNotFoundError({ versionId });
         }
 
         const snapshot = yield* getAuthoringSnapshot(versionId);
@@ -1550,7 +1532,7 @@ export const MethodologyVersionServiceLive = Layer.effect(
       Effect.gen(function* () {
         const version = yield* repo.findVersionById(versionId);
         if (!version) {
-          return yield* Effect.fail(new VersionNotFoundError({ versionId }));
+          return yield* new VersionNotFoundError({ versionId });
         }
 
         if (repo.findVersionWorkspaceStats) {

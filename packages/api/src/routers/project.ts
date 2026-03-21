@@ -94,40 +94,139 @@ export function createProjectRouter(
     }>;
   };
 
+  type ProjectionConditionSet = NonNullable<ProjectionTransition["conditionSets"]>[number];
+
   type VersionWorkspaceSnapshotView = {
-    workUnitTypes: Array<{
-      key: string;
-      guidance?: unknown;
-      factSchemas?: ProjectionFactSchema[];
+    readonly workUnitTypes: ReadonlyArray<{
+      readonly key: string;
+      readonly guidance?: unknown;
+      readonly factSchemas?: ReadonlyArray<ProjectionFactSchema>;
     }>;
-    workflows?: Array<{
-      key: string;
-      guidance?: unknown;
+    readonly workflows?: ReadonlyArray<{
+      readonly key: string;
+      readonly guidance?: unknown;
     }>;
-    agentTypes?: Array<{
-      key: string;
-      guidance?: unknown;
-      persona?: string;
-      promptTemplate?: {
-        markdown?: string;
-      };
+    readonly agentTypes?: ReadonlyArray<{
+      readonly key: string;
+      readonly guidance?: unknown;
+      readonly persona?: string;
+      readonly promptTemplate?:
+        | {
+            readonly markdown: string;
+          }
+        | undefined;
     }>;
-    transitions: ProjectionTransition[];
-    transitionWorkflowBindings?: Record<string, string[]>;
-    guidance?: {
-      byWorkUnitType?: Record<string, unknown>;
-      byAgentType?: Record<string, unknown>;
-      byTransition?: Record<string, unknown>;
-      byWorkflow?: Record<string, unknown>;
+    readonly transitions: ReadonlyArray<ProjectionTransition>;
+    readonly transitionWorkflowBindings?: Record<string, readonly string[]>;
+    readonly guidance?: {
+      readonly byWorkUnitType?: Record<string, unknown>;
+      readonly byAgentType?: Record<string, unknown>;
+      readonly byTransition?: Record<string, unknown>;
+      readonly byWorkflow?: Record<string, unknown>;
     };
-    factDefinitions?: Array<{
-      key: string;
-      factType: ProjectionFactSchema["factType"];
-      defaultValue?: unknown;
-      guidance?: unknown;
-      description?: string;
+    readonly factDefinitions?: ReadonlyArray<{
+      readonly key: string;
+      readonly factType: ProjectionFactSchema["factType"];
+      readonly defaultValue?: unknown;
+      readonly guidance?: unknown;
+      readonly description?: unknown;
     }>;
   };
+
+  type RawWorkspaceSnapshot = {
+    readonly workUnitTypes: VersionWorkspaceSnapshotView["workUnitTypes"];
+    readonly workflows: NonNullable<VersionWorkspaceSnapshotView["workflows"]>;
+    readonly agentTypes: ReadonlyArray<{
+      readonly key: string;
+      readonly persona?: string;
+      readonly promptTemplate?:
+        | {
+            readonly markdown: string;
+          }
+        | undefined;
+    }>;
+    readonly transitions: readonly unknown[];
+    readonly transitionWorkflowBindings: NonNullable<
+      VersionWorkspaceSnapshotView["transitionWorkflowBindings"]
+    >;
+    readonly guidance?: VersionWorkspaceSnapshotView["guidance"];
+    readonly factDefinitions: NonNullable<VersionWorkspaceSnapshotView["factDefinitions"]>;
+  };
+
+  const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null;
+
+  const toProjectionTransition = (value: unknown): ProjectionTransition | null => {
+    if (!isRecord(value)) {
+      return null;
+    }
+
+    const key = typeof value.key === "string" ? value.key : null;
+    const toState = typeof value.toState === "string" ? value.toState : null;
+    if (!key || !toState) {
+      return null;
+    }
+
+    const conditionSets: ProjectionTransition["conditionSets"] = Array.isArray(value.conditionSets)
+      ? value.conditionSets.flatMap((conditionSet) => {
+          if (!isRecord(conditionSet)) {
+            return [];
+          }
+
+          const conditionSetKey = typeof conditionSet.key === "string" ? conditionSet.key : null;
+          const phase =
+            conditionSet.phase === "start"
+              ? "start"
+              : conditionSet.phase === "completion"
+                ? "completion"
+                : null;
+          const mode =
+            conditionSet.mode === "all" ? "all" : conditionSet.mode === "any" ? "any" : null;
+          if (!conditionSetKey || !phase || !mode) {
+            return [];
+          }
+
+          const mappedConditionSet: ProjectionConditionSet = {
+            key: conditionSetKey,
+            phase,
+            mode,
+            groups: Array.isArray(conditionSet.groups) ? conditionSet.groups : [],
+            ...(typeof conditionSet.guidance === "string"
+              ? { guidance: conditionSet.guidance }
+              : {}),
+          };
+
+          return [mappedConditionSet];
+        })
+      : undefined;
+
+    return {
+      key,
+      toState,
+      gateClass: value.gateClass === "completion_gate" ? "completion_gate" : "start_gate",
+      ...(typeof value.guidance !== "undefined" ? { guidance: value.guidance } : {}),
+      ...(typeof value.workUnitTypeKey === "string"
+        ? { workUnitTypeKey: value.workUnitTypeKey }
+        : {}),
+      ...(typeof value.fromState === "string" ? { fromState: value.fromState } : {}),
+      ...(conditionSets ? { conditionSets } : {}),
+    };
+  };
+
+  const toVersionWorkspaceSnapshotView = (
+    snapshot: RawWorkspaceSnapshot,
+  ): VersionWorkspaceSnapshotView => ({
+    workUnitTypes: snapshot.workUnitTypes,
+    workflows: snapshot.workflows,
+    agentTypes: snapshot.agentTypes,
+    transitions: snapshot.transitions.flatMap((transition) => {
+      const mapped = toProjectionTransition(transition);
+      return mapped ? [mapped] : [];
+    }),
+    transitionWorkflowBindings: snapshot.transitionWorkflowBindings,
+    ...(snapshot.guidance ? { guidance: snapshot.guidance } : {}),
+    factDefinitions: snapshot.factDefinitions,
+  });
 
   return {
     listProjects: publicProcedure.handler(async () => {
@@ -204,9 +303,9 @@ export function createProjectRouter(
               methodologyVersionId: pin.methodologyVersionId,
             });
             const latestPublicationEvidence = publicationEvidence.at(-1) ?? null;
-            const workspaceSnapshot = (yield* methodologySvc.getVersionWorkspaceSnapshot(
-              pin.methodologyVersionId,
-            )) as VersionWorkspaceSnapshotView;
+            const workspaceSnapshot = toVersionWorkspaceSnapshotView(
+              yield* methodologySvc.getVersionWorkspaceSnapshot(pin.methodologyVersionId),
+            );
 
             const projectContextWorkUnitKey = "WU.PROJECT_CONTEXT";
             const requestedWorkUnitType = input.workUnitTypeKey

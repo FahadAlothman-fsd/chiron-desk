@@ -5,6 +5,7 @@ type WorkUnitsListViewProps = {
   activeWorkUnitKey: string | null;
   onViewDetails: (workUnitKey: string) => void;
   onEdit: (workUnitKey: string) => void;
+  onDelete: (workUnitKey: string) => void;
 };
 
 export function WorkUnitsListView(props: WorkUnitsListViewProps) {
@@ -66,6 +67,13 @@ export function WorkUnitsListView(props: WorkUnitsListViewProps) {
                     onClick={() => props.onEdit(row.key)}
                   >
                     Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex h-7 items-center justify-center rounded-none border border-destructive/40 bg-destructive/10 px-2 text-xs uppercase tracking-[0.12em] text-destructive transition-colors hover:bg-destructive/20"
+                    onClick={() => props.onDelete(row.key)}
+                  >
+                    Delete
                   </button>
                 </div>
               </td>

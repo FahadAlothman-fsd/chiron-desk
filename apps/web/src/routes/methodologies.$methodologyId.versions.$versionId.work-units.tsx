@@ -151,6 +151,7 @@ export function MethodologyVersionWorkUnitsRoute() {
     useState<WorkUnitFormValues>(emptyWorkUnitFormValues);
   const [createError, setCreateError] = useState<string | null>(null);
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
+  const [deletingWorkUnitKey, setDeletingWorkUnitKey] = useState<string | null>(null);
   const newWorkUnitKeyRef = useRef<HTMLInputElement | null>(null);
 
   const isContractTabDirty =
@@ -170,6 +171,9 @@ export function MethodologyVersionWorkUnitsRoute() {
   );
   const updateWorkUnitMutation = useMutation(
     orpc.methodology.version.workUnit.updateMeta.mutationOptions(),
+  );
+  const deleteWorkUnitMutation = useMutation(
+    orpc.methodology.version.workUnit.delete.mutationOptions(),
   );
 
   const workUnits = useMemo(() => deriveWorkUnitsPageRows(draftProjection), [draftProjection]);
@@ -357,6 +361,42 @@ export function MethodologyVersionWorkUnitsRoute() {
       agentGuidance: workUnit.guidance?.agent?.markdown ?? "",
     });
     setIsCreateDialogOpen(true);
+  };
+
+  const handleDeleteWorkUnit = async () => {
+    if (!deletingWorkUnitKey) {
+      return;
+    }
+
+    const mutationResult = await Result.tryPromise({
+      try: async () => {
+        await deleteWorkUnitMutation.mutateAsync({
+          versionId,
+          workUnitTypeKey: deletingWorkUnitKey,
+        });
+
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: draftQueryOptions.queryKey }),
+          queryClient.invalidateQueries({ queryKey: detailsQueryOptions.queryKey }),
+        ]);
+      },
+      catch: (error: unknown) => error,
+    });
+
+    if (mutationResult.isErr()) {
+      toast.error("Unable to delete work unit. Review dependencies and try again.");
+      return;
+    }
+
+    setDeletingWorkUnitKey(null);
+    if (activeWorkUnitKey === deletingWorkUnitKey) {
+      void navigate({
+        search: (previous) => ({
+          view: previous.view,
+        }),
+      });
+    }
+    toast.success("Work unit deleted.");
   };
 
   useEffect(() => {
@@ -680,6 +720,37 @@ export function MethodologyVersionWorkUnitsRoute() {
         </DialogContent>
       </Dialog>
 
+      <Dialog
+        open={deletingWorkUnitKey !== null}
+        onOpenChange={(open) => !open && setDeletingWorkUnitKey(null)}
+      >
+        <DialogContent className="max-w-md rounded-none">
+          <DialogHeader>
+            <DialogTitle>Delete Work Unit</DialogTitle>
+            <DialogDescription>
+              This permanently removes the selected work unit definition from this draft version.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="rounded-none"
+              onClick={() => setDeletingWorkUnitKey(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              className="rounded-none"
+              disabled={deleteWorkUnitMutation.isPending}
+              onClick={() => void handleDeleteWorkUnit()}
+            >
+              Delete Work Unit Permanently
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {draftQuery.isLoading ? (
         <p className="text-sm">Loading work-unit shells for this version...</p>
       ) : null}
@@ -697,6 +768,7 @@ export function MethodologyVersionWorkUnitsRoute() {
             activeWorkUnitKey={activeWorkUnitKey}
             onViewDetails={openWorkUnitDetails}
             onEdit={openEditDialog}
+            onDelete={setDeletingWorkUnitKey}
           />
         </section>
       ) : null}

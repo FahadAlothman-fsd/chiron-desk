@@ -31,6 +31,47 @@ export const Route = createFileRoute("/methodologies/$methodologyId/versions/$ve
   component: MethodologyWorkspaceEntryRoute,
 });
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isReadonlyStringArrayRecord(value: unknown): value is Record<string, readonly string[]> {
+  return (
+    isRecord(value) &&
+    Object.values(value).every(
+      (entry) => Array.isArray(entry) && entry.every((item) => typeof item === "string"),
+    )
+  );
+}
+
+function toDraftProjectionShape(value: unknown, fallbackDisplayName: string): DraftProjectionShape {
+  if (!isRecord(value)) {
+    return {
+      displayName: fallbackDisplayName,
+      factDefinitions: [],
+      workUnitTypes: [],
+      agentTypes: [],
+      transitions: [],
+      workflows: [],
+      transitionWorkflowBindings: {},
+      guidance: {},
+    };
+  }
+
+  return {
+    displayName: typeof value.displayName === "string" ? value.displayName : fallbackDisplayName,
+    factDefinitions: Array.isArray(value.factDefinitions) ? value.factDefinitions : [],
+    workUnitTypes: Array.isArray(value.workUnitTypes) ? value.workUnitTypes : [],
+    agentTypes: Array.isArray(value.agentTypes) ? value.agentTypes : [],
+    transitions: Array.isArray(value.transitions) ? value.transitions : [],
+    workflows: Array.isArray(value.workflows) ? value.workflows : [],
+    transitionWorkflowBindings: isReadonlyStringArrayRecord(value.transitionWorkflowBindings)
+      ? value.transitionWorkflowBindings
+      : {},
+    ...("guidance" in value ? { guidance: value.guidance } : {}),
+  };
+}
+
 export function MethodologyWorkspaceEntryRoute() {
   const { methodologyId, versionId } = Route.useParams();
   const search = Route.useSearch();
@@ -104,8 +145,11 @@ export function MethodologyWorkspaceEntryRoute() {
       return initialDraft;
     }
 
-    return createDraftFromProjection(methodologyId, draftQuery.data as DraftProjectionShape);
-  }, [draftQuery.data, initialDraft, methodologyId]);
+    return createDraftFromProjection(
+      methodologyId,
+      toDraftProjectionShape(draftQuery.data, currentVersion?.version ?? versionId),
+    );
+  }, [currentVersion?.version, draftQuery.data, initialDraft, methodologyId, versionId]);
   const parsedDraft = useMemo(() => parseWorkspaceDraftForPersistence(draft), [draft]);
   const publishVersion = publishVersionOverride ?? currentVersion?.version ?? "";
   const authorHubActions: MethodologyVersionWorkspaceAuthorHubActions = {
@@ -677,8 +721,4 @@ function createLinkTypeSummary(
 
 function formatCount(count: number, singular: string): string {
   return `${count} ${singular}${count === 1 ? "" : "s"}`;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }

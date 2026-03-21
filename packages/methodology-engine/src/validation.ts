@@ -305,7 +305,11 @@ export function validateDraftDefinition(
         }
 
         if (edge.toStepKey === null) {
-          terminalEdges.push({ fromStepKey: edge.fromStepKey, edgeKey: edge.edgeKey });
+          terminalEdges.push(
+            edge.edgeKey === undefined
+              ? { fromStepKey: edge.fromStepKey }
+              : { fromStepKey: edge.fromStepKey, edgeKey: edge.edgeKey },
+          );
         } else {
           incomingCount.set(edge.toStepKey, (incomingCount.get(edge.toStepKey) ?? 0) + 1);
         }

@@ -8,6 +8,13 @@
 
 **Tech Stack:** Bun, TypeScript, Effect (`Context.Tag`, `Layer.effect`), oRPC + Zod, Vitest, ripgrep.
 
+## Status Note (2026-03-21)
+
+- Story 3-2 design-time closure is complete on the web L2 surface and is now treated as the baseline input for Story 3-3.
+- Locked UX constraints now enforced in Story 3-2 UI: facts have no `required` semantics, workflows are metadata-only at L2 with row-level `Open Workflow Editor` deep-link, artifact slots are definition-time only with templates nested in Slot Details.
+- Keyboard navigation is normalized to shared TanStack hotkeys with stable `1..5` tab switching and preserved tab-local actions.
+- Story 3-3 continues from this closure state and should not re-introduce steps/edges editing into Story 3-2 surfaces.
+
 ---
 
 ### Task 1: Lock Target Transition-Scoped Route and Ownership Contract (RED)

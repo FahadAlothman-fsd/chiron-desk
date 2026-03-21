@@ -109,7 +109,7 @@ export const EligibilityServiceLive = Effect.gen(function* () {
       // Step 1: Verify version exists
       const version = yield* repo.findVersionById(input.versionId);
       if (!version) {
-        return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+        return yield* new VersionNotFoundError({ versionId: input.versionId });
       }
 
       // Step 2: Find work unit type

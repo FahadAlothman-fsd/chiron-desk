@@ -248,7 +248,13 @@ export function MethodologyFactsInventory({
 }) {
   const rows = useMemo(() => buildMethodologyFactRows(facts), [facts]);
   const columns = useMemo(
-    () => createFactInventoryColumns({ onViewGuidance, onEditFact, onDeleteFact, showActions }),
+    () =>
+      createFactInventoryColumns({
+        ...(onViewGuidance ? { onViewGuidance } : {}),
+        ...(onEditFact ? { onEditFact } : {}),
+        ...(onDeleteFact ? { onDeleteFact } : {}),
+        showActions,
+      }),
     [onDeleteFact, onEditFact, onViewGuidance, showActions],
   );
 

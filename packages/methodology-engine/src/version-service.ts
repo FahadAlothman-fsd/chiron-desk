@@ -26,6 +26,7 @@ import type { WorkUnitTypeDefinition } from "@chiron/contracts/methodology/lifec
 import { Context, Effect, Schema } from "effect";
 import { MethodologyVersionDefinition as MethodologyVersionDefinitionSchema } from "@chiron/contracts/methodology/version";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 
 import {
   DependencyDefinitionNotFoundError,
@@ -675,12 +676,37 @@ function computeChangedFields(
   const changes: Record<string, { from: unknown; to: unknown }> = {};
   const allKeys = new Set([...Object.keys(prev), ...Object.keys(next)]);
   for (const key of allKeys) {
-    if (JSON.stringify(prev[key]) !== JSON.stringify(next[key])) {
+    if (!areSemanticallyEqual(prev[key], next[key])) {
       changes[key] = { from: prev[key], to: next[key] };
     }
   }
   return Object.keys(changes).length > 0 ? changes : null;
 }
+
+function normalizeUndefinedKeys(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeUndefinedKeys(item));
+  }
+
+  if (value && typeof value === "object") {
+    const normalized: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(value)) {
+      if (entry !== undefined) {
+        normalized[key] = normalizeUndefinedKeys(entry);
+      }
+    }
+    return normalized;
+  }
+
+  return value;
+}
+
+const areSemanticallyEqual = (left: unknown, right: unknown): boolean =>
+  isDeepStrictEqual(normalizeUndefinedKeys(left), normalizeUndefinedKeys(right));
+
+const JsonUnknownSchema = Schema.parseJson(Schema.Unknown);
+const encodeJsonForDiagnostic = (value: unknown): string =>
+  value === undefined ? "undefined" : Schema.encodeSync(JsonUnknownSchema)(value);
 
 function toDefinitionExtensions(definition: MethodologyVersionDefinition): unknown {
   return {
@@ -867,13 +893,11 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
         const existingVersions = yield* repo.listVersionsByMethodologyId(existingDef.id);
         const existingDraft = existingVersions.find((version) => version.status === "draft");
         if (existingDraft) {
-          return yield* Effect.fail(
-            new DraftVersionAlreadyExistsError({
-              methodologyId: existingDef.id,
-              versionId: existingDraft.id,
-              existingVersion: existingDraft.version,
-            }),
-          );
+          return yield* new DraftVersionAlreadyExistsError({
+            methodologyId: existingDef.id,
+            versionId: existingDraft.id,
+            existingVersion: existingDraft.version,
+          });
         }
 
         const existingVersion = yield* repo.findVersionByMethodologyAndVersion(
@@ -881,12 +905,10 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
           input.version,
         );
         if (existingVersion) {
-          return yield* Effect.fail(
-            new DuplicateVersionError({
-              methodologyId: existingDef.id,
-              version: input.version,
-            }),
-          );
+          return yield* new DuplicateVersionError({
+            methodologyId: existingDef.id,
+            version: input.version,
+          });
         }
       }
 
@@ -944,7 +966,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
 
       const existing = yield* repo.findVersionById(input.versionId);
       if (!existing) {
-        return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+        return yield* new VersionNotFoundError({ versionId: input.versionId });
       }
       yield* ensureVersionIsDraft(existing);
 
@@ -968,13 +990,15 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
         },
       );
 
-      const workflowsChanged =
-        JSON.stringify(previousSnapshot.workflows) !== JSON.stringify(definition.workflows);
-      const transitionBindingsChanged =
-        JSON.stringify(previousSnapshot.transitionWorkflowBindings) !==
-        JSON.stringify(definition.transitionWorkflowBindings);
-      const guidanceChanged =
-        JSON.stringify(previousGuidance) !== JSON.stringify(definition.guidance);
+      const workflowsChanged = !areSemanticallyEqual(
+        previousSnapshot.workflows,
+        definition.workflows,
+      );
+      const transitionBindingsChanged = !areSemanticallyEqual(
+        previousSnapshot.transitionWorkflowBindings,
+        definition.transitionWorkflowBindings,
+      );
+      const guidanceChanged = !areSemanticallyEqual(previousGuidance, definition.guidance);
 
       const updateDraftParams = {
         versionId: input.versionId,
@@ -1064,7 +1088,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
     Effect.gen(function* () {
       const existing = yield* repo.findVersionById(input.versionId);
       if (!existing) {
-        return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+        return yield* new VersionNotFoundError({ versionId: input.versionId });
       }
       yield* ensureVersionIsDraft(existing);
 
@@ -1103,7 +1127,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
     Effect.gen(function* () {
       const existing = yield* repo.findVersionById(input.versionId);
       if (!existing) {
-        return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+        return yield* new VersionNotFoundError({ versionId: input.versionId });
       }
 
       yield* ensureVersionIsDraft(existing);
@@ -1140,7 +1164,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
     Effect.gen(function* () {
       const archived = yield* repo.archiveVersion(input.versionId);
       if (!archived) {
-        return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+        return yield* new VersionNotFoundError({ versionId: input.versionId });
       }
 
       yield* repo.recordEvent({
@@ -1168,7 +1192,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
     Effect.gen(function* () {
       const existing = yield* repo.findVersionById(input.versionId);
       if (!existing) {
-        return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+        return yield* new VersionNotFoundError({ versionId: input.versionId });
       }
 
       yield* ensureVersionIsDraft(existing);
@@ -1207,7 +1231,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
     Effect.gen(function* () {
       const existing = yield* repo.findVersionById(input.versionId);
       if (!existing) {
-        return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+        return yield* new VersionNotFoundError({ versionId: input.versionId });
       }
 
       yield* ensureVersionIsDraft(existing);
@@ -1248,7 +1272,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
     Effect.gen(function* () {
       const existing = yield* repo.findVersionById(input.versionId);
       if (!existing) {
-        return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+        return yield* new VersionNotFoundError({ versionId: input.versionId });
       }
 
       yield* ensureVersionIsDraft(existing);
@@ -1293,7 +1317,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
     Effect.gen(function* () {
       const existing = yield* repo.findVersionById(input.versionId);
       if (!existing) {
-        return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+        return yield* new VersionNotFoundError({ versionId: input.versionId });
       }
 
       yield* ensureVersionIsDraft(existing);
@@ -1306,12 +1330,10 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
       if (
         existingLinkTypes.some((definition) => definition.key === input.dependencyDefinition.key)
       ) {
-        return yield* Effect.fail(
-          new DuplicateDependencyDefinitionError({
-            versionId: existing.id,
-            dependencyKey: input.dependencyDefinition.key,
-          }),
-        );
+        return yield* new DuplicateDependencyDefinitionError({
+          versionId: existing.id,
+          dependencyKey: input.dependencyDefinition.key,
+        });
       }
 
       return yield* updateDraftVersion(
@@ -1352,7 +1374,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
     Effect.gen(function* () {
       const existing = yield* repo.findVersionById(input.versionId);
       if (!existing) {
-        return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+        return yield* new VersionNotFoundError({ versionId: input.versionId });
       }
 
       yield* ensureVersionIsDraft(existing);
@@ -1363,24 +1385,20 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
       const existingLinkTypes = yield* repo.findLinkTypeDefinitionsByVersionId(existing.id);
 
       if (!existingLinkTypes.some((definition) => definition.key === input.dependencyKey)) {
-        return yield* Effect.fail(
-          new DependencyDefinitionNotFoundError({
-            versionId: existing.id,
-            dependencyKey: input.dependencyKey,
-          }),
-        );
+        return yield* new DependencyDefinitionNotFoundError({
+          versionId: existing.id,
+          dependencyKey: input.dependencyKey,
+        });
       }
 
       if (
         input.dependencyDefinition.key !== input.dependencyKey &&
         existingLinkTypes.some((definition) => definition.key === input.dependencyDefinition.key)
       ) {
-        return yield* Effect.fail(
-          new DuplicateDependencyDefinitionError({
-            versionId: existing.id,
-            dependencyKey: input.dependencyDefinition.key,
-          }),
-        );
+        return yield* new DuplicateDependencyDefinitionError({
+          versionId: existing.id,
+          dependencyKey: input.dependencyDefinition.key,
+        });
       }
 
       return yield* updateDraftVersion(
@@ -1421,7 +1439,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
     Effect.gen(function* () {
       const existing = yield* repo.findVersionById(input.versionId);
       if (!existing) {
-        return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+        return yield* new VersionNotFoundError({ versionId: input.versionId });
       }
 
       yield* ensureVersionIsDraft(existing);
@@ -1432,12 +1450,10 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
       const existingLinkTypes = yield* repo.findLinkTypeDefinitionsByVersionId(existing.id);
 
       if (!existingLinkTypes.some((definition) => definition.key === input.dependencyKey)) {
-        return yield* Effect.fail(
-          new DependencyDefinitionNotFoundError({
-            versionId: existing.id,
-            dependencyKey: input.dependencyKey,
-          }),
-        );
+        return yield* new DependencyDefinitionNotFoundError({
+          versionId: existing.id,
+          dependencyKey: input.dependencyKey,
+        });
       }
 
       return yield* updateDraftVersion(
@@ -1477,7 +1493,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
     Effect.gen(function* () {
       const existing = yield* repo.findVersionById(input.versionId);
       if (!existing) {
-        return yield* Effect.fail(new VersionNotFoundError({ versionId: input.versionId }));
+        return yield* new VersionNotFoundError({ versionId: input.versionId });
       }
 
       const timestamp = new Date().toISOString();
@@ -1592,7 +1608,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
               "publish.validation.facts",
               timestamp,
               "default value compatible with fact type",
-              `${fact.key}:${JSON.stringify(fact.defaultValueJson)}`,
+              `${fact.key}:${encodeJsonForDiagnostic(fact.defaultValueJson)}`,
               "Set a valid static default for the fact type",
             ),
           );
@@ -1665,7 +1681,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
                 "publish.validation.facts",
                 timestamp,
                 "json default compatible with configured schema",
-                `${fact.key}:${JSON.stringify(fact.defaultValueJson)}`,
+                `${fact.key}:${encodeJsonForDiagnostic(fact.defaultValueJson)}`,
                 "Adjust default value or schema",
               ),
             );
@@ -1791,7 +1807,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
           };
         }
 
-        return yield* Effect.fail(error);
+        return yield* error;
       }
 
       const published = publishAttempt.right;
@@ -1858,7 +1874,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
     Effect.gen(function* () {
       const definition = yield* repo.updateDefinition(methodologyKey, displayName);
       if (!definition || definition.archivedAt) {
-        return yield* Effect.fail(new MethodologyNotFoundError({ key: methodologyKey }));
+        return yield* new MethodologyNotFoundError({ key: methodologyKey });
       }
 
       const versions = yield* repo.listVersionsByMethodologyId(definition.id);
@@ -1890,7 +1906,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
     Effect.gen(function* () {
       const definition = yield* repo.archiveDefinition(methodologyKey);
       if (!definition?.archivedAt) {
-        return yield* Effect.fail(new MethodologyNotFoundError({ key: methodologyKey }));
+        return yield* new MethodologyNotFoundError({ key: methodologyKey });
       }
 
       return {
@@ -1970,11 +1986,9 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
     Effect.gen(function* () {
       const definition = yield* repo.findDefinitionByKey(input.methodologyKey);
       if (!definition) {
-        return yield* Effect.fail(
-          new VersionNotFoundError({
-            versionId: `${input.methodologyKey}@${input.publishedVersion}`,
-          }),
-        );
+        return yield* new VersionNotFoundError({
+          versionId: `${input.methodologyKey}@${input.publishedVersion}`,
+        });
       }
 
       const version = yield* repo.findVersionByMethodologyAndVersion(
@@ -1982,11 +1996,9 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
         input.publishedVersion,
       );
       if (!version) {
-        return yield* Effect.fail(
-          new VersionNotFoundError({
-            versionId: `${input.methodologyKey}@${input.publishedVersion}`,
-          }),
-        );
+        return yield* new VersionNotFoundError({
+          versionId: `${input.methodologyKey}@${input.publishedVersion}`,
+        });
       }
 
       const snapshot = yield* repo.findWorkflowSnapshot(version.id);
