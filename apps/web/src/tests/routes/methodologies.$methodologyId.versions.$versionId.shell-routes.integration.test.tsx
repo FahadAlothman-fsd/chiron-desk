@@ -173,6 +173,13 @@ function createRouteContext(options?: {
   const updateStateMachineTransitionsMock = vi.fn(async () => ({ diagnostics: [] }));
   const listTransitionConditionSetsMock = vi.fn(async () => [
     {
+      key: "start_guard",
+      phase: "start",
+      mode: "all",
+      groups: [],
+      guidance: "Start only when prerequisites pass",
+    },
+    {
       key: "done_guard",
       phase: "completion",
       mode: "all",
@@ -184,14 +191,18 @@ function createRouteContext(options?: {
   const listArtifactSlotsMock = vi.fn(async () => [
     {
       key: "slot.summary",
-      displayName: "Summary Slot",
+      displayName: null,
+      description: null,
+      guidance: null,
       cardinality: "single",
       rules: { format: "markdown" },
       templates: [
         {
           key: "tpl.default",
-          displayName: "Default Template",
-          content: "# Summary",
+          displayName: null,
+          description: null,
+          guidance: null,
+          content: null,
         },
       ],
     },
@@ -764,25 +775,137 @@ describe("methodology version shell routes", () => {
     expect(await screen.findByText("Workflow Metadata")).toBeTruthy();
     expect(await screen.findByText("Intake Workflow")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Open Workflow Editor" })).toBeTruthy();
+    expect(screen.getByTestId("workflow-metadata-chip-wf.intake-owner").textContent).toContain(
+      "owner: ops",
+    );
+    expect(screen.getByTestId("workflow-metadata-chip-wf.intake-stage").textContent).toContain(
+      "stage: intake",
+    );
+    expect(screen.queryByText('{"owner":"ops","stage":"intake"}')).toBeNull();
     expect(screen.queryByText("steps")).toBeNull();
     expect(screen.queryByText("edges")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "+ Add Workflow" }));
+    const workflowCreateDialog = screen.getByRole("dialog");
+    expect(workflowCreateDialog.className).toContain("w-[min(72rem,calc(100vw-2rem))]");
+    fireEvent.click(screen.getByRole("button", { name: "Contract" }));
     fireEvent.change(screen.getByLabelText("Workflow Key"), { target: { value: "wf.review" } });
     fireEvent.change(screen.getByLabelText("Display Name"), { target: { value: "Review Flow" } });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Review metadata and readiness" },
+    });
+    expect(screen.getByTestId("workflow-contract-modified-indicator")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Metadata" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add Metadata Field" }));
+    const createMetadataKeyInputs = screen.getAllByLabelText("Metadata Key");
+    const createMetadataValueInputs = screen.getAllByLabelText("Metadata Value");
+    fireEvent.change(createMetadataKeyInputs[0]!, { target: { value: "priority" } });
+    fireEvent.change(createMetadataValueInputs[0]!, { target: { value: "high" } });
+    expect(screen.getByTestId("workflow-metadata-modified-indicator")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Guidance" }));
+    fireEvent.change(screen.getByLabelText("Human Guidance"), {
+      target: { value: "Review this workflow manually." },
+    });
+    fireEvent.change(screen.getByLabelText("Agent Guidance"), {
+      target: { value: "Run deterministic review checks." },
+    });
+    expect(screen.getByTestId("workflow-guidance-modified-indicator")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(await screen.findByText("Discard unsaved changes?")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Keep Editing" }));
+    expect(screen.queryByText("Discard unsaved changes?")).toBeNull();
+    expect(screen.getByRole("button", { name: "Save" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => {
       expect(routeContext.createWorkUnitWorkflowMock).toHaveBeenCalledTimes(1);
     });
+    expect(routeContext.createWorkUnitWorkflowMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflow: expect.objectContaining({
+          metadata: expect.objectContaining({
+            description: "Review metadata and readiness",
+            priority: "high",
+          }),
+          guidance: {
+            human: { markdown: "Review this workflow manually." },
+            agent: { markdown: "Run deterministic review checks." },
+          },
+        }),
+      }),
+      expect.anything(),
+    );
+    expect(routeContext.createWorkUnitWorkflowMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflow: expect.not.objectContaining({
+          steps: expect.anything(),
+          edges: expect.anything(),
+        }),
+      }),
+      expect.anything(),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit Metadata" }));
+    const workflowEditDialog = screen.getByRole("dialog");
+    expect(workflowEditDialog.className).toContain("w-[min(72rem,calc(100vw-2rem))]");
+    fireEvent.click(screen.getByRole("button", { name: "Contract" }));
+    fireEvent.change(screen.getByLabelText("Display Name"), {
+      target: { value: "Intake Workflow Updated" },
+    });
+    expect(screen.getByTestId("workflow-contract-modified-indicator")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Metadata" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add Metadata Field" }));
+    const editMetadataKeyInputs = screen.getAllByLabelText("Metadata Key");
+    const editMetadataValueInputs = screen.getAllByLabelText("Metadata Value");
+    fireEvent.change(editMetadataKeyInputs[0]!, { target: { value: "owner" } });
+    fireEvent.change(editMetadataValueInputs[0]!, { target: { value: "platform" } });
+    expect(screen.getByTestId("workflow-metadata-modified-indicator")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Guidance" }));
+    fireEvent.change(screen.getByLabelText("Human Guidance"), {
+      target: { value: "Updated human guidance" },
+    });
+    expect(screen.getByTestId("workflow-guidance-modified-indicator")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    const discardDialog = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
+    fireEvent.click(within(discardDialog).getByRole("button", { name: "Discard Changes" }));
+    expect(screen.queryByLabelText("Workflow Key")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Edit Metadata" }));
     fireEvent.change(screen.getByLabelText("Display Name"), {
       target: { value: "Intake Workflow Updated" },
     });
+    fireEvent.click(screen.getByRole("button", { name: "Metadata" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add Metadata Field" }));
+    const editMetadataKeyInputsAfterDiscard = screen.getAllByLabelText("Metadata Key");
+    const editMetadataValueInputsAfterDiscard = screen.getAllByLabelText("Metadata Value");
+    fireEvent.change(editMetadataKeyInputsAfterDiscard[0]!, { target: { value: "owner" } });
+    fireEvent.change(editMetadataValueInputsAfterDiscard[0]!, { target: { value: "platform" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guidance" }));
+    fireEvent.change(screen.getByLabelText("Human Guidance"), {
+      target: { value: "Updated human guidance" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => {
       expect(routeContext.updateWorkUnitWorkflowMock).toHaveBeenCalledTimes(1);
     });
+    expect(routeContext.updateWorkUnitWorkflowMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflow: expect.objectContaining({
+          metadata: expect.objectContaining({
+            owner: "platform",
+          }),
+        }),
+      }),
+      expect.anything(),
+    );
+    expect(routeContext.updateWorkUnitWorkflowMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflow: expect.not.objectContaining({
+          steps: expect.anything(),
+          edges: expect.anything(),
+        }),
+      }),
+      expect.anything(),
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Delete Workflow" }));
     fireEvent.click(screen.getByRole("button", { name: "Confirm Delete Workflow" }));
@@ -791,7 +914,7 @@ describe("methodology version shell routes", () => {
     });
   });
 
-  it("wires state-machine tab list/update for states, transitions, and condition sets", async () => {
+  it("supports state-machine CRUD with transition start/completion condition tabs", async () => {
     const { MethodologyVersionWorkUnitDetailsRoute } =
       await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey");
     const routeContext = createRouteContext();
@@ -808,26 +931,56 @@ describe("methodology version shell routes", () => {
     expect(await screen.findByText("State Machine")).toBeTruthy();
     expect(await screen.findByText("To Do")).toBeTruthy();
     expect(await screen.findByText("todo_to_done")).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Start Condition" })).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Completion Condition" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "+ Add State" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "+ Add Transition" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Save States" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Save Transitions" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit Condition Sets" })).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Save States" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add State" }));
+    expect(await screen.findByText("Add State")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("State Key"), { target: { value: "state.review" } });
+    fireEvent.change(screen.getByLabelText("Display Name"), { target: { value: "Review" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create State" }));
     await waitFor(() => {
       expect(routeContext.updateStateMachineStatesMock).toHaveBeenCalledTimes(1);
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Save Transitions" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add Transition" }));
+    expect(await screen.findByText("Add Transition")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Transition Key"), {
+      target: { value: "review_to_done" },
+    });
+    fireEvent.change(screen.getByLabelText("To State"), { target: { value: "done" } });
+    fireEvent.click(screen.getByRole("button", { name: "Start Conditions" }));
+    fireEvent.change(screen.getByLabelText("Start Condition Key"), {
+      target: { value: "start.review" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Completion Conditions" }));
+    fireEvent.change(screen.getByLabelText("Completion Condition Key"), {
+      target: { value: "completion.review" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create Transition" }));
     await waitFor(() => {
       expect(routeContext.updateStateMachineTransitionsMock).toHaveBeenCalledTimes(1);
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Edit Condition Sets" }));
-    expect(await screen.findByText("Transition Condition Sets")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Save Condition Sets" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit Transition" })[0]!);
+    expect(await screen.findByText("Edit Transition")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Start Conditions" }));
+    expect(screen.getByLabelText("Start Condition Key")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Completion Conditions" }));
+    expect(screen.getByLabelText("Completion Condition Key")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Save Transition" }));
     await waitFor(() => {
-      expect(routeContext.updateTransitionConditionSetsMock).toHaveBeenCalledTimes(1);
+      expect(routeContext.updateStateMachineTransitionsMock).toHaveBeenCalledTimes(2);
     });
+    expect(routeContext.updateTransitionConditionSetsMock).toHaveBeenCalledTimes(0);
   });
 
-  it("wires artifact slots tab list/replace with nested templates dialog", async () => {
+  it("wires artifact slots tab list/replace with nested templates dialog and normalized payload", async () => {
     const { MethodologyVersionWorkUnitDetailsRoute } =
       await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey");
     const routeContext = createRouteContext();
@@ -842,7 +995,7 @@ describe("methodology version shell routes", () => {
     renderWithQueryClient(<MethodologyVersionWorkUnitDetailsRoute />);
 
     expect(await screen.findByText("Artifact Slot Definitions")).toBeTruthy();
-    expect(await screen.findByText("Summary Slot")).toBeTruthy();
+    expect(await screen.findByText("slot.summary")).toBeTruthy();
     expect(screen.queryByText(/occupied|occupancy/i)).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Slot Details" }));
@@ -853,6 +1006,29 @@ describe("methodology version shell routes", () => {
     await waitFor(() => {
       expect(routeContext.replaceArtifactSlotsMock).toHaveBeenCalledTimes(1);
     });
+    expect(routeContext.replaceArtifactSlotsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        slots: [
+          expect.objectContaining({
+            key: "slot.summary",
+            cardinality: "single",
+            displayName: undefined,
+            description: undefined,
+            guidance: undefined,
+            templates: [
+              expect.objectContaining({
+                key: "tpl.default",
+                displayName: undefined,
+                description: undefined,
+                guidance: undefined,
+                content: undefined,
+              }),
+            ],
+          }),
+        ],
+      }),
+      expect.anything(),
+    );
   });
 
   it("shows dependency selector for work unit fact type and saves through workUnit.fact.create", async () => {

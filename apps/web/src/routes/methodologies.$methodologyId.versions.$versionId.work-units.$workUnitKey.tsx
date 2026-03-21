@@ -218,6 +218,41 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
   const hasResolvedInvalidSelection =
     !draftQuery.isLoading && !draftQuery.isError && !hasMatchingWorkUnit;
 
+  const normalizeMarkdownPair = (
+    value: unknown,
+  ): { human: { markdown: string }; agent: { markdown: string } } | undefined => {
+    if (!value || typeof value !== "object") {
+      return undefined;
+    }
+    const entry = value as {
+      human?: { markdown?: unknown } | null;
+      agent?: { markdown?: unknown } | null;
+    };
+    const human = typeof entry.human?.markdown === "string" ? entry.human.markdown : "";
+    const agent = typeof entry.agent?.markdown === "string" ? entry.agent.markdown : "";
+    if (human.length === 0 && agent.length === 0) {
+      return undefined;
+    }
+    return { human: { markdown: human }, agent: { markdown: agent } };
+  };
+
+  const normalizeWorkflowForApi = (workflow: {
+    key: string;
+    displayName?: string;
+    metadata?: Record<string, string | number | boolean | string[]>;
+    guidance?: {
+      human?: { markdown?: string };
+      agent?: { markdown?: string };
+    };
+  }) => ({
+    key: workflow.key,
+    ...(workflow.displayName ? { displayName: workflow.displayName } : {}),
+    ...(workflow.metadata ? { metadata: workflow.metadata } : {}),
+    ...(normalizeMarkdownPair(workflow.guidance)
+      ? { guidance: normalizeMarkdownPair(workflow.guidance) }
+      : {}),
+  });
+
   const selectedWorkUnit = workUnitTypes.find((workUnit) => workUnit?.key === workUnitKey) as
     | {
         key?: string;
@@ -521,13 +556,19 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
               key: string;
               displayName?: string;
               metadata?: Record<string, string | number | boolean | string[]>;
+              guidance?: {
+                human?: { markdown?: string };
+                agent?: { markdown?: string };
+              };
+              steps?: unknown[];
+              edges?: unknown[];
             }[]
           }
           onCreateWorkflow={async (workflow) => {
             await createWorkflowMutation.mutateAsync({
               versionId,
               workUnitTypeKey: workUnitKey,
-              workflow,
+              workflow: normalizeWorkflowForApi(workflow),
             });
             await queryClient.invalidateQueries({ queryKey: workflowsQueryOptions.queryKey });
           }}
@@ -536,7 +577,7 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
               versionId,
               workUnitTypeKey: workUnitKey,
               workflowKey,
-              workflow,
+              workflow: normalizeWorkflowForApi(workflow),
             });
             await queryClient.invalidateQueries({ queryKey: workflowsQueryOptions.queryKey });
           }}
@@ -583,32 +624,17 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
               guidance?: string;
             }[]
           }
-          onSaveStates={async () => {
-            const states = (
-              Array.isArray(stateMachineStatesQuery.data)
-                ? stateMachineStatesQuery.data
-                : (selectedWorkUnit?.lifecycle?.states ?? [])
-            ) as {
-              key: string;
-              displayName?: string;
-              description?: string;
-            }[];
+          onSaveStates={async (states) => {
             await updateStatesMutation.mutateAsync({
               versionId,
               workUnitTypeKey: workUnitKey,
               states,
             });
+            await queryClient.invalidateQueries({
+              queryKey: stateMachineStatesQueryOptions.queryKey,
+            });
           }}
-          onSaveTransitions={async () => {
-            const transitions = (
-              Array.isArray(stateMachineTransitionsQuery.data)
-                ? stateMachineTransitionsQuery.data
-                : (selectedWorkUnit?.lifecycle?.transitions ?? [])
-            ) as {
-              transitionKey: string;
-              fromState?: string | null;
-              toState: string;
-            }[];
+          onSaveTransitions={async (transitions) => {
             await updateTransitionsMutation.mutateAsync({
               versionId,
               workUnitTypeKey: workUnitKey,
@@ -616,34 +642,36 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
                 transitionKey: transition.transitionKey,
                 fromState: transition.fromState ?? undefined,
                 toState: transition.toState,
-                conditionSets: [],
+                conditionSets: (transition.conditionSets ?? []).map((conditionSet) => ({
+                  key: conditionSet.key,
+                  phase: conditionSet.phase,
+                  mode: conditionSet.mode,
+                  ...(conditionSet.guidance ? { guidance: conditionSet.guidance } : {}),
+                  groups: [],
+                })),
               })),
             });
+            await queryClient.invalidateQueries({
+              queryKey: stateMachineTransitionsQueryOptions.queryKey,
+            });
           }}
-          onSaveConditionSets={async () => {
-            if (!firstTransitionKey) {
+          onSaveConditionSets={async (transitionKey, conditionSets) => {
+            if (!transitionKey) {
               return;
             }
-            const conditionSets = (
-              Array.isArray(conditionSetsQuery.data) ? conditionSetsQuery.data : []
-            ) as {
-              key: string;
-              phase: "start" | "completion";
-              mode: "all" | "any";
-              guidance?: string;
-            }[];
             await updateConditionSetsMutation.mutateAsync({
               versionId,
               workUnitTypeKey: workUnitKey,
-              transitionKey: firstTransitionKey,
+              transitionKey,
               conditionSets: conditionSets.map((conditionSet) => ({
                 key: conditionSet.key,
                 phase: conditionSet.phase,
                 mode: conditionSet.mode,
-                guidance: conditionSet.guidance,
+                ...(conditionSet.guidance ? { guidance: conditionSet.guidance } : {}),
                 groups: [],
               })),
             });
+            await queryClient.invalidateQueries({ queryKey: conditionSetsQueryOptions.queryKey });
           }}
         />
       ) : tab === "artifact-slots" ? (
@@ -682,8 +710,24 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
             await replaceArtifactSlotsMutation.mutateAsync({
               versionId,
               workUnitTypeKey: workUnitKey,
-              slots,
+              slots: slots.map((slot) => ({
+                key: slot.key,
+                displayName: typeof slot.displayName === "string" ? slot.displayName : undefined,
+                description: normalizeMarkdownPair(slot.description),
+                guidance: normalizeMarkdownPair(slot.guidance),
+                cardinality: slot.cardinality,
+                ...(slot.rules && typeof slot.rules === "object" ? { rules: slot.rules } : {}),
+                templates: (slot.templates ?? []).map((template) => ({
+                  key: template.key,
+                  displayName:
+                    typeof template.displayName === "string" ? template.displayName : undefined,
+                  description: normalizeMarkdownPair(template.description),
+                  guidance: normalizeMarkdownPair(template.guidance),
+                  content: typeof template.content === "string" ? template.content : undefined,
+                })),
+              })),
             });
+            await queryClient.invalidateQueries({ queryKey: artifactSlotsQueryOptions.queryKey });
           }}
         />
       ) : (

@@ -70,7 +70,9 @@ export function ArtifactSlotsTab({ slots, onSaveSlots }: ArtifactSlotsTabProps) 
               >
                 <td className="px-3 py-3">
                   <div className="font-medium">{slot.displayName ?? slot.key}</div>
-                  <div className="text-xs text-muted-foreground">{slot.key}</div>
+                  {slot.displayName && slot.displayName !== slot.key ? (
+                    <div className="text-xs text-muted-foreground">{slot.key}</div>
+                  ) : null}
                 </td>
                 <td className="px-3 py-3 text-muted-foreground">{slot.cardinality}</td>
                 <td className="px-3 py-3 text-muted-foreground">
