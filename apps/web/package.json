@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite dev --host 0.0.0.0",
+    "dev": "CHOKIDAR_USEPOLLING=${CHOKIDAR_USEPOLLING:-1} CHOKIDAR_INTERVAL=${CHOKIDAR_INTERVAL:-150} vite dev --host 0.0.0.0",
     "build": "vite build",
     "serve": "vite preview",
     "start": "vite",
