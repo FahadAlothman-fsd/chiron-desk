@@ -1039,13 +1039,47 @@ describe("methodology version shell routes", () => {
       target: { value: "review_to_done" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Start Conditions" }));
-    fireEvent.change(screen.getByLabelText("Start Condition Key"), {
-      target: { value: "start.review" },
+    fireEvent.change(screen.getByLabelText("Start Gate Mode"), {
+      target: { value: "any" },
     });
+    expect(screen.getByRole("button", { name: "Edit Start Guidance" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Edit Start Description" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add Fact Condition" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add Work Unit Condition" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add Group" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit Start Guidance" }));
+    expect(await screen.findByRole("dialog", { name: "Edit Start Guidance" })).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Guidance"), {
+      target: { value: "Start guidance text" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save Guidance" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit Start Description" }));
+    expect(await screen.findByRole("dialog", { name: "Edit Start Description" })).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Start description text" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save Description" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Add Fact Condition" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Work Unit Condition" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Group" }));
+    const groupDialog = await screen.findByRole("dialog", { name: "Add Group" });
+    expect(within(groupDialog).queryByRole("button", { name: "Add Group" })).toBeNull();
+    fireEvent.click(within(groupDialog).getByRole("button", { name: "Add Fact Condition" }));
+    fireEvent.click(within(groupDialog).getByRole("button", { name: "Add Work Unit Condition" }));
+    fireEvent.click(within(groupDialog).getByRole("button", { name: "Save Group" }));
+
     fireEvent.click(screen.getByRole("button", { name: "Completion Conditions" }));
-    fireEvent.change(screen.getByLabelText("Completion Condition Key"), {
-      target: { value: "completion.review" },
+    fireEvent.change(screen.getByLabelText("Completion Gate Mode"), {
+      target: { value: "all" },
     });
+    expect(screen.getByRole("button", { name: "Edit Completion Guidance" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Edit Completion Description" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add Fact Condition" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add Work Unit Condition" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add Group" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Bindings" }));
     chooseOption("Bind Workflows", "wf.intake");
     fireEvent.click(screen.getByRole("button", { name: "Create Transition" }));
@@ -1054,6 +1088,15 @@ describe("methodology version shell routes", () => {
     });
     expect(routeContext.saveStateMachineTransitionMock).toHaveBeenLastCalledWith(
       expect.objectContaining({ workflowKeys: ["wf.intake"] }),
+      expect.anything(),
+    );
+    expect(routeContext.saveStateMachineTransitionMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        conditionSets: expect.arrayContaining([
+          expect.objectContaining({ phase: "start", mode: "any", guidance: "Start guidance text" }),
+          expect.objectContaining({ phase: "completion", mode: "all" }),
+        ]),
+      }),
       expect.anything(),
     );
     expect(routeContext.saveStateMachineTransitionMock).toHaveBeenLastCalledWith(
@@ -1070,9 +1113,9 @@ describe("methodology version shell routes", () => {
     const transitionEditDialog = screen.getByRole("dialog");
     expect(transitionEditDialog.className).toContain("w-[min(72rem,calc(100vw-2rem))]");
     fireEvent.click(screen.getByRole("button", { name: "Start Conditions" }));
-    expect(screen.getByLabelText("Start Condition Key")).toBeTruthy();
+    expect(screen.getByLabelText("Start Gate Mode")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Completion Conditions" }));
-    expect(screen.getByLabelText("Completion Condition Key")).toBeTruthy();
+    expect(screen.getByLabelText("Completion Gate Mode")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Save Transition" }));
     await waitFor(() => {
       expect(routeContext.saveStateMachineTransitionMock.mock.calls.length).toBeGreaterThan(

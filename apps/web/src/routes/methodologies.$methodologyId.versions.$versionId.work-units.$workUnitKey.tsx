@@ -629,6 +629,16 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
               phase: "start" | "completion";
               mode: "all" | "any";
               guidance?: string;
+              groups: Array<{
+                key: string;
+                mode: "all" | "any";
+                conditions: Array<{
+                  kind: string;
+                  required?: boolean;
+                  config: unknown;
+                  rationale?: string;
+                }>;
+              }>;
             }[]
           }
           workflows={
@@ -693,6 +703,16 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
                     phase: "start" | "completion";
                     mode: "all" | "any";
                     guidance?: string;
+                    groups: Array<{
+                      key: string;
+                      mode: "all" | "any";
+                      conditions: Array<{
+                        kind: string;
+                        required?: boolean;
+                        config: unknown;
+                        rationale?: string;
+                      }>;
+                    }>;
                   }>;
                 }[]);
             const currentTransitionsByKey = new Map(
@@ -718,6 +738,34 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
                   phase: conditionSet.phase,
                   mode: conditionSet.mode,
                   guidance: conditionSet.guidance ?? null,
+                  groups: (conditionSet.groups ?? []).map(
+                    (group: {
+                      key: string;
+                      mode: "all" | "any";
+                      conditions: Array<{
+                        kind: string;
+                        required?: boolean;
+                        config: unknown;
+                        rationale?: string;
+                      }>;
+                    }) => ({
+                      key: group.key,
+                      mode: group.mode,
+                      conditions: (group.conditions ?? []).map(
+                        (condition: {
+                          kind: string;
+                          required?: boolean;
+                          config: unknown;
+                          rationale?: string;
+                        }) => ({
+                          kind: condition.kind,
+                          required: condition.required ?? true,
+                          config: condition.config,
+                          rationale: condition.rationale ?? null,
+                        }),
+                      ),
+                    }),
+                  ),
                 })),
                 workflowKeys: Array.isArray(bindingsByTransitionKey[transition.transitionKey])
                   ? [...(bindingsByTransitionKey[transition.transitionKey] ?? [])]
@@ -731,6 +779,16 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
                   phase: conditionSet.phase,
                   mode: conditionSet.mode,
                   guidance: conditionSet.guidance ?? null,
+                  groups: (conditionSet.groups ?? []).map((group) => ({
+                    key: group.key,
+                    mode: group.mode,
+                    conditions: (group.conditions ?? []).map((condition) => ({
+                      kind: condition.kind,
+                      required: condition.required ?? true,
+                      config: condition.config,
+                      rationale: condition.rationale ?? null,
+                    })),
+                  })),
                 })),
                 workflowKeys: Array.isArray(transition.workflowKeys)
                   ? transition.workflowKeys
@@ -756,7 +814,16 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
                   phase: conditionSet.phase,
                   mode: conditionSet.mode,
                   ...(conditionSet.guidance ? { guidance: conditionSet.guidance } : {}),
-                  groups: [],
+                  groups: (conditionSet.groups ?? []).map((group) => ({
+                    key: group.key,
+                    mode: group.mode,
+                    conditions: (group.conditions ?? []).map((condition) => ({
+                      kind: condition.kind,
+                      required: condition.required ?? true,
+                      config: condition.config,
+                      ...(condition.rationale ? { rationale: condition.rationale } : {}),
+                    })),
+                  })),
                 })),
                 workflowKeys: Array.isArray(bindingsByTransitionKey[transition.transitionKey])
                   ? (Array.isArray(transition.workflowKeys)
@@ -804,7 +871,16 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
                 phase: conditionSet.phase,
                 mode: conditionSet.mode,
                 ...(conditionSet.guidance ? { guidance: conditionSet.guidance } : {}),
-                groups: [],
+                groups: (conditionSet.groups ?? []).map((group) => ({
+                  key: group.key,
+                  mode: group.mode,
+                  conditions: (group.conditions ?? []).map((condition) => ({
+                    kind: condition.kind,
+                    required: condition.required ?? true,
+                    config: condition.config,
+                    ...(condition.rationale ? { rationale: condition.rationale } : {}),
+                  })),
+                })),
               })),
             });
             await queryClient.invalidateQueries({ queryKey: conditionSetsQueryOptions.queryKey });

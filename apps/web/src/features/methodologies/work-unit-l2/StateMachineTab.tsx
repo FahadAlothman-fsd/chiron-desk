@@ -33,7 +33,32 @@ type TransitionConditionSet = {
   key: string;
   phase: "start" | "completion";
   mode: "all" | "any";
+  groups: TransitionConditionGroup[];
   guidance?: string;
+};
+
+type TransitionCondition = {
+  kind: string;
+  required?: boolean;
+  config: unknown;
+  rationale?: string;
+};
+
+type TransitionConditionGroup = {
+  key: string;
+  mode: "all" | "any";
+  conditions: TransitionCondition[];
+};
+
+type GatePhase = "start" | "completion";
+
+type GateDraft = {
+  key: string;
+  mode: "all" | "any";
+  guidance: string;
+  description: string;
+  conditions: TransitionCondition[];
+  groups: TransitionConditionGroup[];
 };
 
 type LifecycleTransition = {
@@ -67,8 +92,8 @@ type TransitionDraft = {
   transitionKey: string;
   fromState: string;
   toState: string;
-  startConditionKey: string;
-  completionConditionKey: string;
+  startGate: GateDraft;
+  completionGate: GateDraft;
   workflowKeys: string[];
 };
 
@@ -89,8 +114,22 @@ const emptyTransitionDraft: TransitionDraft = {
   transitionKey: "",
   fromState: "",
   toState: "",
-  startConditionKey: "",
-  completionConditionKey: "",
+  startGate: {
+    key: "",
+    mode: "all",
+    guidance: "",
+    description: "",
+    conditions: [],
+    groups: [],
+  },
+  completionGate: {
+    key: "",
+    mode: "all",
+    guidance: "",
+    description: "",
+    conditions: [],
+    groups: [],
+  },
   workflowKeys: [],
 };
 
@@ -132,6 +171,16 @@ export function StateMachineTab({
   const [isFromStateOpen, setIsFromStateOpen] = useState(false);
   const [isToStateOpen, setIsToStateOpen] = useState(false);
   const [isBindingsOpen, setIsBindingsOpen] = useState(false);
+  const [gateTextEditor, setGateTextEditor] = useState<{
+    phase: GatePhase;
+    field: "guidance" | "description";
+    value: string;
+  } | null>(null);
+  const [groupEditor, setGroupEditor] = useState<{
+    phase: GatePhase;
+    mode: "all" | "any";
+    conditions: TransitionCondition[];
+  } | null>(null);
 
   useEffect(() => {
     setStatesDraft(states.map((state) => ({ ...state })));
@@ -297,6 +346,21 @@ export function StateMachineTab({
     return phaseSet?.key ?? "—";
   };
 
+  const toGateDraft = (set: TransitionConditionSet | undefined): GateDraft => ({
+    key: set?.key ?? "",
+    mode: set?.mode ?? "all",
+    guidance: set?.guidance ?? "",
+    description: "",
+    conditions: [],
+    groups: Array.isArray(set?.groups)
+      ? set.groups.map((group) => ({
+          key: group.key,
+          mode: group.mode,
+          conditions: [...group.conditions],
+        }))
+      : [],
+  });
+
   const toTransitionDraft = (transition: LifecycleTransition): TransitionDraft => {
     const startSet = (transition.conditionSets ?? []).find((entry) => entry.phase === "start");
     const completionSet = (transition.conditionSets ?? []).find(
@@ -306,8 +370,8 @@ export function StateMachineTab({
       transitionKey: transition.transitionKey,
       fromState: transition.fromState ?? absentFromStateValue,
       toState: transition.toState,
-      startConditionKey: startSet?.key ?? "",
-      completionConditionKey: completionSet?.key ?? "",
+      startGate: toGateDraft(startSet),
+      completionGate: toGateDraft(completionSet),
       workflowKeys: Array.isArray(transition.workflowKeys) ? [...transition.workflowKeys] : [],
     };
   };
@@ -330,27 +394,35 @@ export function StateMachineTab({
     setTransitionDialogOpen(true);
   };
 
+  const toConditionSet = (
+    phase: GatePhase,
+    gate: GateDraft,
+    transitionKey: string,
+  ): TransitionConditionSet => {
+    const fallbackKey = `${phase}.${transitionKey}`;
+    return {
+      key: gate.key.trim().length > 0 ? gate.key.trim() : fallbackKey,
+      phase,
+      mode: gate.mode,
+      ...(gate.guidance.trim().length > 0 ? { guidance: gate.guidance.trim() } : {}),
+      groups: [
+        ...gate.conditions.map((condition, index) => ({
+          key: `${phase}.condition.${index + 1}`,
+          mode: "all" as const,
+          conditions: [condition],
+        })),
+        ...gate.groups.map((group, index) => ({
+          key: group.key.trim().length > 0 ? group.key.trim() : `${phase}.group.${index + 1}`,
+          mode: group.mode,
+          conditions: [...group.conditions],
+        })),
+      ],
+    };
+  };
+
   const toConditionSets = (draft: TransitionDraft): TransitionConditionSet[] => [
-    ...(draft.startConditionKey.trim()
-      ? [
-          {
-            key: draft.startConditionKey.trim(),
-            phase: "start" as const,
-            mode: "all" as const,
-            guidance: "",
-          },
-        ]
-      : []),
-    ...(draft.completionConditionKey.trim()
-      ? [
-          {
-            key: draft.completionConditionKey.trim(),
-            phase: "completion" as const,
-            mode: "all" as const,
-            guidance: "",
-          },
-        ]
-      : []),
+    toConditionSet("start", draft.startGate, draft.transitionKey.trim()),
+    toConditionSet("completion", draft.completionGate, draft.transitionKey.trim()),
   ];
 
   const saveTransitionDialog = async () => {
@@ -382,6 +454,69 @@ export function StateMachineTab({
     setTransitionsDraft(nextTransitions);
     await onSaveTransitions?.(nextTransitions);
     setTransitionDialogOpen(false);
+  };
+
+  const updateGate = (phase: GatePhase, updater: (gate: GateDraft) => GateDraft) => {
+    setTransitionEditor((previous) => {
+      const currentGate = phase === "start" ? previous.startGate : previous.completionGate;
+      const nextGate = updater(currentGate);
+      return phase === "start"
+        ? { ...previous, startGate: nextGate }
+        : { ...previous, completionGate: nextGate };
+    });
+  };
+
+  const addGateCondition = (phase: GatePhase, kind: "fact" | "work_unit") => {
+    updateGate(phase, (gate) => ({
+      ...gate,
+      conditions: [
+        ...gate.conditions,
+        {
+          kind,
+          required: true,
+          config:
+            kind === "fact"
+              ? { factKey: "", operator: "exists" }
+              : { dependencyKey: "", operator: "exists" },
+        },
+      ],
+    }));
+  };
+
+  const openGateTextEditor = (phase: GatePhase, field: "guidance" | "description") => {
+    const gate = phase === "start" ? transitionEditor.startGate : transitionEditor.completionGate;
+    setGateTextEditor({
+      phase,
+      field,
+      value: field === "guidance" ? gate.guidance : gate.description,
+    });
+  };
+
+  const openGroupEditor = (phase: GatePhase) => {
+    setGroupEditor({
+      phase,
+      mode: "all",
+      conditions: [],
+    });
+  };
+
+  const saveGroupEditor = () => {
+    if (!groupEditor) {
+      return;
+    }
+
+    updateGate(groupEditor.phase, (gate) => ({
+      ...gate,
+      groups: [
+        ...gate.groups,
+        {
+          key: "",
+          mode: groupEditor.mode,
+          conditions: [...groupEditor.conditions],
+        },
+      ],
+    }));
+    setGroupEditor(null);
   };
 
   const currentTransition = editingTransitionKey
@@ -946,18 +1081,68 @@ export function StateMachineTab({
                   </div>
                 </div>
               ) : transitionEditorTab === "start" ? (
-                <div className="grid gap-2">
-                  <Label htmlFor="transition-start-condition-key">Start Condition Key</Label>
-                  <Input
-                    id="transition-start-condition-key"
-                    value={transitionEditor.startConditionKey}
-                    onChange={(event) =>
-                      setTransitionEditor((previous) => ({
-                        ...previous,
-                        startConditionKey: event.target.value,
-                      }))
-                    }
-                  />
+                <div className="grid gap-6">
+                  <div className="grid gap-2">
+                    <Label htmlFor="transition-start-mode">Start Gate Mode</Label>
+                    <select
+                      id="transition-start-mode"
+                      className="h-9 rounded-none border border-input bg-background px-2 text-xs"
+                      value={transitionEditor.startGate.mode}
+                      onChange={(event) =>
+                        updateGate("start", (gate) => ({
+                          ...gate,
+                          mode: event.target.value === "any" ? "any" : "all",
+                        }))
+                      }
+                    >
+                      <option value="all">All conditions</option>
+                      <option value="any">Any condition</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-none"
+                      onClick={() => openGateTextEditor("start", "guidance")}
+                    >
+                      Edit Start Guidance
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-none"
+                      onClick={() => openGateTextEditor("start", "description")}
+                    >
+                      Edit Start Description
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-none"
+                      onClick={() => addGateCondition("start", "fact")}
+                    >
+                      Add Fact Condition
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-none"
+                      onClick={() => addGateCondition("start", "work_unit")}
+                    >
+                      Add Work Unit Condition
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-none"
+                      onClick={() => openGroupEditor("start")}
+                    >
+                      Add Group
+                    </Button>
+                  </div>
                 </div>
               ) : transitionEditorTab === "bindings" ? (
                 <div className="grid gap-2">
@@ -1032,20 +1217,68 @@ export function StateMachineTab({
                   </Popover>
                 </div>
               ) : (
-                <div className="grid gap-2">
-                  <Label htmlFor="transition-completion-condition-key">
-                    Completion Condition Key
-                  </Label>
-                  <Input
-                    id="transition-completion-condition-key"
-                    value={transitionEditor.completionConditionKey}
-                    onChange={(event) =>
-                      setTransitionEditor((previous) => ({
-                        ...previous,
-                        completionConditionKey: event.target.value,
-                      }))
-                    }
-                  />
+                <div className="grid gap-6">
+                  <div className="grid gap-2">
+                    <Label htmlFor="transition-completion-mode">Completion Gate Mode</Label>
+                    <select
+                      id="transition-completion-mode"
+                      className="h-9 rounded-none border border-input bg-background px-2 text-xs"
+                      value={transitionEditor.completionGate.mode}
+                      onChange={(event) =>
+                        updateGate("completion", (gate) => ({
+                          ...gate,
+                          mode: event.target.value === "any" ? "any" : "all",
+                        }))
+                      }
+                    >
+                      <option value="all">All conditions</option>
+                      <option value="any">Any condition</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-none"
+                      onClick={() => openGateTextEditor("completion", "guidance")}
+                    >
+                      Edit Completion Guidance
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-none"
+                      onClick={() => openGateTextEditor("completion", "description")}
+                    >
+                      Edit Completion Description
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-none"
+                      onClick={() => addGateCondition("completion", "fact")}
+                    >
+                      Add Fact Condition
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-none"
+                      onClick={() => addGateCondition("completion", "work_unit")}
+                    >
+                      Add Work Unit Condition
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-none"
+                      onClick={() => openGroupEditor("completion")}
+                    >
+                      Add Group
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
@@ -1075,6 +1308,172 @@ export function StateMachineTab({
           {currentTransition ? (
             <p className="sr-only">Editing {currentTransition.transitionKey}</p>
           ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={gateTextEditor !== null}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            setGateTextEditor(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl rounded-none">
+          <DialogHeader>
+            <DialogTitle>
+              {gateTextEditor
+                ? `Edit ${gateTextEditor.phase === "start" ? "Start" : "Completion"} ${gateTextEditor.field === "guidance" ? "Guidance" : "Description"}`
+                : "Edit Gate Text"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-2">
+            <Label htmlFor="transition-gate-text-value">
+              {gateTextEditor?.field === "guidance" ? "Guidance" : "Description"}
+            </Label>
+            <Textarea
+              id="transition-gate-text-value"
+              className="min-h-[12rem] resize-none rounded-none"
+              value={gateTextEditor?.value ?? ""}
+              onChange={(event) =>
+                setGateTextEditor((previous) =>
+                  previous ? { ...previous, value: event.target.value } : previous,
+                )
+              }
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-none"
+              onClick={() => setGateTextEditor(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="rounded-none"
+              onClick={() => {
+                if (!gateTextEditor) {
+                  return;
+                }
+
+                updateGate(gateTextEditor.phase, (gate) =>
+                  gateTextEditor.field === "guidance"
+                    ? { ...gate, guidance: gateTextEditor.value }
+                    : { ...gate, description: gateTextEditor.value },
+                );
+                setGateTextEditor(null);
+              }}
+            >
+              {gateTextEditor?.field === "guidance" ? "Save Guidance" : "Save Description"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={groupEditor !== null}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            setGroupEditor(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-3xl rounded-none">
+          <DialogHeader>
+            <DialogTitle>Add Group</DialogTitle>
+          </DialogHeader>
+
+          <div className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="transition-group-mode">Group Mode</Label>
+              <select
+                id="transition-group-mode"
+                className="h-9 rounded-none border border-input bg-background px-2 text-xs"
+                value={groupEditor?.mode ?? "all"}
+                onChange={(event) =>
+                  setGroupEditor((previous) =>
+                    previous
+                      ? {
+                          ...previous,
+                          mode: event.target.value === "any" ? "any" : "all",
+                        }
+                      : previous,
+                  )
+                }
+              >
+                <option value="all">All conditions</option>
+                <option value="any">Any condition</option>
+              </select>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-none"
+                onClick={() =>
+                  setGroupEditor((previous) =>
+                    previous
+                      ? {
+                          ...previous,
+                          conditions: [
+                            ...previous.conditions,
+                            {
+                              kind: "fact",
+                              required: true,
+                              config: { factKey: "", operator: "exists" },
+                            },
+                          ],
+                        }
+                      : previous,
+                  )
+                }
+              >
+                Add Fact Condition
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-none"
+                onClick={() =>
+                  setGroupEditor((previous) =>
+                    previous
+                      ? {
+                          ...previous,
+                          conditions: [
+                            ...previous.conditions,
+                            {
+                              kind: "work_unit",
+                              required: true,
+                              config: { dependencyKey: "", operator: "exists" },
+                            },
+                          ],
+                        }
+                      : previous,
+                  )
+                }
+              >
+                Add Work Unit Condition
+              </Button>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-none"
+              onClick={() => setGroupEditor(null)}
+            >
+              Cancel
+            </Button>
+            <Button type="button" className="rounded-none" onClick={saveGroupEditor}>
+              Save Group
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </section>
