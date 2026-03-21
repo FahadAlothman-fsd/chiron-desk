@@ -13,6 +13,7 @@ export const LifecycleState = Schema.Struct({
   key: Schema.NonEmptyString,
   displayName: Schema.optional(Schema.String),
   description: Schema.optional(Schema.String),
+  guidance: Schema.optional(AudienceGuidance),
 });
 export type LifecycleState = typeof LifecycleState.Type;
 
@@ -138,10 +139,28 @@ export type DeleteWorkUnitLifecycleStateInput = typeof DeleteWorkUnitLifecycleSt
 export const UpsertWorkUnitLifecycleTransitionInput = Schema.Struct({
   versionId: Schema.NonEmptyString,
   workUnitTypeKey: Schema.NonEmptyString,
-  transition: LifecycleTransition,
+  transition: Schema.Struct({
+    transitionKey: Schema.NonEmptyString,
+    fromState: Schema.optional(Schema.String), // null/undefined = __absent__
+    toState: Schema.NonEmptyString,
+  }),
 });
 export type UpsertWorkUnitLifecycleTransitionInput =
   typeof UpsertWorkUnitLifecycleTransitionInput.Type;
+
+export const SaveWorkUnitLifecycleTransitionDialogInput = Schema.Struct({
+  versionId: Schema.NonEmptyString,
+  workUnitTypeKey: Schema.NonEmptyString,
+  transition: Schema.Struct({
+    transitionKey: Schema.NonEmptyString,
+    fromState: Schema.optional(Schema.String),
+    toState: Schema.NonEmptyString,
+  }),
+  conditionSets: Schema.Array(TransitionConditionSet),
+  workflowKeys: Schema.Array(Schema.NonEmptyString),
+});
+export type SaveWorkUnitLifecycleTransitionDialogInput =
+  typeof SaveWorkUnitLifecycleTransitionDialogInput.Type;
 
 export const DeleteWorkUnitLifecycleTransitionInput = Schema.Struct({
   versionId: Schema.NonEmptyString,

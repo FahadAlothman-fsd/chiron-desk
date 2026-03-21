@@ -161,7 +161,8 @@ function createRouteContext(options?: {
     { key: "todo", displayName: "To Do", description: "Awaiting work" },
     { key: "done", displayName: "Done", description: "Completed" },
   ]);
-  const updateStateMachineStatesMock = vi.fn(async () => ({ diagnostics: [] }));
+  const upsertStateMachineStateMock = vi.fn(async () => ({ diagnostics: [] }));
+  const deleteStateMachineStateMock = vi.fn(async () => ({ diagnostics: [] }));
   const listStateMachineTransitionsMock = vi.fn(async () => [
     {
       transitionKey: "todo_to_done",
@@ -170,7 +171,9 @@ function createRouteContext(options?: {
       conditionSets: [],
     },
   ]);
-  const updateStateMachineTransitionsMock = vi.fn(async () => ({ diagnostics: [] }));
+  const saveStateMachineTransitionMock = vi.fn(async () => ({ diagnostics: [] }));
+  const upsertStateMachineTransitionMock = vi.fn(async () => ({ diagnostics: [] }));
+  const deleteStateMachineTransitionMock = vi.fn(async () => ({ diagnostics: [] }));
   const listTransitionConditionSetsMock = vi.fn(async () => [
     {
       key: "start_guard",
@@ -409,9 +412,14 @@ function createRouteContext(options?: {
                     queryFn: listStateMachineStatesMock,
                   }),
                 },
-                update: {
+                upsert: {
                   mutationOptions: () => ({
-                    mutationFn: updateStateMachineStatesMock,
+                    mutationFn: upsertStateMachineStateMock,
+                  }),
+                },
+                delete: {
+                  mutationOptions: () => ({
+                    mutationFn: deleteStateMachineStateMock,
                   }),
                 },
               },
@@ -434,9 +442,19 @@ function createRouteContext(options?: {
                     queryFn: listStateMachineTransitionsMock,
                   }),
                 },
-                update: {
+                save: {
                   mutationOptions: () => ({
-                    mutationFn: updateStateMachineTransitionsMock,
+                    mutationFn: saveStateMachineTransitionMock,
+                  }),
+                },
+                upsert: {
+                  mutationOptions: () => ({
+                    mutationFn: upsertStateMachineTransitionMock,
+                  }),
+                },
+                delete: {
+                  mutationOptions: () => ({
+                    mutationFn: deleteStateMachineTransitionMock,
                   }),
                 },
                 conditionSet: {
@@ -513,9 +531,12 @@ function createRouteContext(options?: {
     updateWorkUnitWorkflowMock,
     deleteWorkUnitWorkflowMock,
     listStateMachineStatesMock,
-    updateStateMachineStatesMock,
+    upsertStateMachineStateMock,
+    deleteStateMachineStateMock,
     listStateMachineTransitionsMock,
-    updateStateMachineTransitionsMock,
+    saveStateMachineTransitionMock,
+    upsertStateMachineTransitionMock,
+    deleteStateMachineTransitionMock,
     listTransitionConditionSetsMock,
     updateTransitionConditionSetsMock,
     listArtifactSlotsMock,
@@ -914,7 +935,7 @@ describe("methodology version shell routes", () => {
     });
   });
 
-  it("supports state-machine CRUD with transition start/completion condition tabs", async () => {
+  it("supports state-machine CRUD with transition contract/start/completion/bindings tabs", async () => {
     const { MethodologyVersionWorkUnitDetailsRoute } =
       await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey");
     const routeContext = createRouteContext();
@@ -928,7 +949,7 @@ describe("methodology version shell routes", () => {
 
     renderWithQueryClient(<MethodologyVersionWorkUnitDetailsRoute />);
 
-    expect(await screen.findByText("State Machine")).toBeTruthy();
+    expect(await screen.findByText("Lifecycle Detail")).toBeTruthy();
     expect(await screen.findByText("To Do")).toBeTruthy();
     expect(await screen.findByText("todo_to_done")).toBeTruthy();
     expect(screen.getByRole("columnheader", { name: "Start Condition" })).toBeTruthy();
@@ -941,19 +962,82 @@ describe("methodology version shell routes", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "+ Add State" }));
     expect(await screen.findByText("Add State")).toBeTruthy();
+    const stateCreateDialog = screen.getByRole("dialog");
+    expect(stateCreateDialog.className).toContain("w-[min(72rem,calc(100vw-2rem))]");
+    fireEvent.click(screen.getByRole("button", { name: "Contract" }));
     fireEvent.change(screen.getByLabelText("State Key"), { target: { value: "state.review" } });
     fireEvent.change(screen.getByLabelText("Display Name"), { target: { value: "Review" } });
+    expect(screen.getByTestId("state-contract-modified-indicator")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Guidance" }));
+    fireEvent.change(screen.getByLabelText("Human Guidance"), {
+      target: { value: "State-level operator guidance" },
+    });
+    fireEvent.change(screen.getByLabelText("Agent Guidance"), {
+      target: { value: "State-level automation guidance" },
+    });
+    expect(screen.getByTestId("state-guidance-modified-indicator")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(await screen.findByText("Discard unsaved changes?")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Keep Editing" }));
+    expect(screen.queryByText("Discard unsaved changes?")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Create State" }));
     await waitFor(() => {
-      expect(routeContext.updateStateMachineStatesMock).toHaveBeenCalledTimes(1);
+      expect(routeContext.upsertStateMachineStateMock).toHaveBeenCalled();
+    });
+    const stateUpsertCallsAfterCreate = routeContext.upsertStateMachineStateMock.mock.calls.length;
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit State" })[0]!);
+    expect(await screen.findByText("Edit State")).toBeTruthy();
+    const stateEditDialog = screen.getByRole("dialog");
+    expect(stateEditDialog.className).toContain("w-[min(72rem,calc(100vw-2rem))]");
+    fireEvent.change(screen.getByLabelText("Display Name"), { target: { value: "To Do Updated" } });
+    expect(screen.getByTestId("state-contract-modified-indicator")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Guidance" }));
+    fireEvent.change(screen.getByLabelText("Human Guidance"), {
+      target: { value: "Updated state guidance" },
+    });
+    fireEvent.change(screen.getByLabelText("Agent Guidance"), {
+      target: { value: "Updated automation guidance" },
+    });
+    expect(screen.getByTestId("state-guidance-modified-indicator")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    const stateDiscardDialog = await screen.findByRole("dialog", {
+      name: "Discard unsaved changes?",
+    });
+    fireEvent.click(within(stateDiscardDialog).getByRole("button", { name: "Discard Changes" }));
+    expect(screen.queryByText("Edit State")).toBeNull();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit State" })[0]!);
+    fireEvent.change(screen.getByLabelText("Display Name"), { target: { value: "To Do Updated" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save State" }));
+    await waitFor(() => {
+      expect(routeContext.upsertStateMachineStateMock.mock.calls.length).toBeGreaterThan(
+        stateUpsertCallsAfterCreate,
+      );
     });
 
     fireEvent.click(screen.getByRole("button", { name: "+ Add Transition" }));
     expect(await screen.findByText("Add Transition")).toBeTruthy();
+    const transitionCreateDialog = screen.getByRole("dialog");
+    expect(transitionCreateDialog.className).toContain("w-[min(72rem,calc(100vw-2rem))]");
+    expect(screen.getByRole("button", { name: "Contract" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Start Conditions" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Completion Conditions" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Bindings" })).toBeTruthy();
+
+    fireEvent.click(comboboxForField("From State"));
+    expect(screen.getByRole("option", { name: /activate work unit/i })).toBeTruthy();
+    expect(screen.getByText(/for activating a work unit/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole("option", { name: /activate work unit/i }));
+
+    fireEvent.click(comboboxForField("To State"));
+    expect(screen.queryByRole("option", { name: /activate work unit/i })).toBeNull();
+    expect(screen.queryByText(/for activating a work unit/i)).toBeNull();
+    fireEvent.click(screen.getByRole("option", { name: /done/i }));
+
     fireEvent.change(screen.getByLabelText("Transition Key"), {
       target: { value: "review_to_done" },
     });
-    fireEvent.change(screen.getByLabelText("To State"), { target: { value: "done" } });
     fireEvent.click(screen.getByRole("button", { name: "Start Conditions" }));
     fireEvent.change(screen.getByLabelText("Start Condition Key"), {
       target: { value: "start.review" },
@@ -962,20 +1046,38 @@ describe("methodology version shell routes", () => {
     fireEvent.change(screen.getByLabelText("Completion Condition Key"), {
       target: { value: "completion.review" },
     });
+    fireEvent.click(screen.getByRole("button", { name: "Bindings" }));
+    chooseOption("Bind Workflows", "wf.intake");
     fireEvent.click(screen.getByRole("button", { name: "Create Transition" }));
     await waitFor(() => {
-      expect(routeContext.updateStateMachineTransitionsMock).toHaveBeenCalledTimes(1);
+      expect(routeContext.saveStateMachineTransitionMock.mock.calls.length).toBeGreaterThan(0);
     });
+    expect(routeContext.saveStateMachineTransitionMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ workflowKeys: ["wf.intake"] }),
+      expect.anything(),
+    );
+    expect(routeContext.saveStateMachineTransitionMock).toHaveBeenLastCalledWith(
+      expect.not.objectContaining({
+        transition: expect.objectContaining({ fromState: "__absent__" }),
+      }),
+      expect.anything(),
+    );
+    const transitionSaveCallsAfterCreate =
+      routeContext.saveStateMachineTransitionMock.mock.calls.length;
 
     fireEvent.click(screen.getAllByRole("button", { name: "Edit Transition" })[0]!);
     expect(await screen.findByText("Edit Transition")).toBeTruthy();
+    const transitionEditDialog = screen.getByRole("dialog");
+    expect(transitionEditDialog.className).toContain("w-[min(72rem,calc(100vw-2rem))]");
     fireEvent.click(screen.getByRole("button", { name: "Start Conditions" }));
     expect(screen.getByLabelText("Start Condition Key")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Completion Conditions" }));
     expect(screen.getByLabelText("Completion Condition Key")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Save Transition" }));
     await waitFor(() => {
-      expect(routeContext.updateStateMachineTransitionsMock).toHaveBeenCalledTimes(2);
+      expect(routeContext.saveStateMachineTransitionMock.mock.calls.length).toBeGreaterThan(
+        transitionSaveCallsAfterCreate,
+      );
     });
     expect(routeContext.updateTransitionConditionSetsMock).toHaveBeenCalledTimes(0);
   });

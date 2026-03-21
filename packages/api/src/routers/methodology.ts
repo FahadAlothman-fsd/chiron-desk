@@ -334,6 +334,7 @@ const lifecycleStateSchema = z.object({
   key: z.string().min(1),
   displayName: z.string().optional(),
   description: z.string().optional(),
+  guidance: audienceGuidanceSchema.optional(),
 });
 
 const transitionConditionSchema = z.object({
@@ -364,16 +365,43 @@ const lifecycleTransitionSchema = z.object({
   conditionSets: z.array(transitionConditionSetSchema),
 });
 
-const replaceWorkUnitLifecycleStatesInput = z.object({
-  versionId: z.string().min(1),
-  workUnitTypeKey: z.string().min(1),
-  states: z.array(lifecycleStateSchema),
+const lifecycleTransitionMetadataSchema = z.object({
+  transitionKey: z.string().min(1),
+  fromState: z.string().optional(), // undefined/null = __absent__
+  toState: z.string().min(1),
 });
 
-const replaceWorkUnitLifecycleTransitionsInput = z.object({
+const upsertWorkUnitLifecycleStateInput = z.object({
   versionId: z.string().min(1),
   workUnitTypeKey: z.string().min(1),
-  transitions: z.array(lifecycleTransitionSchema),
+  state: lifecycleStateSchema,
+});
+
+const deleteWorkUnitLifecycleStateInput = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  stateKey: z.string().min(1),
+  strategy: z.enum(["disconnect", "cleanup"]).optional(),
+});
+
+const upsertWorkUnitLifecycleTransitionInput = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  transition: lifecycleTransitionMetadataSchema,
+});
+
+const saveWorkUnitLifecycleTransitionDialogInput = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  transition: lifecycleTransitionMetadataSchema,
+  conditionSets: z.array(transitionConditionSetSchema),
+  workflowKeys: z.array(z.string().min(1)),
+});
+
+const deleteWorkUnitLifecycleTransitionInput = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  transitionKey: z.string().min(1),
 });
 
 const replaceWorkUnitTransitionConditionSetsInput = z.object({
@@ -1782,19 +1810,19 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
         };
       }),
 
-    replaceWorkUnitLifecycleStates: protectedProcedure
-      .input(replaceWorkUnitLifecycleStatesInput)
+    upsertWorkUnitLifecycleState: protectedProcedure
+      .input(upsertWorkUnitLifecycleStateInput)
       .handler(async ({ input, context }) => {
         const actorId = context.session.user.id;
         const result = await runEffect(
           serviceLayer,
           Effect.gen(function* () {
             const svc = yield* MethodologyVersionBoundaryService;
-            return yield* svc.replaceWorkUnitLifecycleStates(
+            return yield* svc.upsertWorkUnitLifecycleState(
               {
                 versionId: input.versionId,
                 workUnitTypeKey: input.workUnitTypeKey,
-                states: input.states,
+                state: input.state,
               },
               actorId,
             );
@@ -1807,31 +1835,106 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
         };
       }),
 
-    replaceWorkUnitLifecycleTransitions: protectedProcedure
-      .input(replaceWorkUnitLifecycleTransitionsInput)
+    deleteWorkUnitLifecycleState: protectedProcedure
+      .input(deleteWorkUnitLifecycleStateInput)
       .handler(async ({ input, context }) => {
         const actorId = context.session.user.id;
         const result = await runEffect(
           serviceLayer,
           Effect.gen(function* () {
             const svc = yield* MethodologyVersionBoundaryService;
-            return yield* svc.replaceWorkUnitLifecycleTransitions(
+            return yield* svc.deleteWorkUnitLifecycleState(
               {
                 versionId: input.versionId,
                 workUnitTypeKey: input.workUnitTypeKey,
-                transitions: input.transitions.map((transition) => ({
-                  ...transition,
-                  conditionSets: transition.conditionSets.map((conditionSet) => ({
-                    ...conditionSet,
-                    groups: conditionSet.groups.map((group) => ({
-                      ...group,
-                      conditions: group.conditions.map((condition) => ({
-                        ...condition,
-                        required: condition.required ?? true,
-                      })),
+                stateKey: input.stateKey,
+                ...(input.strategy ? { strategy: input.strategy } : {}),
+              },
+              actorId,
+            );
+          }),
+        );
+
+        return {
+          version: serializeVersion(result.version),
+          diagnostics: result.diagnostics,
+        };
+      }),
+
+    upsertWorkUnitLifecycleTransition: protectedProcedure
+      .input(upsertWorkUnitLifecycleTransitionInput)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionBoundaryService;
+            return yield* svc.upsertWorkUnitLifecycleTransition(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+                transition: input.transition,
+              },
+              actorId,
+            );
+          }),
+        );
+
+        return {
+          version: serializeVersion(result.version),
+          diagnostics: result.diagnostics,
+        };
+      }),
+
+    saveWorkUnitLifecycleTransitionDialog: protectedProcedure
+      .input(saveWorkUnitLifecycleTransitionDialogInput)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionBoundaryService;
+            return yield* svc.saveWorkUnitLifecycleTransitionDialog(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+                transition: input.transition,
+                conditionSets: input.conditionSets.map((conditionSet) => ({
+                  ...conditionSet,
+                  groups: conditionSet.groups.map((group) => ({
+                    ...group,
+                    conditions: group.conditions.map((condition) => ({
+                      ...condition,
+                      required: condition.required ?? true,
                     })),
                   })),
                 })),
+                workflowKeys: input.workflowKeys,
+              },
+              actorId,
+            );
+          }),
+        );
+
+        return {
+          version: serializeVersion(result.version),
+          diagnostics: result.diagnostics,
+        };
+      }),
+
+    deleteWorkUnitLifecycleTransition: protectedProcedure
+      .input(deleteWorkUnitLifecycleTransitionInput)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionBoundaryService;
+            return yield* svc.deleteWorkUnitLifecycleTransition(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+                transitionKey: input.transitionKey,
               },
               actorId,
             );
@@ -2351,11 +2454,14 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
         stateMachine: {
           state: {
             list: router.listWorkUnitLifecycleStates,
-            update: router.replaceWorkUnitLifecycleStates,
+            upsert: router.upsertWorkUnitLifecycleState,
+            delete: router.deleteWorkUnitLifecycleState,
           },
           transition: {
             list: router.listWorkUnitLifecycleTransitions,
-            update: router.replaceWorkUnitLifecycleTransitions,
+            save: router.saveWorkUnitLifecycleTransitionDialog,
+            upsert: router.upsertWorkUnitLifecycleTransition,
+            delete: router.deleteWorkUnitLifecycleTransition,
             conditionSet: {
               list: router.listWorkUnitTransitionConditionSets,
               update: router.replaceWorkUnitTransitionConditionSets,

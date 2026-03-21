@@ -178,17 +178,12 @@ describe("WorkUnitStateMachineService", () => {
   });
 
   it("disconnect strategy removes toState references and clears fromState", async () => {
-    let capturedStatesPayload: unknown = null;
-    let capturedTransitionsPayload: unknown = null;
+    let capturedDeletePayload: unknown = null;
 
     const repoLayer = Layer.succeed(MethodologyRepository, {
       findVersionById: () => Effect.succeed(versionRow),
-      replaceWorkUnitLifecycleStates: (params: unknown) => {
-        capturedStatesPayload = params;
-        return Effect.succeed(true);
-      },
-      replaceWorkUnitLifecycleTransitions: (params: unknown) => {
-        capturedTransitionsPayload = params;
+      deleteWorkUnitLifecycleState: (params: unknown) => {
+        capturedDeletePayload = params;
         return Effect.succeed(true);
       },
       recordEvent: () =>
@@ -295,28 +290,11 @@ describe("WorkUnitStateMachineService", () => {
       }).pipe(Effect.provide(layer)),
     );
 
-    expect(capturedStatesPayload).toEqual({
+    expect(capturedDeletePayload).toEqual({
       versionId: "ver-1",
       workUnitTypeKey: "project_context",
-      states: [
-        {
-          key: "ready",
-          displayName: "Ready",
-          description: undefined,
-        },
-      ],
-    });
-
-    expect(capturedTransitionsPayload).toEqual({
-      versionId: "ver-1",
-      workUnitTypeKey: "project_context",
-      transitions: [
-        {
-          transitionKey: "to-ready",
-          toState: "ready",
-          conditionSets: [],
-        },
-      ],
+      stateKey: "draft",
+      strategy: "disconnect",
     });
   });
 

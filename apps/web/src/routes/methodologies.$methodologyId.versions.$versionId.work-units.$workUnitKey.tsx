@@ -136,7 +136,7 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
   });
   const workflowsQuery = useQuery({
     ...workflowsQueryOptions,
-    enabled: tab === "workflows",
+    enabled: tab === "workflows" || tab === "state-machine",
   });
   const createWorkflowMutation = useMutation(
     orpc.methodology.version.workUnit.workflow.create.mutationOptions(),
@@ -186,11 +186,17 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
     ...conditionSetsQueryOptions,
     enabled: tab === "state-machine" && firstTransitionKey !== null,
   });
-  const updateStatesMutation = useMutation(
-    orpc.methodology.version.workUnit.stateMachine.state.update.mutationOptions(),
+  const upsertStateMutation = useMutation(
+    orpc.methodology.version.workUnit.stateMachine.state.upsert.mutationOptions(),
   );
-  const updateTransitionsMutation = useMutation(
-    orpc.methodology.version.workUnit.stateMachine.transition.update.mutationOptions(),
+  const deleteStateMutation = useMutation(
+    orpc.methodology.version.workUnit.stateMachine.state.delete.mutationOptions(),
+  );
+  const saveTransitionDialogMutation = useMutation(
+    orpc.methodology.version.workUnit.stateMachine.transition.save.mutationOptions(),
+  );
+  const deleteTransitionMutation = useMutation(
+    orpc.methodology.version.workUnit.stateMachine.transition.delete.mutationOptions(),
   );
   const updateConditionSetsMutation = useMutation(
     orpc.methodology.version.workUnit.stateMachine.transition.conditionSet.update.mutationOptions(),
@@ -605,6 +611,7 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
               key: string;
               displayName?: string;
               description?: string;
+              guidance?: { human: { markdown: string }; agent: { markdown: string } };
             }[]
           }
           transitions={
@@ -624,24 +631,126 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
               guidance?: string;
             }[]
           }
+          workflows={
+            (Array.isArray(workflowsQuery.data)
+              ? workflowsQuery.data
+              : (selectedWorkUnit?.workflows ?? [])) as {
+              key: string;
+              displayName?: string;
+            }[]
+          }
+          transitionWorkflowBindings={
+            (
+              draftQuery.data as
+                | { transitionWorkflowBindings?: Record<string, readonly string[] | undefined> }
+                | undefined
+            )?.transitionWorkflowBindings ?? {}
+          }
           onSaveStates={async (states) => {
-            await updateStatesMutation.mutateAsync({
-              versionId,
-              workUnitTypeKey: workUnitKey,
-              states,
-            });
+            const currentStates = Array.isArray(stateMachineStatesQuery.data)
+              ? stateMachineStatesQuery.data
+              : ((selectedWorkUnit?.lifecycle?.states ?? []) as {
+                  key: string;
+                  displayName?: string;
+                  description?: string;
+                }[]);
+            const nextStateKeys = new Set(states.map((state) => state.key));
+
+            for (const state of states) {
+              await upsertStateMutation.mutateAsync({
+                versionId,
+                workUnitTypeKey: workUnitKey,
+                state,
+              });
+            }
+
+            for (const state of currentStates) {
+              if (nextStateKeys.has(state.key)) {
+                continue;
+              }
+
+              await deleteStateMutation.mutateAsync({
+                versionId,
+                workUnitTypeKey: workUnitKey,
+                stateKey: state.key,
+                strategy: "disconnect",
+              });
+            }
+
             await queryClient.invalidateQueries({
               queryKey: stateMachineStatesQueryOptions.queryKey,
             });
           }}
           onSaveTransitions={async (transitions) => {
-            await updateTransitionsMutation.mutateAsync({
-              versionId,
-              workUnitTypeKey: workUnitKey,
-              transitions: transitions.map((transition) => ({
-                transitionKey: transition.transitionKey,
-                fromState: transition.fromState ?? undefined,
+            const currentTransitions = Array.isArray(stateMachineTransitionsQuery.data)
+              ? stateMachineTransitionsQuery.data
+              : ((selectedWorkUnit?.lifecycle?.transitions ?? []) as {
+                  transitionKey: string;
+                  fromState?: string | null;
+                  toState: string;
+                  conditionSets?: Array<{
+                    key: string;
+                    phase: "start" | "completion";
+                    mode: "all" | "any";
+                    guidance?: string;
+                  }>;
+                }[]);
+            const currentTransitionsByKey = new Map(
+              currentTransitions.map((transition) => [transition.transitionKey, transition]),
+            );
+            const bindingsByTransitionKey =
+              (
+                draftQuery.data as
+                  | { transitionWorkflowBindings?: Record<string, readonly string[] | undefined> }
+                  | undefined
+              )?.transitionWorkflowBindings ?? {};
+            const nextTransitionKeys = new Set(
+              transitions.map((transition) => transition.transitionKey),
+            );
+
+            for (const transition of transitions) {
+              const currentTransition = currentTransitionsByKey.get(transition.transitionKey);
+              const currentFingerprint = JSON.stringify({
+                fromState: currentTransition?.fromState ?? null,
+                toState: currentTransition?.toState ?? null,
+                conditionSets: (currentTransition?.conditionSets ?? []).map((conditionSet) => ({
+                  key: conditionSet.key,
+                  phase: conditionSet.phase,
+                  mode: conditionSet.mode,
+                  guidance: conditionSet.guidance ?? null,
+                })),
+                workflowKeys: Array.isArray(bindingsByTransitionKey[transition.transitionKey])
+                  ? [...(bindingsByTransitionKey[transition.transitionKey] ?? [])]
+                  : [],
+              });
+              const nextFingerprint = JSON.stringify({
+                fromState: transition.fromState ?? null,
                 toState: transition.toState,
+                conditionSets: (transition.conditionSets ?? []).map((conditionSet) => ({
+                  key: conditionSet.key,
+                  phase: conditionSet.phase,
+                  mode: conditionSet.mode,
+                  guidance: conditionSet.guidance ?? null,
+                })),
+                workflowKeys: Array.isArray(transition.workflowKeys)
+                  ? transition.workflowKeys
+                  : Array.isArray(bindingsByTransitionKey[transition.transitionKey])
+                    ? [...(bindingsByTransitionKey[transition.transitionKey] ?? [])]
+                    : [],
+              });
+
+              if (currentFingerprint === nextFingerprint) {
+                continue;
+              }
+
+              await saveTransitionDialogMutation.mutateAsync({
+                versionId,
+                workUnitTypeKey: workUnitKey,
+                transition: {
+                  transitionKey: transition.transitionKey,
+                  fromState: transition.fromState ?? undefined,
+                  toState: transition.toState,
+                },
                 conditionSets: (transition.conditionSets ?? []).map((conditionSet) => ({
                   key: conditionSet.key,
                   phase: conditionSet.phase,
@@ -649,8 +758,35 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
                   ...(conditionSet.guidance ? { guidance: conditionSet.guidance } : {}),
                   groups: [],
                 })),
-              })),
-            });
+                workflowKeys: Array.isArray(bindingsByTransitionKey[transition.transitionKey])
+                  ? (Array.isArray(transition.workflowKeys)
+                      ? transition.workflowKeys
+                      : (bindingsByTransitionKey[transition.transitionKey] as readonly string[])
+                    ).filter(
+                      (workflowKey): workflowKey is string =>
+                        typeof workflowKey === "string" && workflowKey.length > 0,
+                    )
+                  : Array.isArray(transition.workflowKeys)
+                    ? transition.workflowKeys.filter(
+                        (workflowKey): workflowKey is string =>
+                          typeof workflowKey === "string" && workflowKey.length > 0,
+                      )
+                    : [],
+              });
+            }
+
+            for (const transition of currentTransitions) {
+              if (nextTransitionKeys.has(transition.transitionKey)) {
+                continue;
+              }
+
+              await deleteTransitionMutation.mutateAsync({
+                versionId,
+                workUnitTypeKey: workUnitKey,
+                transitionKey: transition.transitionKey,
+              });
+            }
+
             await queryClient.invalidateQueries({
               queryKey: stateMachineTransitionsQueryOptions.queryKey,
             });

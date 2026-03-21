@@ -812,6 +812,7 @@ function makeServiceLayer() {
         key: stateKey,
         displayName: stateKey,
         descriptionJson: null,
+        guidanceJson: null,
         createdAt: buildDate(),
         updatedAt: buildDate(),
       });
@@ -1081,14 +1082,14 @@ function makeServiceLayer() {
 
         return true;
       }),
-    replaceWorkUnitLifecycleStates: ({
+    upsertWorkUnitLifecycleState: ({
       versionId,
       workUnitTypeKey,
-      states,
+      state,
     }: {
       versionId: string;
       workUnitTypeKey: string;
-      states: readonly { key: string; displayName?: string; description?: string }[];
+      state: { key: string; displayName?: string; description?: string; guidance?: unknown };
     }) =>
       Effect.sync(() => {
         const rows = lifecycleDataByVersion.get(versionId);
@@ -1101,64 +1102,111 @@ function makeServiceLayer() {
           return false;
         }
 
-        const nextStates = states.map((state) => ({
-          id: `${target.id}:state:${state.key}`,
+        const existing = rows.states.find(
+          (entry) => entry.workUnitTypeId === target.id && entry.key === state.key,
+        );
+
+        const nextState = {
+          id: existing?.id ?? `${target.id}:state:${state.key}`,
           methodologyVersionId: versionId,
           workUnitTypeId: target.id,
           key: state.key,
           displayName: state.displayName ?? null,
           descriptionJson: state.description ?? null,
-          createdAt: buildDate(),
+          guidanceJson: state.guidance ?? null,
+          createdAt: existing?.createdAt ?? buildDate(),
           updatedAt: buildDate(),
-        }));
-        const nextStateIds = new Set(nextStates.map((state) => state.id));
-
-        const nextTransitions = rows.transitions.map((transition) =>
-          transition.workUnitTypeId !== target.id
-            ? transition
-            : {
-                ...transition,
-                fromStateId:
-                  transition.fromStateId && nextStateIds.has(transition.fromStateId)
-                    ? transition.fromStateId
-                    : null,
-                toStateId:
-                  transition.toStateId && nextStateIds.has(transition.toStateId)
-                    ? transition.toStateId
-                    : null,
-              },
-        );
+        };
 
         lifecycleDataByVersion.set(versionId, {
           ...rows,
           states: [
-            ...rows.states.filter((state) => state.workUnitTypeId !== target.id),
-            ...nextStates,
+            ...rows.states.filter(
+              (entry) => !(entry.workUnitTypeId === target.id && entry.key === state.key),
+            ),
+            nextState,
           ],
-          transitions: nextTransitions,
         });
 
         return true;
       }),
-    replaceWorkUnitLifecycleTransitions: ({
+    deleteWorkUnitLifecycleState: ({
       versionId,
       workUnitTypeKey,
-      transitions,
+      stateKey,
+      strategy,
     }: {
       versionId: string;
       workUnitTypeKey: string;
-      transitions: readonly {
+      stateKey: string;
+      strategy: "disconnect" | "cleanup";
+    }) =>
+      Effect.sync(() => {
+        const rows = lifecycleDataByVersion.get(versionId);
+        if (!rows) {
+          return false;
+        }
+
+        const target = rows.workUnitTypes.find((workUnit) => workUnit.key === workUnitTypeKey);
+        if (!target) {
+          return false;
+        }
+
+        const state = rows.states.find(
+          (entry) => entry.workUnitTypeId === target.id && entry.key === stateKey,
+        );
+        if (!state) {
+          return false;
+        }
+
+        const nextTransitions = rows.transitions
+          .filter((transition) => {
+            if (transition.workUnitTypeId !== target.id) {
+              return true;
+            }
+
+            if (strategy === "cleanup") {
+              return transition.fromStateId !== state.id && transition.toStateId !== state.id;
+            }
+
+            return transition.toStateId !== state.id;
+          })
+          .map((transition) =>
+            strategy === "disconnect" && transition.workUnitTypeId === target.id
+              ? {
+                  ...transition,
+                  fromStateId: transition.fromStateId === state.id ? null : transition.fromStateId,
+                }
+              : transition,
+          );
+        const nextTransitionIds = new Set(nextTransitions.map((transition) => transition.id));
+
+        lifecycleDataByVersion.set(versionId, {
+          ...rows,
+          states: rows.states.filter((entry) => entry.id !== state.id),
+          transitions: nextTransitions,
+          transitionConditionSets: rows.transitionConditionSets.filter((set) =>
+            nextTransitionIds.has(set.transitionId),
+          ),
+          transitionWorkflowBindings: rows.transitionWorkflowBindings.filter((binding) =>
+            binding.transitionId ? nextTransitionIds.has(binding.transitionId) : true,
+          ),
+        });
+
+        return true;
+      }),
+    upsertWorkUnitLifecycleTransition: ({
+      versionId,
+      workUnitTypeKey,
+      transition,
+    }: {
+      versionId: string;
+      workUnitTypeKey: string;
+      transition: {
         transitionKey: string;
         fromState?: string;
         toState: string;
-        conditionSets: readonly {
-          key: string;
-          phase: string;
-          mode: string;
-          groups: unknown[];
-          guidance?: string;
-        }[];
-      }[];
+      };
     }) =>
       Effect.sync(() => {
         const rows = lifecycleDataByVersion.get(versionId);
@@ -1176,8 +1224,10 @@ function makeServiceLayer() {
             .filter((state) => state.workUnitTypeId === target.id)
             .map((state) => [state.key, state.id]),
         );
-        const nextTransitions = transitions.map((transition) => ({
-          id: `${versionId}:transition:${transition.transitionKey}`,
+
+        const transitionId = `${versionId}:transition:${transition.transitionKey}`;
+        const nextTransition = {
+          id: transitionId,
           methodologyVersionId: versionId,
           workUnitTypeId: target.id,
           fromStateId: transition.fromState
@@ -1185,53 +1235,198 @@ function makeServiceLayer() {
             : null,
           toStateId: stateIdByKey.get(transition.toState) ?? null,
           transitionKey: transition.transitionKey,
-          createdAt: buildDate(),
+          createdAt:
+            rows.transitions.find((entry) => entry.id === transitionId)?.createdAt ?? buildDate(),
           updatedAt: buildDate(),
-        }));
-
-        const nextTransitionConditionSets = transitions.flatMap((transition) =>
-          transition.conditionSets.map((conditionSet, conditionSetIndex) => ({
-            id: `${versionId}:transition:${transition.transitionKey}:condition-set:${conditionSetIndex}`,
-            methodologyVersionId: versionId,
-            transitionId: `${versionId}:transition:${transition.transitionKey}`,
-            key: conditionSet.key,
-            phase: conditionSet.phase === "completion" ? "completion" : "start",
-            mode: conditionSet.mode === "any" ? "any" : "all",
-            groupsJson: Array.isArray(conditionSet.groups) ? conditionSet.groups : [],
-            guidanceJson: conditionSet.guidance ?? null,
-            createdAt: buildDate(),
-            updatedAt: buildDate(),
-          })),
-        );
-
-        const nextTransitionIds = new Set(nextTransitions.map((transition) => transition.id));
+        };
 
         lifecycleDataByVersion.set(versionId, {
           ...rows,
           transitions: [
-            ...rows.transitions.filter((transition) => transition.workUnitTypeId !== target.id),
-            ...nextTransitions,
-          ],
-          transitionConditionSets: [
-            ...rows.transitionConditionSets.filter(
-              (conditionSet) =>
-                !rows.transitions.some(
-                  (transition) =>
-                    transition.workUnitTypeId === target.id &&
-                    transition.id === conditionSet.transitionId,
+            ...rows.transitions.filter(
+              (entry) =>
+                !(
+                  entry.workUnitTypeId === target.id &&
+                  entry.transitionKey === transition.transitionKey
                 ),
             ),
-            ...nextTransitionConditionSets,
+            nextTransition,
           ],
-          transitionWorkflowBindings: rows.transitionWorkflowBindings.filter((binding) =>
-            binding.transitionId
-              ? nextTransitionIds.has(binding.transitionId) ||
-                !rows.transitions.some(
-                  (transition) =>
-                    transition.id === binding.transitionId &&
-                    transition.workUnitTypeId === target.id,
-                )
-              : true,
+        });
+
+        return true;
+      }),
+    saveWorkUnitLifecycleTransitionBundle: ({
+      versionId,
+      workUnitTypeKey,
+      transition,
+      conditionSets,
+      workflowKeys,
+    }: {
+      versionId: string;
+      workUnitTypeKey: string;
+      transition: {
+        transitionKey: string;
+        fromState?: string;
+        toState: string;
+      };
+      conditionSets: readonly {
+        key: string;
+        phase: string;
+        mode: string;
+        groups: unknown[];
+        guidance?: string;
+      }[];
+      workflowKeys: readonly string[];
+    }) =>
+      Effect.sync(() => {
+        const rows = lifecycleDataByVersion.get(versionId);
+        if (!rows) {
+          return false;
+        }
+
+        const target = rows.workUnitTypes.find((workUnit) => workUnit.key === workUnitTypeKey);
+        if (!target) {
+          return false;
+        }
+
+        const stateIdByKey = new Map(
+          rows.states
+            .filter((state) => state.workUnitTypeId === target.id)
+            .map((state) => [state.key, state.id]),
+        );
+
+        const transitionId = `${versionId}:transition:${transition.transitionKey}`;
+        const nextTransition = {
+          id: transitionId,
+          methodologyVersionId: versionId,
+          workUnitTypeId: target.id,
+          fromStateId: transition.fromState
+            ? (stateIdByKey.get(transition.fromState) ?? null)
+            : null,
+          toStateId: stateIdByKey.get(transition.toState) ?? null,
+          transitionKey: transition.transitionKey,
+          createdAt:
+            rows.transitions.find((entry) => entry.id === transitionId)?.createdAt ?? buildDate(),
+          updatedAt: buildDate(),
+        };
+
+        const nextSets = conditionSets.map((conditionSet, index) => ({
+          id: `${transitionId}:condition-set:${index}`,
+          methodologyVersionId: versionId,
+          transitionId,
+          key: conditionSet.key,
+          phase: conditionSet.phase === "completion" ? "completion" : "start",
+          mode: conditionSet.mode === "any" ? "any" : "all",
+          groupsJson: Array.isArray(conditionSet.groups) ? conditionSet.groups : [],
+          guidanceJson: conditionSet.guidance ?? null,
+          createdAt: buildDate(),
+          updatedAt: buildDate(),
+        }));
+
+        const existingWorkflowIdByKey = new Map(
+          rows.transitionWorkflowBindings.map((binding) => [
+            binding.workflowKey,
+            binding.workflowId,
+          ]),
+        );
+        const dedupedWorkflowKeys = [...new Set(workflowKeys)].filter(
+          (workflowKey) => workflowKey.length > 0,
+        );
+        const nextBindings = dedupedWorkflowKeys
+          .map((workflowKey, index) => {
+            const workflowId =
+              existingWorkflowIdByKey.get(workflowKey) ?? `${versionId}:workflow:${workflowKey}`;
+            if (!workflowId) {
+              return null;
+            }
+
+            return {
+              id: `${transitionId}:binding:${workflowKey}:${index}`,
+              methodologyVersionId: versionId,
+              transitionId,
+              transitionKey: transition.transitionKey,
+              workflowId,
+              workflowKey,
+              guidanceJson: null,
+              createdAt: buildDate(),
+              updatedAt: buildDate(),
+            };
+          })
+          .filter((binding): binding is NonNullable<typeof binding> => binding !== null);
+
+        lifecycleDataByVersion.set(versionId, {
+          ...rows,
+          transitions: [
+            ...rows.transitions.filter(
+              (entry) =>
+                !(
+                  entry.workUnitTypeId === target.id &&
+                  entry.transitionKey === transition.transitionKey
+                ),
+            ),
+            nextTransition,
+          ],
+          transitionConditionSets: [
+            ...rows.transitionConditionSets.filter((set) => set.transitionId !== transitionId),
+            ...nextSets,
+          ],
+          transitionWorkflowBindings: [
+            ...rows.transitionWorkflowBindings.filter(
+              (binding) => binding.transitionId !== transitionId,
+            ),
+            ...nextBindings,
+          ],
+        });
+
+        if (repo.replaceTransitionWorkflowBindings) {
+          Effect.runSync(
+            repo.replaceTransitionWorkflowBindings({
+              versionId,
+              workUnitTypeKey,
+              transitionKey: transition.transitionKey,
+              workflowKeys: dedupedWorkflowKeys,
+            }),
+          );
+        }
+
+        return true;
+      }),
+    deleteWorkUnitLifecycleTransition: ({
+      versionId,
+      workUnitTypeKey,
+      transitionKey,
+    }: {
+      versionId: string;
+      workUnitTypeKey: string;
+      transitionKey: string;
+    }) =>
+      Effect.sync(() => {
+        const rows = lifecycleDataByVersion.get(versionId);
+        if (!rows) {
+          return false;
+        }
+
+        const target = rows.workUnitTypes.find((workUnit) => workUnit.key === workUnitTypeKey);
+        if (!target) {
+          return false;
+        }
+
+        const transition = rows.transitions.find(
+          (entry) => entry.workUnitTypeId === target.id && entry.transitionKey === transitionKey,
+        );
+        if (!transition) {
+          return false;
+        }
+
+        lifecycleDataByVersion.set(versionId, {
+          ...rows,
+          transitions: rows.transitions.filter((entry) => entry.id !== transition.id),
+          transitionConditionSets: rows.transitionConditionSets.filter(
+            (set) => set.transitionId !== transition.id,
+          ),
+          transitionWorkflowBindings: rows.transitionWorkflowBindings.filter(
+            (binding) => binding.transitionId !== transition.id,
           ),
         });
 
@@ -2151,6 +2346,10 @@ describe("methodology router", () => {
         key: "default-wf",
         displayName: "Default workflow",
         workUnitTypeKey: "task",
+        guidance: {
+          human: { markdown: "Workflow guidance for operators" },
+          agent: { markdown: "Workflow guidance for automation" },
+        },
       };
 
       const createResult = await call(
@@ -2174,6 +2373,7 @@ describe("methodology router", () => {
       );
       expect(listedAfterCreate).toHaveLength(1);
       expect(listedAfterCreate[0]?.key).toBe(baseWorkflow.key);
+      expect(listedAfterCreate[0]?.guidance).toEqual(baseWorkflow.guidance);
       expect(listedAfterCreate[0]).not.toHaveProperty("steps");
       expect(listedAfterCreate[0]).not.toHaveProperty("edges");
 
@@ -2186,6 +2386,10 @@ describe("methodology router", () => {
           workflow: {
             ...baseWorkflow,
             displayName: "Updated workflow display",
+            guidance: {
+              human: { markdown: "Updated workflow guidance for operators" },
+              agent: { markdown: "Updated workflow guidance for automation" },
+            },
           },
         },
         AUTHENTICATED_CTX,
@@ -2201,6 +2405,10 @@ describe("methodology router", () => {
         AUTHENTICATED_CTX,
       );
       expect(listedAfterUpdate[0]?.displayName).toBe("Updated workflow display");
+      expect(listedAfterUpdate[0]?.guidance).toEqual({
+        human: { markdown: "Updated workflow guidance for operators" },
+        agent: { markdown: "Updated workflow guidance for automation" },
+      });
 
       const deleteResult = await call(
         router.version.workUnit.workflow.delete,
@@ -2477,7 +2685,7 @@ describe("methodology router", () => {
       expect(projectionRecord.transitionWorkflowBindings.start).toEqual(["task-wf-b"]);
     });
 
-    it("version.workUnit.stateMachine.state.update replaces lifecycle states for a work unit", async () => {
+    it("version.workUnit.stateMachine.state.upsert persists lifecycle state guidance", async () => {
       const router = createMethodologyRouter(makeServiceLayer());
 
       const created = await call(
@@ -2494,14 +2702,35 @@ describe("methodology router", () => {
       );
 
       await call(
-        router.version.workUnit.stateMachine.state.update,
+        router.version.workUnit.stateMachine.state.upsert,
         {
           versionId: created.version.id,
           workUnitTypeKey: "task",
-          states: [
-            { key: "queued", displayName: "Queued" },
-            { key: "done", displayName: "Done" },
-          ],
+          state: {
+            key: "queued",
+            displayName: "Queued",
+            guidance: {
+              human: { markdown: "Queued human guidance" },
+              agent: { markdown: "Queued agent guidance" },
+            },
+          },
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.version.workUnit.stateMachine.state.upsert,
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+          state: {
+            key: "done",
+            displayName: "Done",
+            guidance: {
+              human: { markdown: "Done human guidance" },
+              agent: { markdown: "Done agent guidance" },
+            },
+          },
         },
         AUTHENTICATED_CTX,
       );
@@ -2515,12 +2744,33 @@ describe("methodology router", () => {
       const projectionRecord = projection as unknown as {
         workUnitTypes: Array<{
           key: string;
-          lifecycleStates: Array<{ key: string }>;
+          lifecycleStates: Array<{
+            key: string;
+            guidance?: { human: { markdown: string }; agent: { markdown: string } };
+          }>;
         }>;
       };
       const taskType = projectionRecord.workUnitTypes.find((workUnit) => workUnit.key === "task");
       expect(taskType?.lifecycleStates.map((state) => state.key)).toEqual(
         expect.arrayContaining(["queued", "done"]),
+      );
+      expect(taskType?.lifecycleStates).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            key: "queued",
+            guidance: {
+              human: { markdown: "Queued human guidance" },
+              agent: { markdown: "Queued agent guidance" },
+            },
+          }),
+          expect.objectContaining({
+            key: "done",
+            guidance: {
+              human: { markdown: "Done human guidance" },
+              agent: { markdown: "Done agent guidance" },
+            },
+          }),
+        ]),
       );
     });
 
@@ -2580,6 +2830,164 @@ describe("methodology router", () => {
       expect(transition?.conditionSets.map((conditionSet) => conditionSet.key)).toEqual([
         "gate.activate.task.updated",
       ]);
+    });
+
+    it("version.workUnit.stateMachine.transition.upsert does not overwrite existing condition sets", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const created = await call(
+        router.version.create,
+        {
+          methodologyKey: "transition-upsert-metadata-only",
+          displayName: "Transition Upsert Metadata Only",
+          version: "1.0.0",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.version.workUnit.stateMachine.transition.conditionSet.update,
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+          transitionKey: "start",
+          conditionSets: [
+            {
+              key: "gate.activate.task.preexisting",
+              phase: "start",
+              mode: "all",
+              groups: [],
+            },
+          ],
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.version.workUnit.stateMachine.transition.upsert,
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+          transition: {
+            transitionKey: "start",
+            toState: "done",
+          },
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const conditionSets = await call(
+        router.version.workUnit.stateMachine.transition.conditionSet.list,
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+          transitionKey: "start",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const keys = (conditionSets as Array<{ key?: string }>).map(
+        (conditionSet) => conditionSet.key,
+      );
+      expect(keys).toEqual(["gate.activate.task.preexisting"]);
+    });
+
+    it("version.workUnit.stateMachine.transition.save performs metadata, conditions, and bindings together", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const created = await call(
+        router.version.create,
+        {
+          methodologyKey: "transition-composite-save",
+          displayName: "Transition Composite Save",
+          version: "1.0.0",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.version.workUnit.workflow.create,
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+          workflow: {
+            key: "task-wf-composite",
+            displayName: "Task WF Composite",
+            workUnitTypeKey: "task",
+          },
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const transitionRoute = router.version.workUnit.stateMachine.transition as unknown as {
+        save?: Parameters<typeof call>[0];
+      };
+
+      await call(
+        transitionRoute.save as Parameters<typeof call>[0],
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+          transition: {
+            transitionKey: "start",
+            toState: "done",
+          },
+          conditionSets: [
+            {
+              key: "gate.activate.task.start",
+              phase: "start",
+              mode: "all",
+              groups: [],
+            },
+            {
+              key: "gate.activate.task.completion",
+              phase: "completion",
+              mode: "all",
+              groups: [],
+            },
+          ],
+          workflowKeys: ["task-wf-composite"],
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const projection = await call(
+        router.version.workspace.get,
+        { versionId: created.version.id },
+        AUTHENTICATED_CTX,
+      );
+
+      const projectionRecord = projection as unknown as {
+        workUnitTypes: Array<{
+          key: string;
+          lifecycleTransitions: Array<{
+            transitionKey: string;
+            fromState?: string;
+            toState: string;
+            conditionSets: Array<{ key: string; phase: string }>;
+          }>;
+        }>;
+        transitionWorkflowBindings: Record<string, string[]>;
+      };
+
+      const taskType = projectionRecord.workUnitTypes.find((workUnit) => workUnit.key === "task");
+      const transition = taskType?.lifecycleTransitions.find(
+        (item) => item.transitionKey === "start",
+      );
+
+      expect(transition?.fromState).toBeUndefined();
+      expect(transition?.toState).toBe("done");
+      expect(transition?.conditionSets.map((set) => set.key)).toEqual([
+        "gate.activate.task.start",
+        "gate.activate.task.completion",
+      ]);
+      expect(projectionRecord.transitionWorkflowBindings.start).toEqual(["task-wf-composite"]);
     });
 
     it("version.workUnit.delete removes the targeted work unit type", async () => {

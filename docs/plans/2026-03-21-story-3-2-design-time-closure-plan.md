@@ -99,9 +99,9 @@ git commit -m "feat(web): wire L2 workflow metadata CRUD tab"
 
 Implement UI handlers for:
 - `version.workUnit.stateMachine.state.list`
-- `version.workUnit.stateMachine.state.update`
+- `version.workUnit.stateMachine.state.upsert` and `version.workUnit.stateMachine.state.delete`
 - `version.workUnit.stateMachine.transition.list`
-- `version.workUnit.stateMachine.transition.update`
+- `version.workUnit.stateMachine.transition.upsert` and `version.workUnit.stateMachine.transition.delete`
 - `version.workUnit.stateMachine.transition.conditionSet.list`
 - `version.workUnit.stateMachine.transition.conditionSet.update`
 

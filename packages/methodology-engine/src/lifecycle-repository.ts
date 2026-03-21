@@ -25,6 +25,7 @@ export interface LifecycleStateRow {
   key: string;
   displayName: string | null;
   descriptionJson: unknown;
+  guidanceJson: unknown;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -25,8 +25,8 @@ import type {
 import type {
   CreateMethodologyWorkUnitInput,
   LifecycleState,
-  LifecycleTransition,
   ReplaceWorkUnitTransitionBindingsInput,
+  SaveWorkUnitLifecycleTransitionDialogInput,
   TransitionConditionSet,
   UpdateDraftLifecycleInput,
   UpdateMethodologyWorkUnitInput,
@@ -300,6 +300,10 @@ function loadPreviousLifecycleDefinition(
         key: stateRow.key,
         displayName: stateRow.displayName ?? undefined,
         description: extractText(stateRow.descriptionJson),
+        guidance:
+          (stateRow.guidanceJson as
+            | WorkUnitTypeDefinition["lifecycleStates"][number]["guidance"]
+            | null) ?? undefined,
       })),
       lifecycleTransitions: (transitionsByWorkUnitType.get(workUnitTypeRow.id) ?? [])
         .map((transitionRow) => {
@@ -566,22 +570,52 @@ export class MethodologyVersionService extends Context.Tag("MethodologyVersionSe
       UpdateDraftResult,
       VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
     >;
-    readonly replaceWorkUnitLifecycleStates: (
+    readonly upsertWorkUnitLifecycleState: (
       input: {
         versionId: string;
         workUnitTypeKey: string;
-        states: readonly LifecycleState[];
+        state: LifecycleState;
       },
       actorId: string | null,
     ) => Effect.Effect<
       UpdateDraftResult,
       VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
     >;
-    readonly replaceWorkUnitLifecycleTransitions: (
+    readonly deleteWorkUnitLifecycleState: (
       input: {
         versionId: string;
         workUnitTypeKey: string;
-        transitions: readonly LifecycleTransition[];
+        stateKey: string;
+        strategy?: "disconnect" | "cleanup";
+      },
+      actorId: string | null,
+    ) => Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+    >;
+    readonly upsertWorkUnitLifecycleTransition: (
+      input: {
+        versionId: string;
+        workUnitTypeKey: string;
+        transition: SaveWorkUnitLifecycleTransitionDialogInput["transition"];
+      },
+      actorId: string | null,
+    ) => Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+    >;
+    readonly saveWorkUnitLifecycleTransitionDialog: (
+      input: SaveWorkUnitLifecycleTransitionDialogInput,
+      actorId: string | null,
+    ) => Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+    >;
+    readonly deleteWorkUnitLifecycleTransition: (
+      input: {
+        versionId: string;
+        workUnitTypeKey: string;
+        transitionKey: string;
       },
       actorId: string | null,
     ) => Effect.Effect<
@@ -1265,11 +1299,11 @@ export const MethodologyVersionServiceLive = Layer.effect(
         return { version: existing, diagnostics };
       });
 
-    const replaceWorkUnitLifecycleStates = (
+    const upsertWorkUnitLifecycleState = (
       input: {
         versionId: string;
         workUnitTypeKey: string;
-        states: readonly LifecycleState[];
+        state: LifecycleState;
       },
       actorId: string,
     ): Effect.Effect<
@@ -1284,17 +1318,17 @@ export const MethodologyVersionServiceLive = Layer.effect(
 
         yield* ensureVersionIsDraft(existing);
 
-        if (!repo.replaceWorkUnitLifecycleStates) {
+        if (!repo.upsertWorkUnitLifecycleState) {
           return yield* new RepositoryError({
-            operation: "methodology.replaceWorkUnitLifecycleStates",
-            cause: new Error("Lifecycle state repository capability is not configured"),
+            operation: "methodology.upsertWorkUnitLifecycleState",
+            cause: new Error("Lifecycle state upsert repository capability is not configured"),
           });
         }
 
-        yield* repo.replaceWorkUnitLifecycleStates({
+        yield* repo.upsertWorkUnitLifecycleState({
           versionId: input.versionId,
           workUnitTypeKey: input.workUnitTypeKey,
-          states: input.states,
+          state: input.state,
         });
 
         yield* repo.recordEvent({
@@ -1302,8 +1336,9 @@ export const MethodologyVersionServiceLive = Layer.effect(
           eventType: "lifecycle_updated",
           actorId,
           changedFieldsJson: {
-            operation: "replace_lifecycle_states",
+            operation: "upsert_lifecycle_state",
             workUnitTypeKey: input.workUnitTypeKey,
+            stateKey: input.state.key,
           },
           diagnosticsJson: null,
         });
@@ -1315,11 +1350,12 @@ export const MethodologyVersionServiceLive = Layer.effect(
         return { version: existing, diagnostics };
       });
 
-    const replaceWorkUnitLifecycleTransitions = (
+    const deleteWorkUnitLifecycleState = (
       input: {
         versionId: string;
         workUnitTypeKey: string;
-        transitions: readonly LifecycleTransition[];
+        stateKey: string;
+        strategy?: "disconnect" | "cleanup";
       },
       actorId: string,
     ): Effect.Effect<
@@ -1334,17 +1370,18 @@ export const MethodologyVersionServiceLive = Layer.effect(
 
         yield* ensureVersionIsDraft(existing);
 
-        if (!repo.replaceWorkUnitLifecycleTransitions) {
+        if (!repo.deleteWorkUnitLifecycleState) {
           return yield* new RepositoryError({
-            operation: "methodology.replaceWorkUnitLifecycleTransitions",
-            cause: new Error("Lifecycle transition repository capability is not configured"),
+            operation: "methodology.deleteWorkUnitLifecycleState",
+            cause: new Error("Lifecycle state delete repository capability is not configured"),
           });
         }
 
-        yield* repo.replaceWorkUnitLifecycleTransitions({
+        yield* repo.deleteWorkUnitLifecycleState({
           versionId: input.versionId,
           workUnitTypeKey: input.workUnitTypeKey,
-          transitions: input.transitions,
+          stateKey: input.stateKey,
+          strategy: input.strategy ?? "disconnect",
         });
 
         yield* repo.recordEvent({
@@ -1352,8 +1389,163 @@ export const MethodologyVersionServiceLive = Layer.effect(
           eventType: "lifecycle_updated",
           actorId,
           changedFieldsJson: {
-            operation: "replace_lifecycle_transitions",
+            operation: "delete_lifecycle_state",
             workUnitTypeKey: input.workUnitTypeKey,
+            stateKey: input.stateKey,
+            strategy: input.strategy ?? "disconnect",
+          },
+          diagnosticsJson: null,
+        });
+
+        const diagnostics = yield* coreService.validateDraftVersion(
+          { versionId: input.versionId },
+          actorId,
+        );
+        return { version: existing, diagnostics };
+      });
+
+    const upsertWorkUnitLifecycleTransition = (
+      input: {
+        versionId: string;
+        workUnitTypeKey: string;
+        transition: SaveWorkUnitLifecycleTransitionDialogInput["transition"];
+      },
+      actorId: string,
+    ): Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+    > =>
+      Effect.gen(function* () {
+        const existing = yield* repo.findVersionById(input.versionId);
+        if (!existing) {
+          return yield* new VersionNotFoundError({ versionId: input.versionId });
+        }
+
+        yield* ensureVersionIsDraft(existing);
+
+        if (!repo.upsertWorkUnitLifecycleTransition) {
+          return yield* new RepositoryError({
+            operation: "methodology.upsertWorkUnitLifecycleTransition",
+            cause: new Error("Lifecycle transition upsert repository capability is not configured"),
+          });
+        }
+
+        yield* repo.upsertWorkUnitLifecycleTransition({
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+          transition: input.transition,
+        });
+
+        yield* repo.recordEvent({
+          methodologyVersionId: input.versionId,
+          eventType: "lifecycle_updated",
+          actorId,
+          changedFieldsJson: {
+            operation: "upsert_lifecycle_transition",
+            workUnitTypeKey: input.workUnitTypeKey,
+            transitionKey: input.transition.transitionKey,
+          },
+          diagnosticsJson: null,
+        });
+
+        const diagnostics = yield* coreService.validateDraftVersion(
+          { versionId: input.versionId },
+          actorId,
+        );
+        return { version: existing, diagnostics };
+      });
+
+    const saveWorkUnitLifecycleTransitionDialog = (
+      input: SaveWorkUnitLifecycleTransitionDialogInput,
+      actorId: string,
+    ): Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+    > =>
+      Effect.gen(function* () {
+        const existing = yield* repo.findVersionById(input.versionId);
+        if (!existing) {
+          return yield* new VersionNotFoundError({ versionId: input.versionId });
+        }
+
+        yield* ensureVersionIsDraft(existing);
+
+        if (!repo.saveWorkUnitLifecycleTransitionBundle) {
+          return yield* new RepositoryError({
+            operation: "methodology.saveWorkUnitLifecycleTransitionDialog",
+            cause: new Error(
+              "Lifecycle transition composite save repository capability is not configured",
+            ),
+          });
+        }
+
+        yield* repo.saveWorkUnitLifecycleTransitionBundle({
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+          transition: input.transition,
+          conditionSets: input.conditionSets,
+          workflowKeys: input.workflowKeys,
+        });
+
+        yield* repo.recordEvent({
+          methodologyVersionId: input.versionId,
+          eventType: "lifecycle_updated",
+          actorId,
+          changedFieldsJson: {
+            operation: "save_lifecycle_transition_dialog",
+            workUnitTypeKey: input.workUnitTypeKey,
+            transitionKey: input.transition.transitionKey,
+          },
+          diagnosticsJson: null,
+        });
+
+        const diagnostics = yield* coreService.validateDraftVersion(
+          { versionId: input.versionId },
+          actorId,
+        );
+        return { version: existing, diagnostics };
+      });
+
+    const deleteWorkUnitLifecycleTransition = (
+      input: {
+        versionId: string;
+        workUnitTypeKey: string;
+        transitionKey: string;
+      },
+      actorId: string,
+    ): Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+    > =>
+      Effect.gen(function* () {
+        const existing = yield* repo.findVersionById(input.versionId);
+        if (!existing) {
+          return yield* new VersionNotFoundError({ versionId: input.versionId });
+        }
+
+        yield* ensureVersionIsDraft(existing);
+
+        if (!repo.deleteWorkUnitLifecycleTransition) {
+          return yield* new RepositoryError({
+            operation: "methodology.deleteWorkUnitLifecycleTransition",
+            cause: new Error("Lifecycle transition delete repository capability is not configured"),
+          });
+        }
+
+        yield* repo.deleteWorkUnitLifecycleTransition({
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+          transitionKey: input.transitionKey,
+        });
+
+        yield* repo.recordEvent({
+          methodologyVersionId: input.versionId,
+          eventType: "lifecycle_updated",
+          actorId,
+          changedFieldsJson: {
+            operation: "delete_lifecycle_transition",
+            workUnitTypeKey: input.workUnitTypeKey,
+            transitionKey: input.transitionKey,
           },
           diagnosticsJson: null,
         });
@@ -1615,10 +1807,16 @@ export const MethodologyVersionServiceLive = Layer.effect(
         replaceTransitionBindings(input, actorId ?? "system"),
       deleteWorkUnit: (input, actorId) => workUnitService.deleteWorkUnit(input, actorId),
       replaceWorkUnitFacts: (input, actorId) => replaceWorkUnitFacts(input, actorId ?? "system"),
-      replaceWorkUnitLifecycleStates: (input, actorId) =>
-        replaceWorkUnitLifecycleStates(input, actorId ?? "system"),
-      replaceWorkUnitLifecycleTransitions: (input, actorId) =>
-        replaceWorkUnitLifecycleTransitions(input, actorId ?? "system"),
+      upsertWorkUnitLifecycleState: (input, actorId) =>
+        upsertWorkUnitLifecycleState(input, actorId ?? "system"),
+      deleteWorkUnitLifecycleState: (input, actorId) =>
+        deleteWorkUnitLifecycleState(input, actorId ?? "system"),
+      upsertWorkUnitLifecycleTransition: (input, actorId) =>
+        upsertWorkUnitLifecycleTransition(input, actorId ?? "system"),
+      saveWorkUnitLifecycleTransitionDialog: (input, actorId) =>
+        saveWorkUnitLifecycleTransitionDialog(input, actorId ?? "system"),
+      deleteWorkUnitLifecycleTransition: (input, actorId) =>
+        deleteWorkUnitLifecycleTransition(input, actorId ?? "system"),
       replaceWorkUnitTransitionConditionSets: (input, actorId) =>
         replaceWorkUnitTransitionConditionSets(input, actorId ?? "system"),
       updateVersionMetadata: (input, actorId) => coreService.updateVersionMetadata(input, actorId),

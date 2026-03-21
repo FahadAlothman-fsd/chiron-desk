@@ -10,7 +10,6 @@ import type {
 } from "@chiron/contracts/methodology/version";
 import type {
   LifecycleState,
-  LifecycleTransition,
   TransitionConditionSet,
 } from "@chiron/contracts/methodology/lifecycle";
 import type { FactSchema } from "@chiron/contracts/methodology/fact";
@@ -145,16 +144,33 @@ export interface ReplaceWorkUnitFactsParams {
   facts: readonly FactSchema[];
 }
 
-export interface ReplaceWorkUnitLifecycleStatesParams {
+export interface UpsertWorkUnitLifecycleStateParams {
   versionId: string;
   workUnitTypeKey: string;
-  states: readonly LifecycleState[];
+  state: LifecycleState;
 }
 
-export interface ReplaceWorkUnitLifecycleTransitionsParams {
+export interface DeleteWorkUnitLifecycleStateParams {
   versionId: string;
   workUnitTypeKey: string;
-  transitions: readonly LifecycleTransition[];
+  stateKey: string;
+  strategy: "disconnect" | "cleanup";
+}
+
+export interface UpsertWorkUnitLifecycleTransitionParams {
+  versionId: string;
+  workUnitTypeKey: string;
+  transition: {
+    transitionKey: string;
+    fromState?: string | undefined;
+    toState: string;
+  };
+}
+
+export interface DeleteWorkUnitLifecycleTransitionParams {
+  versionId: string;
+  workUnitTypeKey: string;
+  transitionKey: string;
 }
 
 export interface ReplaceWorkUnitTransitionConditionSetsParams {
@@ -162,6 +178,18 @@ export interface ReplaceWorkUnitTransitionConditionSetsParams {
   workUnitTypeKey: string;
   transitionKey: string;
   conditionSets: readonly TransitionConditionSet[];
+}
+
+export interface SaveWorkUnitLifecycleTransitionBundleParams {
+  versionId: string;
+  workUnitTypeKey: string;
+  transition: {
+    transitionKey: string;
+    fromState?: string | undefined;
+    toState: string;
+  };
+  conditionSets: readonly TransitionConditionSet[];
+  workflowKeys: readonly string[];
 }
 
 export interface PublishFactSchemaRow {
@@ -303,11 +331,20 @@ export class MethodologyRepository extends Context.Tag("MethodologyRepository")<
     readonly replaceWorkUnitFacts?: (
       params: ReplaceWorkUnitFactsParams,
     ) => Effect.Effect<boolean, RepositoryError>;
-    readonly replaceWorkUnitLifecycleStates?: (
-      params: ReplaceWorkUnitLifecycleStatesParams,
+    readonly upsertWorkUnitLifecycleState?: (
+      params: UpsertWorkUnitLifecycleStateParams,
     ) => Effect.Effect<boolean, RepositoryError>;
-    readonly replaceWorkUnitLifecycleTransitions?: (
-      params: ReplaceWorkUnitLifecycleTransitionsParams,
+    readonly deleteWorkUnitLifecycleState?: (
+      params: DeleteWorkUnitLifecycleStateParams,
+    ) => Effect.Effect<boolean, RepositoryError>;
+    readonly upsertWorkUnitLifecycleTransition?: (
+      params: UpsertWorkUnitLifecycleTransitionParams,
+    ) => Effect.Effect<boolean, RepositoryError>;
+    readonly saveWorkUnitLifecycleTransitionBundle?: (
+      params: SaveWorkUnitLifecycleTransitionBundleParams,
+    ) => Effect.Effect<boolean, RepositoryError>;
+    readonly deleteWorkUnitLifecycleTransition?: (
+      params: DeleteWorkUnitLifecycleTransitionParams,
     ) => Effect.Effect<boolean, RepositoryError>;
     readonly replaceWorkUnitTransitionConditionSets?: (
       params: ReplaceWorkUnitTransitionConditionSetsParams,

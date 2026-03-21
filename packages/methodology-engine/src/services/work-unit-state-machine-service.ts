@@ -143,6 +143,7 @@ export const WorkUnitStateMachineServiceLive = Layer.effect(
           key: row.key,
           displayName: row.displayName ?? undefined,
           description: typeof row.descriptionJson === "string" ? row.descriptionJson : undefined,
+          guidance: row.guidanceJson as LifecycleState["guidance"],
         }));
 
         const transitions: LifecycleTransition[] = [];
@@ -219,29 +220,17 @@ export const WorkUnitStateMachineServiceLive = Layer.effect(
     const upsertState = (input: UpsertWorkUnitLifecycleStateInput, actorId: string | null) =>
       Effect.gen(function* () {
         const version = yield* ensureDraftVersion(input.versionId);
-        if (!repo.replaceWorkUnitLifecycleStates) {
+        if (!repo.upsertWorkUnitLifecycleState) {
           return yield* new RepositoryError({
             operation: "workUnitStateMachine.upsertState",
-            cause: new Error("Lifecycle state repository capability is not configured"),
+            cause: new Error("Lifecycle state upsert repository capability is not configured"),
           });
         }
 
-        const stateMachine = yield* loadWorkUnitStateMachine({
+        yield* repo.upsertWorkUnitLifecycleState({
           versionId: input.versionId,
           workUnitTypeKey: input.workUnitTypeKey,
-        });
-
-        const exists = stateMachine.states.some((state) => state.key === input.state.key);
-        const states = exists
-          ? stateMachine.states.map((state) =>
-              state.key === input.state.key ? input.state : state,
-            )
-          : [...stateMachine.states, input.state];
-
-        yield* repo.replaceWorkUnitLifecycleStates({
-          versionId: input.versionId,
-          workUnitTypeKey: input.workUnitTypeKey,
-          states,
+          state: input.state,
         });
 
         yield* recordLifecycleEvent(input.versionId, actorId, {
@@ -255,40 +244,18 @@ export const WorkUnitStateMachineServiceLive = Layer.effect(
     const deleteState = (input: DeleteWorkUnitLifecycleStateInput, actorId: string | null) =>
       Effect.gen(function* () {
         const version = yield* ensureDraftVersion(input.versionId);
-        if (!repo.replaceWorkUnitLifecycleStates || !repo.replaceWorkUnitLifecycleTransitions) {
+        if (!repo.deleteWorkUnitLifecycleState) {
           return yield* new RepositoryError({
             operation: "workUnitStateMachine.deleteState",
-            cause: new Error("Lifecycle repository capabilities are not configured"),
+            cause: new Error("Lifecycle state delete repository capability is not configured"),
           });
         }
 
-        const stateMachine = yield* loadWorkUnitStateMachine({
+        yield* repo.deleteWorkUnitLifecycleState({
           versionId: input.versionId,
           workUnitTypeKey: input.workUnitTypeKey,
-        });
-
-        const states = stateMachine.states.filter((state) => state.key !== input.stateKey);
-        const transitions = stateMachine.transitions
-          .filter((transition) =>
-            input.strategy === "cleanup"
-              ? transition.fromState !== input.stateKey && transition.toState !== input.stateKey
-              : transition.toState !== input.stateKey,
-          )
-          .map((transition) =>
-            input.strategy === "disconnect" && transition.fromState === input.stateKey
-              ? { ...transition, fromState: undefined }
-              : transition,
-          );
-
-        yield* repo.replaceWorkUnitLifecycleStates({
-          versionId: input.versionId,
-          workUnitTypeKey: input.workUnitTypeKey,
-          states,
-        });
-        yield* repo.replaceWorkUnitLifecycleTransitions({
-          versionId: input.versionId,
-          workUnitTypeKey: input.workUnitTypeKey,
-          transitions,
+          stateKey: input.stateKey,
+          strategy: input.strategy,
         });
 
         yield* recordLifecycleEvent(input.versionId, actorId, {
@@ -311,33 +278,17 @@ export const WorkUnitStateMachineServiceLive = Layer.effect(
     ) =>
       Effect.gen(function* () {
         const version = yield* ensureDraftVersion(input.versionId);
-        if (!repo.replaceWorkUnitLifecycleTransitions) {
+        if (!repo.upsertWorkUnitLifecycleTransition) {
           return yield* new RepositoryError({
             operation: "workUnitStateMachine.upsertTransition",
-            cause: new Error("Lifecycle transition repository capability is not configured"),
+            cause: new Error("Lifecycle transition upsert repository capability is not configured"),
           });
         }
 
-        const stateMachine = yield* loadWorkUnitStateMachine({
+        yield* repo.upsertWorkUnitLifecycleTransition({
           versionId: input.versionId,
           workUnitTypeKey: input.workUnitTypeKey,
-        });
-
-        const exists = stateMachine.transitions.some(
-          (transition) => transition.transitionKey === input.transition.transitionKey,
-        );
-        const transitions = exists
-          ? stateMachine.transitions.map((transition) =>
-              transition.transitionKey === input.transition.transitionKey
-                ? input.transition
-                : transition,
-            )
-          : [...stateMachine.transitions, input.transition];
-
-        yield* repo.replaceWorkUnitLifecycleTransitions({
-          versionId: input.versionId,
-          workUnitTypeKey: input.workUnitTypeKey,
-          transitions,
+          transition: input.transition,
         });
 
         yield* recordLifecycleEvent(input.versionId, actorId, {
@@ -354,26 +305,17 @@ export const WorkUnitStateMachineServiceLive = Layer.effect(
     ) =>
       Effect.gen(function* () {
         const version = yield* ensureDraftVersion(input.versionId);
-        if (!repo.replaceWorkUnitLifecycleTransitions) {
+        if (!repo.deleteWorkUnitLifecycleTransition) {
           return yield* new RepositoryError({
             operation: "workUnitStateMachine.deleteTransition",
-            cause: new Error("Lifecycle transition repository capability is not configured"),
+            cause: new Error("Lifecycle transition delete repository capability is not configured"),
           });
         }
 
-        const stateMachine = yield* loadWorkUnitStateMachine({
+        yield* repo.deleteWorkUnitLifecycleTransition({
           versionId: input.versionId,
           workUnitTypeKey: input.workUnitTypeKey,
-        });
-
-        const transitions = stateMachine.transitions.filter(
-          (transition) => transition.transitionKey !== input.transitionKey,
-        );
-
-        yield* repo.replaceWorkUnitLifecycleTransitions({
-          versionId: input.versionId,
-          workUnitTypeKey: input.workUnitTypeKey,
-          transitions,
+          transitionKey: input.transitionKey,
         });
 
         yield* recordLifecycleEvent(input.versionId, actorId, {

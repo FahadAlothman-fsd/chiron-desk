@@ -59,6 +59,7 @@ function toLifecycleStateRow(row: typeof workUnitLifecycleStates.$inferSelect): 
     key: row.key,
     displayName: row.displayName,
     descriptionJson: row.descriptionJson,
+    guidanceJson: row.guidanceJson,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -426,6 +427,7 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
                 key: state.key,
                 displayName: state.displayName ?? null,
                 descriptionJson: state.description ? { text: state.description } : null,
+                guidanceJson: state.guidance ?? null,
               });
             }
 
