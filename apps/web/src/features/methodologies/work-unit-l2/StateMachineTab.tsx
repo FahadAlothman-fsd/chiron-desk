@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -74,11 +74,30 @@ type WorkflowOption = {
   displayName?: string;
 };
 
+type FactOption = {
+  key: string;
+  name?: string;
+  factType?: "string" | "number" | "boolean" | "json";
+};
+
+type DependencyOption = {
+  key: string;
+  name?: string;
+};
+
+type WorkUnitTypeOption = {
+  key: string;
+  displayName?: string;
+};
+
 type StateMachineTabProps = {
   states: readonly LifecycleState[];
   transitions: readonly LifecycleTransition[];
   conditionSets: readonly TransitionConditionSet[];
   workflows?: readonly WorkflowOption[];
+  facts?: readonly FactOption[];
+  dependencyDefinitions?: readonly DependencyOption[];
+  workUnits?: readonly WorkUnitTypeOption[];
   transitionWorkflowBindings?: Record<string, readonly string[] | undefined>;
   onSaveStates?: (states: LifecycleState[]) => Promise<void>;
   onSaveTransitions?: (transitions: LifecycleTransition[]) => Promise<void>;
@@ -137,11 +156,164 @@ const absentFromStateValue = "__absent__";
 const absentFromStateLabel = "Activate Work Unit";
 const absentFromStateSubtitle = "For activating a work unit from an absent state.";
 
+type FactConditionOperator = "exists" | "equals";
+type WorkUnitConditionOperator = "exists" | "state_is";
+
+type FactConditionConfig = {
+  factKey: string;
+  operator: FactConditionOperator;
+  value?: string;
+};
+
+type WorkUnitConditionConfig = {
+  dependencyKey: string;
+  operator: WorkUnitConditionOperator;
+  workUnitKey?: string;
+  stateKey?: string;
+};
+
+const factConditionOperatorOptions: Array<{ value: FactConditionOperator; label: string }> = [
+  { value: "exists", label: "exists" },
+  { value: "equals", label: "equals" },
+];
+
+const workUnitConditionOperatorOptions: Array<{
+  value: WorkUnitConditionOperator;
+  label: string;
+}> = [
+  { value: "exists", label: "exists" },
+  { value: "state_is", label: "state_is" },
+];
+
+function normalizeFactConditionConfig(config: unknown): FactConditionConfig {
+  if (!config || typeof config !== "object") {
+    return { factKey: "", operator: "exists" };
+  }
+
+  const value = config as {
+    factKey?: unknown;
+    operator?: unknown;
+    value?: unknown;
+  };
+
+  return {
+    factKey: typeof value.factKey === "string" ? value.factKey : "",
+    operator: value.operator === "equals" ? "equals" : "exists",
+    ...(typeof value.value === "string" ? { value: value.value } : {}),
+  };
+}
+
+function normalizeWorkUnitConditionConfig(config: unknown): WorkUnitConditionConfig {
+  if (!config || typeof config !== "object") {
+    return { dependencyKey: "", operator: "exists" };
+  }
+
+  const value = config as {
+    dependencyKey?: unknown;
+    operator?: unknown;
+    workUnitKey?: unknown;
+    stateKey?: unknown;
+  };
+
+  return {
+    dependencyKey: typeof value.dependencyKey === "string" ? value.dependencyKey : "",
+    operator: value.operator === "state_is" ? "state_is" : "exists",
+    ...(typeof value.workUnitKey === "string" ? { workUnitKey: value.workUnitKey } : {}),
+    ...(typeof value.stateKey === "string" ? { stateKey: value.stateKey } : {}),
+  };
+}
+
+type ConditionComboboxFieldProps = {
+  label: string;
+  placeholder: string;
+  searchPlaceholder: string;
+  emptyText: string;
+  value: string;
+  options: Array<{ value: string; label: string; subtitle?: string }>;
+  onSelect: (value: string) => void;
+};
+
+function ConditionComboboxField({
+  label,
+  placeholder,
+  searchPlaceholder,
+  emptyText,
+  value,
+  options,
+  onSelect,
+}: ConditionComboboxFieldProps) {
+  const [open, setOpen] = useState(false);
+  const labelId = useId();
+  const selected = options.find((option) => option.value === value);
+
+  return (
+    <div className="space-y-2">
+      <Label id={labelId}>{label}</Label>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger
+          render={
+            <Button
+              type="button"
+              variant="outline"
+              role="combobox"
+              aria-labelledby={labelId}
+              aria-expanded={open}
+              className="h-8 w-full justify-between rounded-none border-input bg-transparent px-2.5 py-1 font-normal"
+            >
+              <span className="truncate text-xs">{selected?.label ?? placeholder}</span>
+              <ChevronsUpDownIcon className="size-3.5 shrink-0 opacity-70" />
+            </Button>
+          }
+        />
+        <PopoverContent
+          className="w-[var(--anchor-width)] p-0"
+          align="start"
+          frame="cut-thin"
+          sideOffset={4}
+        >
+          <Command density="compact" frame="default">
+            <CommandInput density="compact" placeholder={searchPlaceholder} />
+            <CommandList>
+              <CommandEmpty>{emptyText}</CommandEmpty>
+              <CommandGroup heading={label}>
+                {options.map((option) => (
+                  <CommandItem
+                    key={option.value}
+                    value={`${option.value} ${option.label}`}
+                    density="compact"
+                    onSelect={() => {
+                      onSelect(option.value);
+                      setOpen(false);
+                    }}
+                  >
+                    <div className="grid min-w-0 flex-1 gap-0.5">
+                      <span className="truncate font-medium">{option.label}</span>
+                      {option.subtitle ? (
+                        <span className="truncate text-[0.68rem] uppercase tracking-[0.08em] text-muted-foreground">
+                          {option.subtitle}
+                        </span>
+                      ) : null}
+                    </div>
+                    {value === option.value ? <CheckIcon className="size-3.5" /> : null}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
 export function StateMachineTab({
   states,
   transitions,
   conditionSets,
   workflows,
+  facts = [],
+  dependencyDefinitions = [],
+  workUnits = [],
   transitionWorkflowBindings,
   onSaveStates,
   onSaveTransitions,
@@ -466,6 +638,341 @@ export function StateMachineTab({
     });
   };
 
+  const factSelectionOptions = useMemo(
+    () =>
+      facts
+        .filter(
+          (
+            fact,
+          ): fact is {
+            key: string;
+            name?: string;
+            factType?: "string" | "number" | "boolean" | "json";
+          } => typeof fact.key === "string" && fact.key.trim().length > 0,
+        )
+        .map((fact) => ({
+          value: fact.key,
+          label: fact.key,
+          ...(() => {
+            const subtitle =
+              (fact.name?.trim().length ?? 0) > 0
+                ? `${fact.name} ${fact.factType ? `(${fact.factType})` : ""}`
+                : fact.factType;
+            return subtitle ? { subtitle } : {};
+          })(),
+        })),
+    [facts],
+  );
+
+  const dependencySelectionOptions = useMemo(
+    () =>
+      dependencyDefinitions
+        .filter(
+          (entry): entry is { key: string; name?: string } =>
+            typeof entry.key === "string" && entry.key.trim().length > 0,
+        )
+        .map((entry) => ({
+          value: entry.key,
+          label: entry.key,
+          ...(entry.name ? { subtitle: entry.name } : {}),
+        })),
+    [dependencyDefinitions],
+  );
+
+  const workUnitSelectionOptions = useMemo(
+    () =>
+      workUnits
+        .filter(
+          (entry): entry is { key: string; displayName?: string } =>
+            typeof entry.key === "string" && entry.key.trim().length > 0,
+        )
+        .map((entry) => ({
+          value: entry.key,
+          label: entry.key,
+          ...(entry.displayName ? { subtitle: entry.displayName } : {}),
+        })),
+    [workUnits],
+  );
+
+  const stateSelectionOptions = useMemo(
+    () =>
+      statesDraft.map((state) => ({
+        value: state.key,
+        label: state.key,
+        ...(state.displayName ? { subtitle: state.displayName } : {}),
+      })),
+    [statesDraft],
+  );
+
+  const updateGateCondition = (
+    phase: GatePhase,
+    conditionIndex: number,
+    next: TransitionCondition,
+  ) => {
+    updateGate(phase, (gate) => ({
+      ...gate,
+      conditions: gate.conditions.map((condition, index) =>
+        index === conditionIndex ? next : condition,
+      ),
+    }));
+  };
+
+  const updateGroupEditorCondition = (conditionIndex: number, next: TransitionCondition) => {
+    setGroupEditor((previous) =>
+      previous
+        ? {
+            ...previous,
+            conditions: previous.conditions.map((condition, index) =>
+              index === conditionIndex ? next : condition,
+            ),
+          }
+        : previous,
+    );
+  };
+
+  const addGroupCondition = (kind: "fact" | "work_unit") => {
+    setGroupEditor((previous) =>
+      previous
+        ? {
+            ...previous,
+            conditions: [
+              ...previous.conditions,
+              {
+                kind,
+                required: true,
+                config:
+                  kind === "fact"
+                    ? { factKey: "", operator: "exists" }
+                    : { dependencyKey: "", operator: "exists" },
+              },
+            ],
+          }
+        : previous,
+    );
+  };
+
+  const renderConditionEditor = (
+    condition: TransitionCondition,
+    onChange: (next: TransitionCondition) => void,
+    testId: string,
+  ) => {
+    if (condition.kind === "fact") {
+      const config = normalizeFactConditionConfig(condition.config);
+      return (
+        <div key={testId} data-testid={testId} className="chiron-frame-flat grid gap-3 p-3">
+          <div className="flex items-center justify-between gap-2 text-xs uppercase tracking-[0.12em] text-muted-foreground">
+            <span>Fact Condition</span>
+            <span className="text-[0.68rem] normal-case tracking-normal text-foreground/90">
+              {config.factKey || "Select fact"}
+              {` ${config.operator}`}
+              {config.operator === "equals" && config.value?.trim().length
+                ? ` ${config.value}`
+                : ""}
+            </span>
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            <ConditionComboboxField
+              label="Fact"
+              placeholder="Select fact"
+              searchPlaceholder="Search facts..."
+              emptyText="No facts found."
+              value={config.factKey}
+              options={factSelectionOptions}
+              onSelect={(factKey) => {
+                onChange({
+                  ...condition,
+                  kind: "fact",
+                  required: condition.required ?? true,
+                  config: {
+                    ...config,
+                    factKey,
+                  },
+                });
+              }}
+            />
+            <div className="space-y-2">
+              <Label htmlFor={`${testId}-operator`}>Operator</Label>
+              <select
+                id={`${testId}-operator`}
+                className="h-9 w-full rounded-none border border-input bg-background px-2 text-xs"
+                value={config.operator}
+                onChange={(event) => {
+                  const operator = event.target.value === "equals" ? "equals" : "exists";
+                  onChange({
+                    ...condition,
+                    kind: "fact",
+                    required: condition.required ?? true,
+                    config: {
+                      ...config,
+                      operator,
+                    },
+                  });
+                }}
+              >
+                {factConditionOperatorOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {config.operator === "equals" ? (
+              <div className="space-y-2">
+                <Label htmlFor={`${testId}-value`}>Value</Label>
+                <Input
+                  id={`${testId}-value`}
+                  className="rounded-none"
+                  value={config.value ?? ""}
+                  onChange={(event) => {
+                    onChange({
+                      ...condition,
+                      kind: "fact",
+                      required: condition.required ?? true,
+                      config: {
+                        ...config,
+                        value: event.target.value,
+                      },
+                    });
+                  }}
+                />
+              </div>
+            ) : null}
+          </div>
+        </div>
+      );
+    }
+
+    if (condition.kind === "work_unit") {
+      const config = normalizeWorkUnitConditionConfig(condition.config);
+      return (
+        <div key={testId} data-testid={testId} className="chiron-frame-flat grid gap-3 p-3">
+          <div className="flex items-center justify-between gap-2 text-xs uppercase tracking-[0.12em] text-muted-foreground">
+            <span>Work Unit Condition</span>
+            <span className="text-[0.68rem] normal-case tracking-normal text-foreground/90">
+              {config.dependencyKey || "Select dependency"}
+              {config.workUnitKey ? ` • ${config.workUnitKey}` : ""}
+              {` • ${config.operator}`}
+              {config.operator === "state_is" && config.stateKey ? ` ${config.stateKey}` : ""}
+            </span>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <ConditionComboboxField
+              label="Dependency"
+              placeholder="Select dependency"
+              searchPlaceholder="Search dependencies..."
+              emptyText="No dependencies found."
+              value={config.dependencyKey}
+              options={dependencySelectionOptions}
+              onSelect={(dependencyKey) => {
+                onChange({
+                  ...condition,
+                  kind: "work_unit",
+                  required: condition.required ?? true,
+                  config: {
+                    ...config,
+                    dependencyKey,
+                  },
+                });
+              }}
+            />
+            <ConditionComboboxField
+              label="Work Unit"
+              placeholder="Select work unit"
+              searchPlaceholder="Search work units..."
+              emptyText="No work units found."
+              value={config.workUnitKey ?? ""}
+              options={workUnitSelectionOptions}
+              onSelect={(workUnitKey) => {
+                onChange({
+                  ...condition,
+                  kind: "work_unit",
+                  required: condition.required ?? true,
+                  config: {
+                    ...config,
+                    workUnitKey,
+                  },
+                });
+              }}
+            />
+            <div className="space-y-2">
+              <Label htmlFor={`${testId}-operator`}>Operator</Label>
+              <select
+                id={`${testId}-operator`}
+                className="h-9 w-full rounded-none border border-input bg-background px-2 text-xs"
+                value={config.operator}
+                onChange={(event) => {
+                  const operator = event.target.value === "state_is" ? "state_is" : "exists";
+                  onChange({
+                    ...condition,
+                    kind: "work_unit",
+                    required: condition.required ?? true,
+                    config: {
+                      ...config,
+                      operator,
+                    },
+                  });
+                }}
+              >
+                {workUnitConditionOperatorOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {config.operator === "state_is" ? (
+              <ConditionComboboxField
+                label="State"
+                placeholder="Select state"
+                searchPlaceholder="Search states..."
+                emptyText="No states found."
+                value={config.stateKey ?? ""}
+                options={stateSelectionOptions}
+                onSelect={(stateKey) => {
+                  onChange({
+                    ...condition,
+                    kind: "work_unit",
+                    required: condition.required ?? true,
+                    config: {
+                      ...config,
+                      stateKey,
+                    },
+                  });
+                }}
+              />
+            ) : null}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div key={testId} data-testid={testId} className="chiron-frame-flat p-3">
+        <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">
+          Unsupported condition kind: {condition.kind}
+        </p>
+      </div>
+    );
+  };
+
+  const summarizeCondition = (condition: TransitionCondition): string => {
+    if (condition.kind === "fact") {
+      const config = normalizeFactConditionConfig(condition.config);
+      return config.operator === "equals" && config.value?.trim().length
+        ? `${config.factKey || "(fact)"} ${config.operator} ${config.value}`
+        : `${config.factKey || "(fact)"} ${config.operator}`;
+    }
+
+    if (condition.kind === "work_unit") {
+      const config = normalizeWorkUnitConditionConfig(condition.config);
+      return config.operator === "state_is" && config.stateKey
+        ? `${config.dependencyKey || "(dependency)"} ${config.operator} ${config.stateKey}`
+        : `${config.dependencyKey || "(dependency)"} ${config.operator}`;
+    }
+
+    return condition.kind;
+  };
+
   const addGateCondition = (phase: GatePhase, kind: "fact" | "work_unit") => {
     updateGate(phase, (gate) => ({
       ...gate,
@@ -510,7 +1017,7 @@ export function StateMachineTab({
       groups: [
         ...gate.groups,
         {
-          key: "",
+          key: `group.${crypto.randomUUID()}`,
           mode: groupEditor.mode,
           conditions: [...groupEditor.conditions],
         },
@@ -842,44 +1349,21 @@ export function StateMachineTab({
       </Dialog>
 
       <Dialog open={transitionDialogOpen} onOpenChange={setTransitionDialogOpen}>
-        <DialogContent className="chiron-cut-frame-thick w-[min(72rem,calc(100vw-2rem))] p-8 sm:max-w-none sm:p-10">
+        <DialogContent className="chiron-cut-frame-thick flex w-[min(72rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] flex-col overflow-hidden p-8 sm:max-w-none sm:p-10">
           <form
-            className="flex flex-col gap-12"
+            className="flex min-h-0 flex-1 flex-col overflow-hidden"
             onSubmit={(event) => {
               event.preventDefault();
               event.stopPropagation();
               void saveTransitionDialog();
             }}
           >
-            <div className="flex flex-col gap-10">
+            <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden">
               <DialogHeader className="gap-4">
                 <DialogTitle className="text-base font-semibold uppercase tracking-[0.08em]">
                   {editingTransitionKey ? "Edit Transition" : "Add Transition"}
                 </DialogTitle>
               </DialogHeader>
-
-              <div className="grid grid-cols-2 gap-x-10 gap-y-6">
-                <div className="col-span-2 space-y-2">
-                  <Label
-                    htmlFor="transition-key"
-                    className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
-                  >
-                    Transition Key
-                  </Label>
-                  <Input
-                    id="transition-key"
-                    className="rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em] placeholder:text-muted-foreground/50"
-                    value={transitionEditor.transitionKey}
-                    disabled={editingTransitionKey !== null}
-                    onChange={(event) =>
-                      setTransitionEditor((previous) => ({
-                        ...previous,
-                        transitionKey: event.target.value,
-                      }))
-                    }
-                  />
-                </div>
-              </div>
 
               <div className="flex flex-wrap gap-2 border-b border-border pb-3">
                 <Button
@@ -919,118 +1403,309 @@ export function StateMachineTab({
                   Bindings
                 </Button>
               </div>
-
-              {transitionEditorTab === "contract" ? (
-                <div className="grid grid-cols-2 gap-x-10 gap-y-6">
-                  <div className="space-y-2">
-                    <Label id="transition-from-state-label">From State</Label>
-                    <Popover open={isFromStateOpen} onOpenChange={setIsFromStateOpen}>
-                      <PopoverTrigger
-                        render={
-                          <Button
-                            type="button"
-                            variant="outline"
-                            role="combobox"
-                            aria-labelledby="transition-from-state-label"
-                            aria-expanded={isFromStateOpen}
-                            className="h-8 w-full justify-between rounded-none border-input bg-transparent px-2.5 py-1 font-normal"
-                          >
-                            <span className="truncate text-xs">
-                              {transitionEditor.fromState === absentFromStateValue
-                                ? absentFromStateLabel
-                                : transitionEditor.fromState.trim().length > 0
-                                  ? transitionEditor.fromState
-                                  : "Select from state"}
-                            </span>
-                            <ChevronsUpDownIcon className="size-3.5 shrink-0 opacity-70" />
-                          </Button>
+              <div
+                data-testid="transition-tab-scroll-region"
+                className="min-h-0 flex-1 overflow-y-auto pr-1"
+              >
+                {transitionEditorTab === "contract" ? (
+                  <div className="grid grid-cols-2 gap-x-10 gap-y-6">
+                    <div className="col-span-2 space-y-2">
+                      <Label
+                        htmlFor="transition-key"
+                        className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                      >
+                        Transition Key
+                      </Label>
+                      <Input
+                        id="transition-key"
+                        className="rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em] placeholder:text-muted-foreground/50"
+                        value={transitionEditor.transitionKey}
+                        disabled={editingTransitionKey !== null}
+                        onChange={(event) =>
+                          setTransitionEditor((previous) => ({
+                            ...previous,
+                            transitionKey: event.target.value,
+                          }))
                         }
                       />
-                      <PopoverContent
-                        className="w-[var(--anchor-width)] p-0"
-                        align="start"
-                        frame="cut-thin"
-                        sideOffset={4}
-                      >
-                        <Command density="compact" frame="default">
-                          <CommandInput density="compact" placeholder="Search states..." />
-                          <CommandList>
-                            <CommandEmpty>No states found.</CommandEmpty>
-                            <CommandGroup heading="States">
-                              <CommandItem
-                                key="from-absent"
-                                value={absentFromStateLabel}
-                                density="compact"
-                                onSelect={() => {
-                                  setTransitionEditor((previous) => ({
-                                    ...previous,
-                                    fromState: absentFromStateValue,
-                                  }));
-                                  setIsFromStateOpen(false);
-                                }}
-                              >
-                                <div className="grid min-w-0 flex-1 gap-0.5">
-                                  <span className="truncate font-medium">
-                                    {absentFromStateLabel}
-                                  </span>
-                                  <span className="truncate text-[0.68rem] uppercase tracking-[0.08em] text-muted-foreground">
-                                    {absentFromStateSubtitle}
-                                  </span>
-                                </div>
-                                {transitionEditor.fromState === absentFromStateValue ? (
-                                  <CheckIcon className="size-3.5" />
-                                ) : null}
-                              </CommandItem>
-                              {statesDraft.map((state) => (
+                    </div>
+                    <div className="space-y-2">
+                      <Label id="transition-from-state-label">From State</Label>
+                      <Popover open={isFromStateOpen} onOpenChange={setIsFromStateOpen}>
+                        <PopoverTrigger
+                          render={
+                            <Button
+                              type="button"
+                              variant="outline"
+                              role="combobox"
+                              aria-labelledby="transition-from-state-label"
+                              aria-expanded={isFromStateOpen}
+                              className="h-8 w-full justify-between rounded-none border-input bg-transparent px-2.5 py-1 font-normal"
+                            >
+                              <span className="truncate text-xs">
+                                {transitionEditor.fromState === absentFromStateValue
+                                  ? absentFromStateLabel
+                                  : transitionEditor.fromState.trim().length > 0
+                                    ? transitionEditor.fromState
+                                    : "Select from state"}
+                              </span>
+                              <ChevronsUpDownIcon className="size-3.5 shrink-0 opacity-70" />
+                            </Button>
+                          }
+                        />
+                        <PopoverContent
+                          className="w-[var(--anchor-width)] p-0"
+                          align="start"
+                          frame="cut-thin"
+                          sideOffset={4}
+                        >
+                          <Command density="compact" frame="default">
+                            <CommandInput density="compact" placeholder="Search states..." />
+                            <CommandList>
+                              <CommandEmpty>No states found.</CommandEmpty>
+                              <CommandGroup heading="States">
                                 <CommandItem
-                                  key={`from-${state.key}`}
-                                  value={`${state.key} ${state.displayName ?? ""}`}
+                                  key="from-absent"
+                                  value={absentFromStateLabel}
                                   density="compact"
                                   onSelect={() => {
                                     setTransitionEditor((previous) => ({
                                       ...previous,
-                                      fromState: state.key,
+                                      fromState: absentFromStateValue,
                                     }));
                                     setIsFromStateOpen(false);
                                   }}
                                 >
                                   <div className="grid min-w-0 flex-1 gap-0.5">
-                                    <span className="truncate font-medium">{state.key}</span>
-                                    {(state.displayName?.trim().length ?? 0) > 0 ? (
-                                      <span className="truncate text-[0.68rem] uppercase tracking-[0.08em] text-muted-foreground">
-                                        {state.displayName}
-                                      </span>
-                                    ) : null}
+                                    <span className="truncate font-medium">
+                                      {absentFromStateLabel}
+                                    </span>
+                                    <span className="truncate text-[0.68rem] uppercase tracking-[0.08em] text-muted-foreground">
+                                      {absentFromStateSubtitle}
+                                    </span>
                                   </div>
-                                  {transitionEditor.fromState === state.key ? (
+                                  {transitionEditor.fromState === absentFromStateValue ? (
                                     <CheckIcon className="size-3.5" />
                                   ) : null}
                                 </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
+                                {statesDraft.map((state) => (
+                                  <CommandItem
+                                    key={`from-${state.key}`}
+                                    value={`${state.key} ${state.displayName ?? ""}`}
+                                    density="compact"
+                                    onSelect={() => {
+                                      setTransitionEditor((previous) => ({
+                                        ...previous,
+                                        fromState: state.key,
+                                      }));
+                                      setIsFromStateOpen(false);
+                                    }}
+                                  >
+                                    <div className="grid min-w-0 flex-1 gap-0.5">
+                                      <span className="truncate font-medium">{state.key}</span>
+                                      {(state.displayName?.trim().length ?? 0) > 0 ? (
+                                        <span className="truncate text-[0.68rem] uppercase tracking-[0.08em] text-muted-foreground">
+                                          {state.displayName}
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                    {transitionEditor.fromState === state.key ? (
+                                      <CheckIcon className="size-3.5" />
+                                    ) : null}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
 
-                  <div className="space-y-2">
-                    <Label id="transition-to-state-label">To State</Label>
-                    <Popover open={isToStateOpen} onOpenChange={setIsToStateOpen}>
+                    <div className="space-y-2">
+                      <Label id="transition-to-state-label">To State</Label>
+                      <Popover open={isToStateOpen} onOpenChange={setIsToStateOpen}>
+                        <PopoverTrigger
+                          render={
+                            <Button
+                              type="button"
+                              variant="outline"
+                              role="combobox"
+                              aria-labelledby="transition-to-state-label"
+                              aria-expanded={isToStateOpen}
+                              className="h-8 w-full justify-between rounded-none border-input bg-transparent px-2.5 py-1 font-normal"
+                            >
+                              <span className="truncate text-xs">
+                                {transitionEditor.toState.trim().length > 0
+                                  ? transitionEditor.toState
+                                  : "Select to state"}
+                              </span>
+                              <ChevronsUpDownIcon className="size-3.5 shrink-0 opacity-70" />
+                            </Button>
+                          }
+                        />
+                        <PopoverContent
+                          className="w-[var(--anchor-width)] p-0"
+                          align="start"
+                          frame="cut-thin"
+                          sideOffset={4}
+                        >
+                          <Command density="compact" frame="default">
+                            <CommandInput density="compact" placeholder="Search states..." />
+                            <CommandList>
+                              <CommandEmpty>No states found.</CommandEmpty>
+                              <CommandGroup heading="States">
+                                {statesDraft.map((state) => (
+                                  <CommandItem
+                                    key={`to-${state.key}`}
+                                    value={`${state.key} ${state.displayName ?? ""}`}
+                                    density="compact"
+                                    onSelect={() => {
+                                      setTransitionEditor((previous) => ({
+                                        ...previous,
+                                        toState: state.key,
+                                      }));
+                                      setIsToStateOpen(false);
+                                    }}
+                                  >
+                                    <div className="grid min-w-0 flex-1 gap-0.5">
+                                      <span className="truncate font-medium">{state.key}</span>
+                                      {(state.displayName?.trim().length ?? 0) > 0 ? (
+                                        <span className="truncate text-[0.68rem] uppercase tracking-[0.08em] text-muted-foreground">
+                                          {state.displayName}
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                    {transitionEditor.toState === state.key ? (
+                                      <CheckIcon className="size-3.5" />
+                                    ) : null}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
+                ) : transitionEditorTab === "start" ? (
+                  <div className="grid gap-6">
+                    <div className="grid gap-2">
+                      <Label htmlFor="transition-start-mode">Start Gate Mode</Label>
+                      <select
+                        id="transition-start-mode"
+                        className="h-9 rounded-none border border-input bg-background px-2 text-xs"
+                        value={transitionEditor.startGate.mode}
+                        onChange={(event) =>
+                          updateGate("start", (gate) => ({
+                            ...gate,
+                            mode: event.target.value === "any" ? "any" : "all",
+                          }))
+                        }
+                      >
+                        <option value="all">All conditions</option>
+                        <option value="any">Any condition</option>
+                      </select>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-none"
+                        onClick={() => openGateTextEditor("start", "guidance")}
+                      >
+                        Edit Start Guidance
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-none"
+                        onClick={() => openGateTextEditor("start", "description")}
+                      >
+                        Edit Start Description
+                      </Button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-none"
+                        onClick={() => addGateCondition("start", "fact")}
+                      >
+                        Add Fact Condition
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-none"
+                        onClick={() => addGateCondition("start", "work_unit")}
+                      >
+                        Add Work Unit Condition
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-none"
+                        onClick={() => openGroupEditor("start")}
+                      >
+                        Add Group
+                      </Button>
+                    </div>
+                    <div className="grid gap-3">
+                      <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
+                        Start Conditions
+                      </p>
+                      {transitionEditor.startGate.conditions.length > 0 ? (
+                        transitionEditor.startGate.conditions.map((condition, index) =>
+                          renderConditionEditor(
+                            condition,
+                            (next) => updateGateCondition("start", index, next),
+                            `start-condition-${index}`,
+                          ),
+                        )
+                      ) : (
+                        <p className="text-xs text-muted-foreground">No conditions added yet.</p>
+                      )}
+                    </div>
+                    <div className="grid gap-2">
+                      <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
+                        Start Groups
+                      </p>
+                      {transitionEditor.startGate.groups.length > 0 ? (
+                        transitionEditor.startGate.groups.map((group, index) => (
+                          <div key={group.key} className="chiron-frame-flat p-2 text-xs">
+                            <p className="uppercase tracking-[0.12em] text-muted-foreground">
+                              Group {index + 1} ({group.mode})
+                            </p>
+                            <p className="mt-1 text-foreground/90">
+                              {group.conditions.length > 0
+                                ? group.conditions.map(summarizeCondition).join(" • ")
+                                : "No conditions in group."}
+                            </p>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-xs text-muted-foreground">No groups added yet.</p>
+                      )}
+                    </div>
+                  </div>
+                ) : transitionEditorTab === "bindings" ? (
+                  <div className="grid gap-2">
+                    <Label id="transition-bind-workflows-label">Bind Workflows</Label>
+                    <Popover open={isBindingsOpen} onOpenChange={setIsBindingsOpen}>
                       <PopoverTrigger
                         render={
                           <Button
                             type="button"
                             variant="outline"
                             role="combobox"
-                            aria-labelledby="transition-to-state-label"
-                            aria-expanded={isToStateOpen}
+                            aria-labelledby="transition-bind-workflows-label"
+                            aria-expanded={isBindingsOpen}
                             className="h-8 w-full justify-between rounded-none border-input bg-transparent px-2.5 py-1 font-normal"
                           >
                             <span className="truncate text-xs">
-                              {transitionEditor.toState.trim().length > 0
-                                ? transitionEditor.toState
-                                : "Select to state"}
+                              {transitionEditor.workflowKeys.length > 0
+                                ? transitionEditor.workflowKeys.join(", ")
+                                : "Select workflow bindings"}
                             </span>
                             <ChevronsUpDownIcon className="size-3.5 shrink-0 opacity-70" />
                           </Button>
@@ -1043,32 +1718,38 @@ export function StateMachineTab({
                         sideOffset={4}
                       >
                         <Command density="compact" frame="default">
-                          <CommandInput density="compact" placeholder="Search states..." />
+                          <CommandInput density="compact" placeholder="Search workflows..." />
                           <CommandList>
-                            <CommandEmpty>No states found.</CommandEmpty>
-                            <CommandGroup heading="States">
-                              {statesDraft.map((state) => (
+                            <CommandEmpty>No workflows found.</CommandEmpty>
+                            <CommandGroup heading="Workflows">
+                              {(workflows ?? []).map((workflow) => (
                                 <CommandItem
-                                  key={`to-${state.key}`}
-                                  value={`${state.key} ${state.displayName ?? ""}`}
+                                  key={workflow.key}
+                                  value={`${workflow.key} ${workflow.displayName ?? ""}`}
                                   density="compact"
                                   onSelect={() => {
-                                    setTransitionEditor((previous) => ({
-                                      ...previous,
-                                      toState: state.key,
-                                    }));
-                                    setIsToStateOpen(false);
+                                    setTransitionEditor((previous) => {
+                                      const selected = previous.workflowKeys.includes(workflow.key);
+                                      return {
+                                        ...previous,
+                                        workflowKeys: selected
+                                          ? previous.workflowKeys.filter(
+                                              (key) => key !== workflow.key,
+                                            )
+                                          : [...previous.workflowKeys, workflow.key],
+                                      };
+                                    });
                                   }}
                                 >
                                   <div className="grid min-w-0 flex-1 gap-0.5">
-                                    <span className="truncate font-medium">{state.key}</span>
-                                    {(state.displayName?.trim().length ?? 0) > 0 ? (
+                                    <span className="truncate font-medium">{workflow.key}</span>
+                                    {(workflow.displayName?.trim().length ?? 0) > 0 ? (
                                       <span className="truncate text-[0.68rem] uppercase tracking-[0.08em] text-muted-foreground">
-                                        {state.displayName}
+                                        {workflow.displayName}
                                       </span>
                                     ) : null}
                                   </div>
-                                  {transitionEditor.toState === state.key ? (
+                                  {transitionEditor.workflowKeys.includes(workflow.key) ? (
                                     <CheckIcon className="size-3.5" />
                                   ) : null}
                                 </CommandItem>
@@ -1079,211 +1760,115 @@ export function StateMachineTab({
                       </PopoverContent>
                     </Popover>
                   </div>
-                </div>
-              ) : transitionEditorTab === "start" ? (
-                <div className="grid gap-6">
-                  <div className="grid gap-2">
-                    <Label htmlFor="transition-start-mode">Start Gate Mode</Label>
-                    <select
-                      id="transition-start-mode"
-                      className="h-9 rounded-none border border-input bg-background px-2 text-xs"
-                      value={transitionEditor.startGate.mode}
-                      onChange={(event) =>
-                        updateGate("start", (gate) => ({
-                          ...gate,
-                          mode: event.target.value === "any" ? "any" : "all",
-                        }))
-                      }
-                    >
-                      <option value="all">All conditions</option>
-                      <option value="any">Any condition</option>
-                    </select>
+                ) : (
+                  <div className="grid gap-6">
+                    <div className="grid gap-2">
+                      <Label htmlFor="transition-completion-mode">Completion Gate Mode</Label>
+                      <select
+                        id="transition-completion-mode"
+                        className="h-9 rounded-none border border-input bg-background px-2 text-xs"
+                        value={transitionEditor.completionGate.mode}
+                        onChange={(event) =>
+                          updateGate("completion", (gate) => ({
+                            ...gate,
+                            mode: event.target.value === "any" ? "any" : "all",
+                          }))
+                        }
+                      >
+                        <option value="all">All conditions</option>
+                        <option value="any">Any condition</option>
+                      </select>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-none"
+                        onClick={() => openGateTextEditor("completion", "guidance")}
+                      >
+                        Edit Completion Guidance
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-none"
+                        onClick={() => openGateTextEditor("completion", "description")}
+                      >
+                        Edit Completion Description
+                      </Button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-none"
+                        onClick={() => addGateCondition("completion", "fact")}
+                      >
+                        Add Fact Condition
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-none"
+                        onClick={() => addGateCondition("completion", "work_unit")}
+                      >
+                        Add Work Unit Condition
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-none"
+                        onClick={() => openGroupEditor("completion")}
+                      >
+                        Add Group
+                      </Button>
+                    </div>
+                    <div className="grid gap-3">
+                      <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
+                        Completion Conditions
+                      </p>
+                      {transitionEditor.completionGate.conditions.length > 0 ? (
+                        transitionEditor.completionGate.conditions.map((condition, index) =>
+                          renderConditionEditor(
+                            condition,
+                            (next) => updateGateCondition("completion", index, next),
+                            `completion-condition-${index}`,
+                          ),
+                        )
+                      ) : (
+                        <p className="text-xs text-muted-foreground">No conditions added yet.</p>
+                      )}
+                    </div>
+                    <div className="grid gap-2">
+                      <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
+                        Completion Groups
+                      </p>
+                      {transitionEditor.completionGate.groups.length > 0 ? (
+                        transitionEditor.completionGate.groups.map((group, index) => (
+                          <div key={group.key} className="chiron-frame-flat p-2 text-xs">
+                            <p className="uppercase tracking-[0.12em] text-muted-foreground">
+                              Group {index + 1} ({group.mode})
+                            </p>
+                            <p className="mt-1 text-foreground/90">
+                              {group.conditions.length > 0
+                                ? group.conditions.map(summarizeCondition).join(" • ")
+                                : "No conditions in group."}
+                            </p>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-xs text-muted-foreground">No groups added yet.</p>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="rounded-none"
-                      onClick={() => openGateTextEditor("start", "guidance")}
-                    >
-                      Edit Start Guidance
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="rounded-none"
-                      onClick={() => openGateTextEditor("start", "description")}
-                    >
-                      Edit Start Description
-                    </Button>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="rounded-none"
-                      onClick={() => addGateCondition("start", "fact")}
-                    >
-                      Add Fact Condition
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="rounded-none"
-                      onClick={() => addGateCondition("start", "work_unit")}
-                    >
-                      Add Work Unit Condition
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="rounded-none"
-                      onClick={() => openGroupEditor("start")}
-                    >
-                      Add Group
-                    </Button>
-                  </div>
-                </div>
-              ) : transitionEditorTab === "bindings" ? (
-                <div className="grid gap-2">
-                  <Label id="transition-bind-workflows-label">Bind Workflows</Label>
-                  <Popover open={isBindingsOpen} onOpenChange={setIsBindingsOpen}>
-                    <PopoverTrigger
-                      render={
-                        <Button
-                          type="button"
-                          variant="outline"
-                          role="combobox"
-                          aria-labelledby="transition-bind-workflows-label"
-                          aria-expanded={isBindingsOpen}
-                          className="h-8 w-full justify-between rounded-none border-input bg-transparent px-2.5 py-1 font-normal"
-                        >
-                          <span className="truncate text-xs">
-                            {transitionEditor.workflowKeys.length > 0
-                              ? transitionEditor.workflowKeys.join(", ")
-                              : "Select workflow bindings"}
-                          </span>
-                          <ChevronsUpDownIcon className="size-3.5 shrink-0 opacity-70" />
-                        </Button>
-                      }
-                    />
-                    <PopoverContent
-                      className="w-[var(--anchor-width)] p-0"
-                      align="start"
-                      frame="cut-thin"
-                      sideOffset={4}
-                    >
-                      <Command density="compact" frame="default">
-                        <CommandInput density="compact" placeholder="Search workflows..." />
-                        <CommandList>
-                          <CommandEmpty>No workflows found.</CommandEmpty>
-                          <CommandGroup heading="Workflows">
-                            {(workflows ?? []).map((workflow) => (
-                              <CommandItem
-                                key={workflow.key}
-                                value={`${workflow.key} ${workflow.displayName ?? ""}`}
-                                density="compact"
-                                onSelect={() => {
-                                  setTransitionEditor((previous) => {
-                                    const selected = previous.workflowKeys.includes(workflow.key);
-                                    return {
-                                      ...previous,
-                                      workflowKeys: selected
-                                        ? previous.workflowKeys.filter(
-                                            (key) => key !== workflow.key,
-                                          )
-                                        : [...previous.workflowKeys, workflow.key],
-                                    };
-                                  });
-                                }}
-                              >
-                                <div className="grid min-w-0 flex-1 gap-0.5">
-                                  <span className="truncate font-medium">{workflow.key}</span>
-                                  {(workflow.displayName?.trim().length ?? 0) > 0 ? (
-                                    <span className="truncate text-[0.68rem] uppercase tracking-[0.08em] text-muted-foreground">
-                                      {workflow.displayName}
-                                    </span>
-                                  ) : null}
-                                </div>
-                                {transitionEditor.workflowKeys.includes(workflow.key) ? (
-                                  <CheckIcon className="size-3.5" />
-                                ) : null}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              ) : (
-                <div className="grid gap-6">
-                  <div className="grid gap-2">
-                    <Label htmlFor="transition-completion-mode">Completion Gate Mode</Label>
-                    <select
-                      id="transition-completion-mode"
-                      className="h-9 rounded-none border border-input bg-background px-2 text-xs"
-                      value={transitionEditor.completionGate.mode}
-                      onChange={(event) =>
-                        updateGate("completion", (gate) => ({
-                          ...gate,
-                          mode: event.target.value === "any" ? "any" : "all",
-                        }))
-                      }
-                    >
-                      <option value="all">All conditions</option>
-                      <option value="any">Any condition</option>
-                    </select>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="rounded-none"
-                      onClick={() => openGateTextEditor("completion", "guidance")}
-                    >
-                      Edit Completion Guidance
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="rounded-none"
-                      onClick={() => openGateTextEditor("completion", "description")}
-                    >
-                      Edit Completion Description
-                    </Button>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="rounded-none"
-                      onClick={() => addGateCondition("completion", "fact")}
-                    >
-                      Add Fact Condition
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="rounded-none"
-                      onClick={() => addGateCondition("completion", "work_unit")}
-                    >
-                      Add Work Unit Condition
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="rounded-none"
-                      onClick={() => openGroupEditor("completion")}
-                    >
-                      Add Group
-                    </Button>
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
-            <DialogFooter className="sm:justify-end sm:gap-4 sm:px-0">
+            <DialogFooter
+              data-testid="transition-dialog-footer"
+              className="mt-6 shrink-0 border-t border-border pt-4 sm:justify-end sm:gap-4 sm:px-0"
+            >
               <Button
                 type="button"
                 variant="outline"
@@ -1414,23 +1999,7 @@ export function StateMachineTab({
                 type="button"
                 variant="outline"
                 className="rounded-none"
-                onClick={() =>
-                  setGroupEditor((previous) =>
-                    previous
-                      ? {
-                          ...previous,
-                          conditions: [
-                            ...previous.conditions,
-                            {
-                              kind: "fact",
-                              required: true,
-                              config: { factKey: "", operator: "exists" },
-                            },
-                          ],
-                        }
-                      : previous,
-                  )
-                }
+                onClick={() => addGroupCondition("fact")}
               >
                 Add Fact Condition
               </Button>
@@ -1438,26 +2007,26 @@ export function StateMachineTab({
                 type="button"
                 variant="outline"
                 className="rounded-none"
-                onClick={() =>
-                  setGroupEditor((previous) =>
-                    previous
-                      ? {
-                          ...previous,
-                          conditions: [
-                            ...previous.conditions,
-                            {
-                              kind: "work_unit",
-                              required: true,
-                              config: { dependencyKey: "", operator: "exists" },
-                            },
-                          ],
-                        }
-                      : previous,
-                  )
-                }
+                onClick={() => addGroupCondition("work_unit")}
               >
                 Add Work Unit Condition
               </Button>
+            </div>
+            <div className="grid gap-3">
+              <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
+                Group Conditions
+              </p>
+              {groupEditor && groupEditor.conditions.length > 0 ? (
+                groupEditor.conditions.map((condition, index) =>
+                  renderConditionEditor(
+                    condition,
+                    (next) => updateGroupEditorCondition(index, next),
+                    `group-condition-${index}`,
+                  ),
+                )
+              ) : (
+                <p className="text-xs text-muted-foreground">No conditions added yet.</p>
+              )}
             </div>
           </div>
 

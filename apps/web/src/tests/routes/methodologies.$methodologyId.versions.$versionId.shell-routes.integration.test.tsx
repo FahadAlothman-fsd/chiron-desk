@@ -560,6 +560,22 @@ function chooseOption(label: string, optionName: string) {
   fireEvent.click(option);
 }
 
+function comboboxForFieldIn(container: HTMLElement, label: string): HTMLButtonElement {
+  const field = within(container).getByText(label).closest("div");
+  if (!field) {
+    throw new Error(`Field not found for ${label}`);
+  }
+
+  return within(field).getByRole("combobox") as HTMLButtonElement;
+}
+
+function chooseOptionIn(container: HTMLElement, label: string, optionName: string) {
+  fireEvent.click(comboboxForFieldIn(container, label));
+  const option = screen.getByRole("option", { name: new RegExp(optionName, "i") });
+  fireEvent.mouseMove(option);
+  fireEvent.click(option);
+}
+
 function renderWithQueryClient(node: ReactNode) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
@@ -1024,6 +1040,13 @@ describe("methodology version shell routes", () => {
     expect(screen.getByRole("button", { name: "Start Conditions" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Completion Conditions" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Bindings" })).toBeTruthy();
+    const transitionTabScrollRegion = screen.getByTestId("transition-tab-scroll-region");
+    expect(transitionTabScrollRegion.className).toContain("overflow-y-auto");
+    expect(transitionTabScrollRegion.className).toContain("flex-1");
+    const transitionDialogFooter = screen.getByTestId("transition-dialog-footer");
+    expect(transitionDialogFooter.className).toContain("shrink-0");
+    expect(transitionDialogFooter.className).toContain("border-t");
+    expect(screen.getByLabelText("Transition Key")).toBeTruthy();
 
     fireEvent.click(comboboxForField("From State"));
     expect(screen.getByRole("option", { name: /activate work unit/i })).toBeTruthy();
@@ -1039,9 +1062,12 @@ describe("methodology version shell routes", () => {
       target: { value: "review_to_done" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Start Conditions" }));
+    expect(screen.queryByLabelText("Transition Key")).toBeNull();
     fireEvent.change(screen.getByLabelText("Start Gate Mode"), {
       target: { value: "any" },
     });
+    const startConditionsScrollRegion = screen.getByTestId("transition-tab-scroll-region");
+    expect(startConditionsScrollRegion.className).toContain("overflow-y-auto");
     expect(screen.getByRole("button", { name: "Edit Start Guidance" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Edit Start Description" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Add Fact Condition" })).toBeTruthy();
@@ -1072,15 +1098,19 @@ describe("methodology version shell routes", () => {
     fireEvent.click(within(groupDialog).getByRole("button", { name: "Save Group" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Completion Conditions" }));
+    expect(screen.queryByLabelText("Transition Key")).toBeNull();
     fireEvent.change(screen.getByLabelText("Completion Gate Mode"), {
       target: { value: "all" },
     });
+    const completionConditionsScrollRegion = screen.getByTestId("transition-tab-scroll-region");
+    expect(completionConditionsScrollRegion.className).toContain("overflow-y-auto");
     expect(screen.getByRole("button", { name: "Edit Completion Guidance" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Edit Completion Description" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Add Fact Condition" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Add Work Unit Condition" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Add Group" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Bindings" }));
+    expect(screen.queryByLabelText("Transition Key")).toBeNull();
     chooseOption("Bind Workflows", "wf.intake");
     fireEvent.click(screen.getByRole("button", { name: "Create Transition" }));
     await waitFor(() => {
@@ -1123,6 +1153,143 @@ describe("methodology version shell routes", () => {
       );
     });
     expect(routeContext.updateTransitionConditionSetsMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("authors typed fact/work-unit conditions in transition dialog and saves edited configs through transition.save", async () => {
+    const { MethodologyVersionWorkUnitDetailsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey");
+    const routeContext = createRouteContext();
+    useParamsMock.mockReturnValue({
+      methodologyId: "equity-core",
+      versionId: "draft-v2",
+      workUnitKey: "WU.TASK",
+    });
+    useSearchMock.mockReturnValue({ tab: "state-machine" });
+    useRouteContextMock.mockReturnValue(routeContext);
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitDetailsRoute />);
+    expect(await screen.findByText("To Do")).toBeTruthy();
+
+    fireEvent.click(await screen.findByRole("button", { name: "+ Add Transition" }));
+    fireEvent.change(screen.getByLabelText("Transition Key"), {
+      target: { value: "typed_conditions_transition" },
+    });
+    chooseOption("From State", "activate work unit");
+    chooseOption("To State", "done");
+
+    fireEvent.click(screen.getByRole("button", { name: "Start Conditions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Fact Condition" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Work Unit Condition" }));
+
+    const startFactConditionRow = screen.getByTestId("start-condition-0");
+    chooseOptionIn(startFactConditionRow, "Fact", "fact.input_path");
+    fireEvent.change(within(startFactConditionRow).getByLabelText("Operator"), {
+      target: { value: "equals" },
+    });
+    fireEvent.change(within(startFactConditionRow).getByLabelText("Value"), {
+      target: { value: "docs/input.md" },
+    });
+    expect(within(startFactConditionRow).getAllByText(/fact.input_path/i).length).toBeGreaterThan(
+      0,
+    );
+
+    const startWorkUnitConditionRow = screen.getByTestId("start-condition-1");
+    chooseOptionIn(startWorkUnitConditionRow, "Dependency", "link.requires");
+    chooseOptionIn(startWorkUnitConditionRow, "Work Unit", "WU.TASK");
+    fireEvent.change(within(startWorkUnitConditionRow).getByLabelText("Operator"), {
+      target: { value: "state_is" },
+    });
+    chooseOptionIn(startWorkUnitConditionRow, "State", "done");
+    expect(within(startWorkUnitConditionRow).getAllByText(/link.requires/i).length).toBeGreaterThan(
+      0,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Add Group" }));
+    const groupDialog = await screen.findByRole("dialog", { name: "Add Group" });
+    fireEvent.click(within(groupDialog).getByRole("button", { name: "Add Fact Condition" }));
+    const groupedConditionRow = within(groupDialog).getByTestId("group-condition-0");
+    chooseOptionIn(groupedConditionRow, "Fact", "fact.contract_json");
+    fireEvent.change(within(groupedConditionRow).getByLabelText("Operator"), {
+      target: { value: "exists" },
+    });
+    fireEvent.click(within(groupDialog).getByRole("button", { name: "Save Group" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Completion Conditions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Fact Condition" }));
+    const completionFactConditionRow = screen.getByTestId("completion-condition-0");
+    chooseOptionIn(completionFactConditionRow, "Fact", "fact.contract_json");
+
+    fireEvent.click(screen.getByRole("button", { name: "Bindings" }));
+    chooseOption("Bind Workflows", "wf.intake");
+    fireEvent.click(screen.getByRole("button", { name: "Create Transition" }));
+
+    await waitFor(() => {
+      expect(routeContext.saveStateMachineTransitionMock).toHaveBeenCalledTimes(1);
+    });
+    expect(routeContext.saveStateMachineTransitionMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        conditionSets: expect.arrayContaining([
+          expect.objectContaining({
+            phase: "start",
+            groups: expect.arrayContaining([
+              expect.objectContaining({
+                conditions: expect.arrayContaining([
+                  expect.objectContaining({
+                    kind: "fact",
+                    config: expect.objectContaining({
+                      factKey: "fact.input_path",
+                      operator: "equals",
+                      value: "docs/input.md",
+                    }),
+                  }),
+                ]),
+              }),
+              expect.objectContaining({
+                conditions: expect.arrayContaining([
+                  expect.objectContaining({
+                    kind: "work_unit",
+                    config: expect.objectContaining({
+                      dependencyKey: "link.requires",
+                      workUnitKey: "WU.TASK",
+                      operator: "state_is",
+                      stateKey: "done",
+                    }),
+                  }),
+                ]),
+              }),
+              expect.objectContaining({
+                conditions: expect.arrayContaining([
+                  expect.objectContaining({
+                    kind: "fact",
+                    config: expect.objectContaining({
+                      factKey: "fact.contract_json",
+                      operator: "exists",
+                    }),
+                  }),
+                ]),
+              }),
+            ]),
+          }),
+          expect.objectContaining({
+            phase: "completion",
+            groups: expect.arrayContaining([
+              expect.objectContaining({
+                conditions: expect.arrayContaining([
+                  expect.objectContaining({
+                    kind: "fact",
+                    config: expect.objectContaining({
+                      factKey: "fact.contract_json",
+                      operator: "exists",
+                    }),
+                  }),
+                ]),
+              }),
+            ]),
+          }),
+        ]),
+      }),
+      expect.anything(),
+    );
   });
 
   it("wires artifact slots tab list/replace with nested templates dialog and normalized payload", async () => {

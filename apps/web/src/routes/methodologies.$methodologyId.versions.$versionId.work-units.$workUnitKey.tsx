@@ -649,6 +649,47 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
               displayName?: string;
             }[]
           }
+          facts={(Array.isArray(selectedWorkUnit?.factSchemas) ? selectedWorkUnit.factSchemas : [])
+            .filter(
+              (
+                fact,
+              ): fact is {
+                key: string;
+                name?: string;
+                factType?: "string" | "number" | "boolean" | "json";
+              } => {
+                if (!fact || typeof fact !== "object") {
+                  return false;
+                }
+                const value = fact as { key?: unknown };
+                return typeof value.key === "string" && value.key.trim().length > 0;
+              },
+            )
+            .map((fact) => ({
+              key: fact.key,
+              ...(typeof fact.name === "string" ? { name: fact.name } : {}),
+              ...(fact.factType ? { factType: fact.factType } : {}),
+            }))}
+          dependencyDefinitions={dependencyDefinitions
+            .filter(
+              (entry): entry is { key: string; name?: string } =>
+                typeof entry.key === "string" && entry.key.trim().length > 0,
+            )
+            .map((entry) => ({
+              key: entry.key,
+              ...(entry.name ? { name: entry.name } : {}),
+            }))}
+          workUnits={workUnitTypes
+            .filter(
+              (workUnit): workUnit is { key: string; displayName?: string } =>
+                typeof workUnit.key === "string" && workUnit.key.trim().length > 0,
+            )
+            .map((workUnit) => ({
+              key: workUnit.key,
+              ...(typeof workUnit.displayName === "string"
+                ? { displayName: workUnit.displayName }
+                : {}),
+            }))}
           transitionWorkflowBindings={
             (
               draftQuery.data as

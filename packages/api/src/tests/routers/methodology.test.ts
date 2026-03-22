@@ -5019,6 +5019,133 @@ describe("methodology router", () => {
       );
     });
 
+    it("blocks transitions when fact/work-unit gate conditions are not met at runtime", async () => {
+      const serviceLayer = makeServiceLayer();
+      const router = createProjectRouter(serviceLayer);
+      const methodologyRouter = createMethodologyRouter(serviceLayer);
+
+      await call(
+        methodologyRouter.createMethodology,
+        {
+          methodologyKey: "runtime-condition-check",
+          displayName: "Runtime Condition Check",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const draft = await call(
+        methodologyRouter.createDraftVersion,
+        {
+          methodologyKey: "runtime-condition-check",
+          displayName: "Runtime Condition Check",
+          version: "1.0.0",
+          workUnitTypes: [
+            {
+              key: "task",
+              factSchemas: [
+                {
+                  key: "isApproved",
+                  factType: "boolean",
+                  required: true,
+                  defaultValue: false,
+                },
+              ],
+            },
+          ],
+          transitions: [
+            {
+              key: "task:start",
+              workUnitTypeKey: "task",
+              fromState: "__absent__",
+              toState: "ready",
+              gateClass: "start_gate",
+              conditionSets: [
+                {
+                  key: "gate.activate.task",
+                  phase: "start",
+                  mode: "all",
+                  groups: [
+                    {
+                      key: "group.fact",
+                      mode: "all",
+                      conditions: [
+                        {
+                          kind: "fact",
+                          required: true,
+                          config: {
+                            factKey: "isApproved",
+                            operator: "equals",
+                            value: true,
+                          },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+          agentTypes: [],
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        methodologyRouter.updateDraftWorkflows,
+        {
+          versionId: draft.version.id,
+          workflows: [
+            {
+              key: "task-workflow",
+              workUnitTypeKey: "task",
+              steps: [{ key: "s1", type: "form" as const }],
+              edges: [
+                { fromStepKey: null, toStepKey: "s1", edgeKey: "entry" },
+                { fromStepKey: "s1", toStepKey: null, edgeKey: "done" },
+              ],
+            },
+          ],
+          transitionWorkflowBindings: {
+            "task:start": ["task-workflow"],
+          },
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        methodologyRouter.publishDraftVersion,
+        {
+          versionId: draft.version.id,
+          publishedVersion: "1.0.0",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const createResult = await call(
+        router.createAndPinProject,
+        {
+          methodologyKey: "runtime-condition-check",
+          publishedVersion: "1.0.0",
+          name: "Runtime Condition Project",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const details = await call(
+        router.getProjectDetails,
+        {
+          projectId: createResult.project.id,
+          workUnitTypeKey: "task",
+        },
+        PUBLIC_CTX,
+      );
+
+      expect(details.baselinePreview?.transitionPreview.transitions[0]?.status).toBe("blocked");
+      expect(details.baselinePreview?.transitionPreview.transitions[0]?.statusReasonCode).toBe(
+        "CONDITIONS_NOT_MET",
+      );
+    });
+
     it("derives preview current state, fact missing semantics, and pin/repin diagnostics contexts", async () => {
       const serviceLayer = makeServiceLayer();
       const router = createProjectRouter(serviceLayer);

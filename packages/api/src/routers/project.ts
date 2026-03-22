@@ -5,7 +5,13 @@ import { Effect, Layer } from "effect";
 import { z } from "zod";
 
 import { EligibilityService, MethodologyVersionBoundaryService } from "@chiron/methodology-engine";
-import { ProjectContextService } from "@chiron/project-context";
+import {
+  ProjectContextService,
+  evaluateRuntimeConditions,
+  type RuntimeCondition,
+  type RuntimeConditionGroup,
+  type RuntimeConditionSet,
+} from "@chiron/project-context";
 import { protectedProcedure, publicProcedure } from "../index";
 
 const createAndPinProjectInput = z.object({
@@ -228,6 +234,50 @@ export function createProjectRouter(
     factDefinitions: snapshot.factDefinitions,
   });
 
+  const toRuntimeCondition = (value: unknown): RuntimeCondition | null => {
+    if (!isRecord(value) || typeof value.kind !== "string") {
+      return null;
+    }
+
+    return {
+      kind: value.kind,
+      ...(typeof value.required === "boolean" ? { required: value.required } : {}),
+      ...(isRecord(value.config) ? { config: value.config } : {}),
+    };
+  };
+
+  const toRuntimeConditionGroup = (value: unknown): RuntimeConditionGroup | null => {
+    if (!isRecord(value)) {
+      return null;
+    }
+
+    const conditions = Array.isArray(value.conditions)
+      ? value.conditions
+          .map((condition) => toRuntimeCondition(condition))
+          .filter((condition): condition is RuntimeCondition => condition !== null)
+      : [];
+
+    return {
+      ...(typeof value.key === "string" ? { key: value.key } : {}),
+      ...(value.mode === "any" || value.mode === "all" ? { mode: value.mode } : {}),
+      conditions,
+    };
+  };
+
+  const toRuntimeConditionSet = (value: {
+    key: string;
+    phase: "start" | "completion";
+    mode: "all" | "any";
+    groups: readonly unknown[];
+  }): RuntimeConditionSet => ({
+    key: value.key,
+    phase: value.phase,
+    mode: value.mode,
+    groups: value.groups
+      .map((group) => toRuntimeConditionGroup(group))
+      .filter((group): group is RuntimeConditionGroup => group !== null),
+  });
+
   return {
     listProjects: publicProcedure.handler(async () => {
       return runEffect(
@@ -322,6 +372,15 @@ export function createProjectRouter(
               null;
             const activeWorkUnitTypeKey = activeWorkUnitType?.key ?? null;
             const layeredGuidance = workspaceSnapshot?.guidance;
+            const activeFactValues = Object.fromEntries(
+              (activeWorkUnitType?.factSchemas ?? []).map((factSchema) => [
+                factSchema.key,
+                factSchema.defaultValue ?? null,
+              ]),
+            );
+            const knownWorkUnitTypeKeys = (workspaceSnapshot?.workUnitTypes ?? []).map(
+              (workUnitType) => workUnitType.key,
+            );
 
             const eligibleTransitions = activeWorkUnitTypeKey
               ? (yield* eligibilitySvc.getTransitionEligibility({
@@ -405,10 +464,29 @@ export function createProjectRouter(
                 | "HAS_ALLOWED_WORKFLOW"
                 | "NO_WORKFLOW_BOUND"
                 | "UNRESOLVED_WORKFLOW_BINDING"
+                | "CONDITIONS_NOT_MET"
                 | "FUTURE_NO_START_GATE"
                 | "FUTURE_NOT_IN_CURRENT_CONTEXT";
 
-              if (!eligibility) {
+              const runtimeConditionSets = transitionConditionSets
+                .filter((conditionSet) =>
+                  resolvedGateClass === "completion_gate"
+                    ? conditionSet.phase === "completion"
+                    : conditionSet.phase === "start",
+                )
+                .map((conditionSet) => toRuntimeConditionSet(conditionSet));
+              const runtimeConditionEvaluation = evaluateRuntimeConditions({
+                conditionSets: runtimeConditionSets,
+                factValues: activeFactValues,
+                knownWorkUnitTypeKeys,
+                activeWorkUnitTypeKey,
+                currentState,
+              });
+
+              if (!runtimeConditionEvaluation.met) {
+                status = "blocked";
+                statusReasonCode = "CONDITIONS_NOT_MET";
+              } else if (!eligibility) {
                 if (
                   workflowKeys.length > 0 &&
                   (transition.fromState ?? "__absent__") === "__absent__"
@@ -445,6 +523,16 @@ export function createProjectRouter(
                   timestamp: latestPublicationEvidence?.timestamp ?? pin.timestamp,
                   evidenceRef: latestPublicationEvidence?.evidenceRef ?? null,
                 })) ?? []),
+                ...runtimeConditionEvaluation.diagnostics.map((diagnostic) => ({
+                  code: diagnostic.code,
+                  scope: `transition.${transition.key}`,
+                  blocking: diagnostic.blocking,
+                  required: diagnostic.required,
+                  observed: diagnostic.observed,
+                  remediation: diagnostic.remediation,
+                  timestamp: latestPublicationEvidence?.timestamp ?? pin.timestamp,
+                  evidenceRef: latestPublicationEvidence?.evidenceRef ?? null,
+                })),
               ];
               const transitionGuidance =
                 transition.guidance ?? layeredGuidance?.byTransition?.[transition.key] ?? null;
