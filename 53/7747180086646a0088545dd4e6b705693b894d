@@ -1,0 +1,23 @@
+apps/web/src/tests/features/methodologies/workflow-editor-step-dialogs.test.tsx
+  6e8930003e8dc027 2,86-212,217,347,350
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "537747180086646a0088545dd4e6b705693b894d",
+  "prompts": {
+    "6e8930003e8dc027": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2e4308b2bffetI5nzREeshfdKy",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 233,
+      "total_deletions": 105,
+      "accepted_lines": 141,
+      "overriden_lines": 0
+    }
+  }
+}
