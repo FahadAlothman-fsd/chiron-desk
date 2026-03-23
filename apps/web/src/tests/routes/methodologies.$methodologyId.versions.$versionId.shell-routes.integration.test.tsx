@@ -3,14 +3,11 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { useParamsMock, useSearchMock, useRouteContextMock, useLocationMock, useNavigateMock } =
-  vi.hoisted(() => ({
-    useParamsMock: vi.fn(),
-    useSearchMock: vi.fn(),
-    useRouteContextMock: vi.fn(),
-    useLocationMock: vi.fn(),
-    useNavigateMock: vi.fn(),
-  }));
+const useParamsMock = vi.fn();
+const useSearchMock = vi.fn();
+const useRouteContextMock = vi.fn();
+const useLocationMock = vi.fn();
+const useNavigateMock = vi.fn();
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children }: { children: ReactNode }) => <a href="/">{children}</a>,
@@ -1289,6 +1286,207 @@ describe("methodology version shell routes", () => {
         ]),
       }),
       expect.anything(),
+    );
+  });
+
+  it("loads existing start/completion groups in transition edit and saves grouped-only conditionSets payload", async () => {
+    const { MethodologyVersionWorkUnitDetailsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey");
+    const routeContext = createRouteContext();
+    routeContext.listStateMachineTransitionsMock.mockResolvedValue([
+      {
+        transitionKey: "todo_to_done",
+        fromState: "todo",
+        toState: "done",
+        workflowKeys: ["wf.intake"],
+        conditionSets: [
+          {
+            key: "start_guard",
+            phase: "start",
+            mode: "all",
+            groups: [
+              {
+                key: "start.group.seeded",
+                mode: "all",
+                conditions: [
+                  {
+                    kind: "fact",
+                    required: true,
+                    config: {
+                      factKey: "fact.input_path",
+                      operator: "equals",
+                      value: "docs/seeded-start.md",
+                    },
+                  },
+                ],
+              },
+            ],
+            guidance: "Start only when path matches",
+          },
+          {
+            key: "done_guard",
+            phase: "completion",
+            mode: "all",
+            groups: [
+              {
+                key: "completion.group.seeded",
+                mode: "all",
+                conditions: [
+                  {
+                    kind: "work_unit",
+                    required: true,
+                    config: {
+                      dependencyKey: "link.requires",
+                      workUnitKey: "WU.TASK",
+                      operator: "state_is",
+                      stateKey: "done",
+                    },
+                  },
+                ],
+              },
+            ],
+            guidance: "Complete after dependency reaches done",
+          },
+        ],
+      },
+    ] as never);
+    useParamsMock.mockReturnValue({
+      methodologyId: "equity-core",
+      versionId: "draft-v2",
+      workUnitKey: "WU.TASK",
+    });
+    useSearchMock.mockReturnValue({ tab: "state-machine" });
+    useRouteContextMock.mockReturnValue(routeContext);
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitDetailsRoute />);
+    expect(await screen.findByText("To Do")).toBeTruthy();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit Transition" })[0]!);
+    expect(await screen.findByText("Edit Transition")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Start Conditions" }));
+    expect(screen.getByText(/fact\.input_path equals docs\/seeded-start\.md/i)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Completion Conditions" }));
+    expect(screen.getByText(/link\.requires state_is done/i)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Save Transition" }));
+    await waitFor(() => {
+      expect(routeContext.saveStateMachineTransitionMock).toHaveBeenCalledTimes(1);
+    });
+
+    const saveCalls = routeContext.saveStateMachineTransitionMock.mock.calls as unknown as Array<
+      [unknown, unknown]
+    >;
+    const savePayload = saveCalls.at(-1)?.[0] as {
+      conditionSets: Array<Record<string, unknown> & { phase: string; groups: unknown[] }>;
+    };
+    expect(savePayload.conditionSets).toHaveLength(2);
+    savePayload.conditionSets.forEach((set) => {
+      expect(set).toEqual(expect.objectContaining({ groups: expect.any(Array) }));
+      expect(set).not.toHaveProperty("conditions");
+    });
+  });
+
+  it("preserves seeded group keys when editing transition instead of appending duplicate groups", async () => {
+    const { MethodologyVersionWorkUnitDetailsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey");
+    const routeContext = createRouteContext();
+    routeContext.listStateMachineTransitionsMock.mockResolvedValue([
+      {
+        transitionKey: "todo_to_done",
+        fromState: "todo",
+        toState: "done",
+        workflowKeys: ["wf.intake"],
+        conditionSets: [
+          {
+            key: "start_guard",
+            phase: "start",
+            mode: "all",
+            groups: [
+              {
+                key: "start.group.seeded",
+                mode: "all",
+                conditions: [
+                  {
+                    kind: "fact",
+                    required: true,
+                    config: { factKey: "fact.input_path", operator: "exists" },
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            key: "done_guard",
+            phase: "completion",
+            mode: "all",
+            groups: [
+              {
+                key: "completion.group.seeded",
+                mode: "all",
+                conditions: [
+                  {
+                    kind: "fact",
+                    required: true,
+                    config: { factKey: "fact.contract_json", operator: "exists" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ] as never);
+    useParamsMock.mockReturnValue({
+      methodologyId: "equity-core",
+      versionId: "draft-v2",
+      workUnitKey: "WU.TASK",
+    });
+    useSearchMock.mockReturnValue({ tab: "state-machine" });
+    useRouteContextMock.mockReturnValue(routeContext);
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitDetailsRoute />);
+    expect(await screen.findByText("To Do")).toBeTruthy();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit Transition" })[0]!);
+    expect(await screen.findByText("Edit Transition")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Start Conditions" }));
+    fireEvent.change(screen.getByLabelText("Start Gate Mode"), {
+      target: { value: "any" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Save Transition" }));
+    await waitFor(() => {
+      expect(routeContext.saveStateMachineTransitionMock).toHaveBeenCalledTimes(1);
+    });
+
+    const saveCalls = routeContext.saveStateMachineTransitionMock.mock.calls as unknown as Array<
+      [unknown, unknown]
+    >;
+    const savePayload = saveCalls.at(-1)?.[0] as {
+      conditionSets: Array<
+        Record<string, unknown> & { phase: string; groups: Array<Record<string, unknown>> }
+      >;
+    };
+    const startSet = savePayload.conditionSets.find((set) => set.phase === "start");
+    const completionSet = savePayload.conditionSets.find((set) => set.phase === "completion");
+
+    expect(startSet).toBeTruthy();
+    expect(startSet?.groups).toHaveLength(1);
+    expect(startSet?.groups[0]).toEqual(
+      expect.objectContaining({
+        key: "start.group.seeded",
+      }),
+    );
+
+    expect(completionSet).toBeTruthy();
+    expect(completionSet?.groups).toHaveLength(1);
+    expect(completionSet?.groups[0]).toEqual(
+      expect.objectContaining({
+        key: "completion.group.seeded",
+      }),
     );
   });
 
