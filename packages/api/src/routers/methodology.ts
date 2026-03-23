@@ -110,8 +110,6 @@ const audienceGuidanceSchema = z.object({
   human: guidanceMarkdownSchema,
   agent: guidanceMarkdownSchema,
 });
-
-const audienceMarkdownJsonSchema = audienceGuidanceSchema.optional();
 const factGuidanceSchema = audienceGuidanceSchema.optional();
 
 const guidanceOverlayMapSchema = z.record(z.string(), z.unknown()).default({});
@@ -160,7 +158,7 @@ const variableDefinitionSchema = z.object({
   key: z.string().min(1),
   factType: z.enum(["string", "number", "boolean", "json"]),
   defaultValue: z.unknown().optional(),
-  description: audienceMarkdownJsonSchema,
+  description: z.string().optional(),
   guidance: factGuidanceSchema,
   validation: factValidationSchema,
 });

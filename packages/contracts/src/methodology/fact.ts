@@ -68,7 +68,7 @@ export const MethodologyFactDefinitionInput = Schema.Struct({
   key: Schema.NonEmptyString,
   factType: FactType,
   defaultValue: Schema.optional(Schema.Unknown),
-  description: Schema.optional(AudienceMarkdownJson),
+  description: Schema.optional(Schema.String),
   guidance: Schema.optional(FactGuidance),
   validation: Schema.optionalWith(FactValidation, { default: () => ({ kind: "none" as const }) }),
 });

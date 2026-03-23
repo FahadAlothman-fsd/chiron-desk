@@ -429,6 +429,17 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
             Array.isArray(selectedWorkUnit?.factSchemas) ? selectedWorkUnit.factSchemas : []
           }
           dependencyDefinitions={dependencyDefinitions}
+          workUnits={workUnitTypes
+            .filter(
+              (workUnit): workUnit is { key: string; displayName?: string } =>
+                typeof workUnit.key === "string" && workUnit.key.trim().length > 0,
+            )
+            .map((workUnit) => ({
+              key: workUnit.key,
+              ...(typeof workUnit.displayName === "string"
+                ? { displayName: workUnit.displayName }
+                : {}),
+            }))}
           createDialogOpen={isFactsCreateOpen}
           onCreateDialogOpenChange={setIsFactsCreateOpen}
           onCreateFact={async ({ fact }) => {
@@ -436,6 +447,7 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
               fact.guidance?.human?.markdown?.trim() ?? fact.guidance?.human?.short?.trim() ?? "";
             const agentGuidance =
               fact.guidance?.agent?.markdown?.trim() ?? fact.guidance?.agent?.intent?.trim() ?? "";
+            const description = fact.description?.trim() ?? "";
             const rawValidation = fact.validation as Record<string, unknown> | undefined;
             const rawPath = rawValidation?.path;
             const rawKind = rawValidation?.kind;
@@ -478,6 +490,7 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
                       agent: { markdown: agentGuidance },
                     }
                   : undefined,
+              description,
               validation: apiValidation,
             };
             await createWorkUnitFactMutation.mutateAsync({
@@ -492,6 +505,7 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
               fact.guidance?.human?.markdown?.trim() ?? fact.guidance?.human?.short?.trim() ?? "";
             const agentGuidance =
               fact.guidance?.agent?.markdown?.trim() ?? fact.guidance?.agent?.intent?.trim() ?? "";
+            const description = fact.description?.trim() ?? "";
             const rawValidation = fact.validation as Record<string, unknown> | undefined;
             const rawPath = rawValidation?.path;
             const rawKind = rawValidation?.kind;
@@ -534,6 +548,7 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
                       agent: { markdown: agentGuidance },
                     }
                   : undefined,
+              description,
               validation: apiValidation,
             };
             await updateWorkUnitFactMutation.mutateAsync({

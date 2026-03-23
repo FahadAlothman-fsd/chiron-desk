@@ -398,12 +398,7 @@ function factToMutationInput(fact: FactEditorValue) {
     key: fact.key,
     factType: fact.factType,
     defaultValue: fact.defaultValue,
-    description: description
-      ? {
-          human: { markdown: description },
-          agent: { markdown: description },
-        }
-      : undefined,
+    ...(description ? { description } : {}),
     guidance:
       humanGuidance || agentGuidance
         ? {

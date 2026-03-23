@@ -43,9 +43,11 @@ type RawFact = {
     human?: { markdown?: string; short?: string };
     agent?: { markdown?: string; intent?: string };
   };
+  description?: string;
   validation?: {
     kind?: ValidationKind;
     dependencyType?: string;
+    workUnitKey?: string;
   };
   dependencyType?: string;
 };
@@ -55,9 +57,15 @@ type DependencyDefinition = {
   name?: string;
 };
 
+type WorkUnitDefinition = {
+  key: string;
+  displayName?: string;
+};
+
 type FactsTabProps = {
   initialFacts: readonly unknown[];
   dependencyDefinitions?: readonly DependencyDefinition[];
+  workUnits?: readonly WorkUnitDefinition[];
   createDialogOpen?: boolean;
   onCreateDialogOpenChange?: (open: boolean) => void;
   onCreateFact?: (input: { fact: RawFact }) => Promise<void>;
@@ -72,8 +80,10 @@ type UiFact = {
   factType: FactType;
   validationKind: ValidationKind;
   dependencyType: string;
+  workUnitKey: string;
   humanGuidance: string;
   agentGuidance: string;
+  description: string;
 };
 
 type FactFormState = {
@@ -82,8 +92,10 @@ type FactFormState = {
   factType: FactType;
   validationKind: ValidationKind;
   dependencyType: string;
+  workUnitKey: string;
   humanGuidance: string;
   agentGuidance: string;
+  description: string;
 };
 
 function createFactId(index: number): string {
@@ -98,8 +110,10 @@ function normalizeFact(source: unknown, index: number): UiFact {
   const validationKind = fact.validation?.kind ?? "none";
   const dependencyType =
     fact.validation?.dependencyType?.trim() || fact.dependencyType?.trim() || "";
+  const workUnitKey = fact.validation?.workUnitKey?.trim() || "";
   const humanGuidance = fact.guidance?.human?.markdown ?? fact.guidance?.human?.short ?? "";
   const agentGuidance = fact.guidance?.agent?.markdown ?? fact.guidance?.agent?.intent ?? "";
+  const description = fact.description?.trim() ?? "";
 
   return {
     id: createFactId(index),
@@ -108,8 +122,10 @@ function normalizeFact(source: unknown, index: number): UiFact {
     factType,
     validationKind,
     dependencyType,
+    workUnitKey,
     humanGuidance,
     agentGuidance,
+    description,
   };
 }
 
@@ -122,6 +138,8 @@ function toFormState(fact?: UiFact): FactFormState {
     dependencyType: fact?.dependencyType ?? "",
     humanGuidance: fact?.humanGuidance ?? "",
     agentGuidance: fact?.agentGuidance ?? "",
+    description: fact?.description ?? "",
+    workUnitKey: fact?.workUnitKey ?? "",
   };
 }
 
@@ -178,10 +196,16 @@ function toMutationFact(formState: FactFormState): RawFact {
     formState.key.trim() ||
     (derivedKeyFromName.length > 0 ? `fact.${derivedKeyFromName}` : "fact.new");
   const dependencyType = formState.dependencyType.trim();
+  const trimmedDescription = formState.description.trim();
   return {
     name: trimmedName,
     key: resolvedKey,
     factType: formState.factType,
+    ...(trimmedDescription.length > 0
+      ? {
+          description: trimmedDescription,
+        }
+      : {}),
     ...(formState.humanGuidance.trim().length > 0 || formState.agentGuidance.trim().length > 0
       ? {
           guidance: {
@@ -205,6 +229,7 @@ function toMutationFact(formState: FactFormState): RawFact {
 export function FactsTab({
   initialFacts,
   dependencyDefinitions = [],
+  workUnits = [],
   createDialogOpen = false,
   onCreateDialogOpenChange,
   onCreateFact,
@@ -221,6 +246,7 @@ export function FactsTab({
   const [isGuidanceTabDirty, setIsGuidanceTabDirty] = useState(false);
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
   const [isDependencyTypeOpen, setIsDependencyTypeOpen] = useState(false);
+  const [isWorkUnitOpen, setIsWorkUnitOpen] = useState(false);
   const facts = factsDraft ?? normalizedFacts;
   const isDialogDirty = isContractTabDirty || isGuidanceTabDirty;
   const dependencyTypeOptions = useMemo(
@@ -306,8 +332,10 @@ export function FactsTab({
       factType: formState.factType,
       validationKind: formState.factType === "work unit" ? "none" : formState.validationKind,
       dependencyType: formState.dependencyType.trim(),
+      workUnitKey: formState.workUnitKey,
       humanGuidance: formState.humanGuidance,
       agentGuidance: formState.agentGuidance,
+      description: formState.description,
     };
 
     if (isCreateMode) {
@@ -547,6 +575,70 @@ export function FactsTab({
               ) : null}
               {formState.factType === "work unit" ? (
                 <div className="col-span-2 space-y-2">
+                  <Label id="wu-fact-work-unit-label">Work Unit</Label>
+                  <Popover open={isWorkUnitOpen} onOpenChange={setIsWorkUnitOpen}>
+                    <PopoverTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant="outline"
+                          role="combobox"
+                          aria-labelledby="wu-fact-work-unit-label"
+                          aria-expanded={isWorkUnitOpen}
+                          className="h-8 w-full justify-between rounded-none border-input bg-transparent px-2.5 py-1 font-normal"
+                        >
+                          <span className="truncate text-xs">
+                            {formState.workUnitKey.length > 0
+                              ? formState.workUnitKey
+                              : "Select work unit"}
+                          </span>
+                          <ChevronsUpDownIcon className="size-3.5 shrink-0 opacity-70" />
+                        </Button>
+                      }
+                    />
+                    <PopoverContent
+                      className="w-[var(--anchor-width)] p-0"
+                      align="start"
+                      frame="cut-thin"
+                      sideOffset={4}
+                    >
+                      <Command density="compact" frame="default">
+                        <CommandInput density="compact" placeholder="Search work units..." />
+                        <CommandList>
+                          <CommandEmpty>No work units found.</CommandEmpty>
+                          <CommandGroup heading="Work Units">
+                            {(workUnits ?? []).map((entry) => (
+                              <CommandItem
+                                key={entry.key}
+                                value={`${entry.key} ${entry.displayName ?? ""}`}
+                                density="compact"
+                                onSelect={() => {
+                                  setFormState((prev) => ({ ...prev, workUnitKey: entry.key }));
+                                  setIsWorkUnitOpen(false);
+                                }}
+                              >
+                                <div className="grid min-w-0 flex-1 gap-0.5">
+                                  <span className="truncate font-medium">{entry.key}</span>
+                                  {entry.displayName?.trim().length ? (
+                                    <span className="truncate text-[0.68rem] uppercase tracking-[0.08em] text-muted-foreground">
+                                      {entry.displayName}
+                                    </span>
+                                  ) : null}
+                                </div>
+                                {formState.workUnitKey === entry.key ? (
+                                  <CheckIcon className="size-3.5" />
+                                ) : null}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              ) : null}
+              {formState.factType === "work unit" ? (
+                <div className="col-span-2 space-y-2">
                   <Label id="wu-fact-dependency-type-label">Dependency Type</Label>
                   <Popover open={isDependencyTypeOpen} onOpenChange={setIsDependencyTypeOpen}>
                     <PopoverTrigger
@@ -609,6 +701,17 @@ export function FactsTab({
                   </Popover>
                 </div>
               ) : null}
+              <div className="col-span-2 space-y-2">
+                <Label htmlFor="wu-fact-description">Description</Label>
+                <Textarea
+                  id="wu-fact-description"
+                  className="min-h-[8rem] resize-none rounded-none"
+                  value={formState.description}
+                  onChange={(event) =>
+                    setFormState((prev) => ({ ...prev, description: event.target.value }))
+                  }
+                />
+              </div>
             </div>
           ) : (
             <div className="grid gap-4" onChangeCapture={() => setIsGuidanceTabDirty(true)}>

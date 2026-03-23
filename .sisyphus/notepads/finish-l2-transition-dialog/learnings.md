@@ -399,6 +399,11 @@ const isEditStateDirty = isEditContractDirty || isEditGuidanceDirty;
 </div>
 ```
 
+## Recent Notes
+
+- Added WorkUnitDefinition and workUnits prop typings for the FactsTab work unit selector expansion.
+- Methodology fact description payload now stays as a trimmed string, and the route/schema cooperates without constructing human/agent objects.
+
 **Method 2: Centralized mark function (WorkflowsTab.tsx):**
 ```typescript
 const markDirtyForActiveTab = (mode: WorkflowEditorMode, tab: WorkflowEditorTab) => {
@@ -1243,3 +1248,23 @@ interface RuntimeCondition {
 - Full transition-dialog teardown should clear all transient state, not just dirty flags (`transitionDialogOpen`, `transitionDiscardOpen`, `editingTransitionKey`, `transitionEditor`, `transitionEditorTab`, `gateTextEditor`, `groupEditor`, and transition popover open states).
 - Reopening transitions must call `resetTransitionDirty()` and clear nested editor state to prevent stale dialog session artifacts from leaking.
 - Integration coverage for cancel/reopen regressions is robust when it asserts both discard UX (`Keep Editing` + `Discard Changes`) and post-reopen cleanliness (no dirty indicators, fresh `Add Group` dialog with no seeded unsaved condition rows).
+
+## FactsTab contract description addition (2026-03-23)
+
+- Added `descriptionHuman`/`descriptionAgent` to `RawFact`/`UiFact`/`FactFormState` so the dialog can hold structured markdown for both audiences without mutating the existing guidance objects.
+- Contract tab now surfaces two Description textareas that update the dirty flag via the existing `onChangeCapture`, and `toMutationFact` conditionally emits a `description` block only when either textarea has non-empty content.
+
+## FactsTab workUnitKey typing correction (2026-03-23)
+
+- Normalization now trims `fact.validation.workUnitKey` into `UiFact.workUnitKey`, preventing the missing property errors seen during edit/resave flows.
+- `toFormState` keeps the normalized `workUnitKey` so the contract tab form can round-trip the value, and `saveFact` writes it back into each `nextFact` entry used for optimistic UI updates.
+
+## FactsTab description routing (2026-03-23)
+
+- Route callbacks now extract `descriptionHuman`/`descriptionAgent` from the FactsTab payload and include a structured `description` block in `apiFact` when either audience has content.
+- The new description object keeps both human and agent markdown while still skipping the field when nothing was supplied, preventing extra API chatter.
+
+## FactsTab description simplification (2026-03-23)
+
+- Swapped `descriptionHuman`/`descriptionAgent` for a single `description` string throughout normalization, form state, mutation helpers, and optimistic updates to align with the new schema.
+- Contract tab now renders one description textarea bound to `formState.description`, keeping the dirty tracking flow intact.
