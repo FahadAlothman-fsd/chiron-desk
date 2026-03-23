@@ -1,0 +1,25 @@
+apps/web/src/index.css
+  6be13ddb79c498a8 727-749
+apps/web/src/features/methodologies/work-unit-l2/StateMachineTab.tsx
+  6be13ddb79c498a8 2038,2042-2043,2099,2103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "da4fa4b6f885edfb56a8aec3174f28878e756ee3",
+  "prompts": {
+    "6be13ddb79c498a8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2e530b7adffe2CmIL21lmiWIO9",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 88,
+      "total_deletions": 63,
+      "accepted_lines": 74,
+      "overriden_lines": 0
+    }
+  }
+}
