@@ -703,6 +703,7 @@ describe("methodology repository integration", () => {
         workUnitTypeKey: "task",
         slots: [
           {
+            id: "draft:slot-001",
             key: "project_brief",
             displayName: "Project Brief",
             descriptionJson: { human: { markdown: "Project brief" }, agent: { markdown: "" } },
@@ -711,6 +712,7 @@ describe("methodology repository integration", () => {
             rulesJson: { maxFiles: 1 },
             templates: [
               {
+                id: "draft:template-001",
                 key: "default",
                 displayName: "Default Brief",
                 descriptionJson: {
@@ -736,6 +738,142 @@ describe("methodology repository integration", () => {
     expect(slots[0]?.templates).toHaveLength(1);
     expect(slots[0]?.templates[0]?.key).toBe("default");
     expect(slots[0]?.templates[0]?.content).toContain("# Brief");
+    expect(slots[0]?.id).toBeDefined();
+    expect(slots[0]?.templates[0]?.id).toBeDefined();
+  });
+
+  it("updates artifact slots by id when keys change", async () => {
+    const created = await runRepo((repo) =>
+      repo.createDraft({
+        methodologyKey: "artifact-slot-key-rename-methodology",
+        displayName: "Artifact Slot Key Rename Methodology",
+        version: "0.1.0-draft",
+        definitionExtensions: {},
+        workflows: [],
+        transitionWorkflowBindings: {},
+        actorId: "user-1",
+        validationDiagnostics: VALIDATION_OK,
+      }),
+    );
+
+    const versionId = created.version.id;
+
+    await db.insert(methodologyWorkUnitTypes).values({
+      methodologyVersionId: versionId,
+      key: "task",
+      displayName: "Task",
+      descriptionJson: null,
+      cardinality: "many_per_project",
+      guidanceJson: null,
+    });
+
+    // Create initial slot with draft id
+    await runRepo((repo) =>
+      repo.replaceArtifactSlotsForWorkUnitType({
+        versionId,
+        workUnitTypeKey: "task",
+        slots: [
+          {
+            id: "draft:slot-rename-001",
+            key: "original_key",
+            displayName: "Original Name",
+            descriptionJson: null,
+            guidanceJson: null,
+            cardinality: "single",
+            rulesJson: null,
+            templates: [],
+          },
+        ],
+      }),
+    );
+
+    // Get the persisted slot with real id
+    const slotsBefore = await runRepo((repo) =>
+      repo.findArtifactSlotsByWorkUnitType({ versionId, workUnitTypeKey: "task" }),
+    );
+    const persistedSlotId = slotsBefore[0]!.id;
+    expect(persistedSlotId).toBeDefined();
+    expect(persistedSlotId).not.toMatch(/^draft:/);
+
+    // Update the slot using persisted id but with changed key
+    await runRepo((repo) =>
+      repo.replaceArtifactSlotsForWorkUnitType({
+        versionId,
+        workUnitTypeKey: "task",
+        slots: [
+          {
+            id: persistedSlotId,
+            key: "renamed_key",
+            displayName: "Renamed Name",
+            descriptionJson: null,
+            guidanceJson: null,
+            cardinality: "single",
+            rulesJson: null,
+            templates: [],
+          },
+        ],
+      }),
+    );
+
+    // Verify the same slot id has the new key
+    const slotsAfter = await runRepo((repo) =>
+      repo.findArtifactSlotsByWorkUnitType({ versionId, workUnitTypeKey: "task" }),
+    );
+    expect(slotsAfter).toHaveLength(1);
+    expect(slotsAfter[0]?.id).toBe(persistedSlotId);
+    expect(slotsAfter[0]?.key).toBe("renamed_key");
+    expect(slotsAfter[0]?.displayName).toBe("Renamed Name");
+  });
+
+  it("creates new slots when provided ids do not match persisted rows", async () => {
+    const created = await runRepo((repo) =>
+      repo.createDraft({
+        methodologyKey: "artifact-slot-unknown-id-methodology",
+        displayName: "Artifact Slot Unknown ID Methodology",
+        version: "0.1.0-draft",
+        definitionExtensions: {},
+        workflows: [],
+        transitionWorkflowBindings: {},
+        actorId: "user-1",
+        validationDiagnostics: VALIDATION_OK,
+      }),
+    );
+
+    const versionId = created.version.id;
+
+    await db.insert(methodologyWorkUnitTypes).values({
+      methodologyVersionId: versionId,
+      key: "task",
+      displayName: "Task",
+      descriptionJson: null,
+      cardinality: "many_per_project",
+      guidanceJson: null,
+    });
+
+    await runRepo((repo) =>
+      repo.replaceArtifactSlotsForWorkUnitType({
+        versionId,
+        workUnitTypeKey: "task",
+        slots: [
+          {
+            id: "non-existent-uuid-1234",
+            key: "some_key",
+            displayName: "Some Name",
+            descriptionJson: null,
+            guidanceJson: null,
+            cardinality: "single",
+            rulesJson: null,
+            templates: [],
+          },
+        ],
+      }),
+    );
+
+    const slots = await runRepo((repo) =>
+      repo.findArtifactSlotsByWorkUnitType({ versionId, workUnitTypeKey: "task" }),
+    );
+    expect(slots).toHaveLength(1);
+    expect(slots[0]?.key).toBe("some_key");
   });
 
   it("returns atomicity guard code and preserves draft state on event-write failure", async () => {

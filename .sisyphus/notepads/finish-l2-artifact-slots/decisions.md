@@ -1,0 +1,3 @@
+- Decision: UI no longer emits `draft:*` IDs; local-only entities use `local:*` and persisted IDs are returned by backend.
+- Decision: API router exposes `artifactSlot.create`, `artifactSlot.update`, `artifactSlot.delete`; bulk `replace` route removed from router namespace.
+- Decision: Backend `updateWorkUnitArtifactSlot` applies template mutations by id (`add/remove/update`) and appends new templates instead of replacing full template arrays from client intent.

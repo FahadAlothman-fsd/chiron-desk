@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "@chiron/contracts": "workspace:*",
-    "effect": "catalog:"
+    "effect": "catalog:",
+    "handlebars": "^4.7.8"
   },
   "devDependencies": {
     "@chiron/config": "workspace:*",

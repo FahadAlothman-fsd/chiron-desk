@@ -1,0 +1,21 @@
+Task 5: Sync artifact-slot design docs to the locked phase-1 model
+
+Changes Made:
+1. Updated "Slot contract rules" section to document id-first identity
+   - id is canonical identity; key is editable secondary metadata
+   - Added draft:{uuid} convention documentation
+2. Updated "Template contract rules" section to document:
+   - Handlebars + Monaco for phase 1 authoring
+   - No preview in phase 1
+   - Markdown template source is canonical (no Plate/Slate)
+3. Updated "Add and edit flow" section to document:
+   - Stacked dialogs with id-first identity
+   - Bulk replace persistence seam
+   - Dirty indicators and discard protection
+
+Verification:
+- grep confirms id-first identity, Handlebars+Monaco, draft: convention are documented
+- Doc no longer implies key-centric identity
+
+Files Modified:
+- docs/architecture/methodology-pages/artifact-slots-design-time.md

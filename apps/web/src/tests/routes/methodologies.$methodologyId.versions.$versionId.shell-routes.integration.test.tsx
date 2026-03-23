@@ -1,7 +1,51 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+// @ts-expect-error jsdom package ships without local type declarations in this workspace.
+import { JSDOM } from "jsdom";
+
+if (typeof globalThis.document === "undefined") {
+  const dom = new JSDOM("<!doctype html><html><body></body></html>", {
+    url: "http://localhost/",
+  });
+  const setGlobal = (name: string, value: unknown) => {
+    if (!(name in globalThis) || (globalThis as Record<string, unknown>)[name] === undefined) {
+      Object.defineProperty(globalThis, name, {
+        configurable: true,
+        writable: true,
+        value,
+      });
+    }
+  };
+
+  setGlobal("window", dom.window);
+  setGlobal("document", dom.window.document);
+  setGlobal("navigator", dom.window.navigator);
+  setGlobal("HTMLElement", dom.window.HTMLElement);
+  setGlobal("Element", dom.window.Element);
+  setGlobal("Node", dom.window.Node);
+  setGlobal("MutationObserver", dom.window.MutationObserver);
+  setGlobal("Event", dom.window.Event);
+  setGlobal("KeyboardEvent", dom.window.KeyboardEvent);
+  setGlobal("MouseEvent", dom.window.MouseEvent);
+  setGlobal("SVGElement", dom.window.SVGElement);
+  setGlobal("getComputedStyle", dom.window.getComputedStyle.bind(dom.window));
+  setGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+  setGlobal("requestAnimationFrame", (callback: (timestamp: number) => void) =>
+    setTimeout(() => callback(Date.now()), 16),
+  );
+  setGlobal("cancelAnimationFrame", (id: number) => clearTimeout(id));
+}
+
+const { cleanup, fireEvent, render, screen, waitFor, within } =
+  await import("@testing-library/react");
 
 const useParamsMock = vi.fn();
 const useSearchMock = vi.fn();
@@ -38,6 +82,36 @@ vi.mock("@/features/methodologies/version-workspace", () => ({
       factDefinitions: [],
     },
   }),
+}));
+
+vi.mock("@monaco-editor/react", () => ({
+  default: ({
+    value,
+    onChange,
+    options,
+    wrapperProps,
+  }: {
+    value?: string;
+    onChange?: (value: string) => void;
+    options?: { ariaLabel?: string };
+    wrapperProps?: Record<string, unknown>;
+  }) => {
+    const dataTestId =
+      typeof wrapperProps?.["data-testid"] === "string"
+        ? (wrapperProps["data-testid"] as string)
+        : undefined;
+    const id = typeof wrapperProps?.id === "string" ? (wrapperProps.id as string) : undefined;
+
+    return (
+      <textarea
+        id={id}
+        aria-label={options?.ariaLabel ?? "Template Content"}
+        data-testid={dataTestId}
+        value={value ?? ""}
+        onChange={(event) => onChange?.(event.target.value)}
+      />
+    );
+  },
 }));
 
 function createRouteContext(options?: {
@@ -501,6 +575,21 @@ function createRouteContext(options?: {
                   queryFn: listArtifactSlotsMock,
                 }),
               },
+              create: {
+                mutationOptions: () => ({
+                  mutationFn: replaceArtifactSlotsMock,
+                }),
+              },
+              update: {
+                mutationOptions: () => ({
+                  mutationFn: replaceArtifactSlotsMock,
+                }),
+              },
+              delete: {
+                mutationOptions: () => ({
+                  mutationFn: replaceArtifactSlotsMock,
+                }),
+              },
               replace: {
                 mutationOptions: () => ({
                   mutationFn: replaceArtifactSlotsMock,
@@ -581,10 +670,12 @@ function renderWithQueryClient(node: ReactNode) {
 }
 
 beforeEach(() => {
-  Object.defineProperty(window.HTMLElement.prototype, "scrollIntoView", {
-    configurable: true,
-    value: vi.fn(),
-  });
+  if (typeof globalThis.HTMLElement !== "undefined") {
+    Object.defineProperty(globalThis.HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(),
+    });
+  }
   useParamsMock.mockReset();
   useSearchMock.mockReset();
   useRouteContextMock.mockReset();
@@ -1667,10 +1758,11 @@ describe("methodology version shell routes", () => {
     expect(screen.queryByText(/occupied|occupancy/i)).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Slot Details" }));
-    expect(await screen.findByRole("tab", { name: "Templates" })).toBeTruthy();
+    const slotDialog = await screen.findByRole("dialog", { name: /Edit Slot/i });
+    expect(within(slotDialog).getByRole("tab", { name: "Templates" })).toBeTruthy();
     expect(screen.queryByRole("link", { name: /Templates page/i })).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Save Slots" }));
+    fireEvent.click(within(slotDialog).getByRole("button", { name: "Save" }));
     await waitFor(() => {
       expect(routeContext.replaceArtifactSlotsMock).toHaveBeenCalledTimes(1);
     });
@@ -1678,6 +1770,7 @@ describe("methodology version shell routes", () => {
       expect.objectContaining({
         slots: [
           expect.objectContaining({
+            id: expect.any(String),
             key: "slot.summary",
             cardinality: "single",
             displayName: undefined,
@@ -1685,6 +1778,7 @@ describe("methodology version shell routes", () => {
             guidance: undefined,
             templates: [
               expect.objectContaining({
+                id: expect.any(String),
                 key: "tpl.default",
                 displayName: undefined,
                 description: undefined,
@@ -1697,6 +1791,386 @@ describe("methodology version shell routes", () => {
       }),
       expect.anything(),
     );
+  });
+
+  it("adds and updates nested artifact templates by id", async () => {
+    const { MethodologyVersionWorkUnitDetailsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey");
+    const routeContext = createRouteContext();
+    routeContext.listArtifactSlotsMock.mockResolvedValue([
+      {
+        id: "slot.seeded",
+        key: "slot.summary",
+        displayName: null,
+        description: null,
+        guidance: null,
+        cardinality: "single",
+        rules: { format: "markdown" },
+        templates: [
+          {
+            id: "template.seeded.default",
+            key: "tpl.default",
+            displayName: "Default Template",
+            description: null,
+            guidance: null,
+            content: "# Summary",
+          },
+        ],
+      },
+    ] as never);
+    useParamsMock.mockReturnValue({
+      methodologyId: "equity-core",
+      versionId: "draft-v2",
+      workUnitKey: "WU.TASK",
+    });
+    useSearchMock.mockReturnValue({ tab: "artifact-slots" });
+    useRouteContextMock.mockReturnValue(routeContext);
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitDetailsRoute />);
+
+    const seededSlotCell = await screen.findByText("slot.summary");
+    fireEvent.click(
+      within(seededSlotCell.closest("tr") ?? screen.getByRole("table")).getByRole("button", {
+        name: "Slot Details",
+      }),
+    );
+    const slotDialog = await screen.findByRole("dialog", { name: /Edit Slot/i });
+    fireEvent.click(within(slotDialog).getByRole("tab", { name: "Templates" }));
+
+    expect(within(slotDialog).getByText("tpl.default")).toBeTruthy();
+
+    fireEvent.click(within(slotDialog).getByRole("button", { name: "+ Add Template" }));
+    const addTemplateDialog = await screen.findByRole("dialog", { name: /Add Template/i });
+    expect(addTemplateDialog).toBeTruthy();
+
+    fireEvent.change(within(addTemplateDialog).getByLabelText("Template Key"), {
+      target: { value: "tpl.generated" },
+    });
+    fireEvent.change(within(addTemplateDialog).getByLabelText("Display Name"), {
+      target: { value: "Generated Template" },
+    });
+    fireEvent.click(within(addTemplateDialog).getByRole("tab", { name: "Guidance" }));
+    fireEvent.change(within(addTemplateDialog).getByLabelText("Description (Human)"), {
+      target: { value: "Generated description" },
+    });
+    fireEvent.change(within(addTemplateDialog).getByLabelText("Guidance (Human)"), {
+      target: { value: "Generated guidance" },
+    });
+    fireEvent.click(within(addTemplateDialog).getByRole("tab", { name: "Content" }));
+    fireEvent.change(within(addTemplateDialog).getByLabelText("Template Content"), {
+      target: { value: "# Generated content" },
+    });
+    fireEvent.click(within(addTemplateDialog).getByRole("button", { name: "Save Template" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: /Add Template/i })).toBeNull();
+    });
+    expect(screen.getByText("tpl.generated")).toBeTruthy();
+
+    const slotDialogAfterTemplateAdd = screen.getByRole("dialog", { name: /Edit Slot/i });
+    const seededTemplateRow = within(slotDialogAfterTemplateAdd)
+      .getByText("tpl.default")
+      .closest("article");
+    expect(seededTemplateRow).toBeTruthy();
+    fireEvent.click(
+      within(seededTemplateRow ?? slotDialogAfterTemplateAdd).getByRole("button", {
+        name: "Edit Template",
+      }),
+    );
+
+    const editTemplateDialog = await screen.findByRole("dialog", { name: /Edit Template/i });
+    fireEvent.change(within(editTemplateDialog).getByLabelText("Template Key"), {
+      target: { value: "tpl.default.v2" },
+    });
+    fireEvent.change(within(editTemplateDialog).getByLabelText("Display Name"), {
+      target: { value: "Default Template v2" },
+    });
+    fireEvent.click(within(editTemplateDialog).getByRole("tab", { name: "Content" }));
+    fireEvent.change(within(editTemplateDialog).getByLabelText("Template Content"), {
+      target: { value: "# Updated summary template" },
+    });
+    fireEvent.click(within(editTemplateDialog).getByRole("button", { name: "Save Template" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: /Edit Template/i })).toBeNull();
+    });
+    expect(screen.getByText("tpl.default.v2")).toBeTruthy();
+
+    const slotDialogBeforeFirstSave = screen.getByRole("dialog", { name: /Edit Slot/i });
+    fireEvent.click(within(slotDialogBeforeFirstSave).getByRole("button", { name: "Save" }));
+    await waitFor(() => {
+      expect(routeContext.replaceArtifactSlotsMock).toHaveBeenCalledTimes(1);
+    });
+    expect(routeContext.replaceArtifactSlotsMock).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        slots: [
+          expect.objectContaining({
+            id: "slot.seeded",
+            templates: [
+              expect.objectContaining({
+                id: "template.seeded.default",
+                key: "tpl.default.v2",
+                displayName: "Default Template v2",
+                content: "# Updated summary template",
+              }),
+              expect.objectContaining({
+                id: expect.stringMatching(/^draft:/),
+                key: "tpl.generated",
+                displayName: "Generated Template",
+                description: {
+                  human: { markdown: "Generated description" },
+                  agent: { markdown: "" },
+                },
+                guidance: {
+                  human: { markdown: "Generated guidance" },
+                  agent: { markdown: "" },
+                },
+                content: "# Generated content",
+              }),
+            ],
+          }),
+        ],
+      }),
+      expect.anything(),
+    );
+
+    const reopenedSlotCell = await screen.findByText("slot.summary");
+    fireEvent.click(
+      within(reopenedSlotCell.closest("tr") ?? screen.getByRole("table")).getByRole("button", {
+        name: "Slot Details",
+      }),
+    );
+    const reopenedSlotDialog = await screen.findByRole("dialog", { name: /Edit Slot/i });
+    fireEvent.click(within(reopenedSlotDialog).getByRole("tab", { name: "Templates" }));
+
+    const generatedTemplateRow = within(reopenedSlotDialog)
+      .getByText("tpl.generated")
+      .closest("article");
+    expect(generatedTemplateRow).toBeTruthy();
+    fireEvent.click(
+      within(generatedTemplateRow ?? reopenedSlotDialog).getByRole("button", {
+        name: "Delete Template",
+      }),
+    );
+
+    const updatedSeededTemplateRow = within(reopenedSlotDialog)
+      .getByText("tpl.default.v2")
+      .closest("article");
+    expect(updatedSeededTemplateRow).toBeTruthy();
+    fireEvent.click(
+      within(updatedSeededTemplateRow ?? reopenedSlotDialog).getByRole("button", {
+        name: "Delete Template",
+      }),
+    );
+
+    expect(within(reopenedSlotDialog).getByText("No templates yet.")).toBeTruthy();
+    fireEvent.click(within(reopenedSlotDialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(routeContext.replaceArtifactSlotsMock).toHaveBeenCalledTimes(2);
+    });
+    expect(routeContext.replaceArtifactSlotsMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        slots: [
+          expect.objectContaining({
+            id: "slot.seeded",
+            templates: [],
+          }),
+        ],
+      }),
+      expect.anything(),
+    );
+  });
+
+  it("inserts predefined artifact template variables through Monaco authoring", async () => {
+    const { MethodologyVersionWorkUnitDetailsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey");
+    const routeContext = createRouteContext();
+    useParamsMock.mockReturnValue({
+      methodologyId: "equity-core",
+      versionId: "draft-v2",
+      workUnitKey: "WU.TASK",
+    });
+    useSearchMock.mockReturnValue({ tab: "artifact-slots" });
+    useRouteContextMock.mockReturnValue(routeContext);
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitDetailsRoute />);
+
+    const seededSlotCell = await screen.findByText("slot.summary");
+    fireEvent.click(
+      within(seededSlotCell.closest("tr") ?? screen.getByRole("table")).getByRole("button", {
+        name: "Slot Details",
+      }),
+    );
+    const slotDialog = await screen.findByRole("dialog", { name: /Edit Slot/i });
+    fireEvent.click(within(slotDialog).getByRole("tab", { name: "Templates" }));
+
+    fireEvent.click(within(slotDialog).getByRole("button", { name: "+ Add Template" }));
+    const addTemplateDialog = await screen.findByRole("dialog", { name: /Add Template/i });
+
+    fireEvent.change(within(addTemplateDialog).getByLabelText("Template Key"), {
+      target: { value: "tpl.variables" },
+    });
+    fireEvent.click(within(addTemplateDialog).getByRole("tab", { name: "Content" }));
+
+    fireEvent.change(within(addTemplateDialog).getByLabelText("Template Content"), {
+      target: { value: "# Template source\n" },
+    });
+
+    fireEvent.click(
+      within(addTemplateDialog).getByRole("combobox", { name: "Insert template variable" }),
+    );
+    fireEvent.click(screen.getByRole("option", { name: /Methodology fact value/i }));
+
+    fireEvent.click(
+      within(addTemplateDialog).getByRole("combobox", { name: "Insert template variable" }),
+    );
+    fireEvent.click(screen.getByRole("option", { name: /Current work-unit fact value/i }));
+
+    fireEvent.click(
+      within(addTemplateDialog).getByRole("combobox", { name: "Insert template variable" }),
+    );
+    fireEvent.click(screen.getByRole("option", { name: /Methodology work-unit value/i }));
+
+    const editorValue = (
+      within(addTemplateDialog).getByLabelText("Template Content") as HTMLTextAreaElement
+    ).value;
+    expect(editorValue).toContain("{{methodology.facts.{key}}}");
+    expect(editorValue).toContain("{{workUnit.facts.{key}}}");
+    expect(editorValue).toContain("{{methodology.workUnits.{key}}}");
+
+    fireEvent.click(within(addTemplateDialog).getByRole("button", { name: "Save Template" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: /Add Template/i })).toBeNull();
+    });
+
+    const slotDialogBeforeSave = screen.getByRole("dialog", { name: /Edit Slot/i });
+    fireEvent.click(within(slotDialogBeforeSave).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(routeContext.replaceArtifactSlotsMock).toHaveBeenCalledTimes(1);
+    });
+
+    expect(routeContext.replaceArtifactSlotsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        slots: [
+          expect.objectContaining({
+            templates: expect.arrayContaining([
+              expect.objectContaining({
+                key: "tpl.variables",
+                content: expect.stringContaining("{{methodology.facts.{key}}}"),
+              }),
+            ]),
+          }),
+        ],
+      }),
+      expect.anything(),
+    );
+
+    const replaceCall = routeContext.replaceArtifactSlotsMock.mock.calls.at(0);
+    expect(replaceCall).toBeTruthy();
+    const replacePayloadCandidate = (replaceCall as unknown as unknown[] | undefined)?.[0];
+    const replacePayload = replacePayloadCandidate as {
+      slots: Array<{ templates: Array<{ key: string; content?: string }> }>;
+    };
+    const insertedTemplate = replacePayload.slots[0]?.templates.find(
+      (template) => template.key === "tpl.variables",
+    );
+    expect(insertedTemplate?.content).toContain("{{workUnit.facts.{key}}}");
+    expect(insertedTemplate?.content).toContain("{{methodology.workUnits.{key}}}");
+  });
+
+  it("tracks artifact slot dirty tabs independently", async () => {
+    const { MethodologyVersionWorkUnitDetailsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey");
+    const routeContext = createRouteContext();
+    useParamsMock.mockReturnValue({
+      methodologyId: "equity-core",
+      versionId: "draft-v2",
+      workUnitKey: "WU.TASK",
+    });
+    useSearchMock.mockReturnValue({ tab: "artifact-slots" });
+    useRouteContextMock.mockReturnValue(routeContext);
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitDetailsRoute />);
+
+    const dirtySlotRow = await screen.findByText("slot.summary");
+    fireEvent.click(
+      within(dirtySlotRow.closest("tr") ?? screen.getByRole("table")).getByRole("button", {
+        name: "Slot Details",
+      }),
+    );
+    const slotDialog = await screen.findByRole("dialog", { name: /Edit Slot/i });
+
+    fireEvent.change(within(slotDialog).getByLabelText("Display Name"), {
+      target: { value: "Updated Summary Slot" },
+    });
+    expect(
+      within(slotDialog).getByTestId("artifact-slot-contract-modified-indicator"),
+    ).toBeTruthy();
+    expect(
+      within(slotDialog).queryByTestId("artifact-slot-guidance-modified-indicator"),
+    ).toBeNull();
+    expect(
+      within(slotDialog).queryByTestId("artifact-slot-templates-modified-indicator"),
+    ).toBeNull();
+
+    fireEvent.click(within(slotDialog).getByRole("tab", { name: /Guidance/ }));
+    fireEvent.change(within(slotDialog).getByLabelText("Description (Human)"), {
+      target: { value: "Human summary guidance update" },
+    });
+    expect(
+      within(slotDialog).getByTestId("artifact-slot-contract-modified-indicator"),
+    ).toBeTruthy();
+    expect(
+      within(slotDialog).getByTestId("artifact-slot-guidance-modified-indicator"),
+    ).toBeTruthy();
+    expect(
+      within(slotDialog).queryByTestId("artifact-slot-templates-modified-indicator"),
+    ).toBeNull();
+
+    fireEvent.click(within(slotDialog).getByRole("tab", { name: /Contract/ }));
+    expect((within(slotDialog).getByLabelText("Display Name") as HTMLInputElement).value).toBe(
+      "Updated Summary Slot",
+    );
+
+    fireEvent.click(within(slotDialog).getByRole("button", { name: "Cancel" }));
+    const discardDialog = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
+    fireEvent.click(within(discardDialog).getByRole("button", { name: "Keep Editing" }));
+    expect(screen.queryByText("Discard unsaved changes?")).toBeNull();
+    expect((within(slotDialog).getByLabelText("Display Name") as HTMLInputElement).value).toBe(
+      "Updated Summary Slot",
+    );
+
+    fireEvent.click(within(slotDialog).getByRole("button", { name: "Cancel" }));
+    const finalDiscardDialog = await screen.findByRole("dialog", {
+      name: "Discard unsaved changes?",
+    });
+    fireEvent.click(within(finalDiscardDialog).getByRole("button", { name: "Discard Changes" }));
+    expect(screen.queryByRole("dialog", { name: /Edit Slot/i })).toBeNull();
+
+    const reopenedDirtySlotRow = await screen.findByText("slot.summary");
+    fireEvent.click(
+      within(reopenedDirtySlotRow.closest("tr") ?? screen.getByRole("table")).getByRole("button", {
+        name: "Slot Details",
+      }),
+    );
+    const reopenedSlotDialog = await screen.findByRole("dialog", { name: /Edit Slot/i });
+    expect(
+      (within(reopenedSlotDialog).getByLabelText("Display Name") as HTMLInputElement).value,
+    ).toBe("");
+    expect(
+      within(reopenedSlotDialog).queryByTestId("artifact-slot-contract-modified-indicator"),
+    ).toBeNull();
+    expect(
+      within(reopenedSlotDialog).queryByTestId("artifact-slot-guidance-modified-indicator"),
+    ).toBeNull();
+    expect(
+      within(reopenedSlotDialog).queryByTestId("artifact-slot-templates-modified-indicator"),
+    ).toBeNull();
   });
 
   it("shows dependency selector for work unit fact type and saves through workUnit.fact.create", async () => {

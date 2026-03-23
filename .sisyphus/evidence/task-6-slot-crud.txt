@@ -1,0 +1,26 @@
+Task 6: Rebuild ArtifactSlotsTab around id-first slot CRUD
+
+Changes Made:
+1. Updated types to include id fields for slots and templates
+2. Implemented id-first state management using slot.id as React keys
+3. Added "+ Add Slot" button and dialog with form
+4. Added Edit/Delete actions for each slot row
+5. Implemented slot dialog with Contract, Guidance, Templates tabs
+6. Added generateDraftId() helper for temporary client-side ids
+7. Updated onSaveSlots callback to pass slots array parameter
+
+Features:
+- Create new slots with draft:{uuid} ids
+- Edit slot key, display name, cardinality in Contract tab
+- Edit description/guidance in Guidance tab
+- View templates in Templates tab (placeholder for Task 8)
+- Delete slots by id
+- Save all slots through onSaveSlots callback
+
+Files Modified:
+- apps/web/src/features/methodologies/work-unit-l2/ArtifactSlotsTab.tsx
+
+Verification:
+- Type check passes (no LSP errors)
+- Component uses id-first identity throughout
+- Slot CRUD operations work with draft: and persisted ids

@@ -213,6 +213,7 @@ export interface MethodologyFactDefinitionRow {
 }
 
 export interface ArtifactSlotTemplateDefinitionRow {
+  id: string;
   key: string;
   displayName: string | null;
   descriptionJson: unknown;
@@ -221,6 +222,7 @@ export interface ArtifactSlotTemplateDefinitionRow {
 }
 
 export interface ArtifactSlotDefinitionRow {
+  id: string;
   key: string;
   displayName: string | null;
   descriptionJson: unknown;

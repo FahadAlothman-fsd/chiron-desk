@@ -1,0 +1,2 @@
+- Existing web route integration tests mocked only `artifactSlot.replace`, which no longer matches runtime usage of create/update/delete.
+- Compatibility bridge required in contracts/service to keep type-checking green for unchanged consumers (`WorkUnitArtifactSlotService`).

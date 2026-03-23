@@ -1,0 +1,15 @@
+Task 4: Adapt work-unit route to id-first artifact-slot state
+
+Changes Made:
+1. Updated route type cast to include id fields for slots and templates
+2. Updated onSaveSlots callback to pass id fields in the mutation payload
+3. Updated integration test to expect id fields in the replace payload
+
+Files Modified:
+- apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.tsx
+- apps/web/src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx
+
+Verification:
+- Type check passes (no LSP errors)
+- Route now passes id-first slot shapes to ArtifactSlotsTab
+- Replace payload includes id fields for slots and templates

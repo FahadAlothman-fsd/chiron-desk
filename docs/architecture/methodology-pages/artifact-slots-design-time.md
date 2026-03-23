@@ -63,26 +63,42 @@ Implementation must preserve that split. Design-time slot editing must not write
 
 ## Slot contract rules
 
-- `slot_key` is unique per methodology version and work-unit type.
+- `id` is the canonical identity for slots; `key` is editable secondary metadata.
+- `slot_key` (the `key` field) is unique per methodology version and work-unit type but can change without changing slot identity.
 - `cardinality` is `single` or `fileset`.
 - Git-tracking expectations belong on the slot definition.
 - Include and exclude glob rules plus output path strategy belong to slot rules.
 - Slot-level requiredness is not the main enforcement mechanism. Transition gate policy owns whether a slot is required for readiness.
+- Identity rule: slots are referenced by `id` across payloads, UI state, editing flows, and persistence boundaries.
+- Draft convention: client-created slots use `draft:{uuid}` temporary ids before persistence; server returns real UUIDs after save.
 
 ## Template contract rules
 
 - Templates are attached under a slot, not authored as free-floating artifacts.
-- Template metadata includes key/name/description/guidance and content.
+- `id` is the canonical identity for templates; `key` is editable secondary metadata.
+- Template metadata includes id, key, name, description, guidance, and content.
 - Template rendering hints live with the template contract, not with runtime snapshot records.
 - Variable usage inside templates should follow `docs/architecture/methodology-pages/workflow-editor/variable-target-model.md`.
+- **Phase 1 authoring**: Handlebars + Monaco for markdown template authoring.
+- **Phase 1 scope**: No rendered preview; scope stops at author/edit/save/persist plus runtime-ready content.
+- **Canonical storage**: Markdown template source is the canonical content; no Plate, Slate JSON, or rich-text canonical storage.
 
 ## Add and edit flow
 
 The Artifact Slots tab uses stacked dialog editing:
 
-- `Level 1 - Basics`: `slot_key`, `display_name`, description, `cardinality`, git-tracking note
-- `Level 2 - Rules`: include globs, exclude globs, output path strategy
-- `Level 3 - Templates`: attach templates and edit key/name/description/guidance/content
+- `Level 1 - Slot Dialog`: slot id (draft or persisted), `slot_key`, `display_name`, description, guidance, `cardinality`
+- `Level 2 - Templates Tab`: nested template CRUD with id-first identity
+- `Level 3 - Template Dialog`: template id (draft or persisted), template key, name, description, guidance, content authoring
+
+### Id-first persistence seam
+
+- Slots and templates are persisted through a bulk replace mutation that updates by id.
+- `draft:{uuid}` ids create new rows; persisted UUIDs update existing rows.
+- Unknown non-`draft:` ids are rejected with deterministic errors.
+- Key can change without changing entity identity.
+- Dirty indicators track edits per tab (Contract, Guidance, Templates, Content).
+- Discard protection confirms before losing unsaved changes.
 
 ## Frozen schema baseline (Story 3.2)
 

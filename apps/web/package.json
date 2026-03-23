@@ -19,6 +19,7 @@
     "@chiron/env": "workspace:*",
     "@hookform/resolvers": "^5.1.1",
     "@libsql/client": "catalog:",
+    "@monaco-editor/react": "^4.7.0",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
     "@orpc/tanstack-query": "^1.12.2",

@@ -47,8 +47,10 @@ import type {
   UpdateMethodologyFactInput,
 } from "@chiron/contracts/methodology/fact";
 import type {
+  CreateWorkUnitArtifactSlotInput,
+  DeleteWorkUnitArtifactSlotInput,
   GetWorkUnitArtifactSlotsInput,
-  ReplaceWorkUnitArtifactSlotsInput,
+  UpdateWorkUnitArtifactSlotInput,
 } from "@chiron/contracts/methodology/artifact-slot";
 import type {
   CreateWorkUnitWorkflowInput,
@@ -558,6 +560,7 @@ const getTransitionEligibilityInput = z.object({
 });
 
 const artifactSlotTemplateInput = z.object({
+  id: z.string().min(1).optional(),
   key: z.string().min(1),
   displayName: z.string().optional(),
   description: audienceGuidanceSchema.optional(),
@@ -566,6 +569,7 @@ const artifactSlotTemplateInput = z.object({
 });
 
 const artifactSlotInput = z.object({
+  id: z.string().min(1).optional(),
   key: z.string().min(1),
   displayName: z.string().optional(),
   description: audienceGuidanceSchema.optional(),
@@ -580,10 +584,50 @@ const getWorkUnitArtifactSlotsInput = z.object({
   workUnitTypeKey: z.string().min(1),
 });
 
-const replaceWorkUnitArtifactSlotsInput = z.object({
+const createWorkUnitArtifactSlotInput = z.object({
   versionId: z.string().min(1),
   workUnitTypeKey: z.string().min(1),
-  slots: z.array(artifactSlotInput),
+  slot: artifactSlotInput,
+});
+
+const updateWorkUnitArtifactSlotInput = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  slotId: z.string().min(1),
+  slot: z.object({
+    key: z.string().min(1),
+    displayName: z.string().optional(),
+    description: audienceGuidanceSchema.optional(),
+    guidance: audienceGuidanceSchema.optional(),
+    cardinality: z.enum(["single", "fileset"]),
+    rules: z.unknown().optional(),
+  }),
+  templateOps: z
+    .object({
+      add: z.array(artifactSlotTemplateInput).default([]),
+      remove: z.array(z.string().min(1)).default([]),
+      update: z
+        .array(
+          z.object({
+            templateId: z.string().min(1),
+            template: z.object({
+              key: z.string().min(1),
+              displayName: z.string().optional(),
+              description: audienceGuidanceSchema.optional(),
+              guidance: audienceGuidanceSchema.optional(),
+              content: z.string().optional(),
+            }),
+          }),
+        )
+        .default([]),
+    })
+    .default({ add: [], remove: [], update: [] }),
+});
+
+const deleteWorkUnitArtifactSlotInput = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  slotId: z.string().min(1),
 });
 
 const methodologyKeyInput = z.object({
@@ -2214,21 +2258,71 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
         );
       }),
 
-    replaceWorkUnitArtifactSlots: protectedProcedure
-      .input(replaceWorkUnitArtifactSlotsInput)
+    createWorkUnitArtifactSlot: protectedProcedure
+      .input(createWorkUnitArtifactSlotInput)
       .handler(async ({ input, context }) => {
         const actorId = context.session.user.id;
-        const payload: ReplaceWorkUnitArtifactSlotsInput = {
+        const payload: CreateWorkUnitArtifactSlotInput = {
           versionId: input.versionId,
           workUnitTypeKey: input.workUnitTypeKey,
-          slots: input.slots,
+          slot: input.slot,
         };
 
         const result = await runEffect(
           serviceLayer,
           Effect.gen(function* () {
             const svc = yield* MethodologyVersionBoundaryService;
-            return yield* svc.replaceWorkUnitArtifactSlots(payload, actorId);
+            return yield* svc.createWorkUnitArtifactSlot(payload, actorId);
+          }),
+        );
+
+        return {
+          version: serializeVersion(result.version),
+          diagnostics: result.diagnostics,
+        };
+      }),
+
+    updateWorkUnitArtifactSlot: protectedProcedure
+      .input(updateWorkUnitArtifactSlotInput)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        const payload: UpdateWorkUnitArtifactSlotInput = {
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+          slotId: input.slotId,
+          slot: input.slot,
+          templateOps: input.templateOps,
+        };
+
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionBoundaryService;
+            return yield* svc.updateWorkUnitArtifactSlot(payload, actorId);
+          }),
+        );
+
+        return {
+          version: serializeVersion(result.version),
+          diagnostics: result.diagnostics,
+        };
+      }),
+
+    deleteWorkUnitArtifactSlot: protectedProcedure
+      .input(deleteWorkUnitArtifactSlotInput)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        const payload: DeleteWorkUnitArtifactSlotInput = {
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+          slotId: input.slotId,
+        };
+
+        const result = await runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* MethodologyVersionBoundaryService;
+            return yield* svc.deleteWorkUnitArtifactSlot(payload, actorId);
           }),
         );
 
@@ -2484,10 +2578,12 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
         },
         artifactSlot: {
           list: router.getWorkUnitArtifactSlots,
-          replace: router.replaceWorkUnitArtifactSlots,
+          create: router.createWorkUnitArtifactSlot,
+          update: router.updateWorkUnitArtifactSlot,
+          delete: router.deleteWorkUnitArtifactSlot,
           template: {
             list: router.getWorkUnitArtifactSlots,
-            replace: router.replaceWorkUnitArtifactSlots,
+            update: router.updateWorkUnitArtifactSlot,
           },
         },
       },

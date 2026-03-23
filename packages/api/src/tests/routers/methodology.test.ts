@@ -76,6 +76,7 @@ function makeTestRepo(): MethodologyRepository["Type"] & ProjectContextRepositor
   const artifactSlotsByVersionAndWorkUnit = new Map<
     string,
     readonly {
+      id: string;
       key: string;
       displayName: string | null;
       descriptionJson: unknown;
@@ -83,6 +84,7 @@ function makeTestRepo(): MethodologyRepository["Type"] & ProjectContextRepositor
       cardinality: "single" | "fileset";
       rulesJson: unknown;
       templates: readonly {
+        id: string;
         key: string;
         displayName: string | null;
         descriptionJson: unknown;
@@ -1778,7 +1780,7 @@ describe("methodology router", () => {
       expect(router.version.getPublicationEvidence).toBeDefined();
     });
 
-    it("replaces and lists work-unit artifact slots via nested namespace", async () => {
+    it("creates, updates, deletes, and lists work-unit artifact slots via nested namespace", async () => {
       const router = createMethodologyRouter(makeServiceLayer());
 
       const created = await call(
@@ -1796,30 +1798,30 @@ describe("methodology router", () => {
 
       const nestedRouter = router.version.workUnit as Record<string, unknown> & {
         artifactSlot?: {
-          replace?: unknown;
+          create?: unknown;
+          update?: unknown;
+          delete?: unknown;
           list?: unknown;
         };
       };
 
       await call(
-        nestedRouter.artifactSlot?.replace as Parameters<typeof call>[0],
+        nestedRouter.artifactSlot?.create as Parameters<typeof call>[0],
         {
           versionId: created.version.id,
           workUnitTypeKey: "task",
-          slots: [
-            {
-              key: "implementation-plan",
-              displayName: "Implementation Plan",
-              cardinality: "single",
-              templates: [
-                {
-                  key: "default",
-                  displayName: "Default",
-                  content: "# Plan",
-                },
-              ],
-            },
-          ],
+          slot: {
+            key: "implementation-plan",
+            displayName: "Implementation Plan",
+            cardinality: "single",
+            templates: [
+              {
+                key: "default",
+                displayName: "Default",
+                content: "# Plan",
+              },
+            ],
+          },
         },
         AUTHENTICATED_CTX,
       );
@@ -1834,9 +1836,189 @@ describe("methodology router", () => {
       );
 
       expect(slots).toHaveLength(1);
+      expect(typeof slots[0]?.id).toBe("string");
       expect(slots[0]?.key).toBe("implementation-plan");
       expect(slots[0]?.templates).toHaveLength(1);
+      expect(typeof slots[0]?.templates[0]?.id).toBe("string");
       expect(slots[0]?.templates[0]?.key).toBe("default");
+
+      const slotId = slots[0]?.id;
+      const templateId = slots[0]?.templates[0]?.id;
+      expect(slotId).toBeDefined();
+      expect(templateId).toBeDefined();
+
+      await call(
+        nestedRouter.artifactSlot?.update as Parameters<typeof call>[0],
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+          slotId,
+          slot: {
+            key: "implementation-plan-v2",
+            displayName: "Implementation Plan v2",
+            cardinality: "single",
+          },
+          templateOps: {
+            add: [{ key: "checklist", displayName: "Checklist", content: "- [ ] done" }],
+            remove: [],
+            update: [
+              {
+                templateId,
+                template: {
+                  key: "default",
+                  displayName: "Default Updated",
+                  content: "# Updated Plan",
+                },
+              },
+            ],
+          },
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const updatedSlots = await call(
+        nestedRouter.artifactSlot?.list as Parameters<typeof call>[0],
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+        },
+        PUBLIC_CTX,
+      );
+
+      expect(updatedSlots[0]?.key).toBe("implementation-plan-v2");
+      expect(updatedSlots[0]?.templates).toHaveLength(2);
+
+      await call(
+        nestedRouter.artifactSlot?.delete as Parameters<typeof call>[0],
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+          slotId,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const afterDelete = await call(
+        nestedRouter.artifactSlot?.list as Parameters<typeof call>[0],
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+        },
+        PUBLIC_CTX,
+      );
+      expect(afterDelete).toHaveLength(0);
+    });
+
+    it("artifact slot create contract accepts payloads without ids", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const created = await call(
+        router.version.create,
+        {
+          methodologyKey: "id-first-slot-method",
+          displayName: "ID-First Slot Method",
+          version: "0.1.0",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const nestedRouter = router.version.workUnit as Record<string, unknown> & {
+        artifactSlot?: {
+          create?: unknown;
+          list?: unknown;
+        };
+      };
+
+      await expect(
+        call(
+          nestedRouter.artifactSlot?.create as Parameters<typeof call>[0],
+          {
+            versionId: created.version.id,
+            workUnitTypeKey: "task",
+            slot: {
+              key: "test-slot",
+              displayName: "Test Slot",
+              cardinality: "single",
+              templates: [
+                {
+                  key: "test-template",
+                  displayName: "Test Template",
+                  content: "# Test Content",
+                },
+              ],
+            },
+          },
+          AUTHENTICATED_CTX,
+        ),
+      ).resolves.toBeDefined();
+
+      const listed = await call(
+        nestedRouter.artifactSlot?.list as Parameters<typeof call>[0],
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+        },
+        PUBLIC_CTX,
+      );
+      expect(typeof listed[0]?.id).toBe("string");
+      expect(typeof listed[0]?.templates[0]?.id).toBe("string");
+    });
+
+    it("artifact slot update/delete contracts reject unknown ids", async () => {
+      const router = createMethodologyRouter(makeServiceLayer());
+
+      const created = await call(
+        router.version.create,
+        {
+          methodologyKey: "reject-malformed-method",
+          displayName: "Reject Malformed Method",
+          version: "0.1.0",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const nestedRouter = router.version.workUnit as Record<string, unknown> & {
+        artifactSlot?: {
+          update?: unknown;
+          delete?: unknown;
+        };
+      };
+
+      await expect(
+        call(
+          nestedRouter.artifactSlot?.update as Parameters<typeof call>[0],
+          {
+            versionId: created.version.id,
+            workUnitTypeKey: "task",
+            slotId: "missing-slot-id",
+            slot: {
+              key: "no-id-slot",
+              displayName: "No ID Slot",
+              cardinality: "single",
+            },
+            templateOps: { add: [], remove: [], update: [] },
+          },
+          AUTHENTICATED_CTX,
+        ),
+      ).rejects.toThrow();
+
+      await expect(
+        call(
+          nestedRouter.artifactSlot?.delete as Parameters<typeof call>[0],
+          {
+            versionId: created.version.id,
+            workUnitTypeKey: "task",
+            slotId: "missing-slot-id",
+          },
+          AUTHENTICATED_CTX,
+        ),
+      ).rejects.toThrow();
     });
 
     it("lists methodologies deterministically with draft and version summary", async () => {
@@ -3129,10 +3311,7 @@ describe("methodology router", () => {
             key: "customer_name",
             name: "Customer Name",
             factType: "string",
-            description: {
-              human: { markdown: "Customer-facing name" },
-              agent: { markdown: "Customer-facing name" },
-            },
+            description: "Customer-facing name",
           },
         },
         AUTHENTICATED_CTX,
@@ -3163,10 +3342,7 @@ describe("methodology router", () => {
             key: "customer_name",
             name: "Legal Customer Name",
             factType: "string",
-            description: {
-              human: { markdown: "Legal customer name" },
-              agent: { markdown: "Legal customer name" },
-            },
+            description: "Legal customer name",
           },
         },
         AUTHENTICATED_CTX,

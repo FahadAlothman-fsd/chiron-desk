@@ -1,0 +1,3 @@
+- Switched artifact-slot authoring flow from monolithic replace calls to explicit slot create/update/delete RPC mutations.
+- Kept template mutation granularity in update via `templateOps: { add, remove, update }`, with server-generated IDs for new templates.
+- Preserved compatibility by keeping internal legacy replace contract/method available for non-migrated callers while routing UI to CRUD endpoints.

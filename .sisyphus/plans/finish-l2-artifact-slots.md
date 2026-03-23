@@ -107,7 +107,7 @@ Wave 2: route + UI + integration verification (`route adapters`, `slot dialog`, 
 > Implementation + Test = ONE task. Never separate.
 > EVERY task MUST have: Agent Profile + Parallelization + QA Scenarios.
 
-- [ ] 1. Propagate id-first artifact-slot contracts
+- [x] 1. Propagate id-first artifact-slot contracts
 
   **What to do**: Update the artifact-slot contract model so slot and template entities carry stable `id` fields throughout authoring and persistence-facing payloads. Lock the local-create convention to `draft:`-prefixed temporary ids, keep `key` as editable secondary metadata, and define that non-`draft:` ids in replace payloads must map to existing persisted entities.
   **Must NOT do**: Do not remove `key` from the domain, do not add preview-related fields, and do not invent a second identity mechanism alongside `id`.
@@ -147,7 +147,7 @@ Wave 2: route + UI + integration verification (`route adapters`, `slot dialog`, 
 
   **Commit**: YES | Message: `refactor(methodology): add id-first artifact slot contracts` | Files: `packages/contracts/src/methodology/artifact-slot.ts`, `packages/api/src/routers/methodology.ts`, `packages/api/src/tests/routers/methodology.test.ts`
 
-- [ ] 2. Make API and repository replace flow id-first
+- [x] 2. Make API and repository replace flow id-first
 
   **What to do**: Update artifact-slot list/replace procedures and repository mappings so persisted slots/templates round-trip real ids, replace updates existing entities by id, `draft:` ids create new rows, and key uniqueness remains a validation rule rather than the entity identity rule.
   **Must NOT do**: Do not add fine-grained slot/template endpoints; do not silently create rows for unknown non-`draft:` ids; do not break the existing bulk replace write path.
@@ -189,7 +189,7 @@ Wave 2: route + UI + integration verification (`route adapters`, `slot dialog`, 
 
   **Commit**: YES | Message: `refactor(methodology): make artifact slot replace id-first` | Files: `packages/api/src/routers/methodology.ts`, `packages/api/src/tests/routers/methodology.test.ts`, `packages/db/src/methodology-repository.ts`, `packages/db/src/tests/repository/methodology-repository.integration.test.ts`
 
-- [ ] 3. Implement phase-1 Handlebars template-engine seam
+- [x] 3. Implement phase-1 Handlebars template-engine seam
 
   **What to do**: Build the first real `@chiron/template-engine` implementation for artifact-template rendering: strict runtime rendering, relaxed/editor diagnostics support in the API shape if needed later, and the locked phase-1 helper allowlist (`if`, `unless`, `each`, `with`, comparisons, boolean helpers, fallbacks). Keep the implementation template-text-first and ready for Monaco-authored markdown source.
   **Must NOT do**: Do not add preview UI, partial registries, arbitrary helpers, or prompt-receipt persistence in this task.
@@ -231,7 +231,7 @@ Wave 2: route + UI + integration verification (`route adapters`, `slot dialog`, 
 
   **Commit**: YES | Message: `feat(template-engine): add strict artifact template rendering` | Files: `packages/template-engine/src/index.ts`, `packages/template-engine/src/index.test.ts`, `packages/template-engine/package.json`
 
-- [ ] 4. Adapt work-unit route to id-first artifact-slot state
+- [x] 4. Adapt work-unit route to id-first artifact-slot state
 
   **What to do**: Refactor `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.tsx` so artifact-slot data enters the tab with ids, secondary keys, normalized guidance/description, and `draft:` temp ids for unsaved local entities. Centralize artifact-slot payload normalization in route-local helpers rather than duplicating transformation logic inside the component.
   **Must NOT do**: Do not keep key-based row lookup in the route, do not call new endpoints, and do not bury id reconciliation inside ad hoc component closures.
@@ -272,7 +272,7 @@ Wave 2: route + UI + integration verification (`route adapters`, `slot dialog`, 
 
   **Commit**: YES | Message: `refactor(web): normalize artifact slot route state by id` | Files: `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.tsx`, `apps/web/src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx`
 
-- [ ] 5. Sync artifact-slot design docs to the locked phase-1 model
+- [x] 5. Sync artifact-slot design docs to the locked phase-1 model
 
   **What to do**: Update the artifact-slot design documentation so it no longer implies key-centric identity or preview scope. The docs must describe ids as the real identity, `key` as secondary metadata, `Handlebars + Monaco` authoring, markdown-only canonical template content, stacked dialogs, and no preview in phase 1.
   **Must NOT do**: Do not rewrite unrelated methodology-page docs, and do not reopen the engine decision in documentation prose.
@@ -311,7 +311,7 @@ Wave 2: route + UI + integration verification (`route adapters`, `slot dialog`, 
 
   **Commit**: YES | Message: `docs(methodology): sync artifact slot phase-1 design` | Files: `docs/architecture/methodology-pages/artifact-slots-design-time.md`
 
-- [ ] 6. Rebuild ArtifactSlotsTab around id-first slot CRUD
+- [x] 6. Rebuild ArtifactSlotsTab around id-first slot CRUD
 
   **What to do**: Replace the placeholder `ArtifactSlotsTab` table/details dialog with a local-draft slot management surface that supports `+ Add Slot`, `Edit Slot`, and `Delete Slot`, using slot `id` as the React/state identity key and keeping slot `key` editable as secondary metadata. The slot dialog must expose `Contract`, `Guidance`, and `Templates` tabs, and the main surface must show stable row actions instead of the current read-only details button.
   **Must NOT do**: Do not keep `detailsSlotKey`-style key lookup, do not persist directly from child controls, and do not route slot editing into a separate page.

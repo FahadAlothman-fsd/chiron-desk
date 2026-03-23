@@ -210,8 +210,14 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
     ...artifactSlotsQueryOptions,
     enabled: tab === "artifact-slots",
   });
-  const replaceArtifactSlotsMutation = useMutation(
-    orpc.methodology.version.workUnit.artifactSlot.replace.mutationOptions(),
+  const createArtifactSlotMutation = useMutation(
+    orpc.methodology.version.workUnit.artifactSlot.create.mutationOptions(),
+  );
+  const updateArtifactSlotMutation = useMutation(
+    orpc.methodology.version.workUnit.artifactSlot.update.mutationOptions(),
+  );
+  const deleteArtifactSlotMutation = useMutation(
+    orpc.methodology.version.workUnit.artifactSlot.delete.mutationOptions(),
   );
 
   const workUnitTypes = Array.isArray(
@@ -948,37 +954,24 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
             (Array.isArray(artifactSlotsQuery.data)
               ? artifactSlotsQuery.data
               : (selectedWorkUnit?.artifactSlots ?? [])) as {
+              id: string;
               key: string;
               displayName?: string;
               cardinality: "single" | "fileset";
               rules?: unknown;
-              templates: readonly { key: string; displayName?: string; content?: string }[];
-            }[]
-          }
-          onSaveSlots={async () => {
-            const slots = (
-              Array.isArray(artifactSlotsQuery.data)
-                ? artifactSlotsQuery.data
-                : (selectedWorkUnit?.artifactSlots ?? [])
-            ) as {
-              key: string;
-              displayName?: string;
-              description?: { human: { markdown: string }; agent: { markdown: string } };
-              guidance?: { human: { markdown: string }; agent: { markdown: string } };
-              cardinality: "single" | "fileset";
-              rules?: unknown;
-              templates: {
+              templates: readonly {
+                id: string;
                 key: string;
                 displayName?: string;
-                description?: { human: { markdown: string }; agent: { markdown: string } };
-                guidance?: { human: { markdown: string }; agent: { markdown: string } };
                 content?: string;
               }[];
-            }[];
-            await replaceArtifactSlotsMutation.mutateAsync({
+            }[]
+          }
+          onCreateSlot={async ({ slot }) => {
+            await createArtifactSlotMutation.mutateAsync({
               versionId,
               workUnitTypeKey: workUnitKey,
-              slots: slots.map((slot) => ({
+              slot: {
                 key: slot.key,
                 displayName: typeof slot.displayName === "string" ? slot.displayName : undefined,
                 description: normalizeMarkdownPair(slot.description),
@@ -993,7 +986,58 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
                   guidance: normalizeMarkdownPair(template.guidance),
                   content: typeof template.content === "string" ? template.content : undefined,
                 })),
-              })),
+              },
+            });
+            await queryClient.invalidateQueries({ queryKey: artifactSlotsQueryOptions.queryKey });
+          }}
+          onUpdateSlot={async ({ slotId, slot, templateOps }) => {
+            await updateArtifactSlotMutation.mutateAsync({
+              versionId,
+              workUnitTypeKey: workUnitKey,
+              slotId,
+              slot: {
+                key: slot.key,
+                displayName: typeof slot.displayName === "string" ? slot.displayName : undefined,
+                description: normalizeMarkdownPair(slot.description),
+                guidance: normalizeMarkdownPair(slot.guidance),
+                cardinality: slot.cardinality,
+                ...(slot.rules && typeof slot.rules === "object" ? { rules: slot.rules } : {}),
+              },
+              templateOps: {
+                add: templateOps.add.map((template) => ({
+                  key: template.key,
+                  displayName:
+                    typeof template.displayName === "string" ? template.displayName : undefined,
+                  description: normalizeMarkdownPair(template.description),
+                  guidance: normalizeMarkdownPair(template.guidance),
+                  content: typeof template.content === "string" ? template.content : undefined,
+                })),
+                remove: templateOps.remove,
+                update: templateOps.update.map((entry) => ({
+                  templateId: entry.templateId,
+                  template: {
+                    key: entry.template.key,
+                    displayName:
+                      typeof entry.template.displayName === "string"
+                        ? entry.template.displayName
+                        : undefined,
+                    description: normalizeMarkdownPair(entry.template.description),
+                    guidance: normalizeMarkdownPair(entry.template.guidance),
+                    content:
+                      typeof entry.template.content === "string"
+                        ? entry.template.content
+                        : undefined,
+                  },
+                })),
+              },
+            });
+            await queryClient.invalidateQueries({ queryKey: artifactSlotsQueryOptions.queryKey });
+          }}
+          onDeleteSlot={async (slotId) => {
+            await deleteArtifactSlotMutation.mutateAsync({
+              versionId,
+              workUnitTypeKey: workUnitKey,
+              slotId,
             });
             await queryClient.invalidateQueries({ queryKey: artifactSlotsQueryOptions.queryKey });
           }}

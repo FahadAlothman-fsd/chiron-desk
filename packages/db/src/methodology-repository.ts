@@ -1958,8 +1958,12 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             return;
           }
 
+          // Get existing slots with their ids for id-first matching
           const existingSlots = await tx
-            .select({ id: methodologyArtifactSlotDefinitions.id })
+            .select({
+              id: methodologyArtifactSlotDefinitions.id,
+              key: methodologyArtifactSlotDefinitions.key,
+            })
             .from(methodologyArtifactSlotDefinitions)
             .where(
               and(
@@ -1968,68 +1972,152 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               ),
             );
 
-          if (existingSlots.length > 0) {
-            const slotIds = existingSlots.map((row) => row.id);
-            for (const slotId of slotIds) {
-              await tx
-                .delete(methodologyArtifactSlotTemplates)
-                .where(eq(methodologyArtifactSlotTemplates.slotDefinitionId, slotId));
-            }
-            await tx
-              .delete(methodologyArtifactSlotDefinitions)
-              .where(
-                and(
-                  eq(methodologyArtifactSlotDefinitions.methodologyVersionId, versionId),
-                  eq(methodologyArtifactSlotDefinitions.workUnitTypeId, workUnitTypeId),
-                ),
-              );
-          }
+          const existingSlotMap = new Map(existingSlots.map((s) => [s.id, s]));
+          const processedSlotIds = new Set<string>();
 
           for (const slot of slots) {
-            const insertedSlotRows = await tx
-              .insert(methodologyArtifactSlotDefinitions)
-              .values({
-                methodologyVersionId: versionId,
-                workUnitTypeId,
-                key: slot.key,
-                displayName: slot.displayName,
-                descriptionJson: slot.descriptionJson,
-                guidanceJson: slot.guidanceJson,
-                cardinality: slot.cardinality,
-                rulesJson: slot.rulesJson,
-              })
-              .returning({ id: methodologyArtifactSlotDefinitions.id });
-            const slotDefinitionId = insertedSlotRows[0]?.id;
+            let slotDefinitionId: string;
 
-            if (!slotDefinitionId || slot.templates.length === 0) {
+            const existingSlot = existingSlotMap.get(slot.id);
+            if (!existingSlot) {
+              const insertedSlotRows = await tx
+                .insert(methodologyArtifactSlotDefinitions)
+                .values({
+                  methodologyVersionId: versionId,
+                  workUnitTypeId,
+                  key: slot.key,
+                  displayName: slot.displayName,
+                  descriptionJson: slot.descriptionJson,
+                  guidanceJson: slot.guidanceJson,
+                  cardinality: slot.cardinality,
+                  rulesJson: slot.rulesJson,
+                })
+                .returning({ id: methodologyArtifactSlotDefinitions.id });
+              const insertedSlotId = insertedSlotRows[0]?.id;
+              if (!insertedSlotId) {
+                throw new Error("Failed to insert artifact slot definition");
+              }
+              slotDefinitionId = insertedSlotId;
+            } else {
+              await tx
+                .update(methodologyArtifactSlotDefinitions)
+                .set({
+                  key: slot.key,
+                  displayName: slot.displayName,
+                  descriptionJson: slot.descriptionJson,
+                  guidanceJson: slot.guidanceJson,
+                  cardinality: slot.cardinality,
+                  rulesJson: slot.rulesJson,
+                  updatedAt: new Date(),
+                })
+                .where(eq(methodologyArtifactSlotDefinitions.id, slot.id));
+              slotDefinitionId = slot.id;
+              processedSlotIds.add(slot.id);
+            }
+
+            if (!slotDefinitionId) {
               continue;
             }
 
-            await tx.insert(methodologyArtifactSlotTemplates).values(
-              slot.templates.map((template) => ({
-                methodologyVersionId: versionId,
-                slotDefinitionId,
-                key: template.key,
-                displayName: template.displayName,
-                descriptionJson: template.descriptionJson,
-                guidanceJson: template.guidanceJson,
-                content: template.content,
-              })),
-            );
+            // Handle templates with id-first logic
+            if (slot.templates.length > 0) {
+              const existingTemplates = await tx
+                .select({
+                  id: methodologyArtifactSlotTemplates.id,
+                  key: methodologyArtifactSlotTemplates.key,
+                })
+                .from(methodologyArtifactSlotTemplates)
+                .where(eq(methodologyArtifactSlotTemplates.slotDefinitionId, slotDefinitionId));
+
+              const existingTemplateMap = new Map(existingTemplates.map((t) => [t.id, t]));
+              const processedTemplateIds = new Set<string>();
+
+              for (const template of slot.templates) {
+                const existingTemplate = existingTemplateMap.get(template.id);
+                if (!existingTemplate) {
+                  await tx.insert(methodologyArtifactSlotTemplates).values({
+                    methodologyVersionId: versionId,
+                    slotDefinitionId,
+                    key: template.key,
+                    displayName: template.displayName,
+                    descriptionJson: template.descriptionJson,
+                    guidanceJson: template.guidanceJson,
+                    content: template.content,
+                  });
+                } else {
+                  await tx
+                    .update(methodologyArtifactSlotTemplates)
+                    .set({
+                      key: template.key,
+                      displayName: template.displayName,
+                      descriptionJson: template.descriptionJson,
+                      guidanceJson: template.guidanceJson,
+                      content: template.content,
+                      updatedAt: new Date(),
+                    })
+                    .where(eq(methodologyArtifactSlotTemplates.id, template.id));
+                  processedTemplateIds.add(template.id);
+                }
+              }
+
+              // Delete templates that weren't in the incoming list
+              const templatesToDelete = existingTemplates.filter(
+                (t) => !processedTemplateIds.has(t.id),
+              );
+              for (const template of templatesToDelete) {
+                await tx
+                  .delete(methodologyArtifactSlotTemplates)
+                  .where(eq(methodologyArtifactSlotTemplates.id, template.id));
+              }
+            } else {
+              // No templates in incoming slot - delete all existing templates
+              await tx
+                .delete(methodologyArtifactSlotTemplates)
+                .where(eq(methodologyArtifactSlotTemplates.slotDefinitionId, slotDefinitionId));
+            }
+          }
+
+          // Delete slots that weren't in the incoming list
+          const slotsToDelete = existingSlots.filter((s) => !processedSlotIds.has(s.id));
+          for (const slot of slotsToDelete) {
+            await tx
+              .delete(methodologyArtifactSlotTemplates)
+              .where(eq(methodologyArtifactSlotTemplates.slotDefinitionId, slot.id));
+            await tx
+              .delete(methodologyArtifactSlotDefinitions)
+              .where(eq(methodologyArtifactSlotDefinitions.id, slot.id));
           }
         }),
       ),
 
     findArtifactSlotsByWorkUnitType: ({ versionId, workUnitTypeKey }) =>
       dbEffect("methodology.findArtifactSlotsByWorkUnitType", async () => {
+        const workUnitTypeRows = await db
+          .select({ id: methodologyWorkUnitTypes.id })
+          .from(methodologyWorkUnitTypes)
+          .where(
+            and(
+              eq(methodologyWorkUnitTypes.methodologyVersionId, versionId),
+              eq(methodologyWorkUnitTypes.key, workUnitTypeKey),
+            ),
+          )
+          .limit(1);
+
+        const workUnitTypeId = workUnitTypeRows[0]?.id;
+        if (!workUnitTypeId) {
+          return [];
+        }
+
         const rows = await db
           .select({
+            slotId: methodologyArtifactSlotDefinitions.id,
             slotKey: methodologyArtifactSlotDefinitions.key,
             slotDisplayName: methodologyArtifactSlotDefinitions.displayName,
             slotDescriptionJson: methodologyArtifactSlotDefinitions.descriptionJson,
             slotGuidanceJson: methodologyArtifactSlotDefinitions.guidanceJson,
             slotCardinality: methodologyArtifactSlotDefinitions.cardinality,
             slotRulesJson: methodologyArtifactSlotDefinitions.rulesJson,
+            templateId: methodologyArtifactSlotTemplates.id,
             templateKey: methodologyArtifactSlotTemplates.key,
             templateDisplayName: methodologyArtifactSlotTemplates.displayName,
             templateDescriptionJson: methodologyArtifactSlotTemplates.descriptionJson,
@@ -2037,10 +2125,6 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             templateContent: methodologyArtifactSlotTemplates.content,
           })
           .from(methodologyArtifactSlotDefinitions)
-          .innerJoin(
-            methodologyWorkUnitTypes,
-            eq(methodologyArtifactSlotDefinitions.workUnitTypeId, methodologyWorkUnitTypes.id),
-          )
           .leftJoin(
             methodologyArtifactSlotTemplates,
             eq(
@@ -2051,7 +2135,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           .where(
             and(
               eq(methodologyArtifactSlotDefinitions.methodologyVersionId, versionId),
-              eq(methodologyWorkUnitTypes.key, workUnitTypeKey),
+              eq(methodologyArtifactSlotDefinitions.workUnitTypeId, workUnitTypeId),
             ),
           )
           .orderBy(
@@ -2062,6 +2146,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
         const slots = new Map<
           string,
           {
+            id: string;
             key: string;
             displayName: string | null;
             descriptionJson: unknown;
@@ -2069,6 +2154,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             cardinality: "single" | "fileset";
             rulesJson: unknown;
             templates: Array<{
+              id: string;
               key: string;
               displayName: string | null;
               descriptionJson: unknown;
@@ -2079,10 +2165,11 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
         >();
 
         for (const row of rows) {
-          const existing = slots.get(row.slotKey);
+          const existing = slots.get(row.slotId);
           if (existing) {
-            if (row.templateKey) {
+            if (row.templateId && row.templateKey) {
               existing.templates.push({
+                id: row.templateId,
                 key: row.templateKey,
                 displayName: row.templateDisplayName,
                 descriptionJson: row.templateDescriptionJson,
@@ -2094,6 +2181,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           }
 
           const slot = {
+            id: row.slotId,
             key: row.slotKey,
             displayName: row.slotDisplayName,
             descriptionJson: row.slotDescriptionJson,
@@ -2102,6 +2190,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               row.slotCardinality === "fileset" ? ("fileset" as const) : ("single" as const),
             rulesJson: row.slotRulesJson,
             templates: [] as Array<{
+              id: string;
               key: string;
               displayName: string | null;
               descriptionJson: unknown;
@@ -2110,8 +2199,9 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             }>,
           };
 
-          if (row.templateKey) {
+          if (row.templateId && row.templateKey) {
             slot.templates.push({
+              id: row.templateId,
               key: row.templateKey,
               displayName: row.templateDisplayName,
               descriptionJson: row.templateDescriptionJson,
@@ -2120,7 +2210,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             });
           }
 
-          slots.set(row.slotKey, slot);
+          slots.set(row.slotId, slot);
         }
 
         return [...slots.values()];

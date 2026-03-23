@@ -1,0 +1,1 @@
+- Web shell-route tests still require migration from replace-style artifact-slot mocks/assertions to CRUD mutation expectations.

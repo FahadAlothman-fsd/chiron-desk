@@ -34,8 +34,11 @@ import type {
 } from "@chiron/contracts/methodology/lifecycle";
 import type { UpdateDraftWorkflowsInputDto } from "@chiron/contracts/methodology/dto";
 import type {
+  CreateWorkUnitArtifactSlotInput,
+  DeleteWorkUnitArtifactSlotInput,
   GetWorkUnitArtifactSlotsInput,
   ReplaceWorkUnitArtifactSlotsInput,
+  UpdateWorkUnitArtifactSlotInput,
 } from "@chiron/contracts/methodology/artifact-slot";
 import type {
   CreateWorkUnitWorkflowInput,
@@ -647,6 +650,7 @@ export class MethodologyVersionService extends Context.Tag("MethodologyVersionSe
     ) => Effect.Effect<MethodologyVersionRow, VersionNotFoundError | RepositoryError>;
     readonly getWorkUnitArtifactSlots: (input: GetWorkUnitArtifactSlotsInput) => Effect.Effect<
       readonly {
+        id: string;
         key: string;
         displayName: string | null;
         description: unknown;
@@ -654,6 +658,7 @@ export class MethodologyVersionService extends Context.Tag("MethodologyVersionSe
         cardinality: "single" | "fileset";
         rules: unknown;
         templates: readonly {
+          id: string;
           key: string;
           displayName: string | null;
           description: unknown;
@@ -662,6 +667,27 @@ export class MethodologyVersionService extends Context.Tag("MethodologyVersionSe
         }[];
       }[],
       RepositoryError
+    >;
+    readonly createWorkUnitArtifactSlot: (
+      input: CreateWorkUnitArtifactSlotInput,
+      actorId: string | null,
+    ) => Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | RepositoryError
+    >;
+    readonly updateWorkUnitArtifactSlot: (
+      input: UpdateWorkUnitArtifactSlotInput,
+      actorId: string | null,
+    ) => Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | RepositoryError
+    >;
+    readonly deleteWorkUnitArtifactSlot: (
+      input: DeleteWorkUnitArtifactSlotInput,
+      actorId: string | null,
+    ) => Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | RepositoryError
     >;
     readonly replaceWorkUnitArtifactSlots: (
       input: ReplaceWorkUnitArtifactSlotsInput,
@@ -917,6 +943,7 @@ export const MethodologyVersionServiceLive = Layer.effect(
         .pipe(
           Effect.map((slots) =>
             slots.map((slot) => ({
+              id: slot.id,
               key: slot.key,
               displayName: slot.displayName,
               description: slot.descriptionJson,
@@ -924,6 +951,7 @@ export const MethodologyVersionServiceLive = Layer.effect(
               cardinality: slot.cardinality,
               rules: slot.rulesJson,
               templates: slot.templates.map((template) => ({
+                id: template.id,
                 key: template.key,
                 displayName: template.displayName,
                 description: template.descriptionJson,
@@ -933,6 +961,223 @@ export const MethodologyVersionServiceLive = Layer.effect(
             })),
           ),
         );
+
+    const createWorkUnitArtifactSlot = (
+      input: CreateWorkUnitArtifactSlotInput,
+      actorId: string,
+    ): Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | RepositoryError
+    > =>
+      Effect.gen(function* () {
+        const existing = yield* repo.findVersionById(input.versionId);
+        if (!existing) {
+          return yield* new VersionNotFoundError({ versionId: input.versionId });
+        }
+
+        yield* ensureVersionIsDraft(existing);
+
+        const existingSlots = yield* repo.findArtifactSlotsByWorkUnitType({
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+        });
+
+        yield* repo.replaceArtifactSlotsForWorkUnitType({
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+          slots: [
+            ...existingSlots,
+            {
+              id: crypto.randomUUID(),
+              key: input.slot.key,
+              displayName: input.slot.displayName ?? null,
+              descriptionJson: input.slot.description ?? null,
+              guidanceJson: input.slot.guidance ?? null,
+              cardinality: input.slot.cardinality,
+              rulesJson: input.slot.rules ?? null,
+              templates: (input.slot.templates ?? []).map((template) => ({
+                id: crypto.randomUUID(),
+                key: template.key,
+                displayName: template.displayName ?? null,
+                descriptionJson: template.description ?? null,
+                guidanceJson: template.guidance ?? null,
+                content: template.content ?? null,
+              })),
+            },
+          ],
+        });
+
+        yield* repo.recordEvent({
+          methodologyVersionId: input.versionId,
+          eventType: "updated",
+          actorId,
+          changedFieldsJson: {
+            operation: "create_artifact_slot",
+            workUnitTypeKey: input.workUnitTypeKey,
+            slotKey: input.slot.key,
+          },
+          diagnosticsJson: null,
+        });
+
+        const diagnostics: ValidationResult = { valid: true, diagnostics: [] };
+        return {
+          version: existing,
+          diagnostics,
+        };
+      });
+
+    const updateWorkUnitArtifactSlot = (
+      input: UpdateWorkUnitArtifactSlotInput,
+      actorId: string,
+    ): Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | RepositoryError
+    > =>
+      Effect.gen(function* () {
+        const existing = yield* repo.findVersionById(input.versionId);
+        if (!existing) {
+          return yield* new VersionNotFoundError({ versionId: input.versionId });
+        }
+
+        yield* ensureVersionIsDraft(existing);
+
+        const existingSlots = yield* repo.findArtifactSlotsByWorkUnitType({
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+        });
+
+        const slot = existingSlots.find((entry) => entry.id === input.slotId);
+        if (!slot) {
+          return yield* new RepositoryError({
+            operation: "methodology.updateWorkUnitArtifactSlot",
+            cause: new Error(`Artifact slot '${input.slotId}' not found`),
+          });
+        }
+
+        const removeTemplateIds = new Set(input.templateOps.remove ?? []);
+        const updateTemplateById = new Map(
+          (input.templateOps.update ?? []).map((entry) => [entry.templateId, entry.template]),
+        );
+
+        const nextTemplates = slot.templates
+          .filter((template) => !removeTemplateIds.has(template.id))
+          .map((template) => {
+            const patch = updateTemplateById.get(template.id);
+            if (!patch) {
+              return template;
+            }
+
+            return {
+              id: template.id,
+              key: patch.key,
+              displayName: patch.displayName ?? null,
+              descriptionJson: patch.description ?? null,
+              guidanceJson: patch.guidance ?? null,
+              content: patch.content ?? null,
+            };
+          });
+
+        const appendedTemplates = (input.templateOps.add ?? []).map((template) => ({
+          id: crypto.randomUUID(),
+          key: template.key,
+          displayName: template.displayName ?? null,
+          descriptionJson: template.description ?? null,
+          guidanceJson: template.guidance ?? null,
+          content: template.content ?? null,
+        }));
+
+        const rewrittenSlots = existingSlots.map((entry) =>
+          entry.id === input.slotId
+            ? {
+                id: entry.id,
+                key: input.slot.key,
+                displayName: input.slot.displayName ?? null,
+                descriptionJson: input.slot.description ?? null,
+                guidanceJson: input.slot.guidance ?? null,
+                cardinality: input.slot.cardinality,
+                rulesJson: input.slot.rules ?? null,
+                templates: [...nextTemplates, ...appendedTemplates],
+              }
+            : entry,
+        );
+
+        yield* repo.replaceArtifactSlotsForWorkUnitType({
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+          slots: rewrittenSlots,
+        });
+
+        yield* repo.recordEvent({
+          methodologyVersionId: input.versionId,
+          eventType: "updated",
+          actorId,
+          changedFieldsJson: {
+            operation: "update_artifact_slot",
+            workUnitTypeKey: input.workUnitTypeKey,
+            slotId: input.slotId,
+          },
+          diagnosticsJson: null,
+        });
+
+        const diagnostics: ValidationResult = { valid: true, diagnostics: [] };
+        return {
+          version: existing,
+          diagnostics,
+        };
+      });
+
+    const deleteWorkUnitArtifactSlot = (
+      input: DeleteWorkUnitArtifactSlotInput,
+      actorId: string,
+    ): Effect.Effect<
+      UpdateDraftResult,
+      VersionNotFoundError | VersionNotDraftError | RepositoryError
+    > =>
+      Effect.gen(function* () {
+        const existing = yield* repo.findVersionById(input.versionId);
+        if (!existing) {
+          return yield* new VersionNotFoundError({ versionId: input.versionId });
+        }
+
+        yield* ensureVersionIsDraft(existing);
+
+        const existingSlots = yield* repo.findArtifactSlotsByWorkUnitType({
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+        });
+
+        const rewrittenSlots = existingSlots.filter((entry) => entry.id !== input.slotId);
+        if (rewrittenSlots.length === existingSlots.length) {
+          return yield* new RepositoryError({
+            operation: "methodology.deleteWorkUnitArtifactSlot",
+            cause: new Error(`Artifact slot '${input.slotId}' not found`),
+          });
+        }
+
+        yield* repo.replaceArtifactSlotsForWorkUnitType({
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+          slots: rewrittenSlots,
+        });
+
+        yield* repo.recordEvent({
+          methodologyVersionId: input.versionId,
+          eventType: "updated",
+          actorId,
+          changedFieldsJson: {
+            operation: "delete_artifact_slot",
+            workUnitTypeKey: input.workUnitTypeKey,
+            slotId: input.slotId,
+          },
+          diagnosticsJson: null,
+        });
+
+        const diagnostics: ValidationResult = { valid: true, diagnostics: [] };
+        return {
+          version: existing,
+          diagnostics,
+        };
+      });
 
     const replaceWorkUnitArtifactSlots = (
       input: ReplaceWorkUnitArtifactSlotsInput,
@@ -953,13 +1198,15 @@ export const MethodologyVersionServiceLive = Layer.effect(
           versionId: input.versionId,
           workUnitTypeKey: input.workUnitTypeKey,
           slots: input.slots.map((slot) => ({
+            id: slot.id ?? crypto.randomUUID(),
             key: slot.key,
             displayName: slot.displayName ?? null,
             descriptionJson: slot.description ?? null,
             guidanceJson: slot.guidance ?? null,
             cardinality: slot.cardinality,
             rulesJson: slot.rules ?? null,
-            templates: slot.templates.map((template) => ({
+            templates: (slot.templates ?? []).map((template) => ({
+              id: template.id ?? crypto.randomUUID(),
               key: template.key,
               displayName: template.displayName ?? null,
               descriptionJson: template.description ?? null,
@@ -1831,6 +2078,12 @@ export const MethodologyVersionServiceLive = Layer.effect(
       updateWorkUnitMetadata: (input, actorId) => workUnitService.updateMetadata(input, actorId),
       updateDraftLifecycle: (input, actorId) => updateDraftLifecycle(input, actorId ?? "system"),
       getWorkUnitArtifactSlots,
+      createWorkUnitArtifactSlot: (input, actorId) =>
+        createWorkUnitArtifactSlot(input, actorId ?? "system"),
+      updateWorkUnitArtifactSlot: (input, actorId) =>
+        updateWorkUnitArtifactSlot(input, actorId ?? "system"),
+      deleteWorkUnitArtifactSlot: (input, actorId) =>
+        deleteWorkUnitArtifactSlot(input, actorId ?? "system"),
       replaceWorkUnitArtifactSlots: (input, actorId) =>
         replaceWorkUnitArtifactSlots(input, actorId ?? "system"),
     });
