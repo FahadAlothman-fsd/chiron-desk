@@ -2034,71 +2034,73 @@ export function StateMachineTab({
           }
         }}
       >
-        <DialogContent className="max-w-3xl rounded-none">
-          <DialogHeader>
+        <DialogContent className="flex w-[min(48rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] flex-col overflow-hidden rounded-none p-6 sm:max-w-none sm:p-8">
+          <DialogHeader className="shrink-0">
             <DialogTitle>{groupEditor?.groupKey ? "Edit Group" : "Add Group"}</DialogTitle>
           </DialogHeader>
 
-          <div className="grid gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="transition-group-mode">Group Mode</Label>
-              <select
-                id="transition-group-mode"
-                className="h-9 rounded-none border border-input bg-background px-2 text-xs"
-                value={groupEditor?.mode ?? "all"}
-                onChange={(event) =>
-                  setGroupEditor((previous) =>
-                    previous
-                      ? {
-                          ...previous,
-                          mode: event.target.value === "any" ? "any" : "all",
-                        }
-                      : previous,
-                  )
-                }
-              >
-                <option value="all">All conditions</option>
-                <option value="any">Any condition</option>
-              </select>
-            </div>
+          <div className="min-h-0 flex-1 overflow-y-auto py-4 scrollbar-thin">
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="transition-group-mode">Group Mode</Label>
+                <select
+                  id="transition-group-mode"
+                  className="h-9 rounded-none border border-input bg-background px-2 text-xs"
+                  value={groupEditor?.mode ?? "all"}
+                  onChange={(event) =>
+                    setGroupEditor((previous) =>
+                      previous
+                        ? {
+                            ...previous,
+                            mode: event.target.value === "any" ? "any" : "all",
+                          }
+                        : previous,
+                    )
+                  }
+                >
+                  <option value="all">All conditions</option>
+                  <option value="any">Any condition</option>
+                </select>
+              </div>
 
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="rounded-none"
-                onClick={() => addGroupCondition("fact")}
-              >
-                Add Fact Condition
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="rounded-none"
-                onClick={() => addGroupCondition("work_unit")}
-              >
-                Add Work Unit Condition
-              </Button>
-            </div>
-            <div className="grid gap-3">
-              <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
-                Group Conditions
-              </p>
-              {groupEditor && groupEditor.conditions.length > 0 ? (
-                groupEditor.conditions.map((condition, index) =>
-                  renderConditionEditor(
-                    condition,
-                    (next) => updateGroupEditorCondition(index, next),
-                    `group-condition-${index}`,
-                  ),
-                )
-              ) : (
-                <p className="text-xs text-muted-foreground">No conditions added yet.</p>
-              )}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-none"
+                  onClick={() => addGroupCondition("fact")}
+                >
+                  Add Fact Condition
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-none"
+                  onClick={() => addGroupCondition("work_unit")}
+                >
+                  Add Work Unit Condition
+                </Button>
+              </div>
+              <div className="grid gap-3">
+                <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
+                  Group Conditions
+                </p>
+                {groupEditor && groupEditor.conditions.length > 0 ? (
+                  groupEditor.conditions.map((condition, index) =>
+                    renderConditionEditor(
+                      condition,
+                      (next) => updateGroupEditorCondition(index, next),
+                      `group-condition-${index}`,
+                    ),
+                  )
+                ) : (
+                  <p className="text-xs text-muted-foreground">No conditions added yet.</p>
+                )}
+              </div>
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="shrink-0">
             <Button
               type="button"
               variant="outline"
