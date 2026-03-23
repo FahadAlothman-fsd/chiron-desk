@@ -287,7 +287,7 @@ Wave 2: route + UI + integration verification (`route adapters`, `slot dialog`, 
   **References** (executor has NO interview context — be exhaustive):
   - Pattern: `docs/architecture/methodology-pages/artifact-slots-design-time.md:72` — currently key-oriented template contract rules and stacked dialog notes.
   - Pattern: `docs/architecture/modules/template-engine.md:52` — Handlebars runtime baseline should remain aligned.
-  - Pattern: `.sisyphus/drafts/artifact-slots-l2.md` — locked interview decisions to mirror accurately.
+  - Pattern: `.sisyphus/plans/finish-l2-artifact-slots.md` — this plan’s `Interview Summary`, `Must Have`, and `Must NOT Have` sections are the authoritative locked decisions to mirror accurately.
 
   **Acceptance Criteria** (agent-executable only):
   - [ ] The artifact-slot design doc states ids are canonical identity and keys are secondary metadata.
@@ -522,9 +522,25 @@ Wave 2: route + UI + integration verification (`route adapters`, `slot dialog`, 
 > **Do NOT auto-proceed after verification. Wait for user's explicit approval before marking work complete.**
 > **Never mark F1-F4 as checked before getting user's okay.** Rejection or user feedback -> fix -> re-run -> present again -> wait for okay.
 - [ ] F1. Plan Compliance Audit — oracle
+  - Tool/Agent: `task(subagent_type="oracle")`
+  - Steps: Review implemented changes against `.sisyphus/plans/finish-l2-artifact-slots.md`; verify id-first identity, no-preview scope, Handlebars+Monaco, bulk replace persistence, and task-level acceptance criteria coverage.
+  - Expected: Explicit approval that implementation matches plan decisions with no scope drift.
+  - Evidence: `.sisyphus/evidence/f1-plan-compliance.md`
 - [ ] F2. Code Quality Review — unspecified-high
+  - Tool/Agent: `task(category="unspecified-high")`
+  - Steps: Review changed files for maintainability, state-shape consistency, temp-id handling, duplicate-key validation, Monaco integration hygiene, and test clarity.
+  - Expected: Explicit approval that code is production-ready with no major correctness or maintainability issues.
+  - Evidence: `.sisyphus/evidence/f2-code-quality.md`
 - [ ] F3. Real Manual QA — unspecified-high (+ playwright if UI)
+  - Tool/Agent: `task(category="unspecified-high")` plus `playwright` if the reviewer needs browser interaction
+  - Steps: Execute the actual slot/template UI flows: create slot, edit slot key/name, add nested template, edit template content in Monaco, save, reload, verify same ids persist, then trigger a failure/discard path.
+  - Expected: Explicit approval that the shipped UX behaves correctly in the browser and matches the automated regression expectations.
+  - Evidence: `.sisyphus/evidence/f3-manual-qa.md`
 - [ ] F4. Scope Fidelity Check — deep
+  - Tool/Agent: `task(category="deep")`
+  - Steps: Audit the final diff for forbidden extras: no preview UI, no Plate, no fine-grained CRUD endpoints, no template versioning/publishing, no key-based identity regressions, no generalized framework extraction.
+  - Expected: Explicit approval that the implementation stayed inside the agreed phase-1 scope.
+  - Evidence: `.sisyphus/evidence/f4-scope-fidelity.md`
 
 ## Commit Strategy
 - Keep commits vertical and self-verifying; do not mix id-plumbing, runtime, and UI dialog work in one changeset.
