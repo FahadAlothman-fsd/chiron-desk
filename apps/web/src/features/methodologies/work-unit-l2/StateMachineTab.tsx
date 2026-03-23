@@ -337,6 +337,10 @@ export function StateMachineTab({
   const [transitionEditorTab, setTransitionEditorTab] = useState<
     "contract" | "start" | "completion" | "bindings"
   >("contract");
+  const [isContractDirty, setIsContractDirty] = useState(false);
+  const [isStartDirty, setIsStartDirty] = useState(false);
+  const [isCompletionDirty, setIsCompletionDirty] = useState(false);
+  const [isBindingsDirty, setIsBindingsDirty] = useState(false);
   const [isFromStateOpen, setIsFromStateOpen] = useState(false);
   const [isToStateOpen, setIsToStateOpen] = useState(false);
   const [isBindingsOpen, setIsBindingsOpen] = useState(false);
@@ -545,6 +549,13 @@ export function StateMachineTab({
     };
   };
 
+  const resetTransitionDirty = () => {
+    setIsContractDirty(false);
+    setIsStartDirty(false);
+    setIsCompletionDirty(false);
+    setIsBindingsDirty(false);
+  };
+
   const openCreateTransitionDialog = () => {
     setEditingTransitionKey(null);
     setTransitionEditor({
@@ -553,6 +564,7 @@ export function StateMachineTab({
       toState: statesDraft[0]?.key ?? "",
     });
     setTransitionEditorTab("contract");
+    resetTransitionDirty();
     setTransitionDialogOpen(true);
   };
 
@@ -560,6 +572,7 @@ export function StateMachineTab({
     setEditingTransitionKey(transition.transitionKey);
     setTransitionEditor(toTransitionDraft(transition));
     setTransitionEditorTab("contract");
+    resetTransitionDirty();
     setTransitionDialogOpen(true);
   };
 
@@ -615,6 +628,7 @@ export function StateMachineTab({
 
     setTransitionsDraft(nextTransitions);
     await onSaveTransitions?.(nextTransitions);
+    resetTransitionDirty();
     setTransitionDialogOpen(false);
   };
 
@@ -1015,6 +1029,12 @@ export function StateMachineTab({
       }));
     }
 
+    if (groupEditor.phase === "start") {
+      setIsStartDirty(true);
+    } else {
+      setIsCompletionDirty(true);
+    }
+
     setGroupEditor(null);
   };
 
@@ -1366,6 +1386,14 @@ export function StateMachineTab({
                   onClick={() => setTransitionEditorTab("contract")}
                 >
                   Contract
+                  {isContractDirty ? (
+                    <span
+                      data-testid="transition-contract-modified-indicator"
+                      className="ml-1 text-[0.85rem] leading-none"
+                    >
+                      *
+                    </span>
+                  ) : null}
                 </Button>
                 <Button
                   type="button"
@@ -1375,6 +1403,14 @@ export function StateMachineTab({
                   onClick={() => setTransitionEditorTab("start")}
                 >
                   Start Conditions
+                  {isStartDirty ? (
+                    <span
+                      data-testid="transition-start-modified-indicator"
+                      className="ml-1 text-[0.85rem] leading-none"
+                    >
+                      *
+                    </span>
+                  ) : null}
                 </Button>
                 <Button
                   type="button"
@@ -1384,6 +1420,14 @@ export function StateMachineTab({
                   onClick={() => setTransitionEditorTab("completion")}
                 >
                   Completion Conditions
+                  {isCompletionDirty ? (
+                    <span
+                      data-testid="transition-completion-modified-indicator"
+                      className="ml-1 text-[0.85rem] leading-none"
+                    >
+                      *
+                    </span>
+                  ) : null}
                 </Button>
                 <Button
                   type="button"
@@ -1393,6 +1437,14 @@ export function StateMachineTab({
                   onClick={() => setTransitionEditorTab("bindings")}
                 >
                   Bindings
+                  {isBindingsDirty ? (
+                    <span
+                      data-testid="transition-bindings-modified-indicator"
+                      className="ml-1 text-[0.85rem] leading-none"
+                    >
+                      *
+                    </span>
+                  ) : null}
                 </Button>
               </div>
               <div
@@ -1400,7 +1452,10 @@ export function StateMachineTab({
                 className="min-h-0 flex-1 overflow-y-auto pr-1"
               >
                 {transitionEditorTab === "contract" ? (
-                  <div className="grid grid-cols-2 gap-x-10 gap-y-6">
+                  <div
+                    className="grid grid-cols-2 gap-x-10 gap-y-6"
+                    onChangeCapture={() => setIsContractDirty(true)}
+                  >
                     <div className="col-span-2 space-y-2">
                       <Label
                         htmlFor="transition-key"
@@ -1465,6 +1520,7 @@ export function StateMachineTab({
                                       ...previous,
                                       fromState: absentFromStateValue,
                                     }));
+                                    setIsContractDirty(true);
                                     setIsFromStateOpen(false);
                                   }}
                                 >
@@ -1490,6 +1546,7 @@ export function StateMachineTab({
                                         ...previous,
                                         fromState: state.key,
                                       }));
+                                      setIsContractDirty(true);
                                       setIsFromStateOpen(false);
                                     }}
                                   >
@@ -1556,6 +1613,7 @@ export function StateMachineTab({
                                         ...previous,
                                         toState: state.key,
                                       }));
+                                      setIsContractDirty(true);
                                       setIsToStateOpen(false);
                                     }}
                                   >
@@ -1580,7 +1638,7 @@ export function StateMachineTab({
                     </div>
                   </div>
                 ) : transitionEditorTab === "start" ? (
-                  <div className="grid gap-6">
+                  <div className="grid gap-6" onChangeCapture={() => setIsStartDirty(true)}>
                     <div className="grid gap-2">
                       <Label htmlFor="transition-start-mode">Start Gate Mode</Label>
                       <select
@@ -1655,7 +1713,7 @@ export function StateMachineTab({
                     </div>
                   </div>
                 ) : transitionEditorTab === "bindings" ? (
-                  <div className="grid gap-2">
+                  <div className="grid gap-2" onChangeCapture={() => setIsBindingsDirty(true)}>
                     <Label id="transition-bind-workflows-label">Bind Workflows</Label>
                     <Popover open={isBindingsOpen} onOpenChange={setIsBindingsOpen}>
                       <PopoverTrigger
@@ -1705,6 +1763,7 @@ export function StateMachineTab({
                                           : [...previous.workflowKeys, workflow.key],
                                       };
                                     });
+                                    setIsBindingsDirty(true);
                                   }}
                                 >
                                   <div className="grid min-w-0 flex-1 gap-0.5">
@@ -1727,7 +1786,7 @@ export function StateMachineTab({
                     </Popover>
                   </div>
                 ) : (
-                  <div className="grid gap-6">
+                  <div className="grid gap-6" onChangeCapture={() => setIsCompletionDirty(true)}>
                     <div className="grid gap-2">
                       <Label htmlFor="transition-completion-mode">Completion Gate Mode</Label>
                       <select
@@ -1889,6 +1948,11 @@ export function StateMachineTab({
                     ? { ...gate, guidance: gateTextEditor.value }
                     : { ...gate, description: gateTextEditor.value },
                 );
+                if (gateTextEditor.phase === "start") {
+                  setIsStartDirty(true);
+                } else {
+                  setIsCompletionDirty(true);
+                }
                 setGateTextEditor(null);
               }}
             >

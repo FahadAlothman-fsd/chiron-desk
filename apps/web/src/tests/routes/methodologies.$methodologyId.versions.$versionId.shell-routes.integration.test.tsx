@@ -1058,11 +1058,13 @@ describe("methodology version shell routes", () => {
     fireEvent.change(screen.getByLabelText("Transition Key"), {
       target: { value: "review_to_done" },
     });
+    expect(screen.getByTestId("transition-contract-modified-indicator")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Start Conditions" }));
     expect(screen.queryByLabelText("Transition Key")).toBeNull();
     fireEvent.change(screen.getByLabelText("Start Gate Mode"), {
       target: { value: "any" },
     });
+    expect(screen.getByTestId("transition-start-modified-indicator")).toBeTruthy();
     const startConditionsScrollRegion = screen.getByTestId("transition-tab-scroll-region");
     expect(startConditionsScrollRegion.className).toContain("overflow-y-auto");
     expect(screen.getByRole("button", { name: "Edit Start Guidance" })).toBeTruthy();
@@ -1097,6 +1099,7 @@ describe("methodology version shell routes", () => {
     fireEvent.change(screen.getByLabelText("Completion Gate Mode"), {
       target: { value: "all" },
     });
+    expect(screen.getByTestId("transition-completion-modified-indicator")).toBeTruthy();
     const completionConditionsScrollRegion = screen.getByTestId("transition-tab-scroll-region");
     expect(completionConditionsScrollRegion.className).toContain("overflow-y-auto");
     expect(screen.getByRole("button", { name: "Edit Completion Guidance" })).toBeTruthy();
@@ -1107,6 +1110,7 @@ describe("methodology version shell routes", () => {
     fireEvent.click(screen.getByRole("button", { name: "Bindings" }));
     expect(screen.queryByLabelText("Transition Key")).toBeNull();
     chooseOption("Bind Workflows", "wf.intake");
+    expect(screen.getByTestId("transition-bindings-modified-indicator")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Create Transition" }));
     await waitFor(() => {
       expect(routeContext.saveStateMachineTransitionMock.mock.calls.length).toBeGreaterThan(0);
@@ -1137,6 +1141,13 @@ describe("methodology version shell routes", () => {
     expect(await screen.findByText("Edit Transition")).toBeTruthy();
     const transitionEditDialog = screen.getByRole("dialog");
     expect(transitionEditDialog.className).toContain("w-[min(72rem,calc(100vw-2rem))]");
+    expect(screen.queryByTestId("transition-contract-modified-indicator")).toBeNull();
+    expect(screen.queryByTestId("transition-start-modified-indicator")).toBeNull();
+    expect(screen.queryByTestId("transition-completion-modified-indicator")).toBeNull();
+    expect(screen.queryByTestId("transition-bindings-modified-indicator")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Contract" }));
+    chooseOption("To State", "state.review");
+    expect(screen.getByTestId("transition-contract-modified-indicator")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Start Conditions" }));
     expect(screen.getByLabelText("Start Gate Mode")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Completion Conditions" }));
@@ -1147,6 +1158,13 @@ describe("methodology version shell routes", () => {
         transitionSaveCallsAfterCreate,
       );
     });
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit Transition" })[0]!);
+    expect(await screen.findByText("Edit Transition")).toBeTruthy();
+    expect(screen.queryByTestId("transition-contract-modified-indicator")).toBeNull();
+    expect(screen.queryByTestId("transition-start-modified-indicator")).toBeNull();
+    expect(screen.queryByTestId("transition-completion-modified-indicator")).toBeNull();
+    expect(screen.queryByTestId("transition-bindings-modified-indicator")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(routeContext.updateTransitionConditionSetsMock).toHaveBeenCalledTimes(0);
   });
 
