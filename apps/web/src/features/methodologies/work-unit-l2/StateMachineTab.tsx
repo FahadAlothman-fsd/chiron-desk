@@ -337,6 +337,7 @@ export function StateMachineTab({
   const [transitionEditorTab, setTransitionEditorTab] = useState<
     "contract" | "start" | "completion" | "bindings"
   >("contract");
+  const [transitionDiscardOpen, setTransitionDiscardOpen] = useState(false);
   const [isContractDirty, setIsContractDirty] = useState(false);
   const [isStartDirty, setIsStartDirty] = useState(false);
   const [isCompletionDirty, setIsCompletionDirty] = useState(false);
@@ -564,6 +565,9 @@ export function StateMachineTab({
       toState: statesDraft[0]?.key ?? "",
     });
     setTransitionEditorTab("contract");
+    setTransitionDiscardOpen(false);
+    setGateTextEditor(null);
+    setGroupEditor(null);
     resetTransitionDirty();
     setTransitionDialogOpen(true);
   };
@@ -572,8 +576,34 @@ export function StateMachineTab({
     setEditingTransitionKey(transition.transitionKey);
     setTransitionEditor(toTransitionDraft(transition));
     setTransitionEditorTab("contract");
+    setTransitionDiscardOpen(false);
+    setGateTextEditor(null);
+    setGroupEditor(null);
     resetTransitionDirty();
     setTransitionDialogOpen(true);
+  };
+
+  const closeTransitionDialog = () => {
+    setTransitionDiscardOpen(false);
+    setTransitionDialogOpen(false);
+    setEditingTransitionKey(null);
+    setTransitionEditor(emptyTransitionDraft);
+    setTransitionEditorTab("contract");
+    setGateTextEditor(null);
+    setGroupEditor(null);
+    setIsFromStateOpen(false);
+    setIsToStateOpen(false);
+    setIsBindingsOpen(false);
+    resetTransitionDirty();
+  };
+
+  const requestCloseTransitionDialog = () => {
+    if (isContractDirty || isStartDirty || isCompletionDirty || isBindingsDirty) {
+      setTransitionDiscardOpen(true);
+      return;
+    }
+
+    closeTransitionDialog();
   };
 
   const toConditionSet = (
@@ -628,8 +658,7 @@ export function StateMachineTab({
 
     setTransitionsDraft(nextTransitions);
     await onSaveTransitions?.(nextTransitions);
-    resetTransitionDirty();
-    setTransitionDialogOpen(false);
+    closeTransitionDialog();
   };
 
   const updateGate = (phase: GatePhase, updater: (gate: GateDraft) => GateDraft) => {
@@ -1360,7 +1389,17 @@ export function StateMachineTab({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={transitionDialogOpen} onOpenChange={setTransitionDialogOpen}>
+      <Dialog
+        open={transitionDialogOpen}
+        onOpenChange={(nextOpen) => {
+          if (nextOpen) {
+            setTransitionDialogOpen(true);
+            return;
+          }
+
+          requestCloseTransitionDialog();
+        }}
+      >
         <DialogContent className="chiron-cut-frame-thick flex w-[min(72rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] flex-col overflow-hidden p-8 sm:max-w-none sm:p-10">
           <form
             className="flex min-h-0 flex-1 flex-col overflow-hidden"
@@ -1872,7 +1911,7 @@ export function StateMachineTab({
                 type="button"
                 variant="outline"
                 className="rounded-none px-6"
-                onClick={() => setTransitionDialogOpen(false)}
+                onClick={requestCloseTransitionDialog}
               >
                 Cancel
               </Button>
@@ -1892,6 +1931,31 @@ export function StateMachineTab({
           {currentTransition ? (
             <p className="sr-only">Editing {currentTransition.transitionKey}</p>
           ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={transitionDiscardOpen} onOpenChange={setTransitionDiscardOpen}>
+        <DialogContent className="max-w-md rounded-none">
+          <DialogHeader>
+            <DialogTitle>Discard unsaved changes?</DialogTitle>
+            <DialogDescription>
+              You have unsaved transition edits. Discarding now will close the dialog and lose those
+              changes.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-none"
+              onClick={() => setTransitionDiscardOpen(false)}
+            >
+              Keep Editing
+            </Button>
+            <Button type="button" className="rounded-none" onClick={closeTransitionDialog}>
+              Discard Changes
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

@@ -1164,6 +1164,41 @@ describe("methodology version shell routes", () => {
     expect(screen.queryByTestId("transition-start-modified-indicator")).toBeNull();
     expect(screen.queryByTestId("transition-completion-modified-indicator")).toBeNull();
     expect(screen.queryByTestId("transition-bindings-modified-indicator")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Start Conditions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Group" }));
+    const unsavedGroupDialog = await screen.findByRole("dialog", { name: "Add Group" });
+    fireEvent.click(within(unsavedGroupDialog).getByRole("button", { name: "Add Fact Condition" }));
+    fireEvent.click(within(unsavedGroupDialog).getByRole("button", { name: "Save Group" }));
+    expect(screen.getByTestId("transition-start-modified-indicator")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(await screen.findByText("Discard unsaved changes?")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Keep Editing" }));
+    expect(screen.queryByText("Discard unsaved changes?")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    const transitionDiscardDialog = await screen.findByRole("dialog", {
+      name: "Discard unsaved changes?",
+    });
+    fireEvent.click(
+      within(transitionDiscardDialog).getByRole("button", { name: "Discard Changes" }),
+    );
+    expect(screen.queryByText("Edit Transition")).toBeNull();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit Transition" })[0]!);
+    expect(await screen.findByText("Edit Transition")).toBeTruthy();
+    expect(screen.queryByTestId("transition-contract-modified-indicator")).toBeNull();
+    expect(screen.queryByTestId("transition-start-modified-indicator")).toBeNull();
+    expect(screen.queryByTestId("transition-completion-modified-indicator")).toBeNull();
+    expect(screen.queryByTestId("transition-bindings-modified-indicator")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Start Conditions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Group" }));
+    const reopenedGroupDialog = await screen.findByRole("dialog", { name: "Add Group" });
+    expect(within(reopenedGroupDialog).queryByTestId("group-condition-0")).toBeNull();
+    expect(within(reopenedGroupDialog).getByText("No conditions added yet.")).toBeTruthy();
+    fireEvent.click(within(reopenedGroupDialog).getByRole("button", { name: "Cancel" }));
+
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(routeContext.updateTransitionConditionSetsMock).toHaveBeenCalledTimes(0);
   });
