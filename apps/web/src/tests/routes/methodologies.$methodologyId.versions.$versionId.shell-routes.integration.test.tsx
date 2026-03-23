@@ -1476,6 +1476,125 @@ describe("methodology version shell routes", () => {
     );
   });
 
+  it("edits existing start/completion groups in place from group summaries with prefilled editor", async () => {
+    const { MethodologyVersionWorkUnitDetailsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey");
+    const routeContext = createRouteContext();
+    routeContext.listStateMachineTransitionsMock.mockResolvedValue([
+      {
+        transitionKey: "todo_to_done",
+        fromState: "todo",
+        toState: "done",
+        workflowKeys: ["wf.intake"],
+        conditionSets: [
+          {
+            key: "start_guard",
+            phase: "start",
+            mode: "all",
+            groups: [
+              {
+                key: "start.group.seeded",
+                mode: "all",
+                conditions: [
+                  {
+                    kind: "fact",
+                    required: true,
+                    config: { factKey: "fact.input_path", operator: "exists" },
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            key: "done_guard",
+            phase: "completion",
+            mode: "all",
+            groups: [
+              {
+                key: "completion.group.seeded",
+                mode: "all",
+                conditions: [
+                  {
+                    kind: "fact",
+                    required: true,
+                    config: { factKey: "fact.contract_json", operator: "exists" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ] as never);
+    useParamsMock.mockReturnValue({
+      methodologyId: "equity-core",
+      versionId: "draft-v2",
+      workUnitKey: "WU.TASK",
+    });
+    useSearchMock.mockReturnValue({ tab: "state-machine" });
+    useRouteContextMock.mockReturnValue(routeContext);
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitDetailsRoute />);
+    expect(await screen.findByText("To Do")).toBeTruthy();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit Transition" })[0]!);
+    expect(await screen.findByText("Edit Transition")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Start Conditions" }));
+    fireEvent.click(screen.getByRole("button", { name: /edit start group 1/i }));
+    const startGroupDialog = await screen.findByRole("dialog", { name: /edit group/i });
+    const startConditionRow = within(startGroupDialog).getByTestId("group-condition-0");
+    expect(within(startConditionRow).getAllByText(/fact.input_path/i).length).toBeGreaterThan(0);
+    fireEvent.change(within(startGroupDialog).getByLabelText("Group Mode"), {
+      target: { value: "any" },
+    });
+    fireEvent.click(within(startGroupDialog).getByRole("button", { name: "Save Group" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Completion Conditions" }));
+    fireEvent.click(screen.getByRole("button", { name: /edit completion group 1/i }));
+    const completionGroupDialog = await screen.findByRole("dialog", { name: /edit group/i });
+    const completionConditionRow = within(completionGroupDialog).getByTestId("group-condition-0");
+    expect(
+      within(completionConditionRow).getAllByText(/fact.contract_json/i).length,
+    ).toBeGreaterThan(0);
+    fireEvent.change(within(completionGroupDialog).getByLabelText("Group Mode"), {
+      target: { value: "any" },
+    });
+    fireEvent.click(within(completionGroupDialog).getByRole("button", { name: "Save Group" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Save Transition" }));
+    await waitFor(() => {
+      expect(routeContext.saveStateMachineTransitionMock).toHaveBeenCalledTimes(1);
+    });
+
+    const saveCalls = routeContext.saveStateMachineTransitionMock.mock.calls as unknown as Array<
+      [unknown, unknown]
+    >;
+    const savePayload = saveCalls.at(-1)?.[0] as {
+      conditionSets: Array<
+        Record<string, unknown> & { phase: string; groups: Array<Record<string, unknown>> }
+      >;
+    };
+    const startSet = savePayload.conditionSets.find((set) => set.phase === "start");
+    const completionSet = savePayload.conditionSets.find((set) => set.phase === "completion");
+
+    expect(startSet?.groups).toHaveLength(1);
+    expect(startSet?.groups[0]).toEqual(
+      expect.objectContaining({
+        key: "start.group.seeded",
+        mode: "any",
+      }),
+    );
+
+    expect(completionSet?.groups).toHaveLength(1);
+    expect(completionSet?.groups[0]).toEqual(
+      expect.objectContaining({
+        key: "completion.group.seeded",
+        mode: "any",
+      }),
+    );
+  });
+
   it("wires artifact slots tab list/replace with nested templates dialog and normalized payload", async () => {
     const { MethodologyVersionWorkUnitDetailsRoute } =
       await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey");

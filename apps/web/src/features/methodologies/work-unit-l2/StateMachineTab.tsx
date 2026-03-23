@@ -347,6 +347,7 @@ export function StateMachineTab({
   } | null>(null);
   const [groupEditor, setGroupEditor] = useState<{
     phase: GatePhase;
+    groupKey: string | null;
     mode: "all" | "any";
     conditions: TransitionCondition[];
   } | null>(null);
@@ -961,8 +962,24 @@ export function StateMachineTab({
   const openGroupEditor = (phase: GatePhase) => {
     setGroupEditor({
       phase,
+      groupKey: null,
       mode: "all",
       conditions: [],
+    });
+  };
+
+  const openGroupEditorForEdit = (phase: GatePhase, groupKey: string) => {
+    const gate = phase === "start" ? transitionEditor.startGate : transitionEditor.completionGate;
+    const group = gate.groups.find((entry) => entry.key === groupKey);
+    if (!group) {
+      return;
+    }
+
+    setGroupEditor({
+      phase,
+      groupKey,
+      mode: group.mode,
+      conditions: [...group.conditions],
     });
   };
 
@@ -971,17 +988,33 @@ export function StateMachineTab({
       return;
     }
 
-    updateGate(groupEditor.phase, (gate) => ({
-      ...gate,
-      groups: [
-        ...gate.groups,
-        {
-          key: `group.${crypto.randomUUID()}`,
-          mode: groupEditor.mode,
-          conditions: [...groupEditor.conditions],
-        },
-      ],
-    }));
+    if (groupEditor.groupKey) {
+      updateGate(groupEditor.phase, (gate) => ({
+        ...gate,
+        groups: gate.groups.map((group) =>
+          group.key === groupEditor.groupKey
+            ? {
+                ...group,
+                mode: groupEditor.mode,
+                conditions: [...groupEditor.conditions],
+              }
+            : group,
+        ),
+      }));
+    } else {
+      updateGate(groupEditor.phase, (gate) => ({
+        ...gate,
+        groups: [
+          ...gate.groups,
+          {
+            key: `group.${crypto.randomUUID()}`,
+            mode: groupEditor.mode,
+            conditions: [...groupEditor.conditions],
+          },
+        ],
+      }));
+    }
+
     setGroupEditor(null);
   };
 
@@ -1599,7 +1632,13 @@ export function StateMachineTab({
                       </p>
                       {transitionEditor.startGate.groups.length > 0 ? (
                         transitionEditor.startGate.groups.map((group, index) => (
-                          <div key={group.key} className="chiron-frame-flat p-2 text-xs">
+                          <button
+                            key={group.key}
+                            type="button"
+                            className="chiron-frame-flat w-full p-2 text-left text-xs"
+                            aria-label={`Edit Start Group ${index + 1}`}
+                            onClick={() => openGroupEditorForEdit("start", group.key)}
+                          >
                             <p className="uppercase tracking-[0.12em] text-muted-foreground">
                               Group {index + 1} ({group.mode})
                             </p>
@@ -1608,7 +1647,7 @@ export function StateMachineTab({
                                 ? group.conditions.map(summarizeCondition).join(" • ")
                                 : "No conditions in group."}
                             </p>
-                          </div>
+                          </button>
                         ))
                       ) : (
                         <p className="text-xs text-muted-foreground">No groups added yet.</p>
@@ -1740,7 +1779,13 @@ export function StateMachineTab({
                       </p>
                       {transitionEditor.completionGate.groups.length > 0 ? (
                         transitionEditor.completionGate.groups.map((group, index) => (
-                          <div key={group.key} className="chiron-frame-flat p-2 text-xs">
+                          <button
+                            key={group.key}
+                            type="button"
+                            className="chiron-frame-flat w-full p-2 text-left text-xs"
+                            aria-label={`Edit Completion Group ${index + 1}`}
+                            onClick={() => openGroupEditorForEdit("completion", group.key)}
+                          >
                             <p className="uppercase tracking-[0.12em] text-muted-foreground">
                               Group {index + 1} ({group.mode})
                             </p>
@@ -1749,7 +1794,7 @@ export function StateMachineTab({
                                 ? group.conditions.map(summarizeCondition).join(" • ")
                                 : "No conditions in group."}
                             </p>
-                          </div>
+                          </button>
                         ))
                       ) : (
                         <p className="text-xs text-muted-foreground">No groups added yet.</p>
@@ -1863,7 +1908,7 @@ export function StateMachineTab({
       >
         <DialogContent className="max-w-3xl rounded-none">
           <DialogHeader>
-            <DialogTitle>Add Group</DialogTitle>
+            <DialogTitle>{groupEditor?.groupKey ? "Edit Group" : "Add Group"}</DialogTitle>
           </DialogHeader>
 
           <div className="grid gap-4">
