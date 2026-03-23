@@ -1067,8 +1067,8 @@ describe("methodology version shell routes", () => {
     expect(startConditionsScrollRegion.className).toContain("overflow-y-auto");
     expect(screen.getByRole("button", { name: "Edit Start Guidance" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Edit Start Description" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Add Fact Condition" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Add Work Unit Condition" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Add Fact Condition" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add Work Unit Condition" })).toBeNull();
     expect(screen.getByRole("button", { name: "Add Group" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Edit Start Guidance" }));
@@ -1085,8 +1085,6 @@ describe("methodology version shell routes", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Save Description" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "Add Fact Condition" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add Work Unit Condition" }));
     fireEvent.click(screen.getByRole("button", { name: "Add Group" }));
     const groupDialog = await screen.findByRole("dialog", { name: "Add Group" });
     expect(within(groupDialog).queryByRole("button", { name: "Add Group" })).toBeNull();
@@ -1103,8 +1101,8 @@ describe("methodology version shell routes", () => {
     expect(completionConditionsScrollRegion.className).toContain("overflow-y-auto");
     expect(screen.getByRole("button", { name: "Edit Completion Guidance" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Edit Completion Description" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Add Fact Condition" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Add Work Unit Condition" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Add Fact Condition" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add Work Unit Condition" })).toBeNull();
     expect(screen.getByRole("button", { name: "Add Group" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Bindings" }));
     expect(screen.queryByLabelText("Transition Key")).toBeNull();
@@ -1152,7 +1150,7 @@ describe("methodology version shell routes", () => {
     expect(routeContext.updateTransitionConditionSetsMock).toHaveBeenCalledTimes(0);
   });
 
-  it("authors typed fact/work-unit conditions in transition dialog and saves edited configs through transition.save", async () => {
+  it("authors grouped fact/work-unit conditions in transition dialog and saves edited configs through transition.save", async () => {
     const { MethodologyVersionWorkUnitDetailsRoute } =
       await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey");
     const routeContext = createRouteContext();
@@ -1175,10 +1173,11 @@ describe("methodology version shell routes", () => {
     chooseOption("To State", "done");
 
     fireEvent.click(screen.getByRole("button", { name: "Start Conditions" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add Fact Condition" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add Work Unit Condition" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Group" }));
+    const groupDialog = await screen.findByRole("dialog", { name: "Add Group" });
+    fireEvent.click(within(groupDialog).getByRole("button", { name: "Add Fact Condition" }));
 
-    const startFactConditionRow = screen.getByTestId("start-condition-0");
+    const startFactConditionRow = within(groupDialog).getByTestId("group-condition-0");
     chooseOptionIn(startFactConditionRow, "Fact", "fact.input_path");
     fireEvent.change(within(startFactConditionRow).getByLabelText("Operator"), {
       target: { value: "equals" },
@@ -1190,7 +1189,8 @@ describe("methodology version shell routes", () => {
       0,
     );
 
-    const startWorkUnitConditionRow = screen.getByTestId("start-condition-1");
+    fireEvent.click(within(groupDialog).getByRole("button", { name: "Add Work Unit Condition" }));
+    const startWorkUnitConditionRow = within(groupDialog).getByTestId("group-condition-1");
     chooseOptionIn(startWorkUnitConditionRow, "Dependency", "link.requires");
     chooseOptionIn(startWorkUnitConditionRow, "Work Unit", "WU.TASK");
     fireEvent.change(within(startWorkUnitConditionRow).getByLabelText("Operator"), {
@@ -1201,20 +1201,21 @@ describe("methodology version shell routes", () => {
       0,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Add Group" }));
-    const groupDialog = await screen.findByRole("dialog", { name: "Add Group" });
-    fireEvent.click(within(groupDialog).getByRole("button", { name: "Add Fact Condition" }));
-    const groupedConditionRow = within(groupDialog).getByTestId("group-condition-0");
-    chooseOptionIn(groupedConditionRow, "Fact", "fact.contract_json");
-    fireEvent.change(within(groupedConditionRow).getByLabelText("Operator"), {
-      target: { value: "exists" },
-    });
     fireEvent.click(within(groupDialog).getByRole("button", { name: "Save Group" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Completion Conditions" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add Fact Condition" }));
-    const completionFactConditionRow = screen.getByTestId("completion-condition-0");
+    fireEvent.click(screen.getByRole("button", { name: "Add Group" }));
+    const completionGroupDialog = await screen.findByRole("dialog", { name: "Add Group" });
+    fireEvent.click(
+      within(completionGroupDialog).getByRole("button", { name: "Add Fact Condition" }),
+    );
+    const completionFactConditionRow =
+      within(completionGroupDialog).getByTestId("group-condition-0");
     chooseOptionIn(completionFactConditionRow, "Fact", "fact.contract_json");
+    fireEvent.change(within(completionFactConditionRow).getByLabelText("Operator"), {
+      target: { value: "exists" },
+    });
+    fireEvent.click(within(completionGroupDialog).getByRole("button", { name: "Save Group" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Bindings" }));
     chooseOption("Bind Workflows", "wf.intake");
@@ -1239,10 +1240,6 @@ describe("methodology version shell routes", () => {
                       value: "docs/input.md",
                     }),
                   }),
-                ]),
-              }),
-              expect.objectContaining({
-                conditions: expect.arrayContaining([
                   expect.objectContaining({
                     kind: "work_unit",
                     config: expect.objectContaining({
@@ -1250,17 +1247,6 @@ describe("methodology version shell routes", () => {
                       workUnitKey: "WU.TASK",
                       operator: "state_is",
                       stateKey: "done",
-                    }),
-                  }),
-                ]),
-              }),
-              expect.objectContaining({
-                conditions: expect.arrayContaining([
-                  expect.objectContaining({
-                    kind: "fact",
-                    config: expect.objectContaining({
-                      factKey: "fact.contract_json",
-                      operator: "exists",
                     }),
                   }),
                 ]),

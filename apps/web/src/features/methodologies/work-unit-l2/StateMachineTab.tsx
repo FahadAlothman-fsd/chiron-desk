@@ -57,7 +57,6 @@ type GateDraft = {
   mode: "all" | "any";
   guidance: string;
   description: string;
-  conditions: TransitionCondition[];
   groups: TransitionConditionGroup[];
 };
 
@@ -138,7 +137,6 @@ const emptyTransitionDraft: TransitionDraft = {
     mode: "all",
     guidance: "",
     description: "",
-    conditions: [],
     groups: [],
   },
   completionGate: {
@@ -146,7 +144,6 @@ const emptyTransitionDraft: TransitionDraft = {
     mode: "all",
     guidance: "",
     description: "",
-    conditions: [],
     groups: [],
   },
   workflowKeys: [],
@@ -523,7 +520,6 @@ export function StateMachineTab({
     mode: set?.mode ?? "all",
     guidance: set?.guidance ?? "",
     description: "",
-    conditions: [],
     groups: Array.isArray(set?.groups)
       ? set.groups.map((group) => ({
           key: group.key,
@@ -577,18 +573,11 @@ export function StateMachineTab({
       phase,
       mode: gate.mode,
       ...(gate.guidance.trim().length > 0 ? { guidance: gate.guidance.trim() } : {}),
-      groups: [
-        ...gate.conditions.map((condition, index) => ({
-          key: `${phase}.condition.${index + 1}`,
-          mode: "all" as const,
-          conditions: [condition],
-        })),
-        ...gate.groups.map((group, index) => ({
-          key: group.key.trim().length > 0 ? group.key.trim() : `${phase}.group.${index + 1}`,
-          mode: group.mode,
-          conditions: [...group.conditions],
-        })),
-      ],
+      groups: gate.groups.map((group, index) => ({
+        key: group.key.trim().length > 0 ? group.key.trim() : `${phase}.group.${index + 1}`,
+        mode: group.mode,
+        conditions: [...group.conditions],
+      })),
     };
   };
 
@@ -703,19 +692,6 @@ export function StateMachineTab({
       })),
     [statesDraft],
   );
-
-  const updateGateCondition = (
-    phase: GatePhase,
-    conditionIndex: number,
-    next: TransitionCondition,
-  ) => {
-    updateGate(phase, (gate) => ({
-      ...gate,
-      conditions: gate.conditions.map((condition, index) =>
-        index === conditionIndex ? next : condition,
-      ),
-    }));
-  };
 
   const updateGroupEditorCondition = (conditionIndex: number, next: TransitionCondition) => {
     setGroupEditor((previous) =>
@@ -971,23 +947,6 @@ export function StateMachineTab({
     }
 
     return condition.kind;
-  };
-
-  const addGateCondition = (phase: GatePhase, kind: "fact" | "work_unit") => {
-    updateGate(phase, (gate) => ({
-      ...gate,
-      conditions: [
-        ...gate.conditions,
-        {
-          kind,
-          required: true,
-          config:
-            kind === "fact"
-              ? { factKey: "", operator: "exists" }
-              : { dependencyKey: "", operator: "exists" },
-        },
-      ],
-    }));
   };
 
   const openGateTextEditor = (phase: GatePhase, field: "guidance" | "description") => {
@@ -1629,42 +1588,10 @@ export function StateMachineTab({
                         type="button"
                         variant="outline"
                         className="rounded-none"
-                        onClick={() => addGateCondition("start", "fact")}
-                      >
-                        Add Fact Condition
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="rounded-none"
-                        onClick={() => addGateCondition("start", "work_unit")}
-                      >
-                        Add Work Unit Condition
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="rounded-none"
                         onClick={() => openGroupEditor("start")}
                       >
                         Add Group
                       </Button>
-                    </div>
-                    <div className="grid gap-3">
-                      <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
-                        Start Conditions
-                      </p>
-                      {transitionEditor.startGate.conditions.length > 0 ? (
-                        transitionEditor.startGate.conditions.map((condition, index) =>
-                          renderConditionEditor(
-                            condition,
-                            (next) => updateGateCondition("start", index, next),
-                            `start-condition-${index}`,
-                          ),
-                        )
-                      ) : (
-                        <p className="text-xs text-muted-foreground">No conditions added yet.</p>
-                      )}
                     </div>
                     <div className="grid gap-2">
                       <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
@@ -1802,42 +1729,10 @@ export function StateMachineTab({
                         type="button"
                         variant="outline"
                         className="rounded-none"
-                        onClick={() => addGateCondition("completion", "fact")}
-                      >
-                        Add Fact Condition
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="rounded-none"
-                        onClick={() => addGateCondition("completion", "work_unit")}
-                      >
-                        Add Work Unit Condition
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="rounded-none"
                         onClick={() => openGroupEditor("completion")}
                       >
                         Add Group
                       </Button>
-                    </div>
-                    <div className="grid gap-3">
-                      <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
-                        Completion Conditions
-                      </p>
-                      {transitionEditor.completionGate.conditions.length > 0 ? (
-                        transitionEditor.completionGate.conditions.map((condition, index) =>
-                          renderConditionEditor(
-                            condition,
-                            (next) => updateGateCondition("completion", index, next),
-                            `completion-condition-${index}`,
-                          ),
-                        )
-                      ) : (
-                        <p className="text-xs text-muted-foreground">No conditions added yet.</p>
-                      )}
                     </div>
                     <div className="grid gap-2">
                       <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
