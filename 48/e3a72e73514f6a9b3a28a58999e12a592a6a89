@@ -1,0 +1,23 @@
+apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.facts.tsx
+  6be13ddb79c498a8 507,576-577,651-656,663,665-667,669-671,675,917-921,923-930,937-938,944-947,949-976,1272,1274,1295
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "48e3a72e73514f6a9b3a28a58999e12a592a6a89",
+  "prompts": {
+    "6be13ddb79c498a8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2e530b7adffe2CmIL21lmiWIO9",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 94,
+      "total_deletions": 43,
+      "accepted_lines": 90,
+      "overriden_lines": 0
+    }
+  }
+}
