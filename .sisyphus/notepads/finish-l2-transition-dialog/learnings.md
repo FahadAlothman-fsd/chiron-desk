@@ -1268,3 +1268,10 @@ interface RuntimeCondition {
 
 - Swapped `descriptionHuman`/`descriptionAgent` for a single `description` string throughout normalization, form state, mutation helpers, and optimistic updates to align with the new schema.
 - Contract tab now renders one description textarea bound to `formState.description`, keeping the dirty tracking flow intact.
+
+## Methodology facts save payload normalization (2026-03-23)
+
+- Root cause seam was the route-level dialog mapper: form values were forwarded with weak normalization (raw factType/default/key), which made payloads diverge from API/runtime expectations under edit/create permutations.
+- `formValuesToFact` now normalizes `factType` to API enum, trims `key`, converts `defaultValue` by fact type (`number`/`boolean`/`json` parsing), and only emits `allowed-values` validation when the list is non-empty (otherwise `kind: "none"`).
+- Mapping now rebuilds the fact payload from sanitized form values instead of inheriting stale optional fields from `baseFact`, preventing accidental carry-over of incompatible prior values.
+- `factToMutationInput` now trims key and re-normalizes factType before mutation submission to keep create/update payloads API-safe.

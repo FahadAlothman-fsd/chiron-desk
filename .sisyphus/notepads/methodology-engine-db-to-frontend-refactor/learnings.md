@@ -1,0 +1,1 @@
+- Methodology facts dialog now uses max-h-[90vh] and overflow-y-auto on DialogContent to allow scrolling when content exceeds viewport, matching work unit behavior.

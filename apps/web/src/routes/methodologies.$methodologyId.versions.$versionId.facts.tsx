@@ -72,13 +72,12 @@ type FactEditorFormValues = {
   description: string;
   humanMarkdown: string;
   agentMarkdown: string;
-  validationType: "none" | "path" | "allowed-values" | "json-schema";
+  validationType: "none" | "path" | "allowed-values";
   pathKind: "file" | "directory";
   trimWhitespace: boolean;
   disallowAbsolute: boolean;
   preventTraversal: boolean;
   allowedValues: string;
-  jsonSchema: string;
 };
 
 type JsonFactValueType = "string" | "number" | "boolean";
@@ -292,7 +291,8 @@ function factToFormValues(fact: FactEditorValue): FactEditorFormValues {
       }
     | undefined;
   const allowedValues = getAllowedValues(validation);
-  const validationType = getUiValidationKind(validation);
+  const uiValidationKind = getUiValidationKind(validation);
+  const validationType = uiValidationKind === "json-schema" ? "none" : uiValidationKind;
 
   return {
     displayName: fact.name ?? "",
@@ -317,9 +317,51 @@ function factToFormValues(fact: FactEditorValue): FactEditorFormValues {
     disallowAbsolute: validation?.path?.safety?.disallowAbsolute ?? true,
     preventTraversal: validation?.path?.safety?.preventTraversal ?? true,
     allowedValues: allowedValues.join("\n"),
-    jsonSchema:
-      validation?.kind === "json-schema" ? JSON.stringify(validation.schema ?? {}, null, 2) : "{}",
   };
+}
+
+function normalizeFactType(factType: FactEditorValue["factType"]): FactEditorValue["factType"] {
+  if (
+    factType === "string" ||
+    factType === "number" ||
+    factType === "boolean" ||
+    factType === "json"
+  ) {
+    return factType;
+  }
+
+  return "string";
+}
+
+function parseFactDefaultValue(
+  factType: FactEditorValue["factType"],
+  rawDefaultValue: string,
+): unknown {
+  if (rawDefaultValue.trim().length === 0) {
+    return undefined;
+  }
+
+  if (factType === "string") {
+    return rawDefaultValue;
+  }
+
+  if (factType === "number") {
+    const parsed = Number(rawDefaultValue);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
+  if (factType === "boolean") {
+    const normalized = rawDefaultValue.trim().toLowerCase();
+    if (normalized === "true") {
+      return true;
+    }
+    if (normalized === "false") {
+      return false;
+    }
+    return undefined;
+  }
+
+  return Result.try(() => JSON.parse(rawDefaultValue)).unwrapOr(undefined);
 }
 
 function formValuesToFact(
@@ -327,10 +369,22 @@ function formValuesToFact(
   baseFact: FactEditorValue,
   jsonSubKeys: readonly JsonSubKey[],
 ): FactEditorValue {
+  const factType = normalizeFactType(values.factType);
+  const key = values.factKey.trim();
+  const displayName = values.displayName.trim();
+  const description = values.description.trim();
+  const humanMarkdown = values.humanMarkdown.trim();
+  const agentMarkdown = values.agentMarkdown.trim();
+  const allowedValues = values.allowedValues
+    .split(/\r?\n/g)
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+  const defaultValue = parseFactDefaultValue(factType, values.defaultValue);
+
   const validation: FactEditorValue["validation"] =
-    values.factType === "json"
+    factType === "json"
       ? jsonSubKeysToJsonSchemaValidation(jsonSubKeys)
-      : values.factType === "string"
+      : factType === "string"
         ? values.validationType === "path"
           ? {
               kind: "path",
@@ -346,38 +400,23 @@ function formValuesToFact(
                 },
               },
             }
-          : values.validationType === "json-schema"
-            ? {
-                kind: "json-schema",
-                schemaDialect: "draft-2020-12",
-                schema: Result.try(() => JSON.parse(values.jsonSchema)).unwrapOr({}),
-              }
-            : values.validationType === "allowed-values"
-              ? createAllowedValuesValidation(
-                  values.allowedValues
-                    .split(/\r?\n/g)
-                    .map((value) => value.trim())
-                    .filter((value) => value.length > 0),
-                )
-              : { kind: "none" }
+          : values.validationType === "allowed-values" && allowedValues.length > 0
+            ? createAllowedValuesValidation(allowedValues)
+            : { kind: "none" }
         : { kind: "none" };
 
   return {
-    ...baseFact,
-    name: values.displayName,
-    key: values.factKey,
-    factType: values.factType,
-    ...(values.defaultValue.length > 0 ? { defaultValue: values.defaultValue } : {}),
-    ...(values.description.length > 0 ? { description: values.description } : {}),
-    ...(values.humanMarkdown.trim().length > 0 || values.agentMarkdown.trim().length > 0
+    ...(baseFact.__uiId ? { __uiId: baseFact.__uiId } : {}),
+    ...(displayName.length > 0 ? { name: displayName } : {}),
+    key,
+    factType,
+    ...(defaultValue !== undefined ? { defaultValue } : {}),
+    ...(description.length > 0 ? { description } : {}),
+    ...(humanMarkdown.length > 0 || agentMarkdown.length > 0
       ? {
           guidance: {
-            ...(values.humanMarkdown.trim().length > 0
-              ? { human: { short: values.humanMarkdown } }
-              : {}),
-            ...(values.agentMarkdown.trim().length > 0
-              ? { agent: { intent: values.agentMarkdown } }
-              : {}),
+            ...(humanMarkdown.length > 0 ? { human: { short: humanMarkdown } } : {}),
+            ...(agentMarkdown.length > 0 ? { agent: { intent: agentMarkdown } } : {}),
           },
         }
       : {}),
@@ -389,14 +428,16 @@ function formValuesToFact(
 }
 
 function factToMutationInput(fact: FactEditorValue) {
+  const normalizedFactType = normalizeFactType(fact.factType);
+  const trimmedKey = fact.key.trim();
   const description = fact.description?.trim();
   const humanGuidance = fact.guidance?.human?.short?.trim();
   const agentGuidance = fact.guidance?.agent?.intent?.trim();
 
   return {
     name: fact.name,
-    key: fact.key,
-    factType: fact.factType,
+    key: trimmedKey,
+    factType: normalizedFactType,
     defaultValue: fact.defaultValue,
     ...(description ? { description } : {}),
     guidance:
@@ -463,7 +504,7 @@ function FactEditorDialog({
         requestClose();
       }}
     >
-      <DialogContent className="chiron-cut-frame-thick w-[min(72rem,calc(100vw-2rem))] p-8 sm:max-w-none sm:p-10">
+      <DialogContent className="chiron-cut-frame-thick max-h-[90vh] w-[min(72rem,calc(100vw-2rem))] overflow-y-auto p-8 sm:max-w-none sm:p-10">
         <form
           className="flex flex-col gap-12"
           onChangeCapture={() => {
@@ -651,7 +692,6 @@ function FactEditorDialog({
                                   <SelectItem value="none">none</SelectItem>
                                   <SelectItem value="path">path</SelectItem>
                                   <SelectItem value="allowed-values">allowed-values</SelectItem>
-                                  <SelectItem value="json-schema">json-schema</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
@@ -767,26 +807,6 @@ function FactEditorDialog({
                                         .map((value) => value.trim())
                                         .filter((value) => value.length > 0)}
                                       onChange={(values) => field.handleChange(values.join("\n"))}
-                                    />
-                                  </div>
-                                )}
-                              </form.Field>
-                            ) : validationType === "json-schema" ? (
-                              <form.Field name="jsonSchema">
-                                {(field) => (
-                                  <div className="space-y-2">
-                                    <Label
-                                      htmlFor={field.name}
-                                      className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
-                                    >
-                                      JSON Schema
-                                    </Label>
-                                    <Textarea
-                                      id={field.name}
-                                      className="min-h-[10rem] resize-none rounded-none border-border/70 bg-background/50 p-3 text-xs tracking-[0.04em] placeholder:text-muted-foreground/50"
-                                      value={field.state.value}
-                                      onBlur={field.handleBlur}
-                                      onChange={(e) => field.handleChange(e.target.value)}
                                     />
                                   </div>
                                 )}
