@@ -1,0 +1,23 @@
+docs/plans/2026-03-23-chiron-mcp-complete-design.md
+  ab496f2446cafb66 1-1394
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "b6038a5e1cf48cc612b1f7c3f46e882c189bcd4c",
+  "prompts": {
+    "ab496f2446cafb66": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2f2e41d82ffe74A0OMIk5FYqhh",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 1394,
+      "total_deletions": 0,
+      "accepted_lines": 1394,
+      "overriden_lines": 0
+    }
+  }
+}
