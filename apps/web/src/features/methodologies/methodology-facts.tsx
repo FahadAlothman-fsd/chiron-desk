@@ -3,6 +3,7 @@ import {
   BracesIcon,
   EllipsisIcon,
   FileCode2Icon,
+  ListIcon,
   ScrollTextIcon,
   ShieldCheckIcon,
 } from "lucide-react";
@@ -24,6 +25,7 @@ import {
   serializeFacts,
   type FactEditorValue,
 } from "./version-workspace";
+import { getAllowedValues, getUiValidationKind } from "./fact-validation";
 
 export type MethodologyFactRow = {
   id: string;
@@ -33,7 +35,7 @@ export type MethodologyFactRow = {
   defaultValueLabel: string;
   guidanceLabel: string;
   validationLabel: string;
-  validationKind: "none" | "path" | "json-schema";
+  validationKind: "none" | "path" | "allowed-values" | "json-schema";
   hasGuidance: boolean;
 };
 
@@ -77,6 +79,8 @@ function createFactInventoryColumns({
         <div className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
           {row.original.validationKind === "path" ? (
             <FileCode2Icon className="size-3.5" aria-hidden="true" />
+          ) : row.original.validationKind === "allowed-values" ? (
+            <ListIcon className="size-3.5" aria-hidden="true" />
           ) : row.original.validationKind === "json-schema" ? (
             <BracesIcon className="size-3.5" aria-hidden="true" />
           ) : (
@@ -205,12 +209,21 @@ function summarizeGuidance(fact: FactEditorValue): string {
 }
 
 function summarizeValidation(fact: FactEditorValue): string {
-  const kind = fact.validation?.kind ?? "none";
-  if (kind === "path") {
+  const uiKind = getUiValidationKind(fact.validation);
+
+  if (uiKind === "path") {
     return `Path ${fact.validation?.kind === "path" ? fact.validation.path.pathKind : "file"}`;
   }
 
-  if (kind === "json-schema") {
+  if (uiKind === "allowed-values") {
+    const values = getAllowedValues(fact.validation);
+    if (values.length > 0) {
+      return `Allowed values (${values.length})`;
+    }
+    return "Allowed values";
+  }
+
+  if (uiKind === "json-schema") {
     return "JSON schema";
   }
 
@@ -226,7 +239,7 @@ export function buildMethodologyFactRows(facts: readonly FactEditorValue[]): Met
     defaultValueLabel: summarizeDefaultValue(fact),
     guidanceLabel: summarizeGuidance(fact),
     validationLabel: summarizeValidation(fact),
-    validationKind: fact.validation?.kind ?? "none",
+    validationKind: getUiValidationKind(fact.validation),
     hasGuidance: summarizeGuidance(fact) !== "-",
   }));
 }
