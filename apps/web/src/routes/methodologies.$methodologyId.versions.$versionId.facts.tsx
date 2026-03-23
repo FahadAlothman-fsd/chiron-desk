@@ -504,7 +504,7 @@ function FactEditorDialog({
         requestClose();
       }}
     >
-      <DialogContent className="chiron-cut-frame-thick max-h-[90vh] w-[min(72rem,calc(100vw-2rem))] overflow-y-auto p-8 sm:max-w-none sm:p-10">
+      <DialogContent className="chiron-cut-frame-thick w-[min(72rem,calc(100vw-2rem))] p-8 sm:max-w-none sm:p-10">
         <form
           className="flex flex-col gap-12"
           onChangeCapture={() => {
@@ -573,408 +573,423 @@ function FactEditorDialog({
               </div>
             </DialogHeader>
 
-            {activeTab === "contract" ? (
-              <div className="grid grid-cols-2 gap-x-10 gap-y-6">
-                <form.Field name="displayName">
-                  {(field) => (
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor={field.name}
-                        className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
-                      >
-                        Display Name
-                      </Label>
-                      <Input
-                        id={field.name}
-                        className="rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em] placeholder:text-muted-foreground/50"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                      />
-                    </div>
-                  )}
-                </form.Field>
-                <form.Field name="factKey">
-                  {(field) => (
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor={field.name}
-                        className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
-                      >
-                        Fact Key
-                      </Label>
-                      <Input
-                        id={field.name}
-                        className="rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em] placeholder:text-muted-foreground/50"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                      />
-                      {field.state.value.trim().length === 0 ? (
-                        <p
-                          data-testid="fact-key-required-message"
-                          className="text-[10px] uppercase tracking-[0.12em] text-destructive"
+            <div className="max-h-[calc(90vh-16rem)] overflow-y-auto pr-2 scrollbar-thin">
+              {activeTab === "contract" ? (
+                <div className="grid grid-cols-2 gap-x-10 gap-y-6">
+                  <form.Field name="displayName">
+                    {(field) => (
+                      <div className="space-y-2">
+                        <Label
+                          htmlFor={field.name}
+                          className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
                         >
-                          Fact key is required to save.
-                        </p>
-                      ) : null}
-                    </div>
-                  )}
-                </form.Field>
-                <form.Field name="factType">
-                  {(field) => (
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor={field.name}
-                        className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
-                      >
-                        Fact Type
-                      </Label>
-                      <Select
-                        value={field.state.value}
-                        onValueChange={(v) => field.handleChange(v as FactEditorValue["factType"])}
-                      >
-                        <SelectTrigger className="h-9 rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]">
-                          <SelectValue placeholder="Select type" />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-none border-border/70 bg-background text-xs">
-                          <SelectItem value="string">string</SelectItem>
-                          <SelectItem value="number">number</SelectItem>
-                          <SelectItem value="boolean">boolean</SelectItem>
-                          <SelectItem value="json">json</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                </form.Field>
-                <form.Field name="defaultValue">
-                  {(field) => (
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor={field.name}
-                        className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
-                      >
-                        Default Value
-                      </Label>
-                      <Input
-                        id={field.name}
-                        className="rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em] placeholder:text-muted-foreground/50"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                      />
-                    </div>
-                  )}
-                </form.Field>
-                <form.Subscribe selector={(state) => state.values.factType}>
-                  {(factType) =>
-                    factType === "string" ? (
-                      <div className="col-span-2 space-y-6">
-                        <form.Field name="validationType">
+                          Display Name
+                        </Label>
+                        <Input
+                          id={field.name}
+                          className="rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em] placeholder:text-muted-foreground/50"
+                          value={field.state.value}
+                          onBlur={field.handleBlur}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                        />
+                      </div>
+                    )}
+                  </form.Field>
+                  <form.Field name="factKey">
+                    {(field) => (
+                      <div className="space-y-2">
+                        <Label
+                          htmlFor={field.name}
+                          className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                        >
+                          Fact Key
+                        </Label>
+                        <Input
+                          id={field.name}
+                          className="rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em] placeholder:text-muted-foreground/50"
+                          value={field.state.value}
+                          onBlur={field.handleBlur}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                        />
+                        {field.state.value.trim().length === 0 ? (
+                          <p
+                            data-testid="fact-key-required-message"
+                            className="text-[10px] uppercase tracking-[0.12em] text-destructive"
+                          >
+                            Fact key is required to save.
+                          </p>
+                        ) : null}
+                      </div>
+                    )}
+                  </form.Field>
+                  <form.Field name="factType">
+                    {(field) => (
+                      <div className="space-y-2">
+                        <Label
+                          htmlFor={field.name}
+                          className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                        >
+                          Fact Type
+                        </Label>
+                        <Select
+                          value={field.state.value}
+                          onValueChange={(v) =>
+                            field.handleChange(v as FactEditorValue["factType"])
+                          }
+                        >
+                          <SelectTrigger className="h-9 rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]">
+                            <SelectValue placeholder="Select type" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-none border-border/70 bg-background text-xs">
+                            <SelectItem value="string">string</SelectItem>
+                            <SelectItem value="number">number</SelectItem>
+                            <SelectItem value="boolean">boolean</SelectItem>
+                            <SelectItem value="json">json</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </form.Field>
+                  <form.Subscribe selector={(state) => state.values.factType}>
+                    {(factType) =>
+                      factType !== "json" ? (
+                        <form.Field name="defaultValue">
                           {(field) => (
                             <div className="space-y-2">
                               <Label
                                 htmlFor={field.name}
                                 className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
                               >
-                                Validation Type
+                                Default Value
                               </Label>
-                              <Select
+                              <Input
+                                id={field.name}
+                                className="rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em] placeholder:text-muted-foreground/50"
                                 value={field.state.value}
-                                onValueChange={(v) =>
-                                  field.handleChange(v as FactEditorFormValues["validationType"])
-                                }
-                              >
-                                <SelectTrigger className="h-9 rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]">
-                                  <SelectValue placeholder="Select validation" />
-                                </SelectTrigger>
-                                <SelectContent className="rounded-none border-border/70 bg-background text-xs">
-                                  <SelectItem value="none">none</SelectItem>
-                                  <SelectItem value="path">path</SelectItem>
-                                  <SelectItem value="allowed-values">allowed-values</SelectItem>
-                                </SelectContent>
-                              </Select>
+                                onBlur={field.handleBlur}
+                                onChange={(e) => field.handleChange(e.target.value)}
+                              />
                             </div>
                           )}
                         </form.Field>
+                      ) : null
+                    }
+                  </form.Subscribe>
+                  <form.Subscribe selector={(state) => state.values.factType}>
+                    {(factType) =>
+                      factType === "string" ? (
+                        <div className="col-span-2 space-y-6">
+                          <form.Field name="validationType">
+                            {(field) => (
+                              <div className="space-y-2">
+                                <Label
+                                  htmlFor={field.name}
+                                  className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                                >
+                                  Validation Type
+                                </Label>
+                                <Select
+                                  value={field.state.value}
+                                  onValueChange={(v) =>
+                                    field.handleChange(v as FactEditorFormValues["validationType"])
+                                  }
+                                >
+                                  <SelectTrigger className="h-9 rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]">
+                                    <SelectValue placeholder="Select validation" />
+                                  </SelectTrigger>
+                                  <SelectContent className="rounded-none border-border/70 bg-background text-xs">
+                                    <SelectItem value="none">none</SelectItem>
+                                    <SelectItem value="path">path</SelectItem>
+                                    <SelectItem value="allowed-values">allowed-values</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
+                          </form.Field>
 
-                        <form.Subscribe selector={(state) => state.values.validationType}>
-                          {(validationType) =>
-                            validationType === "path" ? (
-                              <Card
-                                frame="flat"
-                                tone="contracts"
-                                className="rounded-none border-0 bg-background/30 p-4 shadow-none"
-                              >
-                                <div className="grid gap-6">
-                                  <form.Field name="pathKind">
-                                    {(field) => (
+                          <form.Subscribe selector={(state) => state.values.validationType}>
+                            {(validationType) =>
+                              validationType === "path" ? (
+                                <Card
+                                  frame="flat"
+                                  tone="contracts"
+                                  className="rounded-none border-0 bg-background/30 p-4 shadow-none"
+                                >
+                                  <div className="grid gap-6">
+                                    <form.Field name="pathKind">
+                                      {(field) => (
+                                        <div className="space-y-2">
+                                          <Label
+                                            htmlFor={field.name}
+                                            className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                                          >
+                                            Path Kind
+                                          </Label>
+                                          <Select
+                                            value={field.state.value}
+                                            onValueChange={(v) =>
+                                              field.handleChange(v as "file" | "directory")
+                                            }
+                                          >
+                                            <SelectTrigger className="h-9 rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]">
+                                              <SelectValue placeholder="Select kind" />
+                                            </SelectTrigger>
+                                            <SelectContent className="rounded-none border-border/70 bg-background text-xs">
+                                              <SelectItem value="file">file</SelectItem>
+                                              <SelectItem value="directory">directory</SelectItem>
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
+                                      )}
+                                    </form.Field>
+                                    <div className="flex flex-wrap gap-x-8 gap-y-4">
+                                      <form.Field name="trimWhitespace">
+                                        {(field) => (
+                                          <div className="flex items-center gap-2">
+                                            <Checkbox
+                                              id={field.name}
+                                              checked={field.state.value}
+                                              onCheckedChange={(checked) =>
+                                                field.handleChange(checked === true)
+                                              }
+                                            />
+                                            <Label
+                                              htmlFor={field.name}
+                                              className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground"
+                                            >
+                                              Trim Whitespace
+                                            </Label>
+                                          </div>
+                                        )}
+                                      </form.Field>
+                                      <form.Field name="disallowAbsolute">
+                                        {(field) => (
+                                          <div className="flex items-center gap-2">
+                                            <Checkbox
+                                              id={field.name}
+                                              checked={field.state.value}
+                                              onCheckedChange={(checked) =>
+                                                field.handleChange(checked === true)
+                                              }
+                                            />
+                                            <Label
+                                              htmlFor={field.name}
+                                              className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground"
+                                            >
+                                              Disallow Absolute
+                                            </Label>
+                                          </div>
+                                        )}
+                                      </form.Field>
+                                      <form.Field name="preventTraversal">
+                                        {(field) => (
+                                          <div className="flex items-center gap-2">
+                                            <Checkbox
+                                              id={field.name}
+                                              checked={field.state.value}
+                                              onCheckedChange={(checked) =>
+                                                field.handleChange(checked === true)
+                                              }
+                                            />
+                                            <Label
+                                              htmlFor={field.name}
+                                              className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground"
+                                            >
+                                              Prevent Traversal
+                                            </Label>
+                                          </div>
+                                        )}
+                                      </form.Field>
+                                    </div>
+                                  </div>
+                                </Card>
+                              ) : validationType === "allowed-values" ? (
+                                <form.Field name="allowedValues">
+                                  {(field) => (
+                                    <div className="space-y-2">
+                                      <Label className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                                        Allowed Values
+                                      </Label>
+                                      <AllowedValuesChipEditor
+                                        values={field.state.value
+                                          .split(/\r?\n/g)
+                                          .map((value) => value.trim())
+                                          .filter((value) => value.length > 0)}
+                                        onChange={(values) => field.handleChange(values.join("\n"))}
+                                      />
+                                    </div>
+                                  )}
+                                </form.Field>
+                              ) : null
+                            }
+                          </form.Subscribe>
+                        </div>
+                      ) : factType === "json" ? (
+                        <div className="col-span-2 space-y-4">
+                          <div className="flex items-center justify-between">
+                            <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                              JSON Sub-schema Keys
+                            </p>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="rounded-none px-3"
+                              onClick={() => {
+                                setIsContractTabDirty(true);
+                                setJsonSubKeys((current) => [
+                                  ...current,
+                                  createEmptyJsonSubKey(current),
+                                ]);
+                              }}
+                            >
+                              Add JSON Key
+                            </Button>
+                          </div>
+
+                          {jsonSubKeys.length === 0 ? (
+                            <p className="text-xs text-muted-foreground">
+                              No keys defined yet. Add at least one key to author the JSON fact
+                              schema.
+                            </p>
+                          ) : (
+                            <div className="space-y-4">
+                              {jsonSubKeys.map((entry, index) => (
+                                <Card
+                                  key={entry.id}
+                                  frame="flat"
+                                  tone="contracts"
+                                  className="rounded-none border-0 bg-background/30 p-4 shadow-none"
+                                >
+                                  <div className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-x-6 gap-y-4">
                                       <div className="space-y-2">
                                         <Label
-                                          htmlFor={field.name}
+                                          htmlFor={`json-subkey-display-${entry.id}`}
                                           className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
                                         >
-                                          Path Kind
+                                          Key Display Name
                                         </Label>
-                                        <Select
-                                          value={field.state.value}
-                                          onValueChange={(v) =>
-                                            field.handleChange(v as "file" | "directory")
-                                          }
-                                        >
-                                          <SelectTrigger className="h-9 rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]">
-                                            <SelectValue placeholder="Select kind" />
-                                          </SelectTrigger>
-                                          <SelectContent className="rounded-none border-border/70 bg-background text-xs">
-                                            <SelectItem value="file">file</SelectItem>
-                                            <SelectItem value="directory">directory</SelectItem>
-                                          </SelectContent>
-                                        </Select>
+                                        <Input
+                                          id={`json-subkey-display-${entry.id}`}
+                                          className="rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]"
+                                          value={entry.displayName}
+                                          onChange={(event) => {
+                                            setIsContractTabDirty(true);
+                                            setJsonSubKeys((current) =>
+                                              current.map((currentEntry, currentIndex) =>
+                                                currentIndex === index
+                                                  ? {
+                                                      ...currentEntry,
+                                                      displayName: event.target.value,
+                                                    }
+                                                  : currentEntry,
+                                              ),
+                                            );
+                                          }}
+                                        />
                                       </div>
-                                    )}
-                                  </form.Field>
-                                  <div className="flex flex-wrap gap-x-8 gap-y-4">
-                                    <form.Field name="trimWhitespace">
-                                      {(field) => (
-                                        <div className="flex items-center gap-2">
-                                          <Checkbox
-                                            id={field.name}
-                                            checked={field.state.value}
-                                            onCheckedChange={(checked) =>
-                                              field.handleChange(checked === true)
-                                            }
-                                          />
-                                          <Label
-                                            htmlFor={field.name}
-                                            className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground"
-                                          >
-                                            Trim Whitespace
-                                          </Label>
-                                        </div>
-                                      )}
-                                    </form.Field>
-                                    <form.Field name="disallowAbsolute">
-                                      {(field) => (
-                                        <div className="flex items-center gap-2">
-                                          <Checkbox
-                                            id={field.name}
-                                            checked={field.state.value}
-                                            onCheckedChange={(checked) =>
-                                              field.handleChange(checked === true)
-                                            }
-                                          />
-                                          <Label
-                                            htmlFor={field.name}
-                                            className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground"
-                                          >
-                                            Disallow Absolute
-                                          </Label>
-                                        </div>
-                                      )}
-                                    </form.Field>
-                                    <form.Field name="preventTraversal">
-                                      {(field) => (
-                                        <div className="flex items-center gap-2">
-                                          <Checkbox
-                                            id={field.name}
-                                            checked={field.state.value}
-                                            onCheckedChange={(checked) =>
-                                              field.handleChange(checked === true)
-                                            }
-                                          />
-                                          <Label
-                                            htmlFor={field.name}
-                                            className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground"
-                                          >
-                                            Prevent Traversal
-                                          </Label>
-                                        </div>
-                                      )}
-                                    </form.Field>
-                                  </div>
-                                </div>
-                              </Card>
-                            ) : validationType === "allowed-values" ? (
-                              <form.Field name="allowedValues">
-                                {(field) => (
-                                  <div className="space-y-2">
-                                    <Label className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                                      Allowed Values
-                                    </Label>
-                                    <AllowedValuesChipEditor
-                                      values={field.state.value
-                                        .split(/\r?\n/g)
-                                        .map((value) => value.trim())
-                                        .filter((value) => value.length > 0)}
-                                      onChange={(values) => field.handleChange(values.join("\n"))}
-                                    />
-                                  </div>
-                                )}
-                              </form.Field>
-                            ) : null
-                          }
-                        </form.Subscribe>
-                      </div>
-                    ) : factType === "json" ? (
-                      <div className="col-span-2 space-y-4">
-                        <div className="flex items-center justify-between">
-                          <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                            JSON Sub-schema Keys
-                          </p>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="rounded-none px-3"
-                            onClick={() => {
-                              setIsContractTabDirty(true);
-                              setJsonSubKeys((current) => [
-                                ...current,
-                                createEmptyJsonSubKey(current),
-                              ]);
-                            }}
-                          >
-                            Add JSON Key
-                          </Button>
-                        </div>
-
-                        {jsonSubKeys.length === 0 ? (
-                          <p className="text-xs text-muted-foreground">
-                            No keys defined yet. Add at least one key to author the JSON fact
-                            schema.
-                          </p>
-                        ) : (
-                          <div className="space-y-4">
-                            {jsonSubKeys.map((entry, index) => (
-                              <Card
-                                key={entry.id}
-                                frame="flat"
-                                tone="contracts"
-                                className="rounded-none border-0 bg-background/30 p-4 shadow-none"
-                              >
-                                <div className="space-y-4">
-                                  <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-                                    <div className="space-y-2">
-                                      <Label
-                                        htmlFor={`json-subkey-display-${entry.id}`}
-                                        className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
-                                      >
-                                        Key Display Name
-                                      </Label>
-                                      <Input
-                                        id={`json-subkey-display-${entry.id}`}
-                                        className="rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]"
-                                        value={entry.displayName}
-                                        onChange={(event) => {
-                                          setIsContractTabDirty(true);
-                                          setJsonSubKeys((current) =>
-                                            current.map((currentEntry, currentIndex) =>
-                                              currentIndex === index
-                                                ? {
-                                                    ...currentEntry,
-                                                    displayName: event.target.value,
-                                                  }
-                                                : currentEntry,
-                                            ),
-                                          );
-                                        }}
-                                      />
-                                    </div>
-                                    <div className="space-y-2">
-                                      <Label
-                                        htmlFor={`json-subkey-key-${entry.id}`}
-                                        className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
-                                      >
-                                        Key Name
-                                      </Label>
-                                      <Input
-                                        id={`json-subkey-key-${entry.id}`}
-                                        className="rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]"
-                                        value={entry.key}
-                                        onChange={(event) => {
-                                          setIsContractTabDirty(true);
-                                          setJsonSubKeys((current) =>
-                                            current.map((currentEntry, currentIndex) =>
-                                              currentIndex === index
-                                                ? { ...currentEntry, key: event.target.value }
-                                                : currentEntry,
-                                            ),
-                                          );
-                                        }}
-                                      />
-                                    </div>
-                                    <div className="space-y-2">
-                                      <Label
-                                        htmlFor={`json-subkey-value-${entry.id}`}
-                                        className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
-                                      >
-                                        Key Value
-                                      </Label>
-                                      <Input
-                                        id={`json-subkey-value-${entry.id}`}
-                                        className="rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]"
-                                        value={entry.value}
-                                        onChange={(event) => {
-                                          setIsContractTabDirty(true);
-                                          setJsonSubKeys((current) =>
-                                            current.map((currentEntry, currentIndex) =>
-                                              currentIndex === index
-                                                ? { ...currentEntry, value: event.target.value }
-                                                : currentEntry,
-                                            ),
-                                          );
-                                        }}
-                                      />
-                                    </div>
-                                    <div className="space-y-2">
-                                      <Label
-                                        htmlFor={`json-subkey-type-${entry.id}`}
-                                        className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
-                                      >
-                                        Value Type
-                                      </Label>
-                                      <Select
-                                        value={entry.valueType}
-                                        onValueChange={(value) => {
-                                          setIsContractTabDirty(true);
-                                          setJsonSubKeys((current) =>
-                                            current.map((currentEntry, currentIndex) =>
-                                              currentIndex === index
-                                                ? {
-                                                    ...currentEntry,
-                                                    valueType: value as JsonFactValueType,
-                                                    validationType:
-                                                      value === "string"
-                                                        ? currentEntry.validationType
-                                                        : "none",
-                                                  }
-                                                : currentEntry,
-                                            ),
-                                          );
-                                        }}
-                                      >
-                                        <SelectTrigger
-                                          id={`json-subkey-type-${entry.id}`}
-                                          className="h-9 rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]"
-                                        >
-                                          <SelectValue placeholder="Select type" />
-                                        </SelectTrigger>
-                                        <SelectContent className="rounded-none border-border/70 bg-background text-xs">
-                                          <SelectItem value="string">string</SelectItem>
-                                          <SelectItem value="number">number</SelectItem>
-                                          <SelectItem value="boolean">boolean</SelectItem>
-                                        </SelectContent>
-                                      </Select>
-                                    </div>
-                                  </div>
-
-                                  {entry.valueType === "string" ? (
-                                    <div className="space-y-4 border border-border/70 p-3">
                                       <div className="space-y-2">
-                                        <Label className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                                          Value Validation Type
+                                        <Label
+                                          htmlFor={`json-subkey-key-${entry.id}`}
+                                          className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                                        >
+                                          Key Name
+                                        </Label>
+                                        <Input
+                                          id={`json-subkey-key-${entry.id}`}
+                                          className="rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]"
+                                          value={entry.key}
+                                          onChange={(event) => {
+                                            setIsContractTabDirty(true);
+                                            setJsonSubKeys((current) =>
+                                              current.map((currentEntry, currentIndex) =>
+                                                currentIndex === index
+                                                  ? { ...currentEntry, key: event.target.value }
+                                                  : currentEntry,
+                                              ),
+                                            );
+                                          }}
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label
+                                          htmlFor={`json-subkey-value-${entry.id}`}
+                                          className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                                        >
+                                          {entry.valueType === "boolean"
+                                            ? "Default Value"
+                                            : entry.valueType === "number"
+                                              ? "Default Value"
+                                              : "Default Value"}
+                                        </Label>
+                                        {entry.valueType === "boolean" ? (
+                                          <div className="flex items-center gap-3">
+                                            <Checkbox
+                                              id={`json-subkey-value-${entry.id}`}
+                                              checked={entry.value === "true"}
+                                              onCheckedChange={(checked) => {
+                                                setIsContractTabDirty(true);
+                                                setJsonSubKeys((current) =>
+                                                  current.map((currentEntry, currentIndex) =>
+                                                    currentIndex === index
+                                                      ? {
+                                                          ...currentEntry,
+                                                          value:
+                                                            checked === true ? "true" : "false",
+                                                        }
+                                                      : currentEntry,
+                                                  ),
+                                                );
+                                              }}
+                                            />
+                                            <span className="text-xs text-muted-foreground">
+                                              {entry.value === "true" ? "true" : "false"}
+                                            </span>
+                                          </div>
+                                        ) : entry.valueType === "number" ? (
+                                          <Input
+                                            id={`json-subkey-value-${entry.id}`}
+                                            type="number"
+                                            className="rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]"
+                                            value={entry.value}
+                                            onChange={(event) => {
+                                              setIsContractTabDirty(true);
+                                              setJsonSubKeys((current) =>
+                                                current.map((currentEntry, currentIndex) =>
+                                                  currentIndex === index
+                                                    ? { ...currentEntry, value: event.target.value }
+                                                    : currentEntry,
+                                                ),
+                                              );
+                                            }}
+                                          />
+                                        ) : (
+                                          <Input
+                                            id={`json-subkey-value-${entry.id}`}
+                                            className="rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]"
+                                            value={entry.value}
+                                            onChange={(event) => {
+                                              setIsContractTabDirty(true);
+                                              setJsonSubKeys((current) =>
+                                                current.map((currentEntry, currentIndex) =>
+                                                  currentIndex === index
+                                                    ? { ...currentEntry, value: event.target.value }
+                                                    : currentEntry,
+                                                ),
+                                              );
+                                            }}
+                                          />
+                                        )}
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label
+                                          htmlFor={`json-subkey-type-${entry.id}`}
+                                          className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                                        >
+                                          Value Type
                                         </Label>
                                         <Select
-                                          value={entry.validationType}
+                                          value={entry.valueType}
                                           onValueChange={(value) => {
                                             setIsContractTabDirty(true);
                                             setJsonSubKeys((current) =>
@@ -982,266 +997,310 @@ function FactEditorDialog({
                                                 currentIndex === index
                                                   ? {
                                                       ...currentEntry,
+                                                      valueType: value as JsonFactValueType,
                                                       validationType:
-                                                        value as JsonSubKey["validationType"],
+                                                        value === "string"
+                                                          ? currentEntry.validationType
+                                                          : "none",
                                                     }
                                                   : currentEntry,
                                               ),
                                             );
                                           }}
                                         >
-                                          <SelectTrigger className="h-9 rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]">
-                                            <SelectValue placeholder="Select validation" />
+                                          <SelectTrigger
+                                            id={`json-subkey-type-${entry.id}`}
+                                            className="h-9 rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]"
+                                          >
+                                            <SelectValue placeholder="Select type" />
                                           </SelectTrigger>
                                           <SelectContent className="rounded-none border-border/70 bg-background text-xs">
-                                            <SelectItem value="none">none</SelectItem>
-                                            <SelectItem value="path">path</SelectItem>
-                                            <SelectItem value="allowed-values">
-                                              allowed-values
-                                            </SelectItem>
+                                            <SelectItem value="string">string</SelectItem>
+                                            <SelectItem value="number">number</SelectItem>
+                                            <SelectItem value="boolean">boolean</SelectItem>
                                           </SelectContent>
                                         </Select>
                                       </div>
+                                    </div>
 
-                                      {entry.validationType === "path" ? (
-                                        <div className="space-y-3">
-                                          <div className="space-y-2">
-                                            <Label className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                                              Path Kind
-                                            </Label>
-                                            <Select
-                                              value={entry.pathKind}
-                                              onValueChange={(value) => {
-                                                setIsContractTabDirty(true);
-                                                setJsonSubKeys((current) =>
-                                                  current.map((currentEntry, currentIndex) =>
-                                                    currentIndex === index
-                                                      ? {
-                                                          ...currentEntry,
-                                                          pathKind: value as "file" | "directory",
-                                                        }
-                                                      : currentEntry,
-                                                  ),
-                                                );
-                                              }}
-                                            >
-                                              <SelectTrigger className="h-9 rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]">
-                                                <SelectValue placeholder="Select path kind" />
-                                              </SelectTrigger>
-                                              <SelectContent className="rounded-none border-border/70 bg-background text-xs">
-                                                <SelectItem value="file">file</SelectItem>
-                                                <SelectItem value="directory">directory</SelectItem>
-                                              </SelectContent>
-                                            </Select>
-                                          </div>
-                                          <div className="flex flex-wrap gap-x-6 gap-y-3">
-                                            <div className="flex items-center gap-2">
-                                              <Checkbox
-                                                checked={entry.trimWhitespace}
-                                                onCheckedChange={(checked) => {
-                                                  setIsContractTabDirty(true);
-                                                  setJsonSubKeys((current) =>
-                                                    current.map((currentEntry, currentIndex) =>
-                                                      currentIndex === index
-                                                        ? {
-                                                            ...currentEntry,
-                                                            trimWhitespace: checked === true,
-                                                          }
-                                                        : currentEntry,
-                                                    ),
-                                                  );
-                                                }}
-                                              />
-                                              <Label className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                                                Trim Whitespace
-                                              </Label>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                              <Checkbox
-                                                checked={entry.disallowAbsolute}
-                                                onCheckedChange={(checked) => {
-                                                  setIsContractTabDirty(true);
-                                                  setJsonSubKeys((current) =>
-                                                    current.map((currentEntry, currentIndex) =>
-                                                      currentIndex === index
-                                                        ? {
-                                                            ...currentEntry,
-                                                            disallowAbsolute: checked === true,
-                                                          }
-                                                        : currentEntry,
-                                                    ),
-                                                  );
-                                                }}
-                                              />
-                                              <Label className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                                                Disallow Absolute
-                                              </Label>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                              <Checkbox
-                                                checked={entry.preventTraversal}
-                                                onCheckedChange={(checked) => {
-                                                  setIsContractTabDirty(true);
-                                                  setJsonSubKeys((current) =>
-                                                    current.map((currentEntry, currentIndex) =>
-                                                      currentIndex === index
-                                                        ? {
-                                                            ...currentEntry,
-                                                            preventTraversal: checked === true,
-                                                          }
-                                                        : currentEntry,
-                                                    ),
-                                                  );
-                                                }}
-                                              />
-                                              <Label className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                                                Prevent Traversal
-                                              </Label>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      ) : null}
-
-                                      {entry.validationType === "allowed-values" ? (
+                                    {entry.valueType === "string" ? (
+                                      <div className="space-y-4 border border-border/70 p-3">
                                         <div className="space-y-2">
                                           <Label className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                                            Allowed Values
+                                            Value Validation Type
                                           </Label>
-                                          <AllowedValuesChipEditor
-                                            values={entry.allowedValues
-                                              .split(/\r?\n/g)
-                                              .map((value) => value.trim())
-                                              .filter((value) => value.length > 0)}
-                                            onChange={(values) => {
+                                          <Select
+                                            value={entry.validationType}
+                                            onValueChange={(value) => {
                                               setIsContractTabDirty(true);
                                               setJsonSubKeys((current) =>
                                                 current.map((currentEntry, currentIndex) =>
                                                   currentIndex === index
                                                     ? {
                                                         ...currentEntry,
-                                                        allowedValues: values.join("\n"),
+                                                        validationType:
+                                                          value as JsonSubKey["validationType"],
                                                       }
                                                     : currentEntry,
                                                 ),
                                               );
                                             }}
-                                          />
+                                          >
+                                            <SelectTrigger className="h-9 rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]">
+                                              <SelectValue placeholder="Select validation" />
+                                            </SelectTrigger>
+                                            <SelectContent className="rounded-none border-border/70 bg-background text-xs">
+                                              <SelectItem value="none">none</SelectItem>
+                                              <SelectItem value="path">path</SelectItem>
+                                              <SelectItem value="allowed-values">
+                                                allowed-values
+                                              </SelectItem>
+                                            </SelectContent>
+                                          </Select>
                                         </div>
-                                      ) : null}
+
+                                        {entry.validationType === "path" ? (
+                                          <div className="space-y-3">
+                                            <div className="space-y-2">
+                                              <Label className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                                                Path Kind
+                                              </Label>
+                                              <Select
+                                                value={entry.pathKind}
+                                                onValueChange={(value) => {
+                                                  setIsContractTabDirty(true);
+                                                  setJsonSubKeys((current) =>
+                                                    current.map((currentEntry, currentIndex) =>
+                                                      currentIndex === index
+                                                        ? {
+                                                            ...currentEntry,
+                                                            pathKind: value as "file" | "directory",
+                                                          }
+                                                        : currentEntry,
+                                                    ),
+                                                  );
+                                                }}
+                                              >
+                                                <SelectTrigger className="h-9 rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]">
+                                                  <SelectValue placeholder="Select path kind" />
+                                                </SelectTrigger>
+                                                <SelectContent className="rounded-none border-border/70 bg-background text-xs">
+                                                  <SelectItem value="file">file</SelectItem>
+                                                  <SelectItem value="directory">
+                                                    directory
+                                                  </SelectItem>
+                                                </SelectContent>
+                                              </Select>
+                                            </div>
+                                            <div className="flex flex-wrap gap-x-6 gap-y-3">
+                                              <div className="flex items-center gap-2">
+                                                <Checkbox
+                                                  checked={entry.trimWhitespace}
+                                                  onCheckedChange={(checked) => {
+                                                    setIsContractTabDirty(true);
+                                                    setJsonSubKeys((current) =>
+                                                      current.map((currentEntry, currentIndex) =>
+                                                        currentIndex === index
+                                                          ? {
+                                                              ...currentEntry,
+                                                              trimWhitespace: checked === true,
+                                                            }
+                                                          : currentEntry,
+                                                      ),
+                                                    );
+                                                  }}
+                                                />
+                                                <Label className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                                                  Trim Whitespace
+                                                </Label>
+                                              </div>
+                                              <div className="flex items-center gap-2">
+                                                <Checkbox
+                                                  checked={entry.disallowAbsolute}
+                                                  onCheckedChange={(checked) => {
+                                                    setIsContractTabDirty(true);
+                                                    setJsonSubKeys((current) =>
+                                                      current.map((currentEntry, currentIndex) =>
+                                                        currentIndex === index
+                                                          ? {
+                                                              ...currentEntry,
+                                                              disallowAbsolute: checked === true,
+                                                            }
+                                                          : currentEntry,
+                                                      ),
+                                                    );
+                                                  }}
+                                                />
+                                                <Label className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                                                  Disallow Absolute
+                                                </Label>
+                                              </div>
+                                              <div className="flex items-center gap-2">
+                                                <Checkbox
+                                                  checked={entry.preventTraversal}
+                                                  onCheckedChange={(checked) => {
+                                                    setIsContractTabDirty(true);
+                                                    setJsonSubKeys((current) =>
+                                                      current.map((currentEntry, currentIndex) =>
+                                                        currentIndex === index
+                                                          ? {
+                                                              ...currentEntry,
+                                                              preventTraversal: checked === true,
+                                                            }
+                                                          : currentEntry,
+                                                      ),
+                                                    );
+                                                  }}
+                                                />
+                                                <Label className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                                                  Prevent Traversal
+                                                </Label>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        ) : null}
+
+                                        {entry.validationType === "allowed-values" ? (
+                                          <div className="space-y-2">
+                                            <Label className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                                              Allowed Values
+                                            </Label>
+                                            <AllowedValuesChipEditor
+                                              values={entry.allowedValues
+                                                .split(/\r?\n/g)
+                                                .map((value) => value.trim())
+                                                .filter((value) => value.length > 0)}
+                                              onChange={(values) => {
+                                                setIsContractTabDirty(true);
+                                                setJsonSubKeys((current) =>
+                                                  current.map((currentEntry, currentIndex) =>
+                                                    currentIndex === index
+                                                      ? {
+                                                          ...currentEntry,
+                                                          allowedValues: values.join("\n"),
+                                                        }
+                                                      : currentEntry,
+                                                  ),
+                                                );
+                                              }}
+                                            />
+                                          </div>
+                                        ) : null}
+                                      </div>
+                                    ) : null}
+
+                                    <div className="flex justify-end">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="rounded-none px-3"
+                                        onClick={() => {
+                                          setIsContractTabDirty(true);
+                                          setJsonSubKeys((current) =>
+                                            current.filter(
+                                              (currentEntry) => currentEntry.id !== entry.id,
+                                            ),
+                                          );
+                                        }}
+                                      >
+                                        Remove Key
+                                      </Button>
                                     </div>
-                                  ) : null}
-
-                                  <div className="flex justify-end">
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      className="rounded-none px-3"
-                                      onClick={() => {
-                                        setIsContractTabDirty(true);
-                                        setJsonSubKeys((current) =>
-                                          current.filter(
-                                            (currentEntry) => currentEntry.id !== entry.id,
-                                          ),
-                                        );
-                                      }}
-                                    >
-                                      Remove Key
-                                    </Button>
                                   </div>
-                                </div>
-                              </Card>
-                            ))}
-                          </div>
-                        )}
+                                </Card>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : null
+                    }
+                  </form.Subscribe>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-x-10 gap-y-6">
+                  <form.Field name="description">
+                    {(field) => (
+                      <div className="col-span-2 space-y-2">
+                        <Label
+                          htmlFor={field.name}
+                          className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                        >
+                          Description
+                        </Label>
+                        <Textarea
+                          id={field.name}
+                          className="min-h-[6rem] resize-none rounded-none border-border/70 bg-background/50 p-3 text-xs tracking-[0.04em] placeholder:text-muted-foreground/50"
+                          value={field.state.value}
+                          onBlur={field.handleBlur}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                        />
                       </div>
-                    ) : null
-                  }
-                </form.Subscribe>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-x-10 gap-y-6">
-                <form.Field name="description">
-                  {(field) => (
-                    <div className="col-span-2 space-y-2">
-                      <Label
-                        htmlFor={field.name}
-                        className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
-                      >
-                        Description
-                      </Label>
-                      <Textarea
-                        id={field.name}
-                        className="min-h-[6rem] resize-none rounded-none border-border/70 bg-background/50 p-3 text-xs tracking-[0.04em] placeholder:text-muted-foreground/50"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                      />
-                    </div>
-                  )}
-                </form.Field>
-                <form.Field name="humanMarkdown">
-                  {(field) => (
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor={field.name}
-                        className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
-                      >
-                        Human Guidance
-                      </Label>
-                      <Textarea
-                        id={field.name}
-                        className="min-h-[14rem] resize-none rounded-none border-border/70 bg-background/50 p-3 text-xs tracking-[0.04em] placeholder:text-muted-foreground/50"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                      />
-                    </div>
-                  )}
-                </form.Field>
-                <form.Field name="agentMarkdown">
-                  {(field) => (
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor={field.name}
-                        className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
-                      >
-                        Agent Guidance
-                      </Label>
-                      <Textarea
-                        id={field.name}
-                        className="min-h-[14rem] resize-none rounded-none border-border/70 bg-background/50 p-3 text-xs tracking-[0.04em] placeholder:text-muted-foreground/50"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                      />
-                    </div>
-                  )}
-                </form.Field>
-              </div>
-            )}
-          </div>
-
-          <DialogFooter className="sm:justify-end sm:gap-4 sm:px-0">
-            <Button
-              variant="outline"
-              className="rounded-none px-6"
-              type="button"
-              onClick={requestClose}
-            >
-              Cancel
-            </Button>
-            <form.Subscribe selector={(state) => state.values.factKey}>
-              {(factKey) => (
-                <Button
-                  className="rounded-none px-8"
-                  type="submit"
-                  disabled={factKey.trim().length === 0}
-                >
-                  Save
-                </Button>
+                    )}
+                  </form.Field>
+                  <form.Field name="humanMarkdown">
+                    {(field) => (
+                      <div className="space-y-2">
+                        <Label
+                          htmlFor={field.name}
+                          className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                        >
+                          Human Guidance
+                        </Label>
+                        <Textarea
+                          id={field.name}
+                          className="min-h-[14rem] resize-none rounded-none border-border/70 bg-background/50 p-3 text-xs tracking-[0.04em] placeholder:text-muted-foreground/50"
+                          value={field.state.value}
+                          onBlur={field.handleBlur}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                        />
+                      </div>
+                    )}
+                  </form.Field>
+                  <form.Field name="agentMarkdown">
+                    {(field) => (
+                      <div className="space-y-2">
+                        <Label
+                          htmlFor={field.name}
+                          className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                        >
+                          Agent Guidance
+                        </Label>
+                        <Textarea
+                          id={field.name}
+                          className="min-h-[14rem] resize-none rounded-none border-border/70 bg-background/50 p-3 text-xs tracking-[0.04em] placeholder:text-muted-foreground/50"
+                          value={field.state.value}
+                          onBlur={field.handleBlur}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                        />
+                      </div>
+                    )}
+                  </form.Field>
+                </div>
               )}
-            </form.Subscribe>
-          </DialogFooter>
+            </div>
+
+            <DialogFooter className="sm:justify-end sm:gap-4 sm:px-0">
+              <Button
+                variant="outline"
+                className="rounded-none px-6"
+                type="button"
+                onClick={requestClose}
+              >
+                Cancel
+              </Button>
+              <form.Subscribe selector={(state) => state.values.factKey}>
+                {(factKey) => (
+                  <Button
+                    className="rounded-none px-8"
+                    type="submit"
+                    disabled={factKey.trim().length === 0}
+                  >
+                    Save
+                  </Button>
+                )}
+              </form.Subscribe>
+            </DialogFooter>
+          </div>
         </form>
       </DialogContent>
 
