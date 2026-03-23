@@ -1,0 +1,24 @@
+Task: finish-l2-transition-dialog / Task 3
+Date: 2026-03-23
+
+Changes:
+- Added edit-mode tracking to transition group editor (`groupKey: string | null`) in StateMachineTab.
+- Added edit entrypoints for existing start/completion group summary cards.
+- Group editor now pre-fills mode + conditions from selected existing group.
+- Save behavior now branches create vs edit:
+  - create: append new group with UUID key
+  - edit: replace matched group in place by key (preserves original key)
+- Added integration test: "edits existing start/completion groups in place from group summaries with prefilled editor".
+
+Verification:
+1) Targeted new test (RED->GREEN cycle):
+   - Command: `bun run test --testNamePattern "edits existing start/completion groups in place from group summaries with prefilled editor"`
+   - Result: PASS (1 passed, 156 skipped)
+
+2) Required suite command:
+   - Command: `bun run test 'src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx'` (run from apps/web)
+   - Result: PASS (29 passed)
+
+3) Diagnostics:
+   - `StateMachineTab.tsx`: No diagnostics found
+   - `methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx`: No diagnostics found

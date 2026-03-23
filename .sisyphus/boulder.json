@@ -1,6 +1,21 @@
 {
-  "active_plan": "/home/gondilf/Desktop/projects/masters/chiron/.sisyphus/plans/reset-baseline-completion.md",
-  "started_at": "2026-02-23T19:07:17.987Z",
-  "session_ids": ["ses_3744fc93cffeSyTUbWs67k0HaH"],
-  "plan_name": "reset-baseline-completion"
+  "active_plan": "/home/gondilf/Desktop/projects/masters/chiron/.sisyphus/plans/finish-l2-transition-dialog.md",
+  "started_at": "2026-03-23T13:08:05.405Z",
+  "session_ids": [
+    "ses_2e530b7adffe2CmIL21lmiWIO9",
+    "ses_2e5304d00ffegmmXntrr3O4VGG",
+    "ses_2e5305ab7ffeLIHxI3sbTJ8SBi",
+    "ses_2e53054c8ffeSuqhdYLkCQHMYW",
+    "ses_2e53045d6ffeHcLijP8CXtDQBf",
+    "ses_2e5262901ffelsJtF58q2ZFAUS",
+    "ses_2e51e2485ffeMPBCBhwo77AHgE",
+    "ses_2e5170803ffejxCx5x8LQsmPj3",
+    "ses_2e510cc41ffejqK9Y1bY5rMdEW",
+    "ses_2e50921aeffeddoOnuD0hBTPhe",
+    "ses_2e5010d7bffevVX0KKX5UzzAEV",
+    "ses_2e501342bffeuAtY0XmI075UR9",
+    "ses_2e50126b3ffe0ijs81SN5ie3J5",
+    "ses_2e5011887ffewTVO91zk9sWi0K"
+  ],
+  "plan_name": "finish-l2-transition-dialog"
 }

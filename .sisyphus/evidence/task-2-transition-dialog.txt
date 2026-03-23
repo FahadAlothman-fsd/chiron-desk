@@ -1,0 +1,27 @@
+Task 2: Make transition dialog first-level conditions groups-only
+Date: 2026-03-23
+
+Files changed:
+- apps/web/src/features/methodologies/work-unit-l2/StateMachineTab.tsx
+- apps/web/src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx
+
+Verification:
+1) Test run (web vitest harness)
+   Command:
+   bun run --cwd apps/web test 'src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx'
+
+   Result:
+   - Test Files: 1 passed
+   - Tests: 28 passed
+   - Includes updated transition-dialog checks proving:
+     - Start/Completion tabs no longer show "Add Fact Condition" or "Add Work Unit Condition"
+     - Groups are authored via "Add Group" and group editor
+
+2) LSP diagnostics
+   - apps/web/src/features/methodologies/work-unit-l2/StateMachineTab.tsx: No diagnostics found
+   - apps/web/src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx: No diagnostics found
+
+Outcome:
+- Transition dialog is groups-only at first level.
+- Bare conditions section and add actions removed from Start/Completion tabs.
+- Save path emits conditionSets from groups only.

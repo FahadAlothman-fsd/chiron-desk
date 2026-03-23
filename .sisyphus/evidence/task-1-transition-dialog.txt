@@ -1,0 +1,24 @@
+2026-03-23T16:23:52+03:00
+
+Task: Expand transition-dialog route integration coverage for grouped flows.
+
+Changed file:
+- apps/web/src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx
+
+Added scenarios:
+1) loads existing start/completion groups in transition edit and saves grouped-only conditionSets payload
+2) preserves seeded group keys when editing transition instead of appending duplicate groups
+
+Verification commands + results:
+
+1. bun test './apps/web/src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx'
+   Result: FAIL in this environment because Bun native runner has no DOM (`window is not defined`).
+
+2. bun run --cwd apps/web test 'src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx'
+   Result: PASS
+   - Test Files: 1 passed
+   - Tests: 28 passed
+
+3. LSP diagnostics
+   - File: apps/web/src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx
+   - Result: No diagnostics found

@@ -1,0 +1,41 @@
+Task 5 Evidence - Transition dialog dirty close protection/reset
+Date: 2026-03-23
+
+Changed files:
+- apps/web/src/features/methodologies/work-unit-l2/StateMachineTab.tsx
+- apps/web/src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx
+
+Implementation evidence:
+- Added `transitionDiscardOpen` state.
+- Added `requestCloseTransitionDialog()` dirty-gated close flow.
+- Added `closeTransitionDialog()` full transition dialog teardown/reset.
+- Updated transition `Dialog` `onOpenChange` to route closing through `requestCloseTransitionDialog()`.
+- Updated Cancel button to use `requestCloseTransitionDialog()`.
+- Added transition discard confirmation dialog with "Keep Editing" and "Discard Changes" actions.
+- Save flow now closes via `closeTransitionDialog()` so all transient state resets on successful save.
+
+Verification commands and output:
+1) Command (from repo root) that fails in this repo for DOM-based tests:
+   bun test './apps/web/src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx'
+   Result: fails with `ReferenceError: window is not defined` (Bun native runner, no jsdom).
+
+2) Effective verification command (web package Vitest/jsdom runner):
+   bun run --cwd apps/web test 'src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx'
+   Result: PASS
+   - Test Files: 1 passed
+   - Tests: 29 passed
+
+3) LSP diagnostics:
+   - StateMachineTab.tsx: No diagnostics found
+   - shell-routes.integration.test.tsx: No diagnostics found
+
+4) TypeScript check:
+   bun run --cwd apps/web check-types
+   Result: PASS (`tsc --noEmit`)
+
+Behavioral checks covered by integration test:
+- Dirty transition dialog close shows discard confirmation.
+- Keep Editing keeps dialog open.
+- Discard Changes closes dialog.
+- Reopen shows no dirty indicators.
+- Reopened Add Group dialog starts clean (no stale unsaved group-condition row leakage).

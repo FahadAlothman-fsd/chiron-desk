@@ -1,0 +1,43 @@
+Task: finish-l2-transition-dialog / Task 4
+Date: 2026-03-23
+
+Files changed:
+- apps/web/src/features/methodologies/work-unit-l2/StateMachineTab.tsx
+- apps/web/src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx
+
+Dirty-indicator implementation evidence:
+- Added per-tab dirty flags: isContractDirty, isStartDirty, isCompletionDirty, isBindingsDirty.
+- Added touched-style dirty setters via onChangeCapture for Contract/Start/Completion/Bindings tab content containers.
+- Added explicit dirty setters for non-change-driven edits:
+  - Contract combobox selections (From State / To State)
+  - Bindings command selection toggles
+  - Start/Completion group save in group editor
+  - Start/Completion guidance/description save in gate text editor
+- Added tab asterisk indicators with test IDs:
+  - transition-contract-modified-indicator
+  - transition-start-modified-indicator
+  - transition-completion-modified-indicator
+  - transition-bindings-modified-indicator
+- Added resetTransitionDirty() and invoked on:
+  - openCreateTransitionDialog
+  - openEditTransitionDialog
+  - successful saveTransitionDialog completion
+
+Verification evidence:
+1) TDD red phase (test failure observed)
+   - Command: bun run test "src/tests/routes/methodologies.\$methodologyId.versions.\$versionId.shell-routes.integration.test.tsx"
+   - Failure observed before implementation:
+     Unable to find element [data-testid="transition-contract-modified-indicator"]
+
+2) Green phase (tests passing after implementation)
+   - Command: bun run test "src/tests/routes/methodologies.\$methodologyId.versions.\$versionId.shell-routes.integration.test.tsx"
+   - Result: 29 passed, 0 failed
+
+3) Diagnostics
+   - lsp_diagnostics on changed files:
+     - StateMachineTab.tsx: No diagnostics found
+     - shell-routes.integration.test.tsx: No diagnostics found
+
+4) Build
+   - Command: bun run build (workdir: apps/web)
+   - Result: build succeeded (vite build completed)
