@@ -1,0 +1,27 @@
+tests/e2e/methodology-workflow-editor.spec.ts
+  6e8930003e8dc027 1-35
+.sisyphus/boulder.json
+  6e8930003e8dc027 2-3,5-6
+.sisyphus/plans/story-3-3-workflow-editor.md
+  6e8930003e8dc027 458
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "dd9ecb11ee8233d2b0e691af33343b2392f31a47",
+  "prompts": {
+    "6e8930003e8dc027": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2e4308b2bffetI5nzREeshfdKy",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 36,
+      "total_deletions": 1,
+      "accepted_lines": 40,
+      "overriden_lines": 0
+    }
+  }
+}
