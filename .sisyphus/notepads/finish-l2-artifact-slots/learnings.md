@@ -1,3 +1,9 @@
 - Switched artifact-slot authoring flow from monolithic replace calls to explicit slot create/update/delete RPC mutations.
 - Kept template mutation granularity in update via `templateOps: { add, remove, update }`, with server-generated IDs for new templates.
 - Preserved compatibility by keeping internal legacy replace contract/method available for non-migrated callers while routing UI to CRUD endpoints.
+- Monaco template editor suggestions can be safely added in `onMount` by registering a `handlebars` completion provider and disposing the previous provider before re-registering.
+- `defaultLanguage` alone is insufficient when models are reused by `path`; explicitly setting `language="handlebars"` and calling `monaco.editor.setModelLanguage()` keeps syntax mode correct.
+- Disabling Monaco's live find widget and tailoring its `find` options keeps `f` available for typing without hijacking the editor.
+- Tying completion detection to the presence of `{{` (and guarding against a closing `}}`) keeps template variable IntelliSense responsive as the user types braces.
+- Initializing Monaco through `loader.init()` before render unlocks built-in Handlebars language registration, and sourcing completion items from `workUnitTypes`/`factSchemas` enables real methodology-aware template suggestions.
+- Removing the eager `loader.init()` call lets `@monaco-editor/react` lazy-load markdown/handlebars, keeping bundle size down while still covering handlebars syntax support through the editor's own loading logic.

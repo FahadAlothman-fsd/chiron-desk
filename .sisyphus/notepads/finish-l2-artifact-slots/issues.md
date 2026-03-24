@@ -1,2 +1,3 @@
 - Existing web route integration tests mocked only `artifactSlot.replace`, which no longer matches runtime usage of create/update/delete.
 - Compatibility bridge required in contracts/service to keep type-checking green for unchanged consumers (`WorkUnitArtifactSlotService`).
+- `monaco-editor` type imports are not directly resolvable in the web app build context, so local structural types were used for completion provider callback parameters.

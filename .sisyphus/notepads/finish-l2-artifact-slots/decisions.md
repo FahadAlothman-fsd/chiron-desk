@@ -1,3 +1,6 @@
 - Decision: UI no longer emits `draft:*` IDs; local-only entities use `local:*` and persisted IDs are returned by backend.
 - Decision: API router exposes `artifactSlot.create`, `artifactSlot.update`, `artifactSlot.delete`; bulk `replace` route removed from router namespace.
 - Decision: Backend `updateWorkUnitArtifactSlot` applies template mutations by id (`add/remove/update`) and appends new templates instead of replacing full template arrays from client intent.
+- Decision: Artifact template content editor uses a custom Monaco theme (`chiron-carbon-fluo-dark`) derived from `vs-dark` with Chiron carbon/fluo token colors.
+- Decision: Handlebars template variable IntelliSense is implemented via `monaco.languages.registerCompletionItemProvider("handlebars", ...)` in editor `onMount`, with disposal cleanup on remount/unmount.
+- Decision: The template editor disables Monaco's interactive find widget and explicitly watches for `{{` to drive suggestion discovery so typing `f` and braces remain responsive.

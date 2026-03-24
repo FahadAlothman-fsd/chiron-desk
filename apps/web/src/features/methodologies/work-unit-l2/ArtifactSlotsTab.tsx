@@ -55,8 +55,15 @@ type ArtifactSlot = {
   templates: readonly ArtifactTemplate[];
 };
 
+type MethodologyWorkUnitType = {
+  key: string;
+  factSchemas?: ReadonlyArray<{ key: string }>;
+};
+
 type ArtifactSlotsTabProps = {
   slots: readonly ArtifactSlot[];
+  workUnitTypes?: ReadonlyArray<MethodologyWorkUnitType>;
+  currentWorkUnitKey?: string;
   onCreateSlot?: (input: {
     slot: {
       key: string;
@@ -122,6 +129,9 @@ type TemplateVariableOption = {
 
 type MonacoEditorOnMount = NonNullable<React.ComponentProps<typeof MonacoEditor>["onMount"]>;
 type MonacoEditorInstance = Parameters<MonacoEditorOnMount>[0];
+type MonacoInstance = Parameters<MonacoEditorOnMount>[1];
+
+const CHIRON_TEMPLATE_MONACO_THEME = "chiron-carbon-fluo-dark";
 
 const TEMPLATE_VARIABLE_CATEGORIES: readonly TemplateVariableCategory[] = [
   "Methodology Facts",
@@ -155,6 +165,30 @@ const TEMPLATE_VARIABLE_OPTIONS: readonly TemplateVariableOption[] = [
     token: "{{methodology.workUnits.{key}.facts.{factKey}}}",
   },
 ];
+
+const TEMPLATE_MONACO_COLOR_TOKENS = {
+  carbon: "#101010",
+  winter: "#2a2c29",
+  border: "#5c6057",
+  fluo: "#dddddd",
+  fluoAccent: "#c4ff58",
+  muted: "#3f3f3f",
+} as const;
+
+type TemplateCompletionPosition = {
+  lineNumber: number;
+  column: number;
+};
+
+type TemplateCompletionWord = {
+  startColumn: number;
+  endColumn: number;
+};
+
+type TemplateCompletionModel = {
+  getLineContent: (lineNumber: number) => string;
+  getWordUntilPosition: (position: TemplateCompletionPosition) => TemplateCompletionWord;
+};
 
 function generateLocalId(): string {
   return `local:${crypto.randomUUID()}`;
@@ -219,6 +253,8 @@ function normalizeArtifactSlots(slots: readonly ArtifactSlot[]): ArtifactSlot[] 
 
 export function ArtifactSlotsTab({
   slots: initialSlots,
+  workUnitTypes,
+  currentWorkUnitKey,
   onCreateSlot,
   onUpdateSlot,
   onDeleteSlot,
@@ -798,6 +834,8 @@ export function ArtifactSlotsTab({
                 {activeTemplateTab === "content" ? (
                   <TemplateContentTab
                     template={editingTemplateDraft}
+                    workUnitTypes={workUnitTypes}
+                    currentWorkUnitKey={currentWorkUnitKey}
                     onChange={handleUpdateEditingTemplate}
                   />
                 ) : null}
@@ -1112,17 +1150,170 @@ function TemplateGuidanceTab({
 
 function TemplateContentTab({
   template,
+  workUnitTypes,
+  currentWorkUnitKey,
   onChange,
 }: {
   template: ArtifactTemplate;
+  workUnitTypes: ReadonlyArray<MethodologyWorkUnitType> | undefined;
+  currentWorkUnitKey: string | undefined;
   onChange: (updates: Partial<ArtifactTemplate>) => void;
 }) {
   const [isVariablePickerOpen, setIsVariablePickerOpen] = useState(false);
   const templateEditorRef = useRef<MonacoEditorInstance | null>(null);
+  const completionProviderRef = useRef<{ dispose: () => void } | null>(null);
 
-  const handleTemplateEditorMount = useCallback<MonacoEditorOnMount>((editor) => {
-    templateEditorRef.current = editor;
-  }, []);
+  const handleTemplateEditorMount = useCallback<MonacoEditorOnMount>(
+    (editor, monaco: MonacoInstance) => {
+      templateEditorRef.current = editor;
+
+      monaco.editor.defineTheme(CHIRON_TEMPLATE_MONACO_THEME, {
+        base: "vs-dark",
+        inherit: true,
+        colors: {
+          "editor.background": TEMPLATE_MONACO_COLOR_TOKENS.carbon,
+          "editor.foreground": TEMPLATE_MONACO_COLOR_TOKENS.fluo,
+          "editor.lineHighlightBackground": TEMPLATE_MONACO_COLOR_TOKENS.winter,
+          "editor.selectionBackground": "#3f3f3f99",
+          "editor.inactiveSelectionBackground": "#3f3f3f66",
+          "editorCursor.foreground": TEMPLATE_MONACO_COLOR_TOKENS.fluoAccent,
+          "editorLineNumber.foreground": TEMPLATE_MONACO_COLOR_TOKENS.border,
+          "editorLineNumber.activeForeground": TEMPLATE_MONACO_COLOR_TOKENS.fluo,
+          "editorIndentGuide.background1": TEMPLATE_MONACO_COLOR_TOKENS.muted,
+          "editorIndentGuide.activeBackground1": TEMPLATE_MONACO_COLOR_TOKENS.border,
+          "editorWidget.background": TEMPLATE_MONACO_COLOR_TOKENS.winter,
+          "editorWidget.border": TEMPLATE_MONACO_COLOR_TOKENS.border,
+          "editorSuggestWidget.background": TEMPLATE_MONACO_COLOR_TOKENS.winter,
+          "editorSuggestWidget.border": TEMPLATE_MONACO_COLOR_TOKENS.border,
+          "editorSuggestWidget.foreground": TEMPLATE_MONACO_COLOR_TOKENS.fluo,
+          "editorSuggestWidget.selectedBackground": "#3f3f3f80",
+          "editorSuggestWidget.highlightForeground": TEMPLATE_MONACO_COLOR_TOKENS.fluoAccent,
+        },
+        rules: [
+          { token: "delimiter.handlebars", foreground: "C4FF58" },
+          { token: "variable.parameter.handlebars", foreground: "DDDDDD" },
+        ],
+      });
+      monaco.editor.setTheme(CHIRON_TEMPLATE_MONACO_THEME);
+
+      const model = editor.getModel();
+      if (model) {
+        monaco.editor.setModelLanguage(model, "handlebars");
+      }
+
+      completionProviderRef.current?.dispose();
+      completionProviderRef.current = monaco.languages.registerCompletionItemProvider(
+        "handlebars",
+        {
+          triggerCharacters: ["{", "."],
+          provideCompletionItems(
+            model: TemplateCompletionModel,
+            position: TemplateCompletionPosition,
+          ) {
+            const linePrefix = model
+              .getLineContent(position.lineNumber)
+              .slice(0, position.column - 1);
+            const openExpressionIndex = linePrefix.lastIndexOf("{{");
+            const closeExpressionIndex = linePrefix.lastIndexOf("}}");
+            const hasOpenExpression = openExpressionIndex !== -1;
+            const hasCloseExpression = closeExpressionIndex !== -1;
+            const isInExpression =
+              hasOpenExpression &&
+              (!hasCloseExpression || closeExpressionIndex < openExpressionIndex);
+
+            if (!isInExpression) {
+              return { suggestions: [] };
+            }
+
+            const currentWord = model.getWordUntilPosition(position);
+            const range = {
+              startLineNumber: position.lineNumber,
+              startColumn: currentWord.startColumn,
+              endLineNumber: position.lineNumber,
+              endColumn: currentWord.endColumn,
+            };
+
+            const completionItems: Array<{
+              label: string;
+              kind: number;
+              insertText: string;
+              detail: string;
+              documentation: string;
+              range: typeof range;
+            }> = [];
+
+            if (workUnitTypes) {
+              for (const workUnit of workUnitTypes) {
+                if (!workUnit.key) {
+                  continue;
+                }
+
+                completionItems.push({
+                  label: `{{methodology.workUnits.${workUnit.key}}}`,
+                  kind: monaco.languages.CompletionItemKind.Variable,
+                  insertText: `{{methodology.workUnits.${workUnit.key}}}`,
+                  detail: `Work Unit: ${workUnit.key}`,
+                  documentation: `Access the ${workUnit.key} work unit`,
+                  range,
+                });
+
+                if (workUnit.factSchemas) {
+                  for (const fact of workUnit.factSchemas) {
+                    if (!fact.key) {
+                      continue;
+                    }
+
+                    completionItems.push({
+                      label: `{{methodology.workUnits.${workUnit.key}.facts.${fact.key}}}`,
+                      kind: monaco.languages.CompletionItemKind.Variable,
+                      insertText: `{{methodology.workUnits.${workUnit.key}.facts.${fact.key}}}`,
+                      detail: `Fact: ${fact.key}`,
+                      documentation: `Access the ${fact.key} fact from ${workUnit.key}`,
+                      range,
+                    });
+                  }
+                }
+              }
+            }
+
+            if (currentWorkUnitKey && workUnitTypes) {
+              const currentWorkUnit = workUnitTypes.find(
+                (workUnit) => workUnit.key === currentWorkUnitKey,
+              );
+
+              if (currentWorkUnit?.factSchemas) {
+                for (const fact of currentWorkUnit.factSchemas) {
+                  if (!fact.key) {
+                    continue;
+                  }
+
+                  completionItems.push({
+                    label: `{{workUnit.facts.${fact.key}}}`,
+                    kind: monaco.languages.CompletionItemKind.Variable,
+                    insertText: `{{workUnit.facts.${fact.key}}}`,
+                    detail: `Current Work Unit Fact: ${fact.key}`,
+                    documentation: `Access the ${fact.key} fact from the current work unit`,
+                    range,
+                  });
+                }
+              }
+            }
+
+            return { suggestions: completionItems };
+          },
+        },
+      );
+    },
+    [currentWorkUnitKey, workUnitTypes],
+  );
+
+  useEffect(
+    () => () => {
+      completionProviderRef.current?.dispose();
+      completionProviderRef.current = null;
+    },
+    [],
+  );
 
   const insertVariableToken = useCallback(
     (token: string) => {
@@ -1228,7 +1419,9 @@ function TemplateContentTab({
       <div className="chiron-frame-flat overflow-hidden border border-border/70 bg-background/60">
         <MonacoEditor
           path="artifact-template-content.md.hbs"
-          defaultLanguage="markdown"
+          defaultLanguage="handlebars"
+          language="handlebars"
+          theme="vs-dark"
           value={template.content ?? ""}
           onMount={handleTemplateEditorMount}
           onChange={(value) => onChange({ content: value ?? "" })}
@@ -1244,8 +1437,12 @@ function TemplateContentTab({
             insertSpaces: true,
             fontSize: 12,
             lineHeight: 18,
-            quickSuggestions: false,
-            suggestOnTriggerCharacters: false,
+            find: {
+              addExtraSpaceOnTop: false,
+              autoFindInSelection: "never",
+            },
+            quickSuggestions: true,
+            suggestOnTriggerCharacters: true,
           }}
           wrapperProps={{
             id: "edit-template-content",

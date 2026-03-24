@@ -221,10 +221,19 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
   );
 
   const workUnitTypes = Array.isArray(
-    (draftQuery.data as { workUnitTypes?: ReadonlyArray<{ key?: string }> } | undefined)
-      ?.workUnitTypes,
+    (
+      draftQuery.data as
+        | {
+            workUnitTypes?: ReadonlyArray<{ key?: string; factSchemas?: ReadonlyArray<unknown> }>;
+          }
+        | undefined
+    )?.workUnitTypes,
   )
-    ? ((draftQuery.data as { workUnitTypes?: ReadonlyArray<{ key?: string }> }).workUnitTypes ?? [])
+    ? ((
+        draftQuery.data as {
+          workUnitTypes?: ReadonlyArray<{ key?: string; factSchemas?: ReadonlyArray<unknown> }>;
+        }
+      ).workUnitTypes ?? [])
     : [];
   const hasMatchingWorkUnit = workUnitTypes.some((workUnit) => workUnit?.key === workUnitKey);
   const hasResolvedInvalidSelection =
@@ -297,8 +306,8 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
   const transitionsCount = Array.isArray(selectedWorkUnit?.lifecycle?.transitions)
     ? selectedWorkUnit.lifecycle.transitions.length
     : 0;
-  const artifactSlotsCount = Array.isArray(selectedWorkUnit?.artifactSlots)
-    ? selectedWorkUnit.artifactSlots.length
+  const artifactSlotsCount = Array.isArray(artifactSlotsQuery.data)
+    ? artifactSlotsQuery.data.length
     : 0;
 
   return (
@@ -967,6 +976,13 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
               }[];
             }[]
           }
+          workUnitTypes={
+            workUnitTypes as ReadonlyArray<{
+              key: string;
+              factSchemas?: ReadonlyArray<{ key: string }>;
+            }>
+          }
+          currentWorkUnitKey={workUnitKey}
           onCreateSlot={async ({ slot }) => {
             await createArtifactSlotMutation.mutateAsync({
               versionId,
