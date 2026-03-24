@@ -1,0 +1,23 @@
+apps/web/src/features/methodologies/work-unit-l2/ArtifactSlotsTab.tsx
+  64b6d23226159e4d 1224
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "f5ec88ef55bf2addade5f72d5bcbb3735bd3ba03",
+  "prompts": {
+    "64b6d23226159e4d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2e41ee8a6ffe85l6E3RLZTJG00",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 22,
+      "total_deletions": 11,
+      "accepted_lines": 4,
+      "overriden_lines": 2
+    }
+  }
+}
