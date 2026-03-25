@@ -1,0 +1,23 @@
+packages/agent-runtime/src/opencode-sdk-repository.ts
+  dba438b2b99e2a55 378-385,389-392,402
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "06044c49a05e2a00d3116e044ed55ed3297bed2f",
+  "prompts": {
+    "dba438b2b99e2a55": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2e2fb9adfffeLYPIaBh2rDs1mx",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 20,
+      "total_deletions": 18,
+      "accepted_lines": 778,
+      "overriden_lines": 0
+    }
+  }
+}
