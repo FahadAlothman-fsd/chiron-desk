@@ -1,0 +1,31 @@
+docs/opencode-sdk-source-analysis.md
+  dba438b2b99e2a55 1-596
+apps/web/src/features/harnesses/activity-timeline.tsx
+  dba438b2b99e2a55 51-64,205-207
+.sisyphus/notepads/harness-opencode-chiron-experiment-plan/learnings.md
+  dba438b2b99e2a55 192-290
+.gitignore
+  dba438b2b99e2a55 66-68
+.sisyphus/notepads/harness-opencode-chiron-experiment-plan/issues.md
+  dba438b2b99e2a55 3-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "f425a441de5ca228f0b802eac475f39be8083844",
+  "prompts": {
+    "dba438b2b99e2a55": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2e2fb9adfffeLYPIaBh2rDs1mx",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 759,
+      "overriden_lines": 0
+    }
+  }
+}
