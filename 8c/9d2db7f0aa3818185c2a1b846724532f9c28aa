@@ -1,0 +1,23 @@
+apps/web/src/features/harnesses/harnesses-page.tsx
+  dba438b2b99e2a55 172-179
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "8c9d2db7f0aa3818185c2a1b846724532f9c28aa",
+  "prompts": {
+    "dba438b2b99e2a55": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2e2fb9adfffeLYPIaBh2rDs1mx",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 8,
+      "total_deletions": 16,
+      "accepted_lines": 767,
+      "overriden_lines": 0
+    }
+  }
+}
