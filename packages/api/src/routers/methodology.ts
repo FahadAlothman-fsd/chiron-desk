@@ -166,7 +166,7 @@ const variableDefinitionSchema = z.object({
   key: z.string().min(1),
   factType: z.enum(["string", "number", "boolean", "json", "work_unit"]),
   defaultValue: z.unknown().optional(),
-  description: z.union([z.string(), markdownContentSchema]).optional(),
+  description: markdownContentSchema.optional(),
   guidance: factGuidanceSchema,
   validation: factValidationSchema,
 });

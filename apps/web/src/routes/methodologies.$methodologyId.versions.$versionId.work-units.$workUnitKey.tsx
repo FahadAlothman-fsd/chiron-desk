@@ -514,7 +514,7 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
                       agent: { markdown: agentGuidance },
                     }
                   : undefined,
-              description,
+              description: { markdown: description },
               validation: apiValidation,
             };
             await createWorkUnitFactMutation.mutateAsync({
@@ -581,7 +581,7 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
                       agent: { markdown: agentGuidance },
                     }
                   : undefined,
-              description,
+              description: { markdown: description },
               validation: apiValidation,
             };
             await updateWorkUnitFactMutation.mutateAsync({
