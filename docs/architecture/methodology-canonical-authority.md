@@ -1,7 +1,7 @@
 # Methodology Canonical Authority
 
 **Status:** Active (enforced by implementation)
-**Last Updated:** 2026-03-06
+**Last Updated:** 2026-03-26
 
 This document defines canonical storage ownership for methodology design-time configuration.
 
@@ -58,13 +58,43 @@ Seeds for methodology configuration must be table-first.
 Methodology seed truth grows progressively, not all at once.
 
 - The final active seed should include only slices that have been explicitly mapped, documented, and validated.
-- For the current documentation pass, `WU.SETUP` is the documentation target slice we are converging toward.
+- For the current documentation pass, Slice A is the documentation target slice we are converging toward: `WU.SETUP`, `WU.BRAINSTORMING`, and `WU.RESEARCH`.
 - The current runtime seed is allowed to remain transitional if it is sufficient for ongoing development/testing, but that runtime state must not be mistaken for the final locked seed truth.
 - Earlier broad JSON seed artifacts are historical lineage only, not current canonical seed authority.
 - Future slices should be appended only after the corresponding BMAD workflow(s) are digested and mapped into canonical Chiron structures.
+- Refactor first, seed second. Correct the L1/L2 ownership model before writing the locked Slice-A canonical rows.
+- This plan stops at L1/L2. Workflow steps and workflow edges are deferred to a later plan.
 - As execution stories refine the seed, documentation and runtime seed truth should be updated together.
+- The seeded methodology ships as one refined methodology definition plus two methodology versions, `draft` and `active`, sharing the same underlying Slice-A canonical data.
 
 See `docs/architecture/methodology-progressive-seeding.md` for the operational process.
+
+## Descriptive Metadata Ownership Rule
+
+The locked Slice-A descriptive metadata model is:
+
+- `description`: `{ markdown: string }`
+- `guidance`: `{ human: { markdown: string }, agent: { markdown: string } }`
+
+Entities that own both `description` and `guidance`:
+
+- methodology facts
+- dependency definitions
+- agents
+- work-unit types
+- work-unit facts
+- work-unit states
+- work-unit workflows
+- work-unit artifact slots
+- artifact slot templates
+- transitions
+
+Entities that own neither `description` nor `guidance`:
+
+- condition sets
+- transition bindings
+
+Do not imply or implement `description` or `guidance` on condition sets or transition bindings.
 
 ## Validation Expectations
 

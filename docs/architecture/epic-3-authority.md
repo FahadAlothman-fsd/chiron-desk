@@ -1,7 +1,7 @@
 # Epic 3 Authority
 
 **Status:** Active routing authority
-**Last Updated:** 2026-03-16
+**Last Updated:** 2026-03-26
 
 This document defines which Epic 3 docs are canonical now, which active-path docs are stale, and how historical design material should be treated after promotion.
 
@@ -53,6 +53,9 @@ Use it to understand why the surfaces were locked the way they were, or to recov
 - `docs/architecture/methodology-pages/artifact-slots-design-time.md` - canonical Artifact Slots tab behavior
 - `docs/architecture/methodology-pages/state-machine-tab.md` - canonical State Machine tab behavior
 - `docs/architecture/methodology-pages/dependency-definitions.md` - canonical Dependency Type Definitions page behavior
+- `docs/architecture/methodology-bmad-setup-mapping.md` - frozen Slice-A setup mapping authority for L1/L2 seeding
+- `docs/architecture/methodology-bmad-brainstorming-mapping.md` - frozen Slice-A brainstorming mapping authority for L1/L2 seeding
+- `docs/architecture/methodology-bmad-research-mapping.md` - frozen Slice-A research mapping authority for L1/L2 seeding
 - `docs/architecture/system-pages/harnesses/index.md` - canonical system-owned Harnesses page behavior and Story 3.6 page authority
 - `docs/architecture/modules/ax-engine.md` - AX policy and phase-1 architecture authority, with repo reality still scaffold-only and docs ahead of code
 - `docs/architecture/modules/provider-registry.md` - provider/model/harness-family authority
@@ -63,6 +66,8 @@ Use it to understand why the surfaces were locked the way they were, or to recov
 ## Missing Durable Docs
 
 No missing durable docs remain for the promoted Epic 3 surface set completed through Tasks 1-7.
+
+Slice-A methodology seeding authority now includes durable mapping coverage for `WU.SETUP`, `WU.BRAINSTORMING`, and `WU.RESEARCH` at L1/L2. Workflow steps and workflow edges remain deferred and are not part of this documentation lock.
 
 Future refinements may still split narrower references out of the current canonicals, but current implementation should route through the stable `docs/architecture/...` docs listed above rather than falling back to the March 11 plan.
 
