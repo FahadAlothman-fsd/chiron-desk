@@ -4,7 +4,11 @@ import {
   MethodologyFactDefinitionInput as MethodologyFactDefinitionInputSchema,
   type FactType as FactTypeType,
 } from "./fact.js";
-import { AudienceGuidance, LayeredGuidance as LayeredGuidanceSchema } from "./guidance.js";
+import {
+  AudienceGuidance,
+  GuidanceMarkdownContent,
+  LayeredGuidance as LayeredGuidanceSchema,
+} from "./guidance.js";
 
 export { MethodologyFactDefinitionInput } from "./fact.js";
 
@@ -77,6 +81,7 @@ export type WorkflowEdge = typeof WorkflowEdge.Type;
 export const WorkflowDefinition = Schema.Struct({
   key: Schema.NonEmptyString,
   displayName: Schema.optional(Schema.String),
+  description: Schema.optional(Schema.Union(GuidanceMarkdownContent, Schema.String)),
   workUnitTypeKey: Schema.optional(Schema.NonEmptyString),
   metadata: Schema.optional(WorkflowMetadata),
   guidance: Schema.optional(GuidanceJson),
@@ -136,7 +141,7 @@ export type MethodologyVersionDefinition = typeof MethodologyVersionDefinition.T
 export const MethodologyLinkTypeDefinitionInput = Schema.Struct({
   key: Schema.NonEmptyString,
   name: Schema.optional(Schema.String),
-  description: Schema.optional(Schema.String),
+  description: Schema.optional(Schema.Union(GuidanceMarkdownContent, Schema.String)),
   guidance: Schema.optional(AudienceGuidance),
 });
 export type MethodologyLinkTypeDefinitionInput = typeof MethodologyLinkTypeDefinitionInput.Type;
@@ -289,7 +294,7 @@ export const MethodologyFactDefinition = Schema.Struct({
   name: Schema.NullOr(Schema.String),
   key: Schema.String,
   factType: FactType,
-  description: Schema.NullOr(Schema.String),
+  description: Schema.NullOr(Schema.Unknown),
   guidanceJson: Schema.NullOr(Schema.Unknown),
   defaultValueJson: Schema.NullOr(Schema.Unknown),
   validationJson: Schema.NullOr(Schema.Unknown),

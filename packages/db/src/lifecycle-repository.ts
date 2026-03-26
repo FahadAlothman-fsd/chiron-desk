@@ -30,6 +30,27 @@ import {
 
 type DB = LibSQLDatabase<Record<string, unknown>>;
 
+function extractMarkdown(value: unknown): string | null {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (
+    value &&
+    typeof value === "object" &&
+    typeof (value as { markdown?: unknown }).markdown === "string"
+  ) {
+    return (value as { markdown: string }).markdown;
+  }
+
+  return null;
+}
+
+function toMarkdownJson(value: unknown): { markdown: string } | null {
+  const markdown = extractMarkdown(value);
+  return markdown === null ? null : { markdown };
+}
+
 function dbEffect<A>(operation: string, fn: () => Promise<A>): Effect.Effect<A, RepositoryError> {
   return Effect.tryPromise({
     try: fn,
@@ -88,7 +109,7 @@ function toFactSchemaRow(row: typeof workUnitFactDefinitions.$inferSelect): Fact
     name: row.name,
     key: row.key,
     factType: row.factType,
-    description: row.description,
+    description: extractMarkdown(row.descriptionJson),
     defaultValueJson: row.defaultValueJson,
     guidanceJson: row.guidanceJson,
     validationJson: row.validationJson,
@@ -108,7 +129,7 @@ function toTransitionConditionSetRow(
     phase: row.phase,
     mode: row.mode,
     groupsJson: row.groupsJson,
-    guidanceJson: row.guidanceJson,
+    guidanceJson: null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -120,7 +141,7 @@ function toAgentTypeRow(row: typeof methodologyAgentTypes.$inferSelect): AgentTy
     methodologyVersionId: row.methodologyVersionId,
     key: row.key,
     displayName: row.displayName,
-    description: row.description,
+    description: extractMarkdown(row.descriptionJson),
     persona: row.persona,
     promptTemplateJson: row.promptTemplateJson,
     promptTemplateVersion: row.promptTemplateVersion,
@@ -408,7 +429,7 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
                 methodologyVersionId: params.versionId,
                 key: wut.key,
                 displayName: wut.displayName ?? null,
-                descriptionJson: wut.description ? { text: wut.description } : null,
+                descriptionJson: toMarkdownJson(wut.description),
                 guidanceJson: wut.guidance ?? null,
                 cardinality: wut.cardinality,
               })
@@ -426,7 +447,7 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
                 workUnitTypeId: wutRow.id,
                 key: state.key,
                 displayName: state.displayName ?? null,
-                descriptionJson: state.description ? { text: state.description } : null,
+                descriptionJson: toMarkdownJson(state.description),
                 guidanceJson: state.guidance ?? null,
               });
             }
@@ -439,7 +460,8 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
                 name: fact.name ?? null,
                 key: fact.key,
                 factType: fact.factType,
-                description: fact.description ?? null,
+                cardinality: fact.cardinality ?? "one",
+                descriptionJson: toMarkdownJson(fact.description),
                 defaultValueJson: fact.defaultValue ?? null,
                 guidanceJson: (fact.guidance ?? null) as unknown,
                 validationJson: fact.validation ?? null,
@@ -453,7 +475,7 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
               methodologyVersionId: params.versionId,
               key: agent.key,
               displayName: agent.displayName ?? null,
-              description: agent.description ?? null,
+              descriptionJson: toMarkdownJson(agent.description),
               persona: agent.persona,
               promptTemplateJson: { markdown: promptMarkdown },
               promptTemplateVersion: 1,
@@ -516,7 +538,6 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
                   phase: conditionSet.phase,
                   mode: conditionSet.mode,
                   groupsJson: conditionSet.groups,
-                  guidanceJson: conditionSet.guidance ?? null,
                 });
               }
             }
@@ -558,7 +579,6 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
                 methodologyVersionId: params.versionId,
                 transitionId,
                 workflowId,
-                guidanceJson: null,
               });
             }
           }

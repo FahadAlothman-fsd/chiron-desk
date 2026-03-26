@@ -65,10 +65,10 @@ type RawFact = {
   factType: FactType;
   defaultValue?: unknown;
   guidance?: {
-    human?: { markdown?: string; short?: string };
-    agent?: { markdown?: string; intent?: string };
+    human?: { markdown?: string };
+    agent?: { markdown?: string };
   };
-  description?: string;
+  description?: string | { markdown?: string };
   validation?: RawFactValidation;
   dependencyType?: string;
 };
@@ -347,9 +347,12 @@ function normalizeFact(source: unknown, index: number): UiFact {
   const disallowAbsolute = path?.safety?.disallowAbsolute ?? true;
   const preventTraversal = path?.safety?.preventTraversal ?? true;
   const allowedValues = getAllowedValues(fact.validation).join("\n");
-  const humanGuidance = fact.guidance?.human?.markdown ?? fact.guidance?.human?.short ?? "";
-  const agentGuidance = fact.guidance?.agent?.markdown ?? fact.guidance?.agent?.intent ?? "";
-  const description = fact.description?.trim() ?? "";
+  const humanGuidance = fact.guidance?.human?.markdown ?? "";
+  const agentGuidance = fact.guidance?.agent?.markdown ?? "";
+  const description =
+    typeof fact.description === "string"
+      ? fact.description.trim()
+      : (fact.description?.markdown?.trim() ?? "");
   const jsonSubKeys = parseJsonSubKeys(fact.validation);
 
   return {

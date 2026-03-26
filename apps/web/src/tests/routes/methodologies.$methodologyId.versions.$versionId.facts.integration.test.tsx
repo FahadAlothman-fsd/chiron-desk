@@ -258,7 +258,7 @@ describe("methodology version facts route", () => {
     fireEvent.change(screen.getByLabelText("Key Name"), {
       target: { value: "workspaceRoot" },
     });
-    fireEvent.change(screen.getByLabelText("Key Value"), {
+    fireEvent.change(screen.getByLabelText("Default Value"), {
       target: { value: "/repo" },
     });
     fireEvent.click(comboboxForField("Value Type"));
@@ -280,11 +280,23 @@ describe("methodology version facts route", () => {
     expect(await screen.findByText("Workspace Root")).toBeTruthy();
     expect(createFactMock).toHaveBeenCalled();
     expect(createFactMock.mock.calls[0]?.[0]?.fact?.validation?.kind).toBe("json-schema");
+    const createdFact = createFactMock.mock.calls[0]?.[0]?.fact as
+      | Record<string, unknown>
+      | undefined;
+    expect(createdFact?.cardinality).toBe("one");
+    expect(createdFact?.description).toEqual({
+      markdown: "",
+    });
     const createdValidation: unknown = createFactMock.mock.calls[0]?.[0]?.fact?.validation;
     const createdSchema =
       isRecord(createdValidation) && isRecord(createdValidation["schema"])
         ? createdValidation["schema"]
         : {};
+    const createdSubSchema =
+      isRecord(createdValidation) && isRecord(createdValidation["subSchema"])
+        ? createdValidation["subSchema"]
+        : {};
+    const createdSubFields = Array.isArray(createdSubSchema.fields) ? createdSubSchema.fields : [];
     const createdProperties = isRecord(createdSchema.properties) ? createdSchema.properties : {};
     const workspaceRoot = isRecord(createdProperties.workspaceRoot)
       ? createdProperties.workspaceRoot
@@ -295,6 +307,10 @@ describe("methodology version facts route", () => {
 
     expect(workspaceRoot.type).toBe("string");
     expect(workspaceRootValidation.kind).toBe("path");
+    expect(createdSubSchema.type).toBe("object");
+    expect(createdSubFields).toContainEqual(
+      expect.objectContaining({ key: "workspaceRoot", type: "string", cardinality: "one" }),
+    );
     expect(toastSuccessMock).toHaveBeenCalledWith("Fact saved");
     expect(invalidateQueriesMock).toHaveBeenCalled();
 

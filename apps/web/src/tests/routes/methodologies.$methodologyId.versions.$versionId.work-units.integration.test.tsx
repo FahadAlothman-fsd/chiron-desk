@@ -11,6 +11,7 @@ const {
   useLocationMock,
   createWorkUnitMutationSpy,
   updateWorkUnitMutationSpy,
+  deleteWorkUnitMutationSpy,
 } = vi.hoisted(() => ({
   useParamsMock: vi.fn(),
   useSearchMock: vi.fn(),
@@ -21,6 +22,9 @@ const {
     validation: { valid: true, diagnostics: [] },
   })),
   updateWorkUnitMutationSpy: vi.fn(async () => ({
+    validation: { valid: true, diagnostics: [] },
+  })),
+  deleteWorkUnitMutationSpy: vi.fn(async () => ({
     validation: { valid: true, diagnostics: [] },
   })),
 }));
@@ -124,6 +128,9 @@ function createRouteContext() {
             updateMeta: {
               mutationOptions: () => ({ mutationFn: updateWorkUnitMutationSpy }),
             },
+            delete: {
+              mutationOptions: () => ({ mutationFn: deleteWorkUnitMutationSpy }),
+            },
           },
         },
       },
@@ -155,6 +162,7 @@ beforeEach(() => {
   draftProjectionState = createDraftProjection();
   createWorkUnitMutationSpy.mockClear();
   updateWorkUnitMutationSpy.mockClear();
+  deleteWorkUnitMutationSpy.mockClear();
 });
 
 afterEach(() => {
@@ -408,7 +416,7 @@ describe("methodology version work units l1 route", () => {
         workUnitType: expect.objectContaining({
           key: "WU.NEW_STEP",
           displayName: "New Step",
-          description: "Operator-facing work unit summary.",
+          description: { markdown: "Operator-facing work unit summary." },
           cardinality: "one_per_project",
           guidance: {
             human: { markdown: "Capture the operator-facing definition of done." },

@@ -88,6 +88,7 @@ type JsonSubKey = {
   key: string;
   value: string;
   valueType: JsonFactValueType;
+  cardinality: "one" | "many";
   validationType: "none" | "path" | "allowed-values";
   pathKind: "file" | "directory";
   trimWhitespace: boolean;
@@ -107,6 +108,36 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function extractMarkdownText(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (isRecord(value) && typeof value.markdown === "string") {
+    return value.markdown;
+  }
+
+  return "";
+}
+
+function extractGuidanceText(value: unknown, fallbacks: string[] = []): string {
+  if (isRecord(value)) {
+    const markdown = extractMarkdownText(value);
+    if (markdown.length > 0) {
+      return markdown;
+    }
+
+    for (const fallback of fallbacks) {
+      const candidate = value[fallback];
+      if (typeof candidate === "string" && candidate.length > 0) {
+        return candidate;
+      }
+    }
+  }
+
+  return "";
+}
+
 function toJsonValueType(value: unknown): JsonFactValueType {
   if (value === "string" || value === "number" || value === "boolean") {
     return value;
@@ -120,8 +151,12 @@ function parseJsonSubKeys(fact: FactEditorValue): JsonSubKey[] {
     return [];
   }
 
-  const schema = isRecord(fact.validation.schema) ? fact.validation.schema : {};
+  const validationRecord = fact.validation as { schema?: unknown; subSchema?: unknown };
+  const schema = isRecord(validationRecord.schema) ? validationRecord.schema : {};
   const properties = isRecord(schema.properties) ? schema.properties : {};
+
+  const subSchema = isRecord(validationRecord.subSchema) ? validationRecord.subSchema : {};
+  const subSchemaFields = Array.isArray(subSchema.fields) ? subSchema.fields : [];
 
   return Object.entries(properties).map(([propertyKey, propertySchema]) => {
     const propertyRecord = isRecord(propertySchema) ? propertySchema : {};
@@ -136,6 +171,14 @@ function parseJsonSubKeys(fact: FactEditorValue): JsonSubKey[] {
       : {};
     const safety = isRecord(pathValidation.safety) ? pathValidation.safety : {};
     const rawDefaultValue = propertyRecord.default;
+
+    const subSchemaField = subSchemaFields.find((field: unknown) => {
+      if (!isRecord(field)) {
+        return false;
+      }
+      return field.key === propertyKey;
+    });
+    const subSchemaFieldRecord = isRecord(subSchemaField) ? subSchemaField : {};
 
     return {
       id: createJsonSubKeyId(),
@@ -153,6 +196,7 @@ function parseJsonSubKeys(fact: FactEditorValue): JsonSubKey[] {
             ? rawDefaultValue
             : JSON.stringify(rawDefaultValue),
       valueType: toJsonValueType(propertyRecord.type),
+      cardinality: subSchemaFieldRecord.cardinality === "many" ? "many" : "one",
       validationType:
         validationType === "path"
           ? "path"
@@ -185,6 +229,7 @@ function createEmptyJsonSubKey(existingKeys: readonly JsonSubKey[]): JsonSubKey 
     key,
     value: "",
     valueType: "string",
+    cardinality: "one",
     validationType: "none",
     pathKind: "file",
     trimWhitespace: true,
@@ -216,6 +261,7 @@ function jsonSubKeysToJsonSchemaValidation(
   keys: readonly JsonSubKey[],
 ): FactEditorValue["validation"] {
   const properties: Record<string, Record<string, unknown>> = {};
+  const subSchemaFields: Array<Record<string, unknown>> = [];
 
   for (const entry of keys) {
     const trimmedKey = entry.key.trim();
@@ -233,7 +279,7 @@ function jsonSubKeysToJsonSchemaValidation(
     }
 
     const parsedDefault = parseJsonSubKeyDefaultValue(entry);
-    if (parsedDefault !== undefined) {
+    if (entry.cardinality === "one" && parsedDefault !== undefined) {
       propertySchema.default = parsedDefault;
     }
 
@@ -263,7 +309,17 @@ function jsonSubKeysToJsonSchemaValidation(
       }
     }
 
+    const subSchemaField: Record<string, unknown> = {
+      key: trimmedKey,
+      type: entry.valueType,
+      cardinality: entry.cardinality,
+    };
+    if (entry.cardinality === "one" && parsedDefault !== undefined) {
+      subSchemaField.defaultValue = parsedDefault;
+    }
+
     properties[trimmedKey] = propertySchema;
+    subSchemaFields.push(subSchemaField);
   }
 
   return {
@@ -274,7 +330,11 @@ function jsonSubKeysToJsonSchemaValidation(
       additionalProperties: false,
       properties,
     },
-  };
+    subSchema: {
+      type: "object",
+      fields: subSchemaFields,
+    },
+  } as FactEditorValue["validation"];
 }
 
 function factToFormValues(fact: FactEditorValue): FactEditorFormValues {
@@ -294,23 +354,20 @@ function factToFormValues(fact: FactEditorValue): FactEditorFormValues {
   const uiValidationKind = getUiValidationKind(validation);
   const validationType = uiValidationKind === "json-schema" ? "none" : uiValidationKind;
 
+  const factRecord = fact as unknown as Record<string, unknown>;
+  const guidanceRecord = isRecord(factRecord.guidance) ? factRecord.guidance : {};
+  const description = extractMarkdownText(factRecord.description);
+  const humanGuidance = extractGuidanceText(guidanceRecord.human, ["short", "long"]);
+  const agentGuidance = extractGuidanceText(guidanceRecord.agent, ["intent"]);
+
   return {
     displayName: fact.name ?? "",
     factKey: fact.key,
     factType: fact.factType,
     defaultValue: fact.defaultValue === undefined ? "" : String(fact.defaultValue),
-    description: fact.description ?? "",
-    humanMarkdown:
-      ((fact.guidance?.human as { markdown?: string; short?: string; long?: string } | undefined)
-        ?.markdown ??
-        (fact.guidance?.human as { short?: string; long?: string } | undefined)?.short ??
-        "") ||
-      "",
-    agentMarkdown:
-      ((fact.guidance?.agent as { markdown?: string; intent?: string } | undefined)?.markdown ??
-        (fact.guidance?.agent as { intent?: string } | undefined)?.intent ??
-        "") ||
-      "",
+    description,
+    humanMarkdown: humanGuidance,
+    agentMarkdown: agentGuidance,
     validationType,
     pathKind: validation?.path?.pathKind === "directory" ? "directory" : "file",
     trimWhitespace: validation?.path?.normalization?.trimWhitespace ?? true,
@@ -410,43 +467,40 @@ function formValuesToFact(
     ...(displayName.length > 0 ? { name: displayName } : {}),
     key,
     factType,
+    cardinality: "one",
     ...(defaultValue !== undefined ? { defaultValue } : {}),
-    ...(description.length > 0 ? { description } : {}),
-    ...(humanMarkdown.length > 0 || agentMarkdown.length > 0
-      ? {
-          guidance: {
-            ...(humanMarkdown.length > 0 ? { human: { short: humanMarkdown } } : {}),
-            ...(agentMarkdown.length > 0 ? { agent: { intent: agentMarkdown } } : {}),
-          },
-        }
-      : {}),
+    description: { markdown: description },
+    guidance: {
+      human: { markdown: humanMarkdown },
+      agent: { markdown: agentMarkdown },
+    },
     validation: (validation ?? { kind: "none" }) as Exclude<
       FactEditorValue["validation"],
       undefined
     >,
-  };
+  } as unknown as FactEditorValue;
 }
 
-function factToMutationInput(fact: FactEditorValue) {
+function factToMutationInput(fact: FactEditorValue): Record<string, unknown> {
   const normalizedFactType = normalizeFactType(fact.factType);
   const trimmedKey = fact.key.trim();
-  const description = fact.description?.trim();
-  const humanGuidance = fact.guidance?.human?.short?.trim();
-  const agentGuidance = fact.guidance?.agent?.intent?.trim();
+  const factRecord = fact as unknown as Record<string, unknown>;
+  const guidanceRecord = isRecord(factRecord.guidance) ? factRecord.guidance : {};
+  const description = extractMarkdownText(factRecord.description).trim();
+  const humanGuidance = extractGuidanceText(guidanceRecord.human, ["short", "long"]).trim();
+  const agentGuidance = extractGuidanceText(guidanceRecord.agent, ["intent"]).trim();
 
   return {
     name: fact.name,
     key: trimmedKey,
     factType: normalizedFactType,
+    cardinality: (fact as unknown as { cardinality?: "one" | "many" }).cardinality ?? "one",
     defaultValue: fact.defaultValue,
-    ...(description ? { description } : {}),
-    guidance:
-      humanGuidance || agentGuidance
-        ? {
-            human: { markdown: humanGuidance ?? "" },
-            agent: { markdown: agentGuidance ?? "" },
-          }
-        : undefined,
+    description: { markdown: description },
+    guidance: {
+      human: { markdown: humanGuidance },
+      agent: { markdown: agentGuidance },
+    },
     validation: fact.validation,
   };
 }
@@ -1478,10 +1532,13 @@ export function MethodologyVersionFactsRoute() {
           await updateFactMutation.mutateAsync({
             versionId,
             factKey: existing.key,
-            fact: factToMutationInput(nextFact),
+            fact: factToMutationInput(nextFact) as never,
           });
         } else {
-          await createFactMutation.mutateAsync({ versionId, fact: factToMutationInput(nextFact) });
+          await createFactMutation.mutateAsync({
+            versionId,
+            fact: factToMutationInput(nextFact) as never,
+          });
         }
 
         await refreshFacts("Fact saved");

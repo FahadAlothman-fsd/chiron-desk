@@ -1,0 +1,170 @@
+# Draft: Runtime Project Context Revision
+
+## Requirements (confirmed)
+- runtime model must be revised across L1/L2/L3, not just narrow L1 work-unit persistence
+- `project_work_units` should not gain a separate `presence_status` axis if activation tracking is already represented by transition/workflow execution state
+- runtime levels are:
+  - L1: project facts, project work units
+  - L2: workflow executions, project work unit facts, project artifact snapshots
+  - L3: step execution
+- retries and reverting are in scope; branching is no longer the focus
+- transition execution should point to the active workflow execution
+- workflow execution should point to the active step execution
+- retries should supersede previous workflow/step executions via explicit pointers
+- only the primary workflow is connected at transition level; supporting workflows are tracked through invoke-step execution pointers
+- `project_work_units` are created on first transition start, not at project pin/seeding
+- retries must stay inside the existing `transition_execution`; they do not create a new transition execution row
+- semantic split is locked: step retry history is nested inside a workflow attempt, while workflow retry history replaces the whole workflow attempt under the same transition execution
+- revert should create a new superseding execution row; prior execution rows remain immutable history
+- project artifact snapshots are runtime metadata records, not embedded content blobs
+- git tracking should stay minimal for now (one or two fields at most)
+- artifact slot behavior differs by slot type; `file_set` cannot be treated identically to a single-file artifact slot
+- artifact evolution should use predecessor/supersession lineage rather than in-place mutation
+- `file_set` updates should persist delta rows plus inheritance from the previous parent snapshot, not full materialized copies
+- future condition sets need to determine whether tracked artifact records are on the latest file change or stale relative to git/file history
+- derived dashboard state is a core feature and must calculate what should be done next across transition candidates
+- current candidate transition categories under discussion are: active transitions, open transitions for existing work units without active transitions, and future transitions for absent/not-yet-instantiated work units
+- singleton future transitions disappear once the singleton work unit exists; many-per-project future transitions remain available even when instances already exist
+- `blocked` is not a candidate-source bucket; it is the evaluation result for open/future candidates whose conditions are unmet
+- transition availability should be modeled as `available | blocked`
+- active transitions are a separate live list and are excluded from candidate evaluation
+- multiple open transitions may exist for the same work unit from the same state
+- transition uniqueness is defined by `(work unit, from, to)` rather than by `from` alone or `to` alone
+- nested Effect parallelism is desired: transition candidates evaluate in parallel, and condition evaluation inside a transition may also run in parallel with early stop semantics based on group mode
+- project dashboard should use fast/short-circuit evaluation; deeper blocked-condition evaluation should happen when the user drills into a blocked work unit/transition
+- planning scope should now include L1/L2 frontend pages for project runtime guidance, while deferring actual L3 step-execution UX until step-type configs are locked
+- project dashboard should remain overview-focused rather than becoming the full runtime-guidance surface
+- project dashboard may show a very fast summary of the first few available transitions only
+- a dedicated runtime-guidance page should own full open/future candidate evaluation and blocked transition visibility
+- existing work-unit transition candidates must be presented differently from future/not-yet-instantiated candidates
+- existing candidates should explicitly show current state and destination state for the transition
+- runtime-guidance UX should be oriented around work units first, with transitions nested under each work unit/group
+- first page load should return eligible work-unit groups quickly, then transition evaluations should progressively stream in under each group
+- SSE is preferred for progressive transition-result delivery on the runtime-guidance page
+- multiple candidate transitions may exist for the same work unit and must be rendered as separate nested items under that work unit
+- all candidate work-unit groups should render immediately on first load, even if they later resolve to fully blocked groups
+- active transitions should also be presented in work-unit-scoped groups rather than in a flat transition list
+- transition rows on the runtime-guidance page are clickable and should open workflow-selection UX using workflows bound to that transition
+- confirming that workflow choice should create both a runtime transition execution record and a runtime workflow execution record
+- active transition rows should redirect/open the active workflow execution rather than presenting workflow selection again
+- transition/workflow dialog should include:
+  - top section with transition details (`from -> to`, description, human guidance)
+  - left-side list of bound workflows
+  - right-side detail card for the currently selected workflow
+  - CTA on the workflow card that creates `transition_execution` + `workflow_execution`
+- selecting a workflow in the left list switches the right-side workflow detail card
+- active-transition dialog should reuse the same layout, but preselect the active workflow and show runtime/current-state info
+- active-transition dialog should not yet allow switching to another workflow; alternate-workflow switching is deferred to a later slice
+- active-transition dialog should include a disabled "go to execution step" action placeholder until L3 runtime UX is built
+- project overview page should be overview/stats-focused rather than guidance-focused
+- project overview should show stats for:
+  - facts with instances (`current/total` style)
+  - work-unit types with instances (`current/total`, counting types rather than duplicate instances)
+  - active transitions
+- project overview should include a list of active workflow executions
+- project overview should link to runtime pages for:
+  - work units
+  - project facts
+  - workflow executions (filterable by work unit)
+  - transitions (filterable by work unit)
+- specific project work-unit scope should include pages/sections for:
+  - work-unit facts
+  - state machine
+  - artifact slots
+- both Project Facts and Work Units need list + detail pages
+- the Work Unit detail page is the Work Unit overview page for this slice
+- runtime slice should prefer minimal persistence/history for facts and states; do not add per-entity event tables in this slice
+- some entity history can be lost in this slice if that keeps runtime persistence simpler
+- project runtime is broader and route-tree-heavier than methodology/design-time because it handles actual instance data rather than only definitions
+- `transition_execution` should later have its own detail page, but it is not a priority surface for this slice
+- transition execution detail should show primary workflow executions only; supporting workflows stay visible only at L3 invoke-step scope
+- there should be a two-way link between transition executions and workflow executions
+- workflow executions should link back to their parent transition execution for both primary and supporting workflows
+- supporting workflows are still overall scoped to the parent transition even when actually launched from invoke steps
+- invoke steps come in at least two kinds that matter for runtime modeling:
+  - invoke that creates work units
+  - invoke that runs workflows on the same work unit
+- work unit overview page is in scope and approved
+- workflow execution detail page is deferred with L3; it will be the shell/entry point into step execution later rather than an L2 focus for this slice
+
+## Technical Decisions
+- previous recommendation for `presence_status = absent|activating|active|closed` is rejected
+- activation/progress tracking should be owned by execution tables, not duplicated as a work-unit runtime status axis
+- `project_executions` should be renamed/reframed as `transition_executions`
+- runtime hierarchy should be: `transition_executions` -> `workflow_executions` -> `step_executions`
+- `transition_executions` tracks only the active primary workflow execution
+- supporting workflow lineage should hang off invoke-step execution records rather than off `transition_executions`
+- `project_work_unit` + `transition_execution` are created together when the first transition starts
+- workflow retries and step retries supersede rows beneath the same `transition_execution`
+- step retry => new `step_execution` under the same `workflow_execution`
+- workflow retry => new `workflow_execution` under the same `transition_execution`
+- revert uses the same lineage model as retry: create a new superseding row rather than mutating old execution rows in place
+- artifact snapshots should represent runtime-resolved artifact state for a slot, with git/file metadata captured in persistence
+- `project_artifact_snapshots` should be the slot-level container and `artifact_snapshot_files` should hold member-file rows
+- file updates should create new superseding rows rather than mutate prior snapshot/file rows in place
+- `file_set` snapshot resolution should be computed by walking parent snapshot lineage and overlaying newer child rows onto inherited older child rows
+- dashboard transition derivation should separate:
+  - active live list: `active`
+  - candidate source: `open | future`
+  - evaluation result: `available | blocked`
+- `active` transitions come from live execution state, not from condition evaluation
+- `open` and `future` transitions are the candidate pools fed into condition evaluation
+- Effect concurrency should exist at candidate-evaluation level, with optional nested concurrency at condition-group/condition level
+- early interruption semantics are desirable for condition groups (`all` short-circuits on first false; `any` short-circuits on first true), but this trades off against collecting exhaustive diagnostics
+- dashboard path should use fast-mode/first-decisive-reason evaluation; blocked drill-in path can run exhaustive evaluation for richer diagnostics
+- product surface split:
+  - project dashboard = overview + small fast "next up" summary (e.g. first N available transitions)
+  - dedicated runtime-guidance page = full candidate evaluation, blocked visibility, richer drill-in
+- runtime-guidance interaction model:
+  - initial query returns active work-unit groups plus open/future candidate work-unit groups
+  - open/future transition rows are actionable and launch workflow selection
+  - launching a transition creates `transition_execution` + initial `workflow_execution`
+  - active work-unit groups expose navigation to the active workflow execution
+- workflow-selection dialog layout is locked to transition details header + workflow list + workflow detail card
+- active-transition dialog reuses the same component shell but in read-focused mode for this slice
+- frontend runtime information architecture should separate:
+  - project overview page (stats + active workflow executions + navigation)
+  - runtime guidance page (what to do next)
+  - entity-specific runtime list/detail pages for project facts and work units, plus list pages for workflow executions and transitions
+  - the work-unit detail route doubles as the work-unit overview page and parents nested work-unit facts, state machine, and artifact slots pages
+- runtime UI should favor current-state pages over history/audit pages in this slice because event/history persistence is intentionally deferred
+- transition/workflow linkage should support:
+  - a transition-level pointer to the primary workflow execution associated with the transition
+  - a workflow-level FK back to the parent transition execution for both primary and supporting workflows
+- supporting workflow visibility is deferred from transition-execution detail and remains an L3 concern under invoke-step inspection
+- runtime route tree now includes a work-unit overview page and a deferred/low-priority transition execution detail page
+- workflow execution detail route may exist as a future placeholder, but implementation priority for this plan remains on L1/L2 pages and APIs
+- candidate presentation split:
+  - future candidate labels should communicate instantiation semantics and cardinality hints
+  - existing candidate labels should communicate transition semantics as `current state -> next state`
+- runtime-guidance page should first load work-unit groups (existing eligible work units plus future singleton/many candidate groups) and then stream evaluated transitions into each group
+- the UI should use loading placeholders at the work-unit-group level until transition results arrive
+- transition results for a work unit should append progressively as `available` or `blocked` children rather than replacing the whole page payload
+- group visibility is determined by candidate-source expansion, not by transition evaluation outcome; blocked-only groups still remain visible
+
+## Research Findings
+- current landed runtime execution persistence is only `project_executions` in `packages/db/src/schema/project.ts`
+- current runtime plan file `.sisyphus/plans/runtime-project-context.md` is now outdated relative to revised L1/L2/L3 scope
+- repo already has basic SSE support in `apps/server/src/index.ts` via Hono `streamSSE`
+- frontend already has an SSE consumer hook in `apps/web/src/lib/use-sse.ts`
+- current dashboard calculation entrypoint is monolithic `getProjectDetails` in `packages/api/src/routers/project.ts`
+- repo uses Effect `Effect.all([...])` patterns for parallel data loading, but not yet for progressive streamed dashboard calculations
+- no git library is currently installed; `simple-git`, `isomorphic-git`, and `nodegit` are absent
+- `simple-git` can answer "latest commit touching path" via `git.log({ file, maxCount: 1 })`, which uses `git log --follow -- <path>` semantics
+- git freshness semantics are branch-relative by default; without explicit ref/range, latest-commit checks are relative to current `HEAD`
+
+## Open Questions
+- exact parent-level supersession rule for `project_artifact_snapshots` when only some child files change still needs to be closed
+- exact definition of "latest change" for git-aware condition evaluation still needs to be closed (HEAD commit, latest commit touching path, or dirty working tree aware)
+- which project/runtime git ref should dashboard freshness checks use as authority: current checkout HEAD, pinned branch ref, or project-configured ref
+- should progressive transition calculations use a dedicated Hono SSE endpoint or attempt to stream through oRPC response semantics
+- for many-per-project future transitions, what is the stable candidate identity shown in the dashboard before an instance exists
+- whether blocked diagnostics should be first-failure-only (fast short-circuit) or exhaustive per transition
+- what exact sort/ranking should determine the "first 3 available transitions" shown on the project dashboard summary
+- what exact UI label format should be used for existing work-unit transition candidates vs future candidates
+- are dedicated detail pages needed now for individual workflow executions and transition executions, or are list/filter pages plus dialog/active navigation enough for this slice
+- what exact field name should be used for the transition-level pointer to its primary workflow execution (`primary_workflow_execution_id`, `active_workflow_execution_id`, or another neutral name)
+
+## Scope Boundaries
+- INCLUDE: L1/L2/L3 runtime execution model revision, retry/revert lineage, runtime artifact snapshots
+- EXCLUDE: methodology design-time seeding redesign

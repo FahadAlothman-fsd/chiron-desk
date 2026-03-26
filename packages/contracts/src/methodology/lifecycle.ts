@@ -1,7 +1,7 @@
 import * as Schema from "effect/Schema";
 import { AgentTypeDefinition } from "./agent.js";
 import { FactSchema } from "./fact.js";
-import { AudienceGuidance } from "./guidance.js";
+import { AudienceGuidance, GuidanceMarkdownContent } from "./guidance.js";
 
 export const GateClass = Schema.Literal("start_gate", "completion_gate");
 export type GateClass = typeof GateClass.Type;
@@ -12,7 +12,7 @@ export type CardinalityPolicy = typeof CardinalityPolicy.Type;
 export const LifecycleState = Schema.Struct({
   key: Schema.NonEmptyString,
   displayName: Schema.optional(Schema.String),
-  description: Schema.optional(Schema.String),
+  description: Schema.optional(Schema.Union(GuidanceMarkdownContent, Schema.String)),
   guidance: Schema.optional(AudienceGuidance),
 });
 export type LifecycleState = typeof LifecycleState.Type;
@@ -46,7 +46,6 @@ export const TransitionConditionSet = Schema.Struct({
   phase: TransitionConditionSetPhase,
   mode: TransitionConditionSetMode,
   groups: Schema.Array(TransitionConditionGroup),
-  guidance: Schema.optional(Schema.String),
 });
 export type TransitionConditionSet = typeof TransitionConditionSet.Type;
 
@@ -54,6 +53,8 @@ export const LifecycleTransition = Schema.Struct({
   transitionKey: Schema.NonEmptyString,
   fromState: Schema.optional(Schema.String), // null/undefined = __absent__
   toState: Schema.NonEmptyString,
+  description: Schema.optional(GuidanceMarkdownContent),
+  guidance: Schema.optional(AudienceGuidance),
   conditionSets: Schema.Array(TransitionConditionSet),
 });
 export type LifecycleTransition = typeof LifecycleTransition.Type;
@@ -63,7 +64,7 @@ export type LifecycleTransition = typeof LifecycleTransition.Type;
 export const WorkUnitTypeDefinition = Schema.Struct({
   key: Schema.NonEmptyString,
   displayName: Schema.optional(Schema.String),
-  description: Schema.optional(Schema.String),
+  description: Schema.optional(Schema.Union(GuidanceMarkdownContent, Schema.String)),
   guidance: Schema.optional(AudienceGuidance),
   cardinality: CardinalityPolicy,
   lifecycleStates: Schema.Array(LifecycleState),
@@ -75,7 +76,7 @@ export type WorkUnitTypeDefinition = typeof WorkUnitTypeDefinition.Type;
 export const CreateMethodologyWorkUnitTypeInput = Schema.Struct({
   key: Schema.NonEmptyString,
   displayName: Schema.optional(Schema.String),
-  description: Schema.optional(Schema.String),
+  description: Schema.optional(Schema.Union(GuidanceMarkdownContent, Schema.String)),
   guidance: Schema.optional(AudienceGuidance),
   cardinality: Schema.optional(CardinalityPolicy),
 });
@@ -90,7 +91,7 @@ export type CreateMethodologyWorkUnitInput = typeof CreateMethodologyWorkUnitInp
 export const UpdateMethodologyWorkUnitTypeInput = Schema.Struct({
   key: Schema.NonEmptyString,
   displayName: Schema.optional(Schema.String),
-  description: Schema.optional(Schema.String),
+  description: Schema.optional(Schema.Union(GuidanceMarkdownContent, Schema.String)),
   guidance: Schema.optional(AudienceGuidance),
   cardinality: Schema.optional(CardinalityPolicy),
 });
@@ -143,6 +144,8 @@ export const UpsertWorkUnitLifecycleTransitionInput = Schema.Struct({
     transitionKey: Schema.NonEmptyString,
     fromState: Schema.optional(Schema.String), // null/undefined = __absent__
     toState: Schema.NonEmptyString,
+    description: Schema.optional(GuidanceMarkdownContent),
+    guidance: Schema.optional(AudienceGuidance),
   }),
 });
 export type UpsertWorkUnitLifecycleTransitionInput =
@@ -155,6 +158,8 @@ export const SaveWorkUnitLifecycleTransitionDialogInput = Schema.Struct({
     transitionKey: Schema.NonEmptyString,
     fromState: Schema.optional(Schema.String),
     toState: Schema.NonEmptyString,
+    description: Schema.optional(GuidanceMarkdownContent),
+    guidance: Schema.optional(AudienceGuidance),
   }),
   conditionSets: Schema.Array(TransitionConditionSet),
   workflowKeys: Schema.Array(Schema.NonEmptyString),

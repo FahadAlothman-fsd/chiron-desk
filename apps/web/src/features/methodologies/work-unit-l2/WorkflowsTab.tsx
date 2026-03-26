@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 type WorkflowMetadata = {
   key: string;
   displayName?: string;
+  description?: { markdown?: string };
   metadata?: Record<string, string | number | boolean | string[]>;
   guidance?: {
     human?: { markdown?: string };
@@ -164,22 +165,17 @@ export function WorkflowsTab({
     }, {});
 
     Object.keys(metadata).forEach((metadataKey) => {
-      if (typeof metadata[metadataKey] === "string" && metadataKey !== "description") {
+      if (typeof metadata[metadataKey] === "string") {
         delete metadata[metadataKey];
       }
     });
 
     Object.assign(metadata, metadataFromRows);
-    if (description.length > 0) {
-      metadata.description = description;
-    }
-    if (description.length === 0 && "description" in metadata) {
-      delete metadata.description;
-    }
 
     return {
       key,
       ...(displayName.length > 0 ? { displayName } : {}),
+      ...(description.length > 0 ? { description: { markdown: description } } : {}),
       metadata,
       ...(humanGuidance.length > 0 || agentGuidance.length > 0
         ? {
@@ -202,9 +198,6 @@ export function WorkflowsTab({
     const metadata = workflow?.metadata ?? {};
     return Object.entries(metadata)
       .flatMap(([key, value]) => {
-        if (key === "description") {
-          return [];
-        }
         if (typeof value === "string") {
           return [{ id: `metadata-${crypto.randomUUID()}`, key, value }];
         }
@@ -245,8 +238,7 @@ export function WorkflowsTab({
     setEditKey(workflow.key);
     setKeyValue(workflow.key);
     setDisplayNameValue(workflow.displayName ?? "");
-    const metadataDescription = workflow.metadata?.description;
-    setDescriptionValue(typeof metadataDescription === "string" ? metadataDescription : "");
+    setDescriptionValue(workflow.description?.markdown ?? "");
     setHumanGuidanceValue(workflow.guidance?.human?.markdown ?? "");
     setAgentGuidanceValue(workflow.guidance?.agent?.markdown ?? "");
     setMetadataEntries(toMetadataEntries(workflow));

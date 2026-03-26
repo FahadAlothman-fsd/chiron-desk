@@ -35,11 +35,15 @@ type AudienceGuidance = {
   agent: { markdown: string };
 };
 
+type MarkdownContent = {
+  markdown: string;
+};
+
 type ArtifactTemplate = {
   id: string;
   key: string;
   displayName?: string;
-  description?: AudienceGuidance;
+  description?: MarkdownContent;
   guidance?: AudienceGuidance;
   content?: string;
 };
@@ -48,7 +52,7 @@ type ArtifactSlot = {
   id: string;
   key: string;
   displayName?: string;
-  description?: AudienceGuidance;
+  description?: MarkdownContent;
   guidance?: AudienceGuidance;
   cardinality: "single" | "fileset";
   rules?: unknown;
@@ -68,14 +72,14 @@ type ArtifactSlotsTabProps = {
     slot: {
       key: string;
       displayName?: string;
-      description?: AudienceGuidance;
+      description?: MarkdownContent;
       guidance?: AudienceGuidance;
       cardinality: "single" | "fileset";
       rules?: unknown;
       templates: Array<{
         key: string;
         displayName?: string;
-        description?: AudienceGuidance;
+        description?: MarkdownContent;
         guidance?: AudienceGuidance;
         content?: string;
       }>;
@@ -86,7 +90,7 @@ type ArtifactSlotsTabProps = {
     slot: {
       key: string;
       displayName?: string;
-      description?: AudienceGuidance;
+      description?: MarkdownContent;
       guidance?: AudienceGuidance;
       cardinality: "single" | "fileset";
       rules?: unknown;
@@ -95,7 +99,7 @@ type ArtifactSlotsTabProps = {
       add: Array<{
         key: string;
         displayName?: string;
-        description?: AudienceGuidance;
+        description?: MarkdownContent;
         guidance?: AudienceGuidance;
         content?: string;
       }>;
@@ -105,7 +109,7 @@ type ArtifactSlotsTabProps = {
         template: {
           key: string;
           displayName?: string;
-          description?: AudienceGuidance;
+          description?: MarkdownContent;
           guidance?: AudienceGuidance;
           content?: string;
         };
@@ -205,8 +209,26 @@ function cloneAudienceGuidance(value?: AudienceGuidance): AudienceGuidance | und
   };
 }
 
+function cloneMarkdownContent(
+  value?: MarkdownContent | AudienceGuidance,
+): MarkdownContent | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  if ("markdown" in value && typeof value.markdown === "string") {
+    return { markdown: value.markdown };
+  }
+
+  if ("human" in value && typeof value.human?.markdown === "string") {
+    return { markdown: value.human.markdown };
+  }
+
+  return { markdown: "" };
+}
+
 function cloneArtifactSlot(slot: ArtifactSlot): ArtifactSlot {
-  const description = cloneAudienceGuidance(slot.description);
+  const description = cloneMarkdownContent(slot.description);
   const guidance = cloneAudienceGuidance(slot.guidance);
 
   return {
@@ -218,7 +240,7 @@ function cloneArtifactSlot(slot: ArtifactSlot): ArtifactSlot {
 }
 
 function cloneArtifactTemplate(template: ArtifactTemplate): ArtifactTemplate {
-  const description = cloneAudienceGuidance(template.description);
+  const description = cloneMarkdownContent(template.description);
   const guidance = cloneAudienceGuidance(template.guidance);
 
   return {
@@ -981,13 +1003,10 @@ function GuidanceTab({
         <textarea
           id="edit-description-human"
           className="min-h-[100px] w-full rounded-none border border-border bg-background px-3 py-2 text-sm"
-          value={slot.description?.human.markdown ?? ""}
+          value={slot.description?.markdown ?? ""}
           onChange={(e) =>
             onChange({
-              description: {
-                human: { markdown: e.target.value },
-                agent: { markdown: slot.description?.agent.markdown ?? "" },
-              },
+              description: { markdown: e.target.value },
             })
           }
           placeholder="Description for human users..."
@@ -1115,13 +1134,10 @@ function TemplateGuidanceTab({
         <Textarea
           id="edit-template-description-human"
           className="min-h-[7rem] rounded-none"
-          value={template.description?.human.markdown ?? ""}
+          value={template.description?.markdown ?? ""}
           onChange={(event) =>
             onChange({
-              description: {
-                human: { markdown: event.target.value },
-                agent: { markdown: template.description?.agent.markdown ?? "" },
-              },
+              description: { markdown: event.target.value },
             })
           }
           placeholder="Description for human users..."

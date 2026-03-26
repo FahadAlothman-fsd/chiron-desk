@@ -6,7 +6,6 @@ import {
   GetProjectPinLineageInput,
   GetDraftLineageInput,
   GetPublicationEvidenceInput,
-  MethodologyFactDefinitionInput,
   ProjectMethodologyPinEvent,
   ProjectMethodologyPinEventType,
   MethodologyLinkTypeDefinitionInput,
@@ -23,7 +22,14 @@ import {
   VariableValueType,
   VersionEventType,
 } from "../../methodology/version";
-import { WorkUnitTypeDefinition } from "../../methodology/lifecycle";
+import {
+  LifecycleTransition,
+  TransitionConditionSet,
+  WorkUnitTypeDefinition,
+} from "../../methodology/lifecycle";
+import { FactSchema, MethodologyFactDefinitionInput } from "../../methodology/fact";
+import { ArtifactSlotInput, ArtifactSlotTemplateInput } from "../../methodology/artifact-slot";
+import { AgentTypeDefinition } from "../../methodology/agent";
 
 const validDefinition = {
   workUnitTypes: [],
@@ -204,6 +210,7 @@ describe("MethodologyFactDefinitionInput", () => {
   const validVar = {
     key: "priority",
     factType: "number" as const,
+    cardinality: "one" as const,
   };
 
   it("accepts valid fact definition with required fields", () => {
@@ -216,17 +223,21 @@ describe("MethodologyFactDefinitionInput", () => {
     const full = {
       ...validVar,
       description: {
-        human: { markdown: "Priority level" },
+        markdown: "Priority level",
+      },
+      guidance: {
+        human: { markdown: "Priority level for operators" },
         agent: { markdown: "Priority level for agent" },
       },
+      cardinality: "one",
       defaultValue: 1,
       validation: { kind: "none" as const },
     };
     const result = decode(full);
     expect(result.description).toEqual({
-      human: { markdown: "Priority level" },
-      agent: { markdown: "Priority level for agent" },
+      markdown: "Priority level",
     });
+    expect(result.cardinality).toBe("one");
   });
 
   it("rejects fact definition with empty key", () => {
@@ -238,6 +249,26 @@ describe("MethodologyFactDefinitionInput", () => {
   });
 });
 
+describe("Fact ownership and cardinality contracts", () => {
+  it("requires fact cardinality values one|many", () => {
+    const decodeMethodologyFact = Schema.decodeUnknownSync(MethodologyFactDefinitionInput);
+    const decodeWorkUnitFact = Schema.decodeUnknownSync(FactSchema);
+
+    expect(
+      decodeMethodologyFact({ key: "fact.priority", factType: "number", cardinality: "many" })
+        .cardinality,
+    ).toBe("many");
+    expect(
+      decodeWorkUnitFact({ key: "fact.priority", factType: "number", cardinality: "one" })
+        .cardinality,
+    ).toBe("one");
+
+    expect(() =>
+      decodeMethodologyFact({ key: "fact.priority", factType: "number", cardinality: "single" }),
+    ).toThrow();
+  });
+});
+
 describe("WorkUnitTypeDefinition", () => {
   const decode = Schema.decodeUnknownSync(WorkUnitTypeDefinition);
 
@@ -245,7 +276,7 @@ describe("WorkUnitTypeDefinition", () => {
     const result = decode({
       key: "WU.INTAKE",
       displayName: "Intake",
-      description: "Collect initial intake artifacts.",
+      description: { markdown: "Collect initial intake artifacts." },
       guidance: {
         human: { markdown: "Capture operator-facing intake steps." },
         agent: { markdown: "Guide the agent through intake automation." },
@@ -260,6 +291,86 @@ describe("WorkUnitTypeDefinition", () => {
       human: { markdown: "Capture operator-facing intake steps." },
       agent: { markdown: "Guide the agent through intake automation." },
     });
+    expect(result.description).toEqual({ markdown: "Collect initial intake artifacts." });
+  });
+});
+
+describe("Transition and condition-set ownership contracts", () => {
+  it("accepts transition-level description+guidance", () => {
+    const decode = Schema.decodeUnknownSync(LifecycleTransition);
+
+    const decoded = decode({
+      transitionKey: "draft__to__ready",
+      fromState: "draft",
+      toState: "ready",
+      description: { markdown: "Promote draft to ready." },
+      guidance: {
+        human: { markdown: "Validate checklist before promotion." },
+        agent: { markdown: "Block transition if checklist is incomplete." },
+      },
+      conditionSets: [],
+    });
+
+    expect(decoded.description).toEqual({ markdown: "Promote draft to ready." });
+  });
+
+  it("drops condition-set guidance from decoded payload", () => {
+    const decode = Schema.decodeUnknownSync(TransitionConditionSet);
+
+    const decoded = decode({
+      key: "start.draft_to_ready",
+      phase: "start",
+      mode: "all",
+      guidance: "legacy guidance should be removed",
+      groups: [],
+    }) as { guidance?: unknown };
+
+    expect(decoded.guidance).toBeUndefined();
+  });
+});
+
+describe("Agents and artifact slots metadata ownership contracts", () => {
+  it("accepts description+guidance on agents", () => {
+    const decode = Schema.decodeUnknownSync(AgentTypeDefinition);
+
+    const decoded = decode({
+      key: "agent.reviewer",
+      persona: "Critical reviewer",
+      description: { markdown: "Reviews draft outputs." },
+      guidance: {
+        human: { markdown: "Use when quality gates are strict." },
+        agent: { markdown: "Prioritize deterministic checks." },
+      },
+    });
+
+    expect(decoded.description).toEqual({ markdown: "Reviews draft outputs." });
+  });
+
+  it("accepts markdown description shape for artifact slot and template", () => {
+    const decodeSlot = Schema.decodeUnknownSync(ArtifactSlotInput);
+    const decodeTemplate = Schema.decodeUnknownSync(ArtifactSlotTemplateInput);
+
+    const slot = decodeSlot({
+      key: "artifact.story",
+      cardinality: "single",
+      description: { markdown: "Story artifact contract." },
+      guidance: {
+        human: { markdown: "Attach operator-authored story text." },
+        agent: { markdown: "Render canonical story sections." },
+      },
+      templates: [],
+    });
+    const template = decodeTemplate({
+      key: "default",
+      description: { markdown: "Default story template." },
+      guidance: {
+        human: { markdown: "Fill all required sections." },
+        agent: { markdown: "Emit placeholders for missing sections." },
+      },
+    });
+
+    expect(slot.description).toEqual({ markdown: "Story artifact contract." });
+    expect(template.description).toEqual({ markdown: "Default story template." });
   });
 });
 
@@ -280,14 +391,14 @@ describe("MethodologyLinkTypeDefinitionInput", () => {
   it("accepts link type with optional fields", () => {
     const full = {
       ...validLink,
-      description: "Blocking dependency",
+      description: { markdown: "Blocking dependency" },
       guidance: {
         human: { markdown: "Avoid starting blocked work." },
         agent: { markdown: "Enforce dependency ordering." },
       },
     };
     const result = decode(full);
-    expect(result.description).toBe("Blocking dependency");
+    expect(result.description).toEqual({ markdown: "Blocking dependency" });
     expect(result.guidance).toEqual({
       human: { markdown: "Avoid starting blocked work." },
       agent: { markdown: "Enforce dependency ordering." },
@@ -332,6 +443,7 @@ describe("CreateDraftVersionInput", () => {
         {
           key: "priority",
           factType: "number",
+          cardinality: "one",
         },
       ],
     };
@@ -393,6 +505,7 @@ describe("UpdateDraftVersionInput", () => {
         {
           key: "priority",
           factType: "number",
+          cardinality: "many",
         },
       ],
     };

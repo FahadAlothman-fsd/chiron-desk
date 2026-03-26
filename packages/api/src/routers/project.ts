@@ -547,7 +547,6 @@ export function createProjectRouter(
                   phase: conditionSet.phase,
                   mode: conditionSet.mode,
                   groups: conditionSet.groups,
-                  guidance: conditionSet.guidance,
                 })),
                 status,
                 statusReasonCode,

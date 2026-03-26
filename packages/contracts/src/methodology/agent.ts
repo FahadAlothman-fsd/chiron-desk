@@ -1,4 +1,5 @@
 import * as Schema from "effect/Schema";
+import { AudienceGuidance, GuidanceMarkdownContent } from "./guidance.js";
 
 export const ModelReference = Schema.Struct({
   provider: Schema.NonEmptyString,
@@ -14,7 +15,8 @@ export type AgentPromptTemplate = typeof AgentPromptTemplate.Type;
 export const AgentTypeDefinition = Schema.Struct({
   key: Schema.NonEmptyString,
   displayName: Schema.optional(Schema.String),
-  description: Schema.optional(Schema.String),
+  description: Schema.optional(Schema.Union(GuidanceMarkdownContent, Schema.String)),
+  guidance: Schema.optional(AudienceGuidance),
   persona: Schema.NonEmptyString,
   promptTemplate: Schema.optional(AgentPromptTemplate),
   defaultModel: Schema.optional(ModelReference),

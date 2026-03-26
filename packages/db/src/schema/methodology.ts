@@ -80,6 +80,7 @@ export const methodologyFactDefinitions = sqliteTable(
     name: text("name"),
     key: text("key").notNull(),
     valueType: text("value_type").notNull(),
+    cardinality: text("cardinality").notNull().default("one"),
     descriptionJson: text("description_json", { mode: "json" }),
     guidanceJson: text("guidance_json", { mode: "json" }),
     defaultValueJson: text("default_value_json", { mode: "json" }),
@@ -153,7 +154,7 @@ export const methodologyAgentTypes = sqliteTable(
       .references(() => methodologyVersions.id, { onDelete: "cascade" }),
     key: text("key").notNull(),
     displayName: text("display_name"),
-    description: text("description"),
+    descriptionJson: text("description_json", { mode: "json" }),
     persona: text("persona").notNull(),
     defaultModelJson: text("default_model_json", { mode: "json" }),
     mcpServersJson: text("mcp_servers_json", { mode: "json" }),
@@ -221,6 +222,7 @@ export const workUnitLifecycleTransitions = sqliteTable(
       onDelete: "set null",
     }),
     transitionKey: text("transition_key").notNull(),
+    descriptionJson: text("description_json", { mode: "json" }),
     guidanceJson: text("guidance_json", { mode: "json" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
@@ -255,7 +257,8 @@ export const workUnitFactDefinitions = sqliteTable(
     name: text("name"),
     key: text("key").notNull(),
     factType: text("fact_type").notNull(),
-    description: text("description"),
+    cardinality: text("cardinality").notNull().default("one"),
+    descriptionJson: text("description_json", { mode: "json" }),
     defaultValueJson: text("default_value_json", { mode: "json" }),
     guidanceJson: text("guidance_json", { mode: "json" }),
     validationJson: text("validation_json", { mode: "json" }),
@@ -354,7 +357,6 @@ export const transitionConditionSets = sqliteTable(
     phase: text("phase").notNull(),
     mode: text("mode").notNull().default("all"),
     groupsJson: text("groups_json", { mode: "json" }).notNull(),
-    guidanceJson: text("guidance_json", { mode: "json" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .default(timestampDefault)
@@ -384,6 +386,7 @@ export const methodologyWorkflows = sqliteTable(
     }),
     key: text("key").notNull(),
     displayName: text("display_name"),
+    descriptionJson: text("description_json", { mode: "json" }),
     metadataJson: text("metadata_json", { mode: "json" }),
     guidanceJson: text("guidance_json", { mode: "json" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
@@ -482,7 +485,6 @@ export const methodologyTransitionWorkflowBindings = sqliteTable(
     workflowId: text("workflow_id")
       .notNull()
       .references(() => methodologyWorkflows.id, { onDelete: "cascade" }),
-    guidanceJson: text("guidance_json", { mode: "json" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .default(timestampDefault)

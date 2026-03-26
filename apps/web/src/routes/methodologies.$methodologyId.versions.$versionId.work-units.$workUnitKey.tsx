@@ -458,11 +458,12 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
           createDialogOpen={isFactsCreateOpen}
           onCreateDialogOpenChange={setIsFactsCreateOpen}
           onCreateFact={async ({ fact }) => {
-            const humanGuidance =
-              fact.guidance?.human?.markdown?.trim() ?? fact.guidance?.human?.short?.trim() ?? "";
-            const agentGuidance =
-              fact.guidance?.agent?.markdown?.trim() ?? fact.guidance?.agent?.intent?.trim() ?? "";
-            const description = fact.description?.trim() ?? "";
+            const humanGuidance = fact.guidance?.human?.markdown?.trim() ?? "";
+            const agentGuidance = fact.guidance?.agent?.markdown?.trim() ?? "";
+            const description =
+              typeof fact.description === "string"
+                ? fact.description.trim()
+                : (fact.description?.markdown?.trim() ?? "");
             const rawValidation = fact.validation as Record<string, unknown> | undefined;
             const rawPath = rawValidation?.path;
             const rawKind = rawValidation?.kind;
@@ -516,11 +517,12 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
             await queryClient.invalidateQueries({ queryKey: draftQueryOptions.queryKey });
           }}
           onUpdateFact={async ({ factKey, fact }) => {
-            const humanGuidance =
-              fact.guidance?.human?.markdown?.trim() ?? fact.guidance?.human?.short?.trim() ?? "";
-            const agentGuidance =
-              fact.guidance?.agent?.markdown?.trim() ?? fact.guidance?.agent?.intent?.trim() ?? "";
-            const description = fact.description?.trim() ?? "";
+            const humanGuidance = fact.guidance?.human?.markdown?.trim() ?? "";
+            const agentGuidance = fact.guidance?.agent?.markdown?.trim() ?? "";
+            const description =
+              typeof fact.description === "string"
+                ? fact.description.trim()
+                : (fact.description?.markdown?.trim() ?? "");
             const rawValidation = fact.validation as Record<string, unknown> | undefined;
             const rawPath = rawValidation?.path;
             const rawKind = rawValidation?.kind;

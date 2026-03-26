@@ -1,5 +1,5 @@
 import * as Schema from "effect/Schema";
-import { AudienceGuidance } from "./guidance.js";
+import { AudienceGuidance, GuidanceMarkdownContent } from "./guidance.js";
 
 export const ArtifactSlotCardinality = Schema.Literal("single", "fileset");
 export type ArtifactSlotCardinality = typeof ArtifactSlotCardinality.Type;
@@ -17,7 +17,7 @@ export const ArtifactSlotTemplateInput = Schema.Struct({
   id: Schema.optional(Schema.NonEmptyString),
   key: Schema.NonEmptyString,
   displayName: Schema.optional(Schema.String),
-  description: Schema.optional(AudienceGuidance),
+  description: Schema.optional(Schema.Union(GuidanceMarkdownContent, AudienceGuidance)),
   guidance: Schema.optional(AudienceGuidance),
   content: Schema.optional(Schema.String),
 });
@@ -37,7 +37,7 @@ export const ArtifactSlotInput = Schema.Struct({
   id: Schema.optional(Schema.NonEmptyString),
   key: Schema.NonEmptyString,
   displayName: Schema.optional(Schema.String),
-  description: Schema.optional(AudienceGuidance),
+  description: Schema.optional(Schema.Union(GuidanceMarkdownContent, AudienceGuidance)),
   guidance: Schema.optional(AudienceGuidance),
   cardinality: ArtifactSlotCardinality,
   rules: Schema.optional(Schema.Unknown),
@@ -57,7 +57,7 @@ export const UpdateArtifactSlotTemplateInput = Schema.Struct({
   template: Schema.Struct({
     key: Schema.NonEmptyString,
     displayName: Schema.optional(Schema.String),
-    description: Schema.optional(AudienceGuidance),
+    description: Schema.optional(Schema.Union(GuidanceMarkdownContent, AudienceGuidance)),
     guidance: Schema.optional(AudienceGuidance),
     content: Schema.optional(Schema.String),
   }),
@@ -71,7 +71,7 @@ export const UpdateWorkUnitArtifactSlotInput = Schema.Struct({
   slot: Schema.Struct({
     key: Schema.NonEmptyString,
     displayName: Schema.optional(Schema.String),
-    description: Schema.optional(AudienceGuidance),
+    description: Schema.optional(Schema.Union(GuidanceMarkdownContent, AudienceGuidance)),
     guidance: Schema.optional(AudienceGuidance),
     cardinality: ArtifactSlotCardinality,
     rules: Schema.optional(Schema.Unknown),

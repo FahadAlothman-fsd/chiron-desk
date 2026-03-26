@@ -62,6 +62,14 @@ function extractWorkUnitText(value: unknown): string {
   if (
     value &&
     typeof value === "object" &&
+    typeof (value as { markdown?: unknown }).markdown === "string"
+  ) {
+    return (value as { markdown: string }).markdown;
+  }
+
+  if (
+    value &&
+    typeof value === "object" &&
     typeof (value as { text?: unknown }).text === "string"
   ) {
     return (value as { text: string }).text;
@@ -287,7 +295,7 @@ export function MethodologyVersionWorkUnitsRoute() {
             workUnitType: {
               key: nextKey,
               displayName: nextDisplayName,
-              description: nextDescription,
+              description: { markdown: nextDescription } as unknown as string,
               guidance:
                 nextHumanGuidance || nextAgentGuidance
                   ? {
@@ -296,7 +304,7 @@ export function MethodologyVersionWorkUnitsRoute() {
                     }
                   : undefined,
               cardinality: newWorkUnitCardinality,
-            },
+            } as never,
           });
         } else {
           await createWorkUnitMutation.mutateAsync({
@@ -304,7 +312,7 @@ export function MethodologyVersionWorkUnitsRoute() {
             workUnitType: {
               key: nextKey,
               displayName: nextDisplayName,
-              description: nextDescription,
+              description: { markdown: nextDescription } as unknown as string,
               guidance:
                 nextHumanGuidance || nextAgentGuidance
                   ? {
@@ -313,7 +321,7 @@ export function MethodologyVersionWorkUnitsRoute() {
                     }
                   : undefined,
               cardinality: newWorkUnitCardinality,
-            },
+            } as never,
           });
         }
 

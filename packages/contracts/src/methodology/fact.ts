@@ -10,6 +10,9 @@ export type AudienceMarkdownJson = typeof AudienceMarkdownJson.Type;
 export const FactType = Schema.Literal("string", "number", "boolean", "json");
 export type FactType = typeof FactType.Type;
 
+export const FactCardinality = Schema.Literal("one", "many");
+export type FactCardinality = typeof FactCardinality.Type;
+
 export const FactGuidance = AudienceMarkdownJson;
 export type FactGuidance = typeof FactGuidance.Type;
 
@@ -48,6 +51,30 @@ export const FactValidation = Schema.Union(
     kind: Schema.Literal("json-schema"),
     schemaDialect: Schema.NonEmptyString,
     schema: Schema.Unknown,
+    subSchema: Schema.optional(
+      Schema.Struct({
+        type: Schema.Literal("object"),
+        fields: Schema.Array(
+          Schema.Union(
+            Schema.Struct({
+              key: Schema.NonEmptyString,
+              type: FactType,
+              cardinality: FactCardinality,
+              description: Schema.optional(GuidanceMarkdownContent),
+              guidance: Schema.optional(FactGuidance),
+            }),
+            Schema.Struct({
+              key: Schema.NonEmptyString,
+              type: FactType,
+              cardinality: Schema.Literal("one"),
+              defaultValue: Schema.optional(Schema.Unknown),
+              description: Schema.optional(GuidanceMarkdownContent),
+              guidance: Schema.optional(FactGuidance),
+            }),
+          ),
+        ),
+      }),
+    ),
   }),
 );
 export type FactValidation = typeof FactValidation.Type;
@@ -56,8 +83,9 @@ export const FactSchema = Schema.Struct({
   name: Schema.optional(Schema.String),
   key: Schema.NonEmptyString,
   factType: FactType,
+  cardinality: Schema.optional(FactCardinality),
   defaultValue: Schema.optional(Schema.Unknown),
-  description: Schema.optional(Schema.String),
+  description: Schema.optional(Schema.Union(GuidanceMarkdownContent, Schema.String)),
   guidance: Schema.optional(FactGuidance),
   validation: Schema.optionalWith(FactValidation, { default: () => ({ kind: "none" as const }) }),
 });
@@ -67,8 +95,9 @@ export const MethodologyFactDefinitionInput = Schema.Struct({
   name: Schema.optional(Schema.String),
   key: Schema.NonEmptyString,
   factType: FactType,
+  cardinality: Schema.optional(FactCardinality),
   defaultValue: Schema.optional(Schema.Unknown),
-  description: Schema.optional(Schema.String),
+  description: Schema.optional(Schema.Union(GuidanceMarkdownContent, Schema.String)),
   guidance: Schema.optional(FactGuidance),
   validation: Schema.optionalWith(FactValidation, { default: () => ({ kind: "none" as const }) }),
 });

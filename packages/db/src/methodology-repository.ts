@@ -53,6 +53,22 @@ import {
 
 type DB = LibSQLDatabase<Record<string, unknown>>;
 
+function extractMarkdown(value: unknown): string | null {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (
+    value &&
+    typeof value === "object" &&
+    typeof (value as { markdown?: unknown }).markdown === "string"
+  ) {
+    return (value as { markdown: string }).markdown;
+  }
+
+  return null;
+}
+
 function toDefinitionRow(
   row: typeof methodologyDefinitions.$inferSelect,
 ): MethodologyDefinitionRow {
@@ -349,7 +365,6 @@ async function syncWorkflowGraph(
         methodologyVersionId: versionId,
         transitionId,
         workflowId,
-        guidanceJson: guidance?.byTransition?.[transitionKey] ?? null,
       });
     }
   }
@@ -789,7 +804,6 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             .select({
               transitionKey: workUnitLifecycleTransitions.transitionKey,
               workflowKey: methodologyWorkflows.key,
-              guidanceJson: methodologyTransitionWorkflowBindings.guidanceJson,
             })
             .from(methodologyTransitionWorkflowBindings)
             .innerJoin(
@@ -877,14 +891,6 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           const current = transitionWorkflowBindings[bindingRow.transitionKey] ?? [];
           current.push(bindingRow.workflowKey);
           transitionWorkflowBindings[bindingRow.transitionKey] = current;
-
-          if (
-            bindingRow.guidanceJson !== null &&
-            bindingRow.guidanceJson !== undefined &&
-            !(bindingRow.transitionKey in guidanceByTransition)
-          ) {
-            guidanceByTransition[bindingRow.transitionKey] = bindingRow.guidanceJson;
-          }
         }
 
         for (const row of workUnitGuidanceRows) {
@@ -1342,7 +1348,6 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               methodologyVersionId: versionId,
               transitionId,
               workflowId,
-              guidanceJson: null,
             });
           }
         }),
@@ -1408,7 +1413,8 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
                 key: fact.key,
                 name: fact.name ?? null,
                 factType: fact.factType,
-                description: fact.description ?? null,
+                cardinality: fact.cardinality ?? "one",
+                descriptionJson: fact.description ?? null,
                 defaultValueJson: fact.defaultValue ?? null,
                 guidanceJson: fact.guidance ?? null,
                 validationJson: fact.validation ?? null,
@@ -1748,7 +1754,6 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
                 phase: conditionSet.phase,
                 mode: conditionSet.mode,
                 groupsJson: conditionSet.groups,
-                guidanceJson: conditionSet.guidance ?? null,
               })),
             );
           }
@@ -1793,7 +1798,6 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               methodologyVersionId: versionId,
               transitionId,
               workflowId,
-              guidanceJson: null,
             });
           }
 
@@ -1884,7 +1888,6 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
                 phase: conditionSet.phase,
                 mode: conditionSet.mode,
                 groupsJson: conditionSet.groups,
-                guidanceJson: conditionSet.guidance ?? null,
               })),
             );
           }
@@ -1900,7 +1903,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             name: workUnitFactDefinitions.name,
             key: workUnitFactDefinitions.key,
             factType: workUnitFactDefinitions.factType,
-            description: workUnitFactDefinitions.description,
+            descriptionJson: workUnitFactDefinitions.descriptionJson,
             defaultValueJson: workUnitFactDefinitions.defaultValueJson,
             guidanceJson: workUnitFactDefinitions.guidanceJson,
             validationJson: workUnitFactDefinitions.validationJson,
@@ -1913,7 +1916,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           name: row.name,
           key: row.key,
           factType: row.factType,
-          description: row.description,
+          description: extractMarkdown(row.descriptionJson),
           defaultValueJson: row.defaultValueJson,
           guidanceJson: row.guidanceJson,
           validationJson: row.validationJson,
