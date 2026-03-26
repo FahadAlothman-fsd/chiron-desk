@@ -477,7 +477,15 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
                 : undefined;
             const apiValidation =
               fact.factType === "work unit"
-                ? ({ kind: "none" } as const)
+                ? {
+                    kind: "none" as const,
+                    ...(rawValidation?.dependencyType
+                      ? { dependencyType: String(rawValidation.dependencyType) }
+                      : {}),
+                    ...(rawValidation?.workUnitKey
+                      ? { workUnitKey: String(rawValidation.workUnitKey) }
+                      : {}),
+                  }
                 : rawKind === "path" && pathValidation?.pathKind
                   ? {
                       kind: "path" as const,
@@ -536,7 +544,15 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
                 : undefined;
             const apiValidation =
               fact.factType === "work unit"
-                ? ({ kind: "none" } as const)
+                ? {
+                    kind: "none" as const,
+                    ...(rawValidation?.dependencyType
+                      ? { dependencyType: String(rawValidation.dependencyType) }
+                      : {}),
+                    ...(rawValidation?.workUnitKey
+                      ? { workUnitKey: String(rawValidation.workUnitKey) }
+                      : {}),
+                  }
                 : rawKind === "path" && pathValidation?.pathKind
                   ? {
                       kind: "path" as const,
