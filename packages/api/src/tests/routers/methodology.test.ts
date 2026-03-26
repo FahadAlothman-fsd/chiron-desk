@@ -3310,7 +3310,7 @@ describe("methodology router", () => {
           fact: {
             key: "customer_name",
             name: "Customer Name",
-            factType: "string",
+            factType: "work_unit",
             description: "Customer-facing name",
           },
         },
@@ -3328,7 +3328,7 @@ describe("methodology router", () => {
           expect.objectContaining({
             key: "customer_name",
             name: "Customer Name",
-            factType: "string",
+            factType: "work_unit",
           }),
         ]),
       );
@@ -3341,7 +3341,7 @@ describe("methodology router", () => {
           fact: {
             key: "customer_name",
             name: "Legal Customer Name",
-            factType: "string",
+            factType: "work_unit",
             description: "Legal customer name",
           },
         },
@@ -3359,6 +3359,7 @@ describe("methodology router", () => {
           expect.objectContaining({
             key: "customer_name",
             name: "Legal Customer Name",
+            factType: "work_unit",
           }),
         ]),
       );

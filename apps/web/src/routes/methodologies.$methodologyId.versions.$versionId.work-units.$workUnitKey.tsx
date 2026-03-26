@@ -497,7 +497,7 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
             const apiFact = {
               name: fact.name,
               key: fact.key ?? "",
-              factType: fact.factType === "work unit" ? "string" : fact.factType,
+              factType: fact.factType === "work unit" ? "work_unit" : fact.factType,
               defaultValue: fact.defaultValue,
               guidance:
                 humanGuidance.length > 0 || agentGuidance.length > 0
@@ -556,7 +556,7 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
             const apiFact = {
               name: fact.name,
               key: fact.key ?? "",
-              factType: fact.factType === "work unit" ? "string" : fact.factType,
+              factType: fact.factType === "work unit" ? "work_unit" : fact.factType,
               defaultValue: fact.defaultValue,
               guidance:
                 humanGuidance.length > 0 || agentGuidance.length > 0
@@ -660,7 +660,6 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
               key: string;
               phase: "start" | "completion";
               mode: "all" | "any";
-              guidance?: string;
               groups: Array<{
                 key: string;
                 mode: "all" | "any";
@@ -688,7 +687,7 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
               ): fact is {
                 key: string;
                 name?: string;
-                factType?: "string" | "number" | "boolean" | "json";
+                factType?: "string" | "number" | "boolean" | "json" | "work_unit";
               } => {
                 if (!fact || typeof fact !== "object") {
                   return false;
@@ -775,7 +774,6 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
                     key: string;
                     phase: "start" | "completion";
                     mode: "all" | "any";
-                    guidance?: string;
                     groups: Array<{
                       key: string;
                       mode: "all" | "any";
@@ -810,7 +808,6 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
                   key: conditionSet.key,
                   phase: conditionSet.phase,
                   mode: conditionSet.mode,
-                  guidance: conditionSet.guidance ?? null,
                   groups: (conditionSet.groups ?? []).map(
                     (group: {
                       key: string;
@@ -851,7 +848,6 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
                   key: conditionSet.key,
                   phase: conditionSet.phase,
                   mode: conditionSet.mode,
-                  guidance: conditionSet.guidance ?? null,
                   groups: (conditionSet.groups ?? []).map((group) => ({
                     key: group.key,
                     mode: group.mode,
@@ -886,7 +882,6 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
                   key: conditionSet.key,
                   phase: conditionSet.phase,
                   mode: conditionSet.mode,
-                  ...(conditionSet.guidance ? { guidance: conditionSet.guidance } : {}),
                   groups: (conditionSet.groups ?? []).map((group) => ({
                     key: group.key,
                     mode: group.mode,
@@ -943,7 +938,6 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
                 key: conditionSet.key,
                 phase: conditionSet.phase,
                 mode: conditionSet.mode,
-                ...(conditionSet.guidance ? { guidance: conditionSet.guidance } : {}),
                 groups: (conditionSet.groups ?? []).map((group) => ({
                   key: group.key,
                   mode: group.mode,

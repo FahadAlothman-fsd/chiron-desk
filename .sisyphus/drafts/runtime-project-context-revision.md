@@ -36,6 +36,7 @@
 - project dashboard should remain overview-focused rather than becoming the full runtime-guidance surface
 - project dashboard may show a very fast summary of the first few available transitions only
 - a dedicated runtime-guidance page should own full open/future candidate evaluation and blocked transition visibility
+- runtime guidance page functions as the project-wide pseudo-transition surface focused on what to do next
 - existing work-unit transition candidates must be presented differently from future/not-yet-instantiated candidates
 - existing candidates should explicitly show current state and destination state for the transition
 - runtime-guidance UX should be oriented around work units first, with transitions nested under each work unit/group
@@ -61,31 +62,151 @@
   - facts with instances (`current/total` style)
   - work-unit types with instances (`current/total`, counting types rather than duplicate instances)
   - active transitions
+- Project Overview stat cards should be clickable shortcuts, not passive numbers
+- Project Overview stat cards should navigate to the target runtime pages with pre-applied filters/search params rather than to separate bespoke pages
+- Project Overview stat cards should show both:
+  - the count/metric itself
+  - a small explanatory subtitle (e.g. `3 / 8 fact types instantiated`, `2 work-unit types active`, `1 active transition`)
+- Project Overview should also include an explicit `Go to Guidance` CTA
+- Runtime Guidance is also discoverable from the project-scoped sidebar; the Overview CTA is an additional direct path, not the only entry point
 - project overview should include a list of active workflow executions
+- Project Overview should stay lean:
+  - stats
+  - active workflows
+  - `Go to Guidance`
+  - no separate `next up` teaser; Runtime Guidance owns that responsibility
+- the Project Overview active workflow executions surface should be a flat recent-active list, optimized for quick go-to action rather than grouped browsing
 - project overview should link to runtime pages for:
   - work units
   - project facts
   - workflow executions (filterable by work unit)
-  - transitions (filterable by work unit)
+  - transitions (aggregate/filter view only; canonical ownership is under work units)
 - specific project work-unit scope should include pages/sections for:
   - work-unit facts
   - state machine
   - artifact slots
+- the work-unit state machine page should show past/current/future transitions from that specific work unit's perspective
+- on the work-unit state machine page:
+  - past transitions = executed transition executions only
+  - current transitions = currently running transition executions only
+  - future transitions = reachable transitions derived from the current work-unit state, not rows from `transition_executions`
+- Artifact Slots page should be grouped by artifact slot, using one card per slot
+- each Artifact Slot card should show only the latest effective snapshot in the card body
+- latest effective snapshot means:
+  - single-file slot -> show the current single artifact snapshot
+  - file-set slot -> show the current effective resolved set
+- Artifact Slot detail should show the same latest snapshot summary plus snapshot history/lineage
+- Artifact Slot Detail layout priority is:
+  - current effective snapshot first
+  - lineage/history below as secondary context
+- Artifact Slot overview cards should navigate to Artifact Slot detail; no inline card actions are needed in this slice
 - both Project Facts and Work Units need list + detail pages
 - the Work Unit detail page is the Work Unit overview page for this slice
+- Work Units list should be a flat instance list, not grouped by type
+- Work Units list filters should include:
+  - cardinality (`one` / `many`)
+  - work-unit types (multiselect)
+- Project Facts list should be a flat fact-definition/current-state list with filters for:
+  - fact type
+  - existence (`exists` / `not exists`)
+- Project Facts list rows/cards should preview current runtime state, not just existence:
+  - if a current value exists, show it as a subsection of the fact card/row
+  - if no current value exists, indicate absence explicitly
+  - if the fact is many-valued, show a preview of the first few current members/items (baseline: first 5)
+- Work Unit Facts list should use the same first-slice filter model as Project Facts:
+  - fact type
+  - existence (`exists` / `not exists`)
+- Work Unit Facts list should follow the same current-value preview model as Project Facts:
+  - if a current value exists, show it inline/subsectioned in the fact row/card
+  - if no current value exists, indicate absence explicitly
+  - if the fact is many-valued, show a preview of the first few current members/items (baseline: first 5)
+- Work Unit Fact Detail page should exist and should be narrow in scope:
+  - show the full fact definition
+  - show the current runtime state/value for that work-unit fact
+  - do not add history/audit/provenance or reverse-impact sections in this slice
+- Work Unit detail/overview should include a compact facts/dependencies summary card showing:
+  - fact instances count (`current-with-instances / total-defined`)
+  - dependency counts (`inbound`, `outbound`)
+- that facts/dependencies summary card should act as a clickable shortcut into the Work Unit Facts surface
+- Work Unit overview composition is locked to:
+  - header / identity block
+  - current state display
+  - optional active-transition card (shown only when an active transition exists for the work unit)
+  - three summary cards: Facts/Dependencies, State Machine, Artifact Slots
+- Project Fact detail page should show the actual current persisted members/items for many-valued facts, not just a summary
+- this slice still does not add per-entity event/history tables; Project Fact detail shows current-state composition, not historical change logs
+- do not add reverse-impact/provenance sections on Project Fact detail in this slice
+- defer "used by condition sets" / "affected by workflows/transitions/steps" surfaces until L3, when step execution can provide authoritative provenance
+- work-unit dependency visibility should exist generally in runtime UI, not only at L3 invoke-step inspection
+- work-unit detail should expose dependency views for both:
+  - outgoing dependencies declared by `work_unit_reference` facts on the work unit itself
+  - incoming dependencies where other runtime rows point at this work unit
+- runtime fact-instance shape should include a first-class direct FK/pointer to a referenced work unit when the fact type is `work_unit_reference`
+- spawned child work units should be discoverable through these dependency/reference surfaces rather than being hidden until L3
+- project facts must not support `work_unit_reference`; only work-unit facts can point at other work units
+- methodology/project fact type domain must remain `string | number | boolean | json`
+- work-unit fact type domain may extend beyond project facts and include `work_unit_reference`
 - runtime slice should prefer minimal persistence/history for facts and states; do not add per-entity event tables in this slice
 - some entity history can be lost in this slice if that keeps runtime persistence simpler
 - project runtime is broader and route-tree-heavier than methodology/design-time because it handles actual instance data rather than only definitions
-- `transition_execution` should later have its own detail page, but it is not a priority surface for this slice
+- transition execution detail page is in scope for this pass as an L2 runtime page
 - transition execution detail should show primary workflow executions only; supporting workflows stay visible only at L3 invoke-step scope
+- transition execution detail should emphasize transition summary + primary workflow lineage, not duplicate the full work-unit detail surface
+- transition execution detail may show owning work-unit context/header, but that context is secondary because the page is reached within work-unit scope
+- aggregate transition execution browsing/list filters should be:
+  - work unit type
+  - transition key/name
+  - current status
+  - from -> to pair
+- aggregate transition execution browsing should use conditional/cascading filtering rather than a flat independent filter set:
+  - work unit context is selected first
+  - once a work unit context is selected, transition key becomes available
+  - if a transition key is selected, `from state` is shown read-only as implied by the chosen transition/work-unit context, while `to state` remains selectable
+  - if no transition key is selected, both `from state` and `to state` may be used as filters within the chosen work-unit context
+  - when a transition key is selected, `to state` options are constrained to only states valid for that transition key
+  - when only `from state` is selected, `to state` options are constrained to only states reachable from that `from state` within the chosen work-unit context
+  - when only `to state` is selected, `from state` options are constrained to only states that can validly transition into that `to state` within the chosen work-unit context
+  - when either `from state` or `to state` is selected first, the other state filter must narrow to valid counterpart states rather than showing all states and returning empty results for invalid combinations
+- the same conditional/cascading filter logic should also apply on the Runtime Guidance page wherever users filter open/future transition candidates, not only on the aggregate transition execution browsing surface
+- the Runtime Guidance `active` section is semantically the same kind of surface as the transition-executions browsing/view inside work-unit runtime pages: it reads actual `transition_executions` rather than evaluating candidate transitions
+- therefore the Runtime Guidance `active` section should behave similarly to transition-execution browsing, just aggregated at project scope rather than limited to one work unit
 - there should be a two-way link between transition executions and workflow executions
 - workflow executions should link back to their parent transition execution for both primary and supporting workflows
 - supporting workflows are still overall scoped to the parent transition even when actually launched from invoke steps
 - invoke steps come in at least two kinds that matter for runtime modeling:
   - invoke that creates work units
   - invoke that runs workflows on the same work unit
+- project-level Workflow Executions list should include both primary and supporting workflow executions
+- invoked child-work-unit workflows are not supporting workflows of the parent work unit; they become the primary workflow executions of the child work unit's transition
+- Workflow Executions list filters should include:
+  - status
+  - work unit type
+  - primary vs supporting
 - work unit overview page is in scope and approved
-- workflow execution detail page is deferred with L3; it will be the shell/entry point into step execution later rather than an L2 focus for this slice
+- workflow execution detail page remains a shell/entry point into L3 step execution rather than a full L2 detail build in this slice
+- Workflow Executions list row click should navigate to the workflow-execution shell route
+- this pass should stop at `workflow_executions` and everything above them; no step-execution detail/runtime build in this slice
+- workflow-execution shell page should still show everything related to the workflow's own runtime status in this slice
+- workflow-execution shell page should include a small retry/supersession lineage section
+- Workflow Execution Detail should treat retry/supersession as read-only information in this slice:
+  - show retry/supersession lineage/status on the workflow execution page
+  - do not expose retry/supersession controls there at L2
+  - the actual retry/supersession controls are deferred to L3 step-execution UX, where the user can act from within the workflow's steps/runtime
+- Transition Execution Detail page is definition + singular execution instance:
+  - show transition definition metadata (contract, description, condition sets, bindings)
+  - show execution-instance runtime details/status for that one `transition_execution`
+  - show bound workflows as a list and highlight/select the primary workflow
+  - show supporting workflow executions linked through `workflow_executions.transition_execution_id`
+- Transition Execution Detail actions are status-sensitive:
+  - if the transition execution is active, allow retry by creating a new `workflow_execution` under the same active `transition_execution` and making it the new primary/current workflow attempt
+  - the older workflow execution remains in history and should be marked as superseded by the newer workflow execution
+  - a supersession/self-lineage pointer on `workflow_executions` is expected for this (`superseded_by_workflow_execution_id` or equivalent)
+  - if the transition execution is not active, the page is read-focused/history-oriented and does not offer mutation actions in this slice
+- Work Unit State Machine active-transition section has different semantics from Transition Execution Detail:
+  - it shows the currently active transition for the work unit
+  - it also shows alternative transitions from the same current state and their availability/blocking
+  - choosing an alternative transition there is a transition-level switch/replacement flow, not a workflow retry inside the same transition execution
+  - users do not "retry the active transition" from State Machine; workflow retry/reselection lives inside Transition Execution Detail
 
 ## Technical Decisions
 - previous recommendation for `presence_status = absent|activating|active|closed` is rejected
@@ -109,31 +230,133 @@
   - evaluation result: `available | blocked`
 - `active` transitions come from live execution state, not from condition evaluation
 - `open` and `future` transitions are the candidate pools fed into condition evaluation
+- on Runtime Guidance, `open` vs `future` remains a candidate-source distinction but is presented inside one merged candidate section rather than as two separate top-level sections
 - Effect concurrency should exist at candidate-evaluation level, with optional nested concurrency at condition-group/condition level
 - early interruption semantics are desirable for condition groups (`all` short-circuits on first false; `any` short-circuits on first true), but this trades off against collecting exhaustive diagnostics
 - dashboard path should use fast-mode/first-decisive-reason evaluation; blocked drill-in path can run exhaustive evaluation for richer diagnostics
 - product surface split:
   - project dashboard = overview + small fast "next up" summary (e.g. first N available transitions)
   - dedicated runtime-guidance page = full candidate evaluation, blocked visibility, richer drill-in
+- page-layer classification is locked:
+  - Runtime Guidance is an L1 project-wide pseudo-transition surface
+- project-wide runtime pages should remain action-oriented:
+  - what is happening now
+  - what can I do now
+  - what should I do next
+- therefore there should NOT be a project-wide historical `Transition Executions` browser page
+- therefore there should NOT be a project-wide historical `Workflow Executions` browser page
+- there SHOULD be a lightweight project-level active-only Workflow Executions page
+- transition/workflow execution history is primarily a work-unit-scoped concern, surfaced through Work Unit State Machine and execution detail pages
+- runtime guidance and work-unit transitions are intentionally different surfaces:
+  - runtime guidance = project-wide, action-oriented, pseudo-transition view
+  - work-unit state machine = work-unit-scoped, state-machine/history-oriented view
+  - runtime guidance does not replace the canonical work-unit state-machine view
+- work-unit State Machine and Transition Execution Detail are also intentionally different pages:
+  - State Machine = work-unit-level state surface showing current state, active transition (if any), and transition execution history across the work unit
+  - Transition Execution Detail = singular execution-instance surface combining the transition definition (contract/description/condition sets/bindings) with the runtime status/details of that one transition execution
+  - State Machine answers "what states/transitions has this work unit moved through or is moving through?"
+  - Transition Execution Detail answers "what is happening / what happened in this one specific transition run?"
+- work-unit state machine data split is locked:
+  - past/current sections are execution-backed and read from `transition_executions`
+  - future section is derivation-backed and computed from the current work-unit state machine / reachable transitions
 - runtime-guidance interaction model:
-  - initial query returns active work-unit groups plus open/future candidate work-unit groups
+  - the page should start immediately with runtime work-unit groups
+  - do not add a separate project-header summary block at the top; project scope is already established by the sidebar/context and the page should stay tightly action-focused
+  - section structure is locked to:
+    - Active
+    - Open/Future
+  - the merged Open/Future section should show explicit source indicators/badges for whether each candidate row/group is `open` or `future`
+  - initial query returns active work-unit groups plus merged open/future candidate work-unit groups
   - open/future transition rows are actionable and launch workflow selection
   - launching a transition creates `transition_execution` + initial `workflow_execution`
-  - active work-unit groups expose navigation to the active workflow execution
+  - active work-unit groups expose a nested active-execution component:
+    - the active transition is the primary surface and links to Transition Execution Detail
+    - the currently running primary workflow is shown within that active-transition surface and links to Workflow Execution Detail
+    - the default active-path navigation is therefore Transition Execution Detail first, with secondary direct navigation to the active primary workflow execution
 - workflow-selection dialog layout is locked to transition details header + workflow list + workflow detail card
 - active-transition dialog reuses the same component shell but in read-focused mode for this slice
 - frontend runtime information architecture should separate:
   - project overview page (stats + active workflow executions + navigation)
   - runtime guidance page (what to do next)
-  - entity-specific runtime list/detail pages for project facts and work units, plus list pages for workflow executions and transitions
+  - lightweight active-only Workflow Executions page
+  - entity-specific runtime list/detail pages for project facts and work units
   - the work-unit detail route doubles as the work-unit overview page and parents nested work-unit facts, state machine, and artifact slots pages
+- Work Units list browsing model is instance-first:
+  - rows represent concrete project work-unit instances
+  - grouping by type is deferred in favor of filter-driven browsing
+- fact-list browsing model is current-state-first:
+  - rows represent fact definitions with their current effective state/value presence
+  - initial filtering is limited to fact type and existence state
+- Work Unit overview should expose quick current-state summary cards that double as navigation shortcuts into deeper work-unit subviews
+- project scope may still show currently active executions in lightweight/action-oriented surfaces:
+  - Project Overview recent-active workflow list
+  - Runtime Guidance active section
+  - lightweight active-only Workflow Executions page
+  - these are not full historical browsers across all workflow executions
+- the active-only project-level Workflow Executions page should be table-oriented rather than card/group oriented
+- its purpose is direct navigation into Workflow Execution Detail, not broad historical browsing
+- table rows should include enough context to identify the running execution immediately, including at minimum:
+  - work unit
+  - transition
+  - workflow execution
+- do not include a status column on that page; because the page is active-only, status would be redundant noise and belongs in the scoped execution/detail surfaces instead
+- Artifact Slots surface follows the same overview-then-drill-in pattern as runtime guidance:
+  - slot-grouped cards for fast current-state scanning
+  - deeper artifact-slot detail for lineage/history inspection
+- transitions are canonically work-unit-scoped because they belong to the work unit state machine
+- project scope should not expose a full historical transitions browser; project-level transition visibility is limited to active/action-oriented runtime surfaces
+- Project Fact detail is a current-state detail surface:
+  - show the full fact definition
+  - for single-valued facts, show the effective current value plus related runtime metadata
+  - for many-valued facts, show the actual current member rows/items that currently compose the fact
+  - do not imply historical change tracking beyond what current-state persistence already exposes
+- Project Fact detail explicitly excludes:
+  - reverse references from condition sets/transitions
+  - inferred workflow/transition provenance
+  - step-derived write history
+  These are deferred until L3 runtime execution can supply authoritative provenance instead of partial derivations from L1/L2 state.
+- `work_unit_reference` should be a rigid runtime fact storage mode, not an encoded JSON convention
+- for `work_unit_reference` facts, runtime fact-instance rows should store a direct referenced-work-unit FK so dependency graphs are queryable without decoding ad hoc payloads
+- work-unit dependency UI should split into:
+  - outgoing = references stored on this work unit's own fact-instance rows
+  - incoming = other work-unit fact-instance rows whose reference FK targets this work unit
+- dependency visibility is instance-based, not type-based:
+  - show a dependency only when a runtime fact-instance row actually points to a concrete `project_work_unit`
+  - do not show pseudo-dependencies just because a fact definition allows references to a given work-unit type
+  - incoming dependencies for a work unit are only rows whose reference FK targets this exact work-unit instance, not any work unit of the same type
+  - outgoing dependencies for a work unit are only this work unit instance's own persisted reference rows
+- dependencies should live under Work Unit Facts as a specialized subview, not as a top-level sibling tab on Work Unit detail
+- the Dependencies subview should render outgoing and incoming as two sections on the same page, not nested tabs
+- project facts and work-unit facts intentionally have different value-domain rules:
+  - project facts are scalar/json-style runtime facts only
+  - work-unit facts may additionally use `work_unit_reference`
+- do not extend the current shared methodology `FactType` globally in a way that would allow project facts to become `work_unit_reference`; the type domain must split between project facts and work-unit facts
 - runtime UI should favor current-state pages over history/audit pages in this slice because event/history persistence is intentionally deferred
+- Project Overview active workflows list is intentionally lightweight:
+  - flat list, not grouped by work unit or transition
+  - recent/active oriented, not a canonical execution browser
+  - row click target is Workflow Execution Detail for consistency with runtime execution navigation
+- Project Overview metrics are navigational affordances as well as summaries; each stat card should deep-link into the relevant runtime surface
+- preferred overview card targets:
+  - facts with instances -> Project Facts list filtered to rows with current instances
+  - work-unit types with instances -> Work Units list filtered to types that currently have instances
+  - active transitions -> Runtime Guidance filtered to the active section/view
 - transition/workflow linkage should support:
   - a transition-level pointer to the primary workflow execution associated with the transition
   - a workflow-level FK back to the parent transition execution for both primary and supporting workflows
 - supporting workflow visibility is deferred from transition-execution detail and remains an L3 concern under invoke-step inspection
-- runtime route tree now includes a work-unit overview page and a deferred/low-priority transition execution detail page
-- workflow execution detail route may exist as a future placeholder, but implementation priority for this plan remains on L1/L2 pages and APIs
+- supporting workflow semantics are constrained to workflows invoked within the same work unit / same parent transition scope
+- if an invoke step starts a transition + workflow for a newly created child work unit, that child workflow is modeled under the child transition as its primary workflow, not as a supporting workflow of the parent transition/work unit
+- runtime route tree now includes a work-unit overview page, an in-scope transition execution detail page, and a workflow-execution shell route
+- workflow execution detail route is intentionally shell-like in this plan; it should not expand into full step runtime UX yet
+- workflow-execution shell page should include:
+  - workflow execution summary/header
+  - current workflow runtime status
+  - linked transition execution context
+  - linked work-unit context
+  - small retry/supersession lineage section
+  - explicit "steps coming later" / L3 deferred messaging
+- workflow-execution shell is a real L2 runtime-status surface plus an L3 entry point, not a blank placeholder page
 - candidate presentation split:
   - future candidate labels should communicate instantiation semantics and cardinality hints
   - existing candidate labels should communicate transition semantics as `current state -> next state`

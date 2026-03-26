@@ -176,7 +176,7 @@ Wave 3: research workflow rows + verification hardening (Tasks 9-11)
 
   **Commit**: YES | Message: `docs(methodology): freeze slice-a l1-l2 authority` | Files: [`docs/architecture/methodology-bmad-brainstorming-mapping.md`, `docs/architecture/methodology-bmad-research-mapping.md`, `docs/architecture/epic-3-authority.md`, `docs/architecture/methodology-progressive-seeding.md`, `docs/architecture/methodology-canonical-authority.md`]
 
-- [ ] 2. Refactor L1/L2 description and guidance ownership across contracts, schema, frontend, and serializers
+- [x] 2. Refactor L1/L2 description and guidance ownership across contracts, schema, frontend, and serializers
 
   **What to do**: Implement the approved descriptive-metadata model before any Slice-A row seeding. Add both `description` and `guidance` with the locked JSON shapes to all L1/L2 entities that should own them: methodology facts, dependency definitions, agents, work-unit types, work-unit facts, work-unit states, work-unit workflows, work-unit artifact slots, work-unit artifact slot templates, and transitions. Add a first-class `cardinality` field to methodology-fact and work-unit-fact definitions with locked values `one | many`. Extend JSON fact sub-schema modeling so nested fields also carry `type` + `cardinality`; when a nested field is `many`, it is list-valued rather than a new type and should not use scalar defaults. Keep canonical authoring/storage Chiron-native rather than raw JSON Schema syntax, and treat JSON Schema draft `2020-12` as the compiled validation artifact used later in runtime fact-write validation. Remove both fields from condition sets and transition bindings wherever they currently exist in schema, contracts, frontend editors, or serialization paths. Normalize all affected editors/loaders/savers so the same ownership model is expressed consistently end to end.
   **Must NOT do**: Leave workflow description trapped in `metadata.description`; keep artifact-slot `description` in audience-guidance shape; preserve condition-set or binding guidance as legacy fallback; overload multiplicity into `factType`; add a second global ordering field; model list-valued nested schema fields as fake standalone types.
@@ -225,7 +225,7 @@ Wave 3: research workflow rows + verification hardening (Tasks 9-11)
 
   **Commit**: YES | Message: `refactor(methodology): normalize description guidance ownership` | Files: [`packages/contracts/src/methodology/*`, `packages/db/src/schema/methodology.ts`, `apps/web/src/features/methodologies/work-unit-l2/*`, `apps/web/src/routes/methodologies.*`, `packages/project-context/src/*`]
 
-- [ ] 3. Update the existing seeding procedure to conform to the corrected data model and dual-version seeding
+- [x] 3. Update the existing seeding procedure to conform to the corrected data model and dual-version seeding
 
   **What to do**: Refactor the current methodology seeding procedure so it builds canonical table rows from the corrected L1/L2 shapes and can seed one methodology definition plus two methodology versions (`draft` and `active`) from the same shared Slice-A canonical row builders. Update the existing seed registries, row aggregators, metadata exports, and any version/status plumbing so the procedure no longer assumes the old baseline-metadata-only model. Keep the table-first export pattern, deterministic IDs, and slice metadata, but make the procedure explicitly version-aware and compatible with the newly corrected entity shapes. Rename `packages/scripts/src/seed/methodology/tables/methodology-fact-schemas.seed.ts` to `packages/scripts/src/seed/methodology/tables/work-unit-fact-definitions.seed.ts` so the file layout matches the canonical table it populates. Create or replace `packages/scripts/src/seed/methodology/tables/methodology-artifact-slot-definitions.seed.ts` and `packages/scripts/src/seed/methodology/tables/methodology-artifact-slot-templates.seed.ts` as real table modules that export the actual Slice-A slot and template rows used by later seeding tasks.
   **Must NOT do**: Introduce a parallel seed pipeline; duplicate row builders separately for draft and active versions; keep legacy seed assumptions that conflict with the corrected shapes.
@@ -269,7 +269,7 @@ Wave 3: research workflow rows + verification hardening (Tasks 9-11)
 
   **Commit**: YES | Message: `refactor(seed): align procedure with l1-l2 data model` | Files: [`packages/scripts/src/seed/methodology/index.ts`, `packages/scripts/src/seed/methodology/tables/*.seed.ts`, `packages/scripts/src/seed/methodology/*`, `packages/db/src/tests/repository/methodology-repository.integration.test.ts`]
 
-- [ ] 4. Seed the refined methodology definition, dual versions, and L1 canonical rows except agents
+- [x] 4. Seed the refined methodology definition, dual versions, and L1 canonical rows except agents
 
   **What to do**: Seed the overall methodology surface, not just per-work-unit rows. Populate or refine the methodology definition row, then seed exactly two methodology versions with the same underlying Slice-A canonical data: one editable `draft` version and one `active` published version. In the same task, seed the locked L1 canonical rows for methodology facts, dependency definitions, and work-unit definitions using the corrected metadata shapes from Task 2, including first-class fact `cardinality` values on methodology facts. Keep IDs deterministic and align all row contents to the locked L1 snapshot in `.sisyphus/drafts/bmad-to-chiron-seeding-translation.md`.
   **Must NOT do**: Seed different L1 data between draft and active versions; leave methodology definition unchanged if the approved draft requires refinement; add step/edge rows.
@@ -309,7 +309,7 @@ Wave 3: research workflow rows + verification hardening (Tasks 9-11)
 
   **Commit**: YES | Message: `feat(seed): add methodology definition and dual l1 versions` | Files: [`packages/scripts/src/seed/methodology/*`, `packages/scripts/src/seed/methodology/tables/*`, `packages/scripts/src/tests/seeding/*`]
 
-- [ ] 5. Seed the minimal methodology agents required by Slice A
+- [x] 5. Seed the minimal methodology agents required by Slice A
 
   **What to do**: Seed exactly the locked Slice-A methodology agents, using the corrected L1 metadata shapes. This locked set is `bmad_analyst`, `bmad_brainstorming_coach`, and `bmad_tech_writer`, with any prompt/persona refinement needed to keep them aligned to the approved BMAD translation. Keep them methodology-owned reusable agents with runtime-variable placeholders only.
   **Must NOT do**: Seed the whole BMAD agent catalog; add `_bmad/` path references; create provider-registry payloads as methodology seed truth.
@@ -349,7 +349,7 @@ Wave 3: research workflow rows + verification hardening (Tasks 9-11)
 
   **Commit**: YES | Message: `feat(seed): add slice-a methodology agents` | Files: [`packages/scripts/src/seed/methodology/*`, `packages/scripts/src/seed/methodology/tables/methodology-agent-types.seed.ts`]
 
-- [ ] 6. Seed `WU.SETUP` L2 using the corrected shapes
+- [x] 6. Seed `WU.SETUP` L2 using the corrected shapes
 
   **What to do**: Seed the locked `WU.SETUP` L2 rows from the approved draft snapshot after applying the corrected description/guidance model. Seed only L2 entities: work-unit facts, state, transition, condition sets, bound/unbound workflows, transition bindings, artifact slot, and artifact template. Do not seed workflow steps or edges. Use the approved setup semantics including a single `done` state, a single activation-to-done transition, unbound `generate_project_context`, bound `setup_project`, and fact-based completion gating.
   **Must NOT do**: Reintroduce setup-step rows or workflow edges; add setup-specific agents; re-add description/guidance to condition sets or bindings.
@@ -390,7 +390,7 @@ Wave 3: research workflow rows + verification hardening (Tasks 9-11)
 
   **Commit**: YES | Message: `feat(seed): add setup l2 packet` | Files: [`packages/scripts/src/seed/methodology/setup/*`, `packages/scripts/src/seed/methodology/tables/*`]
 
-- [ ] 7. Seed `WU.BRAINSTORMING` L2 using the corrected shapes
+- [x] 7. Seed `WU.BRAINSTORMING` L2 using the corrected shapes
 
   **What to do**: Seed the locked `WU.BRAINSTORMING` L2 rows from the approved draft snapshot after applying the corrected description/guidance model. This includes the work-unit facts, including replacing singular `objective` with plural `objectives` as a goal-oriented JSON fact with `cardinality: many`, updating `selected_directions` so its JSON sub-schema fields are `string + many` categorized lists with no scalar defaults, and updating `constraints` so `must_have`, `must_avoid`, and `timebox_notes` are list-valued string subfields. Plain string facts and string JSON sub-schema entries may contain markdown-authored content without introducing a separate markdown type. Also seed the single `done` state, single transition, condition sets without description/guidance, one bound primary `brainstorming` workflow, ten unbound `advanced_elicitation` support workflows, one artifact slot, and one artifact template. Treat the ten elicitation workflows as in-scope brainstorming support rows within Slice A, not as additional transition-bound primary workflows. Do not seed workflow steps or edges.
   **Must NOT do**: Collapse the 10 support workflows back into one umbrella workflow; bind support workflows to the completion transition; seed workflow steps/edges now.
@@ -430,7 +430,7 @@ Steps: Run a script that compares seeded brainstorming rows against the approved
 
   **Commit**: YES | Message: `feat(seed): add brainstorming l2 packet` | Files: [`packages/scripts/src/seed/methodology/brainstorming/*`, `packages/scripts/src/seed/methodology/tables/*`]
 
-- [ ] 8. Seed shared `WU.RESEARCH` L2 foundations using the corrected shapes
+- [x] 8. Seed shared `WU.RESEARCH` L2 foundations using the corrected shapes
 
 **What to do**: Seed the locked shared `WU.RESEARCH` L2 foundations from the approved draft snapshot after applying the corrected description/guidance model. This includes the shared work-unit facts, including `research_goals` as a goal-oriented JSON fact with `cardinality: many`, one `done` state, one transition, condition sets without description/guidance, one shared `research_report` slot, and three slot templates (`market`, `domain`, `technical`). Do not seed workflow steps or edges. Leave the three research workflow rows themselves to Task 9.
   **Must NOT do**: Split research into three work-unit types; add step/edge rows; use artifact-presence gating.
@@ -470,7 +470,7 @@ Steps: Run a script that compares seeded shared research rows against the approv
 
   **Commit**: YES | Message: `feat(seed): add shared research l2 foundations` | Files: [`packages/scripts/src/seed/methodology/research/*`, `packages/scripts/src/seed/methodology/tables/*`]
 
-- [ ] 9. Seed the three research workflow rows and bindings without steps/edges
+- [x] 9. Seed the three research workflow rows and bindings without steps/edges
 
   **What to do**: Seed the locked `market_research`, `domain_research`, and `technical_research` workflow rows plus their explicit transition bindings using the corrected description/guidance model and the approved draft snapshot. Keep all three on the shared `WU.RESEARCH` lifecycle and shared slot/template foundations from Task 8. Do not seed workflow steps or edges; this task ends at L2 workflow rows and bindings only.
   **Must NOT do**: Add workflow steps/edges; fork shared research semantics; add market/domain/technical-specific states, transitions, or slots.
@@ -510,7 +510,7 @@ Steps: Run a script that compares seeded shared research rows against the approv
 
   **Commit**: YES | Message: `feat(seed): add research workflow rows` | Files: [`packages/scripts/src/seed/methodology/research/*`, `packages/scripts/src/seed/methodology/tables/*`]
 
-- [ ] 10. Replace empty-slice integrity assumptions with exact L1/L2 deterministic assertions
+- [x] 10. Replace empty-slice integrity assumptions with exact L1/L2 deterministic assertions
 
   **What to do**: Rewrite the seed integrity tests so they assert the fully populated L1/L2 Slice-A shape after the refactor-first rollout. The tests must assert the methodology definition, one draft version, one active version, exact slice metadata, deterministic IDs/counts for all populated L1/L2 canonical tables, corrected `description` / `guidance` ownership, first-class fact cardinality on methodology/work-unit facts, the exact workflow split of 5 primary workflows plus 10 brainstorming support workflows, and the absence of workflow steps/edges in this plan’s seed output. Define and assert one shared deterministic ID/key policy for Slice-A rows so implementers do not invent naming conventions ad hoc.
   **Must NOT do**: Leave empty-table assumptions for populated Slice-A tables; use broad snapshots that can hide field-shape regressions; accidentally re-allow description/guidance on condition sets or bindings.
@@ -553,7 +553,7 @@ Steps: Run a script that compares seeded shared research rows against the approv
 
   **Commit**: YES | Message: `test(seed): assert deterministic l1-l2 integrity` | Files: [`packages/scripts/src/tests/seeding/methodology-seed-integrity.test.ts`, `packages/scripts/src/tests/seeding/manual-seed-fixtures.test.ts`]
 
-- [ ] 11. Add integration coverage for the updated seeding procedure, dual versions, and reseed behavior
+- [x] 11. Add integration coverage for the updated seeding procedure, dual versions, and reseed behavior
 
   **What to do**: Add or update integration-focused tests so the real seed pipeline proves the updated seeding procedure works with the corrected L1/L2 shapes, one methodology definition, one draft version, one active version, forbidden-extension compliance, FK-safe canonical table ordering, and intended reseed semantics. Explicitly verify that the existing seeding procedure now conforms to the approved data model instead of only the old baseline assumptions.
   **Must NOT do**: Add a second seed pipeline; treat `definitionExtensions` as fallback storage; silently relax ordering/version failures.

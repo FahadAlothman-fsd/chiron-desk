@@ -111,14 +111,12 @@ function toBaselineTransition(
           return [];
         }
 
-        const guidance = readString(conditionSet.guidance);
         const parsedConditionSet: BaselinePreview["transitionPreview"]["transitions"][number]["conditionSets"][number] =
           {
             key,
             phase,
             mode,
             groups: Array.isArray(conditionSet.groups) ? conditionSet.groups : [],
-            ...(guidance !== null ? { guidance } : {}),
           };
         return [parsedConditionSet];
       })
@@ -147,7 +145,6 @@ function toBaselineTransition(
             enabled: false as const,
             disabledReason,
             helperText,
-            ...(workflow.guidance !== undefined ? { guidance: workflow.guidance } : {}),
           },
         ];
       })

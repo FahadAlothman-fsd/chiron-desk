@@ -103,9 +103,7 @@
       "indexes": {
         "account_userId_idx": {
           "name": "account_userId_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         }
       },
@@ -114,12 +112,8 @@
           "name": "account_user_id_user_id_fk",
           "tableFrom": "account",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -192,16 +186,12 @@
       "indexes": {
         "session_token_unique": {
           "name": "session_token_unique",
-          "columns": [
-            "token"
-          ],
+          "columns": ["token"],
           "isUnique": true
         },
         "session_userId_idx": {
           "name": "session_userId_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         }
       },
@@ -210,12 +200,8 @@
           "name": "session_user_id_user_id_fk",
           "tableFrom": "session",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -283,9 +269,7 @@
       "indexes": {
         "user_email_unique": {
           "name": "user_email_unique",
-          "columns": [
-            "email"
-          ],
+          "columns": ["email"],
           "isUnique": true
         }
       },
@@ -345,9 +329,7 @@
       "indexes": {
         "verification_identifier_idx": {
           "name": "verification_identifier_idx",
-          "columns": [
-            "identifier"
-          ],
+          "columns": ["identifier"],
           "isUnique": false
         }
       },
@@ -464,10 +446,7 @@
       "indexes": {
         "methodology_at_vid_key_idx": {
           "name": "methodology_at_vid_key_idx",
-          "columns": [
-            "methodology_version_id",
-            "key"
-          ],
+          "columns": ["methodology_version_id", "key"],
           "isUnique": true
         }
       },
@@ -476,12 +455,8 @@
           "name": "methodology_agent_types_methodology_version_id_methodology_versions_id_fk",
           "tableFrom": "methodology_agent_types",
           "tableTo": "methodology_versions",
-          "columnsFrom": [
-            "methodology_version_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["methodology_version_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -576,19 +551,12 @@
       "indexes": {
         "methodology_asd_vid_wut_key_idx": {
           "name": "methodology_asd_vid_wut_key_idx",
-          "columns": [
-            "methodology_version_id",
-            "work_unit_type_id",
-            "key"
-          ],
+          "columns": ["methodology_version_id", "work_unit_type_id", "key"],
           "isUnique": true
         },
         "methodology_asd_vid_wut_idx": {
           "name": "methodology_asd_vid_wut_idx",
-          "columns": [
-            "methodology_version_id",
-            "work_unit_type_id"
-          ],
+          "columns": ["methodology_version_id", "work_unit_type_id"],
           "isUnique": false
         }
       },
@@ -597,12 +565,8 @@
           "name": "methodology_artifact_slot_definitions_methodology_version_id_methodology_versions_id_fk",
           "tableFrom": "methodology_artifact_slot_definitions",
           "tableTo": "methodology_versions",
-          "columnsFrom": [
-            "methodology_version_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["methodology_version_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -610,12 +574,8 @@
           "name": "methodology_artifact_slot_definitions_work_unit_type_id_methodology_work_unit_types_id_fk",
           "tableFrom": "methodology_artifact_slot_definitions",
           "tableTo": "methodology_work_unit_types",
-          "columnsFrom": [
-            "work_unit_type_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["work_unit_type_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -703,18 +663,12 @@
       "indexes": {
         "methodology_ast_slot_key_idx": {
           "name": "methodology_ast_slot_key_idx",
-          "columns": [
-            "slot_definition_id",
-            "key"
-          ],
+          "columns": ["slot_definition_id", "key"],
           "isUnique": true
         },
         "methodology_ast_vid_slot_idx": {
           "name": "methodology_ast_vid_slot_idx",
-          "columns": [
-            "methodology_version_id",
-            "slot_definition_id"
-          ],
+          "columns": ["methodology_version_id", "slot_definition_id"],
           "isUnique": false
         }
       },
@@ -723,12 +677,8 @@
           "name": "methodology_artifact_slot_templates_methodology_version_id_methodology_versions_id_fk",
           "tableFrom": "methodology_artifact_slot_templates",
           "tableTo": "methodology_versions",
-          "columnsFrom": [
-            "methodology_version_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["methodology_version_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -736,12 +686,8 @@
           "name": "methodology_artifact_slot_templates_slot_definition_id_methodology_artifact_slot_definitions_id_fk",
           "tableFrom": "methodology_artifact_slot_templates",
           "tableTo": "methodology_artifact_slot_definitions",
-          "columnsFrom": [
-            "slot_definition_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["slot_definition_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -808,9 +754,7 @@
       "indexes": {
         "methodology_definitions_key_idx": {
           "name": "methodology_definitions_key_idx",
-          "columns": [
-            "key"
-          ],
+          "columns": ["key"],
           "isUnique": true
         }
       },
@@ -905,10 +849,7 @@
       "indexes": {
         "methodology_fact_defs_vid_key_idx": {
           "name": "methodology_fact_defs_vid_key_idx",
-          "columns": [
-            "methodology_version_id",
-            "key"
-          ],
+          "columns": ["methodology_version_id", "key"],
           "isUnique": true
         }
       },
@@ -917,12 +858,8 @@
           "name": "methodology_fact_definitions_methodology_version_id_methodology_versions_id_fk",
           "tableFrom": "methodology_fact_definitions",
           "tableTo": "methodology_versions",
-          "columnsFrom": [
-            "methodology_version_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["methodology_version_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -996,10 +933,7 @@
       "indexes": {
         "methodology_link_type_defs_vid_key_idx": {
           "name": "methodology_link_type_defs_vid_key_idx",
-          "columns": [
-            "methodology_version_id",
-            "key"
-          ],
+          "columns": ["methodology_version_id", "key"],
           "isUnique": true
         }
       },
@@ -1008,12 +942,8 @@
           "name": "methodology_link_type_definitions_methodology_version_id_methodology_versions_id_fk",
           "tableFrom": "methodology_link_type_definitions",
           "tableTo": "methodology_versions",
-          "columnsFrom": [
-            "methodology_version_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["methodology_version_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1080,19 +1010,12 @@
       "indexes": {
         "methodology_twb_vid_transition_workflow_idx": {
           "name": "methodology_twb_vid_transition_workflow_idx",
-          "columns": [
-            "methodology_version_id",
-            "transition_id",
-            "workflow_id"
-          ],
+          "columns": ["methodology_version_id", "transition_id", "workflow_id"],
           "isUnique": true
         },
         "methodology_twb_vid_transition_idx": {
           "name": "methodology_twb_vid_transition_idx",
-          "columns": [
-            "methodology_version_id",
-            "transition_id"
-          ],
+          "columns": ["methodology_version_id", "transition_id"],
           "isUnique": false
         }
       },
@@ -1101,12 +1024,8 @@
           "name": "methodology_transition_workflow_bindings_methodology_version_id_methodology_versions_id_fk",
           "tableFrom": "methodology_transition_workflow_bindings",
           "tableTo": "methodology_versions",
-          "columnsFrom": [
-            "methodology_version_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["methodology_version_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1114,12 +1033,8 @@
           "name": "methodology_transition_workflow_bindings_transition_id_work_unit_lifecycle_transitions_id_fk",
           "tableFrom": "methodology_transition_workflow_bindings",
           "tableTo": "work_unit_lifecycle_transitions",
-          "columnsFrom": [
-            "transition_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["transition_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1127,12 +1042,8 @@
           "name": "methodology_transition_workflow_bindings_workflow_id_methodology_workflows_id_fk",
           "tableFrom": "methodology_transition_workflow_bindings",
           "tableTo": "methodology_workflows",
-          "columnsFrom": [
-            "workflow_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["workflow_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1198,11 +1109,7 @@
       "indexes": {
         "methodology_version_events_lineage_idx": {
           "name": "methodology_version_events_lineage_idx",
-          "columns": [
-            "methodology_version_id",
-            "created_at",
-            "id"
-          ],
+          "columns": ["methodology_version_id", "created_at", "id"],
           "isUnique": false
         }
       },
@@ -1211,12 +1118,8 @@
           "name": "methodology_version_events_methodology_version_id_methodology_versions_id_fk",
           "tableFrom": "methodology_version_events",
           "tableTo": "methodology_versions",
-          "columnsFrom": [
-            "methodology_version_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["methodology_version_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1290,18 +1193,12 @@
       "indexes": {
         "methodology_versions_mid_ver_idx": {
           "name": "methodology_versions_mid_ver_idx",
-          "columns": [
-            "methodology_id",
-            "version"
-          ],
+          "columns": ["methodology_id", "version"],
           "isUnique": true
         },
         "methodology_versions_mid_status_idx": {
           "name": "methodology_versions_mid_status_idx",
-          "columns": [
-            "methodology_id",
-            "status"
-          ],
+          "columns": ["methodology_id", "status"],
           "isUnique": false
         }
       },
@@ -1310,12 +1207,8 @@
           "name": "methodology_versions_methodology_id_methodology_definitions_id_fk",
           "tableFrom": "methodology_versions",
           "tableTo": "methodology_definitions",
-          "columnsFrom": [
-            "methodology_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["methodology_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1396,10 +1289,7 @@
       "indexes": {
         "methodology_wut_vid_key_idx": {
           "name": "methodology_wut_vid_key_idx",
-          "columns": [
-            "methodology_version_id",
-            "key"
-          ],
+          "columns": ["methodology_version_id", "key"],
           "isUnique": true
         }
       },
@@ -1408,12 +1298,8 @@
           "name": "methodology_work_unit_types_methodology_version_id_methodology_versions_id_fk",
           "tableFrom": "methodology_work_unit_types",
           "tableTo": "methodology_versions",
-          "columnsFrom": [
-            "methodology_version_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["methodology_version_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1501,24 +1387,17 @@
       "indexes": {
         "methodology_workflow_edges_vid_wid_idx": {
           "name": "methodology_workflow_edges_vid_wid_idx",
-          "columns": [
-            "methodology_version_id",
-            "workflow_id"
-          ],
+          "columns": ["methodology_version_id", "workflow_id"],
           "isUnique": false
         },
         "methodology_workflow_edges_from_step_idx": {
           "name": "methodology_workflow_edges_from_step_idx",
-          "columns": [
-            "from_step_id"
-          ],
+          "columns": ["from_step_id"],
           "isUnique": false
         },
         "methodology_workflow_edges_to_step_idx": {
           "name": "methodology_workflow_edges_to_step_idx",
-          "columns": [
-            "to_step_id"
-          ],
+          "columns": ["to_step_id"],
           "isUnique": false
         }
       },
@@ -1527,12 +1406,8 @@
           "name": "methodology_workflow_edges_methodology_version_id_methodology_versions_id_fk",
           "tableFrom": "methodology_workflow_edges",
           "tableTo": "methodology_versions",
-          "columnsFrom": [
-            "methodology_version_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["methodology_version_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1540,12 +1415,8 @@
           "name": "methodology_workflow_edges_workflow_id_methodology_workflows_id_fk",
           "tableFrom": "methodology_workflow_edges",
           "tableTo": "methodology_workflows",
-          "columnsFrom": [
-            "workflow_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["workflow_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1553,12 +1424,8 @@
           "name": "methodology_workflow_edges_from_step_id_methodology_workflow_steps_id_fk",
           "tableFrom": "methodology_workflow_edges",
           "tableTo": "methodology_workflow_steps",
-          "columnsFrom": [
-            "from_step_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["from_step_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -1566,12 +1433,8 @@
           "name": "methodology_workflow_edges_to_step_id_methodology_workflow_steps_id_fk",
           "tableFrom": "methodology_workflow_edges",
           "tableTo": "methodology_workflow_steps",
-          "columnsFrom": [
-            "to_step_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["to_step_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1659,18 +1522,12 @@
       "indexes": {
         "methodology_workflow_steps_wid_key_idx": {
           "name": "methodology_workflow_steps_wid_key_idx",
-          "columns": [
-            "workflow_id",
-            "key"
-          ],
+          "columns": ["workflow_id", "key"],
           "isUnique": true
         },
         "methodology_workflow_steps_vid_wid_idx": {
           "name": "methodology_workflow_steps_vid_wid_idx",
-          "columns": [
-            "methodology_version_id",
-            "workflow_id"
-          ],
+          "columns": ["methodology_version_id", "workflow_id"],
           "isUnique": false
         }
       },
@@ -1679,12 +1536,8 @@
           "name": "methodology_workflow_steps_methodology_version_id_methodology_versions_id_fk",
           "tableFrom": "methodology_workflow_steps",
           "tableTo": "methodology_versions",
-          "columnsFrom": [
-            "methodology_version_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["methodology_version_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1692,12 +1545,8 @@
           "name": "methodology_workflow_steps_workflow_id_methodology_workflows_id_fk",
           "tableFrom": "methodology_workflow_steps",
           "tableTo": "methodology_workflows",
-          "columnsFrom": [
-            "workflow_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["workflow_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1778,18 +1627,12 @@
       "indexes": {
         "methodology_workflows_vid_key_idx": {
           "name": "methodology_workflows_vid_key_idx",
-          "columns": [
-            "methodology_version_id",
-            "key"
-          ],
+          "columns": ["methodology_version_id", "key"],
           "isUnique": true
         },
         "methodology_workflows_vid_wut_idx": {
           "name": "methodology_workflows_vid_wut_idx",
-          "columns": [
-            "methodology_version_id",
-            "work_unit_type_id"
-          ],
+          "columns": ["methodology_version_id", "work_unit_type_id"],
           "isUnique": false
         }
       },
@@ -1798,12 +1641,8 @@
           "name": "methodology_workflows_methodology_version_id_methodology_versions_id_fk",
           "tableFrom": "methodology_workflows",
           "tableTo": "methodology_versions",
-          "columnsFrom": [
-            "methodology_version_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["methodology_version_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1811,12 +1650,8 @@
           "name": "methodology_workflows_work_unit_type_id_methodology_work_unit_types_id_fk",
           "tableFrom": "methodology_workflows",
           "tableTo": "methodology_work_unit_types",
-          "columnsFrom": [
-            "work_unit_type_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["work_unit_type_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1905,18 +1740,12 @@
       "indexes": {
         "transition_condition_sets_transition_phase_idx": {
           "name": "transition_condition_sets_transition_phase_idx",
-          "columns": [
-            "transition_id",
-            "phase"
-          ],
+          "columns": ["transition_id", "phase"],
           "isUnique": true
         },
         "methodology_tcs_vid_transition_idx": {
           "name": "methodology_tcs_vid_transition_idx",
-          "columns": [
-            "methodology_version_id",
-            "transition_id"
-          ],
+          "columns": ["methodology_version_id", "transition_id"],
           "isUnique": false
         }
       },
@@ -1925,12 +1754,8 @@
           "name": "transition_condition_sets_methodology_version_id_methodology_versions_id_fk",
           "tableFrom": "transition_condition_sets",
           "tableTo": "methodology_versions",
-          "columnsFrom": [
-            "methodology_version_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["methodology_version_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1938,12 +1763,8 @@
           "name": "transition_condition_sets_transition_id_work_unit_lifecycle_transitions_id_fk",
           "tableFrom": "transition_condition_sets",
           "tableTo": "work_unit_lifecycle_transitions",
-          "columnsFrom": [
-            "transition_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["transition_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2045,19 +1866,12 @@
       "indexes": {
         "methodology_fs_vid_wut_key_idx": {
           "name": "methodology_fs_vid_wut_key_idx",
-          "columns": [
-            "methodology_version_id",
-            "work_unit_type_id",
-            "key"
-          ],
+          "columns": ["methodology_version_id", "work_unit_type_id", "key"],
           "isUnique": true
         },
         "methodology_fs_vid_wut_idx": {
           "name": "methodology_fs_vid_wut_idx",
-          "columns": [
-            "methodology_version_id",
-            "work_unit_type_id"
-          ],
+          "columns": ["methodology_version_id", "work_unit_type_id"],
           "isUnique": false
         }
       },
@@ -2066,12 +1880,8 @@
           "name": "work_unit_fact_definitions_methodology_version_id_methodology_versions_id_fk",
           "tableFrom": "work_unit_fact_definitions",
           "tableTo": "methodology_versions",
-          "columnsFrom": [
-            "methodology_version_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["methodology_version_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2079,12 +1889,8 @@
           "name": "work_unit_fact_definitions_work_unit_type_id_methodology_work_unit_types_id_fk",
           "tableFrom": "work_unit_fact_definitions",
           "tableTo": "methodology_work_unit_types",
-          "columnsFrom": [
-            "work_unit_type_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["work_unit_type_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2165,19 +1971,12 @@
       "indexes": {
         "methodology_ls_vid_wut_key_idx": {
           "name": "methodology_ls_vid_wut_key_idx",
-          "columns": [
-            "methodology_version_id",
-            "work_unit_type_id",
-            "key"
-          ],
+          "columns": ["methodology_version_id", "work_unit_type_id", "key"],
           "isUnique": true
         },
         "methodology_ls_vid_wut_idx": {
           "name": "methodology_ls_vid_wut_idx",
-          "columns": [
-            "methodology_version_id",
-            "work_unit_type_id"
-          ],
+          "columns": ["methodology_version_id", "work_unit_type_id"],
           "isUnique": false
         }
       },
@@ -2186,12 +1985,8 @@
           "name": "work_unit_lifecycle_states_methodology_version_id_methodology_versions_id_fk",
           "tableFrom": "work_unit_lifecycle_states",
           "tableTo": "methodology_versions",
-          "columnsFrom": [
-            "methodology_version_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["methodology_version_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2199,12 +1994,8 @@
           "name": "work_unit_lifecycle_states_work_unit_type_id_methodology_work_unit_types_id_fk",
           "tableFrom": "work_unit_lifecycle_states",
           "tableTo": "methodology_work_unit_types",
-          "columnsFrom": [
-            "work_unit_type_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["work_unit_type_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2285,33 +2076,22 @@
       "indexes": {
         "methodology_lt_vid_wut_key_idx": {
           "name": "methodology_lt_vid_wut_key_idx",
-          "columns": [
-            "methodology_version_id",
-            "work_unit_type_id",
-            "transition_key"
-          ],
+          "columns": ["methodology_version_id", "work_unit_type_id", "transition_key"],
           "isUnique": true
         },
         "methodology_lt_vid_wut_idx": {
           "name": "methodology_lt_vid_wut_idx",
-          "columns": [
-            "methodology_version_id",
-            "work_unit_type_id"
-          ],
+          "columns": ["methodology_version_id", "work_unit_type_id"],
           "isUnique": false
         },
         "methodology_lt_from_state_idx": {
           "name": "methodology_lt_from_state_idx",
-          "columns": [
-            "from_state_id"
-          ],
+          "columns": ["from_state_id"],
           "isUnique": false
         },
         "methodology_lt_to_state_idx": {
           "name": "methodology_lt_to_state_idx",
-          "columns": [
-            "to_state_id"
-          ],
+          "columns": ["to_state_id"],
           "isUnique": false
         }
       },
@@ -2320,12 +2100,8 @@
           "name": "work_unit_lifecycle_transitions_methodology_version_id_methodology_versions_id_fk",
           "tableFrom": "work_unit_lifecycle_transitions",
           "tableTo": "methodology_versions",
-          "columnsFrom": [
-            "methodology_version_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["methodology_version_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2333,12 +2109,8 @@
           "name": "work_unit_lifecycle_transitions_work_unit_type_id_methodology_work_unit_types_id_fk",
           "tableFrom": "work_unit_lifecycle_transitions",
           "tableTo": "methodology_work_unit_types",
-          "columnsFrom": [
-            "work_unit_type_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["work_unit_type_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2346,12 +2118,8 @@
           "name": "work_unit_lifecycle_transitions_from_state_id_work_unit_lifecycle_states_id_fk",
           "tableFrom": "work_unit_lifecycle_transitions",
           "tableTo": "work_unit_lifecycle_states",
-          "columnsFrom": [
-            "from_state_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["from_state_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -2359,12 +2127,8 @@
           "name": "work_unit_lifecycle_transitions_to_state_id_work_unit_lifecycle_states_id_fk",
           "tableFrom": "work_unit_lifecycle_transitions",
           "tableTo": "work_unit_lifecycle_states",
-          "columnsFrom": [
-            "to_state_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["to_state_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -2409,11 +2173,7 @@
       "indexes": {
         "project_executions_project_idx": {
           "name": "project_executions_project_idx",
-          "columns": [
-            "project_id",
-            "created_at",
-            "id"
-          ],
+          "columns": ["project_id", "created_at", "id"],
           "isUnique": false
         }
       },
@@ -2422,12 +2182,8 @@
           "name": "project_executions_project_id_projects_id_fk",
           "tableFrom": "project_executions",
           "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2435,12 +2191,8 @@
           "name": "project_executions_methodology_version_id_methodology_versions_id_fk",
           "tableFrom": "project_executions",
           "tableTo": "methodology_versions",
-          "columnsFrom": [
-            "methodology_version_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["methodology_version_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -2513,11 +2265,7 @@
       "indexes": {
         "project_methodology_pin_events_lineage_idx": {
           "name": "project_methodology_pin_events_lineage_idx",
-          "columns": [
-            "project_id",
-            "created_at",
-            "id"
-          ],
+          "columns": ["project_id", "created_at", "id"],
           "isUnique": false
         }
       },
@@ -2526,12 +2274,8 @@
           "name": "project_methodology_pin_events_project_id_projects_id_fk",
           "tableFrom": "project_methodology_pin_events",
           "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2605,17 +2349,12 @@
       "indexes": {
         "project_methodology_pins_version_idx": {
           "name": "project_methodology_pins_version_idx",
-          "columns": [
-            "methodology_version_id"
-          ],
+          "columns": ["methodology_version_id"],
           "isUnique": false
         },
         "project_methodology_pins_methodology_idx": {
           "name": "project_methodology_pins_methodology_idx",
-          "columns": [
-            "methodology_id",
-            "methodology_key"
-          ],
+          "columns": ["methodology_id", "methodology_key"],
           "isUnique": false
         }
       },
@@ -2624,12 +2363,8 @@
           "name": "project_methodology_pins_project_id_projects_id_fk",
           "tableFrom": "project_methodology_pins",
           "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2637,12 +2372,8 @@
           "name": "project_methodology_pins_methodology_version_id_methodology_versions_id_fk",
           "tableFrom": "project_methodology_pins",
           "tableTo": "methodology_versions",
-          "columnsFrom": [
-            "methodology_version_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["methodology_version_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }

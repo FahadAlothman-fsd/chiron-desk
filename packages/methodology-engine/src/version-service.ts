@@ -246,7 +246,7 @@ export class MethodologyVersionService extends Context.Tag("MethodologyVersionSe
   }
 >() {}
 
-const ALLOWED_FACT_TYPES = new Set(["string", "number", "boolean", "json"]);
+const ALLOWED_FACT_TYPES = new Set(["string", "number", "boolean", "json", "work_unit"]);
 
 function sortDiagnostics(
   diagnostics: readonly ValidationDiagnostic[],
@@ -443,11 +443,17 @@ function asCardinality(value: unknown): "one_per_project" | "many_per_project" {
     : "one_per_project";
 }
 
-const ALLOWED_CANONICAL_FACT_TYPES = new Set(["string", "number", "boolean", "json"]);
+const ALLOWED_CANONICAL_FACT_TYPES = new Set(["string", "number", "boolean", "json", "work_unit"]);
 
-function asCanonicalFactType(value: unknown): "string" | "number" | "boolean" | "json" {
+function asCanonicalFactType(
+  value: unknown,
+): "string" | "number" | "boolean" | "json" | "work_unit" {
+  if (value === "work unit") {
+    return "work_unit";
+  }
+
   return typeof value === "string" && ALLOWED_CANONICAL_FACT_TYPES.has(value)
-    ? (value as "string" | "number" | "boolean" | "json")
+    ? (value as "string" | "number" | "boolean" | "json" | "work_unit")
     : "string";
 }
 
@@ -1596,7 +1602,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
               timestamp,
               "supported fact type",
               `${fact.key}:${fact.factType}`,
-              "Use one of string, number, boolean, json",
+              "Use one of string, number, boolean, json, work_unit",
             ),
           );
         }

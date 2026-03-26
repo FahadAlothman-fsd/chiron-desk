@@ -110,7 +110,7 @@ export type ValidationDiagnosticShape = {
   remediation?: string;
 };
 
-export type FactTypeValue = "string" | "number" | "boolean" | "json";
+export type FactTypeValue = "string" | "number" | "boolean" | "json" | "work_unit";
 
 export type FactEditorValue = {
   __uiId?: string;
@@ -153,7 +153,7 @@ type ParsedFactDefinitions = {
   valid: boolean;
 };
 
-const FACT_TYPES: readonly FactTypeValue[] = ["string", "number", "boolean", "json"];
+const FACT_TYPES: readonly FactTypeValue[] = ["string", "number", "boolean", "json", "work_unit"];
 
 let factEditorIdSequence = 0;
 
@@ -329,6 +329,9 @@ function inputValueToFactDefault(factType: FactTypeValue, rawValue: string): unk
     return undefined;
   }
   if (factType === "string") {
+    return rawValue;
+  }
+  if (factType === "work_unit") {
     return rawValue;
   }
   if (factType === "number") {

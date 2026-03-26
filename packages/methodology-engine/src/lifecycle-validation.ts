@@ -21,12 +21,13 @@ function makeDiagnostic(
 
 // Allowed sets for methodology lifecycle contract validation.
 const ALLOWED_CARDINALITY = new Set(["one_per_project", "many_per_project"]);
-const ALLOWED_FACT_TYPES = new Set(["string", "number", "boolean", "json"]);
+const ALLOWED_FACT_TYPES = new Set(["string", "number", "boolean", "json", "work_unit"]);
 const ABSENT_STATE = "__absent__";
 
 function isDefaultValueCompatible(factType: string, defaultValue: unknown): boolean {
   switch (factType) {
     case "string":
+    case "work_unit":
       return typeof defaultValue === "string";
     case "number":
       return typeof defaultValue === "number" && Number.isFinite(defaultValue);

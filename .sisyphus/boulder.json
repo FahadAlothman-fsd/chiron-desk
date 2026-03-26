@@ -5,7 +5,32 @@
     "ses_2d86a0ca4ffe6wmqfl5TlL7LzD",
     "ses_2d869a091ffeFDluyLbgnTRjYq",
     "ses_2d869a737ffeRC3aUhhXerkUlC",
-    "ses_2d8691867ffeMJ9SeqKQx3oWqw"
+    "ses_2d8691867ffeMJ9SeqKQx3oWqw",
+    "ses_2d8273af5ffeLzVE5jfHCGVTpf",
+    "ses_2d819525bffezDFrGzPtv11t2e",
+    "ses_2d80d3d6effelhn8Z54xgf09v9",
+    "ses_2d8061415ffebQw9mLn6EBn6BL",
+    "ses_2d7faf9ecffeF7BKY8eS1vYY1X",
+    "ses_2d7ed40c9ffe8mFhqp9xRH4SON",
+    "ses_2d7e150b8ffeuTmPMLjmrA1y7E",
+    "ses_2d7d779f7ffeLSncolkkHsfDfO",
+    "ses_2d7cf5cbdffearhdAOLos3cOVw",
+    "ses_2d6041fc1ffezLv3qfHOaHPUdf",
+    "ses_2d60422edffetcQSJ16XoOSMhi",
+    "ses_2d5e26861ffe0ODFjbk91TwFkH",
+    "ses_2d5e2674bffeKw553XZ4Uc03WI",
+    "ses_2d5a01380ffevNUkmhTyUQok4J",
+    "ses_2d5983bedffeSMYXpwnkkpyHqA",
+    "ses_2d590934fffeVMUUARaM3OQrRe",
+    "ses_2d58841e3ffeT020ujAmVNlrjN",
+    "ses_2d58841e4ffei7XIG4b0YUlYUb",
+    "ses_2d58841e2ffeHZ0BaiAILK1PJE",
+    "ses_2d5884641ffe2E5dFU6bnAwGfL",
+    "ses_2d56a1c6cffeaBq8nFI0HZxTDm",
+    "ses_2d56a1af1ffeNhtMOLaHvSXKok",
+    "ses_2d557c332ffewhpvMNrSOMRhRp",
+    "ses_2d557c31affeUBm8Cuea7SYT5D",
+    "ses_2d5362954ffeBkxrwh2eT7SmDj"
   ],
   "plan_name": "bmad-to-chiron-seeding-slice-a",
   "task_sessions": {
@@ -26,6 +51,87 @@
       "agent": "Sisyphus-Junior",
       "category": "ultrabrain",
       "updated_at": "2026-03-26T00:49:40.235Z"
+    },
+    "todo:3": {
+      "task_key": "todo:3",
+      "task_label": "3",
+      "task_title": "Update the existing seeding procedure to conform to the corrected data model and dual-version seeding",
+      "session_id": "ses_2d8273af5ffeLzVE5jfHCGVTpf",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-03-26T02:02:37.635Z"
+    },
+    "todo:5": {
+      "task_key": "todo:5",
+      "task_label": "5",
+      "task_title": "Seed the minimal methodology agents required by Slice A",
+      "session_id": "ses_2d80d3d6effelhn8Z54xgf09v9",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-03-26T02:27:01.410Z"
+    },
+    "todo:6": {
+      "task_key": "todo:6",
+      "task_label": "6",
+      "task_title": "Seed `WU.SETUP` L2 using the corrected shapes",
+      "session_id": "ses_2d8061415ffebQw9mLn6EBn6BL",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-03-26T02:37:29.160Z"
+    },
+    "todo:7": {
+      "task_key": "todo:7",
+      "task_label": "7",
+      "task_title": "Seed `WU.BRAINSTORMING` L2 using the corrected shapes",
+      "session_id": "ses_2d7faf9ecffeF7BKY8eS1vYY1X",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-03-26T02:51:39.211Z"
+    },
+    "todo:8": {
+      "task_key": "todo:8",
+      "task_label": "8",
+      "task_title": "Seed shared `WU.RESEARCH` L2 foundations using the corrected shapes",
+      "session_id": "ses_2d7ed40c9ffe8mFhqp9xRH4SON",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-03-26T03:05:12.429Z"
+    },
+    "todo:9": {
+      "task_key": "todo:9",
+      "task_label": "9",
+      "task_title": "Seed the three research workflow rows and bindings without steps/edges",
+      "session_id": "ses_2d7e150b8ffeuTmPMLjmrA1y7E",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-03-26T03:16:10.549Z"
+    },
+    "todo:10": {
+      "task_key": "todo:10",
+      "task_label": "10",
+      "task_title": "Replace empty-slice integrity assumptions with exact L1/L2 deterministic assertions",
+      "session_id": "ses_2d7d779f7ffeLSncolkkHsfDfO",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-03-26T03:25:49.029Z"
+    },
+    "todo:11": {
+      "task_key": "todo:11",
+      "task_label": "11",
+      "task_title": "Add integration coverage for the updated seeding procedure, dual versions, and reseed behavior",
+      "session_id": "ses_2d7cf5cbdffearhdAOLos3cOVw",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-03-26T03:36:18.932Z"
+    },
+    "final-wave:f1": {
+      "task_key": "final-wave:f1",
+      "task_label": "F1",
+      "task_title": "Plan Compliance Audit — oracle",
+      "session_id": "ses_2d5362954ffeBkxrwh2eT7SmDj",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-03-26T15:54:53.188Z"
     }
   }
 }

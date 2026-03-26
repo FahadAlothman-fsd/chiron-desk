@@ -1,18 +1,24 @@
 import {
   methodologyAgentTypeSeedRows,
+  methodologyArtifactSlotDefinitionSeedRows,
+  methodologyArtifactSlotTemplateSeedRows,
   methodologyFactDefinitionSeedRows,
-  methodologyFactSchemaSeedRows,
   methodologyLifecycleStateSeedRows,
   methodologyLifecycleTransitionSeedRows,
   methodologyTransitionConditionSetSeedRows,
   methodologyLinkTypeDefinitionSeedRows,
   methodologyTransitionWorkflowBindingSeedRows,
+  workUnitFactDefinitionSeedRows,
   methodologyWorkUnitTypeSeedRows,
   methodologyWorkflowEdgeSeedRows,
   methodologyWorkflowSeedRows,
   methodologyWorkflowStepSeedRows,
 } from "./tables";
-import { setupSeedMetadata } from "./setup/setup-bmad-mapping";
+import {
+  brainstormingSeedMetadata,
+  researchSeedMetadata,
+  setupSeedMetadata,
+} from "./setup/setup-bmad-mapping";
 
 export * from "./tables";
 
@@ -23,6 +29,8 @@ export const METHODOLOGY_CANONICAL_TABLE_SEED_ORDER = [
   "work_unit_lifecycle_transitions",
   "transition_condition_sets",
   "work_unit_fact_definitions",
+  "methodology_artifact_slot_definitions",
+  "methodology_artifact_slot_templates",
   "methodology_link_type_definitions",
   "methodology_workflows",
   "methodology_workflow_steps",
@@ -37,7 +45,9 @@ export const methodologyCanonicalTableSeedRows = {
   work_unit_lifecycle_states: methodologyLifecycleStateSeedRows,
   work_unit_lifecycle_transitions: methodologyLifecycleTransitionSeedRows,
   transition_condition_sets: methodologyTransitionConditionSetSeedRows,
-  work_unit_fact_definitions: methodologyFactSchemaSeedRows,
+  work_unit_fact_definitions: workUnitFactDefinitionSeedRows,
+  methodology_artifact_slot_definitions: methodologyArtifactSlotDefinitionSeedRows,
+  methodology_artifact_slot_templates: methodologyArtifactSlotTemplateSeedRows,
   methodology_link_type_definitions: methodologyLinkTypeDefinitionSeedRows,
   methodology_workflows: methodologyWorkflowSeedRows,
   methodology_workflow_steps: methodologyWorkflowStepSeedRows,
@@ -47,5 +57,7 @@ export const methodologyCanonicalTableSeedRows = {
 } as const;
 
 export const methodologySeedSlices = {
-  baseline_metadata: setupSeedMetadata,
+  slice_a_setup: setupSeedMetadata,
+  slice_a_brainstorming: brainstormingSeedMetadata,
+  slice_a_research: researchSeedMetadata,
 } as const;

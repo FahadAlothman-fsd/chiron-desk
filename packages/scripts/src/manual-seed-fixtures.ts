@@ -39,20 +39,29 @@ export const BASELINE_MANUAL_SEED_PLAN: ManualSeedPlan = {
   methodologyDefinitions: [
     {
       id: "mdef_bmad_v1",
-      key: "bmad.v1",
-      name: "BMAD v1",
+      key: "bmad.slice-a.v1",
+      name: "BMAD v1 — Slice A",
       descriptionJson: {
-        summary: "Baseline deterministic methodology mapping for manual operator journey testing.",
+        markdown:
+          "Refined Slice-A canonical methodology definition for setup, brainstorming, and research.",
       },
     },
   ],
   methodologyVersions: [
     {
+      id: "mver_bmad_v1_draft",
+      methodologyId: "mdef_bmad_v1",
+      version: "v1-slice-a-draft",
+      status: "draft",
+      displayName: "BMAD v1 — Slice A (Draft)",
+      retiredAt: null,
+    },
+    {
       id: "mver_bmad_v1_active",
       methodologyId: "mdef_bmad_v1",
-      version: "v1",
+      version: "v1-slice-a",
       status: "active",
-      displayName: "BMAD v1",
+      displayName: "BMAD v1 — Slice A",
       retiredAt: null,
     },
   ],

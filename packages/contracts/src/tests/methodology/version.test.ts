@@ -247,6 +247,11 @@ describe("MethodologyFactDefinitionInput", () => {
   it("rejects fact definition with invalid factType", () => {
     expect(() => decode({ ...validVar, factType: "array" })).toThrow();
   });
+
+  it("accepts canonical work-unit fact type", () => {
+    const result = decode({ ...validVar, factType: "work_unit" });
+    expect(result.factType).toBe("work_unit");
+  });
 });
 
 describe("Fact ownership and cardinality contracts", () => {
@@ -266,6 +271,12 @@ describe("Fact ownership and cardinality contracts", () => {
     expect(() =>
       decodeMethodologyFact({ key: "fact.priority", factType: "number", cardinality: "single" }),
     ).toThrow();
+  });
+
+  it("accepts work_unit in work-unit fact schema", () => {
+    const decodeWorkUnitFact = Schema.decodeUnknownSync(FactSchema);
+    const result = decodeWorkUnitFact({ key: "fact.setup_work_unit", factType: "work_unit" });
+    expect(result.factType).toBe("work_unit");
   });
 });
 

@@ -158,7 +158,7 @@ const factValidationSchema = z
 const variableDefinitionSchema = z.object({
   name: z.string().optional(),
   key: z.string().min(1),
-  factType: z.enum(["string", "number", "boolean", "json"]),
+  factType: z.enum(["string", "number", "boolean", "json", "work_unit"]),
   defaultValue: z.unknown().optional(),
   description: z.string().optional(),
   guidance: factGuidanceSchema,
@@ -431,7 +431,7 @@ const listWorkUnitTransitionConditionSetsInput = z.object({
 const factSchemaDefinition = z.object({
   name: z.string().optional(),
   key: z.string().min(1),
-  factType: z.enum(["string", "number", "boolean", "json"]),
+  factType: z.enum(["string", "number", "boolean", "json", "work_unit"]),
   defaultValue: z.unknown().optional(),
   description: z.string().optional(),
   guidance: factGuidanceSchema,

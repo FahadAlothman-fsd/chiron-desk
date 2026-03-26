@@ -2209,7 +2209,7 @@ describe("methodology version shell routes", () => {
         workUnitTypeKey: "WU.TASK",
         fact: expect.objectContaining({
           key: "fact.upstream_unit",
-          factType: "string",
+          factType: "work_unit",
         }),
       }),
       expect.anything(),

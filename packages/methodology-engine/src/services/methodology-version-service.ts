@@ -137,7 +137,11 @@ function asCardinality(value: string): WorkUnitTypeDefinition["cardinality"] {
   return value === "one_per_project" ? "one_per_project" : "many_per_project";
 }
 
-function asFactType(value: string): "string" | "number" | "boolean" | "json" {
+function asFactType(value: string): "string" | "number" | "boolean" | "json" | "work_unit" {
+  if (value === "work_unit" || value === "work unit") {
+    return "work_unit";
+  }
+
   if (value === "number") {
     return "number";
   }

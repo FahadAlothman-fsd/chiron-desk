@@ -34,7 +34,6 @@ type TransitionConditionSet = {
   phase: "start" | "completion";
   mode: "all" | "any";
   groups: TransitionConditionGroup[];
-  guidance?: string;
 };
 
 type TransitionCondition = {
@@ -55,8 +54,6 @@ type GatePhase = "start" | "completion";
 type GateDraft = {
   key: string;
   mode: "all" | "any";
-  guidance: string;
-  description: string;
   groups: TransitionConditionGroup[];
 };
 
@@ -76,7 +73,7 @@ type WorkflowOption = {
 type FactOption = {
   key: string;
   name?: string;
-  factType?: "string" | "number" | "boolean" | "json";
+  factType?: "string" | "number" | "boolean" | "json" | "work_unit";
 };
 
 type DependencyOption = {
@@ -135,15 +132,11 @@ const emptyTransitionDraft: TransitionDraft = {
   startGate: {
     key: "",
     mode: "all",
-    guidance: "",
-    description: "",
     groups: [],
   },
   completionGate: {
     key: "",
     mode: "all",
-    guidance: "",
-    description: "",
     groups: [],
   },
   workflowKeys: [],
@@ -345,11 +338,6 @@ export function StateMachineTab({
   const [isFromStateOpen, setIsFromStateOpen] = useState(false);
   const [isToStateOpen, setIsToStateOpen] = useState(false);
   const [isBindingsOpen, setIsBindingsOpen] = useState(false);
-  const [gateTextEditor, setGateTextEditor] = useState<{
-    phase: GatePhase;
-    field: "guidance" | "description";
-    value: string;
-  } | null>(null);
   const [groupEditor, setGroupEditor] = useState<{
     phase: GatePhase;
     groupKey: string | null;
@@ -524,8 +512,6 @@ export function StateMachineTab({
   const toGateDraft = (set: TransitionConditionSet | undefined): GateDraft => ({
     key: set?.key ?? "",
     mode: set?.mode ?? "all",
-    guidance: set?.guidance ?? "",
-    description: "",
     groups: Array.isArray(set?.groups)
       ? set.groups.map((group) => ({
           key: group.key,
@@ -566,7 +552,6 @@ export function StateMachineTab({
     });
     setTransitionEditorTab("contract");
     setTransitionDiscardOpen(false);
-    setGateTextEditor(null);
     setGroupEditor(null);
     resetTransitionDirty();
     setTransitionDialogOpen(true);
@@ -577,7 +562,6 @@ export function StateMachineTab({
     setTransitionEditor(toTransitionDraft(transition));
     setTransitionEditorTab("contract");
     setTransitionDiscardOpen(false);
-    setGateTextEditor(null);
     setGroupEditor(null);
     resetTransitionDirty();
     setTransitionDialogOpen(true);
@@ -589,7 +573,6 @@ export function StateMachineTab({
     setEditingTransitionKey(null);
     setTransitionEditor(emptyTransitionDraft);
     setTransitionEditorTab("contract");
-    setGateTextEditor(null);
     setGroupEditor(null);
     setIsFromStateOpen(false);
     setIsToStateOpen(false);
@@ -616,7 +599,6 @@ export function StateMachineTab({
       key: gate.key.trim().length > 0 ? gate.key.trim() : fallbackKey,
       phase,
       mode: gate.mode,
-      ...(gate.guidance.trim().length > 0 ? { guidance: gate.guidance.trim() } : {}),
       groups: gate.groups.map((group, index) => ({
         key: group.key.trim().length > 0 ? group.key.trim() : `${phase}.group.${index + 1}`,
         mode: group.mode,
@@ -680,7 +662,7 @@ export function StateMachineTab({
           ): fact is {
             key: string;
             name?: string;
-            factType?: "string" | "number" | "boolean" | "json";
+            factType?: "string" | "number" | "boolean" | "json" | "work_unit";
           } => typeof fact.key === "string" && fact.key.trim().length > 0,
         )
         .map((fact) => ({
@@ -991,15 +973,6 @@ export function StateMachineTab({
     }
 
     return condition.kind;
-  };
-
-  const openGateTextEditor = (phase: GatePhase, field: "guidance" | "description") => {
-    const gate = phase === "start" ? transitionEditor.startGate : transitionEditor.completionGate;
-    setGateTextEditor({
-      phase,
-      field,
-      value: field === "guidance" ? gate.guidance : gate.description,
-    });
   };
 
   const openGroupEditor = (phase: GatePhase) => {
@@ -1700,24 +1673,6 @@ export function StateMachineTab({
                         type="button"
                         variant="outline"
                         className="rounded-none"
-                        onClick={() => openGateTextEditor("start", "guidance")}
-                      >
-                        Edit Start Guidance
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="rounded-none"
-                        onClick={() => openGateTextEditor("start", "description")}
-                      >
-                        Edit Start Description
-                      </Button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="rounded-none"
                         onClick={() => openGroupEditor("start")}
                       >
                         Add Group
@@ -1848,24 +1803,6 @@ export function StateMachineTab({
                         type="button"
                         variant="outline"
                         className="rounded-none"
-                        onClick={() => openGateTextEditor("completion", "guidance")}
-                      >
-                        Edit Completion Guidance
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="rounded-none"
-                        onClick={() => openGateTextEditor("completion", "description")}
-                      >
-                        Edit Completion Description
-                      </Button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="rounded-none"
                         onClick={() => openGroupEditor("completion")}
                       >
                         Add Group
@@ -1954,73 +1891,6 @@ export function StateMachineTab({
             </Button>
             <Button type="button" className="rounded-none" onClick={closeTransitionDialog}>
               Discard Changes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={gateTextEditor !== null}
-        onOpenChange={(nextOpen) => {
-          if (!nextOpen) {
-            setGateTextEditor(null);
-          }
-        }}
-      >
-        <DialogContent className="max-w-2xl rounded-none">
-          <DialogHeader>
-            <DialogTitle>
-              {gateTextEditor
-                ? `Edit ${gateTextEditor.phase === "start" ? "Start" : "Completion"} ${gateTextEditor.field === "guidance" ? "Guidance" : "Description"}`
-                : "Edit Gate Text"}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-2">
-            <Label htmlFor="transition-gate-text-value">
-              {gateTextEditor?.field === "guidance" ? "Guidance" : "Description"}
-            </Label>
-            <Textarea
-              id="transition-gate-text-value"
-              className="min-h-[12rem] resize-none rounded-none"
-              value={gateTextEditor?.value ?? ""}
-              onChange={(event) =>
-                setGateTextEditor((previous) =>
-                  previous ? { ...previous, value: event.target.value } : previous,
-                )
-              }
-            />
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              className="rounded-none"
-              onClick={() => setGateTextEditor(null)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              className="rounded-none"
-              onClick={() => {
-                if (!gateTextEditor) {
-                  return;
-                }
-
-                updateGate(gateTextEditor.phase, (gate) =>
-                  gateTextEditor.field === "guidance"
-                    ? { ...gate, guidance: gateTextEditor.value }
-                    : { ...gate, description: gateTextEditor.value },
-                );
-                if (gateTextEditor.phase === "start") {
-                  setIsStartDirty(true);
-                } else {
-                  setIsCompletionDirty(true);
-                }
-                setGateTextEditor(null);
-              }}
-            >
-              {gateTextEditor?.field === "guidance" ? "Save Guidance" : "Save Description"}
             </Button>
           </DialogFooter>
         </DialogContent>

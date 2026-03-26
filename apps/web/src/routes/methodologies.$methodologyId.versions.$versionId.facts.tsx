@@ -382,9 +382,14 @@ function normalizeFactType(factType: FactEditorValue["factType"]): FactEditorVal
     factType === "string" ||
     factType === "number" ||
     factType === "boolean" ||
-    factType === "json"
+    factType === "json" ||
+    factType === "work_unit"
   ) {
     return factType;
+  }
+
+  if (typeof factType === "string" && factType === "work unit") {
+    return "work_unit";
   }
 
   return "string";

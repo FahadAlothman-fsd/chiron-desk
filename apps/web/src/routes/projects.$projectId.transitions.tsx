@@ -148,16 +148,6 @@ function ProjectTransitionsRoute() {
                         className="border border-border/70 bg-background/60 p-2 text-xs"
                       >
                         <p className="font-medium">workflow: {workflow.workflowKey}</p>
-                        {workflow.guidance !== undefined && workflow.guidance !== null ? (
-                          <>
-                            <p className="mt-1 text-muted-foreground">Workflow guidance</p>
-                            <pre className="mt-1 whitespace-pre-wrap font-mono text-xs text-muted-foreground">
-                              {typeof workflow.guidance === "string"
-                                ? workflow.guidance
-                                : JSON.stringify(workflow.guidance, null, 2)}
-                            </pre>
-                          </>
-                        ) : null}
                       </li>
                     ))}
                   </ul>

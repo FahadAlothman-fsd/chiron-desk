@@ -36,7 +36,6 @@ export type BaselineTransition = {
     phase: "start" | "completion";
     mode: "all" | "any";
     groups: unknown[];
-    guidance?: string;
   }>;
   diagnostics: ValidationDiagnostic[];
   workflows: Array<{
@@ -44,7 +43,6 @@ export type BaselineTransition = {
     enabled: false;
     disabledReason: string;
     helperText: string;
-    guidance?: unknown;
   }>;
 };
 
@@ -340,14 +338,6 @@ export function BaselineVisibilitySection({
                               <span className="text-muted-foreground">
                                 {workflow.disabledReason}
                               </span>
-                              {workflow.guidance !== undefined && workflow.guidance !== null ? (
-                                <div className="w-full border border-border/70 bg-background/60 p-2 text-xs text-muted-foreground">
-                                  <p className="font-medium text-foreground">Workflow guidance</p>
-                                  <pre className="mt-1 whitespace-pre-wrap font-mono text-xs">
-                                    {formatGuidance(workflow.guidance)}
-                                  </pre>
-                                </div>
-                              ) : null}
                             </li>
                           ))}
                         </ul>

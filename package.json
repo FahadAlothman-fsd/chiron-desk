@@ -47,7 +47,7 @@
     "db:seed": "bun run db:push && turbo -F @chiron/scripts db:seed",
     "db:seed:reset": "bun run db:push && turbo -F @chiron/scripts db:seed:reset",
     "db:seed:test": "bun run db:push && turbo -F @chiron/scripts db:seed:test",
-    "db:seed:test:reset": "bun run db:push && turbo -F @chiron/scripts db:seed:test:reset",
+    "db:seed:test:reset": "bun -e \"import { rmSync } from 'node:fs'; rmSync('local.db', { force: true });\" && bun run db:push && turbo -F @chiron/scripts db:seed:test:reset",
     "check": "oxlint && oxfmt --check",
     "format": "oxfmt --write",
     "test": "turbo test",

@@ -40,6 +40,7 @@ import {
 } from "@/features/methodologies/fact-validation";
 
 type FactType = "string" | "number" | "boolean" | "json" | "work unit";
+type CanonicalFactType = FactType | "work_unit";
 type ValidationKind = "none" | "path" | "allowed-values" | "json-schema";
 type FactEditorStep = "contract" | "guidance";
 
@@ -62,7 +63,7 @@ type RawFactValidation = {
 type RawFact = {
   name?: string;
   key: string;
-  factType: FactType;
+  factType: CanonicalFactType;
   defaultValue?: unknown;
   guidance?: {
     human?: { markdown?: string };
@@ -331,11 +332,23 @@ function createFactId(index: number): string {
   return `wu-fact-${index + 1}`;
 }
 
+function toUiFactType(value: unknown): FactType {
+  if (value === "work unit" || value === "work_unit") {
+    return "work unit";
+  }
+
+  if (value === "number" || value === "boolean" || value === "json" || value === "string") {
+    return value;
+  }
+
+  return "string";
+}
+
 function normalizeFact(source: unknown, index: number): UiFact {
   const fact = (source ?? {}) as RawFact;
   const name = fact.name?.trim() || fact.key?.trim() || `Fact ${index + 1}`;
   const key = fact.key?.trim() || `fact.${index + 1}`;
-  const factType = fact.factType ?? "string";
+  const factType = toUiFactType(fact.factType);
   const validationKind = getUiValidationKind(fact.validation);
   const dependencyType =
     fact.validation?.dependencyType?.trim() || fact.dependencyType?.trim() || "";

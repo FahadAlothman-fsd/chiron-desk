@@ -203,7 +203,7 @@ describe("lifecycle-validation", () => {
     });
 
     it("should accept valid fact types", () => {
-      const validTypes = ["string", "number", "boolean", "json"];
+      const validTypes = ["string", "number", "boolean", "json", "work_unit"];
 
       for (const factType of validTypes) {
         const workUnitTypes: WorkUnitTypeDefinition[] = [
@@ -215,7 +215,7 @@ describe("lifecycle-validation", () => {
             factSchemas: [
               {
                 key: "field",
-                factType: factType as "string" | "number" | "boolean" | "json",
+                factType: factType as "string" | "number" | "boolean" | "json" | "work_unit",
                 required: true,
                 validation: { kind: "none" },
               },

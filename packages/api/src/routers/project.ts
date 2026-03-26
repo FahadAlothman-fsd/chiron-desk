@@ -80,7 +80,7 @@ export function createProjectRouter(
 ) {
   type ProjectionFactSchema = {
     key: string;
-    factType: "string" | "number" | "boolean" | "json";
+    factType: "string" | "number" | "boolean" | "json" | "work_unit";
     defaultValue?: unknown;
   };
 

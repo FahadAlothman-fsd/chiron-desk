@@ -7,7 +7,7 @@ export type MarkdownContent = typeof MarkdownContent.Type;
 export const AudienceMarkdownJson = AudienceGuidance;
 export type AudienceMarkdownJson = typeof AudienceMarkdownJson.Type;
 
-export const FactType = Schema.Literal("string", "number", "boolean", "json");
+export const FactType = Schema.Literal("string", "number", "boolean", "json", "work_unit");
 export type FactType = typeof FactType.Type;
 
 export const FactCardinality = Schema.Literal("one", "many");
