@@ -160,12 +160,13 @@ const factValidationSchema = z
   ])
   .default({ kind: "none" });
 
+const markdownContentSchema = z.object({ markdown: z.string() });
 const variableDefinitionSchema = z.object({
   name: z.string().optional(),
   key: z.string().min(1),
   factType: z.enum(["string", "number", "boolean", "json", "work_unit"]),
   defaultValue: z.unknown().optional(),
-  description: z.string().optional(),
+  description: z.union([z.string(), markdownContentSchema]).optional(),
   guidance: factGuidanceSchema,
   validation: factValidationSchema,
 });
