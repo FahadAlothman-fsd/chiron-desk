@@ -107,6 +107,7 @@ const workflowMetadataSchema = z
   .strict();
 
 const guidanceMarkdownSchema = z.object({ markdown: z.string() });
+const workUnitDescriptionSchema = guidanceMarkdownSchema.strict();
 
 const audienceGuidanceSchema = z.object({
   human: guidanceMarkdownSchema,
@@ -128,7 +129,11 @@ const guidanceSchema = z
 
 const factValidationSchema = z
   .union([
-    z.object({ kind: z.literal("none") }),
+    z.object({
+      kind: z.literal("none"),
+      dependencyType: z.string().optional(),
+      workUnitKey: z.string().optional(),
+    }),
     z.object({
       kind: z.literal("path"),
       path: z.object({
@@ -502,7 +507,7 @@ const createWorkUnitInput = z.object({
   workUnitType: z.object({
     key: z.string().min(1),
     displayName: z.string().optional(),
-    description: z.string().optional(),
+    description: z.unknown().optional(),
     guidance: factGuidanceSchema.optional(),
     cardinality: z.enum(["one_per_project", "many_per_project"]).optional(),
   }),
@@ -514,7 +519,7 @@ const updateWorkUnitInput = z.object({
   workUnitType: z.object({
     key: z.string().min(1),
     displayName: z.string().optional(),
-    description: z.string().optional(),
+    description: z.unknown().optional(),
     guidance: audienceGuidanceSchema.optional(),
     cardinality: z.enum(["one_per_project", "many_per_project"]).optional(),
   }),
@@ -764,18 +769,167 @@ function runEffect<A>(
   );
 }
 
-function extractText(value: unknown): string | undefined {
-  if (typeof value !== "object" || value === null || !("human" in value)) {
+type ValidationEnvelope = {
+  valid: boolean;
+  diagnostics?: ReadonlyArray<{ code?: unknown }>;
+};
+
+type LifecycleValidationDiagnostic = {
+  code?: string;
+  message?: string;
+  scope?: string;
+  path?: string;
+  severity?: string;
+  blocking?: boolean;
+  expected?: string;
+  received?: string;
+};
+
+function parseLifecycleValidationDiagnostics(
+  diagnostics: ReadonlyArray<unknown>,
+): LifecycleValidationDiagnostic[] {
+  return diagnostics
+    .filter(
+      (diagnostic): diagnostic is Record<string, unknown> =>
+        typeof diagnostic === "object" && diagnostic !== null,
+    )
+    .map((diagnostic) => {
+      const code = typeof diagnostic.code === "string" ? diagnostic.code : undefined;
+      const message = typeof diagnostic.message === "string" ? diagnostic.message : undefined;
+      const scope = typeof diagnostic.scope === "string" ? diagnostic.scope : undefined;
+      const path = typeof diagnostic.path === "string" ? diagnostic.path : undefined;
+      const severity = typeof diagnostic.severity === "string" ? diagnostic.severity : undefined;
+      const blocking = typeof diagnostic.blocking === "boolean" ? diagnostic.blocking : undefined;
+      const expected = typeof diagnostic.expected === "string" ? diagnostic.expected : undefined;
+      const received = typeof diagnostic.received === "string" ? diagnostic.received : undefined;
+
+      return {
+        ...(code ? { code } : {}),
+        ...(message ? { message } : {}),
+        ...(scope ? { scope } : {}),
+        ...(path ? { path } : {}),
+        ...(severity ? { severity } : {}),
+        ...(blocking !== undefined ? { blocking } : {}),
+        ...(expected ? { expected } : {}),
+        ...(received ? { received } : {}),
+      };
+    });
+}
+
+function zodPathToFieldPath(path: ReadonlyArray<PropertyKey>): string {
+  if (path.length === 0) {
+    return "markdown";
+  }
+
+  return path.reduce<string>((fieldPath, segment) => {
+    if (typeof segment === "number") {
+      return `${fieldPath}[${segment}]`;
+    }
+
+    if (typeof segment === "symbol") {
+      return fieldPath;
+    }
+
+    return fieldPath.length > 0 ? `${fieldPath}.${segment}` : segment;
+  }, "");
+}
+
+function parseWorkUnitDescriptionShape(
+  description: unknown,
+): z.infer<typeof workUnitDescriptionSchema> | undefined {
+  if (description === undefined) {
     return undefined;
   }
 
-  const human = (value as { human?: unknown }).human;
-  if (typeof human !== "object" || human === null || !("markdown" in human)) {
+  const parsedDescription = workUnitDescriptionSchema.safeParse(description);
+  if (parsedDescription.success) {
+    return parsedDescription.data;
+  }
+
+  const issue = parsedDescription.error.issues[0];
+  const descriptionPath = `description.${zodPathToFieldPath(issue?.path ?? [])}`;
+  const scope = `workUnitType.${descriptionPath}`;
+  const actionableMessage =
+    "Work-unit description must be an object with description.markdown as a string";
+
+  const firstDiagnostic = {
+    code: "INVALID_WORK_UNIT_DESCRIPTION_SHAPE",
+    message: actionableMessage,
+    scope,
+    path: descriptionPath,
+    severity: "error",
+    blocking: true,
+    expected: "{ markdown: string }",
+    received:
+      issue && typeof issue.input !== "undefined"
+        ? Array.isArray(issue.input)
+          ? "array"
+          : issue.input === null
+            ? "null"
+            : typeof issue.input
+        : "unknown",
+  } as const;
+
+  throw new ORPCError("BAD_REQUEST", {
+    message: actionableMessage,
+    data: {
+      validation: {
+        valid: false,
+        diagnostics: [firstDiagnostic],
+      },
+      diagnostics: [firstDiagnostic],
+      firstDiagnostic,
+      actionableMessage,
+    },
+  });
+}
+
+function extractValidationEnvelope(result: unknown): ValidationEnvelope | undefined {
+  if (typeof result !== "object" || result === null) {
     return undefined;
   }
 
-  const markdown = (human as { markdown?: unknown }).markdown;
-  return typeof markdown === "string" ? markdown : undefined;
+  const record = result as Record<string, unknown>;
+  const candidate = [record.validation, record.diagnostics].find(
+    (value): value is ValidationEnvelope =>
+      typeof value === "object" &&
+      value !== null &&
+      typeof (value as { valid?: unknown }).valid === "boolean",
+  );
+
+  return candidate;
+}
+
+function assertLifecycleMutationValidation(result: unknown): void {
+  const validation = extractValidationEnvelope(result);
+  if (!validation || validation.valid) {
+    return;
+  }
+
+  const parsedDiagnostics = parseLifecycleValidationDiagnostics(
+    Array.isArray(validation.diagnostics) ? validation.diagnostics : [],
+  );
+
+  const hasDuplicateKeyDiagnostic = parsedDiagnostics.some(
+    (diagnostic) => diagnostic.code === "DUPLICATE_WORK_UNIT_KEY",
+  );
+
+  const firstBlockingDiagnostic =
+    parsedDiagnostics.find((diagnostic) => diagnostic.blocking === true) ?? parsedDiagnostics[0];
+
+  throw new ORPCError(hasDuplicateKeyDiagnostic ? "CONFLICT" : "BAD_REQUEST", {
+    message: "Work-unit lifecycle validation failed",
+    data: {
+      validation: {
+        valid: false,
+        diagnostics: parsedDiagnostics,
+      },
+      diagnostics: parsedDiagnostics,
+      firstDiagnostic: firstBlockingDiagnostic,
+      actionableMessage:
+        firstBlockingDiagnostic?.message ?? "Work-unit lifecycle validation failed",
+    },
+  });
 }
 
 export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
@@ -1597,7 +1751,7 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
           name: input.fact.name,
           factType: input.fact.factType,
           defaultValue: input.fact.defaultValue,
-          description: extractText(input.fact.description),
+          description: input.fact.description,
           guidance: input.fact.guidance,
           validation: input.fact.validation,
         };
@@ -1660,7 +1814,7 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
           name: input.fact.name,
           factType: input.fact.factType,
           defaultValue: input.fact.defaultValue,
-          description: extractText(input.fact.description),
+          description: input.fact.description,
           guidance: input.fact.guidance,
           validation: input.fact.validation,
         };
@@ -1773,12 +1927,13 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
       .input(createWorkUnitInput)
       .handler(async ({ input, context }) => {
         const actorId = context.session.user.id;
+        const description = parseWorkUnitDescriptionShape(input.workUnitType.description);
         const workUnitPayload: CreateMethodologyWorkUnitInput = {
           versionId: input.versionId,
           workUnitType: {
             key: input.workUnitType.key,
             displayName: input.workUnitType.displayName,
-            description: input.workUnitType.description,
+            description,
             guidance: input.workUnitType.guidance,
             cardinality: input.workUnitType.cardinality,
           },
@@ -1792,6 +1947,8 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
           }),
         );
 
+        assertLifecycleMutationValidation(result);
+
         return {
           version: serializeVersion(result.version),
           diagnostics: result.validation,
@@ -1802,13 +1959,14 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
       .input(updateWorkUnitInput)
       .handler(async ({ input, context }) => {
         const actorId = context.session.user.id;
+        const description = parseWorkUnitDescriptionShape(input.workUnitType.description);
         const workUnitPayload: UpdateMethodologyWorkUnitInput = {
           versionId: input.versionId,
           workUnitKey: input.workUnitKey,
           workUnitType: {
             key: input.workUnitType.key,
             displayName: input.workUnitType.displayName,
-            description: input.workUnitType.description,
+            description,
             guidance: input.workUnitType.guidance,
             cardinality: input.workUnitType.cardinality,
           },
@@ -1821,6 +1979,8 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
             return yield* svc.updateWorkUnitMetadata(workUnitPayload, actorId);
           }),
         );
+
+        assertLifecycleMutationValidation(result);
 
         return {
           version: serializeVersion(result.version),
