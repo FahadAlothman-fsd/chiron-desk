@@ -1,0 +1,23 @@
+.sisyphus/plans/bmad-to-chiron-seeding-slice-a.md
+  952656b383bbe51f 179
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.19",
+  "base_commit_sha": "31af2df1b5f83b54636aa994170609db6870cf3f",
+  "prompts": {
+    "952656b383bbe51f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2d86a0ca4ffe6wmqfl5TlL7LzD",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}
