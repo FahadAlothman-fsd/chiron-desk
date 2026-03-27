@@ -109,6 +109,7 @@ function toFactSchemaRow(row: typeof workUnitFactDefinitions.$inferSelect): Fact
     name: row.name,
     key: row.key,
     factType: row.factType,
+    cardinality: row.cardinality,
     description: extractMarkdown(row.descriptionJson),
     defaultValueJson: row.defaultValueJson,
     guidanceJson: row.guidanceJson,

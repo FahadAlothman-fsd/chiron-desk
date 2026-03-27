@@ -360,6 +360,7 @@ function loadPreviousLifecycleDefinition(
         name: factSchemaRow.name ?? undefined,
         key: factSchemaRow.key,
         factType: asFactType(factSchemaRow.factType),
+        cardinality: factSchemaRow.cardinality === "many" ? "many" : "one",
         description: factSchemaRow.description ?? undefined,
         defaultValue: factSchemaRow.defaultValueJson ?? undefined,
         guidance:

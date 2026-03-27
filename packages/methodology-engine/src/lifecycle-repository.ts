@@ -48,6 +48,7 @@ export interface FactSchemaRow {
   name: string | null;
   key: string;
   factType: string;
+  cardinality: string | null;
   description: string | null;
   defaultValueJson: unknown;
   guidanceJson: unknown;
