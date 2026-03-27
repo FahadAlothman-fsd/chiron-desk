@@ -1,0 +1,23 @@
+apps/web/src/features/methodologies/version-workspace.tsx
+  3d042602140d2e4e 120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "0ac1795db6878035c718bf4389e1ef6689fbb8e6",
+  "prompts": {
+    "3d042602140d2e4e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2d40a2649ffeY2rYZee0eV27HZ",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 10,
+      "total_deletions": 8,
+      "accepted_lines": 3,
+      "overriden_lines": 1
+    }
+  }
+}
