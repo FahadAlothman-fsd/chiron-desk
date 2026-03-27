@@ -3,6 +3,7 @@ import { call } from "@orpc/server";
 import { Effect, Layer } from "effect";
 import {
   MethodologyRepository,
+  MethodologyVersionBoundaryService,
   MethodologyEngineL1Live,
   WorkflowServiceLive,
   WorkUnitStateMachineServiceLive,
@@ -3834,6 +3835,285 @@ describe("methodology router", () => {
   });
 
   describe("version.workUnit routes", () => {
+    it("returns BAD_REQUEST with granular description.markdown diagnostics when create receives legacy string description", async () => {
+      const draftVersion: MethodologyVersionRow = {
+        id: "version-invalid-create-description-shape",
+        methodologyId: "methodology-1",
+        version: "0.1.0-draft",
+        status: "draft",
+        displayName: "Invalid Description Shape",
+        definitionExtensions: {},
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        retiredAt: null,
+      };
+
+      let createWorkUnitCalled = false;
+      const boundaryStub = {
+        createWorkUnitMetadata: () => {
+          createWorkUnitCalled = true;
+          return Effect.succeed({
+            version: draftVersion,
+            validation: { valid: true, diagnostics: [] },
+          });
+        },
+      };
+
+      const router = createMethodologyRouter(
+        Layer.succeed(
+          MethodologyVersionBoundaryService,
+          boundaryStub as unknown as typeof MethodologyVersionBoundaryService.Type,
+        ),
+      );
+
+      await expect(
+        call(
+          router.version.workUnit.create,
+          {
+            versionId: "version-invalid-create-description-shape",
+            workUnitType: {
+              key: "task",
+              description: "legacy string description",
+            },
+          },
+          AUTHENTICATED_CTX,
+        ),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: "Work-unit description must be an object with description.markdown as a string",
+        data: {
+          validation: {
+            valid: false,
+            diagnostics: [
+              expect.objectContaining({
+                code: "INVALID_WORK_UNIT_DESCRIPTION_SHAPE",
+                scope: "workUnitType.description.markdown",
+                path: "description.markdown",
+              }),
+            ],
+          },
+          firstDiagnostic: expect.objectContaining({
+            code: "INVALID_WORK_UNIT_DESCRIPTION_SHAPE",
+            scope: "workUnitType.description.markdown",
+            path: "description.markdown",
+          }),
+          actionableMessage:
+            "Work-unit description must be an object with description.markdown as a string",
+        },
+      });
+
+      expect(createWorkUnitCalled).toBe(false);
+    });
+
+    it("returns BAD_REQUEST with granular description.markdown diagnostics when update receives invalid description object", async () => {
+      const draftVersion: MethodologyVersionRow = {
+        id: "version-invalid-update-description-shape",
+        methodologyId: "methodology-1",
+        version: "0.1.0-draft",
+        status: "draft",
+        displayName: "Invalid Description Shape",
+        definitionExtensions: {},
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        retiredAt: null,
+      };
+
+      let updateWorkUnitCalled = false;
+      const boundaryStub = {
+        updateWorkUnitMetadata: () => {
+          updateWorkUnitCalled = true;
+          return Effect.succeed({
+            version: draftVersion,
+            validation: { valid: true, diagnostics: [] },
+          });
+        },
+      };
+
+      const router = createMethodologyRouter(
+        Layer.succeed(
+          MethodologyVersionBoundaryService,
+          boundaryStub as unknown as typeof MethodologyVersionBoundaryService.Type,
+        ),
+      );
+
+      await expect(
+        call(
+          router.version.workUnit.updateMeta,
+          {
+            versionId: "version-invalid-update-description-shape",
+            workUnitKey: "task",
+            workUnitType: {
+              key: "task",
+              description: { markdown: 123 },
+            },
+          },
+          AUTHENTICATED_CTX,
+        ),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: "Work-unit description must be an object with description.markdown as a string",
+        data: {
+          validation: {
+            valid: false,
+            diagnostics: [
+              expect.objectContaining({
+                code: "INVALID_WORK_UNIT_DESCRIPTION_SHAPE",
+                scope: "workUnitType.description.markdown",
+                path: "description.markdown",
+              }),
+            ],
+          },
+          firstDiagnostic: expect.objectContaining({
+            code: "INVALID_WORK_UNIT_DESCRIPTION_SHAPE",
+            scope: "workUnitType.description.markdown",
+            path: "description.markdown",
+          }),
+          actionableMessage:
+            "Work-unit description must be an object with description.markdown as a string",
+        },
+      });
+
+      expect(updateWorkUnitCalled).toBe(false);
+    });
+
+    it("returns CONFLICT when work-unit create validation reports duplicate key", async () => {
+      const draftVersion: MethodologyVersionRow = {
+        id: "version-duplicate-create",
+        methodologyId: "methodology-1",
+        version: "0.1.0-draft",
+        status: "draft",
+        displayName: "Duplicate Create",
+        definitionExtensions: {},
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        retiredAt: null,
+      };
+
+      const boundaryStub = {
+        createWorkUnitMetadata: () =>
+          Effect.succeed({
+            version: draftVersion,
+            validation: {
+              valid: false,
+              diagnostics: [
+                {
+                  code: "DUPLICATE_WORK_UNIT_KEY",
+                  message: "Duplicate work-unit key",
+                  scope: "workUnitTypes[1].key",
+                  severity: "error",
+                },
+              ],
+            },
+          }),
+      };
+
+      const router = createMethodologyRouter(
+        Layer.succeed(
+          MethodologyVersionBoundaryService,
+          boundaryStub as unknown as typeof MethodologyVersionBoundaryService.Type,
+        ),
+      );
+
+      await expect(
+        call(
+          router.version.workUnit.create,
+          {
+            versionId: "version-duplicate-create",
+            workUnitType: {
+              key: "task",
+            },
+          },
+          AUTHENTICATED_CTX,
+        ),
+      ).rejects.toMatchObject({
+        code: "CONFLICT",
+        message: "Work-unit lifecycle validation failed",
+        data: {
+          validation: {
+            valid: false,
+            diagnostics: [
+              expect.objectContaining({
+                code: "DUPLICATE_WORK_UNIT_KEY",
+                message: "Duplicate work-unit key",
+                scope: "workUnitTypes[1].key",
+              }),
+            ],
+          },
+          firstDiagnostic: expect.objectContaining({
+            code: "DUPLICATE_WORK_UNIT_KEY",
+            message: "Duplicate work-unit key",
+            scope: "workUnitTypes[1].key",
+          }),
+        },
+      });
+    });
+
+    it("returns BAD_REQUEST when work-unit update returns invalid diagnostics envelope", async () => {
+      const draftVersion: MethodologyVersionRow = {
+        id: "version-invalid-update",
+        methodologyId: "methodology-2",
+        version: "0.1.0-draft",
+        status: "draft",
+        displayName: "Invalid Update",
+        definitionExtensions: {},
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        retiredAt: null,
+      };
+
+      const boundaryStub = {
+        updateWorkUnitMetadata: () =>
+          Effect.succeed({
+            version: draftVersion,
+            diagnostics: {
+              valid: false,
+              diagnostics: [
+                {
+                  code: "MISSING_LIFECYCLE_TRANSITION_TARGET",
+                  message: "Missing lifecycle transition target",
+                  severity: "error",
+                },
+              ],
+            },
+          }),
+      };
+
+      const router = createMethodologyRouter(
+        Layer.succeed(
+          MethodologyVersionBoundaryService,
+          boundaryStub as unknown as typeof MethodologyVersionBoundaryService.Type,
+        ),
+      );
+
+      await expect(
+        call(
+          router.version.workUnit.updateMeta,
+          {
+            versionId: "version-invalid-update",
+            workUnitKey: "task",
+            workUnitType: {
+              key: "task",
+            },
+          },
+          AUTHENTICATED_CTX,
+        ),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: "Work-unit lifecycle validation failed",
+        data: {
+          validation: {
+            valid: false,
+            diagnostics: [
+              expect.objectContaining({
+                code: "MISSING_LIFECYCLE_TRANSITION_TARGET",
+                message: "Missing lifecycle transition target",
+              }),
+            ],
+          },
+          firstDiagnostic: expect.objectContaining({
+            code: "MISSING_LIFECYCLE_TRANSITION_TARGET",
+            message: "Missing lifecycle transition target",
+          }),
+        },
+      });
+    });
+
     it("preserves work unit guidance through version.workUnit create and updateMeta", async () => {
       const router = createMethodologyRouter(
         makeServiceLayer(),
@@ -3874,7 +4154,7 @@ describe("methodology router", () => {
           workUnitType: {
             key: "review",
             displayName: "Review",
-            description: "Review the submitted intake package.",
+            description: { markdown: "Review the submitted intake package." },
             guidance: authoredGuidance,
             cardinality: "many_per_project",
           },
@@ -3910,7 +4190,7 @@ describe("methodology router", () => {
           workUnitType: {
             key: "review",
             displayName: "Review",
-            description: "Review the submitted intake package.",
+            description: { markdown: "Review the submitted intake package." },
             guidance: revisedGuidance,
             cardinality: "many_per_project",
           },
