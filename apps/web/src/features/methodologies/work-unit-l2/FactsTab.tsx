@@ -974,7 +974,6 @@ export function FactsTab({
                         <SelectItem value="none">none</SelectItem>
                         <SelectItem value="path">path</SelectItem>
                         <SelectItem value="allowed-values">allowed-values</SelectItem>
-                        <SelectItem value="json-schema">json-schema</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
