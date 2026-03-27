@@ -1,0 +1,27 @@
+packages/methodology-engine/src/services/methodology-version-service.ts
+  3d042602140d2e4e 363
+packages/methodology-engine/src/lifecycle-repository.ts
+  3d042602140d2e4e 51
+packages/db/src/lifecycle-repository.ts
+  3d042602140d2e4e 112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "be41ecaa97c5ae1e8479a56cc2165f80f9523af1",
+  "prompts": {
+    "3d042602140d2e4e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2d40a2649ffeY2rYZee0eV27HZ",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 0,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}
