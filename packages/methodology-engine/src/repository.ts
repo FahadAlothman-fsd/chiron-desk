@@ -206,6 +206,7 @@ export interface MethodologyFactDefinitionRow {
   name: string | null;
   key: string;
   valueType: string;
+  cardinality: string | null;
   descriptionJson: unknown;
   guidanceJson: unknown;
   defaultValueJson: unknown;

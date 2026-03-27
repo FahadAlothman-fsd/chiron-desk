@@ -1930,6 +1930,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             name: methodologyFactDefinitions.name,
             key: methodologyFactDefinitions.key,
             valueType: methodologyFactDefinitions.valueType,
+            cardinality: methodologyFactDefinitions.cardinality,
             descriptionJson: methodologyFactDefinitions.descriptionJson,
             guidanceJson: methodologyFactDefinitions.guidanceJson,
             defaultValueJson: methodologyFactDefinitions.defaultValueJson,
