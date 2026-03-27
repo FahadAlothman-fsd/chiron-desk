@@ -122,8 +122,7 @@ export type FactEditorValue = {
   description?: { markdown?: string };
   guidance?: {
     human?: {
-      short?: string;
-      long?: string;
+      markdown?: string;
       examples?: string[];
     };
     agent?: {
@@ -186,13 +185,7 @@ function toFactEditorValue(input: unknown, fallbackId?: string): FactEditorValue
   const humanSource = isRecord(guidanceSource.human) ? guidanceSource.human : {};
   const agentSource = isRecord(guidanceSource.agent) ? guidanceSource.agent : {};
 
-  const humanShort =
-    typeof humanSource.short === "string"
-      ? humanSource.short
-      : typeof humanSource.markdown === "string"
-        ? humanSource.markdown
-        : undefined;
-  const humanLong = typeof humanSource.long === "string" ? humanSource.long : undefined;
+  const humanMarkdown = typeof humanSource.markdown === "string" ? humanSource.markdown : undefined;
   const humanExamples = Array.isArray(humanSource.examples)
     ? humanSource.examples.map(toGuidanceLine)
     : [];
@@ -211,11 +204,10 @@ function toFactEditorValue(input: unknown, fallbackId?: string): FactEditorValue
     : [];
 
   const guidance: FactEditorValue["guidance"] = {
-    ...(humanShort || humanLong || humanExamples.length > 0
+    ...(humanMarkdown || humanExamples.length > 0
       ? {
           human: {
-            ...(humanShort ? { short: humanShort } : {}),
-            ...(humanLong ? { long: humanLong } : {}),
+            ...(humanMarkdown ? { markdown: humanMarkdown } : {}),
             ...(humanExamples.length > 0 ? { examples: humanExamples } : {}),
           },
         }
@@ -361,8 +353,7 @@ function sanitizeFact(fact: FactEditorValue): FactEditorValue {
   const name = fact.name?.trim();
   const key = fact.key.trim();
   const descriptionMarkdown = fact.description?.markdown?.trim();
-  const humanShort = fact.guidance?.human?.short?.trim();
-  const humanLong = fact.guidance?.human?.long?.trim();
+  const humanMarkdown = fact.guidance?.human?.markdown?.trim();
   const humanExamples =
     fact.guidance?.human?.examples?.map((line) => line.trim()).filter((line) => line.length > 0) ??
     [];
@@ -376,18 +367,16 @@ function sanitizeFact(fact: FactEditorValue): FactEditorValue {
     [];
 
   const guidance =
-    humanShort ||
-    humanLong ||
+    humanMarkdown ||
     humanExamples.length > 0 ||
     agentIntent ||
     agentConstraints.length > 0 ||
     agentExamples.length > 0
       ? {
-          ...(humanShort || humanLong || humanExamples.length > 0
+          ...(humanMarkdown || humanExamples.length > 0
             ? {
                 human: {
-                  ...(humanShort ? { short: humanShort } : {}),
-                  ...(humanLong ? { long: humanLong } : {}),
+                  ...(humanMarkdown ? { markdown: humanMarkdown } : {}),
                   ...(humanExamples.length > 0 ? { examples: humanExamples } : {}),
                 },
               }
@@ -841,8 +830,7 @@ export function createEmptyFact(): FactEditorValue {
     description: { markdown: "" },
     guidance: {
       human: {
-        short: "",
-        long: "",
+        markdown: "",
         examples: [],
       },
       agent: {
@@ -1056,7 +1044,7 @@ export function FactListEditor({
                           Guidance (Markdown-Friendly)
                         </p>
                         <div className="grid gap-2 md:grid-cols-2">
-                          <form.Field name={`facts[${index}].guidance.human.short` as never}>
+                          <form.Field name={`facts[${index}].guidance.human.markdown` as never}>
                             {(field) => (
                               <textarea
                                 className="w-full border border-border/70 bg-background px-2 py-1.5 text-xs"

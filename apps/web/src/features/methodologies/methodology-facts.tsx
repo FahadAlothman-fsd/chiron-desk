@@ -32,6 +32,7 @@ export type MethodologyFactRow = {
   displayName: string;
   factKey: string;
   factType: FactEditorValue["factType"];
+  cardinality: "one" | "many";
   defaultValueLabel: string;
   guidanceLabel: string;
   validationLabel: string;
@@ -69,6 +70,15 @@ function createFactInventoryColumns({
       cell: ({ row }) => (
         <span className="inline-flex items-center rounded-full border border-border/70 px-2 py-0.5 text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
           {row.original.factType}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "cardinality",
+      header: "Cardinality",
+      cell: ({ row }) => (
+        <span className="inline-flex items-center rounded-full border border-border/70 px-2 py-0.5 text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
+          {row.original.cardinality}
         </span>
       ),
     },
@@ -184,18 +194,12 @@ function summarizeDefaultValue(fact: FactEditorValue): string {
 }
 
 function summarizeGuidance(fact: FactEditorValue): string {
-  const humanGuidance = fact.guidance?.human as
-    | { markdown?: string; short?: string; long?: string }
-    | undefined;
+  const humanGuidance = fact.guidance?.human as { markdown?: string } | undefined;
   const agentGuidance = fact.guidance?.agent as { markdown?: string; intent?: string } | undefined;
 
-  const count = [
-    humanGuidance?.markdown,
-    humanGuidance?.short,
-    humanGuidance?.long,
-    agentGuidance?.markdown,
-    agentGuidance?.intent,
-  ].filter((value) => typeof value === "string" && value.trim().length > 0).length;
+  const count = [humanGuidance?.markdown, agentGuidance?.markdown].filter(
+    (value) => typeof value === "string" && value.trim().length > 0,
+  ).length;
 
   if (count === 0) {
     return "-";
@@ -236,6 +240,7 @@ export function buildMethodologyFactRows(facts: readonly FactEditorValue[]): Met
     displayName: fact.name?.trim() || fact.key || "Untitled fact",
     factKey: fact.key || "-",
     factType: fact.factType,
+    cardinality: fact.cardinality ?? "one",
     defaultValueLabel: summarizeDefaultValue(fact),
     guidanceLabel: summarizeGuidance(fact),
     validationLabel: summarizeValidation(fact),

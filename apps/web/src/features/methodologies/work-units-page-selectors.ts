@@ -4,8 +4,8 @@ type WorkUnitProjection = {
   description?: unknown;
   cardinality?: string;
   guidance?: {
-    human?: { markdown?: string; short?: string; long?: string };
-    agent?: { markdown?: string; intent?: string };
+    human?: { markdown?: string };
+    agent?: { markdown?: string };
   };
   lifecycleTransitions?: ReadonlyArray<unknown>;
   factSchemas?: ReadonlyArray<unknown>;
@@ -49,14 +49,6 @@ function guidanceText(
       return value.markdown;
     }
 
-    if (typeof value.short === "string" && value.short.trim().length > 0) {
-      return value.short;
-    }
-
-    if (typeof value.long === "string" && value.long.trim().length > 0) {
-      return value.long;
-    }
-
     return "";
   }
 
@@ -67,10 +59,6 @@ function guidanceText(
 
   if (typeof value.markdown === "string" && value.markdown.trim().length > 0) {
     return value.markdown;
-  }
-
-  if (typeof value.intent === "string" && value.intent.trim().length > 0) {
-    return value.intent;
   }
 
   return "";
