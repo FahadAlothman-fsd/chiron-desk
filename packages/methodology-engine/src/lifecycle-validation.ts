@@ -126,6 +126,26 @@ export function validateLifecycleDefinition(
     }
   }
 
+  const workUnitTypeKeys = new Set<string>();
+  for (const [wutIndex, wut] of workUnitTypes.entries()) {
+    if (workUnitTypeKeys.has(wut.key)) {
+      diagnostics.push(
+        makeDiagnostic(
+          {
+            code: "DUPLICATE_WORK_UNIT_KEY",
+            scope: `workUnitTypes[${wutIndex}].key`,
+            blocking: true,
+            required: "Unique work unit key within methodology version",
+            observed: wut.key,
+            remediation: `Rename work unit key '${wut.key}' to be unique`,
+          },
+          timestamp,
+        ),
+      );
+    }
+    workUnitTypeKeys.add(wut.key);
+  }
+
   // AC 5: Check for duplicate state IDs within each work unit type
   for (const [wutIndex, wut] of workUnitTypes.entries()) {
     const stateKeys = new Set<string>();
@@ -356,6 +376,29 @@ export function validateLifecycleDefinition(
               ),
             );
           }
+        }
+      }
+
+      if (validation.kind === "allowed-values") {
+        const allowedValues = validation.values;
+        if (
+          fact.defaultValue !== undefined &&
+          fact.defaultValue !== null &&
+          !allowedValues.some((v: unknown) => v === fact.defaultValue)
+        ) {
+          diagnostics.push(
+            makeDiagnostic(
+              {
+                code: "INVALID_ALLOWED_VALUES_DEFAULT",
+                scope: `workUnitTypes[${wutIndex}].factSchemas[${factIndex}].defaultValue`,
+                blocking: true,
+                required: `Default value must be one of allowed values: ${JSON.stringify(allowedValues)}`,
+                observed: JSON.stringify(fact.defaultValue),
+                remediation: `Change defaultValue to one of the allowed values`,
+              },
+              timestamp,
+            ),
+          );
         }
       }
 

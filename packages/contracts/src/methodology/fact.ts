@@ -19,33 +19,30 @@ export type FactGuidance = typeof FactGuidance.Type;
 export const PathKind = Schema.Literal("file", "directory");
 export type PathKind = typeof PathKind.Type;
 
+export const PathValidationConfig = Schema.Struct({
+  pathKind: PathKind,
+  normalization: Schema.Struct({
+    mode: Schema.Literal("posix"),
+    trimWhitespace: Schema.Boolean,
+  }),
+  safety: Schema.Struct({
+    disallowAbsolute: Schema.Boolean,
+    preventTraversal: Schema.Boolean,
+  }),
+});
+export type PathValidationConfig = typeof PathValidationConfig.Type;
+
 export const FactValidation = Schema.Union(
   Schema.Struct({
     kind: Schema.Literal("none"),
   }),
   Schema.Struct({
     kind: Schema.Literal("path"),
-    path: Schema.Struct({
-      pathKind: PathKind,
-      normalization: Schema.optionalWith(
-        Schema.Struct({
-          mode: Schema.optionalWith(Schema.Literal("posix"), { default: () => "posix" }),
-          trimWhitespace: Schema.optionalWith(Schema.Boolean, { default: () => true }),
-        }),
-        {
-          default: () => ({ mode: "posix", trimWhitespace: true }),
-        },
-      ),
-      safety: Schema.optionalWith(
-        Schema.Struct({
-          disallowAbsolute: Schema.optionalWith(Schema.Boolean, { default: () => true }),
-          preventTraversal: Schema.optionalWith(Schema.Boolean, { default: () => true }),
-        }),
-        {
-          default: () => ({ disallowAbsolute: true, preventTraversal: true }),
-        },
-      ),
-    }),
+    path: PathValidationConfig,
+  }),
+  Schema.Struct({
+    kind: Schema.Literal("allowed-values"),
+    values: Schema.Array(Schema.Unknown),
   }),
   Schema.Struct({
     kind: Schema.Literal("json-schema"),

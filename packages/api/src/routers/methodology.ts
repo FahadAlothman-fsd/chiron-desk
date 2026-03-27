@@ -153,6 +153,10 @@ const factValidationSchema = z
       }),
     }),
     z.object({
+      kind: z.literal("allowed-values"),
+      values: z.array(z.unknown()),
+    }),
+    z.object({
       kind: z.literal("json-schema"),
       schemaDialect: z.string().min(1),
       schema: z.unknown(),
@@ -796,23 +800,35 @@ function parseLifecycleValidationDiagnostics(
     )
     .map((diagnostic) => {
       const code = typeof diagnostic.code === "string" ? diagnostic.code : undefined;
-      const message = typeof diagnostic.message === "string" ? diagnostic.message : undefined;
       const scope = typeof diagnostic.scope === "string" ? diagnostic.scope : undefined;
-      const path = typeof diagnostic.path === "string" ? diagnostic.path : undefined;
-      const severity = typeof diagnostic.severity === "string" ? diagnostic.severity : undefined;
       const blocking = typeof diagnostic.blocking === "boolean" ? diagnostic.blocking : undefined;
-      const expected = typeof diagnostic.expected === "string" ? diagnostic.expected : undefined;
-      const received = typeof diagnostic.received === "string" ? diagnostic.received : undefined;
+      // ValidationDiagnostic uses 'required' and 'observed', not 'expected'/'received'
+      const required = typeof diagnostic.required === "string" ? diagnostic.required : undefined;
+      const observed = typeof diagnostic.observed === "string" ? diagnostic.observed : undefined;
+      const remediation =
+        typeof diagnostic.remediation === "string" ? diagnostic.remediation : undefined;
+
+      // Construct a human-readable message from the available fields
+      const messageParts: string[] = [];
+      if (code) messageParts.push(`[${code}]`);
+      if (required && observed) {
+        messageParts.push(`Expected: ${required}, but observed: ${observed}`);
+      } else if (required) {
+        messageParts.push(`Required: ${required}`);
+      } else if (observed) {
+        messageParts.push(`Observed: ${observed}`);
+      }
+      if (remediation) messageParts.push(`Remediation: ${remediation}`);
+      const message = messageParts.length > 0 ? messageParts.join(" ") : undefined;
 
       return {
         ...(code ? { code } : {}),
         ...(message ? { message } : {}),
         ...(scope ? { scope } : {}),
-        ...(path ? { path } : {}),
-        ...(severity ? { severity } : {}),
         ...(blocking !== undefined ? { blocking } : {}),
-        ...(expected ? { expected } : {}),
-        ...(received ? { received } : {}),
+        ...(required ? { required } : {}),
+        ...(observed ? { observed } : {}),
+        ...(remediation ? { remediation } : {}),
       };
     });
 }
