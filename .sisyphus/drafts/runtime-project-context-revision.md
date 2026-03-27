@@ -807,11 +807,15 @@
 - exact definition of "latest change" for git-aware condition evaluation still needs to be closed (HEAD commit, latest commit touching path, or dirty working tree aware)
 - which project/runtime git ref should dashboard freshness checks use as authority: current checkout HEAD, pinned branch ref, or project-configured ref
 - current recommended git-aware artifact model is:
-  - reserved setup facts provide `git_repository_root_path` and `project_directory_path`
+  - reserved setup facts should likely be refined from two absolute paths into:
+    - `git_repository_root_path`
+    - `project_subpath_within_repo`
+  - if the project lives at the repo root, `project_subpath_within_repo` should be `.` rather than duplicating the repo root path as a second absolute path
   - optional third reserved setup fact `authoritative_git_ref` would store a git ref string such as `refs/heads/main` (or another chosen branch/tag ref), not usually a one-off commit hash
-  - `artifact_snapshot_files.file_path` is interpreted relative to `project_directory_path`
+  - `artifact_snapshot_files.file_path` is interpreted relative to the effective project root resolved from `git_repository_root_path + project_subpath_within_repo`
   - `artifact_snapshot_files.git_commit_hash` stores the commit that last touched that file/member when the snapshot was captured
   - freshness-style artifact conditions then compare the stored `git_commit_hash` against the latest commit touching `file_path` on `authoritative_git_ref`
+  - cross-branch freshness sets are technically possible but are currently considered out-of-slice unless a concrete product need justifies comparing multiple authoritative refs instead of one deterministic ref
 - what exact event taxonomy should the typed oRPC runtime-guidance stream use after the bootstrap event
 - on disconnect/reconnect, should the runtime-guidance stream resume the same run via event IDs or restart a fresh evaluation run
 - for many-per-project future transitions, what is the stable candidate identity shown in the dashboard before an instance exists

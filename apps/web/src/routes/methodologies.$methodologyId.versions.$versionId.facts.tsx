@@ -722,7 +722,10 @@ function FactEditorDialog({
                         </Label>
                         <Select
                           value={field.state.value}
-                          onValueChange={(value) => field.handleChange(value as "one" | "many")}
+                          onValueChange={(value) => {
+                            setIsContractTabDirty(true);
+                            field.handleChange(value as "one" | "many");
+                          }}
                         >
                           <SelectTrigger className="h-9 rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]">
                             <SelectValue placeholder="Select cardinality" />
