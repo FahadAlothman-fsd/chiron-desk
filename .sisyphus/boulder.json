@@ -30,7 +30,29 @@
     "ses_2d56a1af1ffeNhtMOLaHvSXKok",
     "ses_2d557c332ffewhpvMNrSOMRhRp",
     "ses_2d557c31affeUBm8Cuea7SYT5D",
-    "ses_2d5362954ffeBkxrwh2eT7SmDj"
+    "ses_2d5362954ffeBkxrwh2eT7SmDj",
+    "ses_2d4ebb7f3ffeS0lbCOyzDfvvGG",
+    "ses_2d4ebb7c8ffevKgFhMBWwKWSY5",
+    "ses_2d4ebc02cffeEFaXB0mkBUgRf8",
+    "ses_2d4e7d662ffekiGOudXdLLnAdi",
+    "ses_2d4d8d090ffet1JB1feM47flQD",
+    "ses_2d4d8d0a8ffeBT1hwXL41px2i3",
+    "ses_2d4d4168dffemeTzKQVOBFhsOm",
+    "ses_2d4c097fdffes3aoakhBVjVkWi",
+    "ses_2d4a44901ffeecrCjYFww1bHk4",
+    "ses_2d4957332ffe7FqR0CSAqOpx36",
+    "ses_2d4872d8affexVH3qfk4cZH12d",
+    "ses_2d4872d90ffeHqb712H7i4QNQX",
+    "ses_2d48738b0ffeRG5V5U9KOlv9F6",
+    "ses_2d4872d8affdn2qhYgB1sVHRx8",
+    "ses_2d47fc2fbffenndo52d5uSyp7x",
+    "ses_2d40a2649ffeY2rYZee0eV27HZ",
+    "ses_2d3e1b203ffe3RoNDMSuObmbh6",
+    "ses_2d34b8ca0ffejv4GS44I5L9PZV",
+    "ses_2d3433a8ffferW5ikOPmmd1G4K",
+    "ses_2d33cd5a5ffeV7OKkP9qzE20mh",
+    "ses_2d32ff4b0ffeenGtB71rOq4VIu",
+    "ses_2d31b0a31ffeMzH3s7aD4bAzJj"
   ],
   "plan_name": "bmad-to-chiron-seeding-slice-a",
   "task_sessions": {
@@ -128,10 +150,10 @@
       "task_key": "final-wave:f1",
       "task_label": "F1",
       "task_title": "Plan Compliance Audit — oracle",
-      "session_id": "ses_2d5362954ffeBkxrwh2eT7SmDj",
+      "session_id": "ses_2d31b0a31ffeMzH3s7aD4bAzJj",
       "agent": "Sisyphus-Junior",
-      "category": "deep",
-      "updated_at": "2026-03-26T15:54:53.188Z"
+      "category": "quick",
+      "updated_at": "2026-03-27T01:26:26.730Z"
     }
   }
 }

@@ -37,6 +37,9 @@
 - project dashboard may show a very fast summary of the first few available transitions only
 - a dedicated runtime-guidance page should own full open/future candidate evaluation and blocked transition visibility
 - runtime guidance page functions as the project-wide pseudo-transition surface focused on what to do next
+- absent/inactive work-unit opportunities are project-scoped only:
+  - if no `project_work_unit` instance exists yet, there is no work-unit detail/state-machine route for that opportunity
+  - absent/future candidates live in Runtime Guidance, not under work-unit-scoped detail pages
 - existing work-unit transition candidates must be presented differently from future/not-yet-instantiated candidates
 - existing candidates should explicitly show current state and destination state for the transition
 - runtime-guidance UX should be oriented around work units first, with transitions nested under each work unit/group
@@ -99,6 +102,12 @@
 - Artifact Slot Detail layout priority is:
   - current effective snapshot first
   - lineage/history below as secondary context
+- Artifact Slot Detail contents are now locked to:
+  - current effective snapshot
+  - slot definition/context
+  - producer transition/workflow links if known
+  - member/file counts
+  - lineage/history below
 - Artifact Slot overview cards should navigate to Artifact Slot detail; no inline card actions are needed in this slice
 - both Project Facts and Work Units need list + detail pages
 - the Work Unit detail page is the Work Unit overview page for this slice
@@ -109,6 +118,7 @@
 - Project Facts list should be a flat fact-definition/current-state list with filters for:
   - fact type
   - existence (`exists` / `not exists`)
+- Project Facts should remain untabbed because project facts are primitive-only in this model; tabs would add visual symmetry without semantic value
 - Project Facts list rows/cards should preview current runtime state, not just existence:
   - if a current value exists, show it as a subsection of the fact card/row
   - if no current value exists, indicate absence explicitly
@@ -197,6 +207,15 @@
   - show execution-instance runtime details/status for that one `transition_execution`
   - show bound workflows as a list and highlight/select the primary workflow
   - show supporting workflow executions linked through `workflow_executions.transition_execution_id`
+  - query/render split should distinguish:
+    - current primary workflow = `transition_executions.primary_workflow_execution_id`
+    - primary workflow attempts/history = `workflow_executions` under the transition where `workflow_role = primary`
+    - supporting workflows = `workflow_executions` under the transition where `workflow_role = supporting`
+  - section order is locked to:
+    1. transition definition
+    2. current primary workflow
+    3. primary attempt history
+    4. supporting workflows
 - Transition Execution Detail actions are status-sensitive:
   - if the transition execution is active, allow retry by creating a new `workflow_execution` under the same active `transition_execution` and making it the new primary/current workflow attempt
   - the older workflow execution remains in history and should be marked as superseded by the newer workflow execution
@@ -207,8 +226,306 @@
   - it also shows alternative transitions from the same current state and their availability/blocking
   - choosing an alternative transition there is a transition-level switch/replacement flow, not a workflow retry inside the same transition execution
   - users do not "retry the active transition" from State Machine; workflow retry/reselection lives inside Transition Execution Detail
+- gate-surface split is now locked:
+  - start gates are evaluated/shown on candidate-transition surfaces:
+    - Runtime Guidance
+    - Work Unit State Machine future/alternative transition surfaces
+  - completion gates are evaluated/shown on active-transition surfaces:
+    - Transition Execution Detail
+    - Work Unit State Machine active-transition summary/status area
+- full start-gate inspection should use a shared reusable drill-in dialog/sheet invoked from both Runtime Guidance and Work Unit State Machine
+  - shared start-gate drill-in dialog contents are now locked:
+    - transition header (`from -> to`, name/key)
+    - current work-unit context
+    - gate result summary
+    - full condition-set tree with pass/fail per condition
+    - current effective values only where needed to explain a condition
+    - CTA into launch/workflow-selection only when the transition is actually available
+- completion lifecycle is now locked:
+  - when the primary workflow execution finishes, the system evaluates completion gates for the enclosing transition
+  - if completion gates pass, the transition completes and the work unit advances to the transition `to_state`
+  - if completion gates fail, the transition remains active, the work unit state does not advance, and the user may inspect completion-gate results plus launch another primary workflow attempt under the same `transition_execution`
+  - completion readiness must always be evaluated against current live truth at completion time; do not rely on a previously persisted "passed earlier" marker because facts/conditions may have changed before finalization
+- gate-marker persistence semantics are asymmetric:
+  - blocked start-gate evaluations are pre-transition derived checks only; they do not create a `transition_execution` and therefore do not persist a durable marker on one
+  - successful start-gate evaluation can be recorded on the newly created `transition_execution` as proof that the transition was allowed to start
+  - completion-gate evaluations happen against an existing `transition_execution`, so minimal completion markers can be stored there directly
+- gate persistence is now reduced to lifecycle dates only:
+  - persist dates/timestamps for successful start and successful completion lifecycle checkpoints
+  - do not persist gate outcome payloads, first-failure references, or normalized reason objects on `transition_executions`
+  - current runtime state should explain the lifecycle outcome; timestamps only exist to show when the transition crossed those checkpoints
+- asymmetric persistence rule is locked:
+  - do persist successful start proof on the created `transition_execution`
+  - do persist successful completion proof on `transition_executions`
+  - do not persist blocked pre-start/start-gate evaluations because no `transition_execution` exists yet
+- if an active transition is replaced/switched, transition-execution lineage must support preceding/succeeding relationships so the old active transition can be superseded by the new one
+- transition-switch lineage is now locked:
+  - switching away from an active transition creates a new `transition_execution` row
+  - the new row supersedes the previous active transition execution via explicit precedence/supersession linkage
+  - do not mutate/rewrite the old active transition execution row in place
+- transition execution status model is now locked to three persisted statuses only:
+  - `active`
+  - `completed`
+  - `superseded`
+- active transition submodes are derived live rather than persisted as separate statuses:
+  - primary workflow running
+  - primary workflow finished and ready to complete
+  - primary workflow finished but completion gates currently not met
+- do not persist a separate `completion_blocked` status because outside fact changes may make gate results change over time; completion readiness/blocking must stay a live evaluation
+- do not create extra superseded statuses just to encode why supersession happened; supersession lineage plus current status is sufficient in this slice
+- Runtime Guidance active cards should surface the active transition progression toward completion:
+  - when the primary workflow execution finishes, the active card should indicate that the transition is ready for completion evaluation
+  - the CTA should route to Transition Execution Detail, where the user can inspect full gate details and complete the transition
+- Transition Execution Detail should be the canonical full-gate page:
+  - show both start-gate and completion-gate evaluation surfaces/details for that transition execution
+  - start-gate history is informational/contextual once the transition is active or complete
+  - completion-gate state is actionable while the transition remains active
+  - completion-gate panel shape is now locked for active transitions whose workflow attempt has finished:
+    - completion status summary
+    - `last evaluated at` / `completed at` dates
+    - full completion condition-set tree
+    - current effective values only where needed
+    - primary CTA = `Complete Transition` if gates pass
+    - primary CTA = `Run another workflow attempt` if gates fail
+    - prior primary attempts appear below as history, not mixed into the gate panel
+  - completion-gate panel behavior is status-dependent:
+    - active transition executions may show actionable current completion evaluation
+    - completed transition executions cannot claim to show authoritative historical condition values at completion time because this slice does not persist full condition snapshots
 
 ## Technical Decisions
+- finish page/surface behaviors first, then derive the end-to-end pipeline (frontend state -> procedures/streams -> services -> runtime persistence) from those locked UX contracts
+- before page-by-page pipeline derivation, lock the runtime table inventory and field ownership so UI contents/actions can map cleanly onto persistence and service seams
+- L1/L2 table-locking pass should exclude `step_executions` as an implemented table for this slice even if its conceptual seam is partially known
+- the L1/L2 runtime table inventory to field-map against pages is:
+  - L1:
+    - `project_work_units`
+    - `project_fact_instances`
+  - L2:
+    - `transition_executions`
+    - `workflow_executions`
+    - `work_unit_fact_instances`
+    - `project_artifact_snapshots`
+    - `artifact_snapshot_files`
+- final locked `project_work_units` field inventory (L1/L2) is:
+  - `id`
+    - required for all instantiated work-unit routes/pages: Work Unit Overview, Work Unit Facts, Work Unit State Machine, Artifact Slots, Transition Execution Detail context, Workflow Execution Detail context
+    - required as the durable FK target for runtime dependencies and child runtime tables
+  - `project_id`
+    - required to scope work-unit reads/writes to a project across all project runtime pages
+    - required for project-level list queries and safety invariants preventing cross-project attachment
+  - `work_unit_type_id`
+    - required to resolve work-unit definition metadata used on Runtime Guidance cards, Work Units list, Work Unit Overview, Work Unit State Machine, Work Unit Facts, Artifact Slots, and transition/workflow detail headers
+    - required to recover the full methodology-version-scoped definition graph through the existing schema FK chain
+  - `current_state_id`
+    - required for current state display on Runtime Guidance, Work Units list, Work Unit Overview, and Work Unit State Machine
+    - required to derive available/alternative transitions from the current state
+    - required to persist state advancement when a transition completes successfully
+  - `active_transition_execution_id`
+    - required to determine whether the work unit currently has an active transition
+    - required for Work Unit Overview optional active-transition card
+    - required for Runtime Guidance `Active` section composition
+    - required for Work Unit State Machine active-transition panel and active-vs-open behavior split
+    - required for transition-level switch/supersession actions to clear/replace the active pointer deterministically
+  - `created_at`
+    - required for basic chronology on work-unit detail/list surfaces
+    - required as a stable fallback ordering signal for work-unit instance lists/cards when needed
+  - `updated_at`
+    - required for freshness / last-touched metadata on work-unit detail/list surfaces
+    - required as a cheap ordering signal for recently changed work units in project/work-unit lists
+- `project_work_units.methodology_version_id` is dropped as redundant for L1/L2 because the schema already makes `work_unit_type_id` a version-scoped definition-row FK and downstream definitions recover version through that chain
+- `project_work_units.instance_key` is dropped because this slice should not force user-supplied naming for every work-unit instance; durable identity comes from `id`, and user-facing labels can be derived from type + runtime context in the read model
+- final locked `project_fact_instances` field inventory (L1) is:
+  - `id`
+    - required as the durable identity of one current fact-instance row/member
+    - required for Project Fact Detail rendering of many-valued facts as concrete current member rows/items
+    - required for precise update/delete actions against one persisted current member row
+  - `project_id`
+    - required to scope all project-fact reads/writes to the owning project
+    - required for Project Facts list/detail queries and project-level fact summary counts
+  - `fact_definition_id`
+    - required to resolve the fact definition shown on Project Facts list/detail surfaces
+    - required to recover fact key/name/type/cardinality/default/guidance from the methodology definition row
+    - required for existence-filtered list queries and for enforcing one-vs-many runtime write semantics per fact definition
+  - `value_json`
+    - required to store the current primitive/json fact value for this current member row
+    - required for Project Facts list inline value preview
+    - required for Project Fact Detail display of the effective current single value or actual current many-valued member rows/items
+    - required for condition evaluation against current project facts
+  - `created_at`
+    - required for stable deterministic ordering of many-valued current members/items where no business ordering axis exists
+    - required for basic detail metadata on current fact member rows if shown
+  - `updated_at`
+    - required for freshness / last-touched metadata on current fact rows
+    - required for deterministic recent-change ordering on Project Fact Detail when current rows are edited in place
+- `project_fact_instances` intentionally omits `methodology_version_id` because `fact_definition_id` already points to a version-scoped methodology fact-definition row
+- `project_fact_instances` intentionally omits `value_kind` because project facts are primitive/json-only in this model and the definition row already supplies the type domain
+- `project_fact_instances` intentionally omits `cardinality` because cardinality is owned by the methodology fact definition and enforced by runtime constraints/query logic rather than duplicated per row
+- `project_fact_instances` intentionally omits any work-unit reference FK because project facts must not support `work_unit_reference`
+- `project_fact_instances` intentionally omits execution/provenance fields in this slice because Project Fact detail is current-state only and explicitly excludes write-history/provenance surfaces until later runtime slices
+- row absence remains the representation of fact absence; no extra presence/status column should be added
+- final locked `work_unit_fact_instances` field inventory (L1/L2) is:
+  - this table is specifically an L2 runtime table because it is owned by an instantiated `project_work_unit` and serves work-unit-scoped runtime surfaces rather than project-scoped fact surfaces
+  - `id`
+    - required as the durable identity of one current work-unit fact member row
+    - required for Work Unit Fact Detail rendering of many-valued facts as concrete current member rows/items
+    - required for precise update/delete actions against one persisted current member row
+  - `project_work_unit_id`
+    - required to scope the fact row to one instantiated work unit
+    - required for Work Unit Facts list/detail queries, Work Unit overview fact/dependency counts, and dependency discovery from a specific owning work unit
+  - `fact_definition_id`
+    - required to resolve the full work-unit fact definition on Work Unit Facts list/detail surfaces
+    - required to recover fact key/name/type/cardinality/default/guidance from the methodology definition row
+    - required for existence-filtered list queries and for enforcing one-vs-many runtime write semantics per fact definition per work unit
+  - `value_json`
+    - required to store the current primitive/json fact value for this current member row when the fact definition is not `work_unit_reference`
+    - required for Work Unit Facts `Primitive` tab inline value preview and Work Unit Fact Detail current-value display
+    - required for condition evaluation against current work-unit facts when the fact definition is primitive/json-based
+  - `referenced_project_work_unit_id`
+    - required as the first-class direct FK when the fact definition type is `work_unit_reference`
+    - required for Work Unit Facts `Work Units` tab outgoing dependency section (rows owned by this work unit that point at another work unit)
+    - required for Work Unit Facts `Work Units` tab incoming dependency section (rows owned elsewhere that point at this work unit)
+    - required so spawned child work units and other runtime dependencies are queryable without decoding ad hoc JSON payloads
+    - required for dependency row rendering of target work unit context and target state
+  - `created_at`
+    - required for stable deterministic ordering of many-valued current members/items where no business ordering axis exists
+    - required for deterministic ordering of outgoing/incoming dependency rows on the Work Unit Facts page
+  - `updated_at`
+    - required for freshness / last-touched metadata on current work-unit fact rows
+    - required for deterministic recent-change ordering when current fact rows are edited in place
+- `work_unit_fact_instances` intentionally omits `methodology_version_id` because `fact_definition_id` already points to a version-scoped work-unit fact-definition row
+- `work_unit_fact_instances` intentionally omits `value_kind` because the definition row already tells us whether the row should be interpreted as primitive/json vs `work_unit_reference`
+- `work_unit_fact_instances` intentionally omits `cardinality` because cardinality is owned by the methodology fact definition and enforced by runtime constraints/query logic rather than duplicated per row
+- `work_unit_fact_instances` intentionally omits `project_id` because the owning project is recoverable through `project_work_unit_id -> project_work_units.project_id`
+- `work_unit_fact_instances` intentionally omits execution/provenance fields in this slice because Work Unit Fact Detail is current-state only and explicitly excludes write-history/provenance surfaces until later runtime slices
+- `work_unit_reference` storage mode is rigid: use `referenced_project_work_unit_id` directly, not encoded JSON conventions
+- for `work_unit_reference` rows, `value_json` should remain null; for primitive/json rows, `referenced_project_work_unit_id` should remain null
+- row absence remains the representation of fact absence; no extra presence/status column should be added
+- proposed `transition_executions` field inventory (L2) is:
+  - `id`
+    - required as the durable identity/route key for Transition Execution Detail
+    - required for State Machine history rows and Runtime Guidance active cards to link into one concrete transition run
+    - required as the parent FK for `workflow_executions`
+  - `project_work_unit_id`
+    - required to scope the execution to one instantiated work unit
+    - required for Work Unit State Machine history/active sections and for work-unit-context headers on Transition Execution Detail
+    - required so switching to an alternative transition can supersede the currently active transition within the same work unit scope
+  - `transition_id`
+    - required to resolve the transition definition metadata shown on Transition Execution Detail and Runtime Guidance active cards
+    - required to recover `from_state`, `to_state`, condition sets, workflow bindings, and transition name/key from the version-scoped methodology graph
+  - `status`
+    - required persisted lifecycle state with exactly: `active | completed | superseded`
+    - required for State Machine history rendering, Transition Execution Detail mode changes, and active-vs-history query splits
+  - `primary_workflow_execution_id`
+    - required to point at the currently selected/current primary workflow attempt under this transition execution
+    - required for Runtime Guidance active cards to show the current active primary workflow
+    - required for Transition Execution Detail section ordering: current primary workflow first, then primary attempt history below
+    - required so retrying/re-running a primary workflow attempt can replace the current pointer without creating a new transition execution row
+  - `supersedes_transition_execution_id`
+    - required as the explicit lineage pointer when a new transition execution replaces/supersedes a previously active transition execution for the same work unit
+    - required so State Machine history and Transition Execution Detail can explain transition replacement lineage rather than only showing a terminal status with no predecessor link
+  - `started_at`
+    - required to show the transition start timestamp on Transition Execution Detail
+    - required for State Machine history chronology
+    - required as the persisted proof that the transition successfully crossed the start gate and began execution
+  - `completed_at`
+    - required for completed-transition detail/status display
+    - required so State Machine history can show when a transition run actually finished
+  - `superseded_at`
+    - required so superseded transition executions have an explicit terminal timestamp alongside their `superseded` status and lineage link
+    - required for State Machine history chronology when a transition was replaced before completion
+- `transition_executions` intentionally omits `project_id` because the owning project is recoverable through `project_work_unit_id -> project_work_units.project_id`
+- `transition_executions` intentionally omits `methodology_version_id` because `transition_id` already points to a version-scoped transition definition row
+- `transition_executions` intentionally omits `from_state_id` / `to_state_id` because those come from the transition definition and should not be duplicated on the runtime row in this slice
+- `transition_executions` intentionally omits persisted active-submode statuses such as `completion_blocked`; those states remain derived live from `status + primary workflow state + current completion-gate evaluation`
+- `transition_executions` intentionally omits persisted gate outcome payloads, failure reasons, and full condition snapshots; only successful lifecycle checkpoint timestamps are stored in this slice
+- `transition_executions` intentionally omits `completion_gates_passed_at` because completion readiness should not rely on a stale persisted pass marker; if conditions change before finalization, the system must re-evaluate against current truth and only `completed_at` remains authoritative once completion actually happens
+- proposed `workflow_executions` field inventory (L2) is:
+  - `id`
+    - required as the durable identity/route key for Workflow Execution Detail
+    - required for Transition Execution Detail to render concrete workflow rows for current primary workflow, primary attempt history, and supporting workflows
+  - `transition_execution_id`
+    - required to scope the workflow execution to its parent transition execution for both primary and supporting workflows
+    - required for Transition Execution Detail query splits and for project-level active Workflow Executions table rows to recover transition/work-unit context
+  - `workflow_id`
+    - required to resolve workflow definition metadata shown on Workflow Execution Detail, Transition Execution Detail, Runtime Guidance active cards, and the active-only Workflow Executions table
+    - required to recover workflow name/key/description from the version-scoped methodology graph
+  - `workflow_role`
+    - required persisted role with exactly `primary | supporting`
+    - required for Transition Execution Detail section split between current primary workflow, primary attempt history, and supporting workflows
+    - required for Workflow Executions list filter `primary vs supporting`
+    - required to preserve the runtime invariant that role is assigned by creation path and must not be inferred loosely from later reads
+    - `primary` must be validated against workflows directly bound to the parent transition definition
+    - `supporting` must not be classified by simple negative inference such as "not bound to the transition"; it specifically means a workflow launched from invoke-step scope within the same parent transition/work-unit runtime context
+  - `status`
+    - required persisted workflow lifecycle state for Workflow Execution Detail current-status display
+    - required for project-level active-only Workflow Executions table query and for distinguishing current vs historical workflow attempts in Transition Execution Detail
+    - recommended minimal status set for this slice: `active | completed | superseded`
+  - `supersedes_workflow_execution_id`
+    - required as the explicit lineage pointer when a new workflow attempt supersedes a previous workflow attempt under the same transition execution
+    - required for Workflow Execution Detail retry/supersession lineage section
+    - required for Transition Execution Detail primary attempt history to explain retry lineage rather than only showing flat historical rows
+  - `started_at`
+    - required to show when the workflow execution began on Workflow Execution Detail
+    - required for project-level active Workflow Executions table `Started At` column
+    - required for deterministic chronology in Transition Execution Detail primary attempt history and supporting-workflow sections
+  - `completed_at`
+    - required to show when a workflow execution finished on Workflow Execution Detail
+    - required to distinguish a finished workflow attempt from an active one when evaluating transition completion readiness
+  - `superseded_at`
+    - required so superseded workflow attempts have an explicit terminal timestamp alongside their lineage pointer
+    - required for retry/supersession chronology on Workflow Execution Detail and Transition Execution Detail history sections
+- `workflow_executions` intentionally omits `project_work_unit_id` because the owning work unit is recoverable through `transition_execution_id -> transition_executions.project_work_unit_id`
+- `workflow_executions` intentionally omits `project_id` because the owning project is recoverable through the transition/work-unit FK chain
+- `workflow_executions` intentionally omits `methodology_version_id` because `workflow_id` already points to a version-scoped workflow definition row
+- `workflow_executions` intentionally omits any direct step pointer such as `active_step_execution_id` because L3 `step_executions` are deferred from this slice and workflow detail must remain a lean L2 shell
+- `workflow_executions` intentionally omits direct invoke-step provenance in this slice even for supporting workflows; role is persisted, but the deeper invoke-step origin belongs to L3 when step execution tables/surfaces exist
+- `workflow_role` interpretation is locked:
+  - `primary` = transition-scope workflow attempt chosen from workflows bound to the parent transition
+  - `supporting` = invoke-step-launched workflow within the same parent transition/work-unit scope
+  - do not derive `supporting` by the simplistic rule "not bound to the transition"
+- proposed `project_artifact_snapshots` field inventory (L2) is:
+  - `id`
+    - required as the durable identity of one artifact snapshot container row
+    - required for Artifact Slot Detail history/lineage rows and for joining member-file rows from `artifact_snapshot_files`
+  - `project_work_unit_id`
+    - required to scope the snapshot to one instantiated work unit
+    - required for Work Unit Artifact Slots overview/detail queries and Work Unit overview artifact summary counts
+  - `slot_definition_id`
+    - required to resolve artifact-slot definition metadata on Artifact Slots overview/detail surfaces
+    - required to recover slot key/name/cardinality/rules from the version-scoped methodology graph
+    - required to group snapshots by slot and compute latest snapshot per slot
+  - `produced_by_transition_execution_id`
+    - required for Artifact Slot Detail producer-link section when a snapshot was produced as part of a concrete transition run
+    - required to recover transition context for snapshot lineage/history rows when shown
+  - `produced_by_workflow_execution_id`
+    - required for Artifact Slot Detail producer-link section when a snapshot was produced by a concrete workflow execution
+    - required so artifact changes can link directly into Workflow Execution Detail when known
+  - `supersedes_project_artifact_snapshot_id`
+    - required as the explicit lineage pointer when a newer snapshot replaces an older snapshot for the same slot
+    - required for Artifact Slot Detail history/lineage and for file-set inheritance/delta resolution across parent snapshots
+  - `created_at`
+    - required to show when the snapshot container was produced on Artifact Slot Detail
+    - required for deterministic lineage/history chronology and latest-snapshot selection per slot
+- `project_artifact_snapshots` intentionally omits `project_id` because the owning project is recoverable through `project_work_unit_id -> project_work_units.project_id`
+- `project_artifact_snapshots` intentionally omits `methodology_version_id` because `slot_definition_id` already points to a version-scoped artifact-slot definition row
+- `project_artifact_snapshots` intentionally omits `updated_at` because artifact snapshot containers are immutable lineage rows in this model; new artifact state creates a new snapshot row rather than mutating an old one
+- `project_artifact_snapshots` intentionally omits embedded file/blob payload columns because runtime artifact content membership and per-file metadata belong in `artifact_snapshot_files`, not on the parent snapshot container row
+- `project_artifact_snapshots` intentionally omits slot cardinality/type duplication because those remain owned by the slot definition row
+- lineage direction is locked to the new snapshot storing `supersedes_project_artifact_snapshot_id`, matching the write path used when a newer snapshot replaces an older one
+- `started_at` replaces a generic `created_at` field on this table because the user-facing/runtime meaning is explicitly transition start rather than generic row creation
+- explicitly omit a separate work-unit presence/activation status axis; activation/progress comes from linked execution state, not duplicated work-unit status columns
+- schema inspection confirms `methodology_work_unit_types.id` is already a version-specific row identity, not a cross-version logical key:
+  - `methodology_work_unit_types` has PK `id` plus required FK `methodology_version_id`
+  - uniqueness is `(methodology_version_id, key)`
+- schema inspection also confirms the downstream methodology graph is already version-recoverable from `work_unit_type_id`:
+  - `work_unit_lifecycle_states.work_unit_type_id -> methodology_work_unit_types.id`
+  - `work_unit_lifecycle_transitions.work_unit_type_id -> methodology_work_unit_types.id`
+  - `work_unit_fact_definitions.work_unit_type_id -> methodology_work_unit_types.id`
+  - `methodology_artifact_slot_definitions.work_unit_type_id -> methodology_work_unit_types.id`
+  - `transition_condition_sets.transition_id -> work_unit_lifecycle_transitions.id`
+  - `methodology_transition_workflow_bindings.transition_id -> work_unit_lifecycle_transitions.id`
+  - `methodology_workflows.work_unit_type_id -> methodology_work_unit_types.id`
+- this strongly supports dropping `project_work_units.methodology_version_id` as redundant for L1/L2, provided runtime FKs point to these version-scoped definition rows rather than to loose business keys
 - previous recommendation for `presence_status = absent|activating|active|closed` is rejected
 - activation/progress tracking should be owned by execution tables, not duplicated as a work-unit runtime status axis
 - `project_executions` should be renamed/reframed as `transition_executions`
@@ -220,6 +537,13 @@
 - step retry => new `step_execution` under the same `workflow_execution`
 - workflow retry => new `workflow_execution` under the same `transition_execution`
 - revert uses the same lineage model as retry: create a new superseding row rather than mutating old execution rows in place
+- `transition_executions.primary_workflow_execution_id` remains the pointer to the currently selected/current primary workflow attempt
+- `workflow_executions` should carry an explicit `workflow_role` (`primary | supporting`)
+- `workflow_executions` should carry `supersedes_workflow_execution_id` (or equivalent) for retry/supersession lineage
+- workflow-role assignment is creation-path-sensitive and must be enforced by runtime invariants:
+  - `primary` workflow executions can only be created from transition-scope actions
+  - `supporting` workflow executions can only be created from invoke-step scope
+  - frontend-to-DB implementation must preserve these invariants and must not infer `workflow_role` loosely from later reads
 - artifact snapshots should represent runtime-resolved artifact state for a slot, with git/file metadata captured in persistence
 - `project_artifact_snapshots` should be the slot-level container and `artifact_snapshot_files` should hold member-file rows
 - file updates should create new superseding rows rather than mutate prior snapshot/file rows in place
@@ -256,9 +580,18 @@
   - Transition Execution Detail = singular execution-instance surface combining the transition definition (contract/description/condition sets/bindings) with the runtime status/details of that one transition execution
   - State Machine answers "what states/transitions has this work unit moved through or is moving through?"
   - Transition Execution Detail answers "what is happening / what happened in this one specific transition run?"
+- work-unit-scoped pages exist only for instantiated `project_work_unit` rows with durable IDs
 - work-unit state machine data split is locked:
   - past/current sections are execution-backed and read from `transition_executions`
-  - future section is derivation-backed and computed from the current work-unit state machine / reachable transitions
+  - there is no `future`/inactive-instantiation section on the work-unit state machine page because absent work units have no work-unit-scoped route
+- Work Unit State Machine applies only to instantiated work units with real `project_work_unit` IDs
+- Work Unit State Machine page layout/behavior is now locked:
+  - current state summary first
+  - active transition panel if one exists
+  - possible/alternative transitions from the current state
+  - transition history below
+  - if there is no active transition, the possible-transition section behaves as the work-unit-scoped `open` surface with start-gate evaluation per transition
+  - if there is an active transition, the possible-transition section behaves as alternative transitions from the same current state while the active transition remains in progress
 - runtime-guidance interaction model:
   - the page should start immediately with runtime work-unit groups
   - do not add a separate project-header summary block at the top; project scope is already established by the sidebar/context and the page should stay tightly action-focused
@@ -266,13 +599,43 @@
     - Active
     - Open/Future
   - the merged Open/Future section should show explicit source indicators/badges for whether each candidate row/group is `open` or `future`
-  - initial query returns active work-unit groups plus merged open/future candidate work-unit groups
+  - both sections use a flat list of work-unit cards
+  - all work-unit cards should show core work-unit context data:
+    - name/key
+    - current status/state display
+  - the user-facing display label for `__absent__` is `Inactive`; this must be used both for not-yet-instantiated future work units and for activation/from-state semantics where no runtime state exists yet
+- Runtime Guidance uses two transports:
+  - `Active` is loaded via a normal typed HTTP/oRPC query
+  - `Open/Future` is loaded via the direct typed oRPC event-iterator stream
+  - both transports fire in parallel on first page load so `Active` can render immediately while `Open/Future` begins bootstrapping and streaming at the same time
+  - the Open/Future bootstrap event returns:
+    - work-unit cards/groups
+    - stable evaluation order
+    - already-known summary counts only (not full heavy child payloads), especially fact counts and artifact-slot counts needed for card shells
+  - bootstrap/read-model queries for Open/Future should be count-oriented and optimized to avoid over-fetching full fact/artifact payloads during initial page load
   - open/future transition rows are actionable and launch workflow selection
   - launching a transition creates `transition_execution` + initial `workflow_execution`
   - active work-unit groups expose a nested active-execution component:
     - the active transition is the primary surface and links to Transition Execution Detail
     - the currently running primary workflow is shown within that active-transition surface and links to Workflow Execution Detail
     - the default active-path navigation is therefore Transition Execution Detail first, with secondary direct navigation to the active primary workflow execution
+  - Active card composition:
+    - base work-unit context (name/key + current state/status)
+    - current facts + changed / total
+    - current artifact slots + changed / total
+    - active transition (name/key, to state) with CTA to Transition Execution Detail
+    - active primary workflow (name/key) with CTA to Workflow Execution Detail
+    - the transition and workflow currently being run should both be visible inside the active card
+  - Open/Future card composition:
+    - base work-unit context (name/key + current state/status)
+    - current facts / total
+    - current artifact slots / total
+    - list of possible transitions (name/key, to state)
+    - per-transition evaluation result (`available` / `blocked`) with first reason
+  - facts/artifact counts on cards are instance-oriented:
+    - current = actual current runtime instances that exist
+    - total = definition-level total available for that work-unit type
+    - on active cards, `changed` means instances created/updated by the primary workflow execution of the active transition
 - workflow-selection dialog layout is locked to transition details header + workflow list + workflow detail card
 - active-transition dialog reuses the same component shell but in read-focused mode for this slice
 - frontend runtime information architecture should separate:
@@ -296,9 +659,10 @@
 - the active-only project-level Workflow Executions page should be table-oriented rather than card/group oriented
 - its purpose is direct navigation into Workflow Execution Detail, not broad historical browsing
 - table rows should include enough context to identify the running execution immediately, including at minimum:
-  - work unit
-  - transition
-  - workflow execution
+  - Work Unit — name/key
+  - Transition — name/key
+  - Workflow Execution — workflow name/key for that active execution (click target to Workflow Execution Detail)
+  - Started At
 - do not include a status column on that page; because the page is active-only, status would be redundant noise and belongs in the scoped execution/detail surfaces instead
 - Artifact Slots surface follows the same overview-then-drill-in pattern as runtime guidance:
   - slot-grouped cards for fast current-state scanning
@@ -325,8 +689,11 @@
   - do not show pseudo-dependencies just because a fact definition allows references to a given work-unit type
   - incoming dependencies for a work unit are only rows whose reference FK targets this exact work-unit instance, not any work unit of the same type
   - outgoing dependencies for a work unit are only this work unit instance's own persisted reference rows
-- dependencies should live under Work Unit Facts as a specialized subview, not as a top-level sibling tab on Work Unit detail
-- the Dependencies subview should render outgoing and incoming as two sections on the same page, not nested tabs
+- dependencies should live under Work Unit Facts, not as a top-level sibling tab on Work Unit detail
+- Work Unit Facts should use tabs to separate fact categories:
+  - `Primitive` for non-`work_unit_reference` facts
+  - `Work Units` (dependency-oriented tab) for `work_unit_reference` facts
+- within the `Work Units` tab, render outgoing and incoming as two sections on the same page, not nested tabs
 - project facts and work-unit facts intentionally have different value-domain rules:
   - project facts are scalar/json-style runtime facts only
   - work-unit facts may additionally use `work_unit_reference`
@@ -357,6 +724,13 @@
   - small retry/supersession lineage section
   - explicit "steps coming later" / L3 deferred messaging
 - workflow-execution shell is a real L2 runtime-status surface plus an L3 entry point, not a blank placeholder page
+- Workflow Execution Detail shell shape is now locked to remain lean:
+  - header / identity
+  - current workflow status
+  - linked transition execution
+  - linked work-unit context
+  - retry / supersession lineage
+  - `steps coming later` messaging
 - candidate presentation split:
   - future candidate labels should communicate instantiation semantics and cardinality hints
   - existing candidate labels should communicate transition semantics as `current state -> next state`
@@ -364,12 +738,38 @@
 - the UI should use loading placeholders at the work-unit-group level until transition results arrive
 - transition results for a work unit should append progressively as `available` or `blocked` children rather than replacing the whole page payload
 - group visibility is determined by candidate-source expansion, not by transition evaluation outcome; blocked-only groups still remain visible
+- streamed transition result payloads should stay minimal for this slice:
+  - `available` results carry status only
+  - `blocked` results carry status plus first reason only
+  - exhaustive/full condition evaluation is deferred to an explicit drill-in surface rather than the fast Guidance stream
+- runtime guidance needs an explicit initial-query + stream handshake design:
+  - Runtime Guidance should use a single typed oRPC event-iterator stream rather than a separate raw SSE endpoint
+  - the first stream event bootstraps the page payload
+  - later stream events progressively patch work-unit groups in place with transition evaluation updates
+  - the stream should use an explicit lifecycle event family rather than relying on implicit connection close:
+    - `done` for overall stream completion
+    - `workUnitDone` for completion of one work-unit card's transition evaluation
+    - `error` for explicit stream/run errors
+- stream topology should be feature-scoped:
+  - each realtime feature gets its own dedicated stream procedure/contract
+  - do not build a single global catch-all stream for all runtime surfaces
+  - do not open separate streams per work-unit card or per transition row
+- stream identity should be domain-scoped:
+  - use existing durable execution IDs when streaming an actual execution surface (`transitionExecutionId`, `workflowExecutionId`, etc.)
+  - use a dedicated derived-run ID only when the stream represents a derived/read-model computation rather than a durable execution entity
+- transport split is now locked:
+  - Runtime Guidance uses a direct typed oRPC event-iterator stream with typed input and no separate kickoff/subscribe handshake
+  - execution-style realtime surfaces may use durable execution IDs as the stream identity when those pages are introduced/refined
+  - within Runtime Guidance itself, use a mixed transport by section:
+    - `Active` = standard query
+    - `Open/Future` = direct typed stream
 
 ## Research Findings
 - current landed runtime execution persistence is only `project_executions` in `packages/db/src/schema/project.ts`
 - current runtime plan file `.sisyphus/plans/runtime-project-context.md` is now outdated relative to revised L1/L2/L3 scope
 - repo already has basic SSE support in `apps/server/src/index.ts` via Hono `streamSSE`
 - frontend already has an SSE consumer hook in `apps/web/src/lib/use-sse.ts`
+- oRPC v1.12.2 in this repo supports typed streaming via its `eventIterator` SSE model, so the stream payload itself can be schema-validated/typed
 - current dashboard calculation entrypoint is monolithic `getProjectDetails` in `packages/api/src/routers/project.ts`
 - repo uses Effect `Effect.all([...])` patterns for parallel data loading, but not yet for progressive streamed dashboard calculations
 - no git library is currently installed; `simple-git`, `isomorphic-git`, and `nodegit` are absent
@@ -380,9 +780,16 @@
 - exact parent-level supersession rule for `project_artifact_snapshots` when only some child files change still needs to be closed
 - exact definition of "latest change" for git-aware condition evaluation still needs to be closed (HEAD commit, latest commit touching path, or dirty working tree aware)
 - which project/runtime git ref should dashboard freshness checks use as authority: current checkout HEAD, pinned branch ref, or project-configured ref
-- should progressive transition calculations use a dedicated Hono SSE endpoint or attempt to stream through oRPC response semantics
+- what exact event taxonomy should the typed oRPC runtime-guidance stream use after the bootstrap event
+- on disconnect/reconnect, should the runtime-guidance stream resume the same run via event IDs or restart a fresh evaluation run
 - for many-per-project future transitions, what is the stable candidate identity shown in the dashboard before an instance exists
 - whether blocked diagnostics should be first-failure-only (fast short-circuit) or exhaustive per transition
+- where the full condition-set / gate-evaluation inspection surface should live for blocked transitions and active transitions
+- how start gates and completion gates are modeled distinctly in both runtime state and UI
+- what exact lifecycle happens when a workflow execution completes but the enclosing transition has not yet satisfied completion gates
+- whether to persist no gate-evaluation history, minimal gate outcome markers on `transition_executions`, or full per-condition/per-condition-set execution snapshots
+- exact transition-execution supersession model when the user changes away from an active transition (preceding/succeeding lineage fields + allowed statuses)
+- whether superseded transition executions need an explicit terminal status in addition to supersession pointers
 - what exact sort/ranking should determine the "first 3 available transitions" shown on the project dashboard summary
 - what exact UI label format should be used for existing work-unit transition candidates vs future candidates
 - are dedicated detail pages needed now for individual workflow executions and transition executions, or are list/filter pages plus dialog/active navigation enough for this slice

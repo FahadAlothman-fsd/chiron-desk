@@ -128,3 +128,32 @@
 - Frontend L2 fact editor can preserve UX wording while persisting canonical values by mapping only at API payload boundaries (`work unit` UI option -> `work_unit` transport value).
 - Seed integrity for brainstorming `setup_work_unit` is now explicitly locked with dedicated assertions for both canonical fact type and dependency metadata (`requires_setup_context`, `workUnitKey: setup`).
 - Verification surfaced one compile-time propagation miss (`StateMachineTab` fact type union), confirming full-workspace `bun run check-types` is necessary even after targeted tests pass.
+
+## 2026-03-26T20:02:13+03:00 MethodologyWorkflowAuthoringDto cleanup note
+- Removed the unused `MethodologyWorkflowAuthoringDto` schema/type from `packages/contracts/src/methodology/dto.ts` while keeping `UpdateDraftWorkflowsInputDto` untouched.
+- No other contracts or exports refer to the deleted DTO, affirming the compatibility path stays intact.
+
+## 2026-03-26T20:51:27+03:00 Work-unit mutation diagnostics gating
+- Work-unit create/update UI cannot assume mutation resolution implies persistence; backend can return HTTP 200 with invalid lifecycle diagnostics and no row write.
+- Reliable client gate is to inspect both payload keys (`diagnostics` and legacy `validation`), treat `valid: false` (or diagnostics without a `valid` flag) as failure, and suppress success close/toast in that path.
+- Diagnostic-to-copy mapping should be explicit for actionable outcomes (`DUPLICATE_WORK_UNIT_KEY` -> `Work Unit Key must be unique.`) with safe generic fallback for unknown codes.
+
+## 2026-03-26T21:21:24+03:00 API hardening for lifecycle-invalid work-unit mutations
+- Router-level guardrails are required on `version.workUnit.create` and `version.workUnit.updateMeta`: service-layer validation can return invalid diagnostics without throwing, so API must convert invalid envelopes into protocol errors.
+- Defensive envelope parsing should support both `result.validation` (current) and `result.diagnostics` (legacy/alternate) before deciding whether to return a success body.
+- Conflict semantics should be driven by diagnostic codes (`DUPLICATE_WORK_UNIT_KEY` -> `ORPCError("CONFLICT")`), while all other invalid lifecycle diagnostics should map to `ORPCError("BAD_REQUEST")`.
+
+## 2026-03-26T21:37:00+03:00 Lifecycle diagnostic propagation (API -> UI)
+- `assertLifecycleMutationValidation` now needs structured `ORPCError.data` (not just status/message) so client-side rejected-mutation paths can render actionable copy without guessing from status codes.
+- Practical payload shape that unblocks UI error rendering: keep full parsed `diagnostics`, include `firstDiagnostic` (first blocking if present, otherwise first), and include `actionableMessage` fallback.
+- Frontend rejected-mutation handling should prioritize server `data.firstDiagnostic.message` / `data.actionableMessage`; if absent, fall back to existing generic copy to avoid surfacing low-signal transport messages.
+
+## 2026-03-26T22:04:00+03:00 Work-unit description shape hardening (create/update)
+- `version.workUnit.create` and `version.workUnit.updateMeta` now enforce canonical description shape at router boundary: `description` must be `{ markdown: string }`, and legacy plain string transport is rejected instead of silently passing through.
+- Router-level rejection payload now includes machine-readable field diagnostics for shape mismatch (`code`, `scope`, `path`, `expected`, `received`, `blocking`, `severity`) with explicit path detail (`workUnitType.description.markdown` / `description.markdown`) and actionable message fallback.
+- Web create/edit mutation payloads now send canonical description object (`{ markdown }`) when textarea content exists, keeping UI text editing while matching locked metadata semantics.
+
+## 2026-03-26T22:12:00+03:00 Root vitest discovery hardening for required command
+- Root invocation of the required vitest command can accidentally traverse mirrored `.worktrees/*/apps/web/**` tests; those mirrors are not part of the primary workspace runtime and can fail alias resolution under root execution.
+- Minimal deterministic fix: add `exclude: ["**/.worktrees/**"]` to `apps/web/vitest.config.ts` so root-driven web test discovery ignores mirrored worktree files while keeping primary `apps/web/src/tests/**` coverage unchanged.
+- This keeps real workspace test coverage intact and removes environment-noise failures from local worktree mirrors.

@@ -6,3 +6,7 @@
 - Implemented JSON fact sub-schema editing with `JsonSubKey[]` state and methodology-matching card UI, including per-key type selection, defaults, and nested validation controls.
 - Parsing existing JSON-schema validation requires reading `validation.schema.properties[*]` plus custom `x-validation` for path/allowed-values to keep edits round-trippable.
 - Serialization for JSON facts now consistently emits `{ kind: "json-schema", schemaDialect: "draft-2020-12", schema: { type: "object", additionalProperties: false, properties } }`.
+
+## 2026-03-27
+
+- Removed the `json-schema` option from the string fact validation dropdown so string facts only offer none/path/allowed-values, keeping validation aligned with the intended fact type.
