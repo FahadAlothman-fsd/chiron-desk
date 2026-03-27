@@ -786,7 +786,18 @@ export function FactsTab({
                       {fact.factType}
                     </span>
                   </td>
-                  <td className="px-3 py-3 text-muted-foreground">{fact.cardinality ?? "one"}</td>
+                  <td className="px-3 py-3">
+                    <span
+                      className={[
+                        "inline-flex items-center border px-2 py-1 text-[0.65rem] uppercase tracking-[0.12em]",
+                        fact.cardinality === "many"
+                          ? "border-purple-500/50 bg-purple-500/20 text-purple-200"
+                          : "border-blue-500/50 bg-blue-500/20 text-blue-200",
+                      ].join(" ")}
+                    >
+                      {fact.cardinality ?? "one"}
+                    </span>
+                  </td>
                   <td className="px-3 py-3">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span

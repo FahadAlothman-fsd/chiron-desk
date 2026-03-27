@@ -76,11 +76,21 @@ function createFactInventoryColumns({
     {
       accessorKey: "cardinality",
       header: "Cardinality",
-      cell: ({ row }) => (
-        <span className="inline-flex items-center rounded-full border border-border/70 px-2 py-0.5 text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
-          {row.original.cardinality}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const isMany = row.original.cardinality === "many";
+        return (
+          <span
+            className={[
+              "inline-flex items-center rounded-full border px-2 py-0.5 text-[0.68rem] uppercase tracking-[0.12em]",
+              isMany
+                ? "border-purple-500/50 bg-purple-500/20 text-purple-200"
+                : "border-blue-500/50 bg-blue-500/20 text-blue-200",
+            ].join(" ")}
+          >
+            {row.original.cardinality}
+          </span>
+        );
+      },
     },
     {
       accessorKey: "validationLabel",

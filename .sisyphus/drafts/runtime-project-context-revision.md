@@ -574,6 +574,17 @@
 - `project_artifact_snapshots` should be the slot-level container and `artifact_snapshot_files` should hold member-file rows
 - file updates should create new superseding rows rather than mutate prior snapshot/file rows in place
 - `file_set` snapshot resolution should be computed by walking parent snapshot lineage and overlaying newer child rows onto inherited older child rows
+- current recommendation for artifact delta persistence is:
+  - a new snapshot parent row is created whenever the slot output changes
+  - successive parent snapshot rows in one supersession chain always belong to the **same slot definition under the same project work unit**; they are not snapshots of different slots
+  - `artifact_snapshot_files` under that new parent should contain rows only for changed/added/removed paths, not a full recopied materialization of every inherited file
+  - unchanged inherited files are resolved from ancestor snapshot rows during effective-snapshot reconstruction
+  - removals are represented explicitly as tombstone/delta rows rather than by mutating or deleting older child rows
+  - identical file paths may legitimately appear in artifact snapshot rows for **different project work unit instances**; artifact persistence is per-work-unit-slot lineage, not a project-global file registry
+  - supersession is **persisted explicitly only at the parent snapshot level** via `supersedes_project_artifact_snapshot_id`
+  - file/member-level replacement is **derived**, not explicitly self-linked: a newer child row with the same `file_path` under a newer parent snapshot supersedes the older effective member for reconstruction purposes
+  - file/member removals are also derived through newer tombstone rows under newer parent snapshots rather than a dedicated child-row supersession pointer
+  - this clarification does **not** currently require adding new fields beyond the already proposed parent/child artifact table shapes; it tightens semantics of how existing fields are interpreted
 - dashboard transition derivation should separate:
   - active live list: `active`
   - candidate source: `open | future`
