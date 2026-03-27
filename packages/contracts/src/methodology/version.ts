@@ -294,6 +294,7 @@ export const MethodologyFactDefinition = Schema.Struct({
   name: Schema.NullOr(Schema.String),
   key: Schema.String,
   factType: FactType,
+  cardinality: Schema.NullOr(Schema.Literal("one", "many")),
   description: Schema.NullOr(Schema.Unknown),
   guidanceJson: Schema.NullOr(Schema.Unknown),
   defaultValueJson: Schema.NullOr(Schema.Unknown),
