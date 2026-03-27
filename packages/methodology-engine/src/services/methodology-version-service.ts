@@ -192,6 +192,7 @@ function mapFactDefinitionRowToInput(fact: {
   name: string | null;
   key: string;
   valueType: string;
+  cardinality: string | null;
   descriptionJson: unknown;
   guidanceJson: unknown;
   defaultValueJson: unknown;
@@ -201,6 +202,7 @@ function mapFactDefinitionRowToInput(fact: {
     name: fact.name ?? undefined,
     key: fact.key,
     factType: asFactType(fact.valueType),
+    cardinality: fact.cardinality === "many" ? "many" : "one",
     description: fact.descriptionJson as MethodologyFactDefinitionInput["description"],
     guidance: fact.guidanceJson as MethodologyFactDefinitionInput["guidance"],
     defaultValue: fact.defaultValueJson,
