@@ -117,8 +117,9 @@ export type FactEditorValue = {
   name?: string;
   key: string;
   factType: FactTypeValue;
+  cardinality?: "one" | "many";
   defaultValue?: unknown;
-  description?: string;
+  description?: { markdown?: string };
   guidance?: {
     human?: {
       short?: string;
@@ -179,6 +180,7 @@ function toFactEditorValue(input: unknown, fallbackId?: string): FactEditorValue
   const factType = FACT_TYPES.includes(value.factType as FactTypeValue)
     ? (value.factType as FactTypeValue)
     : "string";
+  const cardinality = value.cardinality === "many" ? "many" : "one";
 
   const guidanceSource = isRecord(value.guidance) ? value.guidance : {};
   const humanSource = isRecord(guidanceSource.human) ? guidanceSource.human : {};
@@ -269,20 +271,24 @@ function toFactEditorValue(input: unknown, fallbackId?: string): FactEditorValue
   const descriptionSource = isRecord(value.description) ? value.description : undefined;
   const descriptionHuman = isRecord(descriptionSource?.human) ? descriptionSource.human : {};
   const descriptionAgent = isRecord(descriptionSource?.agent) ? descriptionSource.agent : {};
-  const description =
-    typeof value.description === "string"
-      ? value.description
+  const descriptionMarkdown =
+    typeof descriptionSource?.markdown === "string"
+      ? descriptionSource.markdown
       : typeof descriptionHuman.markdown === "string"
         ? descriptionHuman.markdown
         : typeof descriptionAgent.markdown === "string"
           ? descriptionAgent.markdown
-          : undefined;
+          : typeof value.description === "string"
+            ? value.description
+            : undefined;
+  const description = descriptionMarkdown ? { markdown: descriptionMarkdown } : undefined;
 
   return {
     __uiId: typeof value.__uiId === "string" ? value.__uiId : (fallbackId ?? createFactEditorId()),
     ...(name ? { name } : {}),
     key: typeof value.key === "string" ? value.key : "",
     factType,
+    cardinality,
     defaultValue: value.defaultValue,
     ...(description ? { description } : {}),
     ...(guidance && (guidance.human || guidance.agent) ? { guidance } : {}),
@@ -354,7 +360,7 @@ function inputValueToFactDefault(factType: FactTypeValue, rawValue: string): unk
 function sanitizeFact(fact: FactEditorValue): FactEditorValue {
   const name = fact.name?.trim();
   const key = fact.key.trim();
-  const description = fact.description?.trim();
+  const descriptionMarkdown = fact.description?.markdown?.trim();
   const humanShort = fact.guidance?.human?.short?.trim();
   const humanLong = fact.guidance?.human?.long?.trim();
   const humanExamples =
@@ -405,12 +411,15 @@ function sanitizeFact(fact: FactEditorValue): FactEditorValue {
     kind: "none",
   };
 
+  const descriptionValue = descriptionMarkdown ? { markdown: descriptionMarkdown } : undefined;
+
   return {
     ...(name && name.length > 0 ? { name } : {}),
     key,
     factType: fact.factType,
+    cardinality: fact.cardinality === "many" ? "many" : "one",
     defaultValue: fact.defaultValue,
-    ...(description && description.length > 0 ? { description } : {}),
+    ...(descriptionValue ? { description: descriptionValue } : {}),
     ...(guidance ? { guidance } : {}),
     validation,
   };
@@ -828,7 +837,8 @@ export function createEmptyFact(): FactEditorValue {
     name: "",
     key: "",
     factType: "string",
-    description: "",
+    cardinality: "one",
+    description: { markdown: "" },
     guidance: {
       human: {
         short: "",
@@ -1022,16 +1032,23 @@ export function FactListEditor({
                       </form.Field>
 
                       <form.Field name={`facts[${index}].description` as never}>
-                        {(descriptionField) => (
-                          <Input
-                            value={(descriptionField.state.value as string | undefined) ?? ""}
-                            placeholder="Description"
-                            onBlur={descriptionField.handleBlur}
-                            onChange={(event) => {
-                              descriptionField.handleChange(() => event.target.value as never);
-                            }}
-                          />
-                        )}
+                        {(descriptionField) => {
+                          const descriptionValue = descriptionField.state.value as
+                            | FactEditorValue["description"]
+                            | undefined;
+                          return (
+                            <Input
+                              value={descriptionValue?.markdown ?? ""}
+                              placeholder="Description"
+                              onBlur={descriptionField.handleBlur}
+                              onChange={(event) => {
+                                descriptionField.handleChange(
+                                  () => ({ markdown: event.target.value }) as never,
+                                );
+                              }}
+                            />
+                          );
+                        }}
                       </form.Field>
 
                       <div className="space-y-2">
