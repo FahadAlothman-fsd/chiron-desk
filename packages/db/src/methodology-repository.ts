@@ -532,9 +532,10 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           if (params.factDefinitions?.length) {
             const factValues = params.factDefinitions.map((v) => ({
               methodologyVersionId: ver.id,
-              name: v.name ?? null,
               key: v.key,
+              name: v.name ?? null,
               valueType: v.factType,
+              cardinality: v.cardinality ?? "one",
               descriptionJson: v.description ?? null,
               guidanceJson: v.guidance ?? null,
               defaultValueJson: v.defaultValue ?? null,
@@ -633,6 +634,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
                 name: v.name ?? null,
                 key: v.key,
                 valueType: v.factType,
+                cardinality: v.cardinality ?? "one",
                 descriptionJson: v.description ?? null,
                 guidanceJson: v.guidance ?? null,
                 defaultValueJson: v.defaultValue ?? null,
