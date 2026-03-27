@@ -512,6 +512,32 @@
 - `project_artifact_snapshots` intentionally omits embedded file/blob payload columns because runtime artifact content membership and per-file metadata belong in `artifact_snapshot_files`, not on the parent snapshot container row
 - `project_artifact_snapshots` intentionally omits slot cardinality/type duplication because those remain owned by the slot definition row
 - lineage direction is locked to the new snapshot storing `supersedes_project_artifact_snapshot_id`, matching the write path used when a newer snapshot replaces an older one
+- snapshot-parent lineage semantics are locked to be uniform across slot types:
+  - single-file slot replacement creates a new `project_artifact_snapshots` parent row
+  - file-set slot replacement also creates a new `project_artifact_snapshots` parent row
+  - per-file/member metadata always lives in `artifact_snapshot_files`, so parent-row lineage stays consistent regardless of slot cardinality/type
+- proposed `artifact_snapshot_files` field inventory (L2) is:
+  - `artifact_snapshot_id`
+    - required as the parent FK back to `project_artifact_snapshots`
+    - required to load all member rows that belong to one snapshot container
+  - `file_path`
+    - required as the identity of one tracked file/member within the snapshot
+    - required for Artifact Slot overview/detail rendering of current effective files
+    - required for file-set inheritance/delta overlay, where newer rows replace or remove older rows by path identity
+    - recommended path semantics: project-relative/repo-relative path, not absolute machine-local path
+  - `member_status`
+    - required to distinguish a live member row from an explicit removal/tombstone row during file-set delta resolution
+    - required so a newer snapshot can remove an inherited file without mutating old rows in place
+    - recommended domain: `present | removed`
+  - `git_commit_hash`
+    - required for git-aware freshness checks against the tracked path when that metadata is available
+    - required for Artifact Slot Detail current effective snapshot display when showing minimal git/file metadata
+    - should stay nullable so non-git/untracked files can still be represented without inventing fake commit values
+- `artifact_snapshot_files` intentionally omits a synthetic `id` because this slice has no child-row detail route or downstream FK target for member rows; the useful identity is `(artifact_snapshot_id, file_path)`
+- `artifact_snapshot_files` intentionally omits `project_id`, `project_work_unit_id`, and `slot_definition_id` because those are recoverable through the parent snapshot row
+- `artifact_snapshot_files` intentionally omits `methodology_version_id` because artifact member rows are runtime children under a version-scoped parent/slot definition
+- `artifact_snapshot_files` intentionally omits `updated_at` because member rows are immutable; replacement/removal creates rows under a newer parent snapshot instead of mutating old rows
+- `artifact_snapshot_files` intentionally omits extra file metadata fields for now because git/file tracking should stay minimal in this slice; richer file metadata can be added later only if a page/action proves it is needed
 - `started_at` replaces a generic `created_at` field on this table because the user-facing/runtime meaning is explicitly transition start rather than generic row creation
 - explicitly omit a separate work-unit presence/activation status axis; activation/progress comes from linked execution state, not duplicated work-unit status columns
 - schema inspection confirms `methodology_work_unit_types.id` is already a version-specific row identity, not a cross-version logical key:
@@ -780,6 +806,12 @@
 - exact parent-level supersession rule for `project_artifact_snapshots` when only some child files change still needs to be closed
 - exact definition of "latest change" for git-aware condition evaluation still needs to be closed (HEAD commit, latest commit touching path, or dirty working tree aware)
 - which project/runtime git ref should dashboard freshness checks use as authority: current checkout HEAD, pinned branch ref, or project-configured ref
+- current recommended git-aware artifact model is:
+  - reserved setup facts provide `git_repository_root_path` and `project_directory_path`
+  - optional third reserved setup fact `authoritative_git_ref` would store a git ref string such as `refs/heads/main` (or another chosen branch/tag ref), not usually a one-off commit hash
+  - `artifact_snapshot_files.file_path` is interpreted relative to `project_directory_path`
+  - `artifact_snapshot_files.git_commit_hash` stores the commit that last touched that file/member when the snapshot was captured
+  - freshness-style artifact conditions then compare the stored `git_commit_hash` against the latest commit touching `file_path` on `authoritative_git_ref`
 - what exact event taxonomy should the typed oRPC runtime-guidance stream use after the bootstrap event
 - on disconnect/reconnect, should the runtime-guidance stream resume the same run via event IDs or restart a fresh evaluation run
 - for many-per-project future transitions, what is the stable candidate identity shown in the dashboard before an instance exists

@@ -68,6 +68,7 @@ type FactEditorFormValues = {
   displayName: string;
   factKey: string;
   factType: FactEditorValue["factType"];
+  cardinality: "one" | "many";
   defaultValue: string;
   description: string;
   humanMarkdown: string;
@@ -364,6 +365,7 @@ function factToFormValues(fact: FactEditorValue): FactEditorFormValues {
     displayName: fact.name ?? "",
     factKey: fact.key,
     factType: fact.factType,
+    cardinality: fact.cardinality === "many" ? "many" : "one",
     defaultValue: fact.defaultValue === undefined ? "" : String(fact.defaultValue),
     description,
     humanMarkdown: humanGuidance,
@@ -472,7 +474,7 @@ function formValuesToFact(
     ...(displayName.length > 0 ? { name: displayName } : {}),
     key,
     factType,
-    cardinality: "one",
+    cardinality: values.cardinality,
     ...(defaultValue !== undefined ? { defaultValue } : {}),
     description: { markdown: description },
     guidance: {
@@ -704,6 +706,30 @@ function FactEditorDialog({
                             <SelectItem value="number">number</SelectItem>
                             <SelectItem value="boolean">boolean</SelectItem>
                             <SelectItem value="json">json</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </form.Field>
+                  <form.Field name="cardinality">
+                    {(field) => (
+                      <div className="space-y-2">
+                        <Label
+                          htmlFor={field.name}
+                          className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                        >
+                          Cardinality
+                        </Label>
+                        <Select
+                          value={field.state.value}
+                          onValueChange={(value) => field.handleChange(value as "one" | "many")}
+                        >
+                          <SelectTrigger className="h-9 rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]">
+                            <SelectValue placeholder="Select cardinality" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-none border-border/70 bg-background text-xs">
+                            <SelectItem value="one">one</SelectItem>
+                            <SelectItem value="many">many</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
