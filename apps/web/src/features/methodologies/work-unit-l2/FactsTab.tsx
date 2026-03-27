@@ -41,6 +41,7 @@ import {
 
 type FactType = "string" | "number" | "boolean" | "json" | "work unit";
 type CanonicalFactType = FactType | "work_unit";
+type FactCardinality = "one" | "many";
 type ValidationKind = "none" | "path" | "allowed-values" | "json-schema";
 type FactEditorStep = "contract" | "guidance";
 
@@ -64,6 +65,7 @@ type RawFact = {
   name?: string;
   key: string;
   factType: CanonicalFactType;
+  cardinality?: FactCardinality;
   defaultValue?: unknown;
   guidance?: {
     human?: { markdown?: string };
@@ -100,6 +102,7 @@ type UiFact = {
   name: string;
   key: string;
   factType: FactType;
+  cardinality: FactCardinality;
   validationKind: ValidationKind;
   defaultValue: unknown;
   dependencyType: string;
@@ -119,6 +122,7 @@ type FactFormState = {
   name: string;
   key: string;
   factType: FactType;
+  cardinality: FactCardinality;
   validationKind: ValidationKind;
   defaultValue: string;
   dependencyType: string;
@@ -373,6 +377,7 @@ function normalizeFact(source: unknown, index: number): UiFact {
     name,
     key,
     factType,
+    cardinality: fact.cardinality === "many" ? "many" : "one",
     validationKind,
     defaultValue,
     dependencyType,
@@ -394,6 +399,7 @@ function toFormState(fact?: UiFact): FactFormState {
     name: fact?.name ?? "",
     key: fact?.key ?? "",
     factType: fact?.factType ?? "string",
+    cardinality: fact?.cardinality ?? "one",
     validationKind: fact?.validationKind ?? "none",
     defaultValue: fact?.defaultValue === undefined ? "" : String(fact.defaultValue),
     dependencyType: fact?.dependencyType ?? "",
@@ -537,6 +543,7 @@ function toMutationFact(formState: FactFormState, jsonSubKeys: readonly JsonSubK
     name: trimmedName,
     key: resolvedKey,
     factType: formState.factType,
+    cardinality: formState.cardinality,
     ...(defaultValue !== undefined ? { defaultValue } : {}),
     ...(trimmedDescription.length > 0
       ? {
@@ -674,6 +681,7 @@ export function FactsTab({
       name: formState.name.trim() || key,
       key,
       factType: formState.factType,
+      cardinality: formState.cardinality,
       validationKind:
         formState.factType === "string"
           ? formState.validationKind
@@ -738,6 +746,7 @@ export function FactsTab({
             <tr className="border-b border-border/70 bg-background/50 text-left text-xs uppercase tracking-[0.18em] text-muted-foreground">
               <th className="px-3 py-2 font-medium">Fact</th>
               <th className="px-3 py-2 font-medium">Type</th>
+              <th className="px-3 py-2 font-medium">Cardinality</th>
               <th className="px-3 py-2 font-medium">Validation</th>
               <th className="px-3 py-2 font-medium">Guidance</th>
               <th className="px-3 py-2 font-medium">Actions</th>
@@ -746,7 +755,7 @@ export function FactsTab({
           <tbody>
             {facts.length === 0 ? (
               <tr>
-                <td className="px-3 py-6 text-sm text-muted-foreground" colSpan={5}>
+                <td className="px-3 py-6 text-sm text-muted-foreground" colSpan={6}>
                   No facts authored yet.
                 </td>
               </tr>
@@ -777,6 +786,7 @@ export function FactsTab({
                       {fact.factType}
                     </span>
                   </td>
+                  <td className="px-3 py-3 text-muted-foreground">{fact.cardinality ?? "one"}</td>
                   <td className="px-3 py-3">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span
@@ -919,6 +929,26 @@ export function FactsTab({
                       <SelectItem value="boolean">boolean</SelectItem>
                       <SelectItem value="json">json</SelectItem>
                       <SelectItem value="work unit">work unit</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Cardinality</Label>
+                  <Select
+                    value={formState.cardinality}
+                    onValueChange={(value) =>
+                      setFormState((prev) => ({
+                        ...prev,
+                        cardinality: value as FactCardinality,
+                      }))
+                    }
+                  >
+                    <SelectTrigger className="rounded-none">
+                      <SelectValue placeholder="Select cardinality" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-none">
+                      <SelectItem value="one">one</SelectItem>
+                      <SelectItem value="many">many</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
