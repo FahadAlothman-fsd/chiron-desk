@@ -12,6 +12,8 @@ const {
   createWorkUnitMutationSpy,
   updateWorkUnitMutationSpy,
   deleteWorkUnitMutationSpy,
+  toastSuccessSpy,
+  toastErrorSpy,
 } = vi.hoisted(() => ({
   useParamsMock: vi.fn(),
   useSearchMock: vi.fn(),
@@ -19,14 +21,23 @@ const {
   useNavigateMock: vi.fn(),
   useLocationMock: vi.fn(),
   createWorkUnitMutationSpy: vi.fn(async () => ({
-    validation: { valid: true, diagnostics: [] },
+    validation: { valid: true, diagnostics: [] as Array<Record<string, unknown>> },
   })),
   updateWorkUnitMutationSpy: vi.fn(async () => ({
-    validation: { valid: true, diagnostics: [] },
+    validation: { valid: true, diagnostics: [] as Array<Record<string, unknown>> },
   })),
   deleteWorkUnitMutationSpy: vi.fn(async () => ({
-    validation: { valid: true, diagnostics: [] },
+    validation: { valid: true, diagnostics: [] as Array<Record<string, unknown>> },
   })),
+  toastSuccessSpy: vi.fn(),
+  toastErrorSpy: vi.fn(),
+}));
+
+vi.mock("sonner", () => ({
+  toast: {
+    success: toastSuccessSpy,
+    error: toastErrorSpy,
+  },
 }));
 
 const draftQueryKey = ["rpc", "methodology", "version", "workUnit", "list", "draft-v3"];
@@ -163,6 +174,8 @@ beforeEach(() => {
   createWorkUnitMutationSpy.mockClear();
   updateWorkUnitMutationSpy.mockClear();
   deleteWorkUnitMutationSpy.mockClear();
+  toastSuccessSpy.mockClear();
+  toastErrorSpy.mockClear();
 });
 
 afterEach(() => {
@@ -453,6 +466,132 @@ describe("methodology version work units l1 route", () => {
       ),
     ).toBeTruthy();
     expect(screen.getByLabelText("Work Unit Key")).toBeTruthy();
+  });
+
+  it("surfaces server-provided lifecycle diagnostic when create work unit mutation rejects", async () => {
+    createWorkUnitMutationSpy.mockRejectedValueOnce({
+      code: "BAD_REQUEST",
+      message: "Work-unit lifecycle validation failed",
+      data: {
+        firstDiagnostic: {
+          code: "MISSING_LIFECYCLE_TRANSITION_TARGET",
+          message: "Missing lifecycle transition target for work unit WU.FAIL_CASE.",
+          scope: "workUnitTypes[2].lifecycleTransitions[0].toState",
+        },
+      },
+    });
+
+    const { MethodologyVersionWorkUnitsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitsRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "+ Add Work Unit" }));
+    fireEvent.change(screen.getByLabelText("Work Unit Key"), {
+      target: { value: "WU.FAIL_CASE" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create Work Unit" }));
+
+    expect(
+      await screen.findByText("Missing lifecycle transition target for work unit WU.FAIL_CASE."),
+    ).toBeTruthy();
+    expect(screen.getByLabelText("Work Unit Key")).toBeTruthy();
+    expect(toastSuccessSpy).not.toHaveBeenCalled();
+  });
+
+  it("surfaces server actionable message when rejected mutation omits firstDiagnostic", async () => {
+    createWorkUnitMutationSpy.mockRejectedValueOnce({
+      code: "BAD_REQUEST",
+      message: "Work-unit lifecycle validation failed",
+      data: {
+        actionableMessage:
+          "Work-unit description must be an object with description.markdown as a string",
+      },
+    });
+
+    const { MethodologyVersionWorkUnitsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitsRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "+ Add Work Unit" }));
+    fireEvent.change(screen.getByLabelText("Work Unit Key"), {
+      target: { value: "WU.FAIL_SHAPE" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create Work Unit" }));
+
+    expect(
+      await screen.findByText(
+        "Work-unit description must be an object with description.markdown as a string",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByLabelText("Work Unit Key")).toBeTruthy();
+    expect(toastSuccessSpy).not.toHaveBeenCalled();
+  });
+
+  it("keeps create dialog open and shows duplicate key error when create returns invalid diagnostics", async () => {
+    createWorkUnitMutationSpy.mockResolvedValueOnce({
+      diagnostics: {
+        valid: false,
+        diagnostics: [
+          {
+            code: "DUPLICATE_WORK_UNIT_KEY",
+            scope: "workUnitTypes[2].key",
+          },
+        ],
+      },
+    } as never);
+
+    const { MethodologyVersionWorkUnitsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitsRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "+ Add Work Unit" }));
+    fireEvent.change(screen.getByLabelText("Work Unit Key"), {
+      target: { value: "WU.NEW_DUP" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create Work Unit" }));
+
+    expect(await screen.findByText("Work Unit Key must be unique.")).toBeTruthy();
+    expect(screen.getByLabelText("Work Unit Key")).toBeTruthy();
+    expect(toastSuccessSpy).not.toHaveBeenCalled();
+  });
+
+  it("keeps edit dialog open and shows duplicate key error when update returns invalid validation payload", async () => {
+    updateWorkUnitMutationSpy.mockResolvedValueOnce({
+      validation: {
+        valid: false,
+        diagnostics: [
+          {
+            code: "DUPLICATE_WORK_UNIT_KEY",
+            scope: "workUnitTypes[0].key",
+          },
+        ],
+      },
+    });
+
+    const { MethodologyVersionWorkUnitsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units");
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitsRoute />);
+
+    const intakeCell = await screen.findByText("Intake");
+    const intakeRow = intakeCell.closest("tr");
+    expect(intakeRow).not.toBeNull();
+
+    fireEvent.click(
+      within(intakeRow as HTMLTableRowElement).getByRole("button", { name: /^Edit$/i }),
+    );
+
+    fireEvent.change(screen.getByLabelText("Work Unit Key"), {
+      target: { value: "WU.CHANGED" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save Work Unit Changes" }));
+
+    expect(await screen.findByText("Work Unit Key must be unique.")).toBeTruthy();
+    expect(screen.getByLabelText("Work Unit Key")).toBeTruthy();
+    expect(toastSuccessSpy).not.toHaveBeenCalled();
   });
 
   it("shows dirty indicators and confirms cancel when dialog has unsaved changes", async () => {

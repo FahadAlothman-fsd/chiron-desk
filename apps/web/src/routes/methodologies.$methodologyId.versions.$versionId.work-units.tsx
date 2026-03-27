@@ -78,6 +78,93 @@ function extractWorkUnitText(value: unknown): string {
   return "";
 }
 
+type WorkUnitMutationValidation = {
+  valid: boolean | null;
+  diagnostics: ReadonlyArray<Record<string, unknown>>;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function readWorkUnitMutationValidation(payload: unknown): WorkUnitMutationValidation | null {
+  if (!isRecord(payload)) {
+    return null;
+  }
+
+  const candidate = isRecord(payload.validation)
+    ? payload.validation
+    : isRecord(payload.diagnostics)
+      ? payload.diagnostics
+      : null;
+
+  if (!candidate) {
+    return null;
+  }
+
+  return {
+    valid: typeof candidate.valid === "boolean" ? candidate.valid : null,
+    diagnostics: Array.isArray(candidate.diagnostics)
+      ? candidate.diagnostics.filter((diagnostic): diagnostic is Record<string, unknown> =>
+          isRecord(diagnostic),
+        )
+      : [],
+  };
+}
+
+function isWorkUnitMutationValidationInvalid(
+  validation: WorkUnitMutationValidation | null,
+): boolean {
+  if (!validation) {
+    return false;
+  }
+
+  if (validation.valid === false) {
+    return true;
+  }
+
+  return validation.valid === null && validation.diagnostics.length > 0;
+}
+
+function mapWorkUnitMutationValidationError(
+  validation: WorkUnitMutationValidation | null,
+  fallbackMessage: string,
+): string {
+  if (!validation) {
+    return fallbackMessage;
+  }
+
+  const duplicateKeyDiagnostic = validation.diagnostics.find(
+    (diagnostic) => diagnostic.code === "DUPLICATE_WORK_UNIT_KEY",
+  );
+
+  if (duplicateKeyDiagnostic) {
+    return "Work Unit Key must be unique.";
+  }
+
+  return fallbackMessage;
+}
+
+function extractWorkUnitMutationErrorMessage(error: unknown, fallbackMessage: string): string {
+  if (!isRecord(error)) {
+    return fallbackMessage;
+  }
+
+  const errorData = isRecord(error.data) ? error.data : null;
+  const firstDiagnostic =
+    errorData && isRecord(errorData.firstDiagnostic) ? errorData.firstDiagnostic : null;
+
+  if (firstDiagnostic && typeof firstDiagnostic.message === "string" && firstDiagnostic.message) {
+    return firstDiagnostic.message;
+  }
+
+  if (errorData && typeof errorData.actionableMessage === "string" && errorData.actionableMessage) {
+    return errorData.actionableMessage;
+  }
+
+  return fallbackMessage;
+}
+
 export function MethodologyVersionWorkUnitsRoute() {
   const { methodologyId, versionId } = Route.useParams();
   const location = useLocation();
@@ -286,16 +373,21 @@ export function MethodologyVersionWorkUnitsRoute() {
 
     setCreateError(null);
 
+    const genericMutationFailureMessage = isEditMode
+      ? "Unable to save work unit changes. Review the current draft definitions and try again."
+      : "Unable to create work unit. Review the current draft definitions and try again.";
+
     const mutationResult = await Result.tryPromise({
       try: async () => {
+        let mutationPayload: unknown;
         if (isEditMode && editingWorkUnitKey) {
-          await updateWorkUnitMutation.mutateAsync({
+          mutationPayload = await updateWorkUnitMutation.mutateAsync({
             versionId,
             workUnitKey: editingWorkUnitKey,
             workUnitType: {
               key: nextKey,
               displayName: nextDisplayName,
-              description: { markdown: nextDescription } as unknown as string,
+              description: nextDescription ? { markdown: nextDescription } : undefined,
               guidance:
                 nextHumanGuidance || nextAgentGuidance
                   ? {
@@ -307,12 +399,12 @@ export function MethodologyVersionWorkUnitsRoute() {
             } as never,
           });
         } else {
-          await createWorkUnitMutation.mutateAsync({
+          mutationPayload = await createWorkUnitMutation.mutateAsync({
             versionId,
             workUnitType: {
               key: nextKey,
               displayName: nextDisplayName,
-              description: { markdown: nextDescription } as unknown as string,
+              description: nextDescription ? { markdown: nextDescription } : undefined,
               guidance:
                 nextHumanGuidance || nextAgentGuidance
                   ? {
@@ -325,20 +417,36 @@ export function MethodologyVersionWorkUnitsRoute() {
           });
         }
 
+        const validation = readWorkUnitMutationValidation(mutationPayload);
+        if (isWorkUnitMutationValidationInvalid(validation)) {
+          return {
+            ok: false as const,
+            errorMessage: mapWorkUnitMutationValidationError(
+              validation,
+              genericMutationFailureMessage,
+            ),
+          };
+        }
+
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: draftQueryOptions.queryKey }),
           queryClient.invalidateQueries({ queryKey: detailsQueryOptions.queryKey }),
         ]);
+
+        return { ok: true as const };
       },
       catch: (error: unknown) => error,
     });
 
     if (mutationResult.isErr()) {
       setCreateError(
-        isEditMode
-          ? "Unable to save work unit changes. Review the current draft definitions and try again."
-          : "Unable to create work unit. Review the current draft definitions and try again.",
+        extractWorkUnitMutationErrorMessage(mutationResult.error, genericMutationFailureMessage),
       );
+      return;
+    }
+
+    if (!mutationResult.value.ok) {
+      setCreateError(mutationResult.value.errorMessage);
       return;
     }
 

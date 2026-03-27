@@ -14,6 +14,7 @@ export default defineConfig({
       "src/tests/**/*.test.tsx",
       "src/tests/**/*.integration.test.tsx",
     ],
+    exclude: ["**/.worktrees/**"],
     setupFiles: ["src/test/setup.ts"],
   },
 });
