@@ -1,0 +1,23 @@
+docs/architecture/granular-methods-design-time-investigation.md
+  3d042602140d2e4e 1-263
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "34e971277c1470a5433fd3b78c90494e54892d52",
+  "prompts": {
+    "3d042602140d2e4e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2d40a2649ffeY2rYZee0eV27HZ",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 263,
+      "overriden_lines": 0
+    }
+  }
+}
