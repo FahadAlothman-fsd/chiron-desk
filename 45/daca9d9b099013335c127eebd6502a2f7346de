@@ -1,0 +1,29 @@
+packages/methodology-engine/src/lifecycle-validation.ts
+  3d042602140d2e4e 382-404
+packages/contracts/src/methodology/fact.ts
+  3d042602140d2e4e 22-34,41-45
+packages/api/src/routers/methodology.ts
+  3d042602140d2e4e 156-158,805-808,810-822,829-830
+packages/scripts/src/seed/methodology/setup/setup-bmad-mapping.ts
+  3d042602140d2e4e 380-381
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "45daca9d9b099013335c127eebd6502a2f7346de",
+  "prompts": {
+    "3d042602140d2e4e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2d40a2649ffeY2rYZee0eV27HZ",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 164,
+      "total_deletions": 127,
+      "accepted_lines": 90,
+      "overriden_lines": 0
+    }
+  }
+}
