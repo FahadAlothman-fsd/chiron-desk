@@ -1,0 +1,23 @@
+apps/web/src/features/methodologies/methodology-facts.tsx
+  3d042602140d2e4e 35,243
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "d822e9b54260c4b37e85750b790ab63e52c61930",
+  "prompts": {
+    "3d042602140d2e4e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2d40a2649ffeY2rYZee0eV27HZ",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}
