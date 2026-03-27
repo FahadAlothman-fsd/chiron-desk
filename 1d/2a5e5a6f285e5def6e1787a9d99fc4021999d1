@@ -1,0 +1,23 @@
+apps/web/src/features/methodologies/fact-validation.ts
+  3d042602140d2e4e 15,50-58,64,70-71,76,84-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "1d2a5e5a6f285e5def6e1787a9d99fc4021999d1",
+  "prompts": {
+    "3d042602140d2e4e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2d40a2649ffeY2rYZee0eV27HZ",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 20,
+      "total_deletions": 2,
+      "accepted_lines": 20,
+      "overriden_lines": 0
+    }
+  }
+}
