@@ -12,6 +12,7 @@ type FactValidationLike = {
     normalization?: { trimWhitespace?: boolean };
     safety?: { disallowAbsolute?: boolean; preventTraversal?: boolean };
   };
+  values?: unknown[];
   rules?: LegacyAllowedValuesRule[];
   schemaDialect?: string;
   schema?: unknown;
@@ -46,26 +47,43 @@ function getJsonSchemaEnum(validation: FactValidationLike | undefined): string[]
 
 export function getAllowedValues(validation: unknown): string[] {
   const normalized = validation as FactValidationLike | undefined;
+
+  // Handle new allowed-values format: { kind: "allowed-values", values: [...] }
+  if (normalized?.kind === "allowed-values" && Array.isArray(normalized.values)) {
+    return normalized.values
+      .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+      .map((value) => value.trim());
+  }
+
+  // Handle legacy json-schema enum format
   const fromJsonSchema = getJsonSchemaEnum(normalized);
   if (fromJsonSchema.length > 0) {
     return fromJsonSchema;
   }
 
+  // Handle legacy rules array format
   return getLegacyAllowedValues(normalized);
 }
 
 export function getUiValidationKind(validation: unknown): UiFactValidationKind {
   const normalized = validation as FactValidationLike | undefined;
+
+  // Check explicit kind first
   if (normalized?.kind === "path") {
     return "path";
   }
 
-  if (getAllowedValues(normalized).length > 0) {
+  if (normalized?.kind === "allowed-values") {
     return "allowed-values";
   }
 
   if (normalized?.kind === "json-schema") {
     return "json-schema";
+  }
+
+  // Fallback: check for legacy formats
+  if (getAllowedValues(normalized).length > 0) {
+    return "allowed-values";
   }
 
   return "none";
