@@ -126,11 +126,17 @@ function computeLifecycleChanges(
 }
 
 function extractText(value: unknown): string | undefined {
-  if (typeof value !== "object" || value === null || !("text" in value)) {
+  if (typeof value !== "object" || value === null) {
     return undefined;
   }
 
-  return typeof value.text === "string" ? value.text : undefined;
+  const record = value as Record<string, unknown>;
+
+  if ("markdown" in record && typeof record.markdown === "string") {
+    return record.markdown;
+  }
+
+  return undefined;
 }
 
 function asCardinality(value: string): WorkUnitTypeDefinition["cardinality"] {

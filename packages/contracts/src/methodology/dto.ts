@@ -11,16 +11,6 @@ export const MethodologyLifecycleAuthoringDto = Schema.Struct({
 });
 export type MethodologyLifecycleAuthoringDto = typeof MethodologyLifecycleAuthoringDto.Type;
 
-export const MethodologyWorkflowAuthoringDto = Schema.Struct({
-  workflows: Schema.Array(WorkflowDefinition),
-  transitionWorkflowBindings: Schema.Record({
-    key: Schema.String,
-    value: Schema.Array(Schema.String),
-  }),
-  guidance: Schema.optional(LayeredGuidance),
-});
-export type MethodologyWorkflowAuthoringDto = typeof MethodologyWorkflowAuthoringDto.Type;
-
 export const UpdateDraftWorkflowsInputDto = Schema.Struct({
   versionId: Schema.NonEmptyString,
   workflows: Schema.Array(WorkflowDefinition),

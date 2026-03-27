@@ -8,6 +8,53 @@ describe("lifecycle-validation", () => {
   const timestamp = "2026-01-01T00:00:00Z";
 
   describe("AC 5: Duplicate and Undefined Reference Detection", () => {
+    it("should reject duplicate work unit type keys", () => {
+      const workUnitTypes: WorkUnitTypeDefinition[] = [
+        {
+          key: "task",
+          cardinality: "one_per_project",
+          lifecycleStates: [{ key: "todo", displayName: "To Do" }],
+          lifecycleTransitions: [],
+          factSchemas: [],
+        },
+        {
+          key: "task",
+          cardinality: "many_per_project",
+          lifecycleStates: [{ key: "draft", displayName: "Draft" }],
+          lifecycleTransitions: [],
+          factSchemas: [],
+        },
+      ];
+
+      const result = validateLifecycleDefinition(workUnitTypes, timestamp);
+
+      expect(result.valid).toBe(false);
+      expect(result.diagnostics.some((d) => d.code === "DUPLICATE_WORK_UNIT_KEY")).toBe(true);
+    });
+
+    it("should allow unique work unit type keys", () => {
+      const workUnitTypes: WorkUnitTypeDefinition[] = [
+        {
+          key: "task",
+          cardinality: "one_per_project",
+          lifecycleStates: [{ key: "todo", displayName: "To Do" }],
+          lifecycleTransitions: [],
+          factSchemas: [],
+        },
+        {
+          key: "review",
+          cardinality: "many_per_project",
+          lifecycleStates: [{ key: "draft", displayName: "Draft" }],
+          lifecycleTransitions: [],
+          factSchemas: [],
+        },
+      ];
+
+      const result = validateLifecycleDefinition(workUnitTypes, timestamp);
+
+      expect(result.diagnostics.some((d) => d.code === "DUPLICATE_WORK_UNIT_KEY")).toBe(false);
+    });
+
     it("should reject duplicate state IDs", () => {
       const workUnitTypes: WorkUnitTypeDefinition[] = [
         {
