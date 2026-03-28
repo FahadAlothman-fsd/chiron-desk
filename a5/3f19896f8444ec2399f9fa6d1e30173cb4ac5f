@@ -1,0 +1,23 @@
+.sisyphus/plans/unified-l1-l2-runtime-slice.md
+  513559ef6d8ef5e2 276,310,346,380,414,448,481,515,548,582,615,649,681,713,746,778
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "a53f19896f8444ec2399f9fa6d1e30173cb4ac5f",
+  "prompts": {
+    "513559ef6d8ef5e2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2ca4bfec8ffeAUUomB4TVTA300",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 16,
+      "total_deletions": 16,
+      "accepted_lines": 16,
+      "overriden_lines": 0
+    }
+  }
+}
