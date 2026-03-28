@@ -31,7 +31,10 @@
     "ses_2c98a5c72ffeQmJ2m1dea9M3j7",
     "ses_2c986c775ffeoMnvw5F7qLZD2D",
     "ses_2c94947ebffeo0hiLTb39MsLWh",
-    "ses_2c92b293bffeEB9ZA6QnWbXCGN"
+    "ses_2c92b293bffeEB9ZA6QnWbXCGN",
+    "ses_2c9210e03ffe20B8PRuMk5ggiT",
+    "ses_2c91d0772ffetXlI36CohCuGJe",
+    "ses_2c91d0ac0ffeVojpamytDNSoFs"
   ],
   "plan_name": "unified-l1-l2-runtime-slice",
   "task_sessions": {
@@ -111,10 +114,10 @@
       "task_key": "final-wave:f1",
       "task_label": "F1",
       "task_title": "Plan Compliance Audit — oracle",
-      "session_id": "ses_2c92b293bffeEB9ZA6QnWbXCGN",
+      "session_id": "ses_2c9210e03ffe20B8PRuMk5ggiT",
       "agent": "Sisyphus-Junior",
       "category": "deep",
-      "updated_at": "2026-03-28T23:50:52.008Z"
+      "updated_at": "2026-03-28T23:58:50.127Z"
     }
   }
 }

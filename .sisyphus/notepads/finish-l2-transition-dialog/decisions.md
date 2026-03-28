@@ -38,3 +38,9 @@
 - Added `getRuntimeStartGateDetail` directly to `RuntimeGuidanceService` interface + Live layer instead of introducing a separate service, to keep runtime guidance querying cohesive.
 - Standardized missing-entity handling via `RepositoryError` in runtime guidance (`project pin`, `work unit`, `work unit type`, `transition`, `to-state`) to preserve existing API error mapping behavior.
 - Kept start-gate detail workflow launchability intentionally conservative (`availableWorkflows: []`) because workflow bindings are not required to unblock current UI drill-in contract.
+
+## Runtime start-gate workflow binding decisions (2026-03-29)
+
+- Populate `launchability.availableWorkflows` from lifecycle transition-workflow bindings in both drill-in branches (future + existing) instead of hardcoding empty arrays.
+- Filter unresolved bindings (`workflowKey === null`) at the service boundary so UI receives only actionable launch options.
+- Use `{ workflowId, workflowKey, workflowName: workflowKey }` mapping to satisfy runtime contract shape while avoiding extra persistence lookups.

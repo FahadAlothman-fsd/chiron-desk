@@ -1282,3 +1282,10 @@ interface RuntimeCondition {
 - Future candidate drill-in must resolve project pin + methodology lifecycle rows (work unit type, transitions, states, condition sets) before evaluating `RuntimeGateService.evaluateStartGate` without `projectWorkUnitId`.
 - Existing work unit drill-in must fetch `ProjectWorkUnitRepository.getProjectWorkUnitById`, validate project ownership, then evaluate start gate with `projectWorkUnitId` to support work-unit facts/artifact gate conditions.
 - For drill-in response compatibility, `launchability.availableWorkflows` can safely default to `[]` and `canLaunch` should be derived from gate result (`available` => true).
+
+## Runtime start-gate workflow binding learnings (2026-03-29)
+
+- `getRuntimeStartGateDetail` must explicitly fetch transition workflow bindings per transition (`findTransitionWorkflowBindings(versionId, transitionId)`); streaming candidate logic does not hydrate drill-in launchability data.
+- Both future-candidate and existing-work-unit drill-in code paths need the same binding lookup + mapping to keep dialog behavior consistent.
+- `workflowKey: null` rows occur for unresolved bindings and must be filtered out before emitting `availableWorkflows`.
+- Runtime contract currently expects `workflowName` in addition to `workflowId`/`workflowKey`; using `workflowKey` as fallback display name preserves compatibility without extra repository joins.

@@ -245,7 +245,29 @@ const lifecycleLayer = Layer.succeed(LifecycleRepository, {
       },
     ]),
   findAgentTypes: () => Effect.succeed([]),
-  findTransitionWorkflowBindings: () => Effect.succeed([]),
+  findTransitionWorkflowBindings: () =>
+    Effect.succeed([
+      {
+        id: "twb-setup-project",
+        methodologyVersionId: "version-1",
+        transitionId: "tr-setup-start",
+        transitionKey: "start_setup",
+        workflowId: "wf-setup-project",
+        workflowKey: "setup_project",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        id: "twb-unresolved",
+        methodologyVersionId: "version-1",
+        transitionId: "tr-setup-start",
+        transitionKey: "start_setup",
+        workflowId: "wf-unresolved",
+        workflowKey: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]),
   saveLifecycleDefinition: () => Effect.die("not implemented in test"),
   recordLifecycleEvent: () => Effect.die("not implemented in test"),
 });
@@ -405,7 +427,14 @@ describe("RuntimeGuidanceService", () => {
       transition: { transitionId: string; toStateKey: string };
       workUnitContext: { source: string; workUnitTypeKey: string; currentStateLabel: string };
       gateSummary: { result: string };
-      launchability: { canLaunch: boolean; availableWorkflows: unknown[] };
+      launchability: {
+        canLaunch: boolean;
+        availableWorkflows: Array<{
+          workflowId: string;
+          workflowKey: string;
+          workflowName: string;
+        }>;
+      };
     };
 
     expect(result.transition.transitionId).toBe("tr-setup-start");
@@ -415,7 +444,13 @@ describe("RuntimeGuidanceService", () => {
     expect(result.workUnitContext.currentStateLabel).toBe("Not started");
     expect(result.gateSummary.result).toBe("available");
     expect(result.launchability.canLaunch).toBe(true);
-    expect(result.launchability.availableWorkflows).toEqual([]);
+    expect(result.launchability.availableWorkflows).toEqual([
+      {
+        workflowId: "wf-setup-project",
+        workflowKey: "setup_project",
+        workflowName: "setup_project",
+      },
+    ]);
   });
 
   it("returns start gate detail for existing project work units", async () => {
@@ -439,6 +474,14 @@ describe("RuntimeGuidanceService", () => {
       transition: { transitionId: string; fromStateId?: string; fromStateKey?: string };
       workUnitContext: { source: string; projectWorkUnitId?: string };
       gateSummary: { result: string };
+      launchability: {
+        canLaunch: boolean;
+        availableWorkflows: Array<{
+          workflowId: string;
+          workflowKey: string;
+          workflowName: string;
+        }>;
+      };
     };
 
     expect(result.transition.transitionId).toBe("tr-setup-start");
@@ -447,5 +490,13 @@ describe("RuntimeGuidanceService", () => {
     expect(result.workUnitContext.source).toBe("open");
     expect(result.workUnitContext.projectWorkUnitId).toBe("wu-2");
     expect(result.gateSummary.result).toBe("available");
+    expect(result.launchability.canLaunch).toBe(true);
+    expect(result.launchability.availableWorkflows).toEqual([
+      {
+        workflowId: "wf-setup-project",
+        workflowKey: "setup_project",
+        workflowName: "setup_project",
+      },
+    ]);
   });
 });

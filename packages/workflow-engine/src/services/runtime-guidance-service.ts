@@ -239,6 +239,23 @@ const toStartGate = (
   } satisfies RuntimeConditionTree;
 };
 
+const toAvailableWorkflows = (
+  bindingRows: readonly {
+    readonly workflowId: string;
+    readonly workflowKey: string | null;
+  }[],
+): Array<{ workflowId: string; workflowKey: string; workflowName: string }> =>
+  bindingRows
+    .filter(
+      (row): row is { readonly workflowId: string; readonly workflowKey: string } =>
+        row.workflowKey !== null,
+    )
+    .map((row) => ({
+      workflowId: row.workflowId,
+      workflowKey: row.workflowKey,
+      workflowName: row.workflowKey,
+    }));
+
 const isSingleCardinality = (cardinality: string): boolean =>
   cardinality === "one" || cardinality === "one_per_project" || cardinality === "single";
 
@@ -637,6 +654,12 @@ export const RuntimeGuidanceServiceLive = Layer.effect(
             );
           }
 
+          const bindingRows = yield* lifecycleRepository.findTransitionWorkflowBindings(
+            projectPin.methodologyVersionId,
+            transition.id,
+          );
+          const availableWorkflows = toAvailableWorkflows(bindingRows);
+
           const stateById = new Map(lifecycleStates.map((state) => [state.id, state] as const));
           const toState = transition.toStateId
             ? (stateById.get(transition.toStateId) ?? null)
@@ -693,7 +716,7 @@ export const RuntimeGuidanceServiceLive = Layer.effect(
             conditionTree,
             launchability: {
               canLaunch: gateSummary.result === "available",
-              availableWorkflows: [],
+              availableWorkflows,
             },
           } satisfies GetTransitionStartGateDetailsOutput;
         }
@@ -753,6 +776,12 @@ export const RuntimeGuidanceServiceLive = Layer.effect(
               `Transition not found for work unit '${projectWorkUnit.id}': ${input.transitionId}`,
             );
           }
+
+          const bindingRows = yield* lifecycleRepository.findTransitionWorkflowBindings(
+            projectPin.methodologyVersionId,
+            transition.id,
+          );
+          const availableWorkflows = toAvailableWorkflows(bindingRows);
 
           const stateById = new Map(lifecycleStates.map((state) => [state.id, state] as const));
           const currentState = stateById.get(projectWorkUnit.currentStateId) ?? null;
@@ -814,7 +843,7 @@ export const RuntimeGuidanceServiceLive = Layer.effect(
             conditionTree,
             launchability: {
               canLaunch: gateSummary.result === "available",
-              availableWorkflows: [],
+              availableWorkflows,
             },
           } satisfies GetTransitionStartGateDetailsOutput;
         }
