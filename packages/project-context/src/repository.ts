@@ -48,7 +48,9 @@ export class ProjectContextRepository extends Context.Tag("ProjectContextReposit
     readonly findProjectPin: (
       projectId: string,
     ) => Effect.Effect<ProjectMethodologyPinRow | null, RepositoryError>;
-    readonly hasPersistedExecutions: (projectId: string) => Effect.Effect<boolean, RepositoryError>;
+    readonly hasExecutionHistoryForRepin: (
+      projectId: string,
+    ) => Effect.Effect<boolean, RepositoryError>;
     readonly pinProjectMethodologyVersion: (
       params: PinProjectMethodologyVersionParams,
     ) => Effect.Effect<

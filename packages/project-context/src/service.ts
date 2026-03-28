@@ -290,7 +290,7 @@ export const ProjectContextServiceLive = Layer.effect(
           };
         }
 
-        const hasExecutions = yield* projectRepo.hasPersistedExecutions(input.projectId);
+        const hasExecutions = yield* projectRepo.hasExecutionHistoryForRepin(input.projectId);
         if (hasExecutions) {
           return {
             repinned: false,

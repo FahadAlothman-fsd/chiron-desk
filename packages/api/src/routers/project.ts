@@ -13,6 +13,7 @@ import {
   type RuntimeConditionSet,
 } from "@chiron/project-context";
 import { protectedProcedure, publicProcedure } from "../index";
+import { createProjectRuntimeRouter } from "./project-runtime";
 
 const createAndPinProjectInput = z.object({
   methodologyKey: z.string().min(1),
@@ -279,6 +280,8 @@ export function createProjectRouter(
   });
 
   return {
+    ...createProjectRuntimeRouter(serviceLayer as Layer.Layer<any>),
+
     listProjects: publicProcedure.handler(async () => {
       return runEffect(
         serviceLayer,

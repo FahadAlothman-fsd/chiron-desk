@@ -220,6 +220,7 @@
         "@chiron/env": "workspace:*",
         "@chiron/methodology-engine": "workspace:*",
         "@chiron/project-context": "workspace:*",
+        "@chiron/workflow-engine": "workspace:*",
         "@libsql/client": "catalog:",
         "dotenv": "catalog:",
         "drizzle-orm": "^0.45.1",

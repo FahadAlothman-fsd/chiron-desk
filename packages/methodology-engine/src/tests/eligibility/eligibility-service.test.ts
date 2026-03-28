@@ -55,7 +55,7 @@ function makeMethodologyRepo(definitionExtensions: unknown): MethodologyReposito
       Effect.succeed({ workflows: [], transitionWorkflowBindings: {}, guidance: undefined }),
     findFactSchemasByVersionId: (_versionId: string) => Effect.succeed([]),
     publishDraftVersion: () => Effect.die("not used in test"),
-    hasPersistedExecutions: () => Effect.succeed(false),
+    hasExecutionHistoryForRepin: () => Effect.succeed(false),
     pinProjectMethodologyVersion: () => Effect.die("not used in test"),
     repinProjectMethodologyVersion: () => Effect.die("not used in test"),
     getProjectPinLineage: () => Effect.succeed([]),

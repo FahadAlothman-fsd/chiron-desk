@@ -574,7 +574,7 @@ function makeTestRepo(): MethodologyRepository["Type"] & ProjectContextRepositor
       ),
     getProjectById: ({ projectId }) => Effect.sync(() => projects.get(projectId) ?? null),
     findProjectPin: (projectId: string) => Effect.succeed(projectPins.get(projectId) ?? null),
-    hasPersistedExecutions: (projectId: string) =>
+    hasExecutionHistoryForRepin: (projectId: string) =>
       Effect.succeed((executionCountsByProject.get(projectId) ?? 0) > 0),
     pinProjectMethodologyVersion: (params) =>
       Effect.sync(() => {

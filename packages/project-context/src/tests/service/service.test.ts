@@ -40,7 +40,7 @@ const stubProjectRepo = {
       createdAt: FIXED_NOW,
       updatedAt: FIXED_NOW,
     }),
-  hasPersistedExecutions: () => Effect.succeed(false),
+  hasExecutionHistoryForRepin: () => Effect.succeed(false),
   pinProjectMethodologyVersion: () => Effect.die("unused in test"),
   repinProjectMethodologyVersion: () =>
     Effect.fail(

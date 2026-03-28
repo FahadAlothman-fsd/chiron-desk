@@ -169,13 +169,26 @@ export function buildSidebarSections(
           isActive: projectId ? pathname.startsWith(`/projects/${projectId}/work-units`) : false,
         },
         {
-          label: "Artifacts",
-          icon: <FolderKanbanIcon className="size-4" />,
-          disabled: true,
+          label: "Guidance",
+          to: projectId ? `/projects/${projectId}/transitions` : "/projects",
+          icon: <WaypointsIcon className="size-4" />,
+          isActive: projectId
+            ? pathname.startsWith(`/projects/${projectId}/transitions`) ||
+              pathname.startsWith(`/projects/${projectId}/transition-executions`)
+            : false,
         },
         {
-          label: "Runs / History",
+          label: "Active Workflows",
+          to: projectId ? `/projects/${projectId}/workflows` : "/projects",
           icon: <PackageIcon className="size-4" />,
+          isActive: projectId
+            ? pathname.startsWith(`/projects/${projectId}/workflows`) ||
+              pathname.startsWith(`/projects/${projectId}/workflow-executions`)
+            : false,
+        },
+        {
+          label: "Artifacts",
+          icon: <FolderKanbanIcon className="size-4" />,
           disabled: true,
         },
         {

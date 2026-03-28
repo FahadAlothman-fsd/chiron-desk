@@ -15,3 +15,13 @@ export { schema };
 export { createMethodologyRepoLayer } from "./methodology-repository";
 export { createLifecycleRepoLayer } from "./lifecycle-repository";
 export { createProjectContextRepoLayer } from "./project-context-repository";
+export { createProjectWorkUnitRepoLayer } from "./runtime-repositories/project-work-unit-repository";
+export { createTransitionExecutionRepoLayer } from "./runtime-repositories/transition-execution-repository";
+export { createWorkflowExecutionRepoLayer } from "./runtime-repositories/workflow-execution-repository";
+export { createExecutionReadRepoLayer } from "./runtime-repositories/execution-read-repository";
+export { createProjectFactRepoLayer } from "./runtime-repositories/project-fact-repository";
+export { createWorkUnitFactRepoLayer } from "./runtime-repositories/work-unit-fact-repository";
+export {
+  createArtifactRepoLayer,
+  findActiveArtifactConditionPrerequisites,
+} from "./runtime-repositories/artifact-repository";

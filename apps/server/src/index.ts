@@ -13,15 +13,32 @@ import { logger } from "hono/logger";
 import { streamSSE } from "hono/streaming";
 import {
   db,
+  createArtifactRepoLayer,
+  createExecutionReadRepoLayer,
+  createProjectFactRepoLayer,
   createMethodologyRepoLayer,
   createLifecycleRepoLayer,
+  createProjectWorkUnitRepoLayer,
   createProjectContextRepoLayer,
+  createTransitionExecutionRepoLayer,
+  createWorkflowExecutionRepoLayer,
+  createWorkUnitFactRepoLayer,
 } from "@chiron/db";
+import { Layer } from "effect";
 
 const appRouter = createAppRouter(
   createMethodologyRepoLayer(db),
   createLifecycleRepoLayer(db),
   createProjectContextRepoLayer(db),
+  Layer.mergeAll(
+    createProjectWorkUnitRepoLayer(db),
+    createExecutionReadRepoLayer(db),
+    createTransitionExecutionRepoLayer(db),
+    createWorkflowExecutionRepoLayer(db),
+    createProjectFactRepoLayer(db),
+    createWorkUnitFactRepoLayer(db),
+    createArtifactRepoLayer(db),
+  ),
 );
 
 const app = new Hono();

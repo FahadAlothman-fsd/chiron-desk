@@ -9,6 +9,7 @@ export const projects = sqliteTable("projects", {
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
   name: text("name"),
+  projectRootPath: text("project_root_path"),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(timestampDefault),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" })
     .notNull()

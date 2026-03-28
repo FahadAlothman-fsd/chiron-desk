@@ -18,8 +18,18 @@ import {
   projectMethodologyPins,
   projects,
 } from "./schema/project";
+import {
+  artifactSnapshotFiles,
+  projectArtifactSnapshots,
+  projectFactInstances,
+  projectWorkUnits,
+  transitionExecutions,
+  workflowExecutions,
+  workUnitFactInstances,
+} from "./schema/runtime";
 
 type DB = LibSQLDatabase<Record<string, unknown>>;
+type QueryRunner = Pick<DB, "select">;
 
 const KNOWN_PROJECT_PIN_ERROR_CODES = new Set<RepositoryErrorCode>([
   "PROJECT_PIN_TARGET_VERSION_NOT_FOUND",
@@ -82,6 +92,101 @@ function toProjectRow(row: typeof projects.$inferSelect): ProjectRow {
   };
 }
 
+async function hasRuntimeExecutionHistory(
+  queryRunner: QueryRunner,
+  projectId: string,
+): Promise<boolean> {
+  const legacyExecutionRows = await queryRunner
+    .select({ id: projectExecutions.id })
+    .from(projectExecutions)
+    .where(eq(projectExecutions.projectId, projectId))
+    .limit(1);
+  if (legacyExecutionRows.length > 0) {
+    return true;
+  }
+
+  const projectWorkUnitRows = await queryRunner
+    .select({ id: projectWorkUnits.id })
+    .from(projectWorkUnits)
+    .where(eq(projectWorkUnits.projectId, projectId))
+    .limit(1);
+  if (projectWorkUnitRows.length > 0) {
+    return true;
+  }
+
+  const transitionRows = await queryRunner
+    .select({ id: transitionExecutions.id })
+    .from(transitionExecutions)
+    .innerJoin(projectWorkUnits, eq(projectWorkUnits.id, transitionExecutions.projectWorkUnitId))
+    .where(eq(projectWorkUnits.projectId, projectId))
+    .limit(1);
+  if (transitionRows.length > 0) {
+    return true;
+  }
+
+  const workflowRows = await queryRunner
+    .select({ id: workflowExecutions.id })
+    .from(workflowExecutions)
+    .innerJoin(
+      transitionExecutions,
+      eq(transitionExecutions.id, workflowExecutions.transitionExecutionId),
+    )
+    .innerJoin(projectWorkUnits, eq(projectWorkUnits.id, transitionExecutions.projectWorkUnitId))
+    .where(eq(projectWorkUnits.projectId, projectId))
+    .limit(1);
+  if (workflowRows.length > 0) {
+    return true;
+  }
+
+  const projectFactRows = await queryRunner
+    .select({ id: projectFactInstances.id })
+    .from(projectFactInstances)
+    .where(eq(projectFactInstances.projectId, projectId))
+    .limit(1);
+  if (projectFactRows.length > 0) {
+    return true;
+  }
+
+  const workUnitFactRows = await queryRunner
+    .select({ id: workUnitFactInstances.id })
+    .from(workUnitFactInstances)
+    .innerJoin(projectWorkUnits, eq(projectWorkUnits.id, workUnitFactInstances.projectWorkUnitId))
+    .where(eq(projectWorkUnits.projectId, projectId))
+    .limit(1);
+  if (workUnitFactRows.length > 0) {
+    return true;
+  }
+
+  const artifactSnapshotRows = await queryRunner
+    .select({ id: projectArtifactSnapshots.id })
+    .from(projectArtifactSnapshots)
+    .innerJoin(
+      projectWorkUnits,
+      eq(projectWorkUnits.id, projectArtifactSnapshots.projectWorkUnitId),
+    )
+    .where(eq(projectWorkUnits.projectId, projectId))
+    .limit(1);
+  if (artifactSnapshotRows.length > 0) {
+    return true;
+  }
+
+  const artifactSnapshotFileRows = await queryRunner
+    .select({ id: artifactSnapshotFiles.id })
+    .from(artifactSnapshotFiles)
+    .innerJoin(
+      projectArtifactSnapshots,
+      eq(projectArtifactSnapshots.id, artifactSnapshotFiles.artifactSnapshotId),
+    )
+    .innerJoin(
+      projectWorkUnits,
+      eq(projectWorkUnits.id, projectArtifactSnapshots.projectWorkUnitId),
+    )
+    .where(eq(projectWorkUnits.projectId, projectId))
+    .limit(1);
+
+  return artifactSnapshotFileRows.length > 0;
+}
+
 export function createProjectContextRepoLayer(db: DB): Layer.Layer<ProjectContextRepository> {
   return Layer.succeed(ProjectContextRepository, {
     createProject: ({ projectId, name }) =>
@@ -133,14 +238,9 @@ export function createProjectContextRepoLayer(db: DB): Layer.Layer<ProjectContex
         return rows[0] ? toProjectPinRow(rows[0]) : null;
       }),
 
-    hasPersistedExecutions: (projectId: string) =>
-      dbEffect("project-context.hasPersistedExecutions", async () => {
-        const rows = await db
-          .select({ id: projectExecutions.id })
-          .from(projectExecutions)
-          .where(eq(projectExecutions.projectId, projectId))
-          .limit(1);
-        return rows.length > 0;
+    hasExecutionHistoryForRepin: (projectId: string) =>
+      dbEffect("project-context.hasExecutionHistoryForRepin", async () => {
+        return hasRuntimeExecutionHistory(db, projectId);
       }),
 
     pinProjectMethodologyVersion: (params: PinProjectMethodologyVersionParams) =>
@@ -257,12 +357,8 @@ export function createProjectContextRepoLayer(db: DB): Layer.Layer<ProjectContex
       Effect.tryPromise({
         try: () =>
           db.transaction(async (tx) => {
-            const executionRows = await tx
-              .select({ id: projectExecutions.id })
-              .from(projectExecutions)
-              .where(eq(projectExecutions.projectId, params.projectId))
-              .limit(1);
-            if (executionRows.length > 0) {
+            const hasExecutionHistory = await hasRuntimeExecutionHistory(tx, params.projectId);
+            if (hasExecutionHistory) {
               throw new Error("PROJECT_REPIN_BLOCKED_EXECUTION_HISTORY");
             }
 

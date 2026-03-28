@@ -18,17 +18,27 @@ import { Route as ProjectsNewRouteImport } from './routes/projects.new'
 import { Route as ProjectsProjectIdRouteImport } from './routes/projects.$projectId'
 import { Route as MethodologiesMethodologyIdRouteImport } from './routes/methodologies.$methodologyId'
 import { Route as ProjectsProjectIdIndexRouteImport } from './routes/projects.$projectId.index'
+import { Route as ProjectsProjectIdWorkflowsRouteImport } from './routes/projects.$projectId.workflows'
 import { Route as ProjectsProjectIdWorkUnitsRouteImport } from './routes/projects.$projectId.work-units'
 import { Route as ProjectsProjectIdTransitionsRouteImport } from './routes/projects.$projectId.transitions'
 import { Route as ProjectsProjectIdPinningRouteImport } from './routes/projects.$projectId.pinning'
 import { Route as ProjectsProjectIdFactsRouteImport } from './routes/projects.$projectId.facts'
 import { Route as ProjectsProjectIdAgentsRouteImport } from './routes/projects.$projectId.agents'
 import { Route as MethodologiesMethodologyIdVersionsRouteImport } from './routes/methodologies.$methodologyId.versions'
+import { Route as ProjectsProjectIdWorkflowExecutionsWorkflowExecutionIdRouteImport } from './routes/projects.$projectId.workflow-executions.$workflowExecutionId'
+import { Route as ProjectsProjectIdWorkUnitsProjectWorkUnitIdRouteImport } from './routes/projects.$projectId.work-units.$projectWorkUnitId'
+import { Route as ProjectsProjectIdTransitionExecutionsTransitionExecutionIdRouteImport } from './routes/projects.$projectId.transition-executions.$transitionExecutionId'
+import { Route as ProjectsProjectIdFactsFactDefinitionIdRouteImport } from './routes/projects.$projectId.facts.$factDefinitionId'
 import { Route as MethodologiesMethodologyIdVersionsVersionIdRouteImport } from './routes/methodologies.$methodologyId.versions.$versionId'
+import { Route as ProjectsProjectIdWorkUnitsProjectWorkUnitIdStateMachineRouteImport } from './routes/projects.$projectId.work-units.$projectWorkUnitId.state-machine'
+import { Route as ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsRouteImport } from './routes/projects.$projectId.work-units.$projectWorkUnitId.facts'
+import { Route as ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsRouteImport } from './routes/projects.$projectId.work-units.$projectWorkUnitId.artifact-slots'
 import { Route as MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRouteImport } from './routes/methodologies.$methodologyId.versions.$versionId.work-units'
 import { Route as MethodologiesMethodologyIdVersionsVersionIdFactsRouteImport } from './routes/methodologies.$methodologyId.versions.$versionId.facts'
 import { Route as MethodologiesMethodologyIdVersionsVersionIdDependencyDefinitionsRouteImport } from './routes/methodologies.$methodologyId.versions.$versionId.dependency-definitions'
 import { Route as MethodologiesMethodologyIdVersionsVersionIdAgentsRouteImport } from './routes/methodologies.$methodologyId.versions.$versionId.agents'
+import { Route as ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsFactDefinitionIdRouteImport } from './routes/projects.$projectId.work-units.$projectWorkUnitId.facts.$factDefinitionId'
+import { Route as ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsSlotDefinitionIdRouteImport } from './routes/projects.$projectId.work-units.$projectWorkUnitId.artifact-slots.$slotDefinitionId'
 import { Route as MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRouteImport } from './routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey'
 
 const ProjectsRoute = ProjectsRouteImport.update({
@@ -77,6 +87,12 @@ const ProjectsProjectIdIndexRoute = ProjectsProjectIdIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ProjectsProjectIdRoute,
 } as any)
+const ProjectsProjectIdWorkflowsRoute =
+  ProjectsProjectIdWorkflowsRouteImport.update({
+    id: '/workflows',
+    path: '/workflows',
+    getParentRoute: () => ProjectsProjectIdRoute,
+  } as any)
 const ProjectsProjectIdWorkUnitsRoute =
   ProjectsProjectIdWorkUnitsRouteImport.update({
     id: '/work-units',
@@ -111,11 +127,53 @@ const MethodologiesMethodologyIdVersionsRoute =
     path: '/versions',
     getParentRoute: () => MethodologiesMethodologyIdRoute,
   } as any)
+const ProjectsProjectIdWorkflowExecutionsWorkflowExecutionIdRoute =
+  ProjectsProjectIdWorkflowExecutionsWorkflowExecutionIdRouteImport.update({
+    id: '/workflow-executions/$workflowExecutionId',
+    path: '/workflow-executions/$workflowExecutionId',
+    getParentRoute: () => ProjectsProjectIdRoute,
+  } as any)
+const ProjectsProjectIdWorkUnitsProjectWorkUnitIdRoute =
+  ProjectsProjectIdWorkUnitsProjectWorkUnitIdRouteImport.update({
+    id: '/$projectWorkUnitId',
+    path: '/$projectWorkUnitId',
+    getParentRoute: () => ProjectsProjectIdWorkUnitsRoute,
+  } as any)
+const ProjectsProjectIdTransitionExecutionsTransitionExecutionIdRoute =
+  ProjectsProjectIdTransitionExecutionsTransitionExecutionIdRouteImport.update({
+    id: '/transition-executions/$transitionExecutionId',
+    path: '/transition-executions/$transitionExecutionId',
+    getParentRoute: () => ProjectsProjectIdRoute,
+  } as any)
+const ProjectsProjectIdFactsFactDefinitionIdRoute =
+  ProjectsProjectIdFactsFactDefinitionIdRouteImport.update({
+    id: '/$factDefinitionId',
+    path: '/$factDefinitionId',
+    getParentRoute: () => ProjectsProjectIdFactsRoute,
+  } as any)
 const MethodologiesMethodologyIdVersionsVersionIdRoute =
   MethodologiesMethodologyIdVersionsVersionIdRouteImport.update({
     id: '/$versionId',
     path: '/$versionId',
     getParentRoute: () => MethodologiesMethodologyIdVersionsRoute,
+  } as any)
+const ProjectsProjectIdWorkUnitsProjectWorkUnitIdStateMachineRoute =
+  ProjectsProjectIdWorkUnitsProjectWorkUnitIdStateMachineRouteImport.update({
+    id: '/state-machine',
+    path: '/state-machine',
+    getParentRoute: () => ProjectsProjectIdWorkUnitsProjectWorkUnitIdRoute,
+  } as any)
+const ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsRoute =
+  ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsRouteImport.update({
+    id: '/facts',
+    path: '/facts',
+    getParentRoute: () => ProjectsProjectIdWorkUnitsProjectWorkUnitIdRoute,
+  } as any)
+const ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsRoute =
+  ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsRouteImport.update({
+    id: '/artifact-slots',
+    path: '/artifact-slots',
+    getParentRoute: () => ProjectsProjectIdWorkUnitsProjectWorkUnitIdRoute,
   } as any)
 const MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRoute =
   MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRouteImport.update({
@@ -143,6 +201,24 @@ const MethodologiesMethodologyIdVersionsVersionIdAgentsRoute =
     path: '/agents',
     getParentRoute: () => MethodologiesMethodologyIdVersionsVersionIdRoute,
   } as any)
+const ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsFactDefinitionIdRoute =
+  ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsFactDefinitionIdRouteImport.update(
+    {
+      id: '/$factDefinitionId',
+      path: '/$factDefinitionId',
+      getParentRoute: () =>
+        ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsRoute,
+    } as any,
+  )
+const ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsSlotDefinitionIdRoute =
+  ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsSlotDefinitionIdRouteImport.update(
+    {
+      id: '/$slotDefinitionId',
+      path: '/$slotDefinitionId',
+      getParentRoute: () =>
+        ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsRoute,
+    } as any,
+  )
 const MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRoute =
   MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRouteImport.update(
     {
@@ -164,17 +240,27 @@ export interface FileRoutesByFullPath {
   '/projects/new': typeof ProjectsNewRoute
   '/methodologies/$methodologyId/versions': typeof MethodologiesMethodologyIdVersionsRouteWithChildren
   '/projects/$projectId/agents': typeof ProjectsProjectIdAgentsRoute
-  '/projects/$projectId/facts': typeof ProjectsProjectIdFactsRoute
+  '/projects/$projectId/facts': typeof ProjectsProjectIdFactsRouteWithChildren
   '/projects/$projectId/pinning': typeof ProjectsProjectIdPinningRoute
   '/projects/$projectId/transitions': typeof ProjectsProjectIdTransitionsRoute
-  '/projects/$projectId/work-units': typeof ProjectsProjectIdWorkUnitsRoute
+  '/projects/$projectId/work-units': typeof ProjectsProjectIdWorkUnitsRouteWithChildren
+  '/projects/$projectId/workflows': typeof ProjectsProjectIdWorkflowsRoute
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
   '/methodologies/$methodologyId/versions/$versionId': typeof MethodologiesMethodologyIdVersionsVersionIdRouteWithChildren
+  '/projects/$projectId/facts/$factDefinitionId': typeof ProjectsProjectIdFactsFactDefinitionIdRoute
+  '/projects/$projectId/transition-executions/$transitionExecutionId': typeof ProjectsProjectIdTransitionExecutionsTransitionExecutionIdRoute
+  '/projects/$projectId/work-units/$projectWorkUnitId': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdRouteWithChildren
+  '/projects/$projectId/workflow-executions/$workflowExecutionId': typeof ProjectsProjectIdWorkflowExecutionsWorkflowExecutionIdRoute
   '/methodologies/$methodologyId/versions/$versionId/agents': typeof MethodologiesMethodologyIdVersionsVersionIdAgentsRoute
   '/methodologies/$methodologyId/versions/$versionId/dependency-definitions': typeof MethodologiesMethodologyIdVersionsVersionIdDependencyDefinitionsRoute
   '/methodologies/$methodologyId/versions/$versionId/facts': typeof MethodologiesMethodologyIdVersionsVersionIdFactsRoute
   '/methodologies/$methodologyId/versions/$versionId/work-units': typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRouteWithChildren
+  '/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsRouteWithChildren
+  '/projects/$projectId/work-units/$projectWorkUnitId/facts': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsRouteWithChildren
+  '/projects/$projectId/work-units/$projectWorkUnitId/state-machine': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdStateMachineRoute
   '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey': typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRoute
+  '/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots/$slotDefinitionId': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsSlotDefinitionIdRoute
+  '/projects/$projectId/work-units/$projectWorkUnitId/facts/$factDefinitionId': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsFactDefinitionIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -186,17 +272,27 @@ export interface FileRoutesByTo {
   '/projects/new': typeof ProjectsNewRoute
   '/methodologies/$methodologyId/versions': typeof MethodologiesMethodologyIdVersionsRouteWithChildren
   '/projects/$projectId/agents': typeof ProjectsProjectIdAgentsRoute
-  '/projects/$projectId/facts': typeof ProjectsProjectIdFactsRoute
+  '/projects/$projectId/facts': typeof ProjectsProjectIdFactsRouteWithChildren
   '/projects/$projectId/pinning': typeof ProjectsProjectIdPinningRoute
   '/projects/$projectId/transitions': typeof ProjectsProjectIdTransitionsRoute
-  '/projects/$projectId/work-units': typeof ProjectsProjectIdWorkUnitsRoute
+  '/projects/$projectId/work-units': typeof ProjectsProjectIdWorkUnitsRouteWithChildren
+  '/projects/$projectId/workflows': typeof ProjectsProjectIdWorkflowsRoute
   '/projects/$projectId': typeof ProjectsProjectIdIndexRoute
   '/methodologies/$methodologyId/versions/$versionId': typeof MethodologiesMethodologyIdVersionsVersionIdRouteWithChildren
+  '/projects/$projectId/facts/$factDefinitionId': typeof ProjectsProjectIdFactsFactDefinitionIdRoute
+  '/projects/$projectId/transition-executions/$transitionExecutionId': typeof ProjectsProjectIdTransitionExecutionsTransitionExecutionIdRoute
+  '/projects/$projectId/work-units/$projectWorkUnitId': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdRouteWithChildren
+  '/projects/$projectId/workflow-executions/$workflowExecutionId': typeof ProjectsProjectIdWorkflowExecutionsWorkflowExecutionIdRoute
   '/methodologies/$methodologyId/versions/$versionId/agents': typeof MethodologiesMethodologyIdVersionsVersionIdAgentsRoute
   '/methodologies/$methodologyId/versions/$versionId/dependency-definitions': typeof MethodologiesMethodologyIdVersionsVersionIdDependencyDefinitionsRoute
   '/methodologies/$methodologyId/versions/$versionId/facts': typeof MethodologiesMethodologyIdVersionsVersionIdFactsRoute
   '/methodologies/$methodologyId/versions/$versionId/work-units': typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRouteWithChildren
+  '/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsRouteWithChildren
+  '/projects/$projectId/work-units/$projectWorkUnitId/facts': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsRouteWithChildren
+  '/projects/$projectId/work-units/$projectWorkUnitId/state-machine': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdStateMachineRoute
   '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey': typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRoute
+  '/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots/$slotDefinitionId': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsSlotDefinitionIdRoute
+  '/projects/$projectId/work-units/$projectWorkUnitId/facts/$factDefinitionId': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsFactDefinitionIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -210,17 +306,27 @@ export interface FileRoutesById {
   '/projects/new': typeof ProjectsNewRoute
   '/methodologies/$methodologyId/versions': typeof MethodologiesMethodologyIdVersionsRouteWithChildren
   '/projects/$projectId/agents': typeof ProjectsProjectIdAgentsRoute
-  '/projects/$projectId/facts': typeof ProjectsProjectIdFactsRoute
+  '/projects/$projectId/facts': typeof ProjectsProjectIdFactsRouteWithChildren
   '/projects/$projectId/pinning': typeof ProjectsProjectIdPinningRoute
   '/projects/$projectId/transitions': typeof ProjectsProjectIdTransitionsRoute
-  '/projects/$projectId/work-units': typeof ProjectsProjectIdWorkUnitsRoute
+  '/projects/$projectId/work-units': typeof ProjectsProjectIdWorkUnitsRouteWithChildren
+  '/projects/$projectId/workflows': typeof ProjectsProjectIdWorkflowsRoute
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
   '/methodologies/$methodologyId/versions/$versionId': typeof MethodologiesMethodologyIdVersionsVersionIdRouteWithChildren
+  '/projects/$projectId/facts/$factDefinitionId': typeof ProjectsProjectIdFactsFactDefinitionIdRoute
+  '/projects/$projectId/transition-executions/$transitionExecutionId': typeof ProjectsProjectIdTransitionExecutionsTransitionExecutionIdRoute
+  '/projects/$projectId/work-units/$projectWorkUnitId': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdRouteWithChildren
+  '/projects/$projectId/workflow-executions/$workflowExecutionId': typeof ProjectsProjectIdWorkflowExecutionsWorkflowExecutionIdRoute
   '/methodologies/$methodologyId/versions/$versionId/agents': typeof MethodologiesMethodologyIdVersionsVersionIdAgentsRoute
   '/methodologies/$methodologyId/versions/$versionId/dependency-definitions': typeof MethodologiesMethodologyIdVersionsVersionIdDependencyDefinitionsRoute
   '/methodologies/$methodologyId/versions/$versionId/facts': typeof MethodologiesMethodologyIdVersionsVersionIdFactsRoute
   '/methodologies/$methodologyId/versions/$versionId/work-units': typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRouteWithChildren
+  '/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsRouteWithChildren
+  '/projects/$projectId/work-units/$projectWorkUnitId/facts': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsRouteWithChildren
+  '/projects/$projectId/work-units/$projectWorkUnitId/state-machine': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdStateMachineRoute
   '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey': typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRoute
+  '/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots/$slotDefinitionId': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsSlotDefinitionIdRoute
+  '/projects/$projectId/work-units/$projectWorkUnitId/facts/$factDefinitionId': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsFactDefinitionIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -239,13 +345,23 @@ export interface FileRouteTypes {
     | '/projects/$projectId/pinning'
     | '/projects/$projectId/transitions'
     | '/projects/$projectId/work-units'
+    | '/projects/$projectId/workflows'
     | '/projects/$projectId/'
     | '/methodologies/$methodologyId/versions/$versionId'
+    | '/projects/$projectId/facts/$factDefinitionId'
+    | '/projects/$projectId/transition-executions/$transitionExecutionId'
+    | '/projects/$projectId/work-units/$projectWorkUnitId'
+    | '/projects/$projectId/workflow-executions/$workflowExecutionId'
     | '/methodologies/$methodologyId/versions/$versionId/agents'
     | '/methodologies/$methodologyId/versions/$versionId/dependency-definitions'
     | '/methodologies/$methodologyId/versions/$versionId/facts'
     | '/methodologies/$methodologyId/versions/$versionId/work-units'
+    | '/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots'
+    | '/projects/$projectId/work-units/$projectWorkUnitId/facts'
+    | '/projects/$projectId/work-units/$projectWorkUnitId/state-machine'
     | '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey'
+    | '/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots/$slotDefinitionId'
+    | '/projects/$projectId/work-units/$projectWorkUnitId/facts/$factDefinitionId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -261,13 +377,23 @@ export interface FileRouteTypes {
     | '/projects/$projectId/pinning'
     | '/projects/$projectId/transitions'
     | '/projects/$projectId/work-units'
+    | '/projects/$projectId/workflows'
     | '/projects/$projectId'
     | '/methodologies/$methodologyId/versions/$versionId'
+    | '/projects/$projectId/facts/$factDefinitionId'
+    | '/projects/$projectId/transition-executions/$transitionExecutionId'
+    | '/projects/$projectId/work-units/$projectWorkUnitId'
+    | '/projects/$projectId/workflow-executions/$workflowExecutionId'
     | '/methodologies/$methodologyId/versions/$versionId/agents'
     | '/methodologies/$methodologyId/versions/$versionId/dependency-definitions'
     | '/methodologies/$methodologyId/versions/$versionId/facts'
     | '/methodologies/$methodologyId/versions/$versionId/work-units'
+    | '/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots'
+    | '/projects/$projectId/work-units/$projectWorkUnitId/facts'
+    | '/projects/$projectId/work-units/$projectWorkUnitId/state-machine'
     | '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey'
+    | '/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots/$slotDefinitionId'
+    | '/projects/$projectId/work-units/$projectWorkUnitId/facts/$factDefinitionId'
   id:
     | '__root__'
     | '/'
@@ -284,13 +410,23 @@ export interface FileRouteTypes {
     | '/projects/$projectId/pinning'
     | '/projects/$projectId/transitions'
     | '/projects/$projectId/work-units'
+    | '/projects/$projectId/workflows'
     | '/projects/$projectId/'
     | '/methodologies/$methodologyId/versions/$versionId'
+    | '/projects/$projectId/facts/$factDefinitionId'
+    | '/projects/$projectId/transition-executions/$transitionExecutionId'
+    | '/projects/$projectId/work-units/$projectWorkUnitId'
+    | '/projects/$projectId/workflow-executions/$workflowExecutionId'
     | '/methodologies/$methodologyId/versions/$versionId/agents'
     | '/methodologies/$methodologyId/versions/$versionId/dependency-definitions'
     | '/methodologies/$methodologyId/versions/$versionId/facts'
     | '/methodologies/$methodologyId/versions/$versionId/work-units'
+    | '/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots'
+    | '/projects/$projectId/work-units/$projectWorkUnitId/facts'
+    | '/projects/$projectId/work-units/$projectWorkUnitId/state-machine'
     | '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey'
+    | '/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots/$slotDefinitionId'
+    | '/projects/$projectId/work-units/$projectWorkUnitId/facts/$factDefinitionId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -366,6 +502,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsProjectIdIndexRouteImport
       parentRoute: typeof ProjectsProjectIdRoute
     }
+    '/projects/$projectId/workflows': {
+      id: '/projects/$projectId/workflows'
+      path: '/workflows'
+      fullPath: '/projects/$projectId/workflows'
+      preLoaderRoute: typeof ProjectsProjectIdWorkflowsRouteImport
+      parentRoute: typeof ProjectsProjectIdRoute
+    }
     '/projects/$projectId/work-units': {
       id: '/projects/$projectId/work-units'
       path: '/work-units'
@@ -408,12 +551,61 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MethodologiesMethodologyIdVersionsRouteImport
       parentRoute: typeof MethodologiesMethodologyIdRoute
     }
+    '/projects/$projectId/workflow-executions/$workflowExecutionId': {
+      id: '/projects/$projectId/workflow-executions/$workflowExecutionId'
+      path: '/workflow-executions/$workflowExecutionId'
+      fullPath: '/projects/$projectId/workflow-executions/$workflowExecutionId'
+      preLoaderRoute: typeof ProjectsProjectIdWorkflowExecutionsWorkflowExecutionIdRouteImport
+      parentRoute: typeof ProjectsProjectIdRoute
+    }
+    '/projects/$projectId/work-units/$projectWorkUnitId': {
+      id: '/projects/$projectId/work-units/$projectWorkUnitId'
+      path: '/$projectWorkUnitId'
+      fullPath: '/projects/$projectId/work-units/$projectWorkUnitId'
+      preLoaderRoute: typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdRouteImport
+      parentRoute: typeof ProjectsProjectIdWorkUnitsRoute
+    }
+    '/projects/$projectId/transition-executions/$transitionExecutionId': {
+      id: '/projects/$projectId/transition-executions/$transitionExecutionId'
+      path: '/transition-executions/$transitionExecutionId'
+      fullPath: '/projects/$projectId/transition-executions/$transitionExecutionId'
+      preLoaderRoute: typeof ProjectsProjectIdTransitionExecutionsTransitionExecutionIdRouteImport
+      parentRoute: typeof ProjectsProjectIdRoute
+    }
+    '/projects/$projectId/facts/$factDefinitionId': {
+      id: '/projects/$projectId/facts/$factDefinitionId'
+      path: '/$factDefinitionId'
+      fullPath: '/projects/$projectId/facts/$factDefinitionId'
+      preLoaderRoute: typeof ProjectsProjectIdFactsFactDefinitionIdRouteImport
+      parentRoute: typeof ProjectsProjectIdFactsRoute
+    }
     '/methodologies/$methodologyId/versions/$versionId': {
       id: '/methodologies/$methodologyId/versions/$versionId'
       path: '/$versionId'
       fullPath: '/methodologies/$methodologyId/versions/$versionId'
       preLoaderRoute: typeof MethodologiesMethodologyIdVersionsVersionIdRouteImport
       parentRoute: typeof MethodologiesMethodologyIdVersionsRoute
+    }
+    '/projects/$projectId/work-units/$projectWorkUnitId/state-machine': {
+      id: '/projects/$projectId/work-units/$projectWorkUnitId/state-machine'
+      path: '/state-machine'
+      fullPath: '/projects/$projectId/work-units/$projectWorkUnitId/state-machine'
+      preLoaderRoute: typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdStateMachineRouteImport
+      parentRoute: typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdRoute
+    }
+    '/projects/$projectId/work-units/$projectWorkUnitId/facts': {
+      id: '/projects/$projectId/work-units/$projectWorkUnitId/facts'
+      path: '/facts'
+      fullPath: '/projects/$projectId/work-units/$projectWorkUnitId/facts'
+      preLoaderRoute: typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsRouteImport
+      parentRoute: typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdRoute
+    }
+    '/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots': {
+      id: '/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots'
+      path: '/artifact-slots'
+      fullPath: '/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots'
+      preLoaderRoute: typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsRouteImport
+      parentRoute: typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdRoute
     }
     '/methodologies/$methodologyId/versions/$versionId/work-units': {
       id: '/methodologies/$methodologyId/versions/$versionId/work-units'
@@ -442,6 +634,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/methodologies/$methodologyId/versions/$versionId/agents'
       preLoaderRoute: typeof MethodologiesMethodologyIdVersionsVersionIdAgentsRouteImport
       parentRoute: typeof MethodologiesMethodologyIdVersionsVersionIdRoute
+    }
+    '/projects/$projectId/work-units/$projectWorkUnitId/facts/$factDefinitionId': {
+      id: '/projects/$projectId/work-units/$projectWorkUnitId/facts/$factDefinitionId'
+      path: '/$factDefinitionId'
+      fullPath: '/projects/$projectId/work-units/$projectWorkUnitId/facts/$factDefinitionId'
+      preLoaderRoute: typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsFactDefinitionIdRouteImport
+      parentRoute: typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsRoute
+    }
+    '/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots/$slotDefinitionId': {
+      id: '/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots/$slotDefinitionId'
+      path: '/$slotDefinitionId'
+      fullPath: '/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots/$slotDefinitionId'
+      preLoaderRoute: typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsSlotDefinitionIdRouteImport
+      parentRoute: typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsRoute
     }
     '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey': {
       id: '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey'
@@ -534,22 +740,111 @@ const MethodologiesRouteWithChildren = MethodologiesRoute._addFileChildren(
   MethodologiesRouteChildren,
 )
 
+interface ProjectsProjectIdFactsRouteChildren {
+  ProjectsProjectIdFactsFactDefinitionIdRoute: typeof ProjectsProjectIdFactsFactDefinitionIdRoute
+}
+
+const ProjectsProjectIdFactsRouteChildren: ProjectsProjectIdFactsRouteChildren =
+  {
+    ProjectsProjectIdFactsFactDefinitionIdRoute:
+      ProjectsProjectIdFactsFactDefinitionIdRoute,
+  }
+
+const ProjectsProjectIdFactsRouteWithChildren =
+  ProjectsProjectIdFactsRoute._addFileChildren(
+    ProjectsProjectIdFactsRouteChildren,
+  )
+
+interface ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsRouteChildren {
+  ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsSlotDefinitionIdRoute: typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsSlotDefinitionIdRoute
+}
+
+const ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsRouteChildren: ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsRouteChildren =
+  {
+    ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsSlotDefinitionIdRoute:
+      ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsSlotDefinitionIdRoute,
+  }
+
+const ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsRouteWithChildren =
+  ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsRoute._addFileChildren(
+    ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsRouteChildren,
+  )
+
+interface ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsRouteChildren {
+  ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsFactDefinitionIdRoute: typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsFactDefinitionIdRoute
+}
+
+const ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsRouteChildren: ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsRouteChildren =
+  {
+    ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsFactDefinitionIdRoute:
+      ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsFactDefinitionIdRoute,
+  }
+
+const ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsRouteWithChildren =
+  ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsRoute._addFileChildren(
+    ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsRouteChildren,
+  )
+
+interface ProjectsProjectIdWorkUnitsProjectWorkUnitIdRouteChildren {
+  ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsRoute: typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsRouteWithChildren
+  ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsRoute: typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsRouteWithChildren
+  ProjectsProjectIdWorkUnitsProjectWorkUnitIdStateMachineRoute: typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdStateMachineRoute
+}
+
+const ProjectsProjectIdWorkUnitsProjectWorkUnitIdRouteChildren: ProjectsProjectIdWorkUnitsProjectWorkUnitIdRouteChildren =
+  {
+    ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsRoute:
+      ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsRouteWithChildren,
+    ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsRoute:
+      ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsRouteWithChildren,
+    ProjectsProjectIdWorkUnitsProjectWorkUnitIdStateMachineRoute:
+      ProjectsProjectIdWorkUnitsProjectWorkUnitIdStateMachineRoute,
+  }
+
+const ProjectsProjectIdWorkUnitsProjectWorkUnitIdRouteWithChildren =
+  ProjectsProjectIdWorkUnitsProjectWorkUnitIdRoute._addFileChildren(
+    ProjectsProjectIdWorkUnitsProjectWorkUnitIdRouteChildren,
+  )
+
+interface ProjectsProjectIdWorkUnitsRouteChildren {
+  ProjectsProjectIdWorkUnitsProjectWorkUnitIdRoute: typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdRouteWithChildren
+}
+
+const ProjectsProjectIdWorkUnitsRouteChildren: ProjectsProjectIdWorkUnitsRouteChildren =
+  {
+    ProjectsProjectIdWorkUnitsProjectWorkUnitIdRoute:
+      ProjectsProjectIdWorkUnitsProjectWorkUnitIdRouteWithChildren,
+  }
+
+const ProjectsProjectIdWorkUnitsRouteWithChildren =
+  ProjectsProjectIdWorkUnitsRoute._addFileChildren(
+    ProjectsProjectIdWorkUnitsRouteChildren,
+  )
+
 interface ProjectsProjectIdRouteChildren {
   ProjectsProjectIdAgentsRoute: typeof ProjectsProjectIdAgentsRoute
-  ProjectsProjectIdFactsRoute: typeof ProjectsProjectIdFactsRoute
+  ProjectsProjectIdFactsRoute: typeof ProjectsProjectIdFactsRouteWithChildren
   ProjectsProjectIdPinningRoute: typeof ProjectsProjectIdPinningRoute
   ProjectsProjectIdTransitionsRoute: typeof ProjectsProjectIdTransitionsRoute
-  ProjectsProjectIdWorkUnitsRoute: typeof ProjectsProjectIdWorkUnitsRoute
+  ProjectsProjectIdWorkUnitsRoute: typeof ProjectsProjectIdWorkUnitsRouteWithChildren
+  ProjectsProjectIdWorkflowsRoute: typeof ProjectsProjectIdWorkflowsRoute
   ProjectsProjectIdIndexRoute: typeof ProjectsProjectIdIndexRoute
+  ProjectsProjectIdTransitionExecutionsTransitionExecutionIdRoute: typeof ProjectsProjectIdTransitionExecutionsTransitionExecutionIdRoute
+  ProjectsProjectIdWorkflowExecutionsWorkflowExecutionIdRoute: typeof ProjectsProjectIdWorkflowExecutionsWorkflowExecutionIdRoute
 }
 
 const ProjectsProjectIdRouteChildren: ProjectsProjectIdRouteChildren = {
   ProjectsProjectIdAgentsRoute: ProjectsProjectIdAgentsRoute,
-  ProjectsProjectIdFactsRoute: ProjectsProjectIdFactsRoute,
+  ProjectsProjectIdFactsRoute: ProjectsProjectIdFactsRouteWithChildren,
   ProjectsProjectIdPinningRoute: ProjectsProjectIdPinningRoute,
   ProjectsProjectIdTransitionsRoute: ProjectsProjectIdTransitionsRoute,
-  ProjectsProjectIdWorkUnitsRoute: ProjectsProjectIdWorkUnitsRoute,
+  ProjectsProjectIdWorkUnitsRoute: ProjectsProjectIdWorkUnitsRouteWithChildren,
+  ProjectsProjectIdWorkflowsRoute: ProjectsProjectIdWorkflowsRoute,
   ProjectsProjectIdIndexRoute: ProjectsProjectIdIndexRoute,
+  ProjectsProjectIdTransitionExecutionsTransitionExecutionIdRoute:
+    ProjectsProjectIdTransitionExecutionsTransitionExecutionIdRoute,
+  ProjectsProjectIdWorkflowExecutionsWorkflowExecutionIdRoute:
+    ProjectsProjectIdWorkflowExecutionsWorkflowExecutionIdRoute,
 }
 
 const ProjectsProjectIdRouteWithChildren =

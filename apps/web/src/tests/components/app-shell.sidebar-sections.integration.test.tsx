@@ -102,8 +102,17 @@ describe("buildSidebarSections", () => {
             to: "/projects/abc/work-units",
             isActive: false,
           }),
+          expect.objectContaining({
+            label: "Guidance",
+            to: "/projects/abc/transitions",
+            isActive: false,
+          }),
+          expect.objectContaining({
+            label: "Active Workflows",
+            to: "/projects/abc/workflows",
+            isActive: false,
+          }),
           expect.objectContaining({ label: "Artifacts", disabled: true }),
-          expect.objectContaining({ label: "Runs / History", disabled: true }),
           expect.objectContaining({
             label: "Pin / Methodology",
             to: "/projects/abc/pinning",

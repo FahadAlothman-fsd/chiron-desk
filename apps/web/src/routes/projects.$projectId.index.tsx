@@ -1,394 +1,45 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { ArrowRightIcon } from "lucide-react";
-import { z } from "zod";
 
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  RUNTIME_DEFERRED_RATIONALE,
-  getDeterministicState,
-} from "@/features/methodologies/foundation";
-import {
-  BaselineVisibilitySection,
-  type BaselinePreview,
-} from "@/features/projects/baseline-visibility";
+import { getDeterministicState } from "@/features/methodologies/foundation";
 import { MethodologyWorkspaceShell } from "@/features/methodologies/workspace-shell";
+import { cn } from "@/lib/utils";
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function readString(value: unknown): string | null {
-  return typeof value === "string" ? value : null;
-}
-
-function readOptionalString(value: unknown): string | null | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  return value === null ? null : readString(value);
-}
-
-function toValidationDiagnostic(
-  value: unknown,
-): BaselinePreview["diagnosticsHistory"][string][number] | null {
-  if (!isRecord(value)) {
-    return null;
-  }
-
-  const code = readString(value.code);
-  const scope = readString(value.scope);
-  const required = readString(value.required);
-  const observed = readString(value.observed);
-  const timestamp = readString(value.timestamp);
-  if (
-    code === null ||
-    scope === null ||
-    required === null ||
-    observed === null ||
-    timestamp === null ||
-    typeof value.blocking !== "boolean"
-  ) {
-    return null;
-  }
-
-  return {
-    code,
-    scope,
-    blocking: value.blocking,
-    required,
-    observed,
-    remediation: readOptionalString(value.remediation) ?? null,
-    timestamp,
-    evidenceRef: readOptionalString(value.evidenceRef) ?? null,
-  };
-}
-
-function toBaselineTransition(
-  value: unknown,
-): BaselinePreview["transitionPreview"]["transitions"][number] | null {
-  if (!isRecord(value)) {
-    return null;
-  }
-
-  const transitionKey = readString(value.transitionKey);
-  const toState = readString(value.toState);
-  const status = readString(value.status);
-  const statusReasonCode = readString(value.statusReasonCode);
-  const gateClass = value.gateClass;
-  if (
-    transitionKey === null ||
-    toState === null ||
-    statusReasonCode === null ||
-    (status !== "eligible" && status !== "blocked" && status !== "future") ||
-    (gateClass !== "start_gate" && gateClass !== "completion_gate")
-  ) {
-    return null;
-  }
-
-  const diagnostics = Array.isArray(value.diagnostics)
-    ? value.diagnostics.flatMap((diagnostic) => {
-        const parsed = toValidationDiagnostic(diagnostic);
-        return parsed ? [parsed] : [];
-      })
-    : [];
-
-  const conditionSets = Array.isArray(value.conditionSets)
-    ? value.conditionSets.flatMap((conditionSet) => {
-        if (!isRecord(conditionSet)) {
-          return [];
-        }
-        const key = readString(conditionSet.key);
-        const phase = conditionSet.phase;
-        const mode = conditionSet.mode;
-        if (
-          key === null ||
-          (phase !== "start" && phase !== "completion") ||
-          (mode !== "all" && mode !== "any")
-        ) {
-          return [];
-        }
-
-        const parsedConditionSet: BaselinePreview["transitionPreview"]["transitions"][number]["conditionSets"][number] =
-          {
-            key,
-            phase,
-            mode,
-            groups: Array.isArray(conditionSet.groups) ? conditionSet.groups : [],
-          };
-        return [parsedConditionSet];
-      })
-    : [];
-
-  const workflows = Array.isArray(value.workflows)
-    ? value.workflows.flatMap((workflow) => {
-        if (!isRecord(workflow)) {
-          return [];
-        }
-        const workflowKey = readString(workflow.workflowKey);
-        const disabledReason = readString(workflow.disabledReason);
-        const helperText = readString(workflow.helperText);
-        if (
-          workflowKey === null ||
-          disabledReason === null ||
-          helperText === null ||
-          workflow.enabled !== false
-        ) {
-          return [];
-        }
-
-        return [
-          {
-            workflowKey,
-            enabled: false as const,
-            disabledReason,
-            helperText,
-          },
-        ];
-      })
-    : [];
-
-  return {
-    transitionKey,
-    fromState: readOptionalString(value.fromState) ?? null,
-    toState,
-    gateClass,
-    status,
-    statusReasonCode,
-    ...(value.guidance !== undefined ? { guidance: value.guidance } : {}),
-    conditionSets,
-    diagnostics,
-    workflows,
-  };
-}
-
-export function toBaselinePreview(value: unknown): BaselinePreview | null {
-  if (!isRecord(value)) {
-    return null;
-  }
-
-  const summary = isRecord(value.summary) ? value.summary : null;
-  const transitionPreview = isRecord(value.transitionPreview) ? value.transitionPreview : null;
-  if (summary === null || transitionPreview === null) {
-    return null;
-  }
-
-  const methodologyKey = readString(summary.methodologyKey);
-  const pinnedVersion = readString(summary.pinnedVersion);
-  const publishState = readString(summary.publishState);
-  const validationStatus = readString(summary.validationStatus);
-  const setupFactsStatus = readString(summary.setupFactsStatus);
-  const currentState = readString(transitionPreview.currentState);
-  if (
-    methodologyKey === null ||
-    pinnedVersion === null ||
-    publishState === null ||
-    validationStatus === null ||
-    setupFactsStatus === null ||
-    currentState === null
-  ) {
-    return null;
-  }
-
-  const transitions = Array.isArray(transitionPreview.transitions)
-    ? transitionPreview.transitions.flatMap((transition) => {
-        const parsed = toBaselineTransition(transition);
-        return parsed ? [parsed] : [];
-      })
-    : [];
-
-  const diagnosticsHistory = isRecord(value.diagnosticsHistory)
-    ? Object.fromEntries(
-        Object.entries(value.diagnosticsHistory).map(([context, diagnostics]) => [
-          context,
-          Array.isArray(diagnostics)
-            ? diagnostics.flatMap((diagnostic) => {
-                const parsed = toValidationDiagnostic(diagnostic);
-                return parsed ? [parsed] : [];
-              })
-            : [],
-        ]),
-      )
-    : {};
-
-  const evidenceTimeline = Array.isArray(value.evidenceTimeline)
-    ? value.evidenceTimeline.flatMap((event) => {
-        if (!isRecord(event)) {
-          return [];
-        }
-        const kind = readString(event.kind);
-        const timestamp = readString(event.timestamp);
-        const reference = readString(event.reference);
-        if (kind === null || timestamp === null || reference === null) {
-          return [];
-        }
-
-        return [
-          {
-            kind,
-            actor: readOptionalString(event.actor) ?? null,
-            timestamp,
-            reference,
-          },
-        ];
-      })
-    : [];
-
-  const facts = Array.isArray(value.facts)
-    ? value.facts.flatMap((fact) => {
-        if (!isRecord(fact)) {
-          return [];
-        }
-        const key = readString(fact.key);
-        const type = readString(fact.type);
-        const indicator = fact.indicator;
-        if (
-          key === null ||
-          type === null ||
-          typeof fact.missing !== "boolean" ||
-          (indicator !== "blocking" && indicator !== "ok")
-        ) {
-          return [];
-        }
-
-        return [
-          {
-            key,
-            type,
-            value: fact.value,
-            required: fact.required === true,
-            missing: fact.missing,
-            indicator,
-            sourceExecutionId: readOptionalString(fact.sourceExecutionId) ?? null,
-            updatedAt: readOptionalString(fact.updatedAt) ?? null,
-          } satisfies BaselinePreview["facts"][number],
-        ];
-      })
-    : [];
-
-  const projectionSummary = isRecord(value.projectionSummary)
-    ? {
-        workUnits: Array.isArray(value.projectionSummary.workUnits)
-          ? value.projectionSummary.workUnits.flatMap((workUnit) => {
-              if (!isRecord(workUnit)) {
-                return [];
-              }
-              const workUnitTypeKey = readString(workUnit.workUnitTypeKey);
-              if (workUnitTypeKey === null) {
-                return [];
-              }
-              return [
-                {
-                  workUnitTypeKey,
-                  ...(workUnit.guidance !== undefined ? { guidance: workUnit.guidance } : {}),
-                },
-              ];
-            })
-          : [],
-        agents: Array.isArray(value.projectionSummary.agents)
-          ? value.projectionSummary.agents.flatMap((agent) => {
-              if (!isRecord(agent)) {
-                return [];
-              }
-              const agentTypeKey = readString(agent.agentTypeKey);
-              if (agentTypeKey === null) {
-                return [];
-              }
-              return [
-                {
-                  agentTypeKey,
-                  ...(agent.guidance !== undefined ? { guidance: agent.guidance } : {}),
-                },
-              ];
-            })
-          : [],
-        transitions: Array.isArray(value.projectionSummary.transitions)
-          ? value.projectionSummary.transitions.flatMap((transition) => {
-              if (!isRecord(transition)) {
-                return [];
-              }
-              const transitionKey = readString(transition.transitionKey);
-              const toState = readString(transition.toState);
-              const gateClass = transition.gateClass;
-              if (
-                transitionKey === null ||
-                toState === null ||
-                (gateClass !== "start_gate" && gateClass !== "completion_gate")
-              ) {
-                return [];
-              }
-
-              const parsedTransition: NonNullable<
-                BaselinePreview["projectionSummary"]
-              >["transitions"][number] = {
-                transitionKey,
-                workUnitTypeKey: readOptionalString(transition.workUnitTypeKey) ?? null,
-                fromState: readOptionalString(transition.fromState) ?? null,
-                toState,
-                gateClass,
-              };
-
-              return [parsedTransition];
-            })
-          : [],
-        facts: Array.isArray(value.projectionSummary.facts)
-          ? value.projectionSummary.facts.flatMap((fact) => {
-              if (!isRecord(fact)) {
-                return [];
-              }
-              const workUnitTypeKey = readString(fact.workUnitTypeKey);
-              const key = readString(fact.key);
-              const type = readString(fact.type);
-              if (workUnitTypeKey === null || key === null || type === null) {
-                return [];
-              }
-
-              return [
-                {
-                  workUnitTypeKey,
-                  key,
-                  type,
-                  required: fact.required === true,
-                  defaultValue: fact.defaultValue,
-                },
-              ];
-            })
-          : [],
-      }
-    : undefined;
-
-  return {
-    summary: {
-      methodologyKey,
-      pinnedVersion,
-      publishState,
-      validationStatus,
-      setupFactsStatus,
-    },
-    transitionPreview: {
-      workUnitTypeKey: readOptionalString(transitionPreview.workUnitTypeKey) ?? null,
-      currentState,
-      transitions,
-    },
-    ...(projectionSummary ? { projectionSummary } : {}),
-    facts,
-    diagnosticsHistory,
-    evidenceTimeline,
-  };
-}
-
-const dashboardSearchSchema = z.object({
-  workUnitTypeKey: z.string().min(1).optional(),
-});
+const runtimeOverviewQueryKey = (projectId: string) => ["runtime-overview", projectId] as const;
 
 export const Route = createFileRoute("/projects/$projectId/")({
-  validateSearch: (search) => dashboardSearchSchema.parse(search),
   component: ProjectDashboardRoute,
 });
 
-function formatTimestamp(timestamp: string): string {
+type RuntimeStatCardProps = {
+  title: string;
+  value: string;
+  subtitle: string;
+};
+
+function RuntimeStatCard({ title, value, subtitle }: RuntimeStatCardProps) {
+  return (
+    <Card
+      frame="cut"
+      tone="runtime"
+      className="h-full border-border/80 bg-background/40 transition-colors group-hover:border-primary/60"
+    >
+      <CardHeader className="space-y-1 pb-2">
+        <CardDescription className="text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
+          {title}
+        </CardDescription>
+        <CardTitle className="text-2xl leading-none tracking-[0.02em]">{value}</CardTitle>
+      </CardHeader>
+      <CardContent className="text-xs text-muted-foreground">{subtitle}</CardContent>
+    </Card>
+  );
+}
+
+function formatStartedAt(timestamp: string): string {
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) {
     return timestamp;
@@ -399,150 +50,133 @@ function formatTimestamp(timestamp: string): string {
 
 export function ProjectDashboardRoute() {
   const { projectId } = Route.useParams();
-  const search = Route.useSearch();
-  const navigate = Route.useNavigate();
   const { orpc } = Route.useRouteContext();
 
-  const projectQuery = useQuery(
-    orpc.project.getProjectDetails.queryOptions({
-      input: { projectId, workUnitTypeKey: search.workUnitTypeKey },
+  const runtimeOverviewQuery = useQuery({
+    ...orpc.project.getRuntimeOverview.queryOptions({
+      input: { projectId },
     }),
-  );
+    queryKey: runtimeOverviewQueryKey(projectId),
+  });
 
   const state = getDeterministicState({
-    isLoading: projectQuery.isLoading,
-    hasError: Boolean(projectQuery.error),
-    hasData: Boolean(projectQuery.data),
+    isLoading: runtimeOverviewQuery.isLoading,
+    hasError: Boolean(runtimeOverviewQuery.error),
+    hasData: Boolean(runtimeOverviewQuery.data),
     isBlocked: false,
   });
 
+  const runtimeOverview = runtimeOverviewQuery.data;
   return (
     <MethodologyWorkspaceShell
-      title="Project dashboard"
+      title="Project overview"
       stateLabel={state}
-      segments={[
-        { label: "Projects", to: "/projects" },
-        { label: projectQuery.data?.project.displayName ?? projectId },
-      ]}
+      segments={[{ label: "Projects", to: "/projects" }, { label: projectId }]}
     >
-      <section className="space-y-4 border border-border/80 bg-background p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="space-y-2">
-            <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
-              Project overview
-            </p>
-            <h2 className="text-lg font-semibold tracking-[0.04em]">
-              {projectQuery.data?.project.displayName ?? projectId}
-            </h2>
-          </div>
-          <Link
-            to="/projects/$projectId/pinning"
-            params={{ projectId }}
-            className={
-              buttonVariants({ variant: "default" }) + " rounded-none uppercase tracking-[0.12em]"
-            }
-          >
-            Open pinning workspace
-            <ArrowRightIcon className="size-4" />
-          </Link>
-        </div>
+      <section className="space-y-3">
+        <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
+          Runtime project overview
+        </p>
 
-        {projectQuery.isLoading ? <Skeleton className="h-20 w-full rounded-none" /> : null}
+        {runtimeOverviewQuery.isLoading ? <Skeleton className="h-36 w-full rounded-none" /> : null}
 
-        {!projectQuery.isLoading && projectQuery.data ? (
-          <div className="grid gap-3 border border-border/70 bg-background/30 p-3 md:grid-cols-3">
-            <div className="space-y-1">
-              <p className="text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
-                Project ID
-              </p>
-              <p className="break-all text-sm">{projectQuery.data.project.id}</p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
-                Created
-              </p>
-              <p className="text-sm">{formatTimestamp(projectQuery.data.project.createdAt)}</p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
-                Last Updated
-              </p>
-              <p className="text-sm">{formatTimestamp(projectQuery.data.project.updatedAt)}</p>
-            </div>
+        {!runtimeOverviewQuery.isLoading && runtimeOverview ? (
+          <div className="grid gap-3 md:grid-cols-3">
+            <Link
+              to="/projects/$projectId/facts"
+              params={{ projectId }}
+              search={{
+                q: "",
+                existence: runtimeOverview.stats.factTypesWithInstances.target.filters.existence,
+                factType: "all",
+              }}
+              className="group block"
+            >
+              <RuntimeStatCard
+                title="Fact types with instances"
+                value={`${runtimeOverview.stats.factTypesWithInstances.current ?? 0}/${runtimeOverview.stats.factTypesWithInstances.total ?? 0}`}
+                subtitle={runtimeOverview.stats.factTypesWithInstances.subtitle}
+              />
+            </Link>
+
+            <Link
+              to="/projects/$projectId/work-units"
+              params={{ projectId }}
+              search={{ q: "", hasActiveTransition: "all" }}
+              className="group block"
+            >
+              <RuntimeStatCard
+                title="Work-unit types with instances"
+                value={`${runtimeOverview.stats.workUnitTypesWithInstances.current ?? 0}/${runtimeOverview.stats.workUnitTypesWithInstances.total ?? 0}`}
+                subtitle={runtimeOverview.stats.workUnitTypesWithInstances.subtitle}
+              />
+            </Link>
+
+            <Link
+              to="/projects/$projectId/transitions"
+              params={{ projectId }}
+              search={{ q: "", status: "all" }}
+              className="group block"
+            >
+              <RuntimeStatCard
+                title="Active transitions"
+                value={`${runtimeOverview.stats.activeTransitions.count ?? 0}`}
+                subtitle={runtimeOverview.stats.activeTransitions.subtitle}
+              />
+            </Link>
           </div>
         ) : null}
       </section>
 
       <section className="space-y-3 border border-border/80 bg-background p-4">
         <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
-          Active methodology pin
+          Active workflows
         </p>
 
-        {projectQuery.isLoading ? <Skeleton className="h-16 w-full rounded-none" /> : null}
+        {runtimeOverviewQuery.isLoading ? <Skeleton className="h-32 w-full rounded-none" /> : null}
 
-        {!projectQuery.isLoading && projectQuery.data?.pin ? (
-          <div className="grid gap-3 border border-border/70 bg-background/30 p-3 md:grid-cols-4">
-            <div className="space-y-1">
-              <p className="text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
-                Methodology
-              </p>
-              <p className="text-sm font-medium">{projectQuery.data.pin.methodologyKey}</p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
-                Version
-              </p>
-              <p className="text-sm font-medium">{projectQuery.data.pin.publishedVersion}</p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
-                Actor
-              </p>
-              <p className="break-all text-sm">{projectQuery.data.pin.actorId}</p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
-                Updated
-              </p>
-              <p className="text-sm">{formatTimestamp(projectQuery.data.pin.timestamp)}</p>
-            </div>
-          </div>
-        ) : null}
-
-        {!projectQuery.isLoading && !projectQuery.data?.pin ? (
-          <div className="space-y-2 border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-            <p className="font-medium text-amber-200">No active pin found.</p>
-            <p className="text-muted-foreground">
-              Open the pinning workspace to choose a methodology and pin a published version.
-            </p>
-          </div>
+        {!runtimeOverviewQuery.isLoading && runtimeOverview ? (
+          runtimeOverview.activeWorkflows.length > 0 ? (
+            <ul className="space-y-2">
+              {runtimeOverview.activeWorkflows.map((workflow) => (
+                <li
+                  key={workflow.workflowExecutionId}
+                  className="border border-border/70 bg-background/40 p-3 text-sm"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="space-y-1">
+                      <p className="font-medium">{workflow.workflowName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {workflow.workflowKey} · {workflow.workUnit.workUnitTypeKey} · transition{" "}
+                        {workflow.transition.transitionKey}
+                      </p>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      started {formatStartedAt(workflow.startedAt)}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">No active workflows right now.</p>
+          )
         ) : null}
       </section>
 
-      <BaselineVisibilitySection
-        baselinePreview={toBaselinePreview(projectQuery.data?.baselinePreview ?? null)}
-        {...(search.workUnitTypeKey !== undefined
-          ? { selectedWorkUnitTypeKey: search.workUnitTypeKey }
-          : {})}
-        onSelectWorkUnitType={(workUnitTypeKey) => {
-          navigate({
-            search: {
-              ...search,
-              workUnitTypeKey,
-            },
-            replace: true,
-          });
-        }}
-      />
-
-      <section className="border border-border/80 bg-background p-4">
-        <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">Runtime</p>
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <Button aria-disabled="true" disabled variant="outline" className="rounded-none">
-            Runtime Execution (Epic 3+)
-          </Button>
-          <p className="text-xs text-muted-foreground">{RUNTIME_DEFERRED_RATIONALE}</p>
-        </div>
+      <section className="border border-primary/40 bg-primary/10 p-4">
+        <Link
+          to="/projects/$projectId/transitions"
+          params={{ projectId }}
+          search={{ q: "", status: "all" }}
+          className={cn(
+            buttonVariants({ variant: "default", size: "lg" }),
+            "w-full justify-between rounded-none text-[0.72rem] uppercase tracking-[0.14em]",
+          )}
+        >
+          Go to Guidance
+          <ArrowRightIcon className="size-4" />
+        </Link>
       </section>
     </MethodologyWorkspaceShell>
   );

@@ -10,12 +10,16 @@
       "default": "./src/*.ts"
     }
   },
+  "scripts": {
+    "test": "bunx vitest run"
+  },
   "dependencies": {
     "@chiron/contracts": "workspace:*",
     "effect": "catalog:"
   },
   "devDependencies": {
     "@chiron/config": "workspace:*",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

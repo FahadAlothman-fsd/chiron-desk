@@ -273,7 +273,7 @@ Wave 4: detail pages + cleanup/governance
 > Implementation + Test = ONE task. Never separate.
 > EVERY task MUST have: Agent Profile + Parallelization + QA Scenarios.
 
-- [ ] 1. Freeze runtime contracts, route inventory, and package test harnesses
+- [x] 1. Freeze runtime contracts, route inventory, and package test harnesses
 
   **What to do**: Create the shared runtime contract modules under `packages/contracts/src/runtime/` (`status.ts`, `conditions.ts`, `overview.ts`, `guidance.ts`, `work-units.ts`, `facts.ts`, `artifacts.ts`, `executions.ts`, `index.ts`) and export them from `packages/contracts/src/index.ts`. Encode the locked route inventory and stream-event taxonomy directly in the contract schemas, add package-local `test` scripts to `packages/db/package.json` and `packages/workflow-engine/package.json`, and create failing contract tests that lock the legacy-compatibility rules (`project_executions` legacy-only, no `step_executions`, event types/version fixed, only `fact | work_unit_fact | artifact` condition kinds).
   **Must NOT do**: Do not add runtime implementation logic, router handlers, or DB writes in this task. Do not reuse or extend `desktop-runtime` contracts for L1/L2 web runtime. Do not add any L3/step schemas.
@@ -307,7 +307,7 @@ Wave 4: detail pages + cleanup/governance
   ```
   **Commit**: YES | Message: `feat(runtime): lock l1-l2 runtime contracts and cutover rules` | Files: `packages/contracts/src/runtime/**`, `packages/contracts/src/index.ts`, `packages/contracts/src/tests/runtime/**`, `packages/db/package.json`, `packages/workflow-engine/package.json`
 
-- [ ] 2. Add runtime schema, migration, and legacy-history-aware repin bridge
+- [x] 2. Add runtime schema, migration, and legacy-history-aware repin bridge
 
   **What to do**: Add `projects.project_root_path` to `packages/db/src/schema/project.ts`; create `packages/db/src/schema/runtime.ts` with the locked L1/L2 tables; export them from `packages/db/src/schema/index.ts`; add `packages/db/src/migrations/0001_runtime_l1_l2.sql`. Replace `hasPersistedExecutions` with a runtime-history-aware read path that blocks repin when legacy `project_executions` rows exist or any new runtime rows exist while leaving `project_executions` untouched and read-only.
   **Must NOT do**: Do not rename `project_executions`, write new runtime rows into it, introduce `step_executions`, or add policy/delete/blob fields.
@@ -343,7 +343,7 @@ Wave 4: detail pages + cleanup/governance
   ```
   **Commit**: YES | Message: `feat(runtime): add l1-l2 runtime schema and repin history bridge` | Files: `packages/db/src/schema/project.ts`, `packages/db/src/schema/runtime.ts`, `packages/db/src/schema/index.ts`, `packages/db/src/migrations/0001_runtime_l1_l2.sql`, `packages/project-context/src/repository.ts`, `packages/project-context/src/service.ts`, `packages/db/src/project-context-repository.ts`, `packages/db/src/tests/schema/runtime-schema.test.ts`, `packages/project-context/src/tests/service/runtime-history-repin.test.ts`
 
-- [ ] 3. Implement runtime repository layers for anchors and execution lineage
+- [x] 3. Implement runtime repository layers for anchors and execution lineage
 
   **What to do**: Define narrow repository ports in `packages/workflow-engine/src/repositories/` for `ProjectWorkUnitRepository`, `TransitionExecutionRepository`, `WorkflowExecutionRepository`, and `ExecutionReadRepository`, then implement their DB-backed layers in `packages/db/src/runtime-repositories/` and export them from `packages/db/src/index.ts`. Cover creation/list/current-selection operations for `project_work_units`, `transition_executions`, and `workflow_executions`, including atomic start, switch, retry, and primary-pointer updates; keep joined read models in `ExecutionReadRepository` rather than bloating the write repos.
   **Must NOT do**: Do not place business rules in API/router files, bundle fact/artifact writes here, or model activity by mutating old rows beyond the locked active pointers and supersession fields.
@@ -377,7 +377,7 @@ Wave 4: detail pages + cleanup/governance
   ```
   **Commit**: YES | Message: `feat(runtime): add runtime execution repositories` | Files: `packages/workflow-engine/src/repositories/**`, `packages/db/src/runtime-repositories/project-work-unit-repository.ts`, `packages/db/src/runtime-repositories/transition-execution-repository.ts`, `packages/db/src/runtime-repositories/workflow-execution-repository.ts`, `packages/db/src/runtime-repositories/execution-read-repository.ts`, `packages/db/src/index.ts`, `packages/db/src/tests/repository/runtime-executions-repository.test.ts`, `packages/db/src/tests/repository/runtime-work-units-repository.test.ts`
 
-- [ ] 4. Implement runtime repository support for facts, artifacts, and current-state reconstruction
+- [x] 4. Implement runtime repository support for facts, artifacts, and current-state reconstruction
 
   **What to do**: Add `ProjectFactRepository`, `WorkUnitFactRepository`, and `ArtifactRepository` ports under `packages/workflow-engine/src/repositories/` and implement their DB-backed layers under `packages/db/src/runtime-repositories/`. Lock immutable lineage writes/reads for `project_fact_instances`, `work_unit_fact_instances`, `project_artifact_snapshots`, and `artifact_snapshot_files`, including `member_status = present|removed`, `exists = false` when the latest artifact lineage resolves to zero live members, and direct `referenced_project_work_unit_id` handling for work-unit-reference facts.
   **Must NOT do**: Do not add delete/clear flows, artifact file contents, or policy state. Do not model work-unit references on project facts. Do not treat missing `project_root_path` as `stale` or `fresh`.
@@ -411,7 +411,7 @@ Wave 4: detail pages + cleanup/governance
   ```
   **Commit**: YES | Message: `feat(runtime): add fact and artifact lineage repositories` | Files: `packages/workflow-engine/src/repositories/project-fact-repository.ts`, `packages/workflow-engine/src/repositories/work-unit-fact-repository.ts`, `packages/workflow-engine/src/repositories/artifact-repository.ts`, `packages/db/src/runtime-repositories/project-fact-repository.ts`, `packages/db/src/runtime-repositories/work-unit-fact-repository.ts`, `packages/db/src/runtime-repositories/artifact-repository.ts`, `packages/db/src/tests/repository/runtime-facts-repository.test.ts`, `packages/db/src/tests/repository/runtime-artifacts-repository.test.ts`, `packages/db/src/tests/repository/runtime-condition-prereqs.test.ts`
 
-- [ ] 5. Build workflow-engine runtime projection services and condition evaluation
+- [x] 5. Build workflow-engine runtime projection services and condition evaluation
 
   **What to do**: Implement the runtime Effect layer in `packages/workflow-engine` using repository ports from Task 3/4. Create `runtime-overview-service.ts`, `runtime-guidance-service.ts`, `runtime-work-unit-service.ts`, `runtime-workflow-index-service.ts`, `runtime-fact-service.ts`, `runtime-artifact-service.ts`, and `runtime-gate-service.ts`, then export a merged runtime live layer from `packages/workflow-engine/src/layers/live.ts` and `src/index.ts`. `RuntimeGateService` must expose exactly `evaluateStartGate(...)` and `evaluateCompletionGate(...)`; `RuntimeGuidanceService` owns stream orchestration but delegates gate semantics to `RuntimeGateService`.
   **Must NOT do**: Do not put repository SQL or router code here. Do not read methodology draft-editing seams. Do not infer L3/step state to answer Active/Open/Future queries.
@@ -445,7 +445,7 @@ Wave 4: detail pages + cleanup/governance
   ```
   **Commit**: NO | Message: `feat(runtime): add runtime projection services` | Files: `packages/workflow-engine/src/services/runtime-overview-service.ts`, `packages/workflow-engine/src/services/runtime-guidance-service.ts`, `packages/workflow-engine/src/services/runtime-work-unit-service.ts`, `packages/workflow-engine/src/services/runtime-workflow-index-service.ts`, `packages/workflow-engine/src/services/runtime-fact-service.ts`, `packages/workflow-engine/src/services/runtime-artifact-service.ts`, `packages/workflow-engine/src/services/runtime-gate-service.ts`, `packages/workflow-engine/src/layers/live.ts`, `packages/workflow-engine/src/index.ts`, `packages/workflow-engine/src/tests/runtime/**`
 
-- [ ] 6. Build workflow-engine transition/workflow detail and command services
+- [x] 6. Build workflow-engine transition/workflow detail and command services
 
   **What to do**: Add `transition-execution-detail-service.ts`, `transition-execution-command-service.ts`, `workflow-execution-detail-service.ts`, and `workflow-execution-command-service.ts` in `packages/workflow-engine/src/services/`. Keep the read-model services separate from command services. `TransitionExecutionDetailService` may call `RuntimeGateService.evaluateCompletionGate(...)` for the completion panel; `TransitionExecutionCommandService` may call `RuntimeGateService.evaluateStartGate(...)` and `evaluateCompletionGate(...)` for command pre-checks. `completeTransitionExecution` must live-re-evaluate completion gates, mark transition execution completed, update `project_work_units.current_state_id`, and clear `active_transition_execution_id` only when gates pass. `choosePrimaryWorkflowForTransitionExecution` must create a new primary workflow execution and supersede the previous primary attempt. `retrySameWorkflowExecution` must create a new workflow execution for the same definition and only update the transition primary pointer when the retried workflow role is `primary`.
   **Must NOT do**: Do not choose a different workflow definition from the workflow detail page. Do not expose L3 steps. Do not duplicate completion-gate logic separately in read and command paths.
@@ -478,7 +478,7 @@ Wave 4: detail pages + cleanup/governance
   ```
   **Commit**: YES | Message: `feat(runtime): add execution detail command services` | Files: `packages/workflow-engine/src/services/transition-execution-*.ts`, `packages/workflow-engine/src/services/workflow-execution-*.ts`, `packages/workflow-engine/src/tests/runtime/transition-execution-services.test.ts`, `packages/workflow-engine/src/tests/runtime/workflow-execution-services.test.ts`
 
-- [ ] 7. Add runtime API queries for overview, lists, facts, and artifacts
+- [x] 7. Add runtime API queries for overview, lists, facts, and artifacts
 
   **What to do**: Create `packages/api/src/routers/project-runtime.ts` and wire it into `packages/api/src/routers/project.ts` / `packages/api/src/routers/index.ts` without bloating existing handlers. Implement query procedures exactly named `project.getRuntimeOverview`, `project.getRuntimeWorkUnits`, `project.getRuntimeWorkUnitOverview`, `project.getRuntimeWorkUnitStateMachine`, `project.getRuntimeProjectFacts`, `project.getRuntimeProjectFactDetail`, `project.getRuntimeWorkUnitFacts`, `project.getRuntimeWorkUnitFactDetail`, `project.getRuntimeArtifactSlots`, `project.getRuntimeArtifactSlotDetail`, `project.getRuntimeArtifactSnapshotDialog`, and `project.getRuntimeActiveWorkflows`. Each query procedure must call exactly one top-level service method from the locked seam matrix and do no repo composition in-router.
   **Must NOT do**: Do not embed domain logic in router handlers. Do not change preview payload shape. Do not create raw SSE endpoints.
@@ -512,7 +512,7 @@ Wave 4: detail pages + cleanup/governance
   ```
   **Commit**: NO | Message: `feat(runtime): add runtime query router` | Files: `packages/api/src/routers/project-runtime.ts`, `packages/api/src/routers/project.ts`, `packages/api/src/routers/index.ts`, `packages/api/src/tests/routers/project-runtime-queries.test.ts`, `packages/api/src/tests/routers/project-runtime-errors.test.ts`, `packages/api/package.json`
 
-- [ ] 8. Add runtime API streams and mutations for guidance and execution actions
+- [x] 8. Add runtime API streams and mutations for guidance and execution actions
 
   **What to do**: Extend `packages/api/src/routers/project-runtime.ts` with `project.streamRuntimeGuidanceCandidates`, `project.getRuntimeGuidanceActive`, `project.getRuntimeStartGateDetail`, `project.startTransitionExecution`, `project.switchActiveTransitionExecution`, `project.completeTransitionExecution`, `project.choosePrimaryWorkflowForTransitionExecution`, `project.getRuntimeTransitionExecutionDetail`, `project.getRuntimeWorkflowExecutionDetail`, `project.retrySameWorkflowExecution`, `project.checkArtifactSlotCurrentState`, `project.addRuntimeProjectFactValue`, `project.setRuntimeProjectFactValue`, `project.replaceRuntimeProjectFactValue`, `project.addRuntimeWorkUnitFactValue`, `project.setRuntimeWorkUnitFactValue`, and `project.replaceRuntimeWorkUnitFactValue`. Guidance streaming must use one root stream fiber with structured bounded child concurrency by work-unit group only.
   **Must NOT do**: Do not let guidance start/switch flows expose completion gates. Do not implement resume-token streaming. Do not allow workflow detail to choose a different workflow definition.
@@ -545,7 +545,7 @@ Wave 4: detail pages + cleanup/governance
   ```
   **Commit**: YES | Message: `feat(runtime): add runtime streams and mutations` | Files: `packages/api/src/routers/project-runtime.ts`, `packages/api/src/tests/routers/project-runtime-stream.test.ts`, `packages/api/src/tests/routers/project-runtime-mutations.test.ts`, `packages/api/src/tests/routers/project-runtime-detail-endpoints.test.ts`
 
-- [ ] 9. Cut over Project Overview and Project Facts to runtime-backed data
+- [x] 9. Cut over Project Overview and Project Facts to runtime-backed data
 
   **What to do**: Replace the deferred runtime copy in `apps/web/src/routes/projects.$projectId.index.tsx` with the locked Project Overview payload from `project.getRuntimeOverview`. Keep the page lean: clickable stat cards for fact types with instances, work-unit types with instances, active transitions; active workflow list; prominent `Go to Guidance` CTA. Cut `apps/web/src/routes/projects.$projectId.facts.tsx` over to `project.getRuntimeProjectFacts` and add `apps/web/src/routes/projects.$projectId.facts.$factDefinitionId.tsx` for the locked definition-scoped Project Fact Detail surface. Wire project-fact add/set/replace controls only to `project.addRuntimeProjectFactValue`, `project.setRuntimeProjectFactValue`, and `project.replaceRuntimeProjectFactValue`.
   **Must NOT do**: Do not keep `Runtime Execution (Epic 3+)` placeholder copy. Do not add filters, history timelines, delete/clear actions, or work-unit-reference handling to Project Facts.
@@ -579,7 +579,7 @@ Wave 4: detail pages + cleanup/governance
   ```
   **Commit**: NO | Message: `feat(runtime): cut project overview and facts to runtime data` | Files: `apps/web/src/routes/projects.$projectId.index.tsx`, `apps/web/src/routes/projects.$projectId.facts.tsx`, `apps/web/src/routes/projects.$projectId.facts.$factDefinitionId.tsx`, `apps/web/src/tests/routes/runtime-project-overview.test.tsx`, `apps/web/src/tests/routes/runtime-project-facts.test.tsx`, `tests/e2e/runtime-overview-and-facts.spec.ts`
 
-- [ ] 10. Cut over `/projects/$projectId/transitions` into Runtime Guidance
+- [x] 10. Cut over `/projects/$projectId/transitions` into Runtime Guidance
 
   **What to do**: Reuse `apps/web/src/routes/projects.$projectId.transitions.tsx` as the Runtime Guidance page. Change the page title/nav copy to Guidance while keeping the URL stable. Load `project.getRuntimeGuidanceActive` and `project.streamRuntimeGuidanceCandidates` in parallel; render exactly two sections, `Active` and `Open/Future`; use the shared start-gate drill-in dialog from `project.getRuntimeStartGateDetail`; wire `startTransitionExecution` and `switchActiveTransitionExecution`.
   **Must NOT do**: Do not add completion-gate trees or `Complete Transition` actions here. Do not split Open and Future into separate top-level sections. Do not create a separate guidance route or raw SSE client.
@@ -612,7 +612,7 @@ Wave 4: detail pages + cleanup/governance
   ```
   **Commit**: YES | Message: `feat(runtime): cut transitions route over to runtime guidance` | Files: `apps/web/src/routes/projects.$projectId.transitions.tsx`, `apps/web/src/components/runtime/**`, `apps/web/src/tests/routes/runtime-guidance.test.tsx`, `apps/web/src/tests/routes/runtime-guidance-reconnect.test.tsx`, `tests/e2e/runtime-guidance.spec.ts`
 
-- [ ] 11. Cut over Work Units list, Work Unit Overview, and Work Unit State Machine shell
+- [x] 11. Cut over Work Units list, Work Unit Overview, and Work Unit State Machine shell
 
   **What to do**: Convert `apps/web/src/routes/projects.$projectId.work-units.tsx` from methodology-preview content to the runtime instance index returned by `project.getRuntimeWorkUnits`. Add `apps/web/src/routes/projects.$projectId.work-units.$projectWorkUnitId.tsx` for the Work Unit Overview and `apps/web/src/routes/projects.$projectId.work-units.$projectWorkUnitId.state-machine.tsx` for the Work Unit State Machine.
   **Must NOT do**: Do not show future/inactive-instantiation opportunities on the state-machine page. Do not add transition history browsing to overview. Do not add gate trees inline on overview.
@@ -646,7 +646,7 @@ Wave 4: detail pages + cleanup/governance
   ```
   **Commit**: NO | Message: `feat(runtime): cut work-unit list and state surfaces` | Files: `apps/web/src/routes/projects.$projectId.work-units.tsx`, `apps/web/src/routes/projects.$projectId.work-units.$projectWorkUnitId.tsx`, `apps/web/src/routes/projects.$projectId.work-units.$projectWorkUnitId.state-machine.tsx`, `apps/web/src/tests/routes/runtime-work-units.test.tsx`, `apps/web/src/tests/routes/runtime-work-unit-overview.test.tsx`, `apps/web/src/tests/routes/runtime-work-unit-state-machine.test.tsx`, `tests/e2e/runtime-work-units.spec.ts`
 
-- [ ] 12. Add Active Workflows page and execution-route shells/navigation
+- [x] 12. Add Active Workflows page and execution-route shells/navigation
 
   **What to do**: Add `apps/web/src/routes/projects.$projectId.workflows.tsx` for the active-only workflow execution table and create the route shells for `projects.$projectId.transition-executions.$transitionExecutionId.tsx` and `projects.$projectId.workflow-executions.$workflowExecutionId.tsx` with their shared layout/navigation plumbing, breadcrumb context, and loader boundaries.
   **Must NOT do**: Do not add a status column to Active Workflows. Do not implement full detail-page bodies in this task. Do not create a project-wide historical workflows browser.
@@ -678,7 +678,7 @@ Wave 4: detail pages + cleanup/governance
   ```
   **Commit**: YES | Message: `feat(runtime): add active workflow index and execution route shells` | Files: `apps/web/src/routes/projects.$projectId.workflows.tsx`, `apps/web/src/routes/projects.$projectId.transition-executions.$transitionExecutionId.tsx`, `apps/web/src/routes/projects.$projectId.workflow-executions.$workflowExecutionId.tsx`, `apps/web/src/tests/routes/runtime-active-workflows.test.tsx`, `apps/web/src/tests/routes/runtime-execution-route-shells.test.tsx`, `tests/e2e/runtime-active-workflows.spec.ts`
 
-- [ ] 13. Implement Work Unit Facts list/detail routes
+- [x] 13. Implement Work Unit Facts list/detail routes
 
   **What to do**: Add `apps/web/src/routes/projects.$projectId.work-units.$projectWorkUnitId.facts.tsx` and `apps/web/src/routes/projects.$projectId.work-units.$projectWorkUnitId.facts.$factDefinitionId.tsx`. The list page must render exactly two tabs, `Primitive` and `Work Units`. The detail page is definition-scoped, not instance-scoped, and exposes add/set/replace actions only via `project.addRuntimeWorkUnitFactValue`, `project.setRuntimeWorkUnitFactValue`, and `project.replaceRuntimeWorkUnitFactValue`.
   **Must NOT do**: Do not add delete/clear actions. Do not mix project facts into these routes. Do not collapse outgoing/incoming into a single undifferentiated list.
@@ -710,7 +710,7 @@ Wave 4: detail pages + cleanup/governance
   ```
   **Commit**: NO | Message: `feat(runtime): add work-unit fact routes` | Files: `apps/web/src/routes/projects.$projectId.work-units.$projectWorkUnitId.facts.tsx`, `apps/web/src/routes/projects.$projectId.work-units.$projectWorkUnitId.facts.$factDefinitionId.tsx`, `apps/web/src/tests/routes/runtime-work-unit-facts.test.tsx`, `apps/web/src/tests/routes/runtime-work-unit-fact-detail.test.tsx`, `tests/e2e/runtime-work-unit-facts.spec.ts`
 
-- [ ] 14. Implement Artifact Slots, Artifact Slot Detail, and Artifact Snapshot Dialog
+- [x] 14. Implement Artifact Slots, Artifact Slot Detail, and Artifact Snapshot Dialog
 
   **What to do**: Add `apps/web/src/routes/projects.$projectId.work-units.$projectWorkUnitId.artifact-slots.tsx` and `apps/web/src/routes/projects.$projectId.work-units.$projectWorkUnitId.artifact-slots.$slotDefinitionId.tsx`, plus an Artifact Snapshot Dialog component opened from the detail page. The slots page renders one card per slot with latest effective snapshot summary only. The detail page renders current effective snapshot first and lineage/history second. The dialog renders snapshot-specific delta/member drill-in. Wire `project.checkArtifactSlotCurrentState` only on the detail page.
   **Must NOT do**: Do not add file-content viewers, artifact upload/edit flows, or inline mutation on the slots overview page. Do not hide lineage when the latest head resolves to zero live members.
@@ -743,7 +743,7 @@ Wave 4: detail pages + cleanup/governance
   ```
   **Commit**: NO | Message: `feat(runtime): add artifact slot routes and dialog` | Files: `apps/web/src/routes/projects.$projectId.work-units.$projectWorkUnitId.artifact-slots.tsx`, `apps/web/src/routes/projects.$projectId.work-units.$projectWorkUnitId.artifact-slots.$slotDefinitionId.tsx`, `apps/web/src/components/runtime/artifact-snapshot-dialog.tsx`, `apps/web/src/tests/routes/runtime-artifact-slots.test.tsx`, `apps/web/src/tests/routes/runtime-artifact-slot-detail.test.tsx`, `tests/e2e/runtime-artifacts.spec.ts`
 
-- [ ] 15. Implement Transition Execution Detail and Workflow Execution Detail pages
+- [x] 15. Implement Transition Execution Detail and Workflow Execution Detail pages
 
   **What to do**: Fill in the route shells from Task 12. `projects.$projectId.transition-executions.$transitionExecutionId.tsx` must render, in order: transition definition, current primary workflow, completion gate panel, primary attempt history, supporting workflows. Wire `project.choosePrimaryWorkflowForTransitionExecution` and `project.completeTransitionExecution` here only. `projects.$projectId.workflow-executions.$workflowExecutionId.tsx` must render workflow summary, parent transition/work-unit context, retry/supersession lineage, and explicit “steps coming later” L3-deferred messaging. Wire `project.retrySameWorkflowExecution` here only.
   **Must NOT do**: Do not add same-definition retry controls to transition detail. Do not allow choose-different-workflow from workflow detail. Do not add step drill-downs or step tables.
@@ -775,7 +775,7 @@ Wave 4: detail pages + cleanup/governance
   ```
   **Commit**: YES | Message: `feat(runtime): add execution detail pages` | Files: `apps/web/src/routes/projects.$projectId.transition-executions.$transitionExecutionId.tsx`, `apps/web/src/routes/projects.$projectId.workflow-executions.$workflowExecutionId.tsx`, `apps/web/src/tests/routes/runtime-transition-execution-detail.test.tsx`, `apps/web/src/tests/routes/runtime-workflow-execution-detail.test.tsx`, `tests/e2e/runtime-execution-details.spec.ts`
 
-- [ ] 16. Remove preview-runtime leftovers, add governance locks, and finalize cutover verification
+- [x] 16. Remove preview-runtime leftovers, add governance locks, and finalize cutover verification
 
   **What to do**: Delete or neutralize preview-only runtime helpers that should no longer back the cutover surfaces, including deferred runtime copy, preview-only normalizers used solely for the replaced runtime surfaces, and any route code still reading runtime data from `project.getProjectDetails`. Keep preview support only where non-runtime project pages still need it. Add architecture/governance tests that enforce the ownership matrix and route-level query-key separation tests so runtime caches never collide with preview caches.
   **Must NOT do**: Do not remove `project.getProjectDetails` entirely if non-runtime callers still exist. Do not collapse preview and runtime contracts into one payload. Do not weaken the boundary tests to allow package drift.

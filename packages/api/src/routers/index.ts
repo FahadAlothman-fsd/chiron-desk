@@ -17,6 +17,16 @@ import {
   WorkflowServiceLive,
 } from "@chiron/methodology-engine";
 import {
+  ArtifactRepository,
+  ExecutionReadRepository,
+  ProjectFactRepository,
+  ProjectWorkUnitRepository,
+  TransitionExecutionRepository,
+  WorkflowExecutionRepository,
+  WorkUnitFactRepository,
+  WorkflowEngineRuntimeLive,
+} from "../../../workflow-engine/src/index";
+import {
   ProjectContextRepository,
   ProjectContextService,
   ProjectContextServiceLive,
@@ -26,6 +36,15 @@ export function createAppRouter(
   repoLayer: Layer.Layer<MethodologyRepository>,
   lifecycleRepoLayer: Layer.Layer<LifecycleRepository>,
   projectContextRepoLayer: Layer.Layer<ProjectContextRepository>,
+  runtimeRepoLayer: Layer.Layer<
+    | ProjectWorkUnitRepository
+    | ExecutionReadRepository
+    | TransitionExecutionRepository
+    | WorkflowExecutionRepository
+    | ProjectFactRepository
+    | WorkUnitFactRepository
+    | ArtifactRepository
+  >,
 ) {
   const allRepos = Layer.mergeAll(repoLayer, lifecycleRepoLayer, projectContextRepoLayer);
   const methodologyCoreLayer = Layer.provide(MethodologyEngineL1Live, allRepos);
@@ -42,6 +61,9 @@ export function createAppRouter(
     | EligibilityService
     | ProjectContextService
   >;
+  const runtimeServiceLayer = Layer.provide(WorkflowEngineRuntimeLive, runtimeRepoLayer);
+  const projectServiceLayer = Layer.mergeAll(methodologyServiceLayer, runtimeServiceLayer);
+
   return {
     healthCheck: publicProcedure.handler(() => {
       return "OK";
@@ -53,7 +75,7 @@ export function createAppRouter(
       };
     }),
     methodology: createMethodologyRouter(methodologyServiceLayer),
-    project: createProjectRouter(methodologyServiceLayer),
+    project: createProjectRouter(projectServiceLayer as Layer.Layer<any>),
   };
 }
 export type AppRouter = ReturnType<typeof createAppRouter>;
