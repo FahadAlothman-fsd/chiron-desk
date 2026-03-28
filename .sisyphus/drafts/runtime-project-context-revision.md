@@ -2,6 +2,11 @@
 
 ## Requirements (confirmed)
 - runtime model must be revised across L1/L2/L3, not just narrow L1 work-unit persistence
+- a page/surface is only considered **locked** when all three are decision-complete:
+  - **page**: contents, actions, and design/presentation shape
+  - **procedures**: all queries/streams/mutations with params, input data, and returned data
+  - **table**: underlying fields, what each field means, how it is used, and its possible values / semantics
+- only after all three are locked should planning move on to service boundaries, dependencies, shape ownership, and package seams
 - `project_work_units` should not gain a separate `presence_status` axis if activation tracking is already represented by transition/workflow execution state
 - runtime levels are:
   - L1: project facts, project work units
@@ -33,6 +38,14 @@
 - nested Effect parallelism is desired: transition candidates evaluate in parallel, and condition evaluation inside a transition may also run in parallel with early stop semantics based on group mode
 - project dashboard should use fast/short-circuit evaluation; deeper blocked-condition evaluation should happen when the user drills into a blocked work unit/transition
 - planning scope should now include L1/L2 frontend pages for project runtime guidance, while deferring actual L3 step-execution UX until step-type configs are locked
+- current thread should finish as the L1/L2 runtime revision + execution-page shell plan; L3 step-execution page shell / step-type-specific UIs / step-level retry should move to a fresh separate planning thread
+- Effect service design/seam planning is now in scope for the **same unified L1/L2 execution plan** because the page suite, procedure contracts, and service boundaries need to be finalized together
+- plan-count rule is now explicit:
+  - the current L1/L2 runtime page suite (roughly 10-12 pages plus their interactions/procedures/table semantics) should remain **one unified execution plan**, not one plan per page and not one plan per runtime level
+  - page count alone is not a valid split criterion here because these pages share the same runtime tables, procedure contracts, navigation model, and mutation semantics
+  - split only where scope meaningfully changes:
+    - keep Effect service design inside the same unified L1/L2 runtime plan
+    - separate later plan/thread for L3 step-execution shell + step-type-specific UIs
 - project dashboard should remain overview-focused rather than becoming the full runtime-guidance surface
 - project dashboard may show a very fast summary of the first few available transitions only
 - a dedicated runtime-guidance page should own full open/future candidate evaluation and blocked transition visibility
@@ -129,10 +142,15 @@
 - Work Unit Facts list should follow the same current-value preview model as Project Facts:
   - if a current value exists, show it inline/subsectioned in the fact row/card
   - if no current value exists, indicate absence explicitly
-  - if the fact is many-valued, show a preview of the first few current members/items (baseline: first 5)
+  - if the fact is many-valued, the page should lean toward showing the full current members/items in-card for practical runtime inspection rather than reducing everything to counts only
 - Work Unit Fact Detail page should exist and should be narrow in scope:
   - show the full fact definition
   - show the current runtime state/value for that work-unit fact
+  - remain scoped by **fact definition**, not by individual fact-instance row route
+  - act as the mutation owner for editing/removing current runtime fact instances rather than putting those write actions directly on the list page
+  - cardinality changes what is shown and how mutation works:
+    - `one` cardinality => detail surface focuses on the single current instance/value (or explicit absence) and its set/clear flow
+    - `many` cardinality => detail surface shows the collection of current instances for that fact definition and owns per-instance update/remove plus add-new-instance flows
   - do not add history/audit/provenance or reverse-impact sections in this slice
 - Work Unit detail/overview should include a compact facts/dependencies summary card showing:
   - fact instances count (`current-with-instances / total-defined`)
@@ -200,8 +218,9 @@
 - workflow-execution shell page should include a small retry/supersession lineage section
 - Workflow Execution Detail should treat retry/supersession as read-only information in this slice:
   - show retry/supersession lineage/status on the workflow execution page
-  - do not expose retry/supersession controls there at L2
-  - the actual retry/supersession controls are deferred to L3 step-execution UX, where the user can act from within the workflow's steps/runtime
+  - expose **retry same workflow** from Workflow Execution Detail when the parent transition execution is still active
+  - this retry action means "run this exact workflow definition again as the next primary workflow attempt under the same active transition execution"
+  - choosing a **different** primary workflow remains owned by Transition Execution Detail, not Workflow Execution Detail
 - Transition Execution Detail page is definition + singular execution instance:
   - show transition definition metadata (contract, description, condition sets, bindings)
   - show execution-instance runtime details/status for that one `transition_execution`
@@ -246,6 +265,11 @@
   - if completion gates pass, the transition completes and the work unit advances to the transition `to_state`
   - if completion gates fail, the transition remains active, the work unit state does not advance, and the user may inspect completion-gate results plus launch another primary workflow attempt under the same `transition_execution`
   - completion readiness must always be evaluated against current live truth at completion time; do not rely on a previously persisted "passed earlier" marker because facts/conditions may have changed before finalization
+ - Runtime Guidance must not become a second completion-gate execution surface:
+   - active cards may show only a lightweight `ready for completion` hint once the primary workflow has finished
+   - Runtime Guidance does **not** expose the full completion condition tree
+   - Runtime Guidance does **not** perform the final completion action
+   - Transition Execution Detail remains the only page where completion-gate evaluation is inspected in full and where the user can actually complete the transition
 - gate-marker persistence semantics are asymmetric:
   - blocked start-gate evaluations are pre-transition derived checks only; they do not create a `transition_execution` and therefore do not persist a durable marker on one
   - successful start-gate evaluation can be recorded on the newly created `transition_execution` as proof that the transition was allowed to start
@@ -286,7 +310,7 @@
     - full completion condition-set tree
     - current effective values only where needed
     - primary CTA = `Complete Transition` if gates pass
-    - primary CTA = `Run another workflow attempt` if gates fail
+    - primary CTA = `Choose another primary workflow` if gates fail
     - prior primary attempts appear below as history, not mixed into the gate panel
   - completion-gate panel behavior is status-dependent:
     - active transition executions may show actionable current completion evaluation
@@ -307,6 +331,7 @@
     - `project_artifact_snapshots`
     - `artifact_snapshot_files`
 - final locked `project_work_units` field inventory (L1/L2) is:
+  - all runtime tables in this slice should have their own `id` field as a UUID primary key with DB-level auto-generation on row creation unless the table is an existing pre-existing table that already carries that identity
   - `id`
     - required for all instantiated work-unit routes/pages: Work Unit Overview, Work Unit Facts, Work Unit State Machine, Artifact Slots, Transition Execution Detail context, Workflow Execution Detail context
     - required as the durable FK target for runtime dependencies and child runtime tables
@@ -361,8 +386,58 @@
 - `project_fact_instances` intentionally omits `value_kind` because project facts are primitive/json-only in this model and the definition row already supplies the type domain
 - `project_fact_instances` intentionally omits `cardinality` because cardinality is owned by the methodology fact definition and enforced by runtime constraints/query logic rather than duplicated per row
 - `project_fact_instances` intentionally omits any work-unit reference FK because project facts must not support `work_unit_reference`
-- `project_fact_instances` intentionally omits execution/provenance fields in this slice because Project Fact detail is current-state only and explicitly excludes write-history/provenance surfaces until later runtime slices
-- row absence remains the representation of fact absence; no extra presence/status column should be added
+- `project_fact_instances` current-state-only lock is superseded by the final rollback-capable lineage model for this slice:
+  - final locked `project_fact_instances` field inventory is:
+    - `id`
+      - required as the durable identity of one immutable project fact member version row
+      - required for precise update/remove targeting from the definition-scoped Project Fact Detail surface
+    - `project_id`
+      - required to scope the fact row to one project
+      - required for Project Facts list/detail reads and project-level effective-state projection
+    - `fact_definition_id`
+      - required to resolve fact definition metadata and to group rows under one definition-scoped Project Fact Detail surface
+      - required for one-vs-many enforcement per project fact definition
+    - `value_json`
+      - required to store the fact payload for primitive/json project facts
+      - required for Project Facts list current-value preview, Project Fact Detail current-state display, and project-level fact condition evaluation
+    - `status`
+      - required persisted lineage/effective-frontier state with exactly `active | superseded | parent_superseded`
+      - `active` = row remains part of the effective fact frontier
+      - `superseded` = row was directly replaced by a newer project fact row
+      - `parent_superseded` = row was produced under an execution path later superseded, so it should fall out of the effective frontier without pretending it was directly row-replaced
+    - `supersedes_project_fact_instance_id`
+      - required as the explicit row-level lineage pointer when one immutable project fact row replaces another
+      - required for rollback-aware restoration logic and truthful impact dialogs
+    - `produced_by_transition_execution_id`
+      - required to group fact rows produced under one transition execution for rollback/retry blast-radius reporting
+      - required because execution grouping and row-level supersession are both needed in this slice
+    - `produced_by_workflow_execution_id`
+      - required to group fact rows produced under one workflow attempt and to support retry/supersede impact reporting at workflow scope
+      - later a more precise `produced_by_step_execution_id` may be added at L3, but transition/workflow provenance should still remain persisted for easier reporting and grouping
+    - `authored_by_user_id`
+      - required so manual user-authored overwrites are represented as first-class immutable lineage writes rather than being conflated with execution-authored writes
+      - for now, if `authored_by_user_id` is populated, execution provenance fields should remain null on that row
+    - `created_at`
+      - required for chronology across immutable fact lineage rows and deterministic ordering of effective/current many-valued members
+  - one row = one immutable project fact member version, not a mutable current-state row
+  - latest-effective project fact state is derived by selecting the newest authoritative row(s) per fact-definition/member lineage
+  - row-level supersession answers "which newer fact row replaced which older fact row?"
+  - execution-grouping provenance answers "which set of fact rows came from workflow attempt X / transition execution Y?"
+  - retry/supersede impact dialogs and rollback logic need both views
+  - `project_fact_instances` intentionally omits `updated_at` because fact rows are immutable lineage rows rather than in-place edited state
+  - `project_fact_instances` intentionally omits policy/adoption state such as `pending | approved | rejected`; policy is a separate later entity/model, not a fact-row state in this slice
+- long-term, the most precise authoring provenance for fact/artifact writes will be the step execution, but transition/workflow provenance should still remain persisted for easier reporting, grouping, and UI drill-ins
+- artifact snapshots are intentionally different from facts:
+  - project/work-unit facts may be manually authored/overwritten inside Chiron and therefore need `authored_by_user_id`
+  - artifact snapshots should remain execution/git-observed state rather than user-authored data in this slice
+  - therefore artifact freshness/staleness should still rely on git/manual-check flows, not manual in-Chiron editing of artifact snapshot rows
+  - artifact snapshot provenance should describe who/what recorded the snapshot, not who authored the artifact contents
+  - do not add `authored_by_user_id` to artifact snapshot tables in this slice
+        - manual overwrite semantics:
+          - a user-authored overwrite creates a new immutable fact row
+          - that new row may directly supersede an older row via `supersedes_project_fact_instance_id`
+          - user-authored rows should not be treated as execution-authored rows just because an active transition/workflow happens to exist at the same time
+          - for now, manual rows are user-authored only: if `authored_by_user_id` is populated, execution provenance fields should remain null on that row
 - final locked `work_unit_fact_instances` field inventory (L1/L2) is:
   - this table is specifically an L2 runtime table because it is owned by an instantiated `project_work_unit` and serves work-unit-scoped runtime surfaces rather than project-scoped fact surfaces
   - `id`
@@ -396,10 +471,50 @@
 - `work_unit_fact_instances` intentionally omits `value_kind` because the definition row already tells us whether the row should be interpreted as primitive/json vs `work_unit_reference`
 - `work_unit_fact_instances` intentionally omits `cardinality` because cardinality is owned by the methodology fact definition and enforced by runtime constraints/query logic rather than duplicated per row
 - `work_unit_fact_instances` intentionally omits `project_id` because the owning project is recoverable through `project_work_unit_id -> project_work_units.project_id`
-- `work_unit_fact_instances` intentionally omits execution/provenance fields in this slice because Work Unit Fact Detail is current-state only and explicitly excludes write-history/provenance surfaces until later runtime slices
 - `work_unit_reference` storage mode is rigid: use `referenced_project_work_unit_id` directly, not encoded JSON conventions
 - for `work_unit_reference` rows, `value_json` should remain null; for primitive/json rows, `referenced_project_work_unit_id` should remain null
-- row absence remains the representation of fact absence; no extra presence/status column should be added
+- `work_unit_fact_instances` final locked field inventory is rollback-capable immutable lineage, not mutable current-state rows:
+  - `id`
+    - required as the durable identity of one immutable work-unit fact member version row
+    - required for precise update/remove targeting from the definition-scoped Work Unit Fact Detail surface
+  - `project_work_unit_id`
+    - required to scope the fact row to one instantiated work unit
+    - required for Work Unit Facts page reads, dependency discovery, and work-unit effective-state projection
+  - `fact_definition_id`
+    - required to resolve the work-unit fact definition and to group rows under one definition-scoped Work Unit Fact Detail surface
+    - required for one-vs-many enforcement per work-unit fact definition
+  - `value_json`
+    - required for primitive/json work-unit fact payloads
+    - required for Primitive-tab current-value display and work-unit-fact condition evaluation when the fact is not a reference fact
+  - `referenced_project_work_unit_id`
+    - required as the rigid FK for `work_unit_reference` facts
+    - required for Outgoing/Incoming dependency sections, dependency cards, and counterpart work-unit rendering
+    - remains part of the final lineage model; rollback capability changes lineage/provenance, not the reference-storage mode itself
+  - `status`
+    - required persisted lineage/effective-frontier state with exactly `active | superseded | parent_superseded`
+    - `active` = row remains part of the effective fact frontier
+    - `superseded` = row was directly replaced by a newer work-unit fact row
+    - `parent_superseded` = row was produced under an execution path later superseded, so it should fall out of the effective frontier without pretending it was directly row-replaced
+  - `supersedes_work_unit_fact_instance_id`
+    - required as the explicit row-level lineage pointer when one immutable work-unit fact row replaces another
+    - required for rollback-aware restoration logic and truthful impact dialogs
+  - `produced_by_transition_execution_id`
+    - required to group work-unit fact rows produced under one transition execution for rollback/retry blast-radius reporting
+  - `produced_by_workflow_execution_id`
+    - required to group work-unit fact rows produced under one workflow attempt for retry/supersede impact reporting at workflow scope
+    - later a more precise `produced_by_step_execution_id` may be added at L3, but transition/workflow provenance should still remain persisted for easier reporting and grouping
+  - `authored_by_user_id`
+    - required so manual user-authored overwrites are represented as first-class immutable lineage writes rather than being conflated with execution-authored writes
+    - for now, if `authored_by_user_id` is populated, execution provenance fields should remain null on that row
+  - `created_at`
+    - required for chronology across immutable work-unit fact lineage rows and deterministic ordering of effective/current many-valued members
+- one row = one immutable work-unit fact member version, not a mutable current-state row
+- latest-effective work-unit fact state is derived by selecting the newest authoritative row(s) per fact-definition/member lineage
+- row-level supersession answers "which newer work-unit fact row replaced which older row?"
+- execution-grouping provenance answers "which set of work-unit fact rows came from workflow attempt X / transition execution Y?"
+- retry/supersede impact dialogs and rollback logic need both views
+- `work_unit_fact_instances` intentionally omits `updated_at` because fact rows are immutable lineage rows rather than in-place edited state
+- `work_unit_fact_instances` intentionally omits policy/adoption state such as `pending | approved | rejected`; policy is a separate later entity/model, not a fact-row state in this slice
 - proposed `transition_executions` field inventory (L2) is:
   - `id`
     - required as the durable identity/route key for Transition Execution Detail
@@ -459,7 +574,8 @@
   - `status`
     - required persisted workflow lifecycle state for Workflow Execution Detail current-status display
     - required for project-level active-only Workflow Executions table query and for distinguishing current vs historical workflow attempts in Transition Execution Detail
-    - recommended minimal status set for this slice: `active | completed | superseded`
+    - locked status set for this slice: `active | completed | superseded | parent_superseded`
+    - `parent_superseded` means the workflow execution itself was not directly superseded by another workflow execution, but its parent transition execution was superseded and this workflow should be conveyed distinctly in the UI
   - `supersedes_workflow_execution_id`
     - required as the explicit lineage pointer when a new workflow attempt supersedes a previous workflow attempt under the same transition execution
     - required for Workflow Execution Detail retry/supersession lineage section
@@ -494,12 +610,15 @@
     - required to resolve artifact-slot definition metadata on Artifact Slots overview/detail surfaces
     - required to recover slot key/name/cardinality/rules from the version-scoped methodology graph
     - required to group snapshots by slot and compute latest snapshot per slot
-  - `produced_by_transition_execution_id`
-    - required for Artifact Slot Detail producer-link section when a snapshot was produced as part of a concrete transition run
-    - required to recover transition context for snapshot lineage/history rows when shown
-  - `produced_by_workflow_execution_id`
-    - required for Artifact Slot Detail producer-link section when a snapshot was produced by a concrete workflow execution
-    - required so artifact changes can link directly into Workflow Execution Detail when known
+  - `recorded_by_transition_execution_id`
+    - required when a snapshot-check/recording event happened in the context of a concrete transition run
+    - required to recover transition context for Artifact Slot Detail provenance/history rows when shown
+  - `recorded_by_workflow_execution_id`
+    - required when a snapshot-check/recording event happened in the context of a concrete workflow execution
+    - required so artifact snapshot provenance can link directly into Workflow Execution Detail when known
+  - `recorded_by_user_id`
+    - required when a snapshot-check/recording event was manually triggered by a user rather than by execution automation
+    - required so manual artifact check provenance is represented without pretending the user authored artifact content inside Chiron
   - `supersedes_project_artifact_snapshot_id`
     - required as the explicit lineage pointer when a newer snapshot replaces an older snapshot for the same slot
     - required for Artifact Slot Detail history/lineage and for file-set inheritance/delta resolution across parent snapshots
@@ -511,12 +630,33 @@
 - `project_artifact_snapshots` intentionally omits `updated_at` because artifact snapshot containers are immutable lineage rows in this model; new artifact state creates a new snapshot row rather than mutating an old one
 - `project_artifact_snapshots` intentionally omits embedded file/blob payload columns because runtime artifact content membership and per-file metadata belong in `artifact_snapshot_files`, not on the parent snapshot container row
 - `project_artifact_snapshots` intentionally omits slot cardinality/type duplication because those remain owned by the slot definition row
+- `project_artifact_snapshots` intentionally omits workflow/transition-style supersession statuses such as `superseded` or `parent_superseded`
+- artifact snapshot lineage is intentionally different from fact lineage:
+  - execution/user provenance says who or what recorded/checkpointed the snapshot
+  - snapshot supersession itself should depend only on git/filesystem-observed artifact state for the slot
+  - execution supersession must not automatically mark artifact snapshots as superseded just because the enclosing transition/workflow/step path was superseded
+  - if a later git/manual check yields no effective artifact-state change, that should resolve as a non-persisted read/recheck outcome rather than forcing a new superseding snapshot row
+  - therefore this slice does not persist "check with no change" as a snapshot row or separate event row
+  - current slice should treat artifact snapshot lineage as pure observed-state persistence only:
+    - a check may detect a new effective artifact state
+    - if the effective state changed, persist a new superseding snapshot row
+    - if the effective state did not change, persist nothing
+  - do not model accepted-vs-detected snapshot state in this slice
 - lineage direction is locked to the new snapshot storing `supersedes_project_artifact_snapshot_id`, matching the write path used when a newer snapshot replaces an older one
 - snapshot-parent lineage semantics are locked to be uniform across slot types:
   - single-file slot replacement creates a new `project_artifact_snapshots` parent row
   - file-set slot replacement also creates a new `project_artifact_snapshots` parent row
   - per-file/member metadata always lives in `artifact_snapshot_files`, so parent-row lineage stays consistent regardless of slot cardinality/type
+  - later at L3, add `recorded_by_step_execution_id` so artifact provenance can point at the actual step execution that triggered the git/manual check when applicable
+  - policy/approval note:
+    - policy is a separate later entity/model and should not be represented as a state on artifact snapshots in this slice
+    - do not add pending/approved/rejected-style status to artifact snapshots or fact rows now
+    - methodology-defined policy behavior becomes a later concern, likely around step execution / L3
 - proposed `artifact_snapshot_files` field inventory (L2) is:
+  - `id`
+    - required as the durable identity of one artifact member row
+    - required because this slice now locks the rule that every table has its own DB-generated UUID primary key
+    - required for precise mutation/debugging/audit references even though there is no child-detail page in this slice
   - `artifact_snapshot_id`
     - required as the parent FK back to `project_artifact_snapshots`
     - required to load all member rows that belong to one snapshot container
@@ -533,11 +673,21 @@
     - required for git-aware freshness checks against the tracked path when that metadata is available
     - required for Artifact Slot Detail current effective snapshot display when showing minimal git/file metadata
     - should stay nullable so non-git/untracked files can still be represented without inventing fake commit values
-- `artifact_snapshot_files` intentionally omits a synthetic `id` because this slice has no child-row detail route or downstream FK target for member rows; the useful identity is `(artifact_snapshot_id, file_path)`
+  - `git_blob_hash`
+    - required for rewrite-stable content identity checks when artifact conditions care whether the file contents still match even if history was squashed/rebased
+    - required so condition design can explicitly target blob/content identity separately from commit/lineage identity
+    - should stay nullable so non-git/untracked files can still be represented without inventing fake blob values
+- `artifact_snapshot_files.id` is the table PK, while `(artifact_snapshot_id, file_path)` remains the useful natural lookup key for effective-snapshot reconstruction
 - `artifact_snapshot_files` intentionally omits `project_id`, `project_work_unit_id`, and `slot_definition_id` because those are recoverable through the parent snapshot row
 - `artifact_snapshot_files` intentionally omits `methodology_version_id` because artifact member rows are runtime children under a version-scoped parent/slot definition
 - `artifact_snapshot_files` intentionally omits `updated_at` because member rows are immutable; replacement/removal creates rows under a newer parent snapshot instead of mutating old rows
 - `artifact_snapshot_files` intentionally omits extra file metadata fields for now because git/file tracking should stay minimal in this slice; richer file metadata can be added later only if a page/action proves it is needed
+- `artifact_snapshot_files` intentionally omits policy/adoption state such as `pending | approved | rejected`; policy is a separate later entity/model and should not appear on artifact child rows in this slice
+- fact deletion/clear semantics are now explicitly recognized as a separate design decision under immutable lineage:
+  - with immutable fact rows, "delete current fact" cannot mean physical row deletion
+  - it would require an explicit removal/tombstone-style lineage write or another equally explicit absence marker model
+  - recommended default for this slice is to avoid delete/clear semantics rather than half-designing tombstones now
+  - manual fact override can remain narrower than full CRUD in this slice if needed
 - `started_at` replaces a generic `created_at` field on this table because the user-facing/runtime meaning is explicitly transition start rather than generic row creation
 - explicitly omit a separate work-unit presence/activation status axis; activation/progress comes from linked execution state, not duplicated work-unit status columns
 - schema inspection confirms `methodology_work_unit_types.id` is already a version-specific row identity, not a cross-version logical key:
@@ -585,6 +735,27 @@
   - file/member-level replacement is **derived**, not explicitly self-linked: a newer child row with the same `file_path` under a newer parent snapshot supersedes the older effective member for reconstruction purposes
   - file/member removals are also derived through newer tombstone rows under newer parent snapshots rather than a dedicated child-row supersession pointer
   - this clarification does **not** currently require adding new fields beyond the already proposed parent/child artifact table shapes; it tightens semantics of how existing fields are interpreted
+  - `artifact_snapshot_files.member_status` means whether that child row contributes a live file/member or a removal marker during effective-snapshot reconstruction
+  - recommended domain is:
+    - `present` = this snapshot contributes/overrides a live file member at `file_path`
+    - `removed` = this snapshot explicitly removes an inherited older member at `file_path`
+  - `replaced` is **not** currently recommended as a third standalone status value because it is ambiguous without an additional target field/link explaining what path/member was replaced
+  - therefore same-path content updates continue to be represented as a newer `present` row for the same `file_path`, and path renames continue to be represented as `old_path -> removed` plus `new_path -> present` within the same newer parent snapshot
+- naive reads from raw artifact lineage are acknowledged to be heavier because effective current state requires walking preceding snapshots
+- if the delta+tombstone model remains locked, the serving path should likely avoid raw recursive reconstruction on every page read and instead use either:
+  - a derived/latest-effective read model, or
+  - a bounded/on-demand reconstruction strategy reserved for detail/history surfaces
+- latest-effective artifact reconstruction semantics are currently leaning toward:
+  - older child rows are **not** physically removed from persistence when newer snapshots update the same `file_path`
+  - instead, a read query/view/projection should logically shadow older rows by selecting the newest applicable row per `file_path` across the snapshot lineage
+  - after selecting the newest applicable row per `file_path`, only rows with `member_status = present` remain in the effective file set; newest `removed` rows suppress inherited older `present` rows
+  - SQLite view/query approaches are viable for this logical projection, but this would still be a derived read model rather than a built-in materialized view
+  - file renames/path changes in this slice should be modeled as `old_path -> removed` plus `new_path -> present` within the same newer parent snapshot, not as a reason to move supersession ownership from parent snapshots to child rows
+  - parent snapshot supersession remains important because it preserves the atomic workflow/transition-produced snapshot boundary for one slot on one work-unit instance
+  - child-row supersession may be revisited later only if explicit rename provenance/explanation becomes a required UX/history feature; it is not currently recommended as the primary lineage model
+- facts cardinality handling is now locked to:
+  - keep row-per-member storage for many-cardinality project facts and work-unit facts
+  - do not add fact supersession/precedence pointers in this slice
 - dashboard transition derivation should separate:
   - active live list: `active`
   - candidate source: `open | future`
@@ -730,7 +901,29 @@
 - Work Unit Facts should use tabs to separate fact categories:
   - `Primitive` for non-`work_unit_reference` facts
   - `Work Units` (dependency-oriented tab) for `work_unit_reference` facts
-- within the `Work Units` tab, render outgoing and incoming as two sections on the same page, not nested tabs
+- within the `Work Units` tab, render page-wide `Outgoing` and `Incoming` sections on the same page, not nested tabs
+- Work Unit Facts remains a fact-card/list surface like Project Facts, not a hard pivot to a dense data table in this slice
+- tab selection for Work Unit Facts should be part of the page state / URL state so the page can deep-link into `Primitive` vs `Work Units`
+- recommended first-slice transport for Work Unit Facts:
+  - page query accepts the active tab as an input so server filtering can stay aligned with the visible surface
+  - row rendering still uses fact cards/list rows rather than changing the interaction model into a spreadsheet/table view
+- Work Unit Facts cards/rows are keyed by **fact definition**, not by individual current fact-instance rows
+- cardinality handling on Work Unit Facts cards is:
+  - `one` cardinality => one fact-definition card shows the current value or explicit absence
+  - `many` cardinality => one fact-definition card aggregates all current members for that definition and shows a count of how many current members exist
+  - many-valued cards may preview the first few current members/items, but they still remain one card per fact definition rather than exploding into one card per row
+- the `Work Units` tab layout is locked as page-wide sections first, then fact-definition cards inside each section:
+  - `Outgoing` section = dependency fact-definition cards for current `work_unit_fact_instances` owned by this work unit that reference other work units
+  - `Incoming` section = dependency fact-definition cards for current `work_unit_fact_instances` owned by other work units that reference this work unit
+- dependency cards inside the `Work Units` tab are keyed by `work_unit_reference` fact definition, not by individual instance rows
+- dependency count semantics per `work_unit_reference` fact-definition card are:
+  - in the `Outgoing` section, `count` = number of current `work_unit_fact_instances` owned by this work unit for that fact definition where `referenced_project_work_unit_id` points to another work unit
+  - in the `Incoming` section, `count` = number of current `work_unit_fact_instances` owned by other work units for that same fact definition where `referenced_project_work_unit_id` points to this work unit
+  - counts are therefore instance-row counts scoped by fact definition and section, not counts of work-unit types and not a generic graph degree across all dependency fact definitions
+- each `work_unit_reference` fact-definition card must surface the dependency-definition metadata itself:
+  - baseline card identity should include the fact-definition name/key
+  - and the authored dependency/link-type definition selected through that fact definition's `validation_json` when `fact_type = "work_unit"`
+- dependency member rows shown inside each dependency fact-definition card should also include the concrete referenced work unit's human-readable identity so the user can understand which runtime work units the dependency currently points to
 - project facts and work-unit facts intentionally have different value-domain rules:
   - project facts are scalar/json-style runtime facts only
   - work-unit facts may additionally use `work_unit_reference`
@@ -819,17 +1012,59 @@
 - which project/runtime git ref should dashboard freshness checks use as authority: current checkout HEAD, pinned branch ref, or project-configured ref
 - current recommended git-aware artifact model is:
 - repo/root git-anchor data is now locked as **system-owned runtime context**, not methodology-defined/runtime-populated fact data
-- therefore git/filesystem anchor data should live in a dedicated project-linked singleton runtime table rather than in `project_fact_instances`
+- therefore git/filesystem anchor data should not live in `project_fact_instances`
 - methodology/runtime logic may still **read/use** this system-owned anchor context; the distinction is ownership of persistence and setup authority, not visibility
 - the intended split is:
   - system/runtime owns persistence, validation, and execution-time authority for filesystem/git anchors
   - methodology/L3 design-time logic may reference or depend on those anchors as execution context when that layer is designed later
-  - the system-owned anchor currently leans toward a single persisted `project_root_path`
-  - git-aware evaluation can derive the enclosing git repository from `project_root_path` at runtime rather than requiring a separate persisted repo-root field, provided setup validation guarantees the path lives inside a git repo when git-aware conditions are used
+  - the system-owned anchor is now locked to a single persisted field on `projects`: `project_root_path`
+  - git-aware evaluation can derive the enclosing git repository from `projects.project_root_path` at runtime rather than requiring a separate persisted repo-root field, provided setup validation guarantees the path lives inside a git repo when git-aware conditions are used
   - `authoritative_git_ref` is currently leaning deferred/out-of-slice in favor of current-HEAD semantics
-  - `artifact_snapshot_files.file_path` is interpreted relative to `project_root_path`
-  - `artifact_snapshot_files.git_commit_hash` stores the commit that last touched that file/member when the snapshot was captured
-  - freshness-style artifact conditions under current-HEAD semantics compare the stored `git_commit_hash` against HEAD-reachable history only
+  - `artifact_snapshot_files.file_path` is interpreted relative to `projects.project_root_path`
+- `artifact_snapshot_files.git_commit_hash` stores the commit that last touched that file/member when the snapshot was captured
+- freshness-style artifact conditions under current-HEAD semantics compare the stored `git_commit_hash` against HEAD-reachable history only
+- research follow-up: a file-targeted **blob/content hash** is more rewrite-stable than a latest-touch commit hash because blob identity survives squash/rebase when file content is unchanged
+- `simple-git` can obtain file-targeted commit history and blob/content information, but with different support levels:
+  - commit-history lookups require `raw(...)` wrappers around commands such as `git log -1 --format=%H -- <file>` or `git rev-list -1 HEAD -- <file>`
+  - blob/content hashing is supported more cleanly via `hashObject(...)` for current file content, and via `raw(...)` around `git ls-tree` for blob hashes from committed HEAD state
+- if Chiron wants rewrite-stable freshness semantics, the artifact child row should prefer a blob/content-oriented signal over relying only on latest-touch commit hash
+- commit hash remains useful only if we explicitly want provenance/lineage-style reasoning such as HEAD-lineage comparison or "foreign lineage" diagnostics
+- locked direction: `artifact_snapshot_files` should store **both** a blob/content-oriented git signal and a latest-touch commit signal
+- intended semantic split:
+  - blob/content hash = rewrite-stable content identity for conditions that care whether the file contents still match
+  - commit hash = lineage/provenance signal for conditions that care whether the file still points at the same HEAD-reachable commit history
+- condition design should allow targeting either signal explicitly rather than collapsing them into one generic "freshness" check
+ - current design-time condition seams are now grounded:
+   - `packages/contracts/src/methodology/lifecycle.ts` already models `TransitionCondition.kind: string` with `config: unknown`, so new transition-gate condition kinds can be added without changing the storage shape
+   - `packages/db/src/schema/methodology.ts` stores transition condition groups in `transition_condition_sets.groups_json`, so new condition kinds/config shapes fit in the existing JSON hierarchy
+   - `packages/contracts/src/methodology/artifact-slot.ts` and `packages/db/src/schema/methodology.ts` already expose slot-level `rules` / `rules_json` as an untyped extensibility seam
+- current recommended ownership split for design-time condition shapes is:
+  - artifact-slot `rules` own slot policy/configuration (tracking mode, path strategy, artifact-level expectations)
+  - transition condition kinds own gate evaluation logic (start/completion checks against current runtime artifact state)
+- this means artifact slot rules answer **what this slot is expected to track / care about**, while transition conditions answer **whether the current runtime artifact state satisfies a gate right now**
+- condition-shape scope was narrowed further:
+  - we do **not** need broad cross-entity artifact logic in this slice
+  - condition authoring in the UI should gain an `artifact` condition type alongside the existing `fact` and `work_unit` types
+  - that `artifact` condition is scoped only to an artifact slot definition on the **same work-unit type / same transition-local work-unit context**, not cross-work-unit
+  - the immediate artifact gate use case is **staleness checking**, not a broad family of artifact content operators
+  - work-unit facts should also be split from project facts at condition-kind level, so the design is converging on **two new condition kinds**:
+    - `artifact` — checks artifact-slot state for the current work-unit context
+    - `work_unit_fact` — checks work-unit fact state for the current work-unit context
+  - existing `fact` should remain the project/methodology fact condition kind rather than being overloaded to mean both project facts and work-unit facts
+  - no cross-work-unit fact conditions in this slice
+  - `work_unit_fact` should mirror the current project-level `fact` condition operator set in the first slice:
+    - `exists`
+    - `equals`
+  - so the first-slice difference between `fact` and `work_unit_fact` is **scope**, not operator richness
+  - the first-slice `artifact` condition should use a small explicit operator set rather than a boolean-only `isStale` field:
+    - `slotKey: string`
+    - `operator: "exists" | "stale" | "fresh"`
+  - this keeps authoring simple in the UI while still allowing three distinct artifact checks without inventing separate condition kinds
+  - missing current artifact snapshot semantics are locked as:
+    - `exists` => false
+    - `stale` => false
+    - `fresh` => false
+  - so `stale` and `fresh` are not treated as complements of absence; absence remains its own distinct runtime state
   - git-aware freshness scenario handling under current-HEAD semantics is:
     - fresh = stored commit is in HEAD lineage and no newer HEAD commit touched the file
     - stale/newer-head-change = stored commit is in HEAD lineage and a newer HEAD commit touched the file
@@ -837,7 +1072,17 @@
     - unavailable = path/git metadata/repo resolution is missing or git cannot resolve the file in current repo context
     - uncommitted worktree changes are ignored in this slice
 - cross-branch freshness sets are technically possible but are currently considered out-of-slice unless a concrete product need justifies comparing multiple authoritative refs instead of current HEAD
-- if the system-owned runtime-anchor approach remains locked, the runtime table inventory will need one additional project-linked singleton table for execution context / filesystem-git authority before the field-mapping pass is truly complete
+- the runtime table inventory does not need a separate `project_runtime_anchors` table in this slice because the anchor model has collapsed to a single persisted field on `projects`
+- final locked anchor-storage decision for this slice is:
+  - add `projects.project_root_path`
+  - do not create a separate `project_runtime_anchors` table
+  - validate `projects.project_root_path` at runtime-setup/update time before allowing git-aware artifact conditions to rely on it
+- `projects.project_root_path` is required to:
+  - act as the authoritative filesystem root for runtime file resolution in this slice
+  - resolve `artifact_snapshot_files.file_path` into an absolute path during artifact freshness evaluation
+  - provide deterministic project-level execution/session bootstrap context for filesystem-aware runtime behavior
+  - let git-aware artifact conditions derive the enclosing repo dynamically under current-HEAD semantics
+- this slice intentionally omits separate persisted anchor metadata such as repo-root fields, authoritative git refs, or validation/status diagnostics because no locked page/action currently needs those as first-class stored fields
 - what exact event taxonomy should the typed oRPC runtime-guidance stream use after the bootstrap event
 - on disconnect/reconnect, should the runtime-guidance stream resume the same run via event IDs or restart a fresh evaluation run
 - for many-per-project future transitions, what is the stable candidate identity shown in the dashboard before an instance exists
@@ -852,6 +1097,2200 @@
 - what exact UI label format should be used for existing work-unit transition candidates vs future candidates
 - are dedicated detail pages needed now for individual workflow executions and transition executions, or are list/filter pages plus dialog/active navigation enough for this slice
 - what exact field name should be used for the transition-level pointer to its primary workflow execution (`primary_workflow_execution_id`, `active_workflow_execution_id`, or another neutral name)
+
+## Page → Transport → oRPC mapping (in progress)
+
+- general contract rule for runtime procedures in this pass:
+  - use **IDs for authoritative server selection** whenever the UI already has a concrete runtime row or methodology definition row
+  - return **both IDs and keys** in read models where the UI benefits from human-readable labeling plus stable selectors
+  - keys remain useful for labels/debugging and may still appear in routes, but should not be the only mutation/query selector once the corresponding ID is known
+
+### Runtime Guidance
+- page role:
+  - project-wide action surface for `what is active now` and `what can / should be done next`
+  - split into exactly two sections:
+    - `Active`
+    - `Open/Future`
+- page design/presentation is now locked:
+  - page starts immediately with runtime work-unit groups; no separate project-summary header block at the top
+  - section 1 = `Active`
+    - work-unit-scoped cards/groups
+    - active-transition summary is the primary visual element inside each card
+    - active primary workflow is secondary context inside the active card
+  - section 2 = `Open/Future`
+    - one merged candidate section rather than separate top-level `Open` and `Future` sections
+    - cards/groups are flat in stable evaluation order, not grouped by work-unit type
+    - each card/row carries a source badge/indicator for `open` vs `future`
+    - transition results stream into already-rendered cards; streaming must not reshuffle ordering
+  - Runtime Guidance remains project-scoped and action-oriented, not a historical browser
+- transport split is locked:
+  - `Active` = synchronous typed oRPC query
+  - `Open/Future` = typed oRPC event-iterator stream
+  - both calls fire in parallel on page load
+- recommended procedures:
+  - `project.getRuntimeGuidanceActive`
+    - kind: query
+    - params:
+      - `{ projectId: string }`
+    - returns:
+      - `activeWorkUnitCards: Array<{`
+      - `  projectWorkUnitId: string`
+      - `  workUnitTypeId: string`
+      - `  workUnitTypeKey: string`
+      - `  workUnitTypeName: string`
+      - `  currentStateKey: string`
+      - `  currentStateLabel: string`
+      - `  factSummary: { currentCount: number, totalCount: number, changedCount?: number }`
+      - `  artifactSummary: { currentCount: number, totalCount: number, changedCount?: number }`
+      - `  activeTransition: {`
+      - `    transitionExecutionId: string`
+      - `    transitionId: string`
+      - `    transitionKey: string`
+      - `    transitionName: string`
+      - `    toStateKey: string`
+      - `    toStateLabel: string`
+      - `    status: "active"`
+      - `    readyForCompletion?: boolean`
+      - `  }`
+      - `  activePrimaryWorkflow: {`
+      - `    workflowExecutionId: string`
+      - `    workflowId: string`
+      - `    workflowKey: string`
+      - `    workflowName: string`
+      - `    status: "active" | "completed" | "superseded"`
+      - `  }`
+      - `  actions: {`
+      - `    primary:`
+      - `      | { kind: "open_workflow", workflowExecutionId: string }`
+      - `      | { kind: "open_transition", transitionExecutionId: string }`
+      - `    openTransitionTarget: { transitionExecutionId: string }`
+      - `    openWorkflowTarget: { workflowExecutionId: string }`
+      - `  }`
+      - `}>`
+    - table backing / read model is now locked:
+      - persisted-runtime sources used by `Active` are:
+        - `project_work_units`
+        - `transition_executions`
+        - `workflow_executions`
+        - latest-effective `work_unit_fact_instances` summary counts
+        - latest-effective artifact snapshot summary counts
+      - definition metadata joins/read models used by `Active` are:
+        - work-unit type definitions
+        - transition definitions
+        - workflow definitions
+        - lifecycle state definitions
+      - field/value usage is:
+        - `project_work_units.id` = active card instance identity
+        - `project_work_units.current_state_id` = current state display
+        - `project_work_units.active_transition_execution_id` = determines whether the work unit belongs in the `Active` section
+        - `transition_executions.id` = active transition detail target
+        - `transition_executions.transition_id` = transition key/name/to-state context
+        - `workflow_executions.id` = active primary workflow detail target
+        - `workflow_executions.status` = active/completed secondary context for the active primary workflow summary
+      - current recommendation: Runtime Guidance should show only a lightweight `ready for completion` hint for active transitions whose primary workflow has finished, not the full completion-condition tree and not the final `Complete Transition` action
+      - Transition Execution Detail remains the canonical full completion-gate page and action surface
+      - no streaming because this section only reflects persisted runtime truth
+  - `project.streamRuntimeGuidanceCandidates`
+    - kind: event iterator stream
+    - params:
+      - `{`
+      - `  projectId: string`
+      - `  filters?: {`
+      - `    workUnitTypeKeys?: string[]`
+      - `    transitionKeys?: string[]`
+      - `    fromStateKeys?: string[]`
+      - `    toStateKeys?: string[]`
+      - `  }`
+      - `}`
+    - first event (`bootstrap`):
+      - `{`
+      - `  type: "bootstrap"`
+      - `  cards: Array<{`
+      - `    candidateCardId: string`
+      - `    source: "open" | "future"`
+      - `    workUnitContext: {`
+      - `      projectWorkUnitId?: string`
+      - `      workUnitTypeId: string`
+      - `      workUnitTypeKey: string`
+      - `      workUnitTypeName: string`
+      - `      currentStateKey?: string`
+      - `      currentStateLabel: string`
+      - `    }`
+      - `    summaries: {`
+      - `      facts: { currentCount: number, totalCount: number }`
+      - `      artifactSlots: { currentCount: number, totalCount: number }`
+      - `    }`
+      - `    transitions: Array<{`
+      - `      candidateId: string`
+      - `      transitionId: string`
+      - `      transitionKey: string`
+      - `      transitionName: string`
+      - `      toStateKey: string`
+      - `      toStateLabel: string`
+      - `      source: "open" | "future"`
+      - `    }>`
+      - `  }>`
+      - `}`
+    - incremental result events:
+      - `{ type: "transitionResult", candidateId: string, result: "available" | "blocked", firstReason?: string }`
+    - lifecycle events:
+      - `{ type: "workUnitDone", candidateCardId: string }`
+      - `{ type: "done" }`
+      - `{ type: "error", message: string }`
+    - table backing / read model is now locked:
+      - derived candidate-evaluation pipeline over:
+        - persisted `project_work_units` current-state frontier
+        - methodology work-unit type / lifecycle state / transition definitions
+        - methodology transition condition sets
+        - methodology transition workflow bindings
+        - latest-effective `work_unit_fact_instances`
+        - latest-effective artifact snapshot state
+      - bootstrap payload is count-oriented and should avoid over-fetching full fact/artifact bodies
+      - authoritative selectors should be IDs when available:
+        - bootstrap cards return `workUnitTypeId`, optional `projectWorkUnitId`, and `transitionId`
+        - filter inputs may still accept keys for convenience/deep-linking, but IDs remain authoritative server-side when the UI already has them
+      - progressive evaluation order must remain stable; do not re-sort as events stream in
+- companion drill-in query:
+  - `project.getTransitionStartGateDetails`
+    - kind: query
+    - invoked when user opens the shared blocked/available start-gate drill-in dialog from Runtime Guidance
+    - params:
+      - `{`
+      - `  projectId: string`
+      - `  transitionId: string`
+      - `  transitionKey?: string`
+      - `  projectWorkUnitId?: string`
+      - `  futureCandidate?: { workUnitTypeId: string, workUnitTypeKey?: string, source: "future" }`
+      - `}`
+    - returns:
+      - `{`
+      - `  transition: { transitionId: string, transitionKey: string, transitionName: string, fromStateKey?: string, toStateKey: string }`
+      - `  workUnitContext: { projectWorkUnitId?: string, workUnitTypeId: string, workUnitTypeKey: string, workUnitTypeName: string, currentStateLabel: string, source: "open" | "future" }`
+      - `  gateSummary: { result: "available" | "blocked" }`
+      - `  conditionTree: unknown`
+      - `  launchability: { canLaunch: boolean, availableWorkflows: Array<{ workflowId: string, workflowKey: string, workflowName: string }> }`
+      - `}`
+  - `project.startTransitionExecution`
+    - kind: mutation
+    - invoked when user confirms workflow selection from an available start-gate surface
+    - mutation data:
+      - `{`
+      - `  projectId: string`
+      - `  transitionId: string`
+      - `  transitionKey?: string`
+      - `  workflowId: string`
+      - `  workflowKey?: string`
+      - `  projectWorkUnitId?: string`
+      - `  futureCandidate?: { workUnitTypeId: string, workUnitTypeKey?: string, source: "future" }`
+      - `}`
+    - mutation responsibilities:
+      - authoritatively revalidate start gates
+      - for future candidates, instantiate the `project_work_unit`
+      - create the `transition_execution`
+      - create the first primary `workflow_execution`
+      - set the chosen workflow as the transition's current primary workflow
+    - returns:
+      - `{ projectWorkUnitId: string, transitionExecutionId: string, workflowExecutionId: string }`
+    - reachability / navigation is now locked:
+      - from `Active` cards:
+        - active transition target page: `transition-execution-detail`
+          - required unique data: `projectId`, `projectWorkUnitId`, `transitionExecutionId`
+        - active primary workflow target page: `workflow-execution-detail`
+          - required unique data: `projectId`, `workflowExecutionId`
+      - from `Open/Future` cards:
+        - start-gate drill-in target is the shared start-gate dialog via `project.getTransitionStartGateDetails`
+          - required unique data for open candidate: `projectId`, `projectWorkUnitId`, `transitionId`
+          - required unique data for future candidate: `projectId`, `transitionId`, `futureCandidate.workUnitTypeId`
+        - launch action from an available transition uses `project.startTransitionExecution`
+          - open candidate required unique data: `projectId`, `projectWorkUnitId`, `transitionId`, chosen `workflowId`
+          - future candidate required unique data: `projectId`, `transitionId`, chosen `workflowId`, `futureCandidate.workUnitTypeId`
+      - Runtime Guidance active cards are also reachable from:
+        - Project Overview `activeTransitions` stat card
+        - Project Overview `Go to Guidance` CTA
+        - project-scoped sidebar navigation
+
+### Project Overview
+- page role:
+  - lean project-level overview page, not a guidance surface
+  - contents are exactly:
+    - clickable stat cards
+    - active workflow list
+    - `Go to Guidance` CTA
+- page design/presentation is now locked:
+  - top section = stat cards only
+  - middle section = lightweight recent-active workflow list, optimized for quick navigation rather than dense tabular browsing
+  - bottom/prominent CTA = `Go to Guidance`
+  - no filters on this page in this slice
+  - no embedded next-up / blocked / candidate evaluation surface here; Runtime Guidance owns that responsibility
+- transport is locked to synchronous typed oRPC query only
+- no stream
+- no mutation
+- recommended procedure:
+  - `project.getOverviewRuntimeSummary`
+    - kind: query
+    - params:
+      - `{ projectId: string }`
+    - returns:
+      - `{`
+      - `  stats: {`
+      - `    factTypesWithInstances: {`
+      - `      current: number`
+      - `      total: number`
+      - `      subtitle: string`
+      - `      target: { page: "project-facts", filters: { existence: "exists" } }`
+      - `    }`
+       - `    workUnitTypesWithInstances: {`
+       - `      current: number`
+       - `      total: number`
+       - `      subtitle: string`
+       - `      target: { page: "work-units" }`
+       - `    }`
+      - `    activeTransitions: {`
+      - `      count: number`
+      - `      subtitle: string`
+      - `      target: { page: "runtime-guidance", section: "active" }`
+      - `    }`
+      - `  }`
+       - `  activeWorkflows: Array<{`
+       - `    workflowExecutionId: string`
+      - `    workflowId: string`
+      - `    workflowKey: string`
+      - `    workflowName: string`
+      - `    workUnit: { projectWorkUnitId: string, workUnitTypeId: string, workUnitTypeKey: string, workUnitLabel: string }`
+      - `    transition: { transitionExecutionId: string, transitionId: string, transitionKey: string, transitionName: string }`
+      - `    startedAt: string`
+      - `    target: { page: "workflow-execution-detail", workflowExecutionId: string }`
+       - `  }>`
+       - `  goToGuidanceTarget: { page: "runtime-guidance" }`
+       - `}`
+    - table backing / read model is now locked:
+      - primary persisted/runtime sources used by this page are:
+        - `project_fact_instances` through the latest-effective project-fact projection
+        - `project_work_units`
+        - `transition_executions`
+        - `workflow_executions`
+      - definition metadata joins/read models used by this page are:
+        - project fact definitions for total fact-definition counts
+        - work-unit type definitions for total work-unit-type counts and labels
+        - workflow definitions for active-workflow labels
+        - transition definitions for active-workflow list transition labels
+      - field/value usage is:
+        - latest-effective project-fact rows determine `factTypesWithInstances.current`
+        - project fact definition count determines `factTypesWithInstances.total`
+        - instantiated `project_work_units` grouped by work-unit type determine `workUnitTypesWithInstances.current`
+        - work-unit type definition count determines `workUnitTypesWithInstances.total`
+        - `transition_executions.status = "active"` determines `activeTransitions.count`
+        - `workflow_executions.status = "active"` determines the recent-active workflow list
+        - `workflow_executions.started_at` powers the active workflow list ordering/display
+        - `workflow_executions.id` is the authoritative navigation target for each active workflow row
+        - `transition_executions.id` / `transition_executions.transition_id` provide transition context for each active workflow row
+        - `project_work_units.id` / `project_work_units.work_unit_type_id` provide work-unit context for each active workflow row
+      - no candidate evaluation stream and no blocked/open/future derivation belong here
+    - reachability / navigation is now locked:
+      - stat card `factTypesWithInstances` links to `Project Facts`
+        - target page: `project-facts`
+        - required unique data: `projectId`
+        - carried filter context: `existence = "exists"`
+      - stat card `workUnitTypesWithInstances` links to `Work Units List`
+        - target page: `work-units`
+        - required unique data: `projectId`
+        - no extra filter is required because the page already shows instantiated work-unit instances only
+      - stat card `activeTransitions` links to `Runtime Guidance`
+        - target page: `runtime-guidance`
+        - required unique data: `projectId`
+        - carried section context: `section = "active"`
+      - each active workflow row links to `Workflow Execution Detail`
+        - target page: `workflow-execution-detail`
+        - required unique data: `projectId`, `workflowExecutionId`
+      - `Go to Guidance` CTA links to `Runtime Guidance`
+        - target page: `runtime-guidance`
+        - required unique data: `projectId`
+
+### Work Unit Overview
+- page role:
+  - landing/overview page for one instantiated work unit
+  - contents are exactly:
+    - header / identity
+    - current state
+    - optional active transition card
+    - summary cards for Facts/Dependencies, State Machine, Artifact Slots
+- page design/presentation is now locked:
+  - top section = work-unit identity and current-state summary only
+  - optional active-transition card sits directly under the current-state summary when an active transition exists
+  - the active-transition card is **transition-first**:
+    - transition summary is the primary visual/action element
+    - current primary workflow is secondary context inside that card
+  - bottom section = exactly three summary cards:
+    - Facts/Dependencies
+    - State Machine
+    - Artifact Slots
+  - this page is intentionally shallow:
+    - no transition-history list
+    - no candidate-evaluation surface
+    - no full gate tree
+    - no inline fact/artifact detail grids
+- transport is locked to synchronous typed oRPC query only
+- no stream
+- no mutation
+- recommended procedure:
+  - `project.getWorkUnitOverview`
+    - kind: query
+    - params:
+      - `{ projectId: string, projectWorkUnitId: string }`
+    - returns:
+      - `{`
+      - `  workUnit: {`
+      - `    projectWorkUnitId: string`
+      - `    workUnitTypeId: string`
+      - `    workUnitTypeKey: string`
+      - `    workUnitTypeName: string`
+      - `    currentStateId: string`
+      - `    currentStateKey: string`
+      - `    currentStateLabel: string`
+      - `    createdAt: string`
+      - `    updatedAt: string`
+      - `  }`
+      - `  activeTransition?: {`
+      - `    transitionExecutionId: string`
+      - `    transitionId: string`
+      - `    transitionKey: string`
+      - `    transitionName: string`
+      - `    toStateId: string`
+      - `    toStateKey: string`
+      - `    toStateLabel: string`
+      - `    status: "active"`
+      - `    readyForCompletion?: boolean`
+      - `    primaryWorkflow?: {`
+      - `      workflowExecutionId: string`
+      - `      workflowId: string`
+      - `      workflowKey: string`
+      - `      workflowName: string`
+      - `      status: "active" | "completed"`
+      - `    }`
+      - `    actions: {`
+      - `      primary: { kind: "open_transition", transitionExecutionId: string }`
+      - `      secondaryWorkflow?: { kind: "open_workflow", workflowExecutionId: string }`
+      - `      openTransitionTarget: { page: "transition-execution-detail", transitionExecutionId: string }`
+      - `      openWorkflowTarget?: { page: "workflow-execution-detail", workflowExecutionId: string }`
+      - `    }`
+      - `  }`
+      - `  summaries: {`
+      - `    factsDependencies: {`
+      - `      factInstancesCurrent: number`
+      - `      factDefinitionsTotal: number`
+      - `      inboundDependencyCount: number`
+      - `      outboundDependencyCount: number`
+      - `      target: { page: "work-unit-facts", projectWorkUnitId: string }`
+      - `    }`
+      - `    stateMachine: {`
+      - `      currentStateKey: string`
+      - `      currentStateLabel: string`
+      - `      hasActiveTransition: boolean`
+      - `      target: { page: "work-unit-state-machine", projectWorkUnitId: string }`
+      - `    }`
+      - `    artifactSlots: {`
+      - `      slotsWithCurrentSnapshots: number`
+      - `      slotDefinitionsTotal: number`
+      - `      target: { page: "artifact-slots", projectWorkUnitId: string }`
+      - `    }`
+      - `  }`
+      - `}`
+    - table backing / read model is now locked:
+      - primary persisted/runtime sources used by this page are:
+        - `project_work_units`
+        - `transition_executions`
+        - `workflow_executions`
+        - latest-effective `work_unit_fact_instances`
+        - latest-effective artifact snapshot summary projection
+      - definition metadata joins/read models used by this page are:
+        - work-unit type definitions for work-unit identity labels
+        - lifecycle state definitions for current-state labels
+        - transition definitions for active-transition labels and destination-state metadata
+        - workflow definitions for active primary workflow labels
+        - work-unit fact definitions for `factDefinitionsTotal`
+        - artifact slot definitions for `slotDefinitionsTotal`
+      - field/value usage is:
+        - `project_work_units.id` is the authoritative page identity and the target carried into all child runtime pages
+        - `project_work_units.work_unit_type_id` resolves work-unit type key/name
+        - `project_work_units.current_state_id` resolves current-state key/label and drives the State Machine summary card
+        - `project_work_units.active_transition_execution_id` determines whether the optional active-transition card exists
+        - `transition_executions.id` is the authoritative target for the active-transition card primary CTA
+        - `transition_executions.transition_id` resolves transition key/name and destination-state metadata
+        - `transition_executions.status` must be `active` when surfaced here
+        - `transition_executions.primary_workflow_execution_id` determines whether a current primary workflow summary is shown inside the active-transition card
+        - `workflow_executions.id` is the authoritative secondary target for the active workflow link when present
+        - `workflow_executions.workflow_id` resolves workflow key/name
+        - latest-effective `work_unit_fact_instances` grouped by definition determine `factInstancesCurrent`
+        - latest-effective dependency rows grouped by direction determine `inboundDependencyCount` and `outboundDependencyCount`
+        - latest-effective artifact snapshot projection grouped by slot determines `slotsWithCurrentSnapshots`
+        - `project_work_units.created_at` / `updated_at` provide chronology/freshness metadata for the overview header
+      - this page intentionally does not run candidate evaluation and does not expose transition history; those belong to Runtime Guidance / Work Unit State Machine / Transition Execution Detail
+    - reachability / navigation is now locked:
+      - Work Unit Overview is reached from:
+        - Work Units List row click
+          - required unique data: `projectId`, `projectWorkUnitId`
+        - Active workflow row/context surfaces may reach this page through work-unit context links
+          - required unique data: `projectId`, `projectWorkUnitId`
+        - Transition / workflow detail pages may expose this as parent work-unit context
+          - required unique data: `projectId`, `projectWorkUnitId`
+      - optional active-transition card primary CTA links to `Transition Execution Detail`
+        - target page: `transition-execution-detail`
+        - required unique data: `projectId`, `projectWorkUnitId`, `transitionExecutionId`
+      - optional active-transition card secondary workflow link links to `Workflow Execution Detail`
+        - target page: `workflow-execution-detail`
+        - required unique data: `projectId`, `workflowExecutionId`
+      - `Facts/Dependencies` summary card links to `Work Unit Facts`
+        - target page: `work-unit-facts`
+        - required unique data: `projectId`, `projectWorkUnitId`
+      - `State Machine` summary card links to `Work Unit State Machine`
+        - target page: `work-unit-state-machine`
+        - required unique data: `projectId`, `projectWorkUnitId`
+      - `Artifact Slots` summary card links to `Artifact Slots`
+        - target page: `artifact-slots`
+        - required unique data: `projectId`, `projectWorkUnitId`
+
+### Work Unit State Machine
+- page role:
+  - canonical work-unit-scoped transition surface for one instantiated work unit
+  - contents are exactly:
+    - current state summary
+    - active transition panel if one exists
+    - possible / alternative transitions from the current state
+    - transition history
+- page design/presentation is now locked:
+  - top section = current-state summary for the instantiated work unit
+  - second section = active-transition panel when `project_work_units.active_transition_execution_id` is present
+  - third section = possible / alternative transitions from the same current state
+  - bottom section = transition history list
+  - this page is intentionally the work-unit-scoped transition surface:
+    - it may show lightweight availability/blocking summaries
+    - it may open the shared start-gate drill-in
+    - it does not inline the full completion-gate tree
+    - it does not replace Transition Execution Detail as the singular execution-run page
+- transport:
+  - synchronous typed oRPC query for the page read
+  - synchronous typed oRPC query for shared start-gate drill-in
+  - mutations for `start` and `switch`
+  - no stream in this slice
+- recommended procedures:
+  - `project.getWorkUnitStateMachine`
+    - kind: query
+    - params:
+      - `{ projectId: string, projectWorkUnitId: string }`
+    - returns:
+      - `{`
+      - `  workUnit: {`
+      - `    projectWorkUnitId: string`
+      - `    workUnitTypeId: string`
+      - `    workUnitTypeKey: string`
+      - `    workUnitTypeName: string`
+      - `    currentStateId: string`
+      - `    currentStateKey: string`
+      - `    currentStateLabel: string`
+      - `  }`
+      - `  activeTransition?: {`
+      - `    transitionExecutionId: string`
+      - `    transitionId: string`
+      - `    transitionKey: string`
+      - `    transitionName: string`
+      - `    toStateId: string`
+      - `    toStateKey: string`
+      - `    toStateLabel: string`
+      - `    status: "active"`
+      - `    readyForCompletion?: boolean`
+      - `    primaryWorkflow?: {`
+      - `      workflowExecutionId: string`
+      - `      workflowId: string`
+      - `      workflowKey: string`
+      - `      workflowName: string`
+      - `      status: "active" | "completed"`
+      - `    }`
+      - `    actions: {`
+      - `      primary: { kind: "open_transition", transitionExecutionId: string }`
+      - `      secondaryWorkflow?: { kind: "open_workflow", workflowExecutionId: string }`
+      - `      openTransitionTarget: { page: "transition-execution-detail", transitionExecutionId: string }`
+      - `      openWorkflowTarget?: { page: "workflow-execution-detail", workflowExecutionId: string }`
+      - `    }`
+      - `  }`
+      - `  possibleTransitions: Array<{`
+      - `    transitionId: string`
+      - `    transitionKey: string`
+      - `    transitionName: string`
+      - `    fromStateId: string`
+      - `    fromStateKey: string`
+      - `    toStateId: string`
+      - `    toStateKey: string`
+      - `    toStateLabel: string`
+      - `    result: "available" | "blocked"`
+      - `    firstReason?: string`
+      - `    actionMode: "start" | "switch"`
+      - `    actions: { inspectStartGate: { transitionId: string, projectWorkUnitId: string } }`
+      - `  }>`
+      - `  history: Array<{`
+      - `    transitionExecutionId: string`
+      - `    transitionId: string`
+      - `    transitionKey: string`
+      - `    transitionName: string`
+      - `    fromStateId?: string`
+      - `    fromStateKey?: string`
+      - `    toStateId: string`
+      - `    toStateKey: string`
+      - `    status: "completed" | "superseded"`
+      - `    startedAt: string`
+      - `    completedAt?: string`
+      - `    supersededAt?: string`
+      - `    target: { page: "transition-execution-detail", transitionExecutionId: string }`
+      - `  }>`
+      - `}`
+  - `project.getTransitionStartGateDetails`
+    - kind: query
+    - shared with Runtime Guidance for the start-gate drill-in dialog
+    - params:
+      - `{ projectId: string, projectWorkUnitId: string, transitionId: string, transitionKey?: string }`
+    - returns:
+      - `{`
+      - `  transition: { transitionId: string, transitionKey: string, transitionName: string, fromStateId?: string, fromStateKey?: string, toStateId: string, toStateKey: string }`
+      - `  workUnitContext: { projectWorkUnitId: string, workUnitTypeId: string, workUnitTypeKey: string, workUnitTypeName: string, currentStateLabel: string, source: "open" }`
+      - `  gateSummary: { result: "available" | "blocked" }`
+      - `  conditionTree: unknown`
+      - `  launchability: { canLaunch: boolean, availableWorkflows: Array<{ workflowId: string, workflowKey: string, workflowName: string }> }`
+      - `}`
+  - `project.startTransitionExecution`
+    - kind: mutation
+    - used when there is no active transition and the user launches an available transition from this page
+    - mutation data:
+      - `{ projectId: string, projectWorkUnitId: string, transitionId: string, transitionKey?: string, workflowId: string, workflowKey?: string }`
+    - returns:
+      - `{ transitionExecutionId: string, workflowExecutionId: string }`
+  - `project.switchActiveTransitionExecution`
+    - kind: mutation
+    - used when there is already an active transition and the user switches to an alternative transition from the same current state
+    - mutation data:
+      - `{ projectId: string, projectWorkUnitId: string, supersededTransitionExecutionId: string, transitionId: string, transitionKey?: string, workflowId: string, workflowKey?: string }`
+    - returns:
+      - `{ supersededTransitionExecutionId: string, transitionExecutionId: string, workflowExecutionId: string }`
+    - mutation responsibilities:
+      - revalidate start gates for the replacement transition
+      - mark the old active transition execution as `superseded`
+      - create a new `transition_execution` with `supersedes_transition_execution_id`
+      - create the first primary `workflow_execution` under the new transition execution
+    - table backing / read model is now locked:
+      - primary persisted/runtime sources used by this page are:
+        - `project_work_units`
+        - `transition_executions`
+        - `workflow_executions`
+        - latest-effective `work_unit_fact_instances`
+        - latest-effective artifact snapshot state
+      - definition metadata joins/read models used by this page are:
+        - work-unit type definitions for header labels
+        - lifecycle state definitions for current-state / from-state / to-state labels
+        - transition definitions for possible-transition and history labels
+        - workflow definitions for active primary workflow labels
+        - transition condition-set read models for start-gate evaluation summaries and drill-in trees
+        - transition-workflow bindings for launchability / workflow selection
+      - field/value usage is:
+        - `project_work_units.id` is the authoritative page identity
+        - `project_work_units.current_state_id` anchors the current-state summary and the possible-transition derivation context
+        - `project_work_units.active_transition_execution_id` determines whether the page is in active-transition mode or open-transition mode
+        - `transition_executions.id` is the authoritative identity for the active panel and each history row
+        - `transition_executions.transition_id` resolves transition definition metadata for active/past rows
+        - `transition_executions.status` partitions active panel vs history rows
+        - `transition_executions.primary_workflow_execution_id` determines the current primary workflow summary within the active panel
+        - `workflow_executions.id` is the authoritative secondary target when the active primary workflow is shown
+        - `workflow_executions.status` determines whether the active panel shows workflow-running context or ready-for-completion hint context
+        - latest-effective work-unit fact state feeds start-gate evaluation for possible / alternative transitions
+        - latest-effective artifact state feeds artifact-based start-gate evaluation for possible / alternative transitions
+        - transition history rows are derived from non-active `transition_executions` for this work unit ordered by newest first
+      - behavioral rules are now explicit:
+        - if there is no active transition, `possibleTransitions` is the work-unit-scoped open surface from the current state
+        - if there is an active transition, `possibleTransitions` is the alternative-transition surface from that same current state while the active transition remains in progress
+        - full completion-gate inspection stays on Transition Execution Detail even when `readyForCompletion` is surfaced here as a lightweight hint
+        - this page never shows future/inactive-instantiation opportunities because those belong only to Runtime Guidance
+    - reachability / navigation is now locked:
+      - Work Unit State Machine is reached from:
+        - Work Unit Overview `State Machine` summary card
+          - required unique data: `projectId`, `projectWorkUnitId`
+        - Work Unit Facts / Transition / Workflow contexts may link back here through work-unit navigation
+          - required unique data: `projectId`, `projectWorkUnitId`
+      - active-transition panel primary CTA links to `Transition Execution Detail`
+        - target page: `transition-execution-detail`
+        - required unique data: `projectId`, `projectWorkUnitId`, `transitionExecutionId`
+      - active-transition panel secondary workflow link links to `Workflow Execution Detail`
+        - target page: `workflow-execution-detail`
+        - required unique data: `projectId`, `workflowExecutionId`
+      - each history row links to `Transition Execution Detail`
+        - target page: `transition-execution-detail`
+        - required unique data: `projectId`, `projectWorkUnitId`, `transitionExecutionId`
+      - each possible/alternative transition row can open the shared start-gate dialog
+        - required unique data: `projectId`, `projectWorkUnitId`, `transitionId`
+      - launching an available open transition uses `project.startTransitionExecution`
+        - required mutation data: `projectId`, `projectWorkUnitId`, `transitionId`, chosen `workflowId`
+      - switching from an active transition to an alternative transition uses `project.switchActiveTransitionExecution`
+        - required mutation data: `projectId`, `projectWorkUnitId`, `supersededTransitionExecutionId`, `transitionId`, chosen `workflowId`
+
+### Work Unit Facts
+- page role:
+  - current-state fact surface for one instantiated work unit
+  - uses tabs:
+    - `Primitive`
+    - `Work Units`
+  - `Primitive` shows definition-centric fact cards for non-`work_unit` fact definitions
+  - `Work Units` shows page-wide `Outgoing` and `Incoming` sections, each containing definition-centric dependency cards for `work_unit` fact definitions
+- page design/presentation is now locked:
+  - top section = work-unit context header plus tab state
+  - tab state is part of page/URL state and is also accepted by the page query
+  - `Primitive` tab is a definition-centric current-state list surface:
+    - one card/row per fact definition
+    - fuller current values/items should be visible in-list, not only counts
+  - `Work Units` tab is a dependency-centric list surface:
+    - page-wide `Outgoing` section first
+    - page-wide `Incoming` section second
+    - inside each section, one card/row per dependency fact definition
+    - cards surface both authored dependency-definition metadata and current runtime counterpart members
+  - this page remains browse-first:
+    - list page may expose lightweight add-instance entry points where appropriate
+    - edit/replace authority lives on the definition-scoped detail surface
+    - no history/audit timeline is shown here in this slice
+- transport:
+  - synchronous typed oRPC query for the page read
+  - synchronous typed oRPC query for fact detail
+  - no stream
+  - list page may expose lightweight add-new-instance entry points where appropriate, but edit/remove authority belongs to the definition-scoped fact-detail surface
+  - the same fact-detail query may back either a quick-look dialog or a dedicated fact-detail page; no separate dialog-only procedure is needed in this slice
+- recommended procedures:
+  - `project.getWorkUnitFacts`
+    - kind: query
+    - params:
+      - `{`
+      - `  projectId: string`
+      - `  projectWorkUnitId: string`
+      - `  tab: "primitive" | "work_units"`
+      - `  filters?: {`
+      - `    existence?: "exists" | "not_exists"`
+      - `    primitiveFactTypes?: Array<"string" | "number" | "boolean" | "json">`
+      - `  }`
+      - `}`
+    - returns:
+      - `{`
+      - `  workUnit: {`
+      - `    projectWorkUnitId: string`
+      - `    workUnitTypeId: string`
+      - `    workUnitTypeKey: string`
+      - `    workUnitTypeName: string`
+      - `    currentStateId: string`
+      - `    currentStateKey: string`
+      - `    currentStateLabel: string`
+      - `  }`
+      - `  activeTab: "primitive" | "work_units"`
+      - `  filters: {`
+      - `    existence?: "exists" | "not_exists"`
+      - `    primitiveFactTypes?: Array<"string" | "number" | "boolean" | "json">`
+      - `  }`
+      - `  primitive?: {`
+      - `    cards: Array<{`
+      - `      factDefinitionId: string`
+      - `      factKey: string`
+      - `      factName?: string`
+      - `      factType: "string" | "number" | "boolean" | "json"`
+      - `      cardinality: "one" | "many"`
+      - `      exists: boolean`
+      - `      currentCount: number`
+      - `      currentValues: unknown[]`
+      - `      target: { page: "work-unit-fact-detail", factDefinitionId: string }`
+      - `    }>`
+      - `  }`
+      - `  workUnits?: {`
+      - `    outgoing: Array<{`
+      - `      factDefinitionId: string`
+      - `      factKey: string`
+      - `      factName?: string`
+      - `      cardinality: "one" | "many"`
+      - `      dependencyDefinition?: {`
+      - `        dependencyDefinitionId?: string`
+      - `        dependencyDefinitionKey?: string`
+      - `        dependencyDefinitionName?: string`
+      - `      }`
+      - `      count: number`
+      - `      currentMembers: Array<{`
+      - `        workUnitFactInstanceId: string`
+      - `        counterpartProjectWorkUnitId: string`
+      - `        counterpartWorkUnitTypeId: string`
+      - `        counterpartWorkUnitTypeKey: string`
+      - `        counterpartWorkUnitTypeName: string`
+      - `        counterpartLabel: string`
+      - `      }>`
+      - `      target: { page: "work-unit-fact-detail", factDefinitionId: string }`
+      - `    }>`
+      - `    incoming: Array<{`
+      - `      factDefinitionId: string`
+      - `      factKey: string`
+      - `      factName?: string`
+      - `      cardinality: "one" | "many"`
+      - `      dependencyDefinition?: {`
+      - `        dependencyDefinitionId?: string`
+      - `        dependencyDefinitionKey?: string`
+      - `        dependencyDefinitionName?: string`
+      - `      }`
+      - `      count: number`
+      - `      currentMembers: Array<{`
+      - `        workUnitFactInstanceId: string`
+      - `        counterpartProjectWorkUnitId: string`
+      - `        counterpartWorkUnitTypeId: string`
+      - `        counterpartWorkUnitTypeKey: string`
+      - `        counterpartWorkUnitTypeName: string`
+      - `        counterpartLabel: string`
+      - `      }>`
+      - `      target: { page: "work-unit-fact-detail", factDefinitionId: string }`
+      - `    }>`
+      - `  }`
+      - `}`
+    - backing read-model rules:
+      - one card per fact definition, never one card per fact-instance row
+      - `many` cardinality aggregates current members into one definition card with count + full current members/items available in-card for practical runtime inspection
+      - `Primitive` cards should show current values/items, not only abstract counters
+      - `Work Units` tab is page-wide section split first (`Outgoing`, `Incoming`), then fact-definition cards inside each section
+      - dependency-definition metadata should be resolved from the authored `validation_json` on the `work_unit` fact definition and surfaced on each dependency card
+  - `project.getWorkUnitFactDetail`
+    - kind: query
+    - params:
+      - `{ projectId: string, projectWorkUnitId: string, factDefinitionId: string }`
+    - returns:
+      - `{`
+      - `  workUnit: {`
+      - `    projectWorkUnitId: string`
+      - `    workUnitTypeId: string`
+      - `    workUnitTypeKey: string`
+      - `    workUnitTypeName: string`
+      - `  }`
+      - `  factDefinition: {`
+      - `    factDefinitionId: string`
+      - `    factKey: string`
+      - `    factName?: string`
+      - `    factType: "string" | "number" | "boolean" | "json" | "work_unit"`
+      - `    cardinality: "one" | "many"`
+      - `    description?: unknown`
+      - `    guidance?: unknown`
+      - `    validation?: unknown`
+      - `  }`
+      - `  primitiveState?: {`
+      - `    exists: boolean`
+      - `    currentCount: number`
+      - `    values: Array<{ workUnitFactInstanceId: string, value: unknown, createdAt: string }>`
+      - `  }`
+      - `  dependencyState?: {`
+      - `    dependencyDefinition?: {`
+      - `      dependencyDefinitionId?: string`
+      - `      dependencyDefinitionKey?: string`
+      - `      dependencyDefinitionName?: string`
+      - `    }`
+      - `    outgoing: Array<{`
+      - `      workUnitFactInstanceId: string`
+      - `      counterpartProjectWorkUnitId: string`
+      - `      counterpartWorkUnitTypeId: string`
+      - `      counterpartWorkUnitTypeKey: string`
+      - `      counterpartWorkUnitTypeName: string`
+      - `      counterpartLabel: string`
+      - `      createdAt: string`
+      - `    }>`
+      - `    incoming: Array<{`
+      - `      workUnitFactInstanceId: string`
+      - `      counterpartProjectWorkUnitId: string`
+      - `      counterpartWorkUnitTypeId: string`
+      - `      counterpartWorkUnitTypeKey: string`
+      - `      counterpartWorkUnitTypeName: string`
+      - `      counterpartLabel: string`
+      - `      createdAt: string`
+      - `    }>`
+      - `  }`
+      - `  actions: {`
+      - `    canAddInstance: boolean`
+      - `    canUpdateExisting: boolean`
+      - `    canRemoveExisting: false`
+      - `  }`
+      - `}`
+  - `project.addWorkUnitFactInstance`
+    - kind: mutation
+    - entry point may be launched from the list page or the fact-detail surface when adding a new current member under an existing fact definition
+    - mutation data:
+      - `{ projectId: string, projectWorkUnitId: string, factDefinitionId: string, value?: unknown, referencedProjectWorkUnitId?: string }`
+    - returns:
+      - `{ workUnitFactInstanceId: string }`
+    - mutation rules:
+      - for primitive facts, `value` is used and `referencedProjectWorkUnitId` must be absent
+      - for `work_unit` facts, `referencedProjectWorkUnitId` is used and `value` must be absent
+      - for `one` cardinality, this acts as the create/set path only when no current effective instance exists; replacement/update belongs to the update mutation on the detail surface
+      - new rows are appended as immutable lineage rows and become part of the latest-effective frontier
+  - `project.updateWorkUnitFactInstance`
+    - kind: mutation
+    - owned by the definition-scoped fact-detail surface
+    - mutation data:
+      - `{ projectId: string, projectWorkUnitId: string, factDefinitionId: string, workUnitFactInstanceId: string, value?: unknown, referencedProjectWorkUnitId?: string }`
+    - returns:
+      - `{ workUnitFactInstanceId: string, supersededWorkUnitFactInstanceId: string }`
+    - mutation rules:
+      - does not edit a payload in place; it creates a new immutable replacement row and supersedes the targeted current effective row
+      - for `work_unit` facts, the new replacement row preserves reference-mode storage (`referencedProjectWorkUnitId`) rather than primitive payload storage
+  - `project.removeWorkUnitFactInstance`
+    - deferred from this slice
+    - reason:
+      - with immutable lineage, true clear/remove semantics require explicit tombstone or absence-marker design
+      - this slice intentionally avoids half-designing fact deletion semantics
+ - page design / detail rules are now locked:
+   - Work Unit Fact Detail is a definition-scoped current-state detail surface, not a route per fact-instance row
+   - top section = work-unit context plus fact definition metadata
+   - main section splits by fact kind:
+     - primitive/json facts => current effective value/member list
+     - `work_unit` facts => authored dependency-definition metadata plus current outgoing/incoming counterpart rows
+   - detail remains current-state oriented:
+     - no history/audit timeline
+     - no provenance browser
+     - no reverse-impact graph beyond explicit incoming/outgoing current rows
+   - detail surface is definition-scoped, so for `many` cardinality it shows multiple current effective instance rows under one fact definition rather than routing to one page per instance
+   - manual mutation scope is intentionally narrower in this slice:
+     - add/set + replace are allowed
+     - delete/clear is deferred until tombstone/absence semantics are explicitly designed
+   - frontend action contract for Work Unit Fact Detail in this slice:
+     - `one` cardinality primitive fact with no current value => show `Set value`
+     - `one` cardinality primitive fact with current value => show `Replace value`
+     - `many` cardinality primitive fact => show `Add instance` plus per-instance `Replace value`
+     - `one` cardinality work-unit-reference fact with no current value => show `Set linked work unit`
+     - `one` cardinality work-unit-reference fact with current value => show `Replace linked work unit`
+     - `many` cardinality work-unit-reference fact => show `Add linked work unit` plus per-instance `Replace linked work unit`
+     - do not show `Delete`, `Remove`, or `Clear` actions on this page in this slice
+
+- table backing / read model is now locked:
+  - primary persisted/runtime sources used by this page are:
+    - `project_work_units`
+    - latest-effective `work_unit_fact_instances`
+  - definition metadata joins/read models used by this page are:
+    - work-unit type definitions for work-unit context header labels
+    - work-unit fact definitions for fact keys/names/types/cardinality/validation
+    - dependency-definition metadata resolved from authored `validation_json` on `work_unit` fact definitions
+  - field/value usage is:
+    - `project_work_units.id` is the authoritative work-unit context identity
+    - `project_work_units.work_unit_type_id` resolves work-unit type key/name in the header
+    - `work_unit_fact_instances.id` is the runtime identity of each current effective fact member row surfaced inside `primitiveState.values`, `dependencyState.outgoing`, and `dependencyState.incoming`
+    - `work_unit_fact_instances.project_work_unit_id` scopes owned rows to this work unit for primitive state and outgoing dependency state
+    - `work_unit_fact_instances.fact_definition_id` groups immutable lineage rows into one definition-scoped detail surface
+    - `work_unit_fact_instances.value_json` is the current effective primitive/json payload for primitive state rows
+    - `work_unit_fact_instances.referenced_project_work_unit_id` drives dependency state for `work_unit` facts:
+      - outgoing = rows owned by this work unit pointing to counterpart work units
+      - incoming = rows owned by other work units pointing to this work unit
+    - `work_unit_fact_instances.status ∈ {active, superseded, parent_superseded}` participates in latest-effective projection; only the effective frontier contributes to detail reads
+    - `work_unit_fact_instances.supersedes_work_unit_fact_instance_id` supports immutable replacement lineage and truthful current-state reconstruction
+    - `work_unit_fact_instances.produced_by_transition_execution_id` / `produced_by_workflow_execution_id` / `authored_by_user_id` exist for lineage correctness under the hood, but are not rendered as a provenance browser here in this slice
+    - `work_unit_fact_instances.created_at` is returned as lightweight chronology metadata on current effective member rows
+  - behavioral rules are now explicit:
+    - primitive detail reads only non-`work_unit` fact definitions
+    - dependency detail reads only `work_unit` fact definitions
+    - for `many`, all current effective members for that definition are surfaced together
+    - updates append immutable replacement rows and move the latest-effective frontier; they do not edit rows in place
+    - delete/clear remains deferred because explicit tombstone semantics are not designed in this slice
+
+- reachability / navigation is now locked:
+  - Work Unit Fact Detail is reached from:
+    - Work Unit Facts primitive cards/rows
+      - required unique data: `projectId`, `projectWorkUnitId`, `factDefinitionId`
+    - Work Unit Facts dependency cards in `Outgoing` and `Incoming`
+      - required unique data: `projectId`, `projectWorkUnitId`, `factDefinitionId`
+    - reusable quick-look surfaces may reuse the same query contract
+      - required unique data: `projectId`, `projectWorkUnitId`, `factDefinitionId`
+  - add/set actions invoke `project.addWorkUnitFactInstance`
+    - primitive required mutation data: `projectId`, `projectWorkUnitId`, `factDefinitionId`, `value`
+    - `work_unit` required mutation data: `projectId`, `projectWorkUnitId`, `factDefinitionId`, `referencedProjectWorkUnitId`
+  - replace actions invoke `project.updateWorkUnitFactInstance`
+    - primitive required mutation data: `projectId`, `projectWorkUnitId`, `factDefinitionId`, `workUnitFactInstanceId`, `value`
+    - `work_unit` required mutation data: `projectId`, `projectWorkUnitId`, `factDefinitionId`, `workUnitFactInstanceId`, `referencedProjectWorkUnitId`
+  - this page may link back to `Work Unit Facts` while preserving active tab/filter context
+    - required unique data: `projectId`, `projectWorkUnitId`
+
+- Project Fact detail should follow the same high-level mutation ownership pattern as Work Unit Fact detail:
+  - project-level fact detail remains scoped by fact definition, not by one fact-instance route
+  - for `one` cardinality, detail owns set/replace of the current value in this slice; clear is deferred
+  - for `many` cardinality, detail owns add/update of current member instances under that fact definition in this slice; remove is deferred
+  - project-fact list may expose add-new-instance entry where appropriate, but edit authority should live on the project fact detail surface
+
+### Project Facts
+- page role:
+  - current-state fact surface for the whole project
+  - untabbed because project facts are primitive-only in this model
+  - definition-centric cards/rows for project fact definitions
+- page design/presentation is now locked:
+  - top section = lightweight filter bar only
+  - main section = flat definition-centric list surface for project fact definitions
+  - the surface may render as cards or row-like cards, but the interaction model is **definition-first**, never one item per fact-instance row
+  - each definition surface should show fuller current state, not just abstract counts:
+    - explicit absence for missing `one`
+    - current effective value for `one`
+    - aggregated current effective members/items for `many`
+  - this page is intentionally not a provenance/history surface and not a dependency surface
+- transport:
+  - synchronous typed oRPC query for the page read
+  - synchronous typed oRPC query for fact detail
+  - no stream
+  - list page may expose lightweight add-new-instance entry points where appropriate, but edit/remove authority belongs to the definition-scoped project-fact-detail surface
+  - the same fact-detail query may back either a quick-look dialog or a dedicated project-fact-detail page; no separate dialog-only procedure is needed in this slice
+- recommended procedures:
+  - `project.getProjectFacts`
+    - kind: query
+    - params:
+      - `{`
+      - `  projectId: string`
+      - `  filters?: {`
+      - `    existence?: "exists" | "not_exists"`
+      - `    factTypes?: Array<"string" | "number" | "boolean" | "json">`
+      - `  }`
+      - `}`
+    - returns:
+      - `{`
+      - `  project: {`
+      - `    projectId: string`
+      - `    name: string`
+      - `  }`
+      - `  filters: {`
+      - `    existence?: "exists" | "not_exists"`
+      - `    factTypes?: Array<"string" | "number" | "boolean" | "json">`
+      - `  }`
+      - `  cards: Array<{`
+      - `    factDefinitionId: string`
+      - `    factKey: string`
+      - `    factName?: string`
+      - `    factType: "string" | "number" | "boolean" | "json"`
+      - `    cardinality: "one" | "many"`
+      - `    exists: boolean`
+      - `    currentCount: number`
+      - `    currentValues: unknown[]`
+      - `    target: { page: "project-fact-detail", factDefinitionId: string }`
+      - `    actions?: {`
+      - `      addInstance?: { kind: "add_project_fact_instance", factDefinitionId: string }`
+      - `    }`
+      - `  }>`
+      - `}`
+    - backing read-model rules:
+      - one card per project fact definition, never one card per fact-instance row
+      - cards read from the latest-effective frontier over immutable lineage rows, not from mutable in-place fact rows
+      - `one` cardinality => one definition card showing the current effective value or explicit absence
+      - `many` cardinality => one definition card aggregating current effective members under that definition with count + current values/items available in-card for practical inspection
+      - project facts never expose dependency/reference state because project facts cannot be `work_unit_reference` in this model
+  - `project.getProjectFactDetail`
+    - kind: query
+    - params:
+      - `{ projectId: string, factDefinitionId: string }`
+    - returns:
+      - `{`
+      - `  project: {`
+      - `    projectId: string`
+      - `    name: string`
+      - `  }`
+      - `  factDefinition: {`
+      - `    factDefinitionId: string`
+      - `    factKey: string`
+      - `    factName?: string`
+      - `    factType: "string" | "number" | "boolean" | "json"`
+      - `    cardinality: "one" | "many"`
+      - `    description?: unknown`
+      - `    guidance?: unknown`
+      - `    validation?: unknown`
+      - `  }`
+      - `  currentState: {`
+      - `    exists: boolean`
+      - `    currentCount: number`
+      - `    values: Array<{ projectFactInstanceId: string, value: unknown, createdAt: string }>`
+      - `  }`
+      - `  actions: {`
+      - `    canAddInstance: boolean`
+      - `    canUpdateExisting: boolean`
+      - `    canRemoveExisting: false`
+      - `  }`
+      - `}`
+  - `project.addProjectFactInstance`
+    - kind: mutation
+    - entry point may be launched from the list page or the fact-detail surface when adding a new current member under an existing project fact definition
+    - mutation data:
+      - `{ projectId: string, factDefinitionId: string, value: unknown }`
+    - returns:
+      - `{ projectFactInstanceId: string }`
+    - mutation rules:
+      - project facts are primitive/json only, so `value` is always the write payload in this slice
+      - for `one` cardinality, this acts as the create/set path only when no current effective instance exists; replacement/update belongs to the update mutation on the detail surface
+      - new rows are appended as immutable lineage rows and become part of the latest-effective frontier
+  - `project.updateProjectFactInstance`
+    - kind: mutation
+    - owned by the definition-scoped project-fact-detail surface
+    - mutation data:
+      - `{ projectId: string, factDefinitionId: string, projectFactInstanceId: string, value: unknown }`
+    - returns:
+      - `{ projectFactInstanceId: string, supersededProjectFactInstanceId: string }`
+    - mutation rules:
+      - does not edit a payload in place; it creates a new immutable replacement row and supersedes the targeted current effective row
+  - `project.removeProjectFactInstance`
+    - deferred from this slice
+    - reason:
+      - with immutable lineage, true clear/remove semantics require explicit tombstone or absence-marker design
+      - this slice intentionally avoids half-designing fact deletion semantics
+ - page design / detail rules are now locked:
+   - Project Fact Detail is a definition-scoped current-state detail surface, not a route per fact-instance row
+   - top section = fact definition metadata (`key`, name, type, cardinality, description/guidance/validation when present)
+   - main section = current effective state for that definition
+   - `one` cardinality => show one current effective value or explicit absence
+   - `many` cardinality => show the collection of current effective members under that one definition
+   - this page remains intentionally shallow in scope:
+     - no history/audit timeline
+     - no provenance browser
+     - no reverse-impact analysis
+   - manual mutation scope is intentionally narrower in this slice:
+     - add/set + replace are allowed
+     - delete/clear is deferred until tombstone/absence semantics are explicitly designed
+   - frontend action contract for Project Fact Detail in this slice:
+     - `one` cardinality fact with no current value => show `Set value`
+     - `one` cardinality fact with current value => show `Replace value`
+     - `many` cardinality fact => show `Add instance` plus per-instance `Replace value`
+     - do not show `Delete`, `Remove`, or `Clear` actions on this page in this slice
+ - table backing / read model is now locked:
+   - primary persisted/runtime sources used by this page are:
+     - latest-effective `project_fact_instances`
+   - definition metadata joins/read models used by this page are:
+     - project fact definitions for keys/names/types/cardinality/description/guidance/validation
+   - field/value usage is:
+     - `project_fact_instances.id` is the runtime identity of each current effective fact member row, surfaced inside `currentState.values`
+     - `project_fact_instances.project_id` scopes all reads to the owning project
+     - `project_fact_instances.fact_definition_id` groups immutable lineage rows into one definition-scoped detail surface
+     - `project_fact_instances.value_json` is the current effective primitive/json payload
+     - `project_fact_instances.status ∈ {active, superseded, parent_superseded}` participates in latest-effective projection; only the effective frontier contributes to the current-state payload
+     - `project_fact_instances.supersedes_project_fact_instance_id` supports immutable replacement lineage and truthful current-state reconstruction
+     - `project_fact_instances.produced_by_transition_execution_id` / `produced_by_workflow_execution_id` / `authored_by_user_id` exist for lineage correctness under the hood, but are not rendered as a provenance browser here in this slice
+     - `project_fact_instances.created_at` is returned as lightweight chronology metadata on current effective member rows
+   - behavioral rules are now explicit:
+     - for `one`, at most one current effective member/value is surfaced
+     - for `many`, all current effective members for that definition are surfaced together
+     - updates append immutable replacement rows and move the latest-effective frontier; they do not edit rows in place
+     - delete/clear remains deferred because explicit tombstone semantics are not designed in this slice
+ - reachability / navigation is now locked:
+   - Project Fact Detail is reached from:
+     - Project Facts definition cards/rows
+       - required unique data: `projectId`, `factDefinitionId`
+     - lightweight quick-look surfaces may reuse the same query contract
+       - required unique data: `projectId`, `factDefinitionId`
+   - add/set actions invoke `project.addProjectFactInstance`
+     - required mutation data: `projectId`, `factDefinitionId`, `value`
+   - replace actions invoke `project.updateProjectFactInstance`
+     - required mutation data: `projectId`, `factDefinitionId`, `projectFactInstanceId`, `value`
+   - this page may link back to `Project Facts` while preserving filter context when present
+     - required unique data: `projectId`
+
+### Artifact Slot Detail
+- page role:
+  - read-focused slot lineage/detail page for one artifact slot under one instantiated work unit
+  - primary purpose is to show the **current effective snapshot** clearly, then show **snapshot lineage/history** underneath
+  - this page is not an approval/policy surface in this slice
+  - this page is not a manual artifact-editing surface in this slice
+- page design/presentation is now locked:
+  - top section = work-unit context plus slot-definition metadata
+  - main section priority is:
+    1. current effective snapshot
+    2. lineage/history list
+  - current effective snapshot section should show:
+    - explicit presence/absence
+    - latest snapshot timestamp when present
+    - minimal recording provenance when known
+    - current live member/file list (paths only, not file contents)
+    - lightweight member count summary
+  - lineage section should remain a snapshot-summary list, not an inline expansion wall of every delta row
+  - richer per-snapshot inspection belongs to the snapshot dialog, not inline on the base detail page
+- transport:
+  - synchronous typed oRPC query for the page read
+  - no stream
+  - synchronous typed oRPC mutation for manual git/filesystem-backed slot checking
+- recommended procedure:
+  - `project.getArtifactSlotDetail`
+    - kind: query
+    - params:
+      - `{ projectId: string, projectWorkUnitId: string, slotDefinitionId: string }`
+    - returns:
+      - `{`
+      - `  workUnit: {`
+      - `    projectWorkUnitId: string`
+      - `    workUnitTypeId: string`
+      - `    workUnitTypeKey: string`
+      - `    workUnitTypeName: string`
+      - `    currentStateId: string`
+      - `    currentStateKey: string`
+      - `    currentStateLabel: string`
+      - `  }`
+      - `  slotDefinition: {`
+      - `    slotDefinitionId: string`
+      - `    slotKey: string`
+      - `    slotName?: string`
+      - `    artifactKind: "single_file" | "file_set"`
+      - `    description?: unknown`
+      - `    guidance?: unknown`
+      - `    rules?: unknown`
+      - `  }`
+      - `  currentEffectiveSnapshot: {`
+      - `    exists: boolean`
+      - `    projectArtifactSnapshotId?: string`
+      - `    createdAt?: string`
+      - `    recordedBy?: {`
+      - `      transitionExecutionId?: string`
+      - `      transitionId?: string`
+      - `      transitionKey?: string`
+      - `      transitionName?: string`
+      - `      workflowExecutionId?: string`
+      - `      workflowId?: string`
+      - `      workflowKey?: string`
+      - `      workflowName?: string`
+      - `      userId?: string`
+      - `    }`
+      - `    memberCounts: {`
+      - `      currentCount: number`
+      - `    }`
+      - `    members: Array<{`
+      - `      artifactSnapshotFileId: string`
+      - `      filePath: string`
+      - `      gitBlobHash?: string`
+      - `      gitCommitHash?: string`
+      - `    }>`
+      - `  }`
+      - `  lineage: Array<{`
+      - `    projectArtifactSnapshotId: string`
+      - `    supersedesProjectArtifactSnapshotId?: string`
+      - `    createdAt: string`
+      - `    recordedBy?: {`
+      - `      transitionExecutionId?: string`
+      - `      transitionId?: string`
+      - `      transitionKey?: string`
+      - `      transitionName?: string`
+      - `      workflowExecutionId?: string`
+      - `      workflowId?: string`
+      - `      workflowKey?: string`
+      - `      workflowName?: string`
+      - `      userId?: string`
+      - `    }`
+      - `    memberCounts: {`
+      - `      deltaRowCount: number`
+      - `      effectiveCount: number`
+      - `    }`
+      - `    actions?: { inspectSnapshot?: { kind: "open_artifact_snapshot_dialog", projectArtifactSnapshotId: string } }`
+      - `  }>`
+      - `}`
+    - backing read-model rules:
+      - page priority is locked to current effective snapshot first, lineage/history second
+      - `currentEffectiveSnapshot.members` must reflect the latest-effective resolved set, not raw delta rows
+      - for `single_file`, the effective member list will normally contain zero or one live member row
+      - for `file_set`, the effective member list is derived by overlaying newer child rows over older parent-snapshot lineage by `file_path`
+      - removed/tombstone child rows are used during reconstruction but must not appear as live members in `currentEffectiveSnapshot.members`
+      - `removed` applies only to `artifact_snapshot_files.member_status`; it is not a status on `project_artifact_snapshots`
+      - parent snapshot rows participate only in slot-level lineage via `supersedes_project_artifact_snapshot_id`; child rows carry per-file removal semantics
+      - if the latest lineage head resolves to zero live members, treat the slot as having **no current effective artifact** in the current-effective section (`exists = false`, `members = []`) while still keeping the latest parent snapshot visible in lineage/history
+      - this rule applies to both `single_file` and `file_set`; no extra persisted field/state is needed for this distinction in this slice
+      - lineage rows should remain parent-snapshot oriented, not child-row audit trails
+      - lineage section should stay a snapshot-summary list rather than expanding raw child rows inline by default
+      - richer per-snapshot inspection is an enhancement path via dialog, not an inline history expansion wall
+      - producer/provenance links are recording provenance only (`recorded_by_*`), not approval state and not content authorship
+      - if no snapshot exists yet for this slot, return `currentEffectiveSnapshot.exists = false` with an empty effective member set and still return slot definition/context
+      - this page should not invent accepted/pending/rejected state; policy is explicitly out of scope in this slice
+  - mutation owned by this page:
+    - `project.checkArtifactSlotCurrentState`
+      - kind: mutation
+      - purpose:
+        - run a manual git/filesystem-backed check for this slot against the current runtime anchor context
+        - compare observed current artifact state to the latest effective snapshot for this slot
+        - create a new parent snapshot row only when the effective artifact state has actually changed
+      - mutation data:
+        - `{ projectId: string, projectWorkUnitId: string, slotDefinitionId: string }`
+      - returns:
+        - `{`
+        - `  result: "changed" | "unchanged" | "unavailable"`
+        - `  projectArtifactSnapshotId?: string`
+        - `  currentEffectiveSnapshotExists: boolean`
+        - `}`
+      - mutation rules:
+        - resolve filesystem/git context from `projects.project_root_path`
+        - inspect current artifact state according to the slot definition/rules and current HEAD semantics already locked for this slice
+        - this manual check is the authoritative manual path that may record a new snapshot in this slice; there is no separate blind `update artifact snapshot` mutation
+        - if the observed effective artifact state differs from the latest effective snapshot, create a new `project_artifact_snapshot` plus child `artifact_snapshot_files` rows
+        - if the observed effective artifact state is unchanged, persist nothing and return `result = "unchanged"`
+        - if runtime anchor / git resolution fails for a git-aware check, return `result = "unavailable"` rather than inventing a new snapshot row
+        - recording provenance for a manual check is `recorded_by_user_id`
+
+- table backing / read model is now locked:
+  - primary persisted/runtime sources used by this page are:
+    - `project_work_units`
+    - `project_artifact_snapshots`
+    - `artifact_snapshot_files`
+  - definition metadata/read models used by this page are:
+    - artifact slot definitions for `slotKey`, `slotName`, `artifactKind`, description/guidance/rules
+    - work-unit type definitions for work-unit context labels
+    - lifecycle state definitions for current work-unit state context
+    - transition/workflow definition read models when resolving `recordedBy` labels from execution provenance
+  - field/value usage is:
+    - `project_work_units.id` = authoritative work-unit context identity
+    - `project_work_units.work_unit_type_id` resolves work-unit type key/name in the header
+    - `project_work_units.current_state_id` resolves current-state context in the header
+    - `project_artifact_snapshots.id` = identity of each parent snapshot row surfaced in current-effective summary and lineage list
+    - `project_artifact_snapshots.project_work_unit_id` scopes snapshot lineage to the owning instantiated work unit
+    - `project_artifact_snapshots.slot_definition_id` groups parent lineage rows into one slot detail page
+    - `project_artifact_snapshots.recorded_by_transition_execution_id` / `recorded_by_workflow_execution_id` / `recorded_by_user_id` provide recording provenance context only
+    - `project_artifact_snapshots.supersedes_project_artifact_snapshot_id` supports parent lineage ordering and lineage display
+    - `project_artifact_snapshots.created_at` is the authoritative snapshot timestamp surfaced in current-effective summary and lineage rows
+    - `artifact_snapshot_files.id` = identity of each current-effective member row and each delta row in the snapshot dialog
+    - `artifact_snapshot_files.artifact_snapshot_id` binds child rows to parent snapshot lineage rows
+    - `artifact_snapshot_files.file_path` is the core member identity shown on the page
+    - `artifact_snapshot_files.member_status ∈ {present, removed}` participates in latest-effective reconstruction; only live `present` rows survive into `currentEffectiveSnapshot.members`
+    - `artifact_snapshot_files.git_blob_hash` / `git_commit_hash` are optional lightweight git metadata shown when useful, never file-content surrogates
+  - behavioral rules are now explicit:
+    - parent snapshot lineage is immutable and parent-oriented
+    - child delta rows are used for effective reconstruction, but base page remains current-state first
+    - if latest lineage head resolves to zero live members, the current-effective section must show `exists = false` and `members = []` while lineage still shows the latest parent snapshot row
+    - this page remains read-focused and must not expose policy/adoption state or manual artifact mutation
+
+- reachability / navigation is now locked:
+  - Artifact Slot Detail is reached from:
+    - Artifact Slots overview cards
+      - required unique data: `projectId`, `projectWorkUnitId`, `slotDefinitionId`
+    - work-unit-scoped artifact navigation when present
+      - required unique data: `projectId`, `projectWorkUnitId`, `slotDefinitionId`
+  - snapshot-summary lineage rows may open `Artifact Snapshot Dialog`
+    - required unique data: `projectId`, `projectWorkUnitId`, `slotDefinitionId`, `projectArtifactSnapshotId`
+  - parent work-unit context may link back to `Artifact Slots`
+    - required unique data: `projectId`, `projectWorkUnitId`
+  - this page does not directly mutate artifact state and does not directly navigate to a file-content viewer in this slice
+  - this page may invoke `project.checkArtifactSlotCurrentState`
+    - required mutation data: `projectId`, `projectWorkUnitId`, `slotDefinitionId`
+    - recommended placement: a detail-page action near the current effective snapshot section, not on overview cards
+  - companion drill-in query:
+    - `project.getArtifactSnapshotDialog`
+      - kind: query
+      - params:
+        - `{ projectId: string, projectWorkUnitId: string, slotDefinitionId: string, projectArtifactSnapshotId: string }`
+      - returns:
+        - `{`
+        - `  workUnit: { projectWorkUnitId: string, workUnitTypeId: string, workUnitTypeKey: string, workUnitTypeName: string }`
+        - `  slotDefinition: { slotDefinitionId: string, slotKey: string, slotName?: string, artifactKind: "single_file" | "file_set" }`
+        - `  snapshot: {`
+        - `    projectArtifactSnapshotId: string`
+        - `    supersedesProjectArtifactSnapshotId?: string`
+        - `    createdAt: string`
+        - `    recordedBy?: {`
+        - `      transitionExecutionId?: string`
+        - `      transitionId?: string`
+        - `      transitionKey?: string`
+        - `      transitionName?: string`
+        - `      workflowExecutionId?: string`
+        - `      workflowId?: string`
+        - `      workflowKey?: string`
+        - `      workflowName?: string`
+        - `      userId?: string`
+        - `    }`
+        - `    deltaMembers: Array<{`
+        - `      artifactSnapshotFileId: string`
+        - `      filePath: string`
+        - `      memberStatus: "present" | "removed"`
+        - `      gitBlobHash?: string`
+        - `      gitCommitHash?: string`
+        - `    }>`
+        - `    effectiveMemberCounts: { currentCount: number }`
+        - `  }`
+        - `}`
+      - dialog rules:
+        - snapshot dialog is read-focused and should show snapshot metadata plus its own delta member rows
+        - do not attempt to show file contents in this slice
+        - surface file paths only; later shells/integrations may add open-in-file-explorer actions, but not in this slice
+
+### Artifact Snapshot Dialog
+- page/surface role is now locked:
+  - drill-in surface for one concrete parent artifact snapshot row
+  - opened from Artifact Slot Detail lineage rows
+  - purpose is to inspect one snapshot's metadata plus its own delta member rows
+  - not a current-state surface by itself; current-state ownership remains on Artifact Slot Detail
+  - not a mutation surface and not a policy/approval surface in this slice
+- page/surface design is now locked:
+  - top section = work-unit + slot context plus snapshot identity/timestamp
+  - middle section = recording provenance summary when known
+  - main section = delta member rows for that one snapshot only
+  - optional footer/meta section = lightweight effective member count summary
+  - do not render file contents; paths and lightweight git metadata only
+  - do not try to flatten full parent lineage here; the dialog is snapshot-specific, not a replacement for the lineage list
+- procedures are now locked:
+  - sync typed oRPC query only
+  - no stream
+  - no mutation
+- table backing / read model is now locked:
+  - primary persisted/runtime sources used by this dialog are:
+    - `project_artifact_snapshots`
+    - `artifact_snapshot_files`
+    - `project_work_units`
+  - definition metadata/read models used by this dialog are:
+    - artifact slot definitions for slot context
+    - work-unit type definitions for work-unit context
+    - transition/workflow definition read models when resolving `recordedBy` labels
+  - field/value usage is:
+    - `project_artifact_snapshots.id` = authoritative snapshot identity for this dialog
+    - `project_artifact_snapshots.project_work_unit_id` scopes the snapshot to the owning work unit
+    - `project_artifact_snapshots.slot_definition_id` scopes the snapshot to the owning slot definition
+    - `project_artifact_snapshots.supersedes_project_artifact_snapshot_id` gives immediate parent lineage context when present
+    - `project_artifact_snapshots.recorded_by_transition_execution_id` / `recorded_by_workflow_execution_id` / `recorded_by_user_id` provide recording provenance only
+    - `project_artifact_snapshots.created_at` is the authoritative snapshot timestamp
+    - `artifact_snapshot_files.id` = identity of each delta member row shown in the dialog
+    - `artifact_snapshot_files.artifact_snapshot_id` selects the child rows belonging to this exact snapshot
+    - `artifact_snapshot_files.file_path` is the primary delta member label
+    - `artifact_snapshot_files.member_status ∈ {present, removed}` explains how this snapshot changed effective artifact state
+    - `artifact_snapshot_files.git_blob_hash` / `git_commit_hash` are optional lightweight git metadata surfaced per delta row
+  - behavioral rules are now explicit:
+    - this dialog shows this snapshot's own delta rows, not the resolved latest-effective set unless explicitly summarized
+    - removed rows are valid visible delta rows here because the dialog is snapshot-specific
+    - dialog remains read-focused and must not expose approval/policy state or manual artifact editing
+- reachability / navigation is now locked:
+  - reached from Artifact Slot Detail lineage rows
+    - required unique data: `projectId`, `projectWorkUnitId`, `slotDefinitionId`, `projectArtifactSnapshotId`
+  - closes back to Artifact Slot Detail; it is not a standalone primary navigation page in this slice
+
+### Transition Execution Detail
+- page role:
+  - singular execution-instance surface for one `transition_execution`
+  - combines transition definition metadata with runtime status/details for that one concrete transition run
+  - remains distinct from Work Unit State Machine:
+    - State Machine = work-unit-level current/alternative/history surface
+    - Transition Execution Detail = one execution-run detail surface
+  - work-unit context is shown as header/secondary context, not as the primary subject of the page
+- page design / contents are locked to:
+  - top header/context strip:
+    - work-unit identity/context (secondary)
+    - transition execution status pill
+    - started/completed/superseded dates as applicable
+  - section 1: transition definition
+    - transition name/key
+    - `from -> to` state summary
+    - description/guidance if present
+    - bound workflows list (definition-level, not execution history)
+    - start-gate summary in informational/read-only mode
+  - section 2: current primary workflow
+    - current selected primary workflow execution card
+    - workflow name/key
+    - workflow execution status
+    - started/completed/superseded dates as applicable
+    - CTA to Workflow Execution Detail
+  - section 3: completion gate panel (visually coupled to current primary workflow)
+    - if workflow still running:
+      - show status = `Workflow still running`
+      - no completion tree yet
+      - no action CTA
+    - if workflow finished and transition still active:
+      - show completion status summary
+      - show `lastEvaluatedAt`
+      - show full completion condition tree
+      - show current effective values only where needed to explain conditions
+      - show exactly one primary action:
+        - `Complete Transition` when gates pass
+        - `Choose another primary workflow` when gates fail
+    - if transition is completed:
+      - show read-only completion summary only
+      - show `completedAt`
+      - do not show actionable CTA
+      - do not fabricate historical tree/value snapshots-at-completion
+    - if transition is superseded:
+      - show read-only superseded summary
+      - no actionable CTA
+  - section 4: primary attempt history
+    - list all primary workflow executions under this transition execution except the current selected one if already shown above
+    - each row shows workflow identity, status, dates, and retry/supersession lineage
+    - each row links to Workflow Execution Detail
+  - section 5: supporting workflows
+    - list supporting workflow executions for this transition execution
+    - each row shows workflow identity, status, dates
+    - each row links to Workflow Execution Detail
+  - this page is the canonical full completion-gate page:
+    - it owns the full completion-gate tree
+    - it owns `Complete Transition`
+    - it owns choosing a different primary workflow definition for the same active transition execution
+    - it does **not** own retrying the same workflow definition; Workflow Execution Detail owns that
+- transport:
+  - synchronous typed oRPC query for the page read
+  - synchronous typed oRPC mutation to choose another primary workflow definition under the same active transition execution
+  - synchronous typed oRPC mutation to complete the transition when completion gates currently pass
+  - no stream
+- procedures:
+  - `project.getTransitionExecutionDetail`
+    - kind: query
+    - params:
+      - `{ projectId: string, projectWorkUnitId: string, transitionExecutionId: string }`
+    - returns:
+      - `{`
+      - `  workUnit: {`
+      - `    projectWorkUnitId: string`
+      - `    workUnitTypeId: string`
+      - `    workUnitTypeKey: string`
+      - `    workUnitTypeName: string`
+      - `    currentStateId: string`
+      - `    currentStateKey: string`
+      - `    currentStateLabel: string`
+      - `  }`
+      - `  transitionExecution: {`
+      - `    transitionExecutionId: string`
+      - `    status: "active" | "completed" | "superseded"`
+      - `    startedAt: string`
+      - `    completedAt?: string`
+      - `    supersededAt?: string`
+      - `    supersedesTransitionExecutionId?: string`
+      - `  }`
+      - `  transitionDefinition: {`
+      - `    transitionId: string`
+      - `    transitionKey: string`
+      - `    transitionName: string`
+      - `    description?: unknown`
+      - `    fromStateId?: string`
+      - `    fromStateKey?: string`
+      - `    fromStateLabel?: string`
+      - `    toStateId: string`
+      - `    toStateKey: string`
+      - `    toStateLabel: string`
+      - `    boundWorkflows: Array<{ workflowId: string, workflowKey: string, workflowName: string }>`
+      - `    startConditionSets: unknown[]`
+      - `    completionConditionSets: unknown[]`
+      - `  }`
+      - `  startGate: {`
+      - `    mode: "informational"`
+      - `    startedAt: string`
+      - `    note: string`
+      - `  }`
+      - `  currentPrimaryWorkflow?: {`
+      - `    workflowExecutionId: string`
+      - `    workflowId: string`
+      - `    workflowKey: string`
+      - `    workflowName: string`
+      - `    status: "active" | "completed" | "superseded" | "parent_superseded"`
+      - `    startedAt: string`
+      - `    completedAt?: string`
+      - `    supersededAt?: string`
+      - `    target: { page: "workflow-execution-detail", workflowExecutionId: string }`
+      - `  }`
+      - `  primaryAttemptHistory: Array<{`
+      - `    workflowExecutionId: string`
+      - `    workflowId: string`
+      - `    workflowKey: string`
+      - `    workflowName: string`
+      - `    status: "active" | "completed" | "superseded" | "parent_superseded"`
+      - `    startedAt: string`
+      - `    completedAt?: string`
+      - `    supersededAt?: string`
+      - `    supersedesWorkflowExecutionId?: string`
+      - `    target: { page: "workflow-execution-detail", workflowExecutionId: string }`
+      - `  }>`
+      - `  supportingWorkflows: Array<{`
+      - `    workflowExecutionId: string`
+      - `    workflowId: string`
+      - `    workflowKey: string`
+      - `    workflowName: string`
+      - `    status: "active" | "completed" | "superseded" | "parent_superseded"`
+      - `    startedAt: string`
+      - `    completedAt?: string`
+      - `    supersededAt?: string`
+      - `    target: { page: "workflow-execution-detail", workflowExecutionId: string }`
+      - `  }>`
+      - `  completionGate: {`
+      - `    panelState: "workflow_running" | "passing" | "failing" | "completed_read_only" | "superseded_read_only"`
+      - `    lastEvaluatedAt?: string`
+      - `    completedAt?: string`
+      - `    firstBlockingReason?: string`
+      - `    conditionTree?: unknown`
+      - `    actions?: {`
+      - `      completeTransition?: { kind: "complete_transition_execution", transitionExecutionId: string }`
+      - `      chooseAnotherPrimaryWorkflow?: { kind: "choose_primary_workflow_for_transition_execution", transitionExecutionId: string }`
+      - `    }`
+      - `  }`
+      - `}`
+  - `project.choosePrimaryWorkflowForTransitionExecution`
+    - kind: mutation
+    - owned by Transition Execution Detail
+    - mutation data:
+      - `{ projectId: string, projectWorkUnitId: string, transitionExecutionId: string, workflowId: string, workflowKey?: string }`
+    - returns:
+      - `{ transitionExecutionId: string, workflowExecutionId: string, supersededWorkflowExecutionId?: string }`
+    - mutation rules:
+      - transition execution must still be `active`
+      - chosen workflow must be directly bound to the parent transition definition
+      - this mutation is the path for choosing a **different** primary workflow definition from the transition-level surface
+      - it creates a new `workflow_execution` with `workflow_role = primary` under the same `transition_execution`
+      - the newly created workflow execution becomes the current primary workflow via `transition_executions.primary_workflow_execution_id`
+      - the previously current primary workflow remains in history and is marked superseded through workflow lineage fields
+      - this action should be preceded by the retry/supersede confirmation dialog already locked elsewhere in the draft
+  - `project.completeTransitionExecution`
+    - kind: mutation
+    - owned by Transition Execution Detail
+    - mutation data:
+      - `{ projectId: string, projectWorkUnitId: string, transitionExecutionId: string }`
+    - returns:
+      - `{ transitionExecutionId: string, projectWorkUnitId: string, newStateId: string, newStateKey: string, newStateLabel: string }`
+    - mutation rules:
+      - transition execution must still be `active`
+      - mutation must re-evaluate completion gates against current live truth at execution time
+      - only when completion gates pass may it:
+        - mark the transition execution `completed`
+        - set `completedAt`
+        - update `project_work_units.current_state_id` to the transition `to_state`
+        - clear `project_work_units.active_transition_execution_id`
+      - if completion gates do not currently pass, mutation must fail rather than relying on any earlier cached/derived pass state
+- table backing / read model:
+  - primary persisted/runtime sources:
+    - `transition_executions`
+    - `workflow_executions`
+    - `project_work_units`
+    - latest-effective `work_unit_fact_instances`
+    - latest-effective artifact snapshot state
+  - definition/read-model sources:
+    - transition definitions
+    - lifecycle state definitions
+    - workflow definitions
+    - transition condition-set read models
+    - transition-workflow bindings
+    - work-unit type definitions
+  - field/value usage:
+    - `transition_executions.id` = authoritative page identity
+    - `transition_executions.project_work_unit_id` = owning work-unit context
+    - `transition_executions.transition_id` = resolves transition definition metadata shown in section 1
+    - `transition_executions.status ∈ {active, completed, superseded}` = top-level page mode
+    - `transition_executions.primary_workflow_execution_id` = identifies the current primary workflow shown in section 2
+    - `transition_executions.supersedes_transition_execution_id` = explains transition-level supersession lineage when applicable
+    - `transition_executions.started_at` / `completed_at` / `superseded_at` = lifecycle chronology shown in header/read-only summaries
+    - `workflow_executions.id` = authoritative row identity for current primary workflow, primary attempt history, and supporting workflow rows
+    - `workflow_executions.workflow_id` = resolves workflow definition key/name
+    - `workflow_executions.workflow_role ∈ {primary, supporting}` = separates current primary/history from supporting workflows
+    - `workflow_executions.status ∈ {active, completed, superseded, parent_superseded}` = workflow row mode within the transition page
+    - `workflow_executions.supersedes_workflow_execution_id` = explains retry/reselection lineage in primary attempt history
+    - `workflow_executions.started_at` / `completed_at` / `superseded_at` = chronology on current and historical workflow rows
+    - `project_work_units.id` = work-unit context identity carried in header and navigation targets
+    - `project_work_units.current_state_id` = current live work-unit state, used for context and authoritative completion mutation writes
+    - latest-effective work-unit facts and latest-effective artifact state feed live completion-gate evaluation
+  - behavioral rules:
+    - query/render split must distinguish:
+      - current primary workflow = `transition_executions.primary_workflow_execution_id`
+      - primary workflow attempts/history = all `workflow_executions` for the transition where `workflow_role = primary`
+      - supporting workflows = all `workflow_executions` for the transition where `workflow_role = supporting`
+    - critical active-state interpretation is:
+      - `transitionExecution.status = "active"` + `currentPrimaryWorkflow.status = "active"` => `completionGate.panelState = "workflow_running"`
+      - `transitionExecution.status = "active"` + `currentPrimaryWorkflow.status = "completed"` + live completion evaluation passes => `completionGate.panelState = "passing"`
+      - `transitionExecution.status = "active"` + `currentPrimaryWorkflow.status = "completed"` + live completion evaluation fails => `completionGate.panelState = "failing"`
+    - a completed current primary workflow does **not** imply the transition is done; it can still be an active transition awaiting completion-gate satisfaction or another primary workflow choice
+    - if the current primary workflow is still running, completion-gate panel is non-actionable and should not claim pass/fail yet
+    - if the transition execution is completed, show only read-only completion summary/dates and do not fabricate historical gate-tree values-at-completion
+    - if the transition execution is superseded, the page is fully read-only and should explain supersession lineage via `supersedesTransitionExecutionId`
+- reachability / navigation:
+  - reached from:
+    - Runtime Guidance active cards → requires `projectId`, `projectWorkUnitId`, `transitionExecutionId`
+    - Work Unit Overview active-transition card → same data
+    - Work Unit State Machine active-transition panel → same data
+    - Work Unit State Machine history rows → same data
+    - Workflow Execution Detail parent-transition link → requires `projectId`, `projectWorkUnitId`, `transitionExecutionId`
+  - current primary workflow card links to Workflow Execution Detail
+    - required unique data: `projectId`, `workflowExecutionId`
+  - each primary-history row links to Workflow Execution Detail
+    - required unique data: `projectId`, `workflowExecutionId`
+  - each supporting-workflow row links to Workflow Execution Detail
+    - required unique data: `projectId`, `workflowExecutionId`
+  - `Complete Transition` action invokes `project.completeTransitionExecution`
+    - required mutation data: `projectId`, `projectWorkUnitId`, `transitionExecutionId`
+  - `Choose another primary workflow` action eventually invokes `project.choosePrimaryWorkflowForTransitionExecution` after workflow selection and confirmation
+    - required mutation data: `projectId`, `projectWorkUnitId`, `transitionExecutionId`, chosen `workflowId`
+- service-boundary implication for Transition Execution Detail is locked to:
+  - one read-model service should own assembling the page payload (`getTransitionExecutionDetail`) from transition definition, transition execution row, primary/supporting workflow rows, and live completion evaluation
+  - one command service should own `choosePrimaryWorkflowForTransitionExecution`
+  - one command service should own `completeTransitionExecution`
+  - completion-gate evaluation must be reusable by both the read-model service (for display) and the completion command service (for authoritative re-check at mutation time), but the mutation service remains the only writer
+
+### Workflow Execution Detail
+- page role:
+  - lean L2 runtime-status shell for one `workflow_execution`
+  - shows workflow runtime status, parent transition/work-unit context, retry/supersession lineage, and explicit `steps coming later` messaging
+  - does not become a second transition-orchestration page; Transition Execution Detail still owns choosing a different primary workflow and transition completion
+- page design / contents are locked to:
+  - top header/context strip:
+    - workflow identity (name/key)
+    - workflow role pill (`primary` or `supporting`)
+    - workflow execution status pill
+    - started/completed/superseded dates as applicable
+  - section 1: workflow runtime summary
+    - workflow definition metadata
+    - current status explanation
+    - linked parent transition context
+    - linked work-unit context
+  - section 2: retry / supersession section
+    - retry action for the **same** workflow definition when allowed
+    - confirmation/impact-dialog summary before the retry action is committed
+    - lineage explanation:
+      - what this workflow supersedes, if anything
+      - what superseded this workflow, if anything
+      - for primary workflows, prior primary attempts may be shown as contextual lineage
+  - section 3: `steps coming later`
+    - explicit L3-deferred messaging only; do not pretend to show step runtime internals in this slice
+  - this page owns retrying the **same** workflow definition only:
+    - retry `primary` => new primary workflow attempt under same active transition execution
+    - retry `supporting` => new supporting workflow attempt under same active transition execution
+    - choosing a different workflow definition remains owned by Transition Execution Detail
+- transport:
+  - synchronous typed oRPC query for the page read
+  - synchronous typed oRPC mutation to retry the **same** workflow definition under the same transition execution when allowed
+  - no stream
+- procedures:
+  - `project.getWorkflowExecutionDetail`
+    - kind: query
+    - params:
+      - `{ projectId: string, workflowExecutionId: string }`
+    - returns:
+      - `{`
+      - `  workflowExecution: {`
+      - `    workflowExecutionId: string`
+      - `    workflowId: string`
+      - `    workflowKey: string`
+      - `    workflowName: string`
+      - `    workflowRole: "primary" | "supporting"`
+      - `    status: "active" | "completed" | "superseded" | "parent_superseded"`
+      - `    startedAt: string`
+      - `    completedAt?: string`
+      - `    supersededAt?: string`
+      - `    supersedesWorkflowExecutionId?: string`
+      - `  }`
+      - `  workUnit: {`
+      - `    projectWorkUnitId: string`
+      - `    workUnitTypeId: string`
+      - `    workUnitTypeKey: string`
+      - `    workUnitTypeName: string`
+      - `    currentStateId: string`
+      - `    currentStateKey: string`
+      - `    currentStateLabel: string`
+      - `    target: { page: "work-unit-overview", projectWorkUnitId: string }`
+      - `  }`
+      - `  parentTransition: {`
+      - `    transitionExecutionId: string`
+      - `    transitionId: string`
+      - `    transitionKey: string`
+      - `    transitionName: string`
+      - `    status: "active" | "completed" | "superseded"`
+      - `    target: { page: "transition-execution-detail", transitionExecutionId: string }`
+      - `  }`
+      - `  lineage: {`
+      - `    supersedesWorkflowExecutionId?: string`
+      - `    supersededByWorkflowExecutionId?: string`
+      - `    previousPrimaryAttempts?: Array<{`
+      - `      workflowExecutionId: string`
+      - `      workflowId: string`
+      - `      workflowKey: string`
+      - `      workflowName: string`
+      - `      status: "active" | "completed" | "superseded" | "parent_superseded"`
+      - `      startedAt: string`
+      - `      completedAt?: string`
+      - `      supersededAt?: string`
+      - `      target: { page: "workflow-execution-detail", workflowExecutionId: string }`
+      - `    }>`
+      - `  }`
+      - `  retryAction?: {`
+      - `    kind: "retry_same_workflow"`
+      - `    enabled: boolean`
+      - `    reasonIfDisabled?: string`
+      - `    parentTransitionExecutionId?: string`
+      - `  }`
+      - `  impactDialog?: {`
+      - `    requiredForRetry: boolean`
+      - `    affectedEntitiesSummary: {`
+      - `      transitionExecutionId: string`
+      - `      workflowExecutionIds: string[]`
+      - `      futureStepExecutionCount?: number`
+      - `    }`
+      - `  }`
+      - `  stepsSurface: {`
+      - `    mode: "deferred"`
+      - `    message: string`
+      - `  }`
+      - `}`
+  - `project.retrySameWorkflowExecution`
+    - kind: mutation
+    - owned by Workflow Execution Detail
+    - mutation data:
+      - `{ projectId: string, workflowExecutionId: string }`
+    - returns:
+      - `{ transitionExecutionId: string, workflowExecutionId: string, workflowRole: "primary" | "supporting" }`
+    - mutation rules:
+      - the referenced workflow execution may be `active` or `completed`
+      - the referenced workflow execution may be `primary` or `supporting`
+      - the parent transition execution must still be `active`
+      - this mutation reuses the **same** `workflow_id`; the user does not choose a different workflow definition here
+      - this mutation preserves the original `workflow_role`
+      - if role = `primary`, the newly created workflow execution becomes the new `transition_executions.primary_workflow_execution_id`
+      - if role = `supporting`, the newly created workflow execution does not change the transition's primary pointer
+      - this action should be preceded by the retry/supersede confirmation dialog already locked elsewhere in the draft
+- table backing / read model:
+  - primary persisted/runtime sources:
+    - `workflow_executions`
+    - `transition_executions`
+    - `project_work_units`
+  - definition/read-model sources:
+    - workflow definitions
+    - transition definitions
+    - work-unit type definitions
+    - lifecycle state definitions
+  - field/value usage:
+    - `workflow_executions.id` = authoritative page identity
+    - `workflow_executions.workflow_id` = resolves workflow definition key/name shown in header/summary
+    - `workflow_executions.workflow_role ∈ {primary, supporting}` = role pill and retry semantics
+    - `workflow_executions.status ∈ {active, completed, superseded, parent_superseded}` = top-level page mode
+    - `workflow_executions.transition_execution_id` = parent transition context
+    - `workflow_executions.supersedes_workflow_execution_id` = explains direct workflow retry lineage when present
+    - `workflow_executions.started_at` / `completed_at` / `superseded_at` = lifecycle chronology
+    - `transition_executions.id` = parent transition identity for navigation and retry enablement
+    - `transition_executions.status ∈ {active, completed, superseded}` = determines whether retry remains allowed
+    - `transition_executions.transition_id` = resolves transition definition key/name in parent context
+    - `transition_executions.project_work_unit_id` = owning work-unit identity
+    - `project_work_units.id` = authoritative work-unit context identity
+    - `project_work_units.work_unit_type_id` = resolves work-unit type key/name in parent work-unit context
+    - `project_work_units.current_state_id` = current live work-unit state shown in parent context
+  - behavioral rules:
+    - Workflow Execution Detail is a lean L2 shell and must not pretend to show step-level runtime internals in this slice
+    - same-workflow retry is owned here only when the parent transition execution remains `active`
+    - same-workflow retry means "run this exact workflow definition again under the same active transition execution while preserving the workflow role (`primary` stays `primary`, `supporting` stays `supporting`)"
+    - `status = "superseded"` means this workflow itself was directly superseded by another workflow execution
+    - `status = "parent_superseded"` means this workflow was not directly superseded, but its parent transition execution was superseded; the UI must explain that distinction without inventing a direct superseding sibling workflow row
+    - choosing a different workflow definition is not owned here; that remains a Transition Execution Detail concern
+    - this page is read/navigation oriented apart from the retry-same-workflow action; it does not expose transition completion or transition switching
+- reachability / navigation:
+  - reached from:
+    - Runtime Guidance active cards → requires `projectId`, `workflowExecutionId`
+    - Transition Execution Detail current primary workflow card → same data
+    - Transition Execution Detail primary-attempt history rows → same data
+    - Transition Execution Detail supporting-workflow rows → same data
+    - Active Workflows Page row/link → same data
+    - Project Overview active workflow list → same data
+  - parent work-unit link navigates to Work Unit Overview
+    - required unique data: `projectId`, `projectWorkUnitId`
+  - parent transition link navigates to Transition Execution Detail
+    - required unique data: `projectId`, `projectWorkUnitId`, `transitionExecutionId`
+  - prior primary-attempt lineage rows, when shown, link to Workflow Execution Detail
+    - required unique data: `projectId`, `workflowExecutionId`
+  - retry action invokes `project.retrySameWorkflowExecution`
+    - required mutation data: `projectId`, `workflowExecutionId`
+
+### Work Units List
+- page role is now locked:
+  - instantiated-work-unit index page for one project
+  - browse existing runtime work-unit instances only; absent/future opportunities do not belong here
+  - flat instance list, not grouped by type
+  - primary purpose is fast navigation into Work Unit Overview for an existing runtime work unit
+  - this page is not a transition-guidance surface; future/inactive opportunities remain in Runtime Guidance
+- transport is now locked:
+  - sync typed oRPC query for page read
+  - no stream
+  - no mutation on this page in this slice
+- recommended procedure:
+  - `project.getWorkUnits`
+    - kind: query
+    - params:
+      - `{`
+      - `  projectId: string,`
+      - `  filters?: {`
+      - `    cardinalities?: Array<"one" | "many">,`
+      - `    workUnitTypeIds?: string[],`
+      - `    workUnitTypeKeys?: string[],`
+      - `    hasActiveTransition?: boolean,`
+      - `  }`
+      - `}`
+    - returns:
+      - `{`
+      - `  project: {`
+      - `    projectId: string`
+      - `    name: string`
+      - `  }`
+      - `  filters: {`
+      - `    cardinalities?: Array<"one" | "many">`
+      - `    workUnitTypeIds?: string[]`
+      - `    workUnitTypeKeys?: string[]`
+      - `    hasActiveTransition?: boolean`
+      - `  }`
+      - `  rows: Array<{`
+      - `    projectWorkUnitId: string`
+      - `    displayIdentity: {`
+      - `      primaryLabel: string`
+      - `      secondaryLabel: string`
+      - `      fullInstanceId: string`
+      - `    }`
+      - `    workUnitType: {`
+      - `      workUnitTypeId: string`
+      - `      workUnitTypeKey: string`
+      - `      workUnitTypeName?: string`
+      - `      cardinality: "one_per_project" | "many_per_project"`
+      - `    }`
+      - `    currentState: {`
+      - `      stateId: string`
+      - `      stateKey: string`
+      - `      stateLabel: string`
+      - `    }`
+      - `    activeTransition?: {`
+      - `      transitionExecutionId: string`
+      - `      transitionId: string`
+      - `      transitionKey: string`
+      - `      transitionName?: string`
+      - `      toStateId: string`
+      - `      toStateKey: string`
+      - `      toStateLabel: string`
+      - `      primaryWorkflow?: {`
+      - `        workflowExecutionId: string`
+      - `        workflowId: string`
+      - `        workflowKey: string`
+      - `        workflowName?: string`
+      - `        status: "active" | "completed" | "superseded" | "parent_superseded"`
+      - `      }`
+      - `    }`
+      - `    summaries: {`
+      - `      factsDependencies: {`
+      - `        factInstancesCurrent: number`
+      - `        factDefinitionsTotal: number`
+      - `        inboundDependencyCount: number`
+      - `        outboundDependencyCount: number`
+      - `      }`
+      - `      artifactSlots: {`
+      - `        slotsWithCurrentArtifacts: number`
+      - `        slotDefinitionsTotal: number`
+      - `      }`
+      - `    }`
+      - `    timestamps: {`
+      - `      createdAt: string`
+      - `      updatedAt: string`
+      - `    }`
+      - `    target: {`
+      - `      page: "work-unit-overview"`
+      - `      projectWorkUnitId: string`
+      - `    }`
+      - `  }>`
+      - `}`
+    - read-model rules:
+      - only instantiated `project_work_units` appear here; absent/future work-unit opportunities do not
+      - one row per `project_work_unit`, never grouped by work-unit type
+      - row display must distinguish different instances of the same work-unit type by surfacing the runtime work-unit instance identity, not only the shared work-unit type label
+      - `displayIdentity.primaryLabel` should be the human-facing work-unit type/name label
+      - `displayIdentity.secondaryLabel` should surface a shortened chip/text derived from `projectWorkUnitId`, so two instances of the same type remain distinguishable in the list without dumping the full UUID into the main row body
+      - `displayIdentity.fullInstanceId` should carry the full raw `projectWorkUnitId` for hover/copy/detail affordances
+      - work-unit type metadata should return both authoritative IDs and human-readable keys/names
+      - filters should accept IDs authoritatively; keys may still be accepted for convenience/deep-link compatibility where the UI still carries them
+      - `cardinalities` filter is derived from the work-unit type definition's cardinality policy rather than duplicated on `project_work_units`
+      - `hasActiveTransition` is a derived read filter over whether `project_work_units.active_transition_execution_id` is populated
+      - row-level `activeTransition` is optional and present only when the work unit currently has an active transition execution
+      - for scanability, the Work Units List active-transition surface should stay transition-only; do not inline the primary workflow name in the main list row
+      - row summaries should stay lightweight and current-state oriented:
+        - facts/dependencies summary mirrors the Work Unit Overview summary card
+        - artifact summary counts only slots with a current effective artifact, not raw snapshot lineage length
+      - this page should optimize for scanability and navigation, not deep transition inspection; full transition/gate logic lives on State Machine, Transition Execution Detail, and Runtime Guidance
+      - row click goes to Work Unit Overview, not directly to State Machine
+      - UI presentation rule is now locked:
+        - list row shows the shortened instance chip only
+        - full `projectWorkUnitId` remains available on hover, detail page, and explicit copy action
+      - page visual shape is a filter bar plus a scanable table, not a card grid
+      - each runtime work-unit instance gets its own table row
+      - rows are instance-scoped, not work-unit-type-scoped cards/groups
+      - recommended columns are:
+        - `Work Unit` (type label + shortened instance chip)
+        - `Current State`
+        - `Active Transition` (transition-only summary)
+        - `Facts / Dependencies`
+        - `Artifact Slots`
+        - `Updated`
+
+### Active Workflows Page
+- page role is now locked:
+  - project-level active-only workflow execution index
+  - action-oriented surface for "what workflow executions are running now?"
+  - not a historical browser; only currently active workflow executions belong here
+  - primary purpose is fast navigation into Workflow Execution Detail with enough work-unit and transition context to orient the user
+- page design/presentation is now locked:
+  - filter bar at the top
+  - scanable table below, not cards/groups
+  - one row per active `workflow_execution`
+  - no status column because the page is active-only and status would be redundant noise
+  - recommended columns are:
+    - `Work Unit` (type label + shortened work-unit instance chip)
+    - `Transition` (transition name/key)
+    - `Workflow Execution` (workflow name/key; click target to detail)
+    - `Started At`
+  - row click may route to Workflow Execution Detail, but the Workflow Execution column/link is the explicit primary CTA
+- transport is now locked:
+  - sync typed oRPC query for page read
+  - no stream
+  - no mutation on this page in this slice
+- recommended procedure:
+  - `project.getActiveWorkflowExecutions`
+    - kind: query
+    - params:
+      - `{`
+      - `  projectId: string,`
+      - `  filters?: {`
+      - `    workUnitTypeIds?: string[],`
+      - `    workUnitTypeKeys?: string[],`
+      - `    workflowRoles?: Array<"primary" | "supporting">,`
+      - `  }`
+      - `}`
+    - returns:
+      - `{`
+      - `  project: {`
+      - `    projectId: string`
+      - `    name: string`
+      - `  }`
+      - `  filters: {`
+      - `    workUnitTypeIds?: string[]`
+      - `    workUnitTypeKeys?: string[]`
+      - `    workflowRoles?: Array<"primary" | "supporting">`
+      - `  }`
+      - `  rows: Array<{`
+      - `    workflowExecutionId: string`
+      - `    workflow: {`
+      - `      workflowId: string`
+      - `      workflowKey: string`
+      - `      workflowName?: string`
+      - `      workflowRole: "primary" | "supporting"`
+      - `    }`
+      - `    workUnit: {`
+      - `      projectWorkUnitId: string`
+      - `      workUnitTypeId: string`
+      - `      workUnitTypeKey: string`
+      - `      workUnitTypeName?: string`
+      - `      instanceDisplay: {`
+      - `        shortId: string`
+      - `        fullId: string`
+      - `      }`
+      - `    }`
+      - `    transition: {`
+      - `      transitionExecutionId: string`
+      - `      transitionId: string`
+      - `      transitionKey: string`
+      - `      transitionName?: string`
+      - `    }`
+      - `    startedAt: string`
+      - `    target: {`
+      - `      page: "workflow-execution-detail"`
+      - `      workflowExecutionId: string`
+      - `    }`
+      - `  }>`
+      - `}`
+    - read-model rules:
+      - only `workflow_executions.status = "active"` rows belong on this page
+      - one row per active workflow execution, regardless of whether role is `primary` or `supporting`
+      - `workflowRole` is returned for filtering and interpretation, even though there is no dedicated role column in the default table layout unless later needed
+      - work-unit type metadata should return both authoritative IDs and human-readable keys/names
+      - work-unit instance identity should be surfaced via shortened chip + full id affordance exactly like Work Units List
+      - transition context should always be included so active workflows are not shown in isolation
+      - this page is read/navigation oriented only; retry, supersession, and completion actions remain owned by Workflow Execution Detail or Transition Execution Detail
+
+### Active Workflows Page table backing
+- backing tables / read models are now locked conceptually:
+  - primary runtime table: `workflow_executions`
+  - joined runtime tables:
+    - `transition_executions` — to recover parent transition execution and transition definition context
+    - `project_work_units` — to recover owning runtime work-unit instance
+  - joined methodology definition tables/read models:
+    - workflow definition row (for `workflowId`, `workflowKey`, `workflowName`)
+    - transition definition row (for `transitionId`, `transitionKey`, `transitionName`)
+    - work-unit type definition row (for `workUnitTypeId`, `workUnitTypeKey`, `workUnitTypeName`)
+- field/value interpretation is now locked:
+  - `workflow_executions.id` = runtime identity of the active workflow execution row; used as the page's primary target id
+  - `workflow_executions.workflow_id` = methodology workflow definition id; used to resolve workflow key/name
+  - `workflow_executions.workflow_role` ∈ `primary | supporting`; used for filtering and interpretation
+  - `workflow_executions.status` must equal `active` for inclusion on this page; `completed | superseded | parent_superseded` are excluded
+  - `workflow_executions.started_at` = source for the page's `Started At` column
+  - `workflow_executions.transition_execution_id` = parent runtime transition execution id; used to recover transition context and route linkage
+  - `transition_executions.id` = runtime parent transition execution identity returned as `transitionExecutionId`
+  - `transition_executions.transition_id` = methodology transition definition id; used to resolve transition key/name
+  - `transition_executions.project_work_unit_id` = owning runtime work-unit instance id; used to recover work-unit context
+  - `project_work_units.id` = runtime work-unit instance identity surfaced as shortened/full chip
+  - `project_work_units.work_unit_type_id` = methodology work-unit type definition id; used to resolve work-unit type key/name
+- possible values / semantics relevant to this page:
+  - included workflow rows have `status = "active"` only
+  - `workflowRole` may be `primary` or `supporting`
+  - active page has no mutation-state columns because all row actions are navigational in this slice
+- reachability/navigation is now locked:
+  - reached from:
+    - Project Overview active workflow list → requires `projectId`, `workflowExecutionId`
+    - project-scoped sidebar navigation → requires `projectId`
+  - each table row may navigate to `workflow-execution-detail`, but the explicit primary CTA is the `Workflow Execution` column/link
+    - target page: `workflow-execution-detail`
+    - required unique data: `projectId`, `workflowExecutionId`
+  - work-unit context shown in row is informational here; navigation to Work Unit Overview remains secondary and is not the primary row action in this slice
+  - transition context shown in row is informational here; navigation target remains Workflow Execution Detail, not Transition Execution Detail
+
+### Artifact Slots Page
+- page role is now locked:
+  - work-unit-scoped artifact overview surface for one instantiated work unit
+  - grouped by artifact slot definition, using one card per slot
+  - primary purpose is quick understanding of the **current effective artifact state per slot** and navigation into Artifact Slot Detail
+  - not a manual artifact-editing surface and not an approval/policy surface in this slice
+- page design/presentation is now locked:
+  - top section = work-unit context header only
+  - main section = one card per artifact slot definition
+  - each card shows only the **latest effective snapshot summary** in the card body
+  - latest effective snapshot means:
+    - `single_file` slot → current single effective artifact member when present
+    - `file_set` slot → current effective resolved member set when present
+  - if a slot has no current effective artifact, the card should show explicit absence rather than fake stale history state
+  - no inline mutation actions on cards in this slice
+  - no inline snapshot-history wall on overview cards; lineage belongs on Artifact Slot Detail
+- transport is now locked:
+  - sync typed oRPC query for page read
+  - no stream
+  - no mutation on this page in this slice
+- recommended procedure:
+  - `project.getArtifactSlots`
+    - kind: query
+    - params:
+      - `{ projectId: string, projectWorkUnitId: string }`
+    - returns:
+      - `{`
+      - `  workUnit: {`
+      - `    projectWorkUnitId: string`
+      - `    workUnitTypeId: string`
+      - `    workUnitTypeKey: string`
+      - `    workUnitTypeName: string`
+      - `    currentStateId: string`
+      - `    currentStateKey: string`
+      - `    currentStateLabel: string`
+      - `  }`
+      - `  slots: Array<{`
+      - `    slotDefinition: {`
+      - `      slotDefinitionId: string`
+      - `      slotKey: string`
+      - `      slotName?: string`
+      - `      artifactKind: "single_file" | "file_set"`
+      - `      description?: unknown`
+      - `      guidance?: unknown`
+      - `      rules?: unknown`
+      - `    }`
+      - `    currentEffectiveSnapshot: {`
+      - `      exists: boolean`
+      - `      projectArtifactSnapshotId?: string`
+      - `      createdAt?: string`
+      - `      memberCounts: { currentCount: number }`
+      - `      previewMembers: Array<{`
+      - `        artifactSnapshotFileId: string`
+      - `        filePath: string`
+      - `        gitBlobHash?: string`
+      - `        gitCommitHash?: string`
+      - `      }>`
+      - `    }`
+      - `    latestLineageHead?: {`
+      - `      projectArtifactSnapshotId: string`
+      - `      createdAt: string`
+      - `    }`
+      - `    target: { page: "artifact-slot-detail", slotDefinitionId: string }`
+      - `  }>`
+      - `}`
+    - read-model rules:
+      - one card per artifact slot definition, never one card per snapshot row and never one card per file member row
+      - `currentEffectiveSnapshot.previewMembers` should be a lightweight preview only, not the full lineage and not file contents
+      - preview should stay small for scanability:
+        - `single_file` slots usually preview zero or one current live member
+        - `file_set` slots may preview the first few current live members plus `memberCounts.currentCount`
+      - if the latest lineage head resolves to zero live members, surface `currentEffectiveSnapshot.exists = false` and an empty preview while still keeping the slot card itself visible
+      - page is current-state oriented; lineage/history and delta rows belong on Artifact Slot Detail / Artifact Snapshot Dialog
+
+### Artifact Slots Page table backing
+- backing tables / read models are now locked conceptually:
+  - primary runtime lineage table: `project_artifact_snapshots`
+  - primary runtime child table: `artifact_snapshot_files`
+  - owning runtime context table: `project_work_units`
+  - joined methodology definition/read models:
+    - artifact slot definition row
+    - work-unit type definition row
+    - lifecycle state definition row
+- field/value interpretation is now locked:
+  - `project_work_units.id` = authoritative page identity for the owning instantiated work unit
+  - `project_work_units.work_unit_type_id` resolves work-unit type key/name for the page header
+  - `project_work_units.current_state_id` resolves current-state context in the header
+  - `project_artifact_snapshots.id` = runtime identity of the latest lineage head when one exists for a slot
+  - `project_artifact_snapshots.project_work_unit_id` scopes snapshot lineage to this work unit instance
+  - `project_artifact_snapshots.slot_definition_id` groups immutable snapshot lineage rows into one slot card
+  - `project_artifact_snapshots.recorded_by_transition_execution_id` / `recorded_by_workflow_execution_id` / `recorded_by_user_id` exist for provenance and later detail surfaces, but this overview page stays summary-first
+  - `project_artifact_snapshots.supersedes_project_artifact_snapshot_id` supports immutable parent lineage and latest-effective reconstruction, but is not expanded inline on overview cards
+  - `project_artifact_snapshots.created_at` provides latest snapshot timestamp when a current effective snapshot exists
+  - `artifact_snapshot_files.id` = runtime identity of each preview member row when surfaced
+  - `artifact_snapshot_files.artifact_snapshot_id` binds child rows to the relevant parent snapshot lineage head during effective reconstruction
+  - `artifact_snapshot_files.file_path` is the core member identity shown in preview
+  - `artifact_snapshot_files.member_status ∈ {present, removed}` participates in latest-effective projection; only live `present` members survive into overview preview
+  - `artifact_snapshot_files.git_blob_hash` / `git_commit_hash` may be returned as lightweight metadata when useful, but never as file-content surrogates
+- behavioral rules are now explicit:
+  - overview cards are driven by **latest-effective artifact state**, not by raw newest delta rows alone
+  - removed/tombstone child rows participate in reconstruction but must not appear as live preview members
+  - page must not invent pending/approved/policy state on slots or snapshots in this slice
+  - no-op checks that produced no new snapshot row simply leave the latest-effective slot state unchanged
+
+- reachability/navigation is now locked:
+  - reached from:
+    - Work Unit Overview `Artifact Slots` summary card → requires `projectId`, `projectWorkUnitId`
+    - work-unit-scoped subnav/sidebar, when present → requires `projectId`, `projectWorkUnitId`
+  - each slot card navigates to `artifact-slot-detail`
+    - required unique data: `projectId`, `projectWorkUnitId`, `slotDefinitionId`
+  - Artifact Slots overview is intentionally a drill-in surface only in this slice:
+    - no inline action opens Workflow Execution Detail directly
+    - no inline mutation actions
+    - richer snapshot inspection happens only after drilling into Artifact Slot Detail and then optionally opening Artifact Snapshot Dialog
+
+### Workflow Execution Detail
+- UI-facing shape for Workflow Execution Detail is locked to:
+  - top header/context strip:
+    - workflow name/key
+    - workflow role (`primary` / `supporting`)
+    - workflow execution status pill
+    - started/completed/superseded dates as applicable
+  - section 1: workflow runtime summary
+    - workflow definition identity
+    - concise status summary
+    - parent transition execution link
+    - parent work-unit link
+  - section 2: retry/supersession lineage
+    - what this workflow superseded, if anything
+    - what superseded this workflow, if known from the read model
+    - prior primary-attempt lineage context when this is a primary workflow attempt
+  - section 3: same-workflow retry action
+    - shown only when this workflow is retry-eligible under an active parent transition execution
+    - CTA label should communicate retrying the **same workflow**, not choosing a different one
+    - no workflow picker appears here
+    - clicking retry first opens an impact dialog before executing the mutation
+    - the impact dialog must summarize what will be affected underneath this workflow execution; in L2 that is mostly lineage/supersession impact, and in L3 this extends to step executions
+  - section 4: `steps coming later`
+    - explicit L3-deferred messaging
+    - optional disabled placeholder action into future step runtime UX
+- UI interaction matrix for Workflow Execution Detail is locked to:
+  - workflow execution `active` + role `primary` + parent transition execution `active`
+    - user can inspect runtime summary/lineage
+    - user can invoke `Retry same workflow`
+  - workflow execution `active` + role `supporting` + parent transition execution `active`
+    - user can inspect runtime summary/lineage
+    - user can invoke `Retry same workflow`
+  - workflow execution `completed` + role `primary` + parent transition execution `active`
+    - user can inspect runtime summary/lineage
+    - user can invoke `Retry same workflow`
+  - workflow execution `completed` + role `supporting` + parent transition execution `active`
+    - user can inspect runtime summary/lineage
+    - user can invoke `Retry same workflow`
+  - workflow execution `superseded`
+    - user can inspect read-only supersession context
+    - no retry action
+  - workflow execution `parent_superseded`
+    - user can inspect read-only runtime summary/lineage
+    - page should surface that the parent transition was superseded rather than pretending this workflow itself was superseded
+    - no retry action
+- service-boundary implication for Workflow Execution Detail is locked to:
+  - one read-model service should own assembling `getWorkflowExecutionDetail` from the workflow execution row plus parent transition/work-unit context and workflow retry lineage
+  - one command service should own `retrySameWorkflowExecution`
+  - that command service may reuse the same lower-level workflow-attempt creation primitive used by Transition Execution Detail, but the UI/API boundary must remain distinct:
+    - Workflow Execution Detail = retry this same workflow
+    - Transition Execution Detail = choose which primary workflow to run next
+
+- retry/supersede safety dialog rule is now locked conceptually across runtime execution surfaces:
+  - before retrying an active workflow
+  - before retrying a completed workflow whose parent transition is still active
+  - before superseding an active transition
+  - before superseding a currently active primary workflow attempt by choosing another primary workflow
+  - the user must first see a confirmation dialog summarizing the affected descendant runtime state
+  - this dialog should be established now at L2 and later extended at L3 to include step-execution impact explicitly
+- parent-lifecycle-effect rule is now locked conceptually across execution surfaces:
+  - for workflow executions now, and step executions later, parent supersession should be represented as a distinct status variant rather than a separate field
+  - therefore status interpretation must distinguish:
+    - `superseded` = this row itself was superseded by another row at the same execution level
+    - `parent_superseded` = this row's parent was superseded, so the UI must not imply that this row has its own superseding sibling row
+  - this is specifically to avoid the UI incorrectly looking for a superseding workflow when the real reason is that the parent transition was superseded
 
 ## Scope Boundaries
 - INCLUDE: L1/L2/L3 runtime execution model revision, retry/revert lineage, runtime artifact snapshots
