@@ -19,9 +19,11 @@ const WorkflowEngineRuntimeBaseLayer = Layer.mergeAll(
   RuntimeArtifactServiceLive,
 );
 
+const WorkflowEngineRuntimeGuidanceBaseLayer = Layer.mergeAll(WorkflowEngineRuntimeBaseLayer);
+
 const WorkflowEngineRuntimeDependentLayer = Layer.mergeAll(
   RuntimeOverviewServiceLive.pipe(Layer.provide(WorkflowEngineRuntimeBaseLayer)),
-  RuntimeGuidanceServiceLive.pipe(Layer.provide(WorkflowEngineRuntimeBaseLayer)),
+  RuntimeGuidanceServiceLive.pipe(Layer.provide(WorkflowEngineRuntimeGuidanceBaseLayer)),
   RuntimeWorkUnitServiceLive.pipe(Layer.provide(WorkflowEngineRuntimeBaseLayer)),
   TransitionExecutionCommandServiceLive.pipe(Layer.provide(WorkflowEngineRuntimeBaseLayer)),
   TransitionExecutionDetailServiceLive.pipe(Layer.provide(WorkflowEngineRuntimeBaseLayer)),

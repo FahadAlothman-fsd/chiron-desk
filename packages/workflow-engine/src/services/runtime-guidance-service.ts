@@ -5,7 +5,9 @@ import type {
   RuntimeGuidanceStreamEnvelope,
   StreamRuntimeGuidanceCandidatesInput,
 } from "@chiron/contracts/runtime/guidance";
-import type { RuntimeConditionTree } from "@chiron/contracts/runtime/conditions";
+import type { RuntimeCondition, RuntimeConditionTree } from "@chiron/contracts/runtime/conditions";
+import { LifecycleRepository } from "@chiron/methodology-engine";
+import { ProjectContextRepository } from "@chiron/project-context";
 import { Context, Effect, Layer } from "effect";
 
 import type { RepositoryError } from "../errors";
@@ -112,6 +114,127 @@ const createFallbackSeeds = (
       ],
     }));
 
+const emptyGate: RuntimeConditionTree = {
+  mode: "all",
+  conditions: [],
+  groups: [],
+};
+
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+
+const toRuntimeCondition = (value: unknown): RuntimeCondition | null => {
+  const condition = asRecord(value);
+  if (!condition) {
+    return null;
+  }
+
+  if (condition.required === false) {
+    return null;
+  }
+
+  const kind = typeof condition.kind === "string" ? condition.kind : null;
+  const config = asRecord(condition.config) ?? {};
+
+  if (kind === "fact") {
+    const factKey = typeof config.factKey === "string" ? config.factKey : null;
+    if (!factKey) {
+      return null;
+    }
+    const factDefinitionId =
+      typeof config.factDefinitionId === "string" ? config.factDefinitionId : undefined;
+    const operator = config.operator === "exists" ? "exists" : "exists";
+
+    return {
+      kind: "fact",
+      factKey,
+      operator,
+      ...(factDefinitionId ? { factDefinitionId } : {}),
+    };
+  }
+
+  if (kind === "work_unit_fact") {
+    const factKey = typeof config.factKey === "string" ? config.factKey : null;
+    if (!factKey) {
+      return null;
+    }
+    const factDefinitionId =
+      typeof config.factDefinitionId === "string" ? config.factDefinitionId : undefined;
+
+    return {
+      kind: "work_unit_fact",
+      factKey,
+      operator: "exists",
+      ...(factDefinitionId ? { factDefinitionId } : {}),
+    };
+  }
+
+  if (kind === "artifact") {
+    const slotKey = typeof config.slotKey === "string" ? config.slotKey : null;
+    if (!slotKey) {
+      return null;
+    }
+    const slotDefinitionId =
+      typeof config.slotDefinitionId === "string" ? config.slotDefinitionId : undefined;
+    const operator =
+      config.operator === "fresh" || config.operator === "stale" ? config.operator : "exists";
+
+    return {
+      kind: "artifact",
+      slotKey,
+      operator,
+      ...(slotDefinitionId ? { slotDefinitionId } : {}),
+    };
+  }
+
+  return null;
+};
+
+const toStartGate = (
+  conditionSets: readonly { readonly mode: string; readonly groupsJson: unknown }[],
+) => {
+  if (conditionSets.length === 0) {
+    return emptyGate;
+  }
+
+  const groups = conditionSets
+    .map((conditionSet) => {
+      const groupsJson = Array.isArray(conditionSet.groupsJson) ? conditionSet.groupsJson : [];
+      const conditions = groupsJson.flatMap((group) => {
+        const groupRecord = asRecord(group);
+        const groupConditions = Array.isArray(groupRecord?.conditions)
+          ? groupRecord.conditions
+          : [];
+
+        return groupConditions
+          .map((condition) => toRuntimeCondition(condition))
+          .filter((condition): condition is RuntimeCondition => condition !== null);
+      });
+
+      return {
+        mode: conditionSet.mode === "any" ? "any" : "all",
+        conditions,
+        groups: [],
+      } satisfies RuntimeConditionTree;
+    })
+    .filter((group) => group.conditions.length > 0 || group.groups.length > 0);
+
+  if (groups.length === 0) {
+    return emptyGate;
+  }
+
+  return {
+    mode: "all",
+    conditions: [],
+    groups,
+  } satisfies RuntimeConditionTree;
+};
+
+const isSingleCardinality = (cardinality: string): boolean =>
+  cardinality === "one" || cardinality === "one_per_project" || cardinality === "single";
+
 export const RuntimeGuidanceServiceLive = Layer.effect(
   RuntimeGuidanceService,
   Effect.gen(function* () {
@@ -120,6 +243,8 @@ export const RuntimeGuidanceServiceLive = Layer.effect(
     const workUnitFactRepository = yield* WorkUnitFactRepository;
     const artifactRepository = yield* ArtifactRepository;
     const runtimeGateService = yield* RuntimeGateService;
+    const projectContextRepository = yield* ProjectContextRepository;
+    const lifecycleRepository = yield* LifecycleRepository;
 
     const getActive = (
       input: GetRuntimeGuidanceActiveInput,
@@ -257,7 +382,108 @@ export const RuntimeGuidanceServiceLive = Layer.effect(
           input.projectId,
         );
 
-        const cards = options?.candidateSeeds ?? createFallbackSeeds(projectWorkUnits);
+        const openCards = options?.candidateSeeds ?? createFallbackSeeds(projectWorkUnits);
+
+        const futureCards = options?.candidateSeeds
+          ? []
+          : yield* Effect.gen(function* () {
+              const projectPin = yield* projectContextRepository.findProjectPin(input.projectId);
+              if (!projectPin) {
+                return [] as const;
+              }
+
+              const [
+                workUnitTypes,
+                lifecycleStates,
+                lifecycleTransitions,
+                transitionConditionSets,
+              ] = yield* Effect.all([
+                lifecycleRepository.findWorkUnitTypes(projectPin.methodologyVersionId),
+                lifecycleRepository.findLifecycleStates(projectPin.methodologyVersionId),
+                lifecycleRepository.findLifecycleTransitions(projectPin.methodologyVersionId),
+                lifecycleRepository.findTransitionConditionSets(projectPin.methodologyVersionId),
+              ]);
+
+              const existingCountsByTypeId = new Map<string, number>();
+              for (const workUnit of projectWorkUnits) {
+                existingCountsByTypeId.set(
+                  workUnit.workUnitTypeId,
+                  (existingCountsByTypeId.get(workUnit.workUnitTypeId) ?? 0) + 1,
+                );
+              }
+
+              const stateById = new Map(lifecycleStates.map((state) => [state.id, state] as const));
+              const conditionSetsByTransitionId = new Map<
+                string,
+                Array<(typeof transitionConditionSets)[number]>
+              >();
+              for (const row of transitionConditionSets) {
+                const current = conditionSetsByTransitionId.get(row.transitionId) ?? [];
+                current.push(row);
+                conditionSetsByTransitionId.set(row.transitionId, current);
+              }
+
+              return workUnitTypes.flatMap((workUnitType) => {
+                const existingCount = existingCountsByTypeId.get(workUnitType.id) ?? 0;
+                const creatable =
+                  !isSingleCardinality(workUnitType.cardinality) || existingCount === 0;
+                if (!creatable) {
+                  return [];
+                }
+
+                const transitions = lifecycleTransitions
+                  .filter(
+                    (transition) =>
+                      transition.workUnitTypeId === workUnitType.id &&
+                      transition.fromStateId === null,
+                  )
+                  .flatMap((transition) => {
+                    const toState = transition.toStateId
+                      ? (stateById.get(transition.toStateId) ?? null)
+                      : null;
+                    if (!toState) {
+                      return [];
+                    }
+
+                    const startSets = (conditionSetsByTransitionId.get(transition.id) ?? [])
+                      .filter((conditionSet) => conditionSet.phase !== "completion")
+                      .sort((a, b) => a.key.localeCompare(b.key));
+
+                    return [
+                      {
+                        candidateId: `candidate:future:${workUnitType.id}:${transition.id}`,
+                        transitionId: transition.id,
+                        transitionKey: transition.transitionKey,
+                        transitionName: transition.transitionKey,
+                        toStateKey: toState.key,
+                        toStateLabel: toState.displayName ?? toState.key,
+                        source: "future" as const,
+                        startGate: toStartGate(startSets),
+                      },
+                    ];
+                  });
+
+                return [
+                  {
+                    candidateCardId: `future:${workUnitType.id}`,
+                    source: "future" as const,
+                    workUnitContext: {
+                      workUnitTypeId: workUnitType.id,
+                      workUnitTypeKey: workUnitType.key,
+                      workUnitTypeName: workUnitType.displayName ?? workUnitType.key,
+                      currentStateLabel: "Not started",
+                    },
+                    summaries: {
+                      facts: { currentCount: 0, totalCount: 0 },
+                      artifactSlots: { currentCount: 0, totalCount: 0 },
+                    },
+                    transitions,
+                  },
+                ];
+              });
+            });
+
+        const cards = [...openCards, ...futureCards];
         const bootstrapCards: RuntimeGuidanceCandidateCard[] = cards.map((card) => ({
           candidateCardId: card.candidateCardId,
           source: card.source,

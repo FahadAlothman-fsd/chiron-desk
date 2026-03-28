@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Effect, Layer } from "effect";
+import { LifecycleRepository } from "@chiron/methodology-engine";
+import { ProjectContextRepository } from "@chiron/project-context";
 
 import {
   ArtifactRepository,
@@ -146,6 +148,95 @@ const artifactLayer = Layer.succeed(ArtifactRepository, {
     ),
 });
 
+const projectContextLayer = Layer.succeed(ProjectContextRepository, {
+  findProjectPin: (projectId) =>
+    Effect.succeed(
+      projectId === "project-empty"
+        ? {
+            projectId,
+            methodologyVersionId: "version-1",
+            methodologyId: "methodology-1",
+            methodologyKey: "bmad",
+            publishedVersion: "1.0.0",
+            actorId: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }
+        : null,
+    ),
+  hasExecutionHistoryForRepin: () => Effect.succeed(false),
+  pinProjectMethodologyVersion: () => Effect.die("not implemented in test"),
+  repinProjectMethodologyVersion: () => Effect.die("not implemented in test"),
+  getProjectPinLineage: () => Effect.succeed([]),
+  createProject: () => Effect.die("not implemented in test"),
+  listProjects: () => Effect.succeed([]),
+  getProjectById: () => Effect.succeed(null),
+});
+
+const lifecycleLayer = Layer.succeed(LifecycleRepository, {
+  findWorkUnitTypes: () =>
+    Effect.succeed([
+      {
+        id: "wut-setup",
+        methodologyVersionId: "version-1",
+        key: "setup",
+        displayName: "Setup",
+        descriptionJson: null,
+        guidanceJson: null,
+        cardinality: "one",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]),
+  findLifecycleStates: () =>
+    Effect.succeed([
+      {
+        id: "state-ready",
+        methodologyVersionId: "version-1",
+        workUnitTypeId: "wut-setup",
+        key: "ready",
+        displayName: "Ready",
+        descriptionJson: null,
+        guidanceJson: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]),
+  findLifecycleTransitions: () =>
+    Effect.succeed([
+      {
+        id: "tr-setup-start",
+        methodologyVersionId: "version-1",
+        workUnitTypeId: "wut-setup",
+        fromStateId: null,
+        toStateId: "state-ready",
+        transitionKey: "start_setup",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]),
+  findFactSchemas: () => Effect.succeed([]),
+  findTransitionConditionSets: () =>
+    Effect.succeed([
+      {
+        id: "cs-setup-start",
+        methodologyVersionId: "version-1",
+        transitionId: "tr-setup-start",
+        key: "start",
+        phase: "start",
+        mode: "all",
+        groupsJson: [],
+        guidanceJson: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]),
+  findAgentTypes: () => Effect.succeed([]),
+  findTransitionWorkflowBindings: () => Effect.succeed([]),
+  saveLifecycleDefinition: () => Effect.die("not implemented in test"),
+  recordLifecycleEvent: () => Effect.die("not implemented in test"),
+});
+
 const guidanceLayer = RuntimeGuidanceServiceLive.pipe(
   Layer.provideMerge(RuntimeGateServiceLive),
   Layer.provideMerge(projectWorkUnitLayer),
@@ -153,6 +244,8 @@ const guidanceLayer = RuntimeGuidanceServiceLive.pipe(
   Layer.provideMerge(projectFactLayer),
   Layer.provideMerge(workUnitFactLayer),
   Layer.provideMerge(artifactLayer),
+  Layer.provideMerge(projectContextLayer),
+  Layer.provideMerge(lifecycleLayer),
 );
 
 describe("RuntimeGuidanceService", () => {
@@ -244,5 +337,27 @@ describe("RuntimeGuidanceService", () => {
     ]);
     expect(events[1]?.result).toBe("available");
     expect(events[2]?.result).toBe("blocked");
+  });
+
+  it("includes future setup candidate from methodology when project has no work units", async () => {
+    const program = Effect.gen(function* () {
+      const service = yield* RuntimeGuidanceService;
+      return yield* service.streamCandidates({ projectId: "project-empty" });
+    }).pipe(Effect.provide(guidanceLayer));
+
+    const stream = await Effect.runPromise(program);
+    const events: Array<{ type: string; [key: string]: unknown }> = [];
+    for await (const event of stream) {
+      events.push(event as { type: string; [key: string]: unknown });
+    }
+
+    const bootstrap = events.find((event) => event.type === "bootstrap") as
+      | { cards?: Array<{ source?: string; workUnitContext?: { workUnitTypeKey?: string } }> }
+      | undefined;
+
+    expect(bootstrap?.cards?.some((card) => card.source === "future")).toBe(true);
+    expect(
+      bootstrap?.cards?.some((card) => card.workUnitContext?.workUnitTypeKey === "setup"),
+    ).toBe(true);
   });
 });

@@ -586,3 +586,14 @@
   - `ProjectFactRepository`
   - `WorkUnitFactRepository`
   - `ArtifactRepository`
+
+## 2026-03-29 - Runtime guidance future-candidate generation
+
+- `RuntimeGuidanceService.streamCandidates(...)` must hydrate candidate seeds from two sources when no explicit test seeds are provided:
+  - open candidates from existing `project_work_units`
+  - future candidates derived from pinned methodology lifecycle definitions.
+- Project pin lookup (`ProjectContextRepository.findProjectPin`) is the runtime seam that resolves `methodologyVersionId`; if missing, future candidates should be empty while open candidates remain available.
+- Future candidate eligibility must respect work-unit cardinality against existing runtime instances:
+  - single-instance variants (`one`, `one_per_project`, `single`) only when count is zero
+  - multi-instance variants always creatable.
+- Start-transition derivation for future cards should use lifecycle transitions with `fromStateId = null` and convert start-phase condition sets into runtime `RuntimeConditionTree` gates for evaluation.

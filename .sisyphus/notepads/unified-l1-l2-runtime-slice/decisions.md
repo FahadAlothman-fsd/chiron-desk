@@ -15,3 +15,9 @@
 - Decision: keep `WorkflowEngineRuntimeLive` as a single merged runtime layer (read + command services) and satisfy it by expanding runtime repo provisioning instead of splitting runtime layers per endpoint.
 - Rationale: preserves one runtime composition seam while ensuring all merged runtime services have their repository dependencies satisfied at app bootstrap.
 - Applied at composition boundary by adding `TransitionExecutionRepository` + `WorkflowExecutionRepository` to runtime repo layer requirements and server-provided runtime repo merge set.
+
+## 2026-03-29 - Runtime guidance methodology-seeded future cards
+
+- Decision: keep `streamCandidates(...)` test override behavior intact (`options.candidateSeeds` bypasses auto-discovery) while enabling methodology-derived future candidates in normal execution path.
+- Decision: treat `fromStateId = null` transitions as future-card launch transitions and ignore non-start transitions for not-yet-created work units.
+- Decision: provide Runtime Guidance runtime dependencies via API composition merge (`runtimeRepoLayer + lifecycleRepoLayer + projectContextRepoLayer`) so guidance can resolve methodology pins and lifecycle definitions at runtime.

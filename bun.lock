@@ -146,6 +146,7 @@
         "@chiron/env": "workspace:*",
         "@chiron/methodology-engine": "workspace:*",
         "@chiron/project-context": "workspace:*",
+        "@chiron/workflow-engine": "workspace:*",
         "@orpc/client": "catalog:",
         "@orpc/openapi": "catalog:",
         "@orpc/server": "catalog:",
@@ -375,11 +376,14 @@
       "name": "@chiron/workflow-engine",
       "dependencies": {
         "@chiron/contracts": "workspace:*",
+        "@chiron/methodology-engine": "workspace:*",
+        "@chiron/project-context": "workspace:*",
         "effect": "catalog:",
       },
       "devDependencies": {
         "@chiron/config": "workspace:*",
         "typescript": "catalog:",
+        "vitest": "catalog:",
       },
     },
   },
