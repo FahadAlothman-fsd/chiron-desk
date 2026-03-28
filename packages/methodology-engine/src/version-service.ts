@@ -112,6 +112,27 @@ export interface UpdateVersionMetadataInput {
   displayName: string;
 }
 
+function flattenTransitionWorkflowBindingsByWorkUnit(
+  scopedBindings: Record<string, Record<string, readonly string[]>>,
+): MethodologyVersionDefinition["transitionWorkflowBindings"] {
+  const flattened = new Map<string, string[]>();
+
+  for (const transitionsByKey of Object.values(scopedBindings)) {
+    for (const [transitionKey, workflowKeys] of Object.entries(transitionsByKey)) {
+      const current = flattened.get(transitionKey) ?? [];
+      const merged = new Set([...current, ...workflowKeys]);
+      flattened.set(
+        transitionKey,
+        [...merged].sort((a, b) => a.localeCompare(b)),
+      );
+    }
+  }
+
+  return Object.fromEntries(
+    [...flattened.entries()].sort((a, b) => a[0].localeCompare(b[0])),
+  ) as MethodologyVersionDefinition["transitionWorkflowBindings"];
+}
+
 export interface ArchiveVersionInput {
   versionId: string;
 }
@@ -1107,7 +1128,9 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
         agentTypes: lifecycleDefinition.agentTypes,
         transitions: lifecycleDefinition.transitions,
         workflows: snapshot.workflows,
-        transitionWorkflowBindings: snapshot.transitionWorkflowBindings,
+        transitionWorkflowBindings: flattenTransitionWorkflowBindingsByWorkUnit(
+          snapshot.transitionWorkflowBindings,
+        ),
         guidance: snapshot.guidance,
       };
 
@@ -1155,7 +1178,9 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
             agentTypes: lifecycleDefinition.agentTypes,
             transitions: lifecycleDefinition.transitions,
             workflows: snapshot.workflows,
-            transitionWorkflowBindings: snapshot.transitionWorkflowBindings,
+            transitionWorkflowBindings: flattenTransitionWorkflowBindingsByWorkUnit(
+              snapshot.transitionWorkflowBindings,
+            ),
             guidance: snapshot.guidance,
           },
           factDefinitions: factDefinitions.map(mapFactDefinitionRowToInput),
@@ -1220,7 +1245,9 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
             agentTypes: lifecycleDefinition.agentTypes,
             transitions: lifecycleDefinition.transitions,
             workflows: snapshot.workflows,
-            transitionWorkflowBindings: snapshot.transitionWorkflowBindings,
+            transitionWorkflowBindings: flattenTransitionWorkflowBindingsByWorkUnit(
+              snapshot.transitionWorkflowBindings,
+            ),
             guidance: snapshot.guidance,
           },
           factDefinitions: [...existingFacts.map(mapFactDefinitionRowToInput), input.fact],
@@ -1259,7 +1286,9 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
             agentTypes: lifecycleDefinition.agentTypes,
             transitions: lifecycleDefinition.transitions,
             workflows: snapshot.workflows,
-            transitionWorkflowBindings: snapshot.transitionWorkflowBindings,
+            transitionWorkflowBindings: flattenTransitionWorkflowBindingsByWorkUnit(
+              snapshot.transitionWorkflowBindings,
+            ),
             guidance: snapshot.guidance,
           },
           factDefinitions: existingFacts.map((fact) =>
@@ -1300,7 +1329,9 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
             agentTypes: lifecycleDefinition.agentTypes,
             transitions: lifecycleDefinition.transitions,
             workflows: snapshot.workflows,
-            transitionWorkflowBindings: snapshot.transitionWorkflowBindings,
+            transitionWorkflowBindings: flattenTransitionWorkflowBindingsByWorkUnit(
+              snapshot.transitionWorkflowBindings,
+            ),
             guidance: snapshot.guidance,
           },
           factDefinitions: existingFacts
@@ -1354,7 +1385,9 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
             agentTypes: lifecycleDefinition.agentTypes,
             transitions: lifecycleDefinition.transitions,
             workflows: snapshot.workflows,
-            transitionWorkflowBindings: snapshot.transitionWorkflowBindings,
+            transitionWorkflowBindings: flattenTransitionWorkflowBindingsByWorkUnit(
+              snapshot.transitionWorkflowBindings,
+            ),
             guidance: snapshot.guidance,
           },
           factDefinitions: existingFacts.map(mapFactDefinitionRowToInput),
@@ -1419,7 +1452,9 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
             agentTypes: lifecycleDefinition.agentTypes,
             transitions: lifecycleDefinition.transitions,
             workflows: snapshot.workflows,
-            transitionWorkflowBindings: snapshot.transitionWorkflowBindings,
+            transitionWorkflowBindings: flattenTransitionWorkflowBindingsByWorkUnit(
+              snapshot.transitionWorkflowBindings,
+            ),
             guidance: snapshot.guidance,
           },
           factDefinitions: existingFacts.map(mapFactDefinitionRowToInput),
@@ -1474,7 +1509,9 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
             agentTypes: lifecycleDefinition.agentTypes,
             transitions: lifecycleDefinition.transitions,
             workflows: snapshot.workflows,
-            transitionWorkflowBindings: snapshot.transitionWorkflowBindings,
+            transitionWorkflowBindings: flattenTransitionWorkflowBindingsByWorkUnit(
+              snapshot.transitionWorkflowBindings,
+            ),
             guidance: snapshot.guidance,
           },
           factDefinitions: existingFacts.map(mapFactDefinitionRowToInput),
@@ -1533,7 +1570,9 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
         agentTypes: lifecycleDefinition.agentTypes,
         transitions: lifecycleDefinition.transitions,
         workflows: snapshot.workflows,
-        transitionWorkflowBindings: snapshot.transitionWorkflowBindings,
+        transitionWorkflowBindings: flattenTransitionWorkflowBindingsByWorkUnit(
+          snapshot.transitionWorkflowBindings,
+        ),
         guidance: snapshot.guidance,
       };
 
@@ -2015,9 +2054,9 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
           !workflow.workUnitTypeKey || workflow.workUnitTypeKey === input.workUnitTypeKey,
       );
       const workflowKeys = new Set(workflows.map((workflow) => workflow.key));
-      const transitionEntries = Object.entries(snapshot.transitionWorkflowBindings ?? {}) as Array<
-        [string, string[]]
-      >;
+      const transitionEntries = Object.entries(
+        snapshot.transitionWorkflowBindings?.[input.workUnitTypeKey] ?? {},
+      ) as Array<[string, string[]]>;
       const filteredBindings = new Map<string, string[]>();
       for (const [transitionKey, boundWorkflowKeys] of transitionEntries) {
         const filtered = boundWorkflowKeys.filter((workflowKey) => workflowKeys.has(workflowKey));

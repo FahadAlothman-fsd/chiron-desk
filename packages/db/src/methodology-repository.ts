@@ -804,6 +804,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             .orderBy(asc(methodologyWorkflowEdges.workflowId), asc(methodologyWorkflowEdges.id)),
           db
             .select({
+              workUnitTypeKey: methodologyWorkUnitTypes.key,
               transitionKey: workUnitLifecycleTransitions.transitionKey,
               workflowKey: methodologyWorkflows.key,
             })
@@ -816,11 +817,16 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               ),
             )
             .innerJoin(
+              methodologyWorkUnitTypes,
+              eq(workUnitLifecycleTransitions.workUnitTypeId, methodologyWorkUnitTypes.id),
+            )
+            .innerJoin(
               methodologyWorkflows,
               eq(methodologyTransitionWorkflowBindings.workflowId, methodologyWorkflows.id),
             )
             .where(eq(methodologyTransitionWorkflowBindings.methodologyVersionId, versionId))
             .orderBy(
+              asc(methodologyWorkUnitTypes.key),
               asc(workUnitLifecycleTransitions.transitionKey),
               asc(methodologyWorkflows.key),
               asc(methodologyTransitionWorkflowBindings.id),
@@ -884,15 +890,21 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           })),
         }));
 
-        const transitionWorkflowBindings: Record<string, string[]> = {};
+        const transitionWorkflowBindings: Record<string, Record<string, string[]>> = {};
         const guidanceByWorkUnitType: Record<string, unknown> = {};
         const guidanceByAgentType: Record<string, unknown> = {};
         const guidanceByTransition: Record<string, unknown> = {};
         const guidanceByWorkflow: Record<string, unknown> = {};
         for (const bindingRow of bindingRows) {
-          const current = transitionWorkflowBindings[bindingRow.transitionKey] ?? [];
+          const workUnitTypeKey = bindingRow.workUnitTypeKey;
+          let workUnitBindings = transitionWorkflowBindings[workUnitTypeKey];
+          if (!workUnitBindings) {
+            workUnitBindings = {};
+            transitionWorkflowBindings[workUnitTypeKey] = workUnitBindings;
+          }
+          const current = workUnitBindings[bindingRow.transitionKey] ?? [];
           current.push(bindingRow.workflowKey);
-          transitionWorkflowBindings[bindingRow.transitionKey] = current;
+          workUnitBindings[bindingRow.transitionKey] = current;
         }
 
         for (const row of workUnitGuidanceRows) {

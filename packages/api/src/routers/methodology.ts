@@ -2321,7 +2321,8 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
             const versionService = yield* MethodologyVersionBoundaryService;
             const snapshot = yield* versionService.getAuthoringSnapshot(input.versionId);
 
-            const workflowKeys = snapshot.transitionWorkflowBindings?.[input.transitionKey];
+            const workflowKeys =
+              snapshot.transitionWorkflowBindings?.[input.workUnitTypeKey]?.[input.transitionKey];
             return Array.isArray(workflowKeys)
               ? workflowKeys.filter(
                   (workflowKey): workflowKey is string => typeof workflowKey === "string",
@@ -2341,7 +2342,8 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
           Effect.gen(function* () {
             const svc = yield* MethodologyVersionBoundaryService;
             const snapshot = yield* svc.getAuthoringSnapshot(input.versionId);
-            const existing = snapshot.transitionWorkflowBindings[input.transitionKey];
+            const existing =
+              snapshot.transitionWorkflowBindings[input.workUnitTypeKey]?.[input.transitionKey];
             return Array.isArray(existing)
               ? existing.filter(
                   (workflowKey): workflowKey is string => typeof workflowKey === "string",
@@ -2384,7 +2386,8 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
           Effect.gen(function* () {
             const svc = yield* MethodologyVersionBoundaryService;
             const snapshot = yield* svc.getAuthoringSnapshot(input.versionId);
-            const existing = snapshot.transitionWorkflowBindings[input.transitionKey];
+            const existing =
+              snapshot.transitionWorkflowBindings[input.workUnitTypeKey]?.[input.transitionKey];
             return Array.isArray(existing)
               ? existing.filter(
                   (workflowKey): workflowKey is string => typeof workflowKey === "string",

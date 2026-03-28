@@ -95,7 +95,10 @@ export interface GetPublicationEvidenceParams {
 
 export interface WorkflowSnapshot {
   workflows: readonly WorkflowDefinition[];
-  transitionWorkflowBindings: MethodologyVersionDefinition["transitionWorkflowBindings"];
+  transitionWorkflowBindings: Record<
+    string,
+    MethodologyVersionDefinition["transitionWorkflowBindings"]
+  >;
   guidance?: LayeredGuidance;
 }
 

@@ -131,10 +131,13 @@ export function MethodologyVersionDependencyDefinitionsRoute() {
   const bindings =
     (draftQuery.data as { transitionWorkflowBindings?: Record<string, unknown> } | undefined)
       ?.transitionWorkflowBindings ?? {};
+  const inferredTransitionKeys = Object.values(bindings)
+    .filter((value): value is Record<string, unknown> => !!value && typeof value === "object")
+    .flatMap((value) => Object.keys(value));
   const linkTypeKeys =
     linkTypeDefinitions.length > 0
       ? linkTypeDefinitions.map((definition) => definition.key ?? "").filter(Boolean)
-      : Object.keys(bindings).sort();
+      : [...new Set(inferredTransitionKeys)].sort();
 
   const isContractTabDirty =
     linkTypeKey !== initialDependencyFormValues.linkTypeKey ||

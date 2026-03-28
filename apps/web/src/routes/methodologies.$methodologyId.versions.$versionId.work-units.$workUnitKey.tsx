@@ -740,9 +740,14 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
           transitionWorkflowBindings={
             (
               draftQuery.data as
-                | { transitionWorkflowBindings?: Record<string, readonly string[] | undefined> }
+                | {
+                    transitionWorkflowBindings?: Record<
+                      string,
+                      Record<string, readonly string[] | undefined> | undefined
+                    >;
+                  }
                 | undefined
-            )?.transitionWorkflowBindings ?? {}
+            )?.transitionWorkflowBindings?.[workUnitKey] ?? {}
           }
           onSaveStates={async (states) => {
             const currentStates = Array.isArray(stateMachineStatesQuery.data)
@@ -808,9 +813,14 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
             const bindingsByTransitionKey =
               (
                 draftQuery.data as
-                  | { transitionWorkflowBindings?: Record<string, readonly string[] | undefined> }
+                  | {
+                      transitionWorkflowBindings?: Record<
+                        string,
+                        Record<string, readonly string[] | undefined> | undefined
+                      >;
+                    }
                   | undefined
-              )?.transitionWorkflowBindings ?? {};
+              )?.transitionWorkflowBindings?.[workUnitKey] ?? {};
             const nextTransitionKeys = new Set(
               transitions.map((transition) => transition.transitionKey),
             );

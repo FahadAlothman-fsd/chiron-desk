@@ -229,7 +229,7 @@ export interface AuthoringSnapshot {
   readonly workUnitTypes: readonly WorkUnitTypeDefinition[];
   readonly agentTypes: readonly AgentTypeDefinition[];
   readonly workflows: readonly WorkflowDefinition[];
-  readonly transitionWorkflowBindings: Record<string, readonly string[]>;
+  readonly transitionWorkflowBindings: Record<string, Record<string, readonly string[]>>;
   readonly guidance?: MethodologyVersionDefinition["guidance"];
   readonly factDefinitions: readonly MethodologyFactDefinitionInput[];
   readonly linkTypeDefinitions: readonly MethodologyLinkTypeDefinitionInput[];

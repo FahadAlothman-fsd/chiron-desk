@@ -1718,13 +1718,22 @@ export function StateMachineTab({
                             role="combobox"
                             aria-labelledby="transition-bind-workflows-label"
                             aria-expanded={isBindingsOpen}
-                            className="h-8 w-full justify-between rounded-none border-input bg-transparent px-2.5 py-1 font-normal"
+                            className="min-h-8 h-auto w-full justify-between rounded-none border-input bg-transparent px-2.5 py-1 font-normal"
                           >
-                            <span className="truncate text-xs">
-                              {transitionEditor.workflowKeys.length > 0
-                                ? transitionEditor.workflowKeys.join(", ")
-                                : "Select workflow bindings"}
-                            </span>
+                            {transitionEditor.workflowKeys.length > 0 ? (
+                              <span className="flex min-w-0 flex-wrap gap-1 py-0.5 text-left text-xs">
+                                {transitionEditor.workflowKeys.map((workflowKey) => (
+                                  <span
+                                    key={workflowKey}
+                                    className="inline-flex max-w-full items-center rounded-none border border-border/70 bg-background/70 px-1.5 py-0.5 text-[0.68rem] uppercase tracking-[0.08em]"
+                                  >
+                                    <span className="truncate">{workflowKey}</span>
+                                  </span>
+                                ))}
+                              </span>
+                            ) : (
+                              <span className="truncate text-xs">Select workflow bindings</span>
+                            )}
                             <ChevronsUpDownIcon className="size-3.5 shrink-0 opacity-70" />
                           </Button>
                         }
