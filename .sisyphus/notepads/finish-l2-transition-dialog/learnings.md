@@ -1275,3 +1275,10 @@ interface RuntimeCondition {
 - `formValuesToFact` now normalizes `factType` to API enum, trims `key`, converts `defaultValue` by fact type (`number`/`boolean`/`json` parsing), and only emits `allowed-values` validation when the list is non-empty (otherwise `kind: "none"`).
 - Mapping now rebuilds the fact payload from sanitized form values instead of inheriting stale optional fields from `baseFact`, preventing accidental carry-over of incompatible prior values.
 - `factToMutationInput` now trims key and re-normalizes factType before mutation submission to keep create/update payloads API-safe.
+
+## Runtime start-gate drill-in learnings (2026-03-29)
+
+- `RuntimeGuidanceService` now owns both candidate streaming and per-transition start-gate drill-in detail; sharing `toStartGate(...)` keeps gate-shape parity between cards and detail dialog.
+- Future candidate drill-in must resolve project pin + methodology lifecycle rows (work unit type, transitions, states, condition sets) before evaluating `RuntimeGateService.evaluateStartGate` without `projectWorkUnitId`.
+- Existing work unit drill-in must fetch `ProjectWorkUnitRepository.getProjectWorkUnitById`, validate project ownership, then evaluate start gate with `projectWorkUnitId` to support work-unit facts/artifact gate conditions.
+- For drill-in response compatibility, `launchability.availableWorkflows` can safely default to `[]` and `canLaunch` should be derived from gate result (`available` => true).

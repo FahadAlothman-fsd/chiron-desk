@@ -32,3 +32,9 @@
 - Added a dedicated `transitionDiscardOpen` state for transition dialog unsaved-change confirmation, instead of piggybacking on other dialogs.
 - Centralized transition teardown in `closeTransitionDialog()` and reused it for both explicit discard and post-save close to guarantee consistent cleanup.
 - Wired transition dialog close requests through `requestCloseTransitionDialog()` from both Cancel button and `Dialog.onOpenChange` close path to prevent accidental silent discard.
+
+## Runtime start-gate detail decisions (2026-03-29)
+
+- Added `getRuntimeStartGateDetail` directly to `RuntimeGuidanceService` interface + Live layer instead of introducing a separate service, to keep runtime guidance querying cohesive.
+- Standardized missing-entity handling via `RepositoryError` in runtime guidance (`project pin`, `work unit`, `work unit type`, `transition`, `to-state`) to preserve existing API error mapping behavior.
+- Kept start-gate detail workflow launchability intentionally conservative (`availableWorkflows: []`) because workflow bindings are not required to unblock current UI drill-in contract.

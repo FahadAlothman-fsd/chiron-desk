@@ -5,12 +5,16 @@ import type {
   RuntimeGuidanceStreamEnvelope,
   StreamRuntimeGuidanceCandidatesInput,
 } from "@chiron/contracts/runtime/guidance";
+import type {
+  GetTransitionStartGateDetailsInput,
+  GetTransitionStartGateDetailsOutput,
+} from "@chiron/contracts/runtime/work-units";
 import type { RuntimeCondition, RuntimeConditionTree } from "@chiron/contracts/runtime/conditions";
 import { LifecycleRepository } from "@chiron/methodology-engine";
 import { ProjectContextRepository } from "@chiron/project-context";
 import { Context, Effect, Layer } from "effect";
 
-import type { RepositoryError } from "../errors";
+import { RepositoryError } from "../errors";
 import { ArtifactRepository } from "../repositories/artifact-repository";
 import { ExecutionReadRepository } from "../repositories/execution-read-repository";
 import { ProjectWorkUnitRepository } from "../repositories/project-work-unit-repository";
@@ -51,6 +55,9 @@ export class RuntimeGuidanceService extends Context.Tag("RuntimeGuidanceService"
       input: StreamRuntimeGuidanceCandidatesInput,
       options?: StreamRuntimeGuidanceCandidatesOptions,
     ) => Effect.Effect<AsyncIterable<RuntimeGuidanceStreamEnvelope>, never>;
+    readonly getRuntimeStartGateDetail: (
+      input: GetTransitionStartGateDetailsInput,
+    ) => Effect.Effect<GetTransitionStartGateDetailsOutput, RepositoryError>;
   }
 >() {}
 
@@ -234,6 +241,9 @@ const toStartGate = (
 
 const isSingleCardinality = (cardinality: string): boolean =>
   cardinality === "one" || cardinality === "one_per_project" || cardinality === "single";
+
+const makeRuntimeGuidanceError = (operation: string, cause: string): RepositoryError =>
+  new RepositoryError({ operation, cause: new Error(cause) });
 
 export const RuntimeGuidanceServiceLive = Layer.effect(
   RuntimeGuidanceService,
@@ -581,9 +591,244 @@ export const RuntimeGuidanceServiceLive = Layer.effect(
         ),
       );
 
+    const getRuntimeStartGateDetail = (
+      input: GetTransitionStartGateDetailsInput,
+    ): Effect.Effect<GetTransitionStartGateDetailsOutput, RepositoryError> =>
+      Effect.gen(function* () {
+        const projectPin = yield* projectContextRepository.findProjectPin(input.projectId);
+        if (!projectPin) {
+          return yield* makeRuntimeGuidanceError(
+            "runtime-guidance.getRuntimeStartGateDetail",
+            `Project pin not found for project '${input.projectId}'`,
+          );
+        }
+
+        if (input.futureCandidate) {
+          const [workUnitTypes, lifecycleStates, lifecycleTransitions, transitionConditionSets] =
+            yield* Effect.all([
+              lifecycleRepository.findWorkUnitTypes(projectPin.methodologyVersionId),
+              lifecycleRepository.findLifecycleStates(projectPin.methodologyVersionId),
+              lifecycleRepository.findLifecycleTransitions(projectPin.methodologyVersionId, {
+                workUnitTypeId: input.futureCandidate.workUnitTypeId,
+              }),
+              lifecycleRepository.findTransitionConditionSets(
+                projectPin.methodologyVersionId,
+                input.transitionId,
+              ),
+            ]);
+
+          const workUnitType = workUnitTypes.find(
+            (row) => row.id === input.futureCandidate?.workUnitTypeId,
+          );
+          if (!workUnitType) {
+            return yield* makeRuntimeGuidanceError(
+              "runtime-guidance.getRuntimeStartGateDetail",
+              `Work unit type not found: ${input.futureCandidate.workUnitTypeId}`,
+            );
+          }
+
+          const transition = lifecycleTransitions.find(
+            (row) => row.id === input.transitionId && row.workUnitTypeId === workUnitType.id,
+          );
+          if (!transition) {
+            return yield* makeRuntimeGuidanceError(
+              "runtime-guidance.getRuntimeStartGateDetail",
+              `Transition not found for future candidate: ${input.transitionId}`,
+            );
+          }
+
+          const stateById = new Map(lifecycleStates.map((state) => [state.id, state] as const));
+          const toState = transition.toStateId
+            ? (stateById.get(transition.toStateId) ?? null)
+            : null;
+          if (!toState) {
+            return yield* makeRuntimeGuidanceError(
+              "runtime-guidance.getRuntimeStartGateDetail",
+              `Transition '${transition.id}' has no resolved to-state`,
+            );
+          }
+
+          const fromState = transition.fromStateId
+            ? (stateById.get(transition.fromStateId) ?? null)
+            : null;
+          const startSets = transitionConditionSets
+            .filter((conditionSet) => conditionSet.phase !== "completion")
+            .sort((a, b) => a.key.localeCompare(b.key));
+          const conditionTree = toStartGate(startSets);
+          const gateSummary = yield* runtimeGateService
+            .evaluateStartGate({
+              projectId: input.projectId,
+              conditionTree,
+            })
+            .pipe(
+              Effect.catchAll(() =>
+                Effect.succeed({
+                  result: "blocked" as const,
+                  evaluatedAt: new Date().toISOString(),
+                }),
+              ),
+            );
+
+          return {
+            transition: {
+              transitionId: transition.id,
+              transitionKey: transition.transitionKey,
+              transitionName: transition.transitionKey,
+              ...(transition.fromStateId ? { fromStateId: transition.fromStateId } : {}),
+              ...(fromState ? { fromStateKey: fromState.key } : {}),
+              ...(transition.toStateId ? { toStateId: transition.toStateId } : {}),
+              toStateKey: toState.key,
+            },
+            workUnitContext: {
+              workUnitTypeId: workUnitType.id,
+              workUnitTypeKey:
+                input.futureCandidate.workUnitTypeKey ?? workUnitType.key ?? workUnitType.id,
+              workUnitTypeName: workUnitType.displayName ?? workUnitType.key,
+              currentStateLabel: "Not started",
+              source: "future",
+            },
+            gateSummary: {
+              result: gateSummary.result,
+            },
+            conditionTree,
+            launchability: {
+              canLaunch: gateSummary.result === "available",
+              availableWorkflows: [],
+            },
+          } satisfies GetTransitionStartGateDetailsOutput;
+        }
+
+        if (input.projectWorkUnitId) {
+          const projectWorkUnit = yield* projectWorkUnitRepository.getProjectWorkUnitById(
+            input.projectWorkUnitId,
+          );
+          if (!projectWorkUnit) {
+            return yield* makeRuntimeGuidanceError(
+              "runtime-guidance.getRuntimeStartGateDetail",
+              `Project work unit not found: ${input.projectWorkUnitId}`,
+            );
+          }
+
+          if (projectWorkUnit.projectId !== input.projectId) {
+            return yield* makeRuntimeGuidanceError(
+              "runtime-guidance.getRuntimeStartGateDetail",
+              `Project work unit '${input.projectWorkUnitId}' does not belong to project '${input.projectId}'`,
+            );
+          }
+
+          const [workUnitTypes, lifecycleStates, lifecycleTransitions, transitionConditionSets] =
+            yield* Effect.all([
+              lifecycleRepository.findWorkUnitTypes(projectPin.methodologyVersionId),
+              lifecycleRepository.findLifecycleStates(
+                projectPin.methodologyVersionId,
+                projectWorkUnit.workUnitTypeId,
+              ),
+              lifecycleRepository.findLifecycleTransitions(projectPin.methodologyVersionId, {
+                workUnitTypeId: projectWorkUnit.workUnitTypeId,
+              }),
+              lifecycleRepository.findTransitionConditionSets(
+                projectPin.methodologyVersionId,
+                input.transitionId,
+              ),
+            ]);
+
+          const workUnitType = workUnitTypes.find(
+            (row) => row.id === projectWorkUnit.workUnitTypeId,
+          );
+          if (!workUnitType) {
+            return yield* makeRuntimeGuidanceError(
+              "runtime-guidance.getRuntimeStartGateDetail",
+              `Work unit type not found: ${projectWorkUnit.workUnitTypeId}`,
+            );
+          }
+
+          const transition = lifecycleTransitions.find(
+            (row) =>
+              row.id === input.transitionId &&
+              row.workUnitTypeId === projectWorkUnit.workUnitTypeId,
+          );
+          if (!transition) {
+            return yield* makeRuntimeGuidanceError(
+              "runtime-guidance.getRuntimeStartGateDetail",
+              `Transition not found for work unit '${projectWorkUnit.id}': ${input.transitionId}`,
+            );
+          }
+
+          const stateById = new Map(lifecycleStates.map((state) => [state.id, state] as const));
+          const currentState = stateById.get(projectWorkUnit.currentStateId) ?? null;
+          const fromState = transition.fromStateId
+            ? (stateById.get(transition.fromStateId) ?? null)
+            : null;
+          const toState = transition.toStateId
+            ? (stateById.get(transition.toStateId) ?? null)
+            : null;
+          if (!toState) {
+            return yield* makeRuntimeGuidanceError(
+              "runtime-guidance.getRuntimeStartGateDetail",
+              `Transition '${transition.id}' has no resolved to-state`,
+            );
+          }
+
+          const startSets = transitionConditionSets
+            .filter((conditionSet) => conditionSet.phase !== "completion")
+            .sort((a, b) => a.key.localeCompare(b.key));
+          const conditionTree = toStartGate(startSets);
+
+          const gateSummary = yield* runtimeGateService
+            .evaluateStartGate({
+              projectId: input.projectId,
+              projectWorkUnitId: projectWorkUnit.id,
+              conditionTree,
+            })
+            .pipe(
+              Effect.catchAll(() =>
+                Effect.succeed({
+                  result: "blocked" as const,
+                  evaluatedAt: new Date().toISOString(),
+                }),
+              ),
+            );
+
+          return {
+            transition: {
+              transitionId: transition.id,
+              transitionKey: transition.transitionKey,
+              transitionName: transition.transitionKey,
+              ...(transition.fromStateId ? { fromStateId: transition.fromStateId } : {}),
+              ...(fromState ? { fromStateKey: fromState.key } : {}),
+              ...(transition.toStateId ? { toStateId: transition.toStateId } : {}),
+              toStateKey: toState.key,
+            },
+            workUnitContext: {
+              projectWorkUnitId: projectWorkUnit.id,
+              workUnitTypeId: workUnitType.id,
+              workUnitTypeKey: workUnitType.key,
+              workUnitTypeName: workUnitType.displayName ?? workUnitType.key,
+              currentStateLabel:
+                currentState?.displayName ?? currentState?.key ?? projectWorkUnit.currentStateId,
+              source: "open",
+            },
+            gateSummary: {
+              result: gateSummary.result,
+            },
+            conditionTree,
+            launchability: {
+              canLaunch: gateSummary.result === "available",
+              availableWorkflows: [],
+            },
+          } satisfies GetTransitionStartGateDetailsOutput;
+        }
+
+        return yield* makeRuntimeGuidanceError(
+          "runtime-guidance.getRuntimeStartGateDetail",
+          "Either futureCandidate or projectWorkUnitId is required",
+        );
+      });
+
     return RuntimeGuidanceService.of({
       getActive,
       streamCandidates,
+      getRuntimeStartGateDetail,
     });
   }),
 );

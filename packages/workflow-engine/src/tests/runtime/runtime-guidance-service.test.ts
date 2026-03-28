@@ -37,7 +37,20 @@ const projectWorkUnitLayer = Layer.succeed(ProjectWorkUnitRepository, {
         updatedAt: new Date(),
       },
     ]),
-  getProjectWorkUnitById: () => Effect.succeed(null),
+  getProjectWorkUnitById: (projectWorkUnitId) =>
+    Effect.succeed(
+      projectWorkUnitId === "wu-1" || projectWorkUnitId === "wu-2"
+        ? {
+            id: projectWorkUnitId,
+            projectId: "project-1",
+            workUnitTypeId: "wut-setup",
+            currentStateId: "todo",
+            activeTransitionExecutionId: projectWorkUnitId === "wu-1" ? "te-1" : null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }
+        : null,
+    ),
   updateActiveTransitionExecutionPointer: () => Effect.succeed(null),
 });
 
@@ -151,7 +164,7 @@ const artifactLayer = Layer.succeed(ArtifactRepository, {
 const projectContextLayer = Layer.succeed(ProjectContextRepository, {
   findProjectPin: (projectId) =>
     Effect.succeed(
-      projectId === "project-empty"
+      projectId === "project-empty" || projectId === "project-1"
         ? {
             projectId,
             methodologyVersionId: "version-1",
@@ -359,5 +372,80 @@ describe("RuntimeGuidanceService", () => {
     expect(
       bootstrap?.cards?.some((card) => card.workUnitContext?.workUnitTypeKey === "setup"),
     ).toBe(true);
+  });
+
+  it("returns start gate detail for future transition candidates", async () => {
+    const program = Effect.gen(function* () {
+      const service = (yield* RuntimeGuidanceService) as RuntimeGuidanceService["Type"] & {
+        readonly getRuntimeStartGateDetail: (input: {
+          readonly projectId: string;
+          readonly transitionId: string;
+          readonly transitionKey?: string;
+          readonly futureCandidate?: {
+            readonly workUnitTypeId: string;
+            readonly workUnitTypeKey?: string;
+            readonly source: "future";
+          };
+        }) => Effect.Effect<unknown>;
+      };
+
+      return yield* service.getRuntimeStartGateDetail({
+        projectId: "project-empty",
+        transitionId: "tr-setup-start",
+        transitionKey: "start_setup",
+        futureCandidate: {
+          workUnitTypeId: "wut-setup",
+          workUnitTypeKey: "setup",
+          source: "future",
+        },
+      });
+    }).pipe(Effect.provide(guidanceLayer));
+
+    const result = (await Effect.runPromise(program)) as {
+      transition: { transitionId: string; toStateKey: string };
+      workUnitContext: { source: string; workUnitTypeKey: string; currentStateLabel: string };
+      gateSummary: { result: string };
+      launchability: { canLaunch: boolean; availableWorkflows: unknown[] };
+    };
+
+    expect(result.transition.transitionId).toBe("tr-setup-start");
+    expect(result.transition.toStateKey).toBe("ready");
+    expect(result.workUnitContext.source).toBe("future");
+    expect(result.workUnitContext.workUnitTypeKey).toBe("setup");
+    expect(result.workUnitContext.currentStateLabel).toBe("Not started");
+    expect(result.gateSummary.result).toBe("available");
+    expect(result.launchability.canLaunch).toBe(true);
+    expect(result.launchability.availableWorkflows).toEqual([]);
+  });
+
+  it("returns start gate detail for existing project work units", async () => {
+    const program = Effect.gen(function* () {
+      const service = (yield* RuntimeGuidanceService) as RuntimeGuidanceService["Type"] & {
+        readonly getRuntimeStartGateDetail: (input: {
+          readonly projectId: string;
+          readonly transitionId: string;
+          readonly projectWorkUnitId?: string;
+        }) => Effect.Effect<unknown>;
+      };
+
+      return yield* service.getRuntimeStartGateDetail({
+        projectId: "project-1",
+        transitionId: "tr-setup-start",
+        projectWorkUnitId: "wu-2",
+      });
+    }).pipe(Effect.provide(guidanceLayer));
+
+    const result = (await Effect.runPromise(program)) as {
+      transition: { transitionId: string; fromStateId?: string; fromStateKey?: string };
+      workUnitContext: { source: string; projectWorkUnitId?: string };
+      gateSummary: { result: string };
+    };
+
+    expect(result.transition.transitionId).toBe("tr-setup-start");
+    expect(result.transition.fromStateId).toBeUndefined();
+    expect(result.transition.fromStateKey).toBeUndefined();
+    expect(result.workUnitContext.source).toBe("open");
+    expect(result.workUnitContext.projectWorkUnitId).toBe("wu-2");
+    expect(result.gateSummary.result).toBe("available");
   });
 });
