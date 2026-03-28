@@ -328,8 +328,8 @@ describe("create project route", () => {
       expect(createAndPinSpy).toHaveBeenCalled();
       const firstCallInput = (createAndPinSpy.mock.calls as unknown[][])[0]?.[0];
       expect(firstCallInput).toEqual({
-        methodologyKey: "bmad.v1",
-        publishedVersion: "1.0.0",
+        methodologyId: "m1",
+        versionId: "bmad-v10",
         name: "Aurora Atlas 321",
       });
     });

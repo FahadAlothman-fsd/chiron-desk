@@ -24,6 +24,7 @@ type RepositoryError = MethodologyRepositoryError | ProjectContextRepositoryErro
 export interface ProjectMethodologyPinState {
   projectId: string;
   methodologyVersionId: string;
+  methodologyId: string;
   methodologyKey: string;
   publishedVersion: string;
   actorId: string | null;
@@ -111,7 +112,9 @@ export const ProjectContextServiceLive = Layer.effect(
     ) =>
       Effect.gen(function* () {
         const timestamp = new Date().toISOString();
-        const definition = yield* methodologyRepo.findDefinitionByKey(input.methodologyKey);
+        const definitions = yield* methodologyRepo.listDefinitions();
+        const definition =
+          definitions.find((candidate) => candidate.id === input.methodologyId) ?? null;
         if (!definition) {
           return {
             pinned: false,
@@ -123,7 +126,7 @@ export const ProjectContextServiceLive = Layer.effect(
                   "project.pin.target",
                   timestamp,
                   "existing published methodology version",
-                  `${input.methodologyKey}@${input.publishedVersion}`,
+                  `${input.methodologyId}@${input.versionId}`,
                   "Select an existing published version and retry",
                 ),
               ],
@@ -131,12 +134,9 @@ export const ProjectContextServiceLive = Layer.effect(
           };
         }
 
-        const target = yield* methodologyRepo.findVersionByMethodologyAndVersion(
-          definition.id,
-          input.publishedVersion,
-        );
+        const target = yield* methodologyRepo.findVersionById(input.versionId);
 
-        if (!target) {
+        if (!target || target.methodologyId !== input.methodologyId) {
           return {
             pinned: false,
             diagnostics: {
@@ -147,7 +147,7 @@ export const ProjectContextServiceLive = Layer.effect(
                   "project.pin.target",
                   timestamp,
                   "existing published methodology version",
-                  `${input.methodologyKey}@${input.publishedVersion}`,
+                  `${input.methodologyId}@${input.versionId}`,
                   "Select an existing published version and retry",
                 ),
               ],
@@ -166,7 +166,7 @@ export const ProjectContextServiceLive = Layer.effect(
                   "project.pin.target",
                   timestamp,
                   "active published methodology version",
-                  `${input.methodologyKey}@${input.publishedVersion} status=${target.status}`,
+                  `${definition.key}@${target.version} status=${target.status}`,
                   "Select a compatible published version for the methodology",
                 ),
               ],
@@ -227,7 +227,9 @@ export const ProjectContextServiceLive = Layer.effect(
     ) =>
       Effect.gen(function* () {
         const timestamp = new Date().toISOString();
-        const definition = yield* methodologyRepo.findDefinitionByKey(input.methodologyKey);
+        const definitions = yield* methodologyRepo.listDefinitions();
+        const definition =
+          definitions.find((candidate) => candidate.id === input.methodologyId) ?? null;
         if (!definition) {
           return {
             repinned: false,
@@ -239,7 +241,7 @@ export const ProjectContextServiceLive = Layer.effect(
                   "project.pin.target",
                   timestamp,
                   "existing published methodology version",
-                  `${input.methodologyKey}@${input.publishedVersion}`,
+                  `${input.methodologyId}@${input.versionId}`,
                   "Select an existing published version and retry",
                 ),
               ],
@@ -247,12 +249,9 @@ export const ProjectContextServiceLive = Layer.effect(
           };
         }
 
-        const target = yield* methodologyRepo.findVersionByMethodologyAndVersion(
-          definition.id,
-          input.publishedVersion,
-        );
+        const target = yield* methodologyRepo.findVersionById(input.versionId);
 
-        if (!target) {
+        if (!target || target.methodologyId !== input.methodologyId) {
           return {
             repinned: false,
             diagnostics: {
@@ -263,7 +262,7 @@ export const ProjectContextServiceLive = Layer.effect(
                   "project.pin.target",
                   timestamp,
                   "existing published methodology version",
-                  `${input.methodologyKey}@${input.publishedVersion}`,
+                  `${input.methodologyId}@${input.versionId}`,
                   "Select an existing published version and retry",
                 ),
               ],
@@ -282,7 +281,7 @@ export const ProjectContextServiceLive = Layer.effect(
                   "project.pin.target",
                   timestamp,
                   "active published methodology version",
-                  `${input.methodologyKey}@${input.publishedVersion} status=${target.status}`,
+                  `${definition.key}@${target.version} status=${target.status}`,
                   "Select a compatible published version for the methodology",
                 ),
               ],
@@ -483,6 +482,7 @@ const makeProjectPinDiagnostic = (
 const toProjectPinState = (pin: ProjectMethodologyPinRow): ProjectMethodologyPinState => ({
   projectId: pin.projectId,
   methodologyVersionId: pin.methodologyVersionId,
+  methodologyId: pin.methodologyId,
   methodologyKey: pin.methodologyKey,
   publishedVersion: pin.publishedVersion,
   actorId: pin.actorId,

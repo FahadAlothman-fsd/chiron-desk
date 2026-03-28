@@ -70,8 +70,8 @@ export function ProjectPinningRoute() {
   const { projectId } = Route.useParams();
   const { orpc, queryClient } = Route.useRouteContext();
 
-  const [selectedMethodologyKey, setSelectedMethodologyKey] = useState<string | null>(null);
-  const [selectedVersion, setSelectedVersion] = useState("");
+  const [selectedMethodologyId, setSelectedMethodologyId] = useState<string | null>(null);
+  const [selectedVersionId, setSelectedVersionId] = useState("");
   const [versionMode, setVersionMode] = useState<"auto" | "user">("auto");
   const [methodologyComboboxOpen, setMethodologyComboboxOpen] = useState(false);
   const [versionComboboxOpen, setVersionComboboxOpen] = useState(false);
@@ -90,22 +90,29 @@ export function ProjectPinningRoute() {
   );
 
   useEffect(() => {
-    if (selectedMethodologyKey) {
+    if (selectedMethodologyId) {
       return;
     }
 
-    const pinnedMethodologyKey = projectQuery.data?.pin?.methodologyKey;
-    if (pinnedMethodologyKey) {
-      setSelectedMethodologyKey(pinnedMethodologyKey);
+    const pinnedMethodologyId = projectQuery.data?.pin?.methodologyId;
+    if (pinnedMethodologyId) {
+      setSelectedMethodologyId(pinnedMethodologyId);
       setVersionMode("auto");
       return;
     }
 
     if (orderedMethodologies.length > 0) {
-      setSelectedMethodologyKey(orderedMethodologies[0]?.methodologyKey ?? null);
+      setSelectedMethodologyId(orderedMethodologies[0]?.methodologyId ?? null);
       setVersionMode("auto");
     }
-  }, [orderedMethodologies, projectQuery.data?.pin?.methodologyKey, selectedMethodologyKey]);
+  }, [orderedMethodologies, projectQuery.data?.pin?.methodologyId, selectedMethodologyId]);
+
+  const selectedMethodology = selectedMethodologyId
+    ? (orderedMethodologies.find(
+        (methodology) => methodology.methodologyId === selectedMethodologyId,
+      ) ?? null)
+    : null;
+  const selectedMethodologyKey = selectedMethodology?.methodologyKey ?? null;
 
   const detailsQuery = useQuery({
     ...orpc.methodology.getMethodologyDetails.queryOptions({
@@ -124,18 +131,21 @@ export function ProjectPinningRoute() {
 
   useEffect(() => {
     if (publishedVersions.length === 0) {
-      setSelectedVersion("");
+      setSelectedVersionId("");
       return;
     }
 
-    const stillValid = publishedVersions.some((version) => version.version === selectedVersion);
+    const stillValid = publishedVersions.some((version) => version.id === selectedVersionId);
     if (versionMode === "user" && stillValid) {
       return;
     }
 
     const latest = getLatestPublishedVersion(publishedVersions);
-    setSelectedVersion(latest?.version ?? "");
-  }, [publishedVersions, selectedVersion, versionMode]);
+    setSelectedVersionId(latest?.id ?? "");
+  }, [publishedVersions, selectedVersionId, versionMode]);
+
+  const selectedVersionLabel =
+    publishedVersions.find((version) => version.id === selectedVersionId)?.version ?? "";
 
   const repinMutation = useMutation(
     orpc.methodology.repinProjectMethodologyVersion.mutationOptions({
@@ -160,7 +170,7 @@ export function ProjectPinningRoute() {
     isLoading: projectQuery.isLoading || methodologiesQuery.isLoading,
     hasError: Boolean(projectQuery.error || methodologiesQuery.error || repinMutation.error),
     hasData: Boolean(projectQuery.data),
-    isBlocked: Boolean(selectedMethodologyKey && publishedVersions.length === 0),
+    isBlocked: Boolean(selectedMethodologyId && publishedVersions.length === 0),
   });
 
   return (
@@ -308,7 +318,7 @@ export function ProjectPinningRoute() {
                           key={methodology.methodologyId}
                           value={`${methodology.displayName} ${methodology.methodologyKey}`}
                           onSelect={() => {
-                            setSelectedMethodologyKey(methodology.methodologyKey);
+                            setSelectedMethodologyId(methodology.methodologyId);
                             setVersionMode("auto");
                             setMethodologyComboboxOpen(false);
                             setLastDiagnostics(null);
@@ -319,7 +329,7 @@ export function ProjectPinningRoute() {
                             <CheckIcon
                               className={cn(
                                 "size-4",
-                                selectedMethodologyKey === methodology.methodologyKey
+                                selectedMethodologyId === methodology.methodologyId
                                   ? "opacity-100"
                                   : "opacity-0",
                               )}
@@ -352,7 +362,7 @@ export function ProjectPinningRoute() {
                   />
                 }
               >
-                {selectedVersion || "Select published version"}
+                {selectedVersionLabel || "Select published version"}
                 <ChevronsUpDownIcon className="size-4 opacity-50" />
               </PopoverTrigger>
               <PopoverContent className="w-[380px] rounded-none p-0" align="start">
@@ -366,7 +376,7 @@ export function ProjectPinningRoute() {
                           key={version.id}
                           value={`${version.version} ${version.displayName}`}
                           onSelect={() => {
-                            setSelectedVersion(version.version);
+                            setSelectedVersionId(version.id);
                             setVersionMode("user");
                             setVersionComboboxOpen(false);
                             setLastDiagnostics(null);
@@ -382,7 +392,7 @@ export function ProjectPinningRoute() {
                             <CheckIcon
                               className={cn(
                                 "size-4",
-                                selectedVersion === version.version ? "opacity-100" : "opacity-0",
+                                selectedVersionId === version.id ? "opacity-100" : "opacity-0",
                               )}
                             />
                           </div>
@@ -400,19 +410,19 @@ export function ProjectPinningRoute() {
             className="rounded-none uppercase tracking-[0.12em]"
             disabled={
               repinMutation.isPending ||
-              !selectedMethodologyKey ||
-              !selectedVersion ||
+              !selectedMethodologyId ||
+              !selectedVersionId ||
               publishedVersions.length === 0
             }
             onClick={() => {
-              if (!selectedMethodologyKey || !selectedVersion) {
+              if (!selectedMethodologyId || !selectedVersionId) {
                 return;
               }
 
               repinMutation.mutate({
                 projectId,
-                methodologyKey: selectedMethodologyKey,
-                publishedVersion: selectedVersion,
+                methodologyId: selectedMethodologyId,
+                versionId: selectedVersionId,
               });
             }}
           >
@@ -431,12 +441,12 @@ export function ProjectPinningRoute() {
             </span>
             <span className="text-muted-foreground">to</span>
             <span className="border border-border/70 bg-background px-2 py-1">
-              {selectedVersion || "-"}
+              {selectedVersionLabel || "-"}
             </span>
           </div>
         </div>
 
-        {selectedMethodologyKey && publishedVersions.length === 0 ? (
+        {selectedMethodologyId && publishedVersions.length === 0 ? (
           <p className="text-xs text-muted-foreground">
             No published versions available for selected methodology. Publish an eligible version
             first.

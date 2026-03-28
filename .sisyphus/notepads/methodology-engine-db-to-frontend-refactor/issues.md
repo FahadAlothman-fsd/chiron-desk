@@ -1,0 +1,1 @@
+- Web integration tests that use `vi.hoisted` fail under current Bun/Vitest runtime in this workspace (`vi.hoisted is not a function`), so runtime execution of those tests remains environment-constrained despite type/build success.

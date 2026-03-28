@@ -122,11 +122,17 @@ function CreateProjectRoute() {
   const navigate = Route.useNavigate();
   const { orpc, queryClient } = Route.useRouteContext();
 
-  const [selectedMethodologyKey, setSelectedMethodologyKey] = useState<string | null>(null);
+  const [selectedMethodologyId, setSelectedMethodologyId] = useState<string | null>(null);
   const [projectName, setProjectName] = useState<string>(() => generateRandomProjectName());
-  const [selectedVersionsByKey, setSelectedVersionsByKey] = useState<Record<string, string>>({});
-  const [versionModeByKey, setVersionModeByKey] = useState<Record<string, "auto" | "user">>({});
-  const [openComboboxForKey, setOpenComboboxForKey] = useState<string | null>(null);
+  const [selectedVersionsByMethodologyId, setSelectedVersionsByMethodologyId] = useState<
+    Record<string, string>
+  >({});
+  const [versionModeByMethodologyId, setVersionModeByMethodologyId] = useState<
+    Record<string, "auto" | "user">
+  >({});
+  const [openComboboxForMethodologyId, setOpenComboboxForMethodologyId] = useState<string | null>(
+    null,
+  );
   const [lastDiagnostics, setLastDiagnostics] = useState<ValidationDiagnostic[] | null>(null);
 
   const methodologiesQuery = useQuery(orpc.methodology.listMethodologies.queryOptions());
@@ -141,10 +147,10 @@ function CreateProjectRoute() {
   );
 
   useEffect(() => {
-    if (!selectedMethodologyKey && orderedMethodologies.length > 0) {
-      setSelectedMethodologyKey(orderedMethodologies[0]?.methodologyKey ?? null);
+    if (!selectedMethodologyId && orderedMethodologies.length > 0) {
+      setSelectedMethodologyId(orderedMethodologies[0]?.methodologyId ?? null);
     }
-  }, [orderedMethodologies, selectedMethodologyKey]);
+  }, [orderedMethodologies, selectedMethodologyId]);
 
   const methodologyDetailsQueries = useQueries({
     queries: orderedMethodologies.map((methodology) => ({
@@ -157,11 +163,11 @@ function CreateProjectRoute() {
     })),
   });
 
-  const detailsByMethodologyKey = useMemo(() => {
+  const detailsByMethodologyId = useMemo(() => {
     const entries = orderedMethodologies.map(
       (methodology, index) =>
         [
-          methodology.methodologyKey,
+          methodology.methodologyId,
           (methodologyDetailsQueries[index]?.data as MethodologyDetails | undefined) ?? null,
         ] as const,
     );
@@ -170,17 +176,17 @@ function CreateProjectRoute() {
   }, [methodologyDetailsQueries, orderedMethodologies]);
 
   useEffect(() => {
-    setSelectedVersionsByKey((current) => {
+    setSelectedVersionsByMethodologyId((current) => {
       let next = current;
       let changed = false;
 
       for (const methodology of orderedMethodologies) {
-        const methodologyKey = methodology.methodologyKey;
-        const details = detailsByMethodologyKey[methodologyKey];
+        const methodologyId = methodology.methodologyId;
+        const details = detailsByMethodologyId[methodologyId];
         const versions = ((details?.versions ?? []) as readonly MethodologyVersion[]).filter(
           (version) => isPublishedVersion(version),
         );
-        const activeSelection = current[methodologyKey] ?? "";
+        const activeSelection = current[methodologyId] ?? "";
 
         if (versions.length === 0) {
           if (activeSelection !== "") {
@@ -188,43 +194,52 @@ function CreateProjectRoute() {
               next = { ...current };
               changed = true;
             }
-            next[methodologyKey] = "";
+            next[methodologyId] = "";
           }
           continue;
         }
 
-        const mode = versionModeByKey[methodologyKey] ?? "auto";
-        const stillValid = versions.some((version) => version.version === activeSelection);
+        const mode = versionModeByMethodologyId[methodologyId] ?? "auto";
+        const stillValid = versions.some((version) => version.id === activeSelection);
         if (mode === "user" && stillValid) {
           continue;
         }
 
         const latest = getLatestPublishedVersion(versions);
-        const latestVersion = latest?.version ?? "";
-        if (latestVersion !== activeSelection) {
+        const latestVersionId = latest?.id ?? "";
+        if (latestVersionId !== activeSelection) {
           if (!changed) {
             next = { ...current };
             changed = true;
           }
-          next[methodologyKey] = latestVersion;
+          next[methodologyId] = latestVersionId;
         }
       }
 
       return changed ? next : current;
     });
-  }, [detailsByMethodologyKey, orderedMethodologies, versionModeByKey]);
+  }, [detailsByMethodologyId, orderedMethodologies, versionModeByMethodologyId]);
 
-  const selectedVersion = selectedMethodologyKey
-    ? (selectedVersionsByKey[selectedMethodologyKey] ?? "")
+  const selectedVersionId = selectedMethodologyId
+    ? (selectedVersionsByMethodologyId[selectedMethodologyId] ?? "")
     : "";
 
   const selectedMethodologyVersions =
-    selectedMethodologyKey && detailsByMethodologyKey[selectedMethodologyKey]
+    selectedMethodologyId && detailsByMethodologyId[selectedMethodologyId]
       ? (
-          (detailsByMethodologyKey[selectedMethodologyKey]?.versions ??
+          (detailsByMethodologyId[selectedMethodologyId]?.versions ??
             []) as readonly MethodologyVersion[]
         ).filter((version) => isPublishedVersion(version))
       : [];
+
+  const selectedMethodology = selectedMethodologyId
+    ? (orderedMethodologies.find(
+        (methodology) => methodology.methodologyId === selectedMethodologyId,
+      ) ?? null)
+    : null;
+  const selectedVersionLabel = selectedMethodologyVersions.find(
+    (version) => version.id === selectedVersionId,
+  )?.version;
 
   const selectedMethodologyHasPublishedVersions = selectedMethodologyVersions.length > 0;
 
@@ -271,7 +286,7 @@ function CreateProjectRoute() {
       createAndPinMutation.error,
     ),
     hasData: Boolean(methodologiesQuery.data),
-    isBlocked: selectedMethodologyKey ? !selectedMethodologyHasPublishedVersions : false,
+    isBlocked: selectedMethodologyId ? !selectedMethodologyHasPublishedVersions : false,
   });
 
   return (
@@ -344,23 +359,26 @@ function CreateProjectRoute() {
 
         {!isAnyMethodologyLoading && orderedMethodologies.length > 0 ? (
           <RadioGroup
-            value={selectedMethodologyKey ?? ""}
-            onValueChange={(methodologyKey) => {
-              setSelectedMethodologyKey(methodologyKey);
+            value={selectedMethodologyId ?? ""}
+            onValueChange={(methodologyId) => {
+              setSelectedMethodologyId(methodologyId);
               setLastDiagnostics(null);
             }}
             className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"
             aria-label="Methodology"
           >
             {orderedMethodologies.map((methodology, index) => {
-              const methodologyKey = methodology.methodologyKey;
-              const selected = selectedMethodologyKey === methodologyKey;
+              const methodologyId = methodology.methodologyId;
+              const selected = selectedMethodologyId === methodologyId;
               const avatarAsset = getAvatarAssetForMethodologyIndex(index);
-              const details = detailsByMethodologyKey[methodologyKey];
+              const details = detailsByMethodologyId[methodologyId];
               const publishedVersions = (
                 (details?.versions ?? []) as readonly MethodologyVersion[]
               ).filter((version) => isPublishedVersion(version));
-              const selectedVersionForCard = selectedVersionsByKey[methodologyKey] ?? "";
+              const selectedVersionForCard = selectedVersionsByMethodologyId[methodologyId] ?? "";
+              const selectedVersionLabelForCard =
+                publishedVersions.find((version) => version.id === selectedVersionForCard)
+                  ?.version ?? "";
               const hasPublishedVersions = publishedVersions.length > 0;
 
               return (
@@ -399,11 +417,11 @@ function CreateProjectRoute() {
                     </p>
 
                     <Popover
-                      open={openComboboxForKey === methodologyKey}
+                      open={openComboboxForMethodologyId === methodologyId}
                       onOpenChange={(open) => {
-                        setOpenComboboxForKey(open ? methodologyKey : null);
+                        setOpenComboboxForMethodologyId(open ? methodologyId : null);
                         if (open) {
-                          setSelectedMethodologyKey(methodologyKey);
+                          setSelectedMethodologyId(methodologyId);
                         }
                       }}
                     >
@@ -414,12 +432,12 @@ function CreateProjectRoute() {
                             role="combobox"
                             variant="outline"
                             className="w-full justify-between rounded-none border-border/70 bg-background/70"
-                            aria-expanded={openComboboxForKey === methodologyKey}
+                            aria-expanded={openComboboxForMethodologyId === methodologyId}
                             disabled={!hasPublishedVersions}
                           />
                         }
                       >
-                        {selectedVersionForCard || "Select version"}
+                        {selectedVersionLabelForCard || "Select version"}
                         <ChevronsUpDownIcon className="size-4 opacity-50" />
                       </PopoverTrigger>
 
@@ -437,16 +455,16 @@ function CreateProjectRoute() {
                                   key={version.id}
                                   value={`${version.version} ${version.displayName}`}
                                   onSelect={() => {
-                                    setSelectedMethodologyKey(methodologyKey);
-                                    setSelectedVersionsByKey((current) => ({
+                                    setSelectedMethodologyId(methodologyId);
+                                    setSelectedVersionsByMethodologyId((current) => ({
                                       ...current,
-                                      [methodologyKey]: version.version,
+                                      [methodologyId]: version.id,
                                     }));
-                                    setVersionModeByKey((current) => ({
+                                    setVersionModeByMethodologyId((current) => ({
                                       ...current,
-                                      [methodologyKey]: "user",
+                                      [methodologyId]: "user",
                                     }));
-                                    setOpenComboboxForKey(null);
+                                    setOpenComboboxForMethodologyId(null);
                                     setLastDiagnostics(null);
                                   }}
                                   className="py-2"
@@ -461,7 +479,7 @@ function CreateProjectRoute() {
                                     <CheckIcon
                                       className={cn(
                                         "size-4",
-                                        selectedVersionForCard === version.version
+                                        selectedVersionForCard === version.id
                                           ? "opacity-100"
                                           : "opacity-0",
                                       )}
@@ -489,7 +507,7 @@ function CreateProjectRoute() {
                     </div>
                     <RadioGroupItem
                       id={`methodology-${methodology.methodologyId}`}
-                      value={methodologyKey}
+                      value={methodologyId}
                       aria-label={`Select ${methodology.displayName}`}
                     />
                   </div>
@@ -501,27 +519,27 @@ function CreateProjectRoute() {
 
         <div className="flex flex-wrap items-center justify-between gap-3 border border-border/70 bg-background/20 p-4">
           <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-            Selected pin target: {selectedMethodologyKey ?? "none"}{" "}
-            {selectedVersion ? `@ ${selectedVersion}` : ""}
+            Selected pin target: {selectedMethodology?.methodologyKey ?? "none"}{" "}
+            {selectedVersionLabel ? `@ ${selectedVersionLabel}` : ""}
           </p>
           <Button
             type="button"
             disabled={
               createAndPinMutation.isPending ||
-              !selectedMethodologyKey ||
-              !selectedVersion ||
+              !selectedMethodologyId ||
+              !selectedVersionId ||
               projectName.trim().length === 0 ||
               !selectedMethodologyHasPublishedVersions
             }
             className="rounded-none uppercase tracking-[0.12em]"
             onClick={() => {
-              if (!selectedMethodologyKey || !selectedVersion) {
+              if (!selectedMethodologyId || !selectedVersionId) {
                 return;
               }
 
               createAndPinMutation.mutate({
-                methodologyKey: selectedMethodologyKey,
-                publishedVersion: selectedVersion,
+                methodologyId: selectedMethodologyId,
+                versionId: selectedVersionId,
                 name: projectName.trim(),
               });
             }}
@@ -530,7 +548,7 @@ function CreateProjectRoute() {
           </Button>
         </div>
 
-        {!selectedMethodologyHasPublishedVersions && selectedMethodologyKey ? (
+        {!selectedMethodologyHasPublishedVersions && selectedMethodologyId ? (
           <p className="text-xs text-muted-foreground">
             No published versions available for selected methodology. Publish an eligible version
             first.

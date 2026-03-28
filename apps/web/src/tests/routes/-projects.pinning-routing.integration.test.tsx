@@ -60,6 +60,7 @@ describe("project pinning route wiring", () => {
               pin: {
                 projectId: "project-1",
                 methodologyVersionId: "v1-id",
+                methodologyId: "m-spiral",
                 methodologyKey: "spiral.v1",
                 publishedVersion: "1.0.0",
                 actorId: "operator-1",

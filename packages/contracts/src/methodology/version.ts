@@ -214,15 +214,15 @@ export type GetVersionPublicationEvidenceInput = typeof GetVersionPublicationEvi
 
 export const PinProjectMethodologyVersionInput = Schema.Struct({
   projectId: Schema.NonEmptyString,
-  methodologyKey: Schema.NonEmptyString,
-  publishedVersion: Schema.NonEmptyString,
+  methodologyId: Schema.NonEmptyString,
+  versionId: Schema.NonEmptyString,
 });
 export type PinProjectMethodologyVersionInput = typeof PinProjectMethodologyVersionInput.Type;
 
 export const RepinProjectMethodologyVersionInput = Schema.Struct({
   projectId: Schema.NonEmptyString,
-  methodologyKey: Schema.NonEmptyString,
-  publishedVersion: Schema.NonEmptyString,
+  methodologyId: Schema.NonEmptyString,
+  versionId: Schema.NonEmptyString,
 });
 export type RepinProjectMethodologyVersionInput = typeof RepinProjectMethodologyVersionInput.Type;
 

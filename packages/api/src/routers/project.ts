@@ -16,8 +16,8 @@ import { protectedProcedure, publicProcedure } from "../index";
 import { createProjectRuntimeRouter } from "./project-runtime";
 
 const createAndPinProjectInput = z.object({
-  methodologyKey: z.string().min(1),
-  publishedVersion: z.string().min(1),
+  methodologyId: z.string().min(1),
+  versionId: z.string().min(1),
   name: z.string().trim().min(1).max(120).optional(),
 });
 
@@ -304,8 +304,8 @@ export function createProjectRouter(
             const result = yield* projectSvc.pinProjectMethodologyVersion(
               {
                 projectId,
-                methodologyKey: input.methodologyKey,
-                publishedVersion: input.publishedVersion,
+                methodologyId: input.methodologyId,
+                versionId: input.versionId,
               },
               context.session.user.id,
             );

@@ -618,20 +618,20 @@ describe("PinProjectMethodologyVersionInput", () => {
   it("accepts valid pin input", () => {
     const result = decode({
       projectId: "project-1",
-      methodologyKey: "delivery",
-      publishedVersion: "V1",
+      methodologyId: "methodology-1",
+      versionId: "version-1",
     });
 
     expect(result.projectId).toBe("project-1");
-    expect(result.publishedVersion).toBe("V1");
+    expect(result.versionId).toBe("version-1");
   });
 
   it("rejects empty identifiers", () => {
     expect(() =>
       decode({
         projectId: "",
-        methodologyKey: "delivery",
-        publishedVersion: "V1",
+        methodologyId: "methodology-1",
+        versionId: "version-1",
       }),
     ).toThrow();
   });
@@ -643,20 +643,20 @@ describe("RepinProjectMethodologyVersionInput", () => {
   it("accepts valid repin input", () => {
     const result = decode({
       projectId: "project-1",
-      methodologyKey: "delivery",
-      publishedVersion: "V2",
+      methodologyId: "methodology-1",
+      versionId: "version-2",
     });
 
     expect(result.projectId).toBe("project-1");
-    expect(result.publishedVersion).toBe("V2");
+    expect(result.versionId).toBe("version-2");
   });
 
   it("rejects empty target version", () => {
     expect(() =>
       decode({
         projectId: "project-1",
-        methodologyKey: "delivery",
-        publishedVersion: "",
+        methodologyId: "methodology-1",
+        versionId: "",
       }),
     ).toThrow();
   });

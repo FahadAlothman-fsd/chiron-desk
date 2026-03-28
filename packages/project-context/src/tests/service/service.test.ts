@@ -9,14 +9,16 @@ import { ProjectContextService, ProjectContextServiceLive } from "../../service"
 const FIXED_NOW = new Date("2026-01-01T00:00:00.000Z");
 
 const stubMethodologyRepo = {
-  findDefinitionByKey: () =>
-    Effect.succeed({
-      id: "mdef_bmad_v1",
-      key: "bmad.v1",
-      name: "BMAD v1",
-      descriptionJson: {},
-    }),
-  findVersionByMethodologyAndVersion: () =>
+  listDefinitions: () =>
+    Effect.succeed([
+      {
+        id: "mdef_bmad_v1",
+        key: "bmad.v1",
+        name: "BMAD v1",
+        descriptionJson: {},
+      },
+    ]),
+  findVersionById: () =>
     Effect.succeed({
       id: "mver_bmad_v2",
       methodologyId: "mdef_bmad_v1",
@@ -85,8 +87,8 @@ describe("project context service", () => {
         return yield* service.repinProjectMethodologyVersion(
           {
             projectId: "project-1",
-            methodologyKey: "bmad.v1",
-            publishedVersion: "v2",
+            methodologyId: "mdef_bmad_v1",
+            versionId: "mver_bmad_v2",
           },
           "actor-1",
         );

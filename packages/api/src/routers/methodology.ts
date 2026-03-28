@@ -326,8 +326,8 @@ const publicationEvidenceInput = z.object({
 
 const projectPinInput = z.object({
   projectId: z.string().min(1),
-  methodologyKey: z.string().min(1),
-  publishedVersion: z.string().min(1),
+  methodologyId: z.string().min(1),
+  versionId: z.string().min(1),
 });
 
 const projectPinLineageInput = z.object({
@@ -1319,8 +1319,8 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
         const actorId = context.session.user.id;
         const pinPayload: PinProjectMethodologyVersionInput = {
           projectId: input.projectId,
-          methodologyKey: input.methodologyKey,
-          publishedVersion: input.publishedVersion,
+          methodologyId: input.methodologyId,
+          versionId: input.versionId,
         };
 
         const result = await runEffect(
@@ -1344,8 +1344,8 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
         const actorId = context.session.user.id;
         const repinPayload: RepinProjectMethodologyVersionInput = {
           projectId: input.projectId,
-          methodologyKey: input.methodologyKey,
-          publishedVersion: input.publishedVersion,
+          methodologyId: input.methodologyId,
+          versionId: input.versionId,
         };
 
         const result = await runEffect(

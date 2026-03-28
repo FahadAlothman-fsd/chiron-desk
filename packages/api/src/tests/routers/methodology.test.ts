@@ -4794,8 +4794,8 @@ describe("methodology router", () => {
         router.pinProjectMethodologyVersion,
         {
           projectId: "project-1",
-          methodologyKey: "project-pin-api",
-          publishedVersion: "1.0.0",
+          methodologyId: created.version.methodologyId,
+          versionId: created.version.id,
         },
         AUTHENTICATED_CTX,
       );
@@ -4877,8 +4877,8 @@ describe("methodology router", () => {
         router.pinProjectMethodologyVersion,
         {
           projectId: "project-exec-history",
-          methodologyKey: "project-repin-api",
-          publishedVersion: "1.0.0",
+          methodologyId: v1.version.methodologyId,
+          versionId: v1.version.id,
         },
         AUTHENTICATED_CTX,
       );
@@ -4887,8 +4887,8 @@ describe("methodology router", () => {
         router.repinProjectMethodologyVersion,
         {
           projectId: "project-exec-history",
-          methodologyKey: "project-repin-api",
-          publishedVersion: "2.0.0",
+          methodologyId: v2.version.methodologyId,
+          versionId: v2.version.id,
         },
         AUTHENTICATED_CTX,
       );
@@ -4939,8 +4939,8 @@ describe("methodology router", () => {
         router.repinProjectMethodologyVersion,
         {
           projectId: "project-no-pin",
-          methodologyKey: "project-repin-needs-pin-api",
-          publishedVersion: "1.0.0",
+          methodologyId: created.version.methodologyId,
+          versionId: created.version.id,
         },
         AUTHENTICATED_CTX,
       );
@@ -5021,8 +5021,8 @@ describe("methodology router", () => {
         router.pinProjectMethodologyVersion,
         {
           projectId: "project-lineage",
-          methodologyKey: "project-lineage-api",
-          publishedVersion: "1.0.0",
+          methodologyId: v1.version.methodologyId,
+          versionId: v1.version.id,
         },
         AUTHENTICATED_CTX,
       );
@@ -5031,8 +5031,8 @@ describe("methodology router", () => {
         router.repinProjectMethodologyVersion,
         {
           projectId: "project-lineage",
-          methodologyKey: "project-lineage-api",
-          publishedVersion: "2.0.0",
+          methodologyId: v2.version.methodologyId,
+          versionId: v2.version.id,
         },
         AUTHENTICATED_CTX,
       );
@@ -5123,8 +5123,8 @@ describe("methodology router", () => {
       const createResult = await call(
         router.createAndPinProject,
         {
-          methodologyKey: "equity-method",
-          publishedVersion: "1.0.0",
+          methodologyId: draft.version.methodologyId,
+          versionId: draft.version.id,
           name: "Aurora Atlas 321",
         },
         AUTHENTICATED_CTX,
@@ -5193,8 +5193,8 @@ describe("methodology router", () => {
       const createResult = await call(
         router.createAndPinProject,
         {
-          methodologyKey: "agent-fallback-method",
-          publishedVersion: "1.0.0",
+          methodologyId: draft.version.methodologyId,
+          versionId: draft.version.id,
           name: "Agent Fallback Project",
         },
         AUTHENTICATED_CTX,
@@ -5215,13 +5215,37 @@ describe("methodology router", () => {
     });
 
     it("returns deterministic diagnostics when create+pin targets invalid version", async () => {
-      const router = createProjectRouter(makeServiceLayer());
+      const serviceLayer = makeServiceLayer();
+      const router = createProjectRouter(serviceLayer);
+      const methodologyRouter = createMethodologyRouter(serviceLayer);
+
+      await call(
+        methodologyRouter.createMethodology,
+        {
+          methodologyKey: "invalid-version-target",
+          displayName: "Invalid Version Target",
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const draft = await call(
+        methodologyRouter.createDraftVersion,
+        {
+          methodologyKey: "invalid-version-target",
+          displayName: "Invalid Version Target",
+          version: "1.0.0",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
 
       const createResult = await call(
         router.createAndPinProject,
         {
-          methodologyKey: "equity-method",
-          publishedVersion: "9.9.9",
+          methodologyId: draft.version.methodologyId,
+          versionId: "missing-version-id",
         },
         AUTHENTICATED_CTX,
       );
@@ -5282,8 +5306,8 @@ describe("methodology router", () => {
       const createResult = await call(
         router.createAndPinProject,
         {
-          methodologyKey: "preview-method",
-          publishedVersion: "1.0.0",
+          methodologyId: draft.version.methodologyId,
+          versionId: draft.version.id,
           name: "Preview Project",
         },
         AUTHENTICATED_CTX,
@@ -5420,8 +5444,8 @@ describe("methodology router", () => {
       const createResult = await call(
         router.createAndPinProject,
         {
-          methodologyKey: "preview-context-select",
-          publishedVersion: "1.0.0",
+          methodologyId: draft.version.methodologyId,
+          versionId: draft.version.id,
           name: "Preview Context Select Project",
         },
         AUTHENTICATED_CTX,
@@ -5581,8 +5605,8 @@ describe("methodology router", () => {
       const createResult = await call(
         router.createAndPinProject,
         {
-          methodologyKey: "runtime-condition-check",
-          publishedVersion: "1.0.0",
+          methodologyId: draft.version.methodologyId,
+          versionId: draft.version.id,
           name: "Runtime Condition Project",
         },
         AUTHENTICATED_CTX,
@@ -5742,8 +5766,8 @@ describe("methodology router", () => {
       const createResult = await call(
         router.createAndPinProject,
         {
-          methodologyKey: "preview-contract-check",
-          publishedVersion: "1.0.0",
+          methodologyId: firstDraft.version.methodologyId,
+          versionId: firstDraft.version.id,
           name: "Preview Contract Project",
         },
         AUTHENTICATED_CTX,
@@ -5753,8 +5777,8 @@ describe("methodology router", () => {
         methodologyRouter.repinProjectMethodologyVersion,
         {
           projectId: createResult.project.id,
-          methodologyKey: "preview-contract-check",
-          publishedVersion: "2.0.0",
+          methodologyId: secondDraft.version.methodologyId,
+          versionId: secondDraft.version.id,
         },
         AUTHENTICATED_CTX,
       );
@@ -5815,8 +5839,8 @@ describe("methodology router", () => {
         router.pinProjectMethodologyVersion,
         {
           projectId: "project-eligibility",
-          methodologyKey: "project-eligibility-pin-api",
-          publishedVersion: "1.0.0",
+          methodologyId: created.version.methodologyId,
+          versionId: created.version.id,
         },
         AUTHENTICATED_CTX,
       );

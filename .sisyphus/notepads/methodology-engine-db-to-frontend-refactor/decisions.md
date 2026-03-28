@@ -1,0 +1,2 @@
+- Decided to include `methodologyId` in `ProjectMethodologyPinState` (in addition to key/version) so repin UIs can submit ID-based payloads without reverse lookup or additional catalog joins.
+- Kept baseline preview/read models unchanged (`methodologyKey`, `publishedVersion`) since they are display-oriented and already persisted on pin rows; only mutation inputs switched to IDs.

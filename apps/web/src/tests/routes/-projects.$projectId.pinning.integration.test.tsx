@@ -62,6 +62,7 @@ function createHarness(options: HarnessOptions = {}) {
         pin: {
           projectId: "project-1",
           methodologyVersionId: "v1-id",
+          methodologyId: "m1",
           methodologyKey: "bmad.v1",
           publishedVersion: "1.0.0",
           actorId: "operator-1",
@@ -113,6 +114,7 @@ function createHarness(options: HarnessOptions = {}) {
             pin: {
               projectId: "project-1",
               methodologyVersionId: "v1-id",
+              methodologyId: "m1",
               methodologyKey: "bmad.v1",
               publishedVersion: "1.0.0",
               actorId: "operator-1",
@@ -334,8 +336,8 @@ describe("project pinning route", () => {
       const firstCallInput = (repinSpy.mock.calls as unknown[][])[0]?.[0];
       expect(firstCallInput).toEqual({
         projectId: "project-1",
-        methodologyKey: "bmad.v1",
-        publishedVersion: "1.0.0",
+        methodologyId: "m1",
+        versionId: "v1-id",
       });
     });
 
