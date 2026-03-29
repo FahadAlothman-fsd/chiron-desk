@@ -45,12 +45,16 @@ export class RuntimeGateService extends Context.Tag("RuntimeGateService")<
 >() {}
 
 const evaluateTree = (
-  tree: RuntimeConditionTree,
+  tree: RuntimeConditionTree | null | undefined,
   evaluateCondition: (
     condition: RuntimeCondition,
   ) => Effect.Effect<ConditionEvaluationResult, RuntimeGateError>,
 ): Effect.Effect<ConditionEvaluationResult, RuntimeGateError> =>
   Effect.gen(function* () {
+    if (!tree) {
+      return { met: true };
+    }
+
     const conditions = tree.conditions as readonly RuntimeCondition[];
     const groups = tree.groups as readonly RuntimeConditionTree[];
 
