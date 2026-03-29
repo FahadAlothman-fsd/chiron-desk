@@ -1,0 +1,29 @@
+packages/workflow-engine/src/repositories/project-work-unit-repository.ts
+  513559ef6d8ef5e2 8,17
+packages/workflow-engine/src/services/transition-execution-command-service.ts
+  513559ef6d8ef5e2 308
+packages/db/src/schema/runtime.ts
+  513559ef6d8ef5e2 30
+packages/api/src/routers/project-runtime.ts
+  513559ef6d8ef5e2 216-218,225-227
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "8dee7ec40c8b7d652aaa1dd114d7ccb1000e3605",
+  "prompts": {
+    "513559ef6d8ef5e2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2ca4bfec8ffeAUUomB4TVTA300",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 16,
+      "total_deletions": 17,
+      "accepted_lines": 10,
+      "overriden_lines": 0
+    }
+  }
+}
