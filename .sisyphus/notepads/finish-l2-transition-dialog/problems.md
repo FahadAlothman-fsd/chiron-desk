@@ -1,0 +1,2 @@
+- 2026-03-29: Full-suite `bun test` is currently not a reliable verification gate in this workspace; numerous pre-existing unrelated failures block green status.
+- 2026-03-29: Global test command still executes dist/e2e/electron/browser-dependent suites in the current environment, making contract-level refactor verification dependent on targeted suite execution.

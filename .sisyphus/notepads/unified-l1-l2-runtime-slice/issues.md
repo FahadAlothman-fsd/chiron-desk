@@ -16,3 +16,15 @@
 - Symptom: `project/getRuntimeOverview` returned `Service not found: RuntimeOverviewService`.
 - Root cause: runtime layer bundle includes transition/workflow command services that require `TransitionExecutionRepository` + `WorkflowExecutionRepository`, but runtime repository provisioning in app composition omitted those repositories.
 - Resolution: expanded runtime repo type contract in `createAppRouter(...)` and added both missing runtime repo layers in `apps/server/src/index.ts` runtime merge.
+
+## 2026-03-29 - Workspace `bun test` still failing (pre-existing)
+
+- Command: `bun test` (repo root)
+- Result: fails across unrelated e2e/desktop/web suites (Playwright/Vitest environment and packaging-path issues), not in the touched workflow-engine command service file.
+- Mitigation evidence for this fix: `bun run build` passes, `lsp_diagnostics` is clean on changed file, and targeted `packages/workflow-engine/src/tests/runtime/transition-execution-services.test.ts` passes.
+
+## 2026-03-29 - Verification blocker during repository dependency fix
+
+- Command: `bun test` (repo root)
+- Result: fails with broad pre-existing suite/environment issues across e2e, desktop, and web tests (Playwright invocation context, browser/electron globals, jsdom/vitest API mismatch), unrelated to `packages/workflow-engine/src/layers/live.ts` change.
+- Local evidence for changed scope: `bun run build` succeeded and `lsp_diagnostics` on `packages/workflow-engine/src/layers/live.ts` returned clean.

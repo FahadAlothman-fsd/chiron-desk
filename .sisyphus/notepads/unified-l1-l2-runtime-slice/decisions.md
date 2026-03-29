@@ -21,3 +21,14 @@
 - Decision: keep `streamCandidates(...)` test override behavior intact (`options.candidateSeeds` bypasses auto-discovery) while enabling methodology-derived future candidates in normal execution path.
 - Decision: treat `fromStateId = null` transitions as future-card launch transitions and ignore non-start transitions for not-yet-created work units.
 - Decision: provide Runtime Guidance runtime dependencies via API composition merge (`runtimeRepoLayer + lifecycleRepoLayer + projectContextRepoLayer`) so guidance can resolve methodology pins and lifecycle definitions at runtime.
+
+## 2026-03-29 - Start-gate command evaluation source of truth
+
+- Decision: remove the unsafe `as unknown` runtime-gate cast from `TransitionExecutionCommandService` and enforce typed `RuntimeGateService` calls for start/switch commands.
+- Decision: derive start-gate condition trees from methodology lifecycle condition sets in the command service (via project pin + work-unit type + transition lookup) instead of trying to pass transition/workflow identifiers into gate evaluation.
+- Decision: do not expand completion/choose command gate semantics in this hotfix; keep those paths behavior-compatible while fixing only the start-gate type mismatch bug.
+
+## 2026-03-29 - Workflow runtime layer dependency declaration for lazy repositories
+
+- Decision: declare `ProjectContextRepository` and `LifecycleRepository` in `WorkflowEngineRuntimeBaseLayer` via `Layer.service(...)` passthrough.
+- Rationale: command methods in `TransitionExecutionCommandService` yield these repositories at execution time, so runtime handler context must include these tags even when the service layer itself is already built.

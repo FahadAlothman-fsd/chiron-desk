@@ -1,6 +1,8 @@
 import { Context, Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 
+import { LifecycleRepository } from "@chiron/methodology-engine";
+import { ProjectContextRepository } from "@chiron/project-context";
 import type { CompleteTransitionExecutionInput } from "@chiron/contracts/runtime/executions";
 import {
   ExecutionReadRepository,
@@ -55,6 +57,169 @@ function makeReadRepositoryLayer(detail: TransitionExecutionDetailReadModel) {
 }
 
 describe("TransitionExecutionCommandService", () => {
+  it("creates a project work unit from new work unit input mode", async () => {
+    const calls = {
+      createProjectWorkUnit: [] as Array<{
+        projectId: string;
+        workUnitTypeId: string;
+        currentStateId: string;
+      }>,
+      startTransitionExecution: [] as Array<{ projectWorkUnitId: string; transitionId: string }>,
+    };
+
+    const projectContextRepository = {
+      findProjectPin: () =>
+        Effect.succeed({
+          projectId: "proj-1",
+          methodologyVersionId: "version-1",
+          methodologyId: "methodology-1",
+          methodologyKey: "core",
+          publishedVersion: "1.0.0",
+          actorId: null,
+          createdAt: new Date("2026-03-28T10:00:00.000Z"),
+          updatedAt: new Date("2026-03-28T10:00:00.000Z"),
+        }),
+    } as unknown as Context.Tag.Service<typeof ProjectContextRepository>;
+
+    const lifecycleRepository = {
+      findLifecycleTransitions: () =>
+        Effect.succeed([
+          {
+            id: "transition-1",
+            methodologyVersionId: "version-1",
+            workUnitTypeId: "wut-1",
+            fromStateId: "state-a",
+            toStateId: "state-b",
+            transitionKey: "draft_to_ready",
+            createdAt: new Date("2026-03-28T10:00:00.000Z"),
+            updatedAt: new Date("2026-03-28T10:00:00.000Z"),
+          },
+        ]),
+      findLifecycleStates: () => Effect.succeed([]),
+      findTransitionConditionSets: () => Effect.succeed([]),
+    } as unknown as Context.Tag.Service<typeof LifecycleRepository>;
+
+    const layer = Layer.provide(
+      TransitionExecutionCommandServiceLive,
+      Layer.mergeAll(
+        makeReadRepositoryLayer(ACTIVE_TRANSITION_DETAIL),
+        Layer.succeed(RuntimeGateService, {
+          evaluateStartGate: () =>
+            Effect.succeed({
+              result: "available",
+              firstReason: undefined,
+            }),
+          evaluateCompletionGate: () =>
+            Effect.succeed({
+              result: "available",
+              firstReason: undefined,
+            }),
+        } as unknown as Context.Tag.Service<typeof RuntimeGateService>),
+        Layer.succeed(ProjectWorkUnitRepository, {
+          createProjectWorkUnit: (params: {
+            projectId: string;
+            workUnitTypeId: string;
+            currentStateId: string;
+          }) => {
+            calls.createProjectWorkUnit.push(params);
+            return Effect.succeed({
+              id: "wu-new",
+              projectId: params.projectId,
+              workUnitTypeId: params.workUnitTypeId,
+              currentStateId: params.currentStateId,
+              activeTransitionExecutionId: null,
+              createdAt: new Date("2026-03-28T10:00:00.000Z"),
+              updatedAt: new Date("2026-03-28T10:00:00.000Z"),
+            });
+          },
+          listProjectWorkUnitsByProject: () => Effect.succeed([]),
+          getProjectWorkUnitById: () => Effect.succeed(null),
+          updateActiveTransitionExecutionPointer: () => Effect.succeed(null),
+        } as unknown as Context.Tag.Service<typeof ProjectWorkUnitRepository>),
+        Layer.succeed(TransitionExecutionRepository, {
+          createTransitionExecution: () => Effect.die("unused"),
+          startTransitionExecution: (params: {
+            projectWorkUnitId: string;
+            transitionId: string;
+          }) => {
+            calls.startTransitionExecution.push(params);
+            return Effect.succeed({
+              id: "tx-2",
+              projectWorkUnitId: params.projectWorkUnitId,
+              transitionId: params.transitionId,
+              status: "active",
+              primaryWorkflowExecutionId: null,
+              supersededByTransitionExecutionId: null,
+              startedAt: new Date("2026-03-28T10:01:00.000Z"),
+              completedAt: null,
+              supersededAt: null,
+            });
+          },
+          switchActiveTransitionExecution: () => Effect.die("unused"),
+          getActiveTransitionExecutionForWorkUnit: () => Effect.succeed(null),
+          getTransitionExecutionById: () => Effect.succeed(null),
+        } as unknown as Context.Tag.Service<typeof TransitionExecutionRepository>),
+        Layer.succeed(WorkflowExecutionRepository, {
+          createWorkflowExecution: () =>
+            Effect.succeed({
+              id: "wf-2",
+              transitionExecutionId: "tx-2",
+              workflowId: "workflow-1",
+              workflowRole: "primary",
+              status: "active",
+              supersededByWorkflowExecutionId: null,
+              startedAt: new Date("2026-03-28T10:02:00.000Z"),
+              completedAt: null,
+              supersededAt: null,
+            }),
+          getWorkflowExecutionById: () => Effect.succeed(null),
+          markWorkflowExecutionCompleted: () => Effect.succeed(null),
+          markWorkflowExecutionSuperseded: () => Effect.succeed(null),
+          updateTransitionPrimaryWorkflowExecutionPointer: () => Effect.void,
+          retryWorkflowExecution: () => Effect.succeed(null),
+        } as unknown as Context.Tag.Service<typeof WorkflowExecutionRepository>),
+      ),
+    );
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* TransitionExecutionCommandService;
+        return yield* service.startTransitionExecution({
+          projectId: "proj-1",
+          transitionId: "transition-1",
+          workflowId: "workflow-1",
+          workUnit: {
+            mode: "new",
+            workUnitTypeId: "wut-1",
+          },
+        });
+      }).pipe(
+        Effect.provideService(ProjectContextRepository, projectContextRepository),
+        Effect.provideService(LifecycleRepository, lifecycleRepository),
+        Effect.provide(layer),
+      ),
+    );
+
+    expect(calls.createProjectWorkUnit).toEqual([
+      {
+        projectId: "proj-1",
+        workUnitTypeId: "wut-1",
+        currentStateId: "state-a",
+      },
+    ]);
+    expect(calls.startTransitionExecution).toEqual([
+      {
+        projectWorkUnitId: "wu-new",
+        transitionId: "transition-1",
+      },
+    ]);
+    expect(result).toEqual({
+      projectWorkUnitId: "wu-new",
+      transitionExecutionId: "tx-2",
+      workflowExecutionId: "wf-2",
+    });
+  });
+
   it("re-checks completion gate and refuses completion when gate fails", async () => {
     let completionAttempted = false;
 

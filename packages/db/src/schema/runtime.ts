@@ -27,9 +27,9 @@ export const projectWorkUnits = sqliteTable(
     workUnitTypeId: text("work_unit_type_id")
       .notNull()
       .references(() => methodologyWorkUnitTypes.id, { onDelete: "restrict" }),
-    currentStateId: text("current_state_id")
-      .notNull()
-      .references(() => workUnitLifecycleStates.id, { onDelete: "restrict" }),
+    currentStateId: text("current_state_id").references(() => workUnitLifecycleStates.id, {
+      onDelete: "restrict",
+    }),
     activeTransitionExecutionId: text("active_transition_execution_id"),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(timestampDefault),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })

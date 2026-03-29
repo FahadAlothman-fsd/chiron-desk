@@ -110,17 +110,17 @@ const getRuntimeStartGateDetailInput = z.object({
 const startTransitionExecutionInput = z.object({
   projectId: z.string().min(1),
   transitionId: z.string().min(1),
-  transitionKey: z.string().min(1).optional(),
   workflowId: z.string().min(1),
-  workflowKey: z.string().min(1).optional(),
-  projectWorkUnitId: z.string().min(1).optional(),
-  futureCandidate: z
-    .object({
+  workUnit: z.discriminatedUnion("mode", [
+    z.object({
+      mode: z.literal("existing"),
+      projectWorkUnitId: z.string().min(1),
+    }),
+    z.object({
+      mode: z.literal("new"),
       workUnitTypeId: z.string().min(1),
-      workUnitTypeKey: z.string().min(1).optional(),
-      source: z.literal("future"),
-    })
-    .optional(),
+    }),
+  ]),
 });
 
 const switchActiveTransitionExecutionInput = z.object({
@@ -213,13 +213,18 @@ function mapEffectError(err: unknown): never {
         ? String((err as { message: unknown }).message)
         : String(err);
 
+  console.error("[mapEffectError] Full error:", err);
+  console.error("[mapEffectError] Tag:", tag, "Message:", message);
+
   if (tag?.endsWith("NotFoundError")) {
     throw new ORPCError("NOT_FOUND", { message });
   }
 
   switch (tag) {
     case "RepositoryError":
-      throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "Repository operation failed" });
+      throw new ORPCError("INTERNAL_SERVER_ERROR", {
+        message: `Repository operation failed: ${message}`,
+      });
     case "UnsupportedConditionKindError":
       throw new ORPCError("BAD_REQUEST", { message: "Unsupported condition kind" });
     default:

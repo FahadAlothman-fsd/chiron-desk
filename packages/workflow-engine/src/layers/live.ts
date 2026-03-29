@@ -1,4 +1,6 @@
 import { Layer } from "effect";
+import { LifecycleRepository } from "@chiron/methodology-engine";
+import { ProjectContextRepository } from "@chiron/project-context";
 
 import { RuntimeArtifactServiceLive } from "../services/runtime-artifact-service";
 import { RuntimeFactServiceLive } from "../services/runtime-fact-service";
@@ -13,6 +15,8 @@ import { WorkflowExecutionCommandServiceLive } from "../services/workflow-execut
 import { WorkflowExecutionDetailServiceLive } from "../services/workflow-execution-detail-service";
 
 const WorkflowEngineRuntimeBaseLayer = Layer.mergeAll(
+  Layer.service(ProjectContextRepository),
+  Layer.service(LifecycleRepository),
   RuntimeGateServiceLive,
   RuntimeWorkflowIndexServiceLive,
   RuntimeFactServiceLive,

@@ -10,3 +10,7 @@
 ## 2026-03-29 - Current unresolved problems
 
 - None from this runtime wiring fix after verification (`lsp_diagnostics` clean on changed files, `bun run check-types` pass, `bun run build` pass).
+
+## 2026-03-29 - Current unresolved problems (follow-up)
+
+- Workspace-level `bun test` is still red due to unrelated pre-existing test-environment/config issues outside this runtime-layer dependency change.

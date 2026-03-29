@@ -192,15 +192,15 @@ export type GetWorkflowExecutionDetailOutput = typeof GetWorkflowExecutionDetail
 export const StartTransitionExecutionInput = Schema.Struct({
   projectId: Schema.String,
   transitionId: Schema.String,
-  transitionKey: Schema.optional(Schema.String),
   workflowId: Schema.String,
-  workflowKey: Schema.optional(Schema.String),
-  projectWorkUnitId: Schema.optional(Schema.String),
-  futureCandidate: Schema.optional(
+  workUnit: Schema.Union(
     Schema.Struct({
+      mode: Schema.Literal("existing"),
+      projectWorkUnitId: Schema.String,
+    }),
+    Schema.Struct({
+      mode: Schema.Literal("new"),
       workUnitTypeId: Schema.String,
-      workUnitTypeKey: Schema.optional(Schema.String),
-      source: Schema.Literal("future"),
     }),
   ),
 });

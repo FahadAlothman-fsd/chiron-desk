@@ -118,10 +118,12 @@ describe("runtime guidance helpers", () => {
     expect(decision.kind).toBe("start");
     expect(decision.input).toMatchObject({
       projectId: "project-1",
-      projectWorkUnitId: "wu-open-1",
       transitionId: "transition-open-1",
       workflowId: "wf-open-1",
-      workflowKey: "WF.OPEN.ONE",
+      workUnit: {
+        mode: "existing",
+        projectWorkUnitId: "wu-open-1",
+      },
     });
   });
 

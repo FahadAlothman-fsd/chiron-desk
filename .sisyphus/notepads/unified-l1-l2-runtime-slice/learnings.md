@@ -597,3 +597,18 @@
   - single-instance variants (`one`, `one_per_project`, `single`) only when count is zero
   - multi-instance variants always creatable.
 - Start-transition derivation for future cards should use lifecycle transitions with `fromStateId = null` and convert start-phase condition sets into runtime `RuntimeConditionTree` gates for evaluation.
+
+## 2026-03-29 - Transition start gate type-mismatch fix
+
+- `TransitionExecutionCommandService` must resolve transition start-gate condition trees from methodology lifecycle data before calling `RuntimeGateService.evaluateStartGate(...)`; passing transition/workflow ids directly to the gate service causes runtime failures because gate evaluation expects a concrete `conditionTree`.
+- For runtime transition starts, the stable lookup chain is:
+  1. `ProjectContextRepository.findProjectPin(projectId)` -> pinned `methodologyVersionId`
+  2. `ProjectWorkUnitRepository.getProjectWorkUnitById(projectWorkUnitId)` -> `workUnitTypeId`
+  3. `LifecycleRepository.findLifecycleTransitions(...workUnitTypeId)` + `findTransitionConditionSets(...transitionId)`
+  4. build `RuntimeConditionTree` from non-completion condition sets and evaluate the start gate with that tree.
+- Keep `ProjectContextRepository`/`LifecycleRepository` dependencies lazy (resolved inside start-gate context effect) so completion/choose command paths and existing tests do not require extra layers when they do not execute start/switch flows.
+
+## 2026-03-29 - Runtime layer dependency passthrough for lazy command dependencies
+
+- `TransitionExecutionCommandService` currently resolves `ProjectContextRepository` and `LifecycleRepository` lazily inside command-path effects (not during layer construction), so those tags must be present in the runtime environment when handlers execute.
+- Adding `Layer.service(ProjectContextRepository)` and `Layer.service(LifecycleRepository)` into `WorkflowEngineRuntimeBaseLayer` keeps these dependencies available to downstream command effects after API-level `Layer.provide(...)` composition.

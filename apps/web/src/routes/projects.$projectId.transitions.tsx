@@ -19,6 +19,7 @@ import {
 import { RuntimeStartGateDialog } from "@/components/runtime/runtime-start-gate-dialog";
 import { MethodologyWorkspaceShell } from "@/features/methodologies/workspace-shell";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 const transitionsSearchSchema = z.object({
   q: z.string().optional().default(""),
@@ -122,15 +123,16 @@ export type RuntimeGuidanceLaunchDecision =
       readonly input: {
         projectId: string;
         transitionId: string;
-        transitionKey?: string;
         workflowId: string;
-        workflowKey?: string;
-        projectWorkUnitId?: string;
-        futureCandidate?: {
-          workUnitTypeId: string;
-          workUnitTypeKey?: string;
-          source: "future";
-        };
+        workUnit:
+          | {
+              mode: "existing";
+              projectWorkUnitId: string;
+            }
+          | {
+              mode: "new";
+              workUnitTypeId: string;
+            };
       };
     };
 
@@ -168,21 +170,18 @@ export function resolveRuntimeGuidanceLaunchDecision(args: {
     input: {
       projectId,
       transitionId: selection.transition.transitionId,
-      transitionKey: selection.transition.transitionKey,
       workflowId: workflow.workflowId,
-      ...(workflow.workflowKey ? { workflowKey: workflow.workflowKey } : {}),
-      ...(cardProjectWorkUnitId ? { projectWorkUnitId: cardProjectWorkUnitId } : {}),
-      ...(selection.input.futureCandidate
+      workUnit: cardProjectWorkUnitId
         ? {
-            futureCandidate: {
-              workUnitTypeId: selection.input.futureCandidate.workUnitTypeId,
-              source: "future" as const,
-              ...(selection.input.futureCandidate.workUnitTypeKey
-                ? { workUnitTypeKey: selection.input.futureCandidate.workUnitTypeKey }
-                : {}),
-            },
+            mode: "existing",
+            projectWorkUnitId: cardProjectWorkUnitId,
           }
-        : {}),
+        : {
+            mode: "new",
+            workUnitTypeId:
+              selection.input.futureCandidate?.workUnitTypeId ??
+              selection.card.workUnitContext.workUnitTypeId,
+          },
     },
   };
 }
@@ -399,6 +398,9 @@ export function ProjectTransitionsRoute() {
       onSuccess: async () => {
         await refreshRuntimeGuidance();
       },
+      onError(error) {
+        toast.error(toErrorMessage(error));
+      },
     }),
   );
 
@@ -406,6 +408,9 @@ export function ProjectTransitionsRoute() {
     orpc.project.switchActiveTransitionExecution.mutationOptions({
       onSuccess: async () => {
         await refreshRuntimeGuidance();
+      },
+      onError(error) {
+        toast.error(toErrorMessage(error));
       },
     }),
   );
