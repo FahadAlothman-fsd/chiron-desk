@@ -1,0 +1,35 @@
+.sisyphus/boulder.json
+  b575dc0e01b292c5 2-3
+packages/api/src/tests/routers/system-harness.test.ts
+  b575dc0e01b292c5 461,735
+apps/server/src/mcp/route.ts
+  b575dc0e01b292c5 46-98,101-102,117-122,124,126-131,133,172-177,179,199-217
+packages/agent-runtime/src/tests/opencode-sdk-repository.test.ts
+  b575dc0e01b292c5 369,381,795-798,840-843,847
+packages/api/src/routers/system.ts
+  b575dc0e01b292c5 424-425,584-585
+packages/agent-runtime/src/opencode-sdk-repository.ts
+  b575dc0e01b292c5 75-76,127,176-178,314,454,457,462,466,471-481,736,741-743,767,920-924,927-928,934,937-938,940,942-949
+.sisyphus/plans/minimal-mcp-session-binding-proof.md
+  b575dc0e01b292c5 117,157,203,205,247,328,368
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.23",
+  "base_commit_sha": "4a067431abf82f837a3fc5adb66945d2dcbec80a",
+  "prompts": {
+    "b575dc0e01b292c5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2b5ed656affeAcf8VeP2rpM80b",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 222,
+      "total_deletions": 220,
+      "accepted_lines": 178,
+      "overriden_lines": 2
+    }
+  }
+}
