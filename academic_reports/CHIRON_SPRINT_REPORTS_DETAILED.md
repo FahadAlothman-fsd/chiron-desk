@@ -2083,3 +2083,451 @@ This sprint treated the methodology layer as a living system that requires expli
 [9] R. Elizarov, “Structured concurrency,” 2018. [Online]. Available: https://elizarov.medium.com/structured-concurrency-722d765aa952
 
 [10] A. A. Z. *et al*., “Exploring event-driven architecture in microservices—patterns, pitfalls and best practices,” *Int. J. Sci. Res. Archive*, vol. 4, no. 1, 2021, doi: 10.30574/ijsra.2021.4.1.0166.
+
+---
+
+# SPRINT 11: February 15 - February 28, 2026
+**Methodology Foundation Hardening & Story 2.1 Delivery**
+
+---
+
+## PROGRESS REPORT
+
+### 1. Sprint Summary
+
+Sprint 11 focused on converting methodology architecture into hardened implementation contracts. The period closed Story 2.1 and strengthened deterministic publish and project pinning guarantees while also consolidating planning and retrospective artifacts.
+
+### 2. Evidence Snapshot
+
+- **Git activity (2026-02-15 to 2026-02-28):** 43 commits, 1,204 files touched, 79,969 lines added, 65,890 lines removed.
+- **Commit profile:** 16 feat, 11 docs, 10 chore, 3 fix, 2 refactor, 1 other.
+- **OpenCode sessions (chiron directory):** 507 sessions, 13,638 messages.
+- **Representative sessions:**
+  - `ses_381de7d36ffeDcQsEmvS6H8n2g` (BMAD create-epics-and-stories execution)
+  - `ses_35eae3746ffenaXNDi77uAYl57` (Methodology catalog/details/version-entry foundation)
+
+### 3. Key Outcomes
+
+1. **Story 2.1 completion** and methodology workspace foundation stabilization.
+2. **Deterministic publish hardening** for methodology persistence contracts.
+3. **Project pinning guarantees** enforced to reduce runtime drift.
+4. **Lifecycle and eligibility service hardening** for Story 1.2/1.5 continuity.
+
+### 4. Notable Commits
+
+- `0dca1ae7f8` feat: complete Story 2.1 methodology foundation flow
+- `f21c8f7266` feat(story-1.5): enforce project pinning guarantees
+- `48144e48ee` feat(story-1.4): harden deterministic publish contract and persistence
+- `9ba4444049` feat(story-1.2): harden lifecycle layer and add agent/facts contracts
+- `63ae8cbd27` docs(retrospective): capture Epic 1 retro and close sprint status
+
+### 5. Next Sprint Carry-Forward
+
+- Complete methodology CRUD and validation surfaces for version-scoped facts.
+- Expand test coverage for methodology routes and review-gate scenarios.
+
+---
+
+# SPRINT 12: March 1 - March 14, 2026
+**Facts CRUD Expansion, Canonical Persistence, and Cutover Planning**
+
+---
+
+## PROGRESS REPORT
+
+### 1. Sprint Summary
+
+Sprint 12 delivered broad implementation across methodology facts and canonical persistence while preparing the repository for cutover decisions. The sprint combined feature delivery with integration tests and planning artifacts for CC foundation work.
+
+### 2. Evidence Snapshot
+
+- **Git activity (2026-03-01 to 2026-03-14):** 63 commits, 594 files touched, 79,927 lines added, 15,642 lines removed.
+- **Commit profile:** 22 feat, 15 docs, 8 test, 6 chore, 5 fix, 5 refactor, 2 other.
+- **OpenCode sessions (chiron directory):** 509 sessions, 16,085 messages.
+- **Representative sessions:**
+  - `ses_32db7d1a8ffeq8vLYqFTZfUNfN` (BMAD dev-story execution)
+  - `ses_3398ab7cbffeN5RHiHwUwn9YGl` (BMAD retrospective execution)
+
+### 3. Key Outcomes
+
+1. **Dialog-driven facts CRUD implementation** with validation support.
+2. **Version-scoped facts route** landed and wired into workspace flows.
+3. **Canonical persistence fixes** closed via Story 2.7 review cycle.
+4. **Tauri surface removal from active tooling** to align workspace direction.
+
+### 4. Notable Commits
+
+- `e24e151893` feat(methodologies): implement dialog-driven facts CRUD with validation support
+- `631d1e0b35` feat(methodologies): add version-scoped facts route
+- `97810a94c0` fix(story-2.7): close code review gaps for canonical persistence
+- `a1926849b0` test(code-review): fix story 2.7 test infrastructure and assertions
+- `aa97f1a447` docs(plans): add cc-foundation cutover design and implementation plans
+
+### 5. Next Sprint Carry-Forward
+
+- Move from L1/L2 persistence completion into runtime contract closure.
+- Add deeper runtime validation around work-unit and fact lifecycle behavior.
+
+---
+
+# SPRINT 13: March 15 - March 28, 2026
+**Runtime Model Closure, Cardinality Adoption, and L1/L2 Planning Scale-Up**
+
+---
+
+## PROGRESS REPORT
+
+### 1. Sprint Summary
+
+Sprint 13 was the highest-throughput period in this cycle. Work centered on runtime project-context planning and implementation readiness, followed by broad cardinality integration across contracts, database mappings, and UI editing surfaces.
+
+### 2. Evidence Snapshot
+
+- **Git activity (2026-03-15 to 2026-03-28):** 172 commits, 1,662 files touched, 168,820 lines added, 21,085 lines removed.
+- **Commit profile:** 58 feat, 37 docs, 26 fix, 21 test, 13 refactor, 7 chore, 10 other.
+- **OpenCode sessions (chiron directory):** 910 sessions, 27,413 messages.
+- **Representative sessions:**
+  - `ses_2f82851f4ffeYSwiyTwcTJuUXK` (BMAD dev-story execution)
+  - `ses_2fdecdad6ffe0dyDE4RvSE0Y7p` (search-mode design-time closure review)
+  - `ses_2d9ff4773ffeCFeUdX2XcCJRVL` (runtime project-context decision-complete plan)
+
+### 3. Key Outcomes
+
+1. **Runtime project-context plan matured** with explicit runtime entity scope.
+2. **Cardinality field introduced end-to-end** across schemas, contracts, DB queries, and UI.
+3. **Validation and mutation tests expanded** for work-unit and fact-editing workflows.
+4. **L1/L2 planning artifacts refreshed** for next-stage runtime and execution work.
+
+### 4. Notable Commits
+
+- `dad27bf42d` feat(ui): add cardinality to methodology facts and update tracking
+- `10a79df087` feat(api): add cardinality field to variableDefinitionSchema
+- `97c70d5da5` fix(db): include cardinality in methodology fact queries and mapping
+- `a245fd9b23` test(api): add work unit mutation validation tests
+- `76f72c37a3` feat(ui): add distinctive badge colors for cardinality column
+
+### 5. Next Sprint Carry-Forward
+
+- Begin runtime L3 execution closure from planned model (step-type and execution surfaces).
+- Continue integration hardening around transition bindings and runtime gate behavior.
+
+---
+
+# SPRINT 14: March 29 - April 11, 2026 (IN PROGRESS)
+**Runtime L3 Step Execution Stabilization (Checkpoint as of April 1, 2026)**
+
+---
+
+## PROGRESS REPORT (MID-SPRINT CHECKPOINT)
+
+### 1. Sprint Summary
+
+Sprint 14 is currently in progress. Work so far is concentrated on runtime L3 execution correctness: transition execution, start-gate detail generation, workflow binding scope, and null-safe condition evaluation.
+
+### 2. Evidence Snapshot (to date)
+
+- **Git activity (2026-03-29 to 2026-04-01):** 8 commits, 160 files touched, 24,947 lines added, 2,759 lines removed.
+- **Commit profile:** 1 feat, 6 fix, 1 refactor.
+- **OpenCode sessions (chiron directory):** 21 sessions, 1,900 messages.
+- **Representative sessions:**
+  - `ses_2c6db293cffefdxsQgAKAeW0Wu` (L3 step types/pages/execution updates)
+  - `ses_2ca4bfec8ffeAUUomB4TVTA300` (plan selection and workflow execution context)
+
+### 3. Key Outcomes to Date
+
+1. **Unified L1/L2 runtime slice wiring** added for runtime execution cohesion.
+2. **Transition-binding scope fixes** to prevent incorrect workflow selection.
+3. **Runtime guidance fixes** to compute start-gate details and future candidates correctly.
+4. **Null-safe condition tree handling** added in runtime gate service.
+
+### 4. Notable Commits
+
+- `a53f19896f` feat(runtime): implement unified L1/L2 runtime slice with service wiring fixes
+- `fef3ffa40c` fix(transition-bindings): scope workflow bindings by work unit type
+- `cd4dcd0cca` fix(start-gate): populate availableWorkflows from transition bindings
+- `999560bc96` fix(runtime-guidance): implement getRuntimeStartGateDetail method
+- `f48fc0b064` fix: handle null condition tree in runtime gate service
+
+### 5. Remaining Sprint Focus (April 2 - April 11)
+
+- Complete runtime L3 step execution behavior parity for non-agent step types.
+- Harden transition execution tests and verify end-to-end runtime state evolution.
+
+---
+
+# ADVISOR EVIDENCE ADDENDUM: WHAT WAS ACTUALLY LEARNED, DESIGNED, AND IMPLEMENTED (SPRINTS 1–14)
+
+## 1) Problem Understanding Was Refined, Not Static
+
+Across 14 biweekly increments, the problem statement evolved from a broad idea (“visualize BMAD workflows”) into a concrete systems problem:
+
+- **Initial framing (Sprints 1–2):** reduce cognitive overhead of CLI-only multi-agent coordination and provide observable workflow execution with approval checkpoints.
+- **Execution-era framing (Sprints 3–7):** make workflows deterministic, traceable, and inspectable as runtime state transitions (not ad-hoc chat interactions).
+- **Migration-era framing (Sprints 8–10):** replace fragile orchestration assumptions with typed Effect service boundaries and explicit execution contracts.
+- **Runtime-model framing (Sprints 11–14):** enforce methodology-as-data through versioned facts, cardinality constraints, transition bindings, and L1/L2/L3 runtime slices.
+
+**Why this matters academically:** this demonstrates iterative problem clarification under implementation pressure, not static scope-following.
+
+## 2) Chiron Philosophy (Evidence-Backed)
+
+The project repeatedly converged on the same core philosophy:
+
+1. **Methodology should be executable data, not static documentation.**
+2. **Agentic behavior must be governable (approval trails, deterministic outputs, recoverable state).**
+3. **UI is not decoration; it is the operational surface of the methodology layer.**
+4. **Architecture should separate what is implemented now vs designed for later scale.**
+
+These principles are reflected in the sprint progression from workflow core (S4–S5), stabilization (S6–S7), migration and contract hardening (S8–S13), and runtime guidance/transition correctness (S14).
+
+## 3) Feature Work by Capability (Not Commit Count)
+
+### A. Workflow Runtime Capability
+- Step registry and deterministic execution loop.
+- Child workflow support and output capture.
+- Approval/rejection regeneration behavior with chronology fixes.
+
+### B. Methodology Data Capability
+- Version-scoped facts and CRUD flows.
+- Canonical persistence hardening.
+- Cardinality propagation across API, DB mapping, and UI surfaces.
+
+### C. Runtime Guidance Capability
+- Transition binding scoping by work unit type.
+- Start-gate detail generation from binding graph.
+- Null-safe condition-tree handling in runtime gate service.
+
+### D. UX/Operator Capability
+- Execution visibility components (workflow execution card, completion views).
+- Dashboard filtering and metadata-driven visibility.
+- Workbench alignment so users can inspect outcomes and not only trigger actions.
+
+This capability view is a stronger thesis narrative than listing isolated commits.
+
+## 4) Research Depth: Tools, Patterns, and External Concepts Explored
+
+Research in this project was not incidental; it directly informed architecture boundaries and delivery sequencing.
+
+### A. Orchestration and Process Theory References
+Documented references used to shape design decisions include:
+- **Workflow patterns + YAWL** for composition and parent/child orchestration.
+- **BPMN** for process-structure interoperability lens.
+- **Statecharts/state-machine formalisms** for transition safety and explicit lifecycle modeling.
+- **Event-driven/pub-sub patterns** for runtime lifecycle and execution stream design.
+- **Structured concurrency** for Effect runtime execution safety and cancellation semantics.
+
+See the citations block already maintained in this report (Appendix + IEEE references, Sprint 10 section).
+
+### B. Agentic Development Landscape Exploration
+Evidence across planning/design artifacts and sessions shows explicit comparison and adaptation work around:
+- stateful graph orchestration patterns,
+- role/multi-agent coordination models,
+- tool-gating and approval-gate patterns,
+- provider/harness abstraction boundaries.
+
+This is visible in architecture plans, authority docs, and research artifacts that fed implementation decisions in S11–S14.
+
+## 5) DSPy/AX Research: What Was Actually Done
+
+The DSPy/AX stream was actively researched and deliberately scoped:
+
+- Chiron documented AX as the **DSPy-style optimization layer** (`@ax-llm/ax`) for TypeScript-oriented signatures and governed recommendation/promotion workflows.
+- Multiple research artifacts were produced for GEPA/ACT/MiPRO/ACE tradeoffs and phase-gated integration strategy.
+- The project explicitly distinguished **architecture authority** from **runtime readiness** to avoid overclaiming implementation status.
+
+### Explicitly Tracked Position
+1. **Adopted at architecture level:** AX policy/model, signature registry concepts, run/variant governance model.
+2. **Constrained in scope:** manual-first optimization path in phase 1, no autonomous unsafe mutation loops.
+3. **Acknowledged as pending implementation:** docs may be ahead of code; API assumptions must be refreshed before coding.
+
+This is a research-to-design pipeline, not “slop”: exploration → constraints → staged adoption policy.
+
+## 6) Proof That Work Was More Than “Just BMAD Execution”
+
+Beyond story execution, the work included:
+
+- repeated architecture corrections after discovering drift between docs, runtime, and schema authority;
+- design-time to runtime boundary clarification (L1/L2/L3 ownership and contracts);
+- migration strategy and stabilization patterns after major runtime shift;
+- explicit verification and code-review closure cycles (including canonical persistence and runtime-gate correctness).
+
+Session evidence across the reporting windows shows sustained focus on:
+- domain model normalization,
+- procedure contract precision,
+- transition/state-machine semantics,
+- deterministic runtime behavior and testability.
+
+## 7) Advisor-Facing Justification of the 14 Biweekly Increments
+
+A defensible thesis framing for these increments is:
+
+1. **S1–S2:** problem and system framing baseline.
+2. **S3–S5:** first end-to-end executable workflow system.
+3. **S6–S7:** consolidation + technical debt reduction before architectural shift.
+4. **S8–S10:** major runtime migration and post-migration coherence recovery.
+5. **S11–S13:** methodology contracts hardened into canonical runtime/data model.
+6. **S14 (in progress):** runtime L3 correctness and execution parity closure.
+
+This sequence demonstrates a credible research-engineering trajectory: exploratory prototyping → architectural reset → formalized contract-driven implementation.
+
+## 8) Honest Boundary Statement (Important for Credibility)
+
+Not all scoped capabilities are fully implemented yet, especially in advanced optimization loops and some late-stage runtime surfaces. However, the completed work is substantial and verifiable in three dimensions:
+
+- **Implemented runtime and UI capabilities** (workflow execution, approvals, guidance, facts workflows),
+- **Formalized architecture and constraints** (module boundaries, contracts, ownership),
+- **Documented and justified research decisions** (DSPy/AX and broader agentic landscape).
+
+This distinction between “implemented now” and “architecturally prepared next” should be explicitly presented as a strength of engineering rigor, not a weakness.
+
+---
+
+# EXTENSIVE BIWEEKLY TRAJECTORY ANALYSIS (S1-S14)
+
+## Pre-September 29, 2025 Record Boundary
+
+Before Sprint 1, there is evidence of **early exploration** but not a formal biweekly progress report stream:
+
+- This report's formal increment history starts at **Sprint 1 (Sep 29, 2025)**.
+- Repository git history starts at **initial commit on 2025-09-29**.
+- OpenCode session history in the Chiron directory includes pre-start exploratory work (earliest entries in early September), which indicates ideation/prototyping before formal reporting.
+
+Therefore, pre-Sep-29 activity exists as exploratory traces, but the official biweekly report chronology starts on Sep 29.
+
+## Sprint-by-Sprint What/Why/How + Assumption and Trajectory Updates
+
+### Sprint 1 (Sep 29 - Oct 12, 2025): Foundation and Problem Framing
+
+- **What we did:** Established monorepo and core stack; framed Chiron as visual orchestration for BMAD workflows and multi-agent collaboration.
+- **Original assumption:** If we assembled the right stack and BMAD artifact set, execution fidelity would follow naturally.
+- **Problem encountered:** The problem was broader than setup: coordination, state visibility, and approval traceability were not solved by infrastructure alone.
+- **How we resolved:** Shifted from "tool setup" framing to "workflow observability + governable execution" as the central requirement.
+- **Trajectory change:** Moved from a generic app build to a runtime-centric orchestration product definition.
+- **Why Chiron remained relevant:** The core user pain (CLI cognitive overhead and poor cross-agent coordination visibility) remained unchanged.
+
+### Sprint 2 (Oct 13 - Oct 26, 2025): UX and Schema as Methodology Substrate
+
+- **What we did:** Completed UX foundation and designed 16-table schema spanning workflows, agents, executions, variables, and approvals.
+- **Original assumption:** UX wireframes and schema design were separable planning tracks.
+- **Problem encountered:** Workflow behavior and UX semantics were tightly coupled; poor data contracts would later break operational UX.
+- **How we resolved:** Treated information architecture and schema design as one contract surface for execution and operator visibility.
+- **Trajectory change:** Promoted methodology structure to first-class system design, not just documentation.
+- **Relevance:** This established the data plane needed to make guidance inspectable and persistent.
+
+### Sprint 3 (Oct 27 - Nov 9, 2025): From Planning to Executable System
+
+- **What we did:** Implemented schema, seeding, auth, and core UI surfaces including model selection.
+- **Original assumption:** Initial implementation could follow plan with minor friction.
+- **Problem encountered:** Schema-to-runtime mismatches appeared once workflows were actually exercised.
+- **How we resolved:** Refactored schema details and tightened service/UI integration patterns early.
+- **Trajectory change:** Prioritized executable correctness over preserving initial draft structures.
+- **Relevance:** Chiron became a working system capable of hosting guided workflows rather than a design artifact.
+
+### Sprint 4 (Nov 10 - Nov 23, 2025): Deterministic Workflow Core + Methodology Reset
+
+- **What we did:** Delivered workflow execution engine core, child workflow support, approval reliability, and dynamic option handling.
+- **Original assumption:** Methodology could remain mostly static files while runtime logic sat elsewhere.
+- **Problem encountered:** Static-methodology assumptions caused drift between UI behavior, approvals, and execution semantics.
+- **How we resolved:** Converted methodology into runtime data contracts (options, approvals, outputs, regeneration behavior).
+- **Trajectory change:** Major pivot to "methodology-as-executable-data".
+- **Relevance:** This was the key move preserving Chiron's guidance spirit while changing implementation approach.
+
+### Sprint 5 (Nov 24 - Dec 7, 2025): Completion Visibility and Approval Semantics
+
+- **What we did:** Finalized display output step, improved workflow chat readability, expanded dashboard metadata/path filtering.
+- **Original assumption:** Workflow completion state was enough; output visibility could be lightweight.
+- **Problem encountered:** "Completed" workflows without visible artifacts undermined trust and explainability.
+- **How we resolved:** Standardized completion artifact rendering and improved approval/variable provenance behavior.
+- **Trajectory change:** Shifted success criteria from "execution finished" to "execution is inspectable and defensible".
+- **Relevance:** Guidance requires observable outcomes, not hidden state transitions.
+
+### Sprint 6 (Dec 8 - Dec 21, 2025): Consolidation to Control UX Debt
+
+- **What we did:** Introduced reusable execution visibility components and stabilized technique workflows.
+- **Original assumption:** Rapid feature continuation would be better than pausing for consolidation.
+- **Problem encountered:** Post-reset UI drift and interaction debt threatened methodology comprehensibility.
+- **How we resolved:** Ran a consolidation sprint to standardize execution visuals and behavior.
+- **Trajectory change:** Adopted explicit "stabilize before scaling" cadence.
+- **Relevance:** Prevented erosion of user trust in guided execution surfaces.
+
+### Sprint 7 (Dec 22, 2025 - Jan 4, 2026): Structural Cleanup Before Architecture Change
+
+- **What we did:** Removed subtree/dependency baggage and reorganized integration docs.
+- **Original assumption:** Migration could proceed without major repository hygiene work.
+- **Problem encountered:** External dependency footprint and historical structure complexity increased migration risk.
+- **How we resolved:** Executed cleanup sprint to reduce coupling and simplify migration baseline.
+- **Trajectory change:** Treated infrastructure debt as blocker-level work, not optional maintenance.
+- **Relevance:** Created conditions for safer runtime re-architecture without losing product direction.
+
+### Sprint 8 (Jan 5 - Jan 18, 2026): Effect + AI-SDK Migration (Major Pivot)
+
+- **What we did:** Migrated orchestration/runtime from prior assumptions to Effect service boundaries and AI-SDK integration; removed legacy dependencies.
+- **Original assumption:** Previous orchestration layer could be incrementally improved in place.
+- **Problem encountered:** Determinism, error semantics, and lifecycle control were insufficient for long-term governance.
+- **How we resolved:** Re-architected around Effect for typed services, structured concurrency, and explicit error channels.
+- **Trajectory change:** The core infrastructure changed substantially, but in service of stronger guidance guarantees.
+- **Relevance:** The pivot directly served the original problem: coordinated, reliable, auditable multi-agent workflow execution.
+
+### Sprint 9 (Jan 19 - Jan 30, 2026): Stabilization and Contract Alignment
+
+- **What we did:** Verified migration parity, aligned step taxonomy and execution contracts, consolidated docs.
+- **Original assumption:** Migration completion implied operational readiness.
+- **Problem encountered:** Post-migration drift risks remained in contracts and behavior expectations.
+- **How we resolved:** Performed explicit stabilization and methodology/runtime realignment.
+- **Trajectory change:** Formalized post-migration validation as required phase, not optional cleanup.
+- **Relevance:** Protected guidance integrity by ensuring new runtime preserved methodology semantics.
+
+### Sprint 10 (Feb 1 - Feb 14, 2026): Documentation Checkpoint as Control Mechanism
+
+- **What we did:** Archived legacy plans, tightened requirements, and recorded post-migration methodology checkpoints.
+- **Original assumption:** Documentation naturally tracks implementation.
+- **Problem encountered:** Architectural change outpaced docs, risking contradictory guidance and design confusion.
+- **How we resolved:** Used checkpoint-driven documentation governance.
+- **Trajectory change:** Documentation became an active control surface for system correctness.
+- **Relevance:** Guidance quality depends on canonical, current definitions of workflow and constraints.
+
+### Sprint 11 (Feb 15 - Feb 28, 2026): Foundation Hardening for Methodology Contracts
+
+- **What we did:** Completed Story 2.1, hardened deterministic publish and project pinning guarantees, improved lifecycle/eligibility reliability.
+- **Original assumption:** Foundational methodology flows were mostly complete after prior architecture work.
+- **Problem encountered:** Persistence and scope guarantees still allowed subtle runtime drift.
+- **How we resolved:** Enforced deterministic publish/pinning behavior and service hardening.
+- **Trajectory change:** Shifted from feature introduction to contract enforcement.
+- **Relevance:** Strong guarantees are essential for trustworthy guidance outputs.
+
+### Sprint 12 (Mar 1 - Mar 14, 2026): Facts CRUD and Canonical Persistence
+
+- **What we did:** Implemented dialog-driven facts CRUD, version-scoped routes, canonical persistence fixes, and supporting tests.
+- **Original assumption:** Methodology facts could remain loosely managed.
+- **Problem encountered:** Weak fact lifecycle control undermined consistency across planning/execution contexts.
+- **How we resolved:** Introduced stricter version-scoped facts handling and canonical persistence discipline.
+- **Trajectory change:** Elevated fact management from convenience feature to core methodology integrity mechanism.
+- **Relevance:** Guidance without canonical facts becomes inconsistent; this sprint directly addressed that risk.
+
+### Sprint 13 (Mar 15 - Mar 28, 2026): Cardinality and Runtime Model Closure
+
+- **What we did:** Added cardinality end-to-end across schema/contracts/UI and expanded validation around work-unit/fact mutation.
+- **Original assumption:** Existing data model semantics were sufficient for downstream execution behavior.
+- **Problem encountered:** Ambiguous cardinality and runtime entity semantics created inconsistency and edge-case failures.
+- **How we resolved:** Propagated cardinality explicitly across API, DB mapping, and UI, with broader tests.
+- **Trajectory change:** Moved toward stricter formalization of runtime model semantics.
+- **Relevance:** High-quality guidance requires unambiguous model constraints and predictable mutation behavior.
+
+### Sprint 14 (Mar 29 - Apr 11, 2026, in progress): L3 Runtime Execution Correctness
+
+- **What we did (to checkpoint):** Unified runtime slice wiring, fixed transition-binding scope, improved start-gate details, added null-safe condition handling.
+- **Original assumption:** Existing transition logic would scale to L3 without major corrections.
+- **Problem encountered:** Workflow binding and condition-tree edge cases produced incorrect selection/gate behavior.
+- **How we resolved:** Scoped bindings more precisely, improved guidance derivation, and hardened condition evaluation paths.
+- **Trajectory change:** Current focus is parity and correctness closure before expanding capability.
+- **Relevance:** This is direct continuation of the original mission: reliable, explainable guidance under real workflow complexity.
+
+## Why the Infrastructure and Features Changed but the Spirit Stayed Intact
+
+The architecture changed (including a major runtime migration), the data contracts became stricter, and several initial decisions were replaced. This was not drift from the goal; it was convergence toward a stronger solution to the same core problem:
+
+- from static methodology documents to executable methodology data,
+- from implicit behavior to deterministic contracts,
+- from opaque flow completion to inspectable, evidence-bearing outputs,
+- from provisional orchestration to governable runtime semantics.
+
+In short: the implementation approach evolved significantly, but the core Chiron promise remained constant — provide practical guidance for complex agentic development through observable, controllable, and trustworthy workflow execution.
