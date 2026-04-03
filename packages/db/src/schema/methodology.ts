@@ -470,6 +470,194 @@ export const methodologyWorkflowEdges = sqliteTable(
   ],
 );
 
+export const methodologyWorkflowFormSteps = sqliteTable(
+  "methodology_workflow_form_steps",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    workflowId: text("workflow_definition_id")
+      .notNull()
+      .references(() => methodologyWorkflows.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    label: text("label"),
+    descriptionJson: text("description_json", { mode: "json" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .default(timestampDefault)
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("methodology_workflow_form_steps_wid_key_idx").on(table.workflowId, table.key),
+    index("methodology_workflow_form_steps_wid_idx").on(table.workflowId),
+  ],
+);
+
+export const methodologyWorkflowFormFields = sqliteTable(
+  "methodology_workflow_form_fields",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    formStepId: text("form_step_id")
+      .notNull()
+      .references(() => methodologyWorkflowFormSteps.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    label: text("label"),
+    valueType: text("value_type").notNull(),
+    required: integer("required", { mode: "boolean" }).notNull().default(false),
+    inputJson: text("input_json", { mode: "json" }).notNull(),
+    descriptionJson: text("description_json", { mode: "json" }),
+    sortOrder: integer("sort_order").notNull(),
+  },
+  (table) => [
+    uniqueIndex("methodology_workflow_form_fields_step_key_idx").on(table.formStepId, table.key),
+    index("methodology_workflow_form_fields_step_order_idx").on(table.formStepId, table.sortOrder),
+  ],
+);
+
+export const methodologyWorkflowContextFactDefinitions = sqliteTable(
+  "methodology_workflow_context_fact_definitions",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    workflowId: text("workflow_definition_id")
+      .notNull()
+      .references(() => methodologyWorkflows.id, { onDelete: "cascade" }),
+    factKey: text("fact_key").notNull(),
+    factKind: text("fact_kind").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .default(timestampDefault)
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("methodology_workflow_context_fact_defs_wid_key_idx").on(
+      table.workflowId,
+      table.factKey,
+    ),
+    index("methodology_workflow_context_fact_defs_wid_kind_idx").on(
+      table.workflowId,
+      table.factKind,
+    ),
+  ],
+);
+
+export const methodologyWorkflowContextFactPlainValues = sqliteTable(
+  "methodology_workflow_context_fact_plain_values",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    contextFactDefinitionId: text("context_fact_definition_id")
+      .notNull()
+      .references(() => methodologyWorkflowContextFactDefinitions.id, { onDelete: "cascade" }),
+    valueType: text("value_type").notNull(),
+  },
+  (table) => [uniqueIndex("methodology_wf_ctx_plain_def_idx").on(table.contextFactDefinitionId)],
+);
+
+export const methodologyWorkflowContextFactExternalBindings = sqliteTable(
+  "methodology_workflow_context_fact_external_bindings",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    contextFactDefinitionId: text("context_fact_definition_id")
+      .notNull()
+      .references(() => methodologyWorkflowContextFactDefinitions.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(),
+    bindingKey: text("binding_key").notNull(),
+  },
+  (table) => [uniqueIndex("methodology_wf_ctx_external_def_idx").on(table.contextFactDefinitionId)],
+);
+
+export const methodologyWorkflowContextFactWorkflowReferences = sqliteTable(
+  "methodology_workflow_context_fact_workflow_refs",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    contextFactDefinitionId: text("context_fact_definition_id")
+      .notNull()
+      .references(() => methodologyWorkflowContextFactDefinitions.id, { onDelete: "cascade" }),
+    workflowDefinitionId: text("workflow_definition_id")
+      .notNull()
+      .references(() => methodologyWorkflows.id, { onDelete: "restrict" }),
+  },
+  (table) => [uniqueIndex("methodology_wf_ctx_wf_ref_def_idx").on(table.contextFactDefinitionId)],
+);
+
+export const methodologyWorkflowContextFactWorkUnitReferences = sqliteTable(
+  "methodology_workflow_context_fact_work_unit_refs",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    contextFactDefinitionId: text("context_fact_definition_id")
+      .notNull()
+      .references(() => methodologyWorkflowContextFactDefinitions.id, { onDelete: "cascade" }),
+    workUnitTypeKey: text("work_unit_type_key").notNull(),
+  },
+  (table) => [uniqueIndex("methodology_wf_ctx_wu_ref_def_idx").on(table.contextFactDefinitionId)],
+);
+
+export const methodologyWorkflowContextFactArtifactReferences = sqliteTable(
+  "methodology_workflow_context_fact_artifact_refs",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    contextFactDefinitionId: text("context_fact_definition_id")
+      .notNull()
+      .references(() => methodologyWorkflowContextFactDefinitions.id, { onDelete: "cascade" }),
+    artifactSlotKey: text("artifact_slot_key").notNull(),
+  },
+  (table) => [
+    uniqueIndex("methodology_wf_ctx_artifact_ref_def_idx").on(table.contextFactDefinitionId),
+  ],
+);
+
+export const methodologyWorkflowContextFactDraftSpecs = sqliteTable(
+  "methodology_workflow_context_fact_draft_specs",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    contextFactDefinitionId: text("context_fact_definition_id")
+      .notNull()
+      .references(() => methodologyWorkflowContextFactDefinitions.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    uniqueIndex("methodology_wf_ctx_draft_spec_def_idx").on(table.contextFactDefinitionId),
+  ],
+);
+
+export const methodologyWorkflowContextFactDraftSpecFields = sqliteTable(
+  "methodology_workflow_context_fact_draft_spec_fields",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    draftSpecId: text("draft_spec_id")
+      .notNull()
+      .references(() => methodologyWorkflowContextFactDraftSpecs.id, { onDelete: "cascade" }),
+    fieldKey: text("field_key").notNull(),
+    valueType: text("value_type").notNull(),
+    required: integer("required", { mode: "boolean" }).notNull().default(false),
+    descriptionJson: text("description_json", { mode: "json" }),
+  },
+  (table) => [
+    uniqueIndex("methodology_wf_ctx_draft_spec_field_key_idx").on(
+      table.draftSpecId,
+      table.fieldKey,
+    ),
+  ],
+);
+
 export const methodologyTransitionWorkflowBindings = sqliteTable(
   "methodology_transition_workflow_bindings",
   {

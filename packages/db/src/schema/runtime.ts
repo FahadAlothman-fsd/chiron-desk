@@ -5,6 +5,7 @@ import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import {
   methodologyArtifactSlotDefinitions,
   methodologyFactDefinitions,
+  methodologyWorkflowFormSteps,
   methodologyWorkUnitTypes,
   workUnitFactDefinitions,
   workUnitLifecycleStates,
@@ -259,5 +260,79 @@ export const artifactSnapshotFiles = sqliteTable(
     index("artifact_snapshot_files_snapshot_idx").on(table.artifactSnapshotId),
     index("artifact_snapshot_files_snapshot_path_idx").on(table.artifactSnapshotId, table.filePath),
     index("artifact_snapshot_files_member_status_idx").on(table.memberStatus),
+  ],
+);
+
+export const stepExecutions = sqliteTable(
+  "step_executions",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    workflowExecutionId: text("workflow_execution_id")
+      .notNull()
+      .references(() => workflowExecutions.id, { onDelete: "cascade" }),
+    stepDefinitionId: text("step_definition_id")
+      .notNull()
+      .references(() => methodologyWorkflowFormSteps.id, { onDelete: "restrict" }),
+    stepType: text("step_type").notNull(),
+    status: text("status").notNull(),
+    activatedAt: integer("activated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(timestampDefault),
+    completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+    progressionData: text("progression_data", { mode: "json" }),
+  },
+  (table) => [
+    index("step_executions_workflow_idx").on(
+      table.workflowExecutionId,
+      table.activatedAt,
+      table.id,
+    ),
+    index("step_executions_step_definition_idx").on(table.stepDefinitionId),
+    index("step_executions_status_idx").on(table.status),
+  ],
+);
+
+export const formStepExecutionState = sqliteTable(
+  "form_step_execution_state",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    stepExecutionId: text("step_execution_id")
+      .notNull()
+      .references(() => stepExecutions.id, { onDelete: "cascade" }),
+    draftValuesJson: text("draft_values_json", { mode: "json" }),
+    submittedSnapshotJson: text("submitted_snapshot_json", { mode: "json" }),
+    submittedAt: integer("submitted_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [index("form_step_execution_state_step_idx").on(table.stepExecutionId)],
+);
+
+export const workflowExecutionContextFacts = sqliteTable(
+  "workflow_execution_context_facts",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    workflowExecutionId: text("workflow_execution_id")
+      .notNull()
+      .references(() => workflowExecutions.id, { onDelete: "cascade" }),
+    factKey: text("fact_key").notNull(),
+    factKind: text("fact_kind").notNull(),
+    valueJson: text("value_json", { mode: "json" }),
+    sourceStepExecutionId: text("source_step_execution_id").references(() => stepExecutions.id, {
+      onDelete: "set null",
+    }),
+  },
+  (table) => [
+    index("workflow_execution_context_facts_workflow_idx").on(table.workflowExecutionId),
+    index("workflow_execution_context_facts_key_kind_idx").on(
+      table.workflowExecutionId,
+      table.factKey,
+      table.factKind,
+    ),
+    index("workflow_execution_context_facts_source_step_idx").on(table.sourceStepExecutionId),
   ],
 );

@@ -377,8 +377,12 @@ const canonicalSetupFactDefinitions = [
       "Use this fact to choose the setup path.",
     ),
     validationJson: {
-      kind: "allowed-values" as const,
-      values: ["greenfield", "brownfield"],
+      kind: "json-schema" as const,
+      schemaDialect: "draft-2020-12",
+      schema: {
+        type: "string",
+        enum: ["greenfield", "brownfield"],
+      },
     },
   },
   {
