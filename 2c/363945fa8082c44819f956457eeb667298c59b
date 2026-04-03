@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.23",
+  "base_commit_sha": "2c363945fa8082c44819f956457eeb667298c59b",
+  "prompts": {
+    "cfc4637af5e2b9c9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2b04080b9ffevR7Ln04z504GOo",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman <dev.fahad.alothman@gmail.com>",
+      "messages": [],
+      "total_additions": 11,
+      "total_deletions": 11,
+      "accepted_lines": 11,
+      "overriden_lines": 0
+    }
+  }
+}
