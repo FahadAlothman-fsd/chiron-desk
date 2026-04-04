@@ -1,0 +1,17 @@
+packages/db/src/index.ts
+  698ba72ff7a47394 33
+packages/api/src/routers/index.ts
+  698ba72ff7a47394 29,49,67-77
+packages/db/src/methodology-repository.ts
+  698ba72ff7a47394 2607-2644
+packages/workflow-engine/src/layers/live.ts
+  698ba72ff7a47394 47
+apps/server/src/index.ts
+  698ba72ff7a47394 42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.23",
+  "base_commit_sha": "537b5543910c4e394397537608c479b2a091bdc9",
+  "prompts": {}
+}
