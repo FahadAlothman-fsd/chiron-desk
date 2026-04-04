@@ -23,6 +23,7 @@ import {
   createTransitionExecutionRepoLayer,
   createWorkflowExecutionRepoLayer,
   createWorkUnitFactRepoLayer,
+  createStepExecutionRepoLayer,
 } from "@chiron/db";
 import { Layer } from "effect";
 
@@ -38,6 +39,7 @@ const appRouter = createAppRouter(
     createProjectFactRepoLayer(db),
     createWorkUnitFactRepoLayer(db),
     createArtifactRepoLayer(db),
+    createStepExecutionRepoLayer(db),
   ),
 );
 

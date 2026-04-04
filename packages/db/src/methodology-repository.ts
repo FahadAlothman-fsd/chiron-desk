@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { Effect, Layer } from "effect";
 import {
@@ -31,6 +31,7 @@ import type {
   MethodologyVersionDefinition,
   WorkflowDefinition,
 } from "@chiron/contracts/methodology/version";
+import type { WorkflowContextFactDto } from "@chiron/contracts/methodology/workflow";
 import {
   methodologyDefinitions,
   methodologyVersions,
@@ -49,6 +50,14 @@ import {
   workUnitFactDefinitions,
   methodologyArtifactSlotDefinitions,
   methodologyArtifactSlotTemplates,
+  methodologyWorkflowContextFactArtifactReferences,
+  methodologyWorkflowContextFactDefinitions,
+  methodologyWorkflowContextFactDraftSpecFields,
+  methodologyWorkflowContextFactDraftSpecs,
+  methodologyWorkflowContextFactExternalBindings,
+  methodologyWorkflowContextFactPlainValues,
+  methodologyWorkflowContextFactWorkUnitReferences,
+  methodologyWorkflowContextFactWorkflowReferences,
 } from "./schema/methodology";
 
 type DB = LibSQLDatabase<Record<string, unknown>>;
@@ -1007,6 +1016,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             id: methodologyWorkflows.id,
             key: methodologyWorkflows.key,
             displayName: methodologyWorkflows.displayName,
+            descriptionJson: methodologyWorkflows.descriptionJson,
             workUnitTypeKey: methodologyWorkUnitTypes.key,
             metadataJson: methodologyWorkflows.metadataJson,
             guidanceJson: methodologyWorkflows.guidanceJson,
@@ -1079,8 +1089,10 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
         }
 
         return workflowRows.map((workflowRow) => ({
+          workflowDefinitionId: workflowRow.id,
           key: workflowRow.key,
           displayName: workflowRow.displayName ?? undefined,
+          description: workflowRow.descriptionJson ?? undefined,
           workUnitTypeKey: workflowRow.workUnitTypeKey,
           metadata: workflowRow.metadataJson as WorkflowDefinition["metadata"] | undefined,
           guidance: workflowRow.guidanceJson as WorkflowDefinition["guidance"] | undefined,
@@ -2369,6 +2381,310 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             evidenceRef: row.id,
           } satisfies PublicationEvidence;
         }) as readonly PublicationEvidence[];
+      }),
+
+    listWorkflowContextFactsByDefinitionId: ({ versionId, workflowDefinitionId }) =>
+      dbEffect("methodology.listWorkflowContextFactsByDefinitionId", async () => {
+        const workflowRows = await db
+          .select({ id: methodologyWorkflows.id })
+          .from(methodologyWorkflows)
+          .where(
+            and(
+              eq(methodologyWorkflows.methodologyVersionId, versionId),
+              eq(methodologyWorkflows.id, workflowDefinitionId),
+            ),
+          )
+          .limit(1);
+
+        if (workflowRows.length === 0) {
+          throw new Error(
+            `Workflow not found for versionId=${versionId}, workflowDefinitionId=${workflowDefinitionId}`,
+          );
+        }
+
+        const definitionRows = await db
+          .select({
+            id: methodologyWorkflowContextFactDefinitions.id,
+            factKey: methodologyWorkflowContextFactDefinitions.factKey,
+            factKind: methodologyWorkflowContextFactDefinitions.factKind,
+          })
+          .from(methodologyWorkflowContextFactDefinitions)
+          .where(eq(methodologyWorkflowContextFactDefinitions.workflowId, workflowDefinitionId))
+          .orderBy(
+            asc(methodologyWorkflowContextFactDefinitions.createdAt),
+            asc(methodologyWorkflowContextFactDefinitions.id),
+          );
+
+        if (definitionRows.length === 0) {
+          return [];
+        }
+
+        const definitionIds = definitionRows.map((row) => row.id);
+        type FactValueType = "string" | "number" | "boolean" | "json";
+
+        const [
+          plainValueRows,
+          externalBindingRows,
+          workflowReferenceRows,
+          workUnitReferenceRows,
+          artifactReferenceRows,
+          draftSpecRows,
+        ] = await Promise.all([
+          db
+            .select()
+            .from(methodologyWorkflowContextFactPlainValues)
+            .where(
+              inArray(
+                methodologyWorkflowContextFactPlainValues.contextFactDefinitionId,
+                definitionIds,
+              ),
+            ),
+          db
+            .select()
+            .from(methodologyWorkflowContextFactExternalBindings)
+            .where(
+              inArray(
+                methodologyWorkflowContextFactExternalBindings.contextFactDefinitionId,
+                definitionIds,
+              ),
+            ),
+          db
+            .select()
+            .from(methodologyWorkflowContextFactWorkflowReferences)
+            .where(
+              inArray(
+                methodologyWorkflowContextFactWorkflowReferences.contextFactDefinitionId,
+                definitionIds,
+              ),
+            ),
+          db
+            .select()
+            .from(methodologyWorkflowContextFactWorkUnitReferences)
+            .where(
+              inArray(
+                methodologyWorkflowContextFactWorkUnitReferences.contextFactDefinitionId,
+                definitionIds,
+              ),
+            ),
+          db
+            .select()
+            .from(methodologyWorkflowContextFactArtifactReferences)
+            .where(
+              inArray(
+                methodologyWorkflowContextFactArtifactReferences.contextFactDefinitionId,
+                definitionIds,
+              ),
+            ),
+          db
+            .select()
+            .from(methodologyWorkflowContextFactDraftSpecs)
+            .where(
+              inArray(
+                methodologyWorkflowContextFactDraftSpecs.contextFactDefinitionId,
+                definitionIds,
+              ),
+            ),
+        ]);
+
+        const plainByDefinitionId = new Map(
+          plainValueRows.map((row) => [row.contextFactDefinitionId, row]),
+        );
+        const externalByDefinitionId = new Map(
+          externalBindingRows.map((row) => [row.contextFactDefinitionId, row]),
+        );
+        const workflowRefByDefinitionId = new Map(
+          workflowReferenceRows.map((row) => [row.contextFactDefinitionId, row]),
+        );
+        const workUnitRefByDefinitionId = new Map(
+          workUnitReferenceRows.map((row) => [row.contextFactDefinitionId, row]),
+        );
+        const artifactRefByDefinitionId = new Map(
+          artifactReferenceRows.map((row) => [row.contextFactDefinitionId, row]),
+        );
+        const draftSpecByDefinitionId = new Map(
+          draftSpecRows.map((row) => [row.contextFactDefinitionId, row]),
+        );
+        const draftSpecKeyById = new Map(draftSpecRows.map((row) => [row.id, ""]));
+        for (const row of definitionRows) {
+          const draftSpec = draftSpecByDefinitionId.get(row.id);
+          if (draftSpec) {
+            draftSpecKeyById.set(draftSpec.id, row.factKey);
+          }
+        }
+
+        const draftSpecIds = draftSpecRows.map((row) => row.id);
+        const draftSpecFieldRows =
+          draftSpecIds.length === 0
+            ? []
+            : await db
+                .select()
+                .from(methodologyWorkflowContextFactDraftSpecFields)
+                .where(
+                  inArray(methodologyWorkflowContextFactDraftSpecFields.draftSpecId, draftSpecIds),
+                )
+                .orderBy(
+                  asc(methodologyWorkflowContextFactDraftSpecFields.draftSpecId),
+                  asc(methodologyWorkflowContextFactDraftSpecFields.fieldKey),
+                );
+
+        const draftFieldsByDraftSpecId = new Map<string, typeof draftSpecFieldRows>();
+        for (const row of draftSpecFieldRows) {
+          const entries = draftFieldsByDraftSpecId.get(row.draftSpecId) ?? [];
+          entries.push(row);
+          draftFieldsByDraftSpecId.set(row.draftSpecId, entries);
+        }
+
+        return definitionRows.map((definition): WorkflowContextFactDto => {
+          switch (definition.factKind) {
+            case "plain_value": {
+              const row = plainByDefinitionId.get(definition.id);
+              if (!row) {
+                throw new Error(
+                  `Missing plain_value payload for context fact '${definition.factKey}' (${definition.id})`,
+                );
+              }
+              return {
+                kind: "plain_value",
+                key: definition.factKey,
+                valueType: row.valueType as FactValueType,
+              };
+            }
+            case "external_binding": {
+              const row = externalByDefinitionId.get(definition.id);
+              if (!row) {
+                throw new Error(
+                  `Missing external_binding payload for context fact '${definition.factKey}' (${definition.id})`,
+                );
+              }
+              return {
+                kind: "external_binding",
+                key: definition.factKey,
+                source: { provider: row.provider, bindingKey: row.bindingKey },
+              };
+            }
+            case "workflow_reference": {
+              const row = workflowRefByDefinitionId.get(definition.id);
+              if (!row) {
+                throw new Error(
+                  `Missing workflow_reference payload for context fact '${definition.factKey}' (${definition.id})`,
+                );
+              }
+              return {
+                kind: "workflow_reference",
+                key: definition.factKey,
+                workflowDefinitionId: row.workflowDefinitionId,
+              };
+            }
+            case "work_unit_reference": {
+              const row = workUnitRefByDefinitionId.get(definition.id);
+              if (!row) {
+                throw new Error(
+                  `Missing work_unit_reference payload for context fact '${definition.factKey}' (${definition.id})`,
+                );
+              }
+              return {
+                kind: "work_unit_reference",
+                key: definition.factKey,
+                workUnitTypeKey: row.workUnitTypeKey,
+              };
+            }
+            case "artifact_reference": {
+              const row = artifactRefByDefinitionId.get(definition.id);
+              if (!row) {
+                throw new Error(
+                  `Missing artifact_reference payload for context fact '${definition.factKey}' (${definition.id})`,
+                );
+              }
+              return {
+                kind: "artifact_reference",
+                key: definition.factKey,
+                artifactSlotKey: row.artifactSlotKey,
+              };
+            }
+            case "draft_spec": {
+              const row = draftSpecByDefinitionId.get(definition.id);
+              if (!row) {
+                throw new Error(
+                  `Missing draft_spec payload for context fact '${definition.factKey}' (${definition.id})`,
+                );
+              }
+              const fields = (draftFieldsByDraftSpecId.get(row.id) ?? []).map((field) => ({
+                key: field.fieldKey,
+                valueType: field.valueType as FactValueType,
+                required: field.required,
+                ...(field.descriptionJson
+                  ? { descriptionJson: field.descriptionJson as { markdown: string } }
+                  : {}),
+              }));
+              return {
+                kind: "draft_spec",
+                key: definition.factKey,
+                fields,
+              };
+            }
+            case "draft_spec_field": {
+              const row = draftSpecFieldRows.find((entry) => entry.fieldKey === definition.factKey);
+              if (!row) {
+                throw new Error(
+                  `Missing draft_spec_field payload for context fact '${definition.factKey}' (${definition.id})`,
+                );
+              }
+              const draftSpecKey = draftSpecKeyById.get(row.draftSpecId);
+              if (!draftSpecKey) {
+                throw new Error(
+                  `Missing draftSpecKey for context fact '${definition.factKey}' (${definition.id})`,
+                );
+              }
+              return {
+                kind: "draft_spec_field",
+                key: definition.factKey,
+                draftSpecKey,
+                fieldKey: row.fieldKey,
+                valueType: row.valueType as FactValueType,
+              };
+            }
+            default:
+              throw new Error(`Unsupported context fact kind '${definition.factKind}'`);
+          }
+        });
+      }),
+
+    updateWorkflowMetadataByDefinitionId: (input: {
+      versionId: string;
+      workUnitTypeKey: string;
+      workflowDefinitionId: string;
+      key: string;
+      displayName: string | null;
+      descriptionJson: unknown;
+    }) =>
+      dbEffect("methodology.updateWorkflowMetadataByDefinitionId", async () => {
+        const updated = await db
+          .update(methodologyWorkflows)
+          .set({
+            key: input.key,
+            displayName: input.displayName,
+            descriptionJson: input.descriptionJson,
+          })
+          .where(
+            and(
+              eq(methodologyWorkflows.methodologyVersionId, input.versionId),
+              eq(methodologyWorkflows.workUnitTypeKey, input.workUnitTypeKey),
+              eq(methodologyWorkflows.id, input.workflowDefinitionId),
+            ),
+          )
+          .returning();
+
+        if (updated.length === 0) {
+          throw new Error("Workflow not found");
+        }
+
+        const row = updated[0]!;
+        return {
+          workflowDefinitionId: row.id,
+          key: row.key,
+          displayName: row.displayName,
+          descriptionJson: row.descriptionJson,
+        };
       }),
   });
 }

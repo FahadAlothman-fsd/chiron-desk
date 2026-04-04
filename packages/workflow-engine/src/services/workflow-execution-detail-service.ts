@@ -10,6 +10,7 @@ import {
   ExecutionReadRepository,
   type WorkflowExecutionDetailReadModel,
 } from "../repositories/execution-read-repository";
+import { StepExecutionRepository } from "../repositories/step-execution-repository";
 
 const toIso = (value: Date | null): string | undefined => (value ? value.toISOString() : undefined);
 
@@ -84,6 +85,7 @@ export const WorkflowExecutionDetailServiceLive = Layer.effect(
   WorkflowExecutionDetailService,
   Effect.gen(function* () {
     const readRepo = yield* ExecutionReadRepository;
+    const stepRepo = yield* StepExecutionRepository;
 
     const getWorkflowExecutionDetail = (input: GetWorkflowExecutionDetailInput) =>
       Effect.gen(function* () {
@@ -102,6 +104,15 @@ export const WorkflowExecutionDetailServiceLive = Layer.effect(
           detail.transitionExecution.status === "active" &&
           (detail.workflowExecution.status === "active" ||
             detail.workflowExecution.status === "completed");
+
+        const stepExecutions = yield* stepRepo.listStepExecutionsForWorkflow(
+          detail.workflowExecution.id,
+        );
+
+        const stepsSurfaceMessage =
+          stepExecutions.length === 0
+            ? "No step execution exists yet. Activate the first step to begin runtime execution."
+            : `Step execution runtime is active (${stepExecutions.length} execution${stepExecutions.length === 1 ? "" : "s"} recorded).`;
 
         return {
           workflowExecution: {
@@ -163,7 +174,7 @@ export const WorkflowExecutionDetailServiceLive = Layer.effect(
           },
           stepsSurface: {
             mode: "deferred",
-            message: "Workflow step runtime details are coming later in the L3 slice.",
+            message: stepsSurfaceMessage,
           },
         } satisfies GetWorkflowExecutionDetailOutput;
       });

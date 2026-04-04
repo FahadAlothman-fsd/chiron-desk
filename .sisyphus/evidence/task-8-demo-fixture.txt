@@ -1,0 +1,14 @@
+2026-04-03 task-8 demo fixture verification
+
+Command:
+`bunx vitest run "packages/scripts/src/tests/seeding/l3-slice-1-demo-fixture.test.ts"`
+
+Result:
+- Test Files: 1 passed (1)
+- Tests: 3 passed (3)
+- Duration: 1.39s
+
+Assertions locked:
+- Baseline canonical seeds still keep zero workflow steps/edges.
+- Dedicated WU.SETUP slice-1 fixture still seeds exactly two Form steps and one edge.
+- Deterministic bindings remain correct for external binding, workflow ref, work-unit ref, artifact ref, and draft-spec references.

@@ -79,6 +79,7 @@ export const WorkflowEdge = Schema.Struct({
 export type WorkflowEdge = typeof WorkflowEdge.Type;
 
 export const WorkflowDefinition = Schema.Struct({
+  workflowDefinitionId: Schema.optional(Schema.NonEmptyString),
   key: Schema.NonEmptyString,
   displayName: Schema.optional(Schema.String),
   description: Schema.optional(Schema.Union(GuidanceMarkdownContent, Schema.String)),

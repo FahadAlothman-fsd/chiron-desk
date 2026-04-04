@@ -220,9 +220,14 @@ export function ProjectFactDetailRoute() {
                   <li key={valueRow.projectFactInstanceId}>
                     <Card frame="flat" tone="runtime" className="border-border/70 bg-background/40">
                       <CardHeader className="pb-2">
-                        <CardDescription className="text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
-                          Instance {valueRow.projectFactInstanceId}
-                        </CardDescription>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <CardDescription className="text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
+                            Instance {valueRow.projectFactInstanceId}
+                          </CardDescription>
+                          <span className="border border-primary/50 bg-primary/15 px-2 py-1 text-[0.62rem] uppercase tracking-[0.12em] text-primary">
+                            Active
+                          </span>
+                        </div>
                         <CardTitle className="text-sm">Current value</CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-3">
@@ -285,6 +290,20 @@ export function ProjectFactDetailRoute() {
                 ))}
               </ul>
             ) : null}
+          </section>
+
+          <section className="space-y-2 border border-border/80 bg-background p-4">
+            <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
+              Manual authoring (project facts only)
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Slice-1 scope: this page is the only runtime manual-authoring surface for fact
+              instances. Work-unit, artifact, and workflow references stay fixture-seeded and are
+              not manually created here.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Enter JSON values in the actions panel below to add or update project fact instances.
+            </p>
           </section>
 
           <section className="space-y-3 border border-border/80 bg-background p-4">

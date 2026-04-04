@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MethodologyWorkspaceShell } from "@/features/methodologies/workspace-shell";
 import { cn } from "@/lib/utils";
@@ -61,6 +61,10 @@ function renderWorkflowStatus(
   }
 }
 
+function requiresStepActivation(message: string): boolean {
+  return message.toLowerCase().includes("no step execution exists yet");
+}
+
 export const Route = createFileRoute(
   "/projects/$projectId/workflow-executions/$workflowExecutionId",
 )({
@@ -115,6 +119,30 @@ export function WorkflowExecutionDetailRoute() {
               workflowExecutionId: result.workflowExecutionId,
             },
             replace: true,
+          });
+        }
+      },
+    }),
+  );
+
+  const activateFirstStepMutation = useMutation(
+    orpc.project.activateFirstWorkflowStepExecution.mutationOptions({
+      onSuccess: async (result) => {
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: runtimeWorkflowExecutionDetailQueryKey(projectId, workflowExecutionId),
+          }),
+          queryClient.invalidateQueries({ queryKey: runtimeActiveWorkflowsQueryKey(projectId) }),
+          queryClient.invalidateQueries({ queryKey: runtimeGuidanceActiveQueryKey(projectId) }),
+        ]);
+
+        if (result?.stepExecutionId) {
+          await navigate({
+            to: "/projects/$projectId/step-executions/$stepExecutionId",
+            params: {
+              projectId,
+              stepExecutionId: result.stepExecutionId,
+            },
           });
         }
       },
@@ -345,10 +373,47 @@ export function WorkflowExecutionDetailRoute() {
           </section>
 
           <section className="space-y-3 border border-border/80 bg-background p-4">
-            <h2 className="text-[0.72rem] uppercase tracking-[0.16em] text-muted-foreground">
-              Steps coming later
-            </h2>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-[0.72rem] uppercase tracking-[0.16em] text-muted-foreground">
+                Step execution runtime
+              </h2>
+              <span
+                className={cn(
+                  "border px-2 py-1 text-[0.65rem] uppercase tracking-[0.14em]",
+                  requiresStepActivation(detail.stepsSurface.message)
+                    ? "border-border/70 bg-background/40 text-muted-foreground"
+                    : "border-primary/50 bg-primary/15 text-primary",
+                )}
+              >
+                {requiresStepActivation(detail.stepsSurface.message)
+                  ? "awaiting activation"
+                  : "active"}
+              </span>
+            </div>
+
             <p className="text-sm text-muted-foreground">{detail.stepsSurface.message}</p>
+
+            {requiresStepActivation(detail.stepsSurface.message) ? (
+              <Button
+                type="button"
+                size="sm"
+                className="rounded-none text-[0.68rem] uppercase tracking-[0.12em]"
+                disabled={activateFirstStepMutation.isPending}
+                onClick={async () => {
+                  await activateFirstStepMutation.mutateAsync({
+                    projectId,
+                    workflowExecutionId,
+                  });
+                }}
+              >
+                Activate first step
+              </Button>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Open transition/workflow context above to inspect lineage, then jump into step
+                detail from runtime step links.
+              </p>
+            )}
           </section>
 
           <section className="flex flex-wrap gap-2">

@@ -1,5 +1,6 @@
 import * as Schema from "effect/Schema";
 
+import { DeferredWorkflowStepType, FormStepPayload } from "../methodology/workflow.js";
 import { RuntimeProjectFactDetailDefinition } from "./facts.js";
 import { TransitionExecutionStatus, WorkflowExecutionStatus } from "./status.js";
 import { RuntimeWorkUnitFactDetailDefinition, RuntimeWorkUnitIdentity } from "./work-units.js";
@@ -13,6 +14,40 @@ export type ProjectExecutionsLegacyCompatibilityMode =
 
 export const RuntimeExcludedL3Entity = Schema.Literal("step_executions");
 export type RuntimeExcludedL3Entity = typeof RuntimeExcludedL3Entity.Type;
+
+export const RuntimeStepExecutionDto = Schema.Union(
+  Schema.Struct({
+    stepExecutionId: Schema.NonEmptyString,
+    stepType: Schema.Literal("form"),
+    mode: Schema.Literal("captured"),
+    formStep: FormStepPayload,
+    submittedAt: Schema.optional(Schema.String),
+  }),
+  Schema.Struct({
+    stepExecutionId: Schema.NonEmptyString,
+    stepType: DeferredWorkflowStepType,
+    mode: Schema.Literal("deferred"),
+    defaultMessage: Schema.String,
+  }),
+);
+export type RuntimeStepExecutionDto = typeof RuntimeStepExecutionDto.Type;
+
+export const SubmitFormStepExecutionInput = Schema.Struct({
+  projectId: Schema.NonEmptyString,
+  workflowExecutionId: Schema.NonEmptyString,
+  stepExecutionId: Schema.NonEmptyString,
+  values: Schema.Record({
+    key: Schema.String,
+    value: Schema.Unknown,
+  }),
+});
+export type SubmitFormStepExecutionInput = typeof SubmitFormStepExecutionInput.Type;
+
+export const SubmitFormStepExecutionOutput = Schema.Struct({
+  stepExecutionId: Schema.NonEmptyString,
+  status: Schema.Literal("captured"),
+});
+export type SubmitFormStepExecutionOutput = typeof SubmitFormStepExecutionOutput.Type;
 
 export const ProjectExecutionsCompatibility = Schema.Struct({
   table: Schema.Literal("project_executions"),

@@ -1,156 +1,113 @@
-# F2: Code Quality Review — unified-l1-l2-runtime-slice
+# F2: Code Quality Review — l3-step-definition-execution-final (FINAL WAVE)
 
-**Date:** 2026-03-29
-**Verdict:** ❌ REJECT
+**Date:** 2026-04-03  
+**Verdict:** ❌ **REJECT**
 
-## Scope reviewed
+## Verification evidence run
 
-- `packages/contracts/src/runtime/*`
-- `packages/db/src/runtime-repositories/*`
-- `packages/workflow-engine/src/services/*`
-- `packages/api/src/routers/project-runtime.ts`
-- Changed runtime web routes:
-  - `apps/web/src/routes/projects.$projectId.index.tsx`
-  - `apps/web/src/routes/projects.$projectId.facts.tsx`
-  - `apps/web/src/routes/projects.$projectId.transitions.tsx`
-  - `apps/web/src/routes/projects.$projectId.work-units.tsx`
-- Relevant tests:
-  - `packages/api/src/tests/architecture/runtime-router-boundary.test.ts`
-  - `packages/workflow-engine/src/tests/architecture/runtime-boundary-lock.test.ts`
-  - `packages/api/src/tests/routers/project-runtime-*.test.ts`
-  - `apps/web/src/tests/routes/runtime-query-key-separation.test.tsx`
+- Full required command set executed and recorded in:
+  - `.sisyphus/evidence/final-wave-tests.log`
+- Result: **19 PASS / 2 FAIL** (`TOTAL_FAILURES=2`)
+- Failed commands:
+  1. `OPENCODE_SERVER_PASSWORD=test bunx vitest run packages/agent-runtime/src/tests/opencode/opencode-lifecycle.test.ts`
+  2. `OPENCODE_SERVER_PASSWORD=test bunx vitest run packages/agent-runtime/src/tests/opencode/opencode-mcp-binding.test.ts`
 
-## Verification run
+Failure signature in both:
+- `HarnessInstanceError: Server exited with code 1`
+- OpenCode output references log path under `~/.local/share/opencode/log/...`
 
-- `lsp_diagnostics`: clean for reviewed contracts/db/workflow-engine/api files and the 4 changed web routes
-- `bun run check-types`: **FAILED**
-  - `apps/web/src/routes/projects.$projectId.index.tsx:111` — missing required `hasActiveTransition` search param in link to `/work-units`
-  - `apps/web/src/routes/projects.$projectId.facts.tsx:194` — missing required `search` prop in detail link
-  - `apps/web/src/routes/projects.$projectId.work-units.tsx:161` — missing required `search` prop in detail link
-  - Additional runtime-route type failures also remain in artifact/fact/state-machine detail pages
+## Architecture / boundary checks
 
-## Findings summary
+### 1) MCP transport stack
+- ✅ PASS
+- `apps/server/src/mcp/chiron-mcp-router.ts:6-7`
+  - `import { StreamableHTTPTransport } from "@hono/mcp"`
+  - `import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"`
 
-### Critical
+### 2) OpenCode SDK integration is real (not stubbed)
+- ✅ PASS
+- SDK imports and usage exist in adapter implementation:
+  - `packages/agent-runtime/src/opencode/opencode-server-manager-service.ts` (`createOpencode`)
+  - `packages/agent-runtime/src/opencode/opencode-client-factory-service.ts` (`createOpencodeClient`)
+  - `packages/agent-runtime/src/opencode/opencode-session-service.ts` (SDK `Event`/`Part`)
 
-1. **Runtime services are not composed into the real server/app layer.**
-   - `packages/api/src/routers/index.ts:30-56` builds `methodologyServiceLayer` only, then passes it into `createProjectRouter(...)`.
-   - `apps/server/src/index.ts:21-25` only provides methodology/lifecycle/project-context repo layers.
-   - Runtime procedures in `packages/api/src/routers/project-runtime.ts` depend on workflow-engine runtime services, but the app composition does not provide them.
-   - Result: runtime endpoints are not actually wired for production resolution.
+### 3) OpenCode does not leak into workflow-engine/api via SDK imports
+- ✅ PASS
+- `grep @opencode-ai/sdk` in `packages/workflow-engine/src` and `packages/api/src` returned no matches.
 
-2. **Command/detail runtime layer composition is incomplete.**
-   - `packages/workflow-engine/src/layers/live.ts:11-29` exports only read-oriented runtime services (`RuntimeGateService`, `RuntimeWorkflowIndexService`, `RuntimeFactService`, `RuntimeArtifactService`, `RuntimeOverviewService`, `RuntimeGuidanceService`, `RuntimeWorkUnitService`).
-   - It does **not** compose `TransitionExecutionDetailServiceLive`, `TransitionExecutionCommandServiceLive`, `WorkflowExecutionDetailServiceLive`, or `WorkflowExecutionCommandServiceLive`.
-   - `TransitionRuntimeGateService` is declared in `packages/workflow-engine/src/services/transition-execution-command-service.ts:51-63`, but no live implementation/layer is composed anywhere in production code.
+### 4) Router orchestration boundary in MCP transport
+- ⚠️ FAIL (still a code-quality finding)
+- `apps/server/src/mcp/chiron-mcp-router.ts:108-116` orchestrates two services directly in transport for `read_context_value`:
+  - `AgentStepRuntimeService`
+  - `StepContextQueryService`
 
-3. **Atomic command paths are declared via unsafe casts but not implemented by repository interfaces/layers.**
-   - `packages/workflow-engine/src/services/transition-execution-command-service.ts:65-81` adds optional `completeTransitionExecutionAtomically` and `choosePrimaryWorkflowForTransitionExecutionAtomically` via local cast types.
-   - `packages/workflow-engine/src/repositories/transition-execution-repository.ts:43-64` and `packages/workflow-engine/src/repositories/workflow-execution-repository.ts:34-60` do not declare those methods.
-   - `packages/db/src/runtime-repositories/transition-execution-repository.ts` and `packages/db/src/runtime-repositories/workflow-execution-repository.ts` do not implement them.
-   - Therefore `completeTransitionExecution` (`packages/workflow-engine/src/services/transition-execution-command-service.ts:254-269`) and `choosePrimaryWorkflowForTransitionExecution` (`:301-314`) will always fall into the “missing atomic ... capability” RepositoryError path.
+## Diagnostics / build
 
-### High
+- `lsp_diagnostics` run on key touched runtime files (MCP router, workflow detail service, opencode manager/client files): **clean**.
+- `bunx turbo build --filter=server --filter=web`: **PASS**.
 
-4. **Router/service type safety is broken by undeclared-method casts.**
-   - `RuntimeGuidanceService` only declares `getActive` and `streamCandidates` (`packages/workflow-engine/src/services/runtime-guidance-service.ts:45-55`), but router handler `getRuntimeStartGateDetail` casts the service to add `getRuntimeStartGateDetail` (`packages/api/src/routers/project-runtime.ts:414-417`).
-   - `RuntimeFactService` only declares read methods (`packages/workflow-engine/src/services/runtime-fact-service.ts:54-69`), but router mutation handlers cast in six extra mutation methods (`packages/api/src/routers/project-runtime.ts:540-613`).
-   - Relevant tests mask this with widened mocks:
-     - `packages/api/src/tests/routers/project-runtime-detail-endpoints.test.ts:24-49`
-     - `packages/api/src/tests/routers/project-runtime-mutations.test.ts:103-173`
-   - This defeats the claimed service-contract discipline.
-
-5. **Typed error handling is not disciplined for command/business failures.**
-   - Router maps `RepositoryError` to `INTERNAL_SERVER_ERROR` (`packages/api/src/routers/project-runtime.ts:220-226`).
-   - Command services manufacture `RepositoryError` for user/state validation failures (`packages/workflow-engine/src/services/transition-execution-command-service.ts:83-84`, `:118-135`, `:170-174`, `:204-258`; `packages/workflow-engine/src/services/workflow-execution-command-service.ts:11-12`, `:33-59`).
-   - Result: invalid transition/workflow operations become 500s instead of typed domain/client errors.
-
-6. **Changed runtime web routes are not type-safe under real route typing.**
-   - `apps/web/src/routes/projects.$projectId.index.tsx:108-112` links to `/work-units` without required `hasActiveTransition` search.
-   - `apps/web/src/routes/projects.$projectId.facts.tsx:194-199` omits required `search` for fact detail navigation.
-   - `apps/web/src/routes/projects.$projectId.work-units.tsx:161-166` omits required `search` for work-unit overview navigation.
-   - `bun run check-types` fails, so the runtime web slice is not verification-clean.
-
-## Requested review areas
-
-### 1) Type safety assessment
-
-**Status:** FAIL
-
-Positives:
-- Contracts use `effect/Schema` consistently across `packages/contracts/src/runtime/*`.
-- Repository/service tags are explicitly typed.
-- Direct LSP diagnostics were clean on reviewed files.
-
-Defects:
-- Router uses `Layer.Layer<any>` / `Effect.Effect<unknown, any>` (`packages/api/src/routers/project-runtime.ts:230`, `:246`), weakening end-to-end typing.
-- Router reaches undeclared service methods through casts.
-- Test suite uses `as any` / widened intersections to hide contract mismatches.
-- Monorepo typecheck fails on runtime route code.
-
-### 2) Effect layer composition review
-
-**Status:** FAIL
-
-- Runtime live layer is incomplete for the full router surface.
-- API/server composition never provides runtime repo/service layers to the live app.
-- Runtime command/detail services are not production-wired.
-
-### 3) Typed error handling review
-
-**Status:** FAIL
-
-- Read-side not-found mapping is reasonable.
-- Infra and business-rule failures are conflated into `RepositoryError` and surfaced as 500s.
-- This is not a typed domain error model.
-
-### 4) Repository/service boundary discipline check
-
-**Router boundary:** PASS
-
-- `packages/api/src/routers/project-runtime.ts` does not compose repositories directly.
-- No repository imports from db/runtime-repositories or workflow-engine repositories appear in router code.
-- Dedicated boundary test also enforces this (`packages/api/src/tests/architecture/runtime-router-boundary.test.ts`).
-
-**Service boundary:** FAIL
-
-- Router stays service-only, but service contracts are bypassed with casts.
-- Command services depend on repository capabilities not declared in repository interfaces.
-
-### 5) Query-key separation verification
-
-**Status:** PASS
-
-- Reviewed runtime pages use dedicated runtime-prefixed keys:
-  - `runtime-overview`
-  - `runtime-project-facts`
-  - `runtime-work-units`
-  - `runtime-guidance-active`
-- Dedicated guard test exists: `apps/web/src/tests/routes/runtime-query-key-separation.test.tsx`
-
-### 6) Confirmation that every runtime procedure calls exactly one top-level service
-
-**Status:** PASS with caveat
-
-- Router inspection shows each procedure resolves one top-level service inside its handler.
-- Query/mutation tests also verify one delegated service call for the covered procedures.
-- Caveat: several handlers do this via unsafe casted methods that are not part of the declared service interface.
-
-### 7) Confirmation that repos are not composed in routers
-
-**Status:** PASS
-
-- Confirmed by source inspection and boundary test.
-
-## Final verdict
+## Final decision
 
 **REJECT**
 
-The slice fails final code-quality review because it has production-blocking architecture and typing defects:
+Blocking reasons:
+1. 2 required final-wave tests failed.
+2. MCP router still contains transport-layer multi-service orchestration for `read_context_value`.
 
-1. runtime services are not wired into the real app/server layer,
-2. command/detail live layers are incomplete,
-3. atomic repository capabilities required by command services are not actually implemented, and
-4. the runtime web route surface does not pass monorepo typecheck.
+---
 
-Do **not** approve until those critical/high-severity defects are fixed and `bun run check-types` is clean.
+## 2026-04-03 Slice-1 shared foundation coupling review
+
+**Scope reviewed**
+
+- `packages/methodology-engine/src/services/*workflow*`
+- `packages/workflow-engine/src/services/*step*`, runtime command/detail services
+- `packages/db/src/{schema,repositories,runtime-repositories}`
+- `packages/api/src/routers/{methodology,project-runtime,index}.ts`
+- `apps/server/src/index.ts`
+
+**Verdict:** ❌ **REJECT**
+
+### Blocking findings
+
+1. **Form-specific logic leaks into the shared runtime foundation.**
+   - `packages/db/src/schema/runtime.ts:272-278` stores `step_executions.step_definition_id` as a foreign key to `methodologyWorkflowFormSteps.id`, not the generic `methodologyWorkflowSteps.id`.
+   - `packages/workflow-engine/src/services/form-step-execution-service.ts:30-49` uses the `project.<factDefinitionId>` key prefix convention to split writes, and `:93-95` hard-fails non-`form` steps.
+   - `packages/workflow-engine/src/services/step-execution-detail-service.ts:126-147,180-185` decodes the same `project.<factDefinitionId>` convention in a supposedly shared detail surface.
+   - **Why blocking:** later `agent` / `action` / `invoke` / `branch` / `display` slices will need schema and shared-service rewrites instead of layering on a generic step-execution foundation.
+
+2. **Shared “transaction” services are not actually transactional.**
+   - `packages/methodology-engine/src/services/workflow-authoring-transaction-service.ts:67-232` is a sequential orchestrator over metadata, form-step, edge, and context-fact mutations with no shared repository transaction.
+   - `packages/workflow-engine/src/services/step-execution-transaction-service.ts:88-158` writes form state, completes the step, persists context facts, persists authoritative project facts, and activates the next step across multiple repositories with no atomic boundary.
+   - **Why blocking:** any mid-sequence failure can leave authoring/runtime state partially committed; later slices would have to replace these “foundation” services to get real consistency guarantees.
+
+3. **The production wiring/capability model for slice-1 shared services is incomplete and internally inconsistent.**
+   - `apps/server/src/index.ts:29-41` wires methodology/lifecycle/project-context/runtime repos, but does **not** provide `createFormStepRepoLayer`, `createWorkflowContextFactRepoLayer`, or any step-execution repo layer.
+   - `packages/api/src/routers/index.ts:39-47` types `runtimeRepoLayer` without `StepExecutionRepository`, while `packages/workflow-engine/src/layers/live.ts:44-52` builds services that require it.
+   - `packages/db/src/index.ts:28-35` exports `createStepExecutionRepoLayer` from `packages/db/src/repositories/step-execution-repository.ts`, while the full workflow-engine implementation actually lives in `packages/db/src/runtime-repositories/step-execution-repository.ts:93-257`.
+   - `packages/workflow-engine/src/services/transition-execution-command-service.ts:491-549` requires atomic repo capabilities (`completeTransitionExecutionAtomically`, `choosePrimaryWorkflowForTransitionExecutionAtomically`) that are not implemented in `packages/db/src/runtime-repositories/transition-execution-repository.ts` or `workflow-execution-repository.ts`.
+   - **Why blocking:** the reusable slice-1 services are not actually deployable/shared in the real server composition; later slices would need rewiring and repository contract surgery.
+
+4. **Transition completion is coupled to placeholder logic instead of lifecycle metadata.**
+   - `packages/workflow-engine/src/services/transition-execution-command-service.ts:235-281` resolves `completionGateConditionTree` and `targetState`, but `:452-488` ignores that context, evaluates `emptyGate`, and then tries to read `targetState` from the gate result shape.
+   - **Why blocking:** the core shared transition command path is not slice-agnostic and will need redesign before later slices can rely on completion gates.
+
+### Non-blocking findings
+
+1. **Condition-tree translation is duplicated across services.**
+   - `packages/workflow-engine/src/services/runtime-guidance-service.ts:130-240`
+   - `packages/workflow-engine/src/services/transition-execution-command-service.ts:50-154`
+   - This is maintenance coupling; extract one translator for runtime-condition hydration.
+
+2. **API/package boundaries are looser than they should be.**
+   - `packages/api/src/routers/project-runtime.ts:15-28` and `packages/api/src/routers/index.ts:19-28` import workflow-engine internals via relative `../../../workflow-engine/src/index` paths instead of a clean package boundary.
+
+3. **The intended atomic authoring entry point is disconnected from the route surface.**
+   - `packages/api/src/routers/methodology.ts` imports `WorkflowAuthoringTransactionService` (`:11`) but does not use it; the router exposes only piecemeal mutations.
+   - This is not blocking today, but it means the “transaction service” is not yet the canonical path for future slices.
+
+## Final decision for this review
+
+**REJECT**
+
+The slice-1 shared services are **not** yet reusable foundations for later slices. The runtime schema and shared services are still form-coupled, transaction boundaries are not real, and the production wiring/capability story is incomplete enough that later slices would require architectural rewrites instead of additive extension.

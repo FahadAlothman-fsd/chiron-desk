@@ -8,6 +8,7 @@ import type {
   ValidationResult,
   WorkflowDefinition,
 } from "@chiron/contracts/methodology/version";
+import type { WorkflowContextFactDto } from "@chiron/contracts/methodology/workflow";
 import type {
   LifecycleState,
   TransitionConditionSet,
@@ -319,6 +320,10 @@ export class MethodologyRepository extends Context.Tag("MethodologyRepository")<
       versionId: string;
       workUnitTypeKey: string;
     }) => Effect.Effect<readonly WorkflowDefinition[], RepositoryError>;
+    readonly listWorkflowContextFactsByDefinitionId?: (params: {
+      versionId: string;
+      workflowDefinitionId: string;
+    }) => Effect.Effect<readonly WorkflowContextFactDto[], RepositoryError>;
     readonly createWorkflow?: (
       params: CreateWorkflowParams,
     ) => Effect.Effect<void, RepositoryError>;

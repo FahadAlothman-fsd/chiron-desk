@@ -1,0 +1,8 @@
+bunx vitest run packages/contracts/src/tests/l3-slice-1-contracts.test.ts -t "rejects standalone inputKind in form field payload"
+
+Result:
+- Test Files: 1 passed
+- Tests: 1 passed, 8 skipped
+
+Assertion outcome:
+- standalone `inputKind` usage is rejected by FormStepPayload decoding

@@ -33,7 +33,12 @@ describe("l3 slice-1 demo fixture", () => {
     const formStepRows = slice1DemoFixtureSeedRows.methodology_workflow_steps;
     for (const row of formStepRows) {
       expect(row.type).toBe("form");
+      expect(row.workflowId).toBe(SLICE_1_DEMO_FIXTURE.workflowId);
     }
+
+    expect(
+      slice1DemoFixtureSeedRows.methodologyWorkflowFormFields.map((row) => row.key).toSorted(),
+    ).toEqual(["initiativeName", "projectKind"]);
   });
 
   it("includes all 7 context-fact kinds in deterministic examples", async () => {
@@ -52,5 +57,19 @@ describe("l3 slice-1 demo fixture", () => {
       "work_unit_reference",
       "workflow_reference",
     ]);
+
+    expect(slice1DemoFixtureSeedRows.contextFactExternalBindings[0]).toMatchObject({
+      provider: "project",
+      bindingKey: "projectRootPath",
+    });
+    expect(
+      slice1DemoFixtureSeedRows.contextFactWorkflowReferences[0]?.workflowDefinitionId,
+    ).toContain("generate-project-context");
+    expect(slice1DemoFixtureSeedRows.contextFactWorkUnitReferences[0]?.workUnitTypeKey).toBe(
+      "research",
+    );
+    expect(slice1DemoFixtureSeedRows.contextFactArtifactReferences[0]?.artifactSlotKey).toBe(
+      "setup_readme",
+    );
   });
 });

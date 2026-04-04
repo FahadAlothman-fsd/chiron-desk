@@ -2019,6 +2019,15 @@ export const MethodologyVersionServiceLive = Layer.effect(
       deleteWorkUnitWorkflow: (input, actorId) =>
         deleteWorkUnitWorkflow(input, actorId ?? "system"),
       updateWorkflowDefinition: () => Effect.void,
+      updateWorkflowMetadata: () =>
+        Effect.fail(
+          new RepositoryError({
+            operation: "methodology.updateWorkflowMetadata",
+            cause: new Error(
+              "Workflow metadata updates are not exposed via MethodologyVersionService",
+            ),
+          }),
+        ),
     });
 
     const workUnitService = WorkUnitService.of({

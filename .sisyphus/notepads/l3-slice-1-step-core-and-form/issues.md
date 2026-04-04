@@ -1,0 +1,2 @@
+- Verification blocker observed during this slice: `bun run turbo check-types -F @chiron/methodology-engine -F @chiron/api -F server` currently fails due numerous pre-existing type errors outside the touched files (notably in `packages/api/src/routers/*.ts`, `packages/db/src/**`, and `packages/workflow-engine/src/**`).
+- 2026-04-04T05:06:56+03:00: Requested `bun --filter server test` verification is not available in this workspace flow (`error: No packages matched the filter`), and `apps/server/package.json` has no `test` script.

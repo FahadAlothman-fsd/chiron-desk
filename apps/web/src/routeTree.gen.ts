@@ -28,6 +28,7 @@ import { Route as MethodologiesMethodologyIdVersionsRouteImport } from './routes
 import { Route as ProjectsProjectIdWorkflowExecutionsWorkflowExecutionIdRouteImport } from './routes/projects.$projectId.workflow-executions.$workflowExecutionId'
 import { Route as ProjectsProjectIdWorkUnitsProjectWorkUnitIdRouteImport } from './routes/projects.$projectId.work-units.$projectWorkUnitId'
 import { Route as ProjectsProjectIdTransitionExecutionsTransitionExecutionIdRouteImport } from './routes/projects.$projectId.transition-executions.$transitionExecutionId'
+import { Route as ProjectsProjectIdStepExecutionsStepExecutionIdRouteImport } from './routes/projects.$projectId.step-executions.$stepExecutionId'
 import { Route as ProjectsProjectIdFactsFactDefinitionIdRouteImport } from './routes/projects.$projectId.facts.$factDefinitionId'
 import { Route as MethodologiesMethodologyIdVersionsVersionIdRouteImport } from './routes/methodologies.$methodologyId.versions.$versionId'
 import { Route as ProjectsProjectIdWorkUnitsProjectWorkUnitIdStateMachineRouteImport } from './routes/projects.$projectId.work-units.$projectWorkUnitId.state-machine'
@@ -40,6 +41,7 @@ import { Route as MethodologiesMethodologyIdVersionsVersionIdAgentsRouteImport }
 import { Route as ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsFactDefinitionIdRouteImport } from './routes/projects.$projectId.work-units.$projectWorkUnitId.facts.$factDefinitionId'
 import { Route as ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsSlotDefinitionIdRouteImport } from './routes/projects.$projectId.work-units.$projectWorkUnitId.artifact-slots.$slotDefinitionId'
 import { Route as MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRouteImport } from './routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey'
+import { Route as MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyWorkflowEditorWorkflowDefinitionIdRouteImport } from './routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId'
 
 const ProjectsRoute = ProjectsRouteImport.update({
   id: '/projects',
@@ -145,6 +147,12 @@ const ProjectsProjectIdTransitionExecutionsTransitionExecutionIdRoute =
     path: '/transition-executions/$transitionExecutionId',
     getParentRoute: () => ProjectsProjectIdRoute,
   } as any)
+const ProjectsProjectIdStepExecutionsStepExecutionIdRoute =
+  ProjectsProjectIdStepExecutionsStepExecutionIdRouteImport.update({
+    id: '/step-executions/$stepExecutionId',
+    path: '/step-executions/$stepExecutionId',
+    getParentRoute: () => ProjectsProjectIdRoute,
+  } as any)
 const ProjectsProjectIdFactsFactDefinitionIdRoute =
   ProjectsProjectIdFactsFactDefinitionIdRouteImport.update({
     id: '/$factDefinitionId',
@@ -228,6 +236,15 @@ const MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRoute =
         MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRoute,
     } as any,
   )
+const MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyWorkflowEditorWorkflowDefinitionIdRoute =
+  MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyWorkflowEditorWorkflowDefinitionIdRouteImport.update(
+    {
+      id: '/workflow-editor/$workflowDefinitionId',
+      path: '/workflow-editor/$workflowDefinitionId',
+      getParentRoute: () =>
+        MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRoute,
+    } as any,
+  )
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -248,6 +265,7 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
   '/methodologies/$methodologyId/versions/$versionId': typeof MethodologiesMethodologyIdVersionsVersionIdRouteWithChildren
   '/projects/$projectId/facts/$factDefinitionId': typeof ProjectsProjectIdFactsFactDefinitionIdRoute
+  '/projects/$projectId/step-executions/$stepExecutionId': typeof ProjectsProjectIdStepExecutionsStepExecutionIdRoute
   '/projects/$projectId/transition-executions/$transitionExecutionId': typeof ProjectsProjectIdTransitionExecutionsTransitionExecutionIdRoute
   '/projects/$projectId/work-units/$projectWorkUnitId': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdRouteWithChildren
   '/projects/$projectId/workflow-executions/$workflowExecutionId': typeof ProjectsProjectIdWorkflowExecutionsWorkflowExecutionIdRoute
@@ -258,9 +276,10 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsRouteWithChildren
   '/projects/$projectId/work-units/$projectWorkUnitId/facts': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsRouteWithChildren
   '/projects/$projectId/work-units/$projectWorkUnitId/state-machine': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdStateMachineRoute
-  '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey': typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRoute
+  '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey': typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRouteWithChildren
   '/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots/$slotDefinitionId': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsSlotDefinitionIdRoute
   '/projects/$projectId/work-units/$projectWorkUnitId/facts/$factDefinitionId': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsFactDefinitionIdRoute
+  '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey/workflow-editor/$workflowDefinitionId': typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyWorkflowEditorWorkflowDefinitionIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -280,6 +299,7 @@ export interface FileRoutesByTo {
   '/projects/$projectId': typeof ProjectsProjectIdIndexRoute
   '/methodologies/$methodologyId/versions/$versionId': typeof MethodologiesMethodologyIdVersionsVersionIdRouteWithChildren
   '/projects/$projectId/facts/$factDefinitionId': typeof ProjectsProjectIdFactsFactDefinitionIdRoute
+  '/projects/$projectId/step-executions/$stepExecutionId': typeof ProjectsProjectIdStepExecutionsStepExecutionIdRoute
   '/projects/$projectId/transition-executions/$transitionExecutionId': typeof ProjectsProjectIdTransitionExecutionsTransitionExecutionIdRoute
   '/projects/$projectId/work-units/$projectWorkUnitId': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdRouteWithChildren
   '/projects/$projectId/workflow-executions/$workflowExecutionId': typeof ProjectsProjectIdWorkflowExecutionsWorkflowExecutionIdRoute
@@ -290,9 +310,10 @@ export interface FileRoutesByTo {
   '/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsRouteWithChildren
   '/projects/$projectId/work-units/$projectWorkUnitId/facts': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsRouteWithChildren
   '/projects/$projectId/work-units/$projectWorkUnitId/state-machine': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdStateMachineRoute
-  '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey': typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRoute
+  '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey': typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRouteWithChildren
   '/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots/$slotDefinitionId': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsSlotDefinitionIdRoute
   '/projects/$projectId/work-units/$projectWorkUnitId/facts/$factDefinitionId': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsFactDefinitionIdRoute
+  '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey/workflow-editor/$workflowDefinitionId': typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyWorkflowEditorWorkflowDefinitionIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -314,6 +335,7 @@ export interface FileRoutesById {
   '/projects/$projectId/': typeof ProjectsProjectIdIndexRoute
   '/methodologies/$methodologyId/versions/$versionId': typeof MethodologiesMethodologyIdVersionsVersionIdRouteWithChildren
   '/projects/$projectId/facts/$factDefinitionId': typeof ProjectsProjectIdFactsFactDefinitionIdRoute
+  '/projects/$projectId/step-executions/$stepExecutionId': typeof ProjectsProjectIdStepExecutionsStepExecutionIdRoute
   '/projects/$projectId/transition-executions/$transitionExecutionId': typeof ProjectsProjectIdTransitionExecutionsTransitionExecutionIdRoute
   '/projects/$projectId/work-units/$projectWorkUnitId': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdRouteWithChildren
   '/projects/$projectId/workflow-executions/$workflowExecutionId': typeof ProjectsProjectIdWorkflowExecutionsWorkflowExecutionIdRoute
@@ -324,9 +346,10 @@ export interface FileRoutesById {
   '/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsRouteWithChildren
   '/projects/$projectId/work-units/$projectWorkUnitId/facts': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsRouteWithChildren
   '/projects/$projectId/work-units/$projectWorkUnitId/state-machine': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdStateMachineRoute
-  '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey': typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRoute
+  '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey': typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRouteWithChildren
   '/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots/$slotDefinitionId': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdArtifactSlotsSlotDefinitionIdRoute
   '/projects/$projectId/work-units/$projectWorkUnitId/facts/$factDefinitionId': typeof ProjectsProjectIdWorkUnitsProjectWorkUnitIdFactsFactDefinitionIdRoute
+  '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey/workflow-editor/$workflowDefinitionId': typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyWorkflowEditorWorkflowDefinitionIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -349,6 +372,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/'
     | '/methodologies/$methodologyId/versions/$versionId'
     | '/projects/$projectId/facts/$factDefinitionId'
+    | '/projects/$projectId/step-executions/$stepExecutionId'
     | '/projects/$projectId/transition-executions/$transitionExecutionId'
     | '/projects/$projectId/work-units/$projectWorkUnitId'
     | '/projects/$projectId/workflow-executions/$workflowExecutionId'
@@ -362,6 +386,7 @@ export interface FileRouteTypes {
     | '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey'
     | '/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots/$slotDefinitionId'
     | '/projects/$projectId/work-units/$projectWorkUnitId/facts/$factDefinitionId'
+    | '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey/workflow-editor/$workflowDefinitionId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -381,6 +406,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId'
     | '/methodologies/$methodologyId/versions/$versionId'
     | '/projects/$projectId/facts/$factDefinitionId'
+    | '/projects/$projectId/step-executions/$stepExecutionId'
     | '/projects/$projectId/transition-executions/$transitionExecutionId'
     | '/projects/$projectId/work-units/$projectWorkUnitId'
     | '/projects/$projectId/workflow-executions/$workflowExecutionId'
@@ -394,6 +420,7 @@ export interface FileRouteTypes {
     | '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey'
     | '/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots/$slotDefinitionId'
     | '/projects/$projectId/work-units/$projectWorkUnitId/facts/$factDefinitionId'
+    | '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey/workflow-editor/$workflowDefinitionId'
   id:
     | '__root__'
     | '/'
@@ -414,6 +441,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/'
     | '/methodologies/$methodologyId/versions/$versionId'
     | '/projects/$projectId/facts/$factDefinitionId'
+    | '/projects/$projectId/step-executions/$stepExecutionId'
     | '/projects/$projectId/transition-executions/$transitionExecutionId'
     | '/projects/$projectId/work-units/$projectWorkUnitId'
     | '/projects/$projectId/workflow-executions/$workflowExecutionId'
@@ -427,6 +455,7 @@ export interface FileRouteTypes {
     | '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey'
     | '/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots/$slotDefinitionId'
     | '/projects/$projectId/work-units/$projectWorkUnitId/facts/$factDefinitionId'
+    | '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey/workflow-editor/$workflowDefinitionId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -572,6 +601,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsProjectIdTransitionExecutionsTransitionExecutionIdRouteImport
       parentRoute: typeof ProjectsProjectIdRoute
     }
+    '/projects/$projectId/step-executions/$stepExecutionId': {
+      id: '/projects/$projectId/step-executions/$stepExecutionId'
+      path: '/step-executions/$stepExecutionId'
+      fullPath: '/projects/$projectId/step-executions/$stepExecutionId'
+      preLoaderRoute: typeof ProjectsProjectIdStepExecutionsStepExecutionIdRouteImport
+      parentRoute: typeof ProjectsProjectIdRoute
+    }
     '/projects/$projectId/facts/$factDefinitionId': {
       id: '/projects/$projectId/facts/$factDefinitionId'
       path: '/$factDefinitionId'
@@ -656,17 +692,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRouteImport
       parentRoute: typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRoute
     }
+    '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey/workflow-editor/$workflowDefinitionId': {
+      id: '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey/workflow-editor/$workflowDefinitionId'
+      path: '/workflow-editor/$workflowDefinitionId'
+      fullPath: '/methodologies/$methodologyId/versions/$versionId/work-units/$workUnitKey/workflow-editor/$workflowDefinitionId'
+      preLoaderRoute: typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyWorkflowEditorWorkflowDefinitionIdRouteImport
+      parentRoute: typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRoute
+    }
   }
 }
 
+interface MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRouteChildren {
+  MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyWorkflowEditorWorkflowDefinitionIdRoute: typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyWorkflowEditorWorkflowDefinitionIdRoute
+}
+
+const MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRouteChildren: MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRouteChildren =
+  {
+    MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyWorkflowEditorWorkflowDefinitionIdRoute:
+      MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyWorkflowEditorWorkflowDefinitionIdRoute,
+  }
+
+const MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRouteWithChildren =
+  MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRoute._addFileChildren(
+    MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRouteChildren,
+  )
+
 interface MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRouteChildren {
-  MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRoute: typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRoute
+  MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRoute: typeof MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRouteWithChildren
 }
 
 const MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRouteChildren: MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRouteChildren =
   {
     MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRoute:
-      MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRoute,
+      MethodologiesMethodologyIdVersionsVersionIdWorkUnitsWorkUnitKeyRouteWithChildren,
   }
 
 const MethodologiesMethodologyIdVersionsVersionIdWorkUnitsRouteWithChildren =
@@ -829,6 +887,7 @@ interface ProjectsProjectIdRouteChildren {
   ProjectsProjectIdWorkUnitsRoute: typeof ProjectsProjectIdWorkUnitsRouteWithChildren
   ProjectsProjectIdWorkflowsRoute: typeof ProjectsProjectIdWorkflowsRoute
   ProjectsProjectIdIndexRoute: typeof ProjectsProjectIdIndexRoute
+  ProjectsProjectIdStepExecutionsStepExecutionIdRoute: typeof ProjectsProjectIdStepExecutionsStepExecutionIdRoute
   ProjectsProjectIdTransitionExecutionsTransitionExecutionIdRoute: typeof ProjectsProjectIdTransitionExecutionsTransitionExecutionIdRoute
   ProjectsProjectIdWorkflowExecutionsWorkflowExecutionIdRoute: typeof ProjectsProjectIdWorkflowExecutionsWorkflowExecutionIdRoute
 }
@@ -841,6 +900,8 @@ const ProjectsProjectIdRouteChildren: ProjectsProjectIdRouteChildren = {
   ProjectsProjectIdWorkUnitsRoute: ProjectsProjectIdWorkUnitsRouteWithChildren,
   ProjectsProjectIdWorkflowsRoute: ProjectsProjectIdWorkflowsRoute,
   ProjectsProjectIdIndexRoute: ProjectsProjectIdIndexRoute,
+  ProjectsProjectIdStepExecutionsStepExecutionIdRoute:
+    ProjectsProjectIdStepExecutionsStepExecutionIdRoute,
   ProjectsProjectIdTransitionExecutionsTransitionExecutionIdRoute:
     ProjectsProjectIdTransitionExecutionsTransitionExecutionIdRoute,
   ProjectsProjectIdWorkflowExecutionsWorkflowExecutionIdRoute:

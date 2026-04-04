@@ -1,0 +1,15 @@
+2026-04-03 task-8 deferred-surface verification
+
+Command:
+`bunx vitest run "packages/api/src/tests/architecture/l3-slice-1-deferred-surfaces.test.ts" "apps/web/src/tests/routes/workflow-editor-form-slice.integration.test.tsx"`
+
+Result:
+- Test Files: 2 passed (2)
+- Tests: 5 passed (5)
+- Duration: 1.54s
+
+Assertions locked:
+- Agent/Action/Invoke/Branch/Display decode only as deferred/default read models.
+- Runtime router step procedures remain exactly: activateFirstWorkflowStepExecution, getRuntimeStepExecutionDetail, saveFormStepDraft, submitFormStep.
+- Methodology router remains Form-only for authored step mutations.
+- Manual runtime authoring stays isolated to project fact instances.

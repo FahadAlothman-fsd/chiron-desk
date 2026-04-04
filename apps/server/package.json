@@ -13,10 +13,15 @@
   },
   "dependencies": {
     "@chiron/api": "workspace:*",
+    "@chiron/agent-runtime": "workspace:*",
     "@chiron/auth": "workspace:*",
+    "@chiron/contracts": "workspace:*",
     "@chiron/db": "workspace:*",
     "@chiron/env": "workspace:*",
     "@chiron/methodology-engine": "workspace:*",
+    "@chiron/workflow-engine": "workspace:*",
+    "@hono/mcp": "^0.2.5",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@orpc/openapi": "catalog:",
     "@orpc/server": "catalog:",
     "@orpc/zod": "catalog:",
@@ -31,6 +36,7 @@
     "@chiron/config": "workspace:*",
     "@types/bun": "catalog:",
     "tsdown": "^0.16.5",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

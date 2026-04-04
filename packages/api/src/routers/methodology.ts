@@ -3,6 +3,11 @@ import {
   MethodologyRepository,
   MethodologyVersionBoundaryService,
   WorkflowService,
+  WorkflowEditorDefinitionService,
+  WorkflowTopologyMutationService,
+  FormStepDefinitionService,
+  WorkflowContextFactDefinitionService,
+  WorkflowAuthoringTransactionService,
   type MethodologyVersionRow,
   type MethodologyVersionEventRow,
   type MethodologyError,
@@ -55,6 +60,13 @@ import type {
 import type {
   CreateWorkUnitWorkflowInput,
   DeleteWorkUnitWorkflowInput,
+  FormStepPayload as FormStepPayloadContract,
+  WorkflowContextFactDto as WorkflowContextFactDtoContract,
+  WorkflowEditorRouteIdentity as WorkflowEditorRouteIdentityContract,
+  WorkflowMetadataDialogInput as WorkflowMetadataDialogInputContract,
+  WorkflowEdgeDto as WorkflowEdgeDtoContract,
+  CreateFormStepInput as CreateFormStepInputContract,
+  UpdateFormStepInput as UpdateFormStepInputContract,
   UpdateWorkUnitWorkflowInput,
 } from "@chiron/contracts/methodology/workflow";
 import type { UpdateDraftWorkflowsInputDto } from "@chiron/contracts/methodology/dto";
@@ -93,8 +105,10 @@ const workflowMetadataValueSchema = z.union([
 
 const workflowMetadataSchema = z
   .object({
+    workflowDefinitionId: z.string().min(1).optional(),
     key: z.string().min(1),
     displayName: z.string().optional(),
+    descriptionJson: z.object({ markdown: z.string() }).optional(),
     workUnitTypeKey: z.string().min(1).optional(),
     metadata: z.record(z.string(), workflowMetadataValueSchema).optional(),
     guidance: z
@@ -105,6 +119,177 @@ const workflowMetadataSchema = z
       .optional(),
   })
   .strict();
+
+const workflowEditorRouteIdentitySchema = z.object({
+  methodologyId: z.string().min(1),
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  workflowDefinitionId: z.string().min(1),
+});
+
+const formFieldInputSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("text"),
+    multiline: z.boolean().optional(),
+  }),
+  z.object({
+    kind: z.literal("select"),
+    options: z.array(z.string()),
+  }),
+  z.object({
+    kind: z.literal("checkbox"),
+  }),
+]);
+
+const workflowContextFactSchema: z.ZodType<WorkflowContextFactDtoContract> = z.discriminatedUnion(
+  "kind",
+  [
+    z.object({
+      kind: z.literal("plain_value"),
+      key: z.string().min(1),
+      valueType: z.enum(["string", "number", "boolean", "json"]),
+    }),
+    z.object({
+      kind: z.literal("external_binding"),
+      key: z.string().min(1),
+      source: z.object({
+        provider: z.string().min(1),
+        bindingKey: z.string().min(1),
+      }),
+    }),
+    z.object({
+      kind: z.literal("workflow_reference"),
+      key: z.string().min(1),
+      workflowDefinitionId: z.string().min(1),
+    }),
+    z.object({
+      kind: z.literal("work_unit_reference"),
+      key: z.string().min(1),
+      workUnitTypeKey: z.string().min(1),
+    }),
+    z.object({
+      kind: z.literal("artifact_reference"),
+      key: z.string().min(1),
+      artifactSlotKey: z.string().min(1),
+    }),
+    z.object({
+      kind: z.literal("draft_spec"),
+      key: z.string().min(1),
+      fields: z.array(
+        z.object({
+          key: z.string().min(1),
+          valueType: z.enum(["string", "number", "boolean", "json"]),
+          required: z.boolean().optional(),
+          descriptionJson: z.object({ markdown: z.string() }).optional(),
+        }),
+      ),
+    }),
+    z.object({
+      kind: z.literal("draft_spec_field"),
+      key: z.string().min(1),
+      draftSpecKey: z.string().min(1),
+      fieldKey: z.string().min(1),
+      valueType: z.enum(["string", "number", "boolean", "json"]),
+    }),
+  ],
+);
+
+const formStepPayloadSchema: z.ZodType<FormStepPayloadContract> = z.object({
+  key: z.string().min(1),
+  label: z.string().optional(),
+  descriptionJson: z.object({ markdown: z.string() }).optional(),
+  fields: z.array(
+    z.object({
+      key: z.string().min(1),
+      label: z.string().optional(),
+      valueType: z.enum(["string", "number", "boolean", "json"]),
+      required: z.boolean().optional(),
+      input: formFieldInputSchema,
+      descriptionJson: z.object({ markdown: z.string() }).optional(),
+    }),
+  ),
+  contextFacts: z.array(workflowContextFactSchema).optional(),
+});
+
+const createFormStepSchema = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  workflowDefinitionId: z.string().min(1),
+  afterStepKey: z.string().min(1).nullable().optional().default(null),
+  payload: formStepPayloadSchema,
+});
+
+const updateFormStepSchema = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  workflowDefinitionId: z.string().min(1),
+  stepId: z.string().min(1),
+  payload: formStepPayloadSchema,
+});
+
+const deleteFormStepSchema = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  workflowDefinitionId: z.string().min(1),
+  stepId: z.string().min(1),
+});
+
+const createEdgeSchema = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  workflowDefinitionId: z.string().min(1),
+  fromStepKey: z.string().min(1).nullable().optional().default(null),
+  toStepKey: z.string().min(1).nullable().optional().default(null),
+  descriptionJson: z.object({ markdown: z.string() }).optional(),
+});
+
+const updateEdgeSchema = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  workflowDefinitionId: z.string().min(1),
+  edgeId: z.string().min(1),
+  fromStepKey: z.string().min(1).nullable().optional().default(null),
+  toStepKey: z.string().min(1).nullable().optional().default(null),
+  descriptionJson: z.object({ markdown: z.string() }).optional(),
+});
+
+const deleteEdgeSchema = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  workflowDefinitionId: z.string().min(1),
+  edgeId: z.string().min(1),
+});
+
+const listWorkflowContextFactSchema = z.object({
+  versionId: z.string().min(1),
+  workflowDefinitionId: z.string().min(1),
+});
+
+const createWorkflowContextFactSchema = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  workflowDefinitionId: z.string().min(1),
+  fact: workflowContextFactSchema,
+});
+
+const updateWorkflowContextFactSchema = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  workflowDefinitionId: z.string().min(1),
+  factKey: z.string().min(1),
+  fact: workflowContextFactSchema,
+});
+
+const deleteWorkflowContextFactSchema = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  workflowDefinitionId: z.string().min(1),
+  factKey: z.string().min(1),
+});
+
+const toWorkflowDescription = (
+  workflow: Pick<WorkflowMetadataDialogInputContract, "descriptionJson">,
+) => (workflow.descriptionJson ? { description: workflow.descriptionJson } : {});
 
 const guidanceMarkdownSchema = z.object({ markdown: z.string() });
 const workUnitDescriptionSchema = guidanceMarkdownSchema.strict();
@@ -756,8 +941,26 @@ function mapEffectError(err: MethodologyError | LifecycleError | unknown): never
       throw new ORPCError("NOT_FOUND", { message: String(err) });
     case "ValidationDecodeError":
       throw new ORPCError("BAD_REQUEST", { message: String(err) });
-    case "RepositoryError":
-      throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "Repository operation failed" });
+    case "RepositoryError": {
+      const repositoryErr = err as {
+        operation?: unknown;
+        cause?: unknown;
+      };
+      const operation =
+        typeof repositoryErr.operation === "string" ? repositoryErr.operation : "unknown";
+      const cause = repositoryErr.cause;
+      const causeMessage =
+        cause instanceof Error
+          ? cause.message
+          : typeof cause === "string"
+            ? cause
+            : cause
+              ? JSON.stringify(cause)
+              : "unknown cause";
+      throw new ORPCError("INTERNAL_SERVER_ERROR", {
+        message: `Repository operation failed: ${operation} (${causeMessage})`,
+      });
+    }
     default:
       throw new ORPCError("INTERNAL_SERVER_ERROR", { message: String(err) });
   }
@@ -1463,8 +1666,15 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
               workUnitTypeKey: input.workUnitTypeKey,
             });
             return workflows.map((workflow) => ({
+              workflowDefinitionId: workflow.workflowDefinitionId,
               key: workflow.key,
               displayName: workflow.displayName,
+              descriptionJson:
+                typeof workflow.description === "object" && workflow.description !== null
+                  ? workflow.description
+                  : typeof workflow.description === "string"
+                    ? { markdown: workflow.description }
+                    : null,
               workUnitTypeKey: workflow.workUnitTypeKey,
               metadata: workflow.metadata,
               guidance: workflow.guidance,
@@ -1483,6 +1693,7 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
           workflow: {
             ...input.workflow,
             workUnitTypeKey: input.workUnitTypeKey,
+            ...toWorkflowDescription(input.workflow),
             steps: [],
             edges: [],
           },
@@ -1513,6 +1724,7 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
           workflow: {
             ...input.workflow,
             workUnitTypeKey: input.workUnitTypeKey,
+            ...toWorkflowDescription(input.workflow),
             steps: [],
             edges: [],
           },
@@ -1554,6 +1766,266 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
           version: serializeVersion(result.version),
           diagnostics: result.diagnostics,
         };
+      }),
+
+    getEditorDefinition: publicProcedure
+      .input(workflowEditorRouteIdentitySchema)
+      .handler(async ({ input }) =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* WorkflowEditorDefinitionService;
+            const identity: WorkflowEditorRouteIdentityContract = {
+              methodologyId: input.methodologyId,
+              versionId: input.versionId,
+              workUnitTypeKey: input.workUnitTypeKey,
+              workflowDefinitionId: input.workflowDefinitionId,
+            };
+            return yield* svc.getEditorDefinition(identity);
+          }),
+        ),
+      ),
+
+    updateWorkflowMetadata: protectedProcedure
+      .input(
+        z.object({
+          versionId: z.string().min(1),
+          workUnitTypeKey: z.string().min(1),
+          workflowDefinitionId: z.string().min(1),
+          payload: workflowMetadataSchema,
+        }),
+      )
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+
+        return runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* WorkflowService;
+            const payload: WorkflowMetadataDialogInputContract = {
+              workflowDefinitionId:
+                input.payload.workflowDefinitionId ?? input.workflowDefinitionId,
+              key: input.payload.key,
+              displayName: input.payload.displayName,
+              descriptionJson: input.payload.descriptionJson,
+            };
+            return yield* svc.updateWorkflowMetadata(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+                workflowDefinitionId: input.workflowDefinitionId,
+                payload,
+              },
+              actorId,
+            );
+          }),
+        );
+      }),
+
+    createFormStep: protectedProcedure
+      .input(createFormStepSchema)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        return runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* FormStepDefinitionService;
+            return yield* svc.createFormStep(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+                workflowDefinitionId: input.workflowDefinitionId,
+                afterStepKey: input.afterStepKey,
+                payload: input.payload,
+              },
+              actorId,
+            );
+          }),
+        );
+      }),
+
+    updateFormStep: protectedProcedure
+      .input(updateFormStepSchema)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        return runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* FormStepDefinitionService;
+            return yield* svc.updateFormStep(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+                workflowDefinitionId: input.workflowDefinitionId,
+                stepId: input.stepId,
+                payload: input.payload,
+              },
+              actorId,
+            );
+          }),
+        );
+      }),
+
+    deleteFormStep: protectedProcedure
+      .input(deleteFormStepSchema)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        return runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* FormStepDefinitionService;
+            return yield* svc.deleteFormStep(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+                workflowDefinitionId: input.workflowDefinitionId,
+                stepId: input.stepId,
+              },
+              actorId,
+            );
+          }),
+        );
+      }),
+
+    createEdge: protectedProcedure.input(createEdgeSchema).handler(async ({ input, context }) => {
+      const actorId = context.session.user.id;
+      return runEffect(
+        serviceLayer,
+        Effect.gen(function* () {
+          const svc = yield* WorkflowTopologyMutationService;
+          return yield* svc.createEdge(
+            {
+              versionId: input.versionId,
+              workUnitTypeKey: input.workUnitTypeKey,
+              workflowDefinitionId: input.workflowDefinitionId,
+              fromStepKey: input.fromStepKey,
+              toStepKey: input.toStepKey,
+              descriptionJson: input.descriptionJson,
+            },
+            actorId,
+          );
+        }),
+      );
+    }),
+
+    updateEdge: protectedProcedure.input(updateEdgeSchema).handler(async ({ input, context }) => {
+      const actorId = context.session.user.id;
+      return runEffect(
+        serviceLayer,
+        Effect.gen(function* () {
+          const svc = yield* WorkflowTopologyMutationService;
+          return yield* svc.updateEdge(
+            {
+              versionId: input.versionId,
+              workUnitTypeKey: input.workUnitTypeKey,
+              workflowDefinitionId: input.workflowDefinitionId,
+              edgeId: input.edgeId,
+              fromStepKey: input.fromStepKey,
+              toStepKey: input.toStepKey,
+              descriptionJson: input.descriptionJson,
+            },
+            actorId,
+          );
+        }),
+      );
+    }),
+
+    deleteEdge: protectedProcedure.input(deleteEdgeSchema).handler(async ({ input, context }) => {
+      const actorId = context.session.user.id;
+      return runEffect(
+        serviceLayer,
+        Effect.gen(function* () {
+          const svc = yield* WorkflowTopologyMutationService;
+          return yield* svc.deleteEdge(
+            {
+              versionId: input.versionId,
+              workUnitTypeKey: input.workUnitTypeKey,
+              workflowDefinitionId: input.workflowDefinitionId,
+              edgeId: input.edgeId,
+            },
+            actorId,
+          );
+        }),
+      );
+    }),
+
+    listWorkflowContextFacts: publicProcedure
+      .input(listWorkflowContextFactSchema)
+      .handler(async ({ input }) =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* WorkflowContextFactDefinitionService;
+            return yield* svc.list({
+              versionId: input.versionId,
+              workflowDefinitionId: input.workflowDefinitionId,
+            });
+          }),
+        ),
+      ),
+
+    createWorkflowContextFact: protectedProcedure
+      .input(createWorkflowContextFactSchema)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        return runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* WorkflowContextFactDefinitionService;
+            return yield* svc.create(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+                workflowDefinitionId: input.workflowDefinitionId,
+                fact: input.fact,
+              },
+              actorId,
+            );
+          }),
+        );
+      }),
+
+    updateWorkflowContextFact: protectedProcedure
+      .input(updateWorkflowContextFactSchema)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        return runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* WorkflowContextFactDefinitionService;
+            return yield* svc.update(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+                workflowDefinitionId: input.workflowDefinitionId,
+                factKey: input.factKey,
+                fact: input.fact,
+              },
+              actorId,
+            );
+          }),
+        );
+      }),
+
+    deleteWorkflowContextFact: protectedProcedure
+      .input(deleteWorkflowContextFactSchema)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        return runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* WorkflowContextFactDefinitionService;
+            return yield* svc.delete(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+                workflowDefinitionId: input.workflowDefinitionId,
+                factKey: input.factKey,
+              },
+              actorId,
+            );
+          }),
+        );
       }),
 
     replaceTransitionBindings: protectedProcedure
@@ -2723,6 +3195,20 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
           create: router.createWorkUnitWorkflow,
           update: router.updateWorkUnitWorkflow,
           delete: router.deleteWorkUnitWorkflow,
+          getEditorDefinition: router.getEditorDefinition,
+          updateWorkflowMetadata: router.updateWorkflowMetadata,
+          createFormStep: router.createFormStep,
+          updateFormStep: router.updateFormStep,
+          deleteFormStep: router.deleteFormStep,
+          createEdge: router.createEdge,
+          updateEdge: router.updateEdge,
+          deleteEdge: router.deleteEdge,
+          contextFact: {
+            list: router.listWorkflowContextFacts,
+            create: router.createWorkflowContextFact,
+            update: router.updateWorkflowContextFact,
+            delete: router.deleteWorkflowContextFact,
+          },
         },
         stateMachine: {
           state: {

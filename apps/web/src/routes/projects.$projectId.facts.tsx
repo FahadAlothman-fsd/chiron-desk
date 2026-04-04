@@ -4,10 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MethodologyWorkspaceShell } from "@/features/methodologies/workspace-shell";
+import { cn } from "@/lib/utils";
 
 const factsSearchSchema = z.object({
   q: z.string().optional().default(""),
@@ -152,6 +154,11 @@ export function ProjectFactsRoute() {
           <option value="boolean">boolean</option>
           <option value="json">json</option>
         </select>
+
+        <p className="md:col-span-3 text-xs text-muted-foreground">
+          Manual authoring is available on project fact instances only. Open a fact detail to add,
+          set, or replace values.
+        </p>
       </section>
 
       <section className="space-y-3">
@@ -173,9 +180,21 @@ export function ProjectFactsRoute() {
                   className="h-full border-border/80 bg-background/40"
                 >
                   <CardHeader className="space-y-1">
-                    <CardDescription className="text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
-                      {card.factType} · {card.cardinality}
-                    </CardDescription>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <CardDescription className="text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
+                        {card.factType} · {card.cardinality}
+                      </CardDescription>
+                      <span
+                        className={cn(
+                          "border px-2 py-1 text-[0.62rem] uppercase tracking-[0.12em]",
+                          card.exists
+                            ? "border-primary/50 bg-primary/15 text-primary"
+                            : "border-border/70 bg-background/50 text-muted-foreground",
+                        )}
+                      >
+                        {card.exists ? "Has instances" : "No instances"}
+                      </span>
+                    </div>
                     <CardTitle className="text-base tracking-[0.02em]">
                       {card.factName ?? card.factKey}
                     </CardTitle>
@@ -203,18 +222,36 @@ export function ProjectFactsRoute() {
                       </ul>
                     ) : null}
 
-                    <Link
-                      to="/projects/$projectId/facts/$factDefinitionId"
-                      params={{ projectId, factDefinitionId: card.factDefinitionId }}
-                      search={{
-                        q: search.q,
-                        existence: search.existence,
-                        factType: search.factType,
-                      }}
-                      className="inline-flex text-xs font-medium uppercase tracking-[0.12em] text-primary hover:underline"
-                    >
-                      Open detail
-                    </Link>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link
+                        to="/projects/$projectId/facts/$factDefinitionId"
+                        params={{ projectId, factDefinitionId: card.factDefinitionId }}
+                        search={{
+                          q: search.q,
+                          existence: search.existence,
+                          factType: search.factType,
+                        }}
+                        className={cn(
+                          buttonVariants({ variant: "outline", size: "xs" }),
+                          "rounded-none uppercase tracking-[0.12em]",
+                        )}
+                      >
+                        Open detail
+                      </Link>
+
+                      <Link
+                        to="/projects/$projectId/facts/$factDefinitionId"
+                        params={{ projectId, factDefinitionId: card.factDefinitionId }}
+                        search={{
+                          q: search.q,
+                          existence: search.existence,
+                          factType: search.factType,
+                        }}
+                        className="inline-flex text-xs font-medium uppercase tracking-[0.12em] text-primary hover:underline"
+                      >
+                        Add value
+                      </Link>
+                    </div>
                   </CardContent>
                 </Card>
               </li>

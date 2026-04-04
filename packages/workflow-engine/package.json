@@ -14,6 +14,7 @@
     "test": "bunx vitest run"
   },
   "dependencies": {
+    "@chiron/agent-runtime": "workspace:*",
     "@chiron/contracts": "workspace:*",
     "@chiron/methodology-engine": "workspace:*",
     "@chiron/project-context": "workspace:*",

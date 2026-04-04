@@ -30,7 +30,4 @@ export {
   createWorkflowContextFactRepoLayer,
   WorkflowContextFactRepository,
 } from "./repositories/workflow-context-fact-repository";
-export {
-  createStepExecutionRepoLayer,
-  StepExecutionRepository,
-} from "./repositories/step-execution-repository";
+export { createStepExecutionRepoLayer } from "./runtime-repositories/step-execution-repository";

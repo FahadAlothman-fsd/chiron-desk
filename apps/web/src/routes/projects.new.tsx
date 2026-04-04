@@ -118,6 +118,43 @@ function generateRandomProjectName(): string {
   return `${prefix} ${core} ${suffix}`;
 }
 
+function normalizeProjectRootPath(input: string): string {
+  const trimmed = input.trim();
+  if (trimmed.length === 0) {
+    return "";
+  }
+
+  const withForwardSlashes = trimmed.replace(/\\/g, "/");
+  const collapsed = withForwardSlashes.replace(/\/{2,}/g, "/");
+
+  if (collapsed === "/") {
+    return collapsed;
+  }
+
+  return collapsed.replace(/\/+$/g, "");
+}
+
+function validateProjectRootPath(input: string): string | null {
+  const normalized = normalizeProjectRootPath(input);
+  if (normalized.length === 0) {
+    return null;
+  }
+
+  const isUnixAbsolute = normalized.startsWith("/");
+  const isWindowsDrive = /^[A-Za-z]:\//.test(normalized);
+  const isUncPath = /^\/\/[^/]+\/[^/]+/.test(normalized);
+
+  if (!isUnixAbsolute && !isWindowsDrive && !isUncPath) {
+    return "Enter an absolute path (e.g. /repo/app or C:/repo/app).";
+  }
+
+  if (/\0/.test(normalized)) {
+    return "Path cannot include null bytes.";
+  }
+
+  return null;
+}
+
 function CreateProjectRoute() {
   const navigate = Route.useNavigate();
   const { orpc, queryClient } = Route.useRouteContext();
@@ -127,6 +164,7 @@ function CreateProjectRoute() {
   const [selectedVersionsByMethodologyId, setSelectedVersionsByMethodologyId] = useState<
     Record<string, string>
   >({});
+  const [projectRootPath, setProjectRootPath] = useState("");
   const [versionModeByMethodologyId, setVersionModeByMethodologyId] = useState<
     Record<string, "auto" | "user">
   >({});
@@ -134,6 +172,8 @@ function CreateProjectRoute() {
     null,
   );
   const [lastDiagnostics, setLastDiagnostics] = useState<ValidationDiagnostic[] | null>(null);
+  const [isSelectingProjectRootPath, setIsSelectingProjectRootPath] = useState(false);
+  const desktopBridge = typeof window === "undefined" ? undefined : window.desktop;
 
   const methodologiesQuery = useQuery(orpc.methodology.listMethodologies.queryOptions());
   const projectsQueryOptions = orpc.project.listProjects.queryOptions();
@@ -242,6 +282,23 @@ function CreateProjectRoute() {
   )?.version;
 
   const selectedMethodologyHasPublishedVersions = selectedMethodologyVersions.length > 0;
+  const hasDesktopBridge = typeof desktopBridge === "object" && desktopBridge !== null;
+  const selectProjectDirectory =
+    typeof desktopBridge?.selectProjectRootDirectory === "function"
+      ? desktopBridge.selectProjectRootDirectory
+      : typeof desktopBridge?.selectFolder === "function"
+        ? desktopBridge.selectFolder
+        : undefined;
+  const canBrowseProjectRootPath = typeof selectProjectDirectory === "function";
+  const hasPartialDesktopBridge = hasDesktopBridge && !canBrowseProjectRootPath;
+  const normalizedProjectRootPath = useMemo(
+    () => normalizeProjectRootPath(projectRootPath),
+    [projectRootPath],
+  );
+  const projectRootPathValidationError = useMemo(
+    () => validateProjectRootPath(projectRootPath),
+    [projectRootPath],
+  );
 
   const createAndPinMutation = useMutation(
     orpc.project.createAndPinProject.mutationOptions({
@@ -277,6 +334,23 @@ function CreateProjectRoute() {
 
   const isAnyMethodologyLoading =
     methodologiesQuery.isLoading || methodologyDetailsQueries.some((query) => query.isLoading);
+
+  const browseForProjectRootPath = async () => {
+    if (!selectProjectDirectory || isSelectingProjectRootPath) {
+      return;
+    }
+
+    setIsSelectingProjectRootPath(true);
+
+    try {
+      const selectedPath = await selectProjectDirectory();
+      if (typeof selectedPath === "string" && selectedPath.trim().length > 0) {
+        setProjectRootPath(selectedPath);
+      }
+    } finally {
+      setIsSelectingProjectRootPath(false);
+    }
+  };
 
   const state = getDeterministicState({
     isLoading: isAnyMethodologyLoading,
@@ -347,6 +421,65 @@ function CreateProjectRoute() {
           >
             Generate new name
           </Button>
+        </div>
+
+        <div className="space-y-3 border border-border/80 bg-background/20 p-4">
+          <div className="space-y-2">
+            <label
+              htmlFor="project-root-path"
+              className="text-[0.68rem] uppercase tracking-[0.16em] text-muted-foreground"
+            >
+              Project root path
+            </label>
+            <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+              <Input
+                id="project-root-path"
+                value={projectRootPath}
+                onChange={(event) => {
+                  setProjectRootPath(event.currentTarget.value);
+                }}
+                placeholder="/absolute/path/to/project"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-none uppercase tracking-[0.12em]"
+                disabled={!canBrowseProjectRootPath || isSelectingProjectRootPath}
+                onClick={() => {
+                  void browseForProjectRootPath();
+                }}
+              >
+                {isSelectingProjectRootPath ? "Opening..." : "Browse"}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Optional runtime git anchor. Stored in <code>projects.project_root_path</code>.
+            </p>
+            {!canBrowseProjectRootPath && !hasPartialDesktopBridge ? (
+              <p className="text-xs text-muted-foreground">
+                Directory picker is available in the desktop app. Manual path input remains
+                available.
+              </p>
+            ) : null}
+            {hasPartialDesktopBridge ? (
+              <p className="text-xs text-muted-foreground">
+                Desktop bridge looks outdated or incomplete. Restart the desktop app and retry
+                Browse.
+              </p>
+            ) : null}
+          </div>
+
+          {normalizedProjectRootPath.length > 0 ? (
+            <p className="text-xs text-muted-foreground">Normalized: {normalizedProjectRootPath}</p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Normalized: not set (runtime freshness checks remain unavailable).
+            </p>
+          )}
+
+          {projectRootPathValidationError ? (
+            <p className="text-xs text-destructive">{projectRootPathValidationError}</p>
+          ) : null}
         </div>
 
         {isAnyMethodologyLoading ? (
@@ -518,10 +651,16 @@ function CreateProjectRoute() {
         ) : null}
 
         <div className="flex flex-wrap items-center justify-between gap-3 border border-border/70 bg-background/20 p-4">
-          <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-            Selected pin target: {selectedMethodology?.methodologyKey ?? "none"}{" "}
-            {selectedVersionLabel ? `@ ${selectedVersionLabel}` : ""}
-          </p>
+          <div className="space-y-1">
+            <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+              Selected pin target: {selectedMethodology?.methodologyKey ?? "none"}{" "}
+              {selectedVersionLabel ? `@ ${selectedVersionLabel}` : ""}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Project root path:{" "}
+              {normalizedProjectRootPath.length > 0 ? normalizedProjectRootPath : "not set"}
+            </p>
+          </div>
           <Button
             type="button"
             disabled={
@@ -529,6 +668,7 @@ function CreateProjectRoute() {
               !selectedMethodologyId ||
               !selectedVersionId ||
               projectName.trim().length === 0 ||
+              Boolean(projectRootPathValidationError) ||
               !selectedMethodologyHasPublishedVersions
             }
             className="rounded-none uppercase tracking-[0.12em]"
@@ -537,11 +677,16 @@ function CreateProjectRoute() {
                 return;
               }
 
-              createAndPinMutation.mutate({
+              const payload = {
                 methodologyId: selectedMethodologyId,
                 versionId: selectedVersionId,
                 name: projectName.trim(),
-              });
+                ...(normalizedProjectRootPath.length > 0
+                  ? { projectRootPath: normalizedProjectRootPath }
+                  : {}),
+              };
+
+              createAndPinMutation.mutate(payload);
             }}
           >
             {createAndPinMutation.isPending ? "Creating..." : "Create and pin project"}

@@ -1,0 +1,12 @@
+bunx vitest run packages/contracts/src/tests/l3-slice-1-contracts.test.ts
+
+Result:
+- Test Files: 1 passed
+- Tests: 9 passed
+
+Locked assertions covered:
+- payload parity between createFormStep/updateFormStep via shared FormStepPayload
+- descriptionJson `{ markdown: string }` invariant
+- setup_tags as `Record<string, string>`
+- workflowDefinitionId route identity contract
+- deferred/default later-step read models for non-Form steps

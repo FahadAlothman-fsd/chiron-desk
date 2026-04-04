@@ -75,9 +75,10 @@ function runEffect<
 }
 
 export function createProjectRouter(
-  serviceLayer: Layer.Layer<
+  baseServiceLayer: Layer.Layer<
     MethodologyVersionBoundaryService | EligibilityService | ProjectContextService
   >,
+  runtimeServiceLayer?: Layer.Layer<any>,
 ) {
   type ProjectionFactSchema = {
     key: string;
@@ -280,11 +281,11 @@ export function createProjectRouter(
   });
 
   return {
-    ...createProjectRuntimeRouter(serviceLayer as Layer.Layer<any>),
+    ...createProjectRuntimeRouter(runtimeServiceLayer ?? (baseServiceLayer as Layer.Layer<any>)),
 
     listProjects: publicProcedure.handler(async () => {
       return runEffect(
-        serviceLayer,
+        baseServiceLayer,
         Effect.gen(function* () {
           const projectSvc = yield* ProjectContextService;
           return yield* projectSvc.listProjects();
@@ -296,7 +297,7 @@ export function createProjectRouter(
       .input(createAndPinProjectInput)
       .handler(async ({ input, context }) => {
         return runEffect(
-          serviceLayer,
+          baseServiceLayer,
           Effect.gen(function* () {
             const projectSvc = yield* ProjectContextService;
             const projectId = randomUUID();
@@ -322,7 +323,7 @@ export function createProjectRouter(
 
     getProjectDetails: publicProcedure.input(getProjectDetailsInput).handler(async ({ input }) => {
       return runEffect(
-        serviceLayer as Layer.Layer<
+        baseServiceLayer as Layer.Layer<
           MethodologyVersionBoundaryService | EligibilityService | ProjectContextService
         >,
         Effect.gen(function* () {
@@ -356,9 +357,10 @@ export function createProjectRouter(
               methodologyVersionId: pin.methodologyVersionId,
             });
             const latestPublicationEvidence = publicationEvidence.at(-1) ?? null;
-            const workspaceSnapshot = toVersionWorkspaceSnapshotView(
-              yield* methodologySvc.getVersionWorkspaceSnapshot(pin.methodologyVersionId),
-            );
+            const rawWorkspaceSnapshot = (yield* methodologySvc.getVersionWorkspaceSnapshot(
+              pin.methodologyVersionId,
+            )) as unknown as RawWorkspaceSnapshot;
+            const workspaceSnapshot = toVersionWorkspaceSnapshotView(rawWorkspaceSnapshot);
 
             const projectContextWorkUnitKey = "WU.PROJECT_CONTEXT";
             const requestedWorkUnitType = input.workUnitTypeKey

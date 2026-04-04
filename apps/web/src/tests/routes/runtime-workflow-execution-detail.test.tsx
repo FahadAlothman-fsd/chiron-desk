@@ -111,7 +111,7 @@ type WorkflowDetail = {
   };
 };
 
-function buildWorkflowDetail(retryEnabled: boolean): WorkflowDetail {
+function buildWorkflowDetail(retryEnabled: boolean, stepsMessage: string): WorkflowDetail {
   const retryAction: NonNullable<WorkflowDetail["retryAction"]> = retryEnabled
     ? {
         kind: "retry_same_workflow",
@@ -185,7 +185,7 @@ function buildWorkflowDetail(retryEnabled: boolean): WorkflowDetail {
     },
     stepsSurface: {
       mode: "deferred",
-      message: "Workflow step runtime details are coming later in the L3 slice.",
+      message: stepsMessage,
     },
   };
 }
@@ -211,6 +211,13 @@ async function renderWorkflowDetailRoute(detail: WorkflowDetail) {
     }),
   );
 
+  const activateFirstWorkflowStepExecutionMutationOptionsMock = vi.fn(() => ({
+    mutationFn: async () => ({
+      stepExecutionId: "step-1",
+      workflowExecutionId: detail.workflowExecution.workflowExecutionId,
+    }),
+  }));
+
   const orpc = {
     project: {
       getRuntimeWorkflowExecutionDetail: {
@@ -218,6 +225,9 @@ async function renderWorkflowDetailRoute(detail: WorkflowDetail) {
       },
       retrySameWorkflowExecution: {
         mutationOptions: retrySameWorkflowMutationOptionsMock,
+      },
+      activateFirstWorkflowStepExecution: {
+        mutationOptions: activateFirstWorkflowStepExecutionMutationOptionsMock,
       },
     },
   };
@@ -251,7 +261,11 @@ async function renderWorkflowDetailRoute(detail: WorkflowDetail) {
     </QueryClientProvider>,
   );
 
-  return { markup, getRuntimeWorkflowExecutionDetailQueryOptionsMock };
+  return {
+    markup,
+    getRuntimeWorkflowExecutionDetailQueryOptionsMock,
+    activateFirstWorkflowStepExecutionMutationOptionsMock,
+  };
 }
 
 describe("runtime workflow execution detail route", () => {
@@ -259,18 +273,29 @@ describe("runtime workflow execution detail route", () => {
     vi.clearAllMocks();
   });
 
-  it("renders workflow summary, parent context, lineage, and explicit L3 deferred steps messaging", async () => {
-    const { markup, getRuntimeWorkflowExecutionDetailQueryOptionsMock } =
-      await renderWorkflowDetailRoute(buildWorkflowDetail(true));
+  it("renders workflow summary plus first-step activation CTA when no step execution exists yet", async () => {
+    const {
+      markup,
+      getRuntimeWorkflowExecutionDetailQueryOptionsMock,
+      activateFirstWorkflowStepExecutionMutationOptionsMock,
+    } = await renderWorkflowDetailRoute(
+      buildWorkflowDetail(
+        true,
+        "No step execution exists yet. Activate the first step to begin runtime execution.",
+      ),
+    );
 
     expect(markup).toContain("Workflow runtime summary");
     expect(markup).toContain("Retry and supersession lineage");
-    expect(markup).toContain("Steps coming later");
+    expect(markup).toContain("Step execution runtime");
     expect(markup).toContain("Start story workflow");
     expect(markup).toContain("TR.STORY.START");
     expect(markup).toContain("WU.STORY");
     expect(markup).toContain("Retry same workflow");
-    expect(markup).toContain("Workflow step runtime details are coming later in the L3 slice.");
+    expect(markup).toContain("Activate first step");
+    expect(markup).toContain("Activate the first step to begin runtime execution.");
+
+    expect(activateFirstWorkflowStepExecutionMutationOptionsMock).toHaveBeenCalledTimes(1);
 
     expect(markup).not.toContain("Choose another primary workflow");
     expect(markup).not.toContain("Choose different workflow");
@@ -288,12 +313,16 @@ describe("runtime workflow execution detail route", () => {
   });
 
   it("shows retry disabled reason when same-workflow retry is not currently allowed", async () => {
-    const { markup } = await renderWorkflowDetailRoute(buildWorkflowDetail(false));
+    const { markup } = await renderWorkflowDetailRoute(
+      buildWorkflowDetail(false, "Step execution runtime is active (2 executions recorded)."),
+    );
 
     expect(markup).toContain("Retry unavailable");
     expect(markup).toContain(
       "Retry is allowed only while parent transition execution remains active.",
     );
+    expect(markup).toContain("Step execution runtime is active (2 executions recorded).");
+    expect(markup).not.toContain("Activate first step");
     expect(markup).not.toContain("Choose another primary workflow");
   });
 });

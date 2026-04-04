@@ -56,6 +56,7 @@ Implement the locked L3 architecture so design-time authoring, runtime step exec
   - `StepExecutionTransactionService`
 - Typed design-time services and typed runtime services for all six step types.
 - Common harness contracts in `packages/agent-runtime` and OpenCode adapter services under `packages/agent-runtime/src/opencode/**`.
+- Shared Chiron MCP transport in `apps/server` using `@hono/mcp` and `@modelcontextprotocol/sdk`, wired to the Agent runtime/domain services.
 - Thin API procedures in `packages/api` for design-time authoring and runtime execution/detail flows.
 - Web workflow-editor enhancements plus workflow execution / step execution runtime pages in `apps/web`.
 
@@ -107,7 +108,8 @@ Implement the locked L3 architecture so design-time authoring, runtime step exec
 5. **Transaction seam**: multi-aggregate L3 commands run through `StepExecutionTransactionService`.
 6. **Agent harness boundary**: common harness contracts in `packages/agent-runtime`; OpenCode adapter only behind that seam.
 7. **OpenCode server model**: one OpenCode server per active Agent step execution in current implementation scope.
-8. **Canonical runtime naming**: `getWorkflowExecutionDetail`, `getStepExecutionDetail`, typed step mutations, and canonical cross-step names supersede older historical `getRuntime*` discussion names.
+8. **MCP transport boundary**: shared Chiron MCP HTTP transport lives in `apps/server` and is implemented with `@hono/mcp` + `@modelcontextprotocol/sdk`; workflow-engine owns only the domain services invoked by those tools.
+9. **Canonical runtime naming**: `getWorkflowExecutionDetail`, `getStepExecutionDetail`, typed step mutations, and canonical cross-step names supersede older historical `getRuntime*` discussion names.
 
 ### Ownership Matrix
 - `packages/methodology-engine` — design-time workflow/step authoring services and publish validation
@@ -150,7 +152,7 @@ Wave 4: web surfaces + end-to-end verification + cleanup
 > Implementation + Test = ONE task. Never separate.
 > EVERY task MUST have: Agent Profile + Parallelization + QA Scenarios.
 
-- [ ] 1. Freeze L3 contracts and publish invariants
+- [x] 1. Freeze L3 contracts and publish invariants
 
   **What to do**: Add/lock typed contracts for L3 step definitions, runtime step detail payloads, Agent MCP payloads, and shared lifecycle enums in `packages/contracts/src/**`. Add methodology-engine validation enforcing nullable-in-draft but required-on-publish `entryStepId`, same-workflow entry-step ownership, and workflow publish rejection when entry step is missing/invalid. Add failing tests first, then implement until green.
   **Must NOT do**: Do not implement repositories, services, or UI in this task. Do not allow older historical procedure names to leak into the new contracts.
@@ -190,7 +192,7 @@ Wave 4: web surfaces + end-to-end verification + cleanup
 
   **Commit**: YES | Message: `feat(l3): lock contracts and publish invariants` | Files: `packages/contracts/src/**`, `packages/methodology-engine/src/validation.ts`, `packages/methodology-engine/src/tests/**`
 
-- [ ] 2. Add L3 design-time schema and repositories
+- [x] 2. Add L3 design-time schema and repositories
 
   **What to do**: Add typed design-time persistence for all six step types plus workflow-level `entryStepId` in methodology schema. Implement or extend repositories for generic step shells, edges, and typed child tables, including Agent context-entry child tables and Display tabs/blocks. Add schema/repository tests for creation, deletion, and replacement of entry-step pointer under draft rules.
   **Must NOT do**: Do not implement runtime tables or runtime services here. Do not encode publish rules in DB-only logic.
@@ -229,7 +231,7 @@ Wave 4: web surfaces + end-to-end verification + cleanup
 
   **Commit**: YES | Message: `feat(l3): add design-time step schema and repositories` | Files: `packages/db/src/schema/methodology.ts`, `packages/db/src/tests/schema/**`, `packages/db/src/tests/repository/**`, `packages/db/src/**repository*`
 
-- [ ] 3. Add L3 runtime schema and repositories
+- [x] 3. Add L3 runtime schema and repositories
 
   **What to do**: Add `step_executions`, typed runtime child tables for Form/Agent/Action/Invoke/Branch, and supporting runtime repository implementations. Reuse authoritative L1/L2 repositories for project facts, work-unit facts, artifacts, workflow executions, transition executions, and project work units where L3 commands mutate existing runtime aggregates. Add repo tests for first-step creation, branch chosen-route persistence, action row lineage, invoke first-action uniqueness, and Agent proposal persistence.
   **Must NOT do**: Do not add generic agent interaction logs, step segments, or step pause/resume tables.
@@ -268,7 +270,7 @@ Wave 4: web surfaces + end-to-end verification + cleanup
 
   **Commit**: YES | Message: `feat(l3): add runtime step schema and repositories` | Files: `packages/db/src/schema/runtime.ts`, `packages/db/src/runtime-repositories/**`, `packages/db/src/tests/schema/**`, `packages/db/src/tests/repository/**`
 
-- [ ] 4. Implement workflow-centric design-time services and procedures
+- [x] 4. Implement workflow-centric design-time services and procedures
 
   **What to do**: Implement `WorkflowEditorReadService`, `WorkflowTopologyMutationService`, `WorkflowStepMutationService.deleteWorkflowStep`, `StepDefinitionResolverService`, and all six typed design-time step services in `packages/methodology-engine`. Wire thin design-time procedures in `packages/api` so the left-rail grid opens specific step dialogs and those dialogs call typed save procedures only. Ensure `saveAgentStep` persists the full Agent blob atomically and no public generic `saveWorkflowStep` exists.
   **Must NOT do**: Do not leak runtime semantics into methodology-engine. Do not expose a generic save API that bypasses typed step validation.
@@ -307,7 +309,7 @@ Wave 4: web surfaces + end-to-end verification + cleanup
 
   **Commit**: YES | Message: `feat(l3): add workflow-centric design-time services` | Files: `packages/methodology-engine/src/**`, `packages/api/src/routers/**`, `packages/api/src/tests/routers/**`
 
-- [ ] 5. Implement shared runtime services and transaction seam
+- [x] 5. Implement shared runtime services and transaction seam
 
   **What to do**: Implement shared runtime services in `packages/workflow-engine`: `StepExecutionLifecycleService`, `StepProgressionService`, `StepContextQueryService`, `StepContextMutationService`, `StepOutputMaterializationService`, `StepReadModelService`, `StepExecutionDetailService`, `WorkflowExecutionDetailService`, and `StepExecutionTransactionService`. Lock first-step activation to workflow execution page only, enforce stale `contextHandle` invalidation, and centralize multi-aggregate atomicity under the transaction seam.
   **Must NOT do**: Do not implement OpenCode-specific logic here. Do not collapse query/mutation/materialization back into one context god service. Do not bury git truth inspection inside Action services or repositories.
@@ -353,7 +355,7 @@ Wave 4: web surfaces + end-to-end verification + cleanup
 
   **Commit**: YES | Message: `feat(l3): add shared runtime services and transaction seam` | Files: `packages/workflow-engine/src/services/**`, `packages/workflow-engine/src/tests/runtime/**`
 
-- [ ] 6. Implement typed runtime services for Form, Branch, and Display
+- [x] 6. Implement typed runtime services for Form, Branch, and Display
 
   **What to do**: Implement `FormStepRuntimeService`, `BranchStepRuntimeService`, and `DisplayStepRuntimeService`. Form must handle draft/submission/materialization correctly; Branch must do evaluate+commit atomically and persist only chosen-route snapshots; Display must remain read-only and complete idempotently. Provide type-specific detail payload methods used by `StepExecutionDetailService`.
   **Must NOT do**: Do not let Form write facts outside shared materialization rules. Do not persist live per-route branch evaluation rows. Do not add Display mutations beyond idempotent completion.
@@ -384,7 +386,7 @@ Wave 4: web surfaces + end-to-end verification + cleanup
 
   **Commit**: YES | Message: `feat(l3): add form branch and display runtime services` | Files: `packages/workflow-engine/src/services/**`, `packages/workflow-engine/src/tests/runtime/**`
 
-- [ ] 7. Implement typed runtime services for Action and Invoke
+- [x] 7. Implement typed runtime services for Action and Invoke
 
   **What to do**: Implement `ActionStepRuntimeService` and `InvokeStepRuntimeService` with deterministic approval/execution/retry/launch/skip semantics. Action must enforce step-level approval before group execution, deterministic child/result rollups, and selective retry lineage. Invoke must enforce unique first durable action per child target, parent-child relation persistence, and transactional launch/skip handling against authoritative runtime repositories.
   **Must NOT do**: Do not let Action or Invoke procedures orchestrate repositories directly. Do not leave first-action races or mixed retry semantics implicit.
@@ -421,9 +423,9 @@ Wave 4: web surfaces + end-to-end verification + cleanup
 
   **Commit**: YES | Message: `feat(l3): add action and invoke runtime services` | Files: `packages/workflow-engine/src/services/**`, `packages/workflow-engine/src/tests/runtime/**`
 
-- [ ] 8. Add common harness contracts and OpenCode adapter
+- [x] 8. Add common harness contracts and OpenCode adapter
 
-  **What to do**: In `packages/agent-runtime`, define the common harness contracts (`HarnessCatalogService`, `HarnessInstanceService`, `HarnessSessionService`, `HarnessMessagingService`, `HarnessActivityStreamService`, `HarnessToolObservationService`, `HarnessMcpBindingService`) and implement the OpenCode adapter under `src/opencode/**`, including `OpencodePortAllocatorService`, `OpencodeServerManagerService`, `OpencodeMcpConfigService`, `OpencodeClientFactoryService`, `OpencodeSessionService`, and `OpencodeActivityAdapterService`. Persist current server base URL/port/session binding on `agent_step_execution_state` and enforce one OpenCode server per active Agent step execution.
+  **What to do**: In `packages/agent-runtime`, define the common harness contracts (`HarnessCatalogService`, `HarnessInstanceService`, `HarnessSessionService`, `HarnessMessagingService`, `HarnessActivityStreamService`, `HarnessToolObservationService`, `HarnessMcpBindingService`) and implement the OpenCode adapter under `src/opencode/**`, including `OpencodePortAllocatorService`, `OpencodeServerManagerService`, `OpencodeMcpConfigService`, `OpencodeClientFactoryService`, `OpencodeSessionService`, and `OpencodeActivityAdapterService`. Persist current server base URL/port/session binding on `agent_step_execution_state` and enforce one OpenCode server per active Agent step execution. `OpencodeMcpConfigService` must build the Chiron MCP server URL with the execution-scoped query-param binding (current verified direction: `?executionToken=<token>`) at `createOpencode(...)` time.
   **Must NOT do**: Do not expose OpenCode SDK types outside `packages/agent-runtime`. Do not attempt a shared-server multi-step MCP config model in this task.
 
   **Recommended Agent Profile**:
@@ -461,7 +463,7 @@ Wave 4: web surfaces + end-to-end verification + cleanup
 
   **Commit**: YES | Message: `feat(l3): add harness contracts and opencode adapter` | Files: `packages/agent-runtime/**`, `apps/server/src/**`
 
-- [ ] 9. Implement Agent runtime service and Chiron MCP tools
+- [x] 9. Implement Agent runtime service and Chiron MCP tools
 
   **What to do**: Implement `AgentStepRuntimeService` in `packages/workflow-engine` against the common harness contracts only. Add Agent step detail payloads, send/stream behavior, and the three MCP tools (`read_step_snapshot`, `read_context_value`, `propose_context_write`) through the shared Chiron MCP route. Enforce stale `contextHandle` rejection, approved-only current write semantics, idempotent activation/message/proposal behavior, and use the saved OpenCode base URL/session binding from `agent_step_execution_state`.
   **Must NOT do**: Do not import OpenCode SDK directly into workflow-engine. Do not reintroduce human review / Deferred waiting or saved interaction logs.
@@ -501,7 +503,7 @@ Wave 4: web surfaces + end-to-end verification + cleanup
 
   **Commit**: YES | Message: `feat(l3): add agent runtime service and mcp tools` | Files: `packages/workflow-engine/**`, `apps/server/src/**`, `apps/server/src/tests/mcp/**`
 
-- [ ] 10. Wire thin API procedures for L3 design-time and runtime
+- [x] 10. Wire thin API procedures for L3 design-time and runtime
 
   **What to do**: Add/extend `packages/api` routers so all canonical L3 procedures exist with the exact inputs/outputs locked in the architecture. Ensure every procedure calls exactly one top-level service method and that design-time/runtime naming follows the canonical matrix, not older `getRuntime*` discussion names.
   **Must NOT do**: Do not let routers orchestrate multiple services or repositories. Do not expose stale procedure names as public API.
@@ -540,7 +542,7 @@ Wave 4: web surfaces + end-to-end verification + cleanup
 
   **Commit**: YES | Message: `feat(l3): wire thin l3 api procedures` | Files: `packages/api/src/routers/**`, `packages/api/src/tests/routers/**`
 
-- [ ] 11. Implement web surfaces and end-to-end verification
+- [x] 11. Implement web surfaces and end-to-end verification
 
   **What to do**: Implement the locked workflow-centric design-time editor behavior and execution-centric runtime surfaces in `apps/web`: typed step dialogs, Agent stacked dialogs, workflow execution page current-step activation, common step detail shell, step-type detail content, Agent timeline/composer/side-rail tabs, and canonical tool-card rendering. Add route tests and Playwright coverage for the locked timeline, first-step activation, and step-type flows.
   **Must NOT do**: Do not invent segmented Agent chat UX, generic interaction persistence, or noncanonical procedure calls. Do not create first step executions from Guidance/State-Machine pages.

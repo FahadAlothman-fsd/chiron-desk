@@ -1,6 +1,7 @@
 import type {
   CreateWorkUnitWorkflowInput,
   DeleteWorkUnitWorkflowInput,
+  WorkflowMetadataDialogInput,
   UpdateWorkUnitWorkflowInput,
 } from "@chiron/contracts/methodology/workflow";
 import type { WorkflowDefinition } from "@chiron/contracts/methodology/version";
@@ -16,6 +17,25 @@ import { MethodologyRepository } from "../repository";
 import type { UpdateDraftResult } from "../version-service";
 import { MethodologyVersionServiceLive as CoreMethodologyVersionServiceLive } from "../version-service";
 import type { MethodologyVersionRow } from "../repository";
+
+type WorkflowMetadataRepository = {
+  readonly updateWorkflowMetadataByDefinitionId?: (input: {
+    readonly versionId: string;
+    readonly workUnitTypeKey: string;
+    readonly workflowDefinitionId: string;
+    readonly key: string;
+    readonly displayName: string | null;
+    readonly descriptionJson: unknown;
+  }) => Effect.Effect<
+    {
+      readonly workflowDefinitionId: string;
+      readonly key: string;
+      readonly displayName: string | null;
+      readonly descriptionJson: unknown;
+    },
+    RepositoryError
+  >;
+};
 
 export class WorkflowService extends Context.Tag("WorkflowService")<
   WorkflowService,
@@ -54,6 +74,25 @@ export class WorkflowService extends Context.Tag("WorkflowService")<
       },
       actorId: string | null,
     ) => Effect.Effect<void, never>;
+    readonly updateWorkflowMetadata: (
+      input: {
+        readonly versionId: string;
+        readonly workUnitTypeKey: string;
+        readonly workflowDefinitionId: string;
+        readonly payload: WorkflowMetadataDialogInput;
+      },
+      actorId: string | null,
+    ) => Effect.Effect<
+      {
+        readonly workflow: {
+          readonly workflowDefinitionId: string;
+          readonly key: string;
+          readonly displayName: string | null;
+          readonly descriptionJson: unknown;
+        };
+      },
+      VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+    >;
   }
 >() {}
 
@@ -69,10 +108,17 @@ const ensureDraftVersion = (
         }),
       );
 
+const missingCapability = (operation: string) =>
+  new RepositoryError({
+    operation,
+    cause: new Error("Workflow metadata repository capability is not configured"),
+  });
+
 export const WorkflowServiceLive = Layer.effect(
   WorkflowService,
   Effect.gen(function* () {
-    const repo = yield* MethodologyRepository;
+    const repo = (yield* MethodologyRepository) as MethodologyRepository["Type"] &
+      WorkflowMetadataRepository;
     const coreService = yield* CoreMethodologyVersionServiceLive;
 
     const listWorkUnitWorkflows = (input: {
@@ -249,12 +295,60 @@ export const WorkflowServiceLive = Layer.effect(
         return { version: existing, diagnostics };
       });
 
+    const updateWorkflowMetadata = (
+      input: {
+        readonly versionId: string;
+        readonly workUnitTypeKey: string;
+        readonly workflowDefinitionId: string;
+        readonly payload: WorkflowMetadataDialogInput;
+      },
+      actorId: string | null,
+    ) =>
+      Effect.gen(function* () {
+        const version = yield* repo.findVersionById(input.versionId);
+        if (!version) {
+          return yield* new VersionNotFoundError({ versionId: input.versionId });
+        }
+
+        yield* ensureDraftVersion(version);
+
+        if (!repo.updateWorkflowMetadataByDefinitionId) {
+          return yield* Effect.fail(
+            missingCapability("workflowMetadata.updateWorkflowMetadataByDefinitionId"),
+          );
+        }
+
+        const workflow = yield* repo.updateWorkflowMetadataByDefinitionId({
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+          workflowDefinitionId: input.workflowDefinitionId,
+          key: input.payload.key,
+          displayName: input.payload.displayName ?? null,
+          descriptionJson: input.payload.descriptionJson ?? null,
+        });
+
+        yield* repo.recordEvent({
+          methodologyVersionId: input.versionId,
+          eventType: "workflows_updated",
+          actorId: actorId ?? "system",
+          changedFieldsJson: {
+            operation: "update_workflow_metadata",
+            workUnitTypeKey: input.workUnitTypeKey,
+            workflowDefinitionId: input.workflowDefinitionId,
+          },
+          diagnosticsJson: null,
+        });
+
+        return { workflow };
+      });
+
     return WorkflowService.of({
       listWorkUnitWorkflows,
       createWorkUnitWorkflow,
       updateWorkUnitWorkflow,
       deleteWorkUnitWorkflow,
       updateWorkflowDefinition: () => Effect.void,
+      updateWorkflowMetadata,
     });
   }),
 );

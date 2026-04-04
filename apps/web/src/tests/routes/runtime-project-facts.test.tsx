@@ -187,7 +187,13 @@ describe("runtime project facts routes", () => {
   });
 
   it("renders runtime-backed project fact cards and detail navigation", async () => {
-    const { queryClient, orpc } = createHarness();
+    const {
+      queryClient,
+      orpc,
+      addRuntimeProjectFactValueMutationOptionsMock,
+      setRuntimeProjectFactValueMutationOptionsMock,
+      replaceRuntimeProjectFactValueMutationOptionsMock,
+    } = createHarness();
 
     await queryClient.prefetchQuery(
       orpc.project.getRuntimeProjectFacts.queryOptions({ input: { projectId: "project-1" } }),
@@ -202,7 +208,13 @@ describe("runtime project facts routes", () => {
     expect(markup).toContain("Delivery Mode");
     expect(markup).toContain("deliveryMode");
     expect(markup).toContain("incremental");
+    expect(markup).toContain("Has instances");
+    expect(markup).toContain("Add value");
     expect(markup).toContain('href="/projects/$projectId/facts/$factDefinitionId"');
+
+    expect(addRuntimeProjectFactValueMutationOptionsMock).not.toHaveBeenCalled();
+    expect(setRuntimeProjectFactValueMutationOptionsMock).not.toHaveBeenCalled();
+    expect(replaceRuntimeProjectFactValueMutationOptionsMock).not.toHaveBeenCalled();
   });
 
   it("wires add, set, and replace controls only to runtime fact mutation procedures", async () => {
@@ -226,6 +238,8 @@ describe("runtime project facts routes", () => {
       </QueryClientProvider>,
     );
 
+    expect(markup).toContain("Manual authoring (project facts only)");
+    expect(markup).toContain("Slice-1 scope");
     expect(markup).toContain("project-fact-add-form");
     expect(markup).toContain("project-fact-replace-form-pfi-1");
 

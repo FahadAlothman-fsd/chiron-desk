@@ -1,6 +1,16 @@
 import { ORPCError } from "@orpc/server";
 import { Cause, Effect, Layer, Option } from "effect";
 import { z } from "zod";
+import type {
+  ChoosePrimaryWorkflowForTransitionExecutionInput,
+  CompleteTransitionExecutionInput,
+  GetTransitionExecutionDetailInput,
+  GetWorkflowExecutionDetailInput,
+  RetrySameWorkflowExecutionInput,
+  SubmitFormStepExecutionInput,
+  StartTransitionExecutionInput,
+  SwitchActiveTransitionExecutionInput,
+} from "@chiron/contracts/runtime/executions";
 
 import {
   RuntimeArtifactService,
@@ -9,8 +19,10 @@ import {
   RuntimeOverviewService,
   RuntimeWorkflowIndexService,
   RuntimeWorkUnitService,
+  StepExecutionDetailService,
   TransitionExecutionCommandService,
   TransitionExecutionDetailService,
+  WorkflowExecutionStepCommandService,
   WorkflowExecutionCommandService,
   WorkflowExecutionDetailService,
 } from "../../../workflow-engine/src/index";
@@ -107,7 +119,7 @@ const getRuntimeStartGateDetailInput = z.object({
     .optional(),
 });
 
-const startTransitionExecutionInput = z.object({
+const startTransitionExecutionInput: z.ZodType<StartTransitionExecutionInput> = z.object({
   projectId: z.string().min(1),
   transitionId: z.string().min(1),
   workflowId: z.string().min(1),
@@ -123,44 +135,73 @@ const startTransitionExecutionInput = z.object({
   ]),
 });
 
-const switchActiveTransitionExecutionInput = z.object({
-  projectId: z.string().min(1),
-  projectWorkUnitId: z.string().min(1),
-  supersededTransitionExecutionId: z.string().min(1),
-  transitionId: z.string().min(1),
-  transitionKey: z.string().min(1).optional(),
-  workflowId: z.string().min(1),
-  workflowKey: z.string().min(1).optional(),
-});
+const switchActiveTransitionExecutionInput: z.ZodType<SwitchActiveTransitionExecutionInput> =
+  z.object({
+    projectId: z.string().min(1),
+    projectWorkUnitId: z.string().min(1),
+    supersededTransitionExecutionId: z.string().min(1),
+    transitionId: z.string().min(1),
+    transitionKey: z.string().min(1).optional(),
+    workflowId: z.string().min(1),
+    workflowKey: z.string().min(1).optional(),
+  });
 
-const completeTransitionExecutionInput = z.object({
-  projectId: z.string().min(1),
-  projectWorkUnitId: z.string().min(1),
-  transitionExecutionId: z.string().min(1),
-});
-
-const choosePrimaryWorkflowInput = z.object({
-  projectId: z.string().min(1),
-  projectWorkUnitId: z.string().min(1),
-  transitionExecutionId: z.string().min(1),
-  workflowId: z.string().min(1),
-  workflowKey: z.string().min(1).optional(),
-});
-
-const getRuntimeTransitionExecutionDetailInput = z.object({
+const completeTransitionExecutionInput: z.ZodType<CompleteTransitionExecutionInput> = z.object({
   projectId: z.string().min(1),
   projectWorkUnitId: z.string().min(1),
   transitionExecutionId: z.string().min(1),
 });
 
-const getRuntimeWorkflowExecutionDetailInput = z.object({
+const choosePrimaryWorkflowInput: z.ZodType<ChoosePrimaryWorkflowForTransitionExecutionInput> =
+  z.object({
+    projectId: z.string().min(1),
+    projectWorkUnitId: z.string().min(1),
+    transitionExecutionId: z.string().min(1),
+    workflowId: z.string().min(1),
+    workflowKey: z.string().min(1).optional(),
+  });
+
+const getRuntimeTransitionExecutionDetailInput: z.ZodType<GetTransitionExecutionDetailInput> =
+  z.object({
+    projectId: z.string().min(1),
+    projectWorkUnitId: z.string().min(1),
+    transitionExecutionId: z.string().min(1),
+  });
+
+const getRuntimeWorkflowExecutionDetailInput: z.ZodType<GetWorkflowExecutionDetailInput> = z.object(
+  {
+    projectId: z.string().min(1),
+    workflowExecutionId: z.string().min(1),
+  },
+);
+
+const retrySameWorkflowExecutionInput: z.ZodType<RetrySameWorkflowExecutionInput> = z.object({
   projectId: z.string().min(1),
   workflowExecutionId: z.string().min(1),
 });
 
-const retrySameWorkflowExecutionInput = z.object({
+const activateFirstWorkflowStepExecutionInput = z.object({
   projectId: z.string().min(1),
   workflowExecutionId: z.string().min(1),
+});
+
+const getRuntimeStepExecutionDetailInput = z.object({
+  projectId: z.string().min(1),
+  stepExecutionId: z.string().min(1),
+});
+
+const saveFormStepDraftInput = z.object({
+  projectId: z.string().min(1),
+  workflowExecutionId: z.string().min(1),
+  stepExecutionId: z.string().min(1),
+  values: z.record(z.string(), z.unknown()),
+});
+
+const submitFormStepInput: z.ZodType<SubmitFormStepExecutionInput> = z.object({
+  projectId: z.string().min(1),
+  workflowExecutionId: z.string().min(1),
+  stepExecutionId: z.string().min(1),
+  values: z.record(z.string(), z.unknown()),
 });
 
 const checkArtifactSlotCurrentStateInput = z.object({
@@ -534,6 +575,60 @@ export function createProjectRuntimeRouter(serviceLayer: Layer.Layer<any>) {
           }),
         ),
       ),
+
+    activateFirstWorkflowStepExecution: protectedProcedure
+      .input(activateFirstWorkflowStepExecutionInput)
+      .handler(async ({ input }) =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const workflowExecutionStepCommandService = yield* WorkflowExecutionStepCommandService;
+            return yield* workflowExecutionStepCommandService.activateFirstWorkflowStepExecution(
+              input,
+            );
+          }),
+        ),
+      ),
+
+    getRuntimeStepExecutionDetail: publicProcedure
+      .input(getRuntimeStepExecutionDetailInput)
+      .handler(async ({ input }) =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const stepExecutionDetailService = yield* StepExecutionDetailService;
+            const detail = yield* stepExecutionDetailService.getRuntimeStepExecutionDetail(input);
+
+            if (!detail) {
+              throw new ORPCError("NOT_FOUND", {
+                message: `Step execution not found: ${input.stepExecutionId}`,
+              });
+            }
+
+            return detail;
+          }),
+        ),
+      ),
+
+    saveFormStepDraft: protectedProcedure.input(saveFormStepDraftInput).handler(async ({ input }) =>
+      runEffect(
+        serviceLayer,
+        Effect.gen(function* () {
+          const workflowExecutionStepCommandService = yield* WorkflowExecutionStepCommandService;
+          return yield* workflowExecutionStepCommandService.saveFormStepDraft(input);
+        }),
+      ),
+    ),
+
+    submitFormStep: protectedProcedure.input(submitFormStepInput).handler(async ({ input }) =>
+      runEffect(
+        serviceLayer,
+        Effect.gen(function* () {
+          const workflowExecutionStepCommandService = yield* WorkflowExecutionStepCommandService;
+          return yield* workflowExecutionStepCommandService.submitFormStep(input);
+        }),
+      ),
+    ),
 
     checkArtifactSlotCurrentState: publicProcedure
       .input(checkArtifactSlotCurrentStateInput)

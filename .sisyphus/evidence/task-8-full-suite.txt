@@ -1,0 +1,15 @@
+2026-04-03 task-8 full slice-1 suite
+
+Command:
+`bunx vitest run "packages/db/src/tests/schema/l3-slice-1-schema.test.ts" "packages/db/src/tests/repository/l3-slice-1-repositories.test.ts" "packages/methodology-engine/src/tests/l3/l3-slice-1-workflow-editor-services.test.ts" "packages/workflow-engine/src/tests/runtime/l3-slice-1-form-runtime.test.ts" "packages/api/src/tests/routers/l3-slice-1-router.test.ts" "apps/web/src/tests/routes/workflow-editor-form-slice.integration.test.tsx" "apps/web/src/tests/routes/runtime-form-step-detail.test.tsx" "apps/web/src/tests/routes/runtime-project-facts.test.tsx"`
+
+Result:
+- Test Files: 8 passed (8)
+- Tests: 22 passed (22)
+- Duration: 1.61s
+
+Coverage notes:
+- DB schema + repository slice boundaries stayed green.
+- Methodology services now assert deferred later-step read models remain separate from form definitions.
+- Workflow runtime now proves progression/lifecycle seams still activate a deferred later-step type without adding non-Form commands.
+- Web route tests lock the editor's deferred/locked tiles and keep runtime manual authoring isolated to project fact detail only.

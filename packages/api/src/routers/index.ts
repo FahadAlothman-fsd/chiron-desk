@@ -21,10 +21,12 @@ import {
   ExecutionReadRepository,
   ProjectFactRepository,
   ProjectWorkUnitRepository,
+  StepExecutionRepository,
   TransitionExecutionRepository,
   WorkflowExecutionRepository,
   WorkUnitFactRepository,
   WorkflowEngineRuntimeLive,
+  WorkflowEngineRuntimeStepServicesLive,
 } from "../../../workflow-engine/src/index";
 import {
   ProjectContextRepository,
@@ -44,6 +46,7 @@ export function createAppRouter(
     | ProjectFactRepository
     | WorkUnitFactRepository
     | ArtifactRepository
+    | StepExecutionRepository
   >,
 ) {
   const allRepos = Layer.mergeAll(repoLayer, lifecycleRepoLayer, projectContextRepoLayer);
@@ -61,11 +64,17 @@ export function createAppRouter(
     | EligibilityService
     | ProjectContextService
   >;
-  const runtimeServiceLayer = Layer.provide(
-    WorkflowEngineRuntimeLive,
-    Layer.mergeAll(runtimeRepoLayer, lifecycleRepoLayer, projectContextRepoLayer),
-  );
-  const projectServiceLayer = Layer.mergeAll(methodologyServiceLayer, runtimeServiceLayer);
+  const runtimeServiceLayer = Layer.mergeAll(
+    Layer.provide(
+      WorkflowEngineRuntimeLive,
+      Layer.mergeAll(runtimeRepoLayer, lifecycleRepoLayer, projectContextRepoLayer),
+    ),
+    Layer.provide(WorkflowEngineRuntimeStepServicesLive, runtimeRepoLayer),
+  ) as Layer.Layer<any>;
+  const projectServiceLayer = Layer.mergeAll(
+    methodologyServiceLayer,
+    runtimeServiceLayer,
+  ) as Layer.Layer<any>;
 
   return {
     healthCheck: publicProcedure.handler(() => {
@@ -78,7 +87,7 @@ export function createAppRouter(
       };
     }),
     methodology: createMethodologyRouter(methodologyServiceLayer),
-    project: createProjectRouter(projectServiceLayer as Layer.Layer<any>),
+    project: createProjectRouter(methodologyServiceLayer, projectServiceLayer),
   };
 }
 export type AppRouter = ReturnType<typeof createAppRouter>;

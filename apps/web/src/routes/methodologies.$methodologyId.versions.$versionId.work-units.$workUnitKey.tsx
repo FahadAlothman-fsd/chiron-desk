@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useHotkey } from "@tanstack/react-hotkeys";
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { Link, Outlet, createFileRoute, useRouterState } from "@tanstack/react-router";
 import { CircleHelp, FilePlus2, PackagePlus, Workflow, X, type LucideIcon } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { z } from "zod";
@@ -32,6 +32,8 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
   const tab = search.tab ?? "overview";
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const isWorkflowEditorRoute = pathname.includes("/workflow-editor/");
   const { orpc, queryClient } = Route.useRouteContext();
   const [isKeymapOpen, setIsKeymapOpen] = useState(false);
   const [isFactsCreateOpen, setIsFactsCreateOpen] = useState(false);
@@ -274,6 +276,29 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
       : {}),
   });
 
+  const resolveWorkflowDefinitionId = (workflow: {
+    key: string;
+    workflowDefinitionId?: string;
+    metadata?: Record<string, unknown>;
+  }) => {
+    if (
+      typeof workflow.workflowDefinitionId === "string" &&
+      workflow.workflowDefinitionId.length > 0
+    ) {
+      return workflow.workflowDefinitionId;
+    }
+
+    const metadataWorkflowDefinitionId = workflow.metadata?.workflowDefinitionId;
+    if (
+      typeof metadataWorkflowDefinitionId === "string" &&
+      metadataWorkflowDefinitionId.length > 0
+    ) {
+      return metadataWorkflowDefinitionId;
+    }
+
+    return "";
+  };
+
   const selectedWorkUnit = workUnitTypes.find((workUnit) => workUnit?.key === workUnitKey) as
     | {
         key?: string;
@@ -410,7 +435,9 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
         </button>
       ) : null}
 
-      {draftQuery.isError || hasResolvedInvalidSelection ? (
+      {isWorkflowEditorRoute ? (
+        <Outlet />
+      ) : draftQuery.isError || hasResolvedInvalidSelection ? (
         <section className="grid gap-3 lg:grid-cols-[2fr_1fr]">
           <div className="chiron-frame-flat p-3">
             <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
@@ -644,8 +671,28 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
             await queryClient.invalidateQueries({ queryKey: workflowsQueryOptions.queryKey });
           }}
           onOpenWorkflowEditor={(workflowKey) => {
+            const workflowsForEditor = (
+              Array.isArray(workflowsQuery.data)
+                ? workflowsQuery.data
+                : (selectedWorkUnit?.workflows ?? [])
+            ) as Array<{
+              key: string;
+              workflowDefinitionId?: string;
+              metadata?: Record<string, unknown>;
+            }>;
+            const selectedWorkflowForEditor = workflowsForEditor.find(
+              (workflow) => workflow.key === workflowKey,
+            );
+            if (!selectedWorkflowForEditor) {
+              return;
+            }
+            const workflowEditorTargetId = resolveWorkflowDefinitionId(selectedWorkflowForEditor);
+            if (workflowEditorTargetId.length === 0) {
+              return;
+            }
+
             window.open(
-              `/methodologies/${methodologyId}/versions/${versionId}/work-units/${workUnitKey}/workflow-editor?workflowKey=${encodeURIComponent(workflowKey)}`,
+              `/methodologies/${methodologyId}/versions/${versionId}/work-units/${workUnitKey}/workflow-editor/${encodeURIComponent(workflowEditorTargetId)}`,
               "_self",
             );
           }}

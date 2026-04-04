@@ -30,6 +30,26 @@ export {
   WorkUnitArtifactSlotServiceLive,
 } from "./services/work-unit-artifact-slot-service";
 export {
+  WorkflowEditorDefinitionService,
+  WorkflowEditorDefinitionServiceLive,
+} from "./services/workflow-editor-definition-service";
+export {
+  WorkflowTopologyMutationService,
+  WorkflowTopologyMutationServiceLive,
+} from "./services/workflow-topology-mutation-service";
+export {
+  FormStepDefinitionService,
+  FormStepDefinitionServiceLive,
+} from "./services/form-step-definition-service";
+export {
+  WorkflowContextFactDefinitionService,
+  WorkflowContextFactDefinitionServiceLive,
+} from "./services/workflow-context-fact-definition-service";
+export {
+  WorkflowAuthoringTransactionService,
+  WorkflowAuthoringTransactionServiceLive,
+} from "./services/workflow-authoring-transaction-service";
+export {
   MethodologyRuntimeResolver,
   WorkUnitRuntimeResolver,
   WorkflowRuntimeResolver,
