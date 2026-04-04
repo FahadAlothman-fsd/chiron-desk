@@ -13,6 +13,8 @@ export type DesktopApi = {
   runtime: DesktopRuntimeMetadata;
   getRuntimeStatus: () => Promise<DesktopRuntimeStatus>;
   recoverLocalServices: () => Promise<void>;
+  selectProjectRootDirectory: () => Promise<string | null>;
+  selectFolder?: () => Promise<string | null>;
 };
 
 export const DESKTOP_RUNTIME_BACKEND_URL_ARG = "--chiron-runtime-backend-url=";

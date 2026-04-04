@@ -2,7 +2,7 @@ import { basename, dirname, extname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import net from "node:net";
-import type { BrowserWindowConstructorOptions } from "electron";
+import type { BrowserWindowConstructorOptions, OpenDialogOptions } from "electron";
 import type {
   DesktopRuntimeMetadata,
   DesktopRuntimeStatus,
@@ -65,6 +65,7 @@ type DesktopIpcMain = {
 type DesktopIpcHandlers = {
   getRuntimeStatus: () => DesktopRuntimeStatus;
   recoverLocalServices: () => Promise<void>;
+  selectProjectRootDirectory: () => Promise<string | null>;
 };
 
 type DesktopApp = {
@@ -92,6 +93,7 @@ type StartDesktopAppOptions = {
   runtime: RuntimeReadyOptions;
   getRuntimeStatus: () => DesktopRuntimeStatus;
   recoverLocalServices: () => Promise<void>;
+  selectProjectRootDirectory: () => Promise<string | null>;
   onStartupError: (error: Error) => Promise<void> | void;
 };
 
@@ -122,6 +124,10 @@ type DesktopElectronModule = {
   BrowserWindow: new (options: BrowserWindowConstructorOptions) => DesktopWindow;
   dialog: {
     showErrorBox: (title: string, content: string) => void;
+    showOpenDialog: (options: OpenDialogOptions) => Promise<{
+      canceled: boolean;
+      filePaths: string[];
+    }>;
   };
 };
 
@@ -186,8 +192,11 @@ export function getBrowserWindowOptions(
 }
 
 export function resolvePreloadScriptPath(modulePath = fileURLToPath(import.meta.url)): string {
-  const preloadExtension = extname(modulePath) === ".ts" ? ".ts" : ".js";
-  return join(dirname(modulePath), `preload${preloadExtension}`);
+  if (extname(modulePath) === ".ts") {
+    return join(dirname(modulePath), "dist", "desktop", "preload.cjs");
+  }
+
+  return join(dirname(modulePath), "preload.cjs");
 }
 
 export function createMainWindow<TWindow>(
@@ -431,6 +440,9 @@ export function registerDesktopHandlers(
   ipcMain.handle("desktop:recover-local-services", async () => {
     await handlers.recoverLocalServices();
   });
+  ipcMain.handle("desktop:select-project-root-directory", async () =>
+    handlers.selectProjectRootDirectory(),
+  );
 }
 
 export async function startDesktopApp(
@@ -441,6 +453,7 @@ export async function startDesktopApp(
   registerDesktopHandlers(options.ipcMain, {
     getRuntimeStatus: options.getRuntimeStatus,
     recoverLocalServices: options.recoverLocalServices,
+    selectProjectRootDirectory: options.selectProjectRootDirectory,
   });
 
   const startupResult = await Result.tryPromise({
@@ -753,6 +766,19 @@ export async function runDesktopApp(options: RunDesktopAppOptions = {}): Promise
     recoverLocalServices: async () => {
       await shutdownRuntime();
       await refreshRuntime();
+    },
+    selectProjectRootDirectory: async () => {
+      const result = await electron.dialog.showOpenDialog({
+        title: "Select project root directory",
+        buttonLabel: "Select directory",
+        properties: ["openDirectory"],
+      });
+
+      if (result.canceled) {
+        return null;
+      }
+
+      return result.filePaths[0] ?? null;
     },
     onStartupError: async (error) => {
       electron.dialog.showErrorBox(

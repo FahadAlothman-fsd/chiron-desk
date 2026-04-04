@@ -5,9 +5,9 @@
   "type": "module",
   "main": "dist/desktop/main.js",
   "scripts": {
-    "build": "bun --filter \"@chiron/contracts\" build && tsc -p tsconfig.json",
+    "build": "bun --filter \"@chiron/contracts\" build && bun -e \"import { rmSync } from 'node:fs'; rmSync('dist/desktop', { recursive: true, force: true });\" && tsc -p tsconfig.build.json && bun build preload.ts --target=node --format=cjs --external electron --outfile dist/desktop/preload.cjs",
     "build:release": "bun --filter web build && bun --filter server build && bun --filter server bundle:desktop && bun run build",
-    "dev": "NODE_OPTIONS='--import tsx' ELECTRON_RENDERER_URL=${ELECTRON_RENDERER_URL:-http://localhost:3001} electron ./main.ts",
+    "dev": "bun run build && NODE_OPTIONS='--import tsx' ELECTRON_RENDERER_URL=${ELECTRON_RENDERER_URL:-http://localhost:3001} electron ./main.ts",
     "package:linux": "bun run build:release && electron-builder --linux AppImage",
     "start": "bun run build && electron .",
     "test": "vitest run",

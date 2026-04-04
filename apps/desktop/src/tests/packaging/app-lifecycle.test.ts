@@ -37,11 +37,12 @@ describe("desktop app lifecycle", () => {
       },
       getRuntimeStatus: () => ({ backend: "attached" }),
       recoverLocalServices: vi.fn().mockResolvedValue(undefined),
+      selectProjectRootDirectory: vi.fn().mockResolvedValue(null),
       onStartupError: vi.fn(),
     });
 
     expect(whenReady).toHaveBeenCalledOnce();
-    expect(handle).toHaveBeenCalledTimes(2);
+    expect(handle).toHaveBeenCalledTimes(3);
     expect(probe).toHaveBeenCalledOnce();
     expect(createBrowserWindow).toHaveBeenCalledOnce();
     expect(browserWindow.loadURL).toHaveBeenCalledWith("http://localhost:3001");
@@ -69,6 +70,7 @@ describe("desktop app lifecycle", () => {
         },
         getRuntimeStatus: () => ({ backend: "attached" }),
         recoverLocalServices: vi.fn().mockResolvedValue(undefined),
+        selectProjectRootDirectory: vi.fn().mockResolvedValue(null),
         onStartupError,
       }),
     ).rejects.toThrow(/Failed to start required local service/);
@@ -98,6 +100,7 @@ describe("desktop app lifecycle", () => {
       },
       getRuntimeStatus: () => ({ backend: "attached" }),
       recoverLocalServices: vi.fn().mockResolvedValue(undefined),
+      selectProjectRootDirectory: vi.fn().mockResolvedValue(null),
       onStartupError: vi.fn(),
     });
 
@@ -142,7 +145,10 @@ describe("desktop app lifecycle", () => {
         app,
         ipcMain: { handle: vi.fn() },
         BrowserWindow: vi.fn(),
-        dialog: { showErrorBox: vi.fn() },
+        dialog: {
+          showErrorBox: vi.fn(),
+          showOpenDialog: vi.fn().mockResolvedValue({ canceled: true, filePaths: [] }),
+        },
       },
       bootstrapRuntimeState: vi.fn().mockResolvedValue({
         paths: {
@@ -202,7 +208,10 @@ describe("desktop app lifecycle", () => {
         },
         ipcMain: { handle: vi.fn() },
         BrowserWindow: vi.fn(),
-        dialog: { showErrorBox: vi.fn() },
+        dialog: {
+          showErrorBox: vi.fn(),
+          showOpenDialog: vi.fn().mockResolvedValue({ canceled: true, filePaths: [] }),
+        },
       },
       bootstrapRuntimeState: vi.fn().mockResolvedValue({
         paths: {

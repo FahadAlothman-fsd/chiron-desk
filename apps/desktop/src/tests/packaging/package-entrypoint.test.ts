@@ -20,10 +20,17 @@ describe("desktop package entrypoint contract", () => {
     expect(desktopPackageConfig.main).toBe("dist/desktop/main.js");
   });
 
-  it("uses a source entry for dev instead of building first", () => {
-    expect(desktopPackageConfig.scripts.dev).not.toContain("bun run build");
+  it("builds the preload artifact before launching the source main entry in dev", () => {
+    expect(desktopPackageConfig.scripts.dev).toContain("bun run build");
     expect(desktopPackageConfig.scripts.dev).toContain("tsx");
     expect(desktopPackageConfig.scripts.dev).toContain("electron ./main.ts");
+  });
+
+  it("bundles the preload bridge as a CommonJS artifact Electron can execute", () => {
+    expect(desktopPackageConfig.scripts.build).toContain("tsconfig.build.json");
+    expect(desktopPackageConfig.scripts.build).toContain("bun build preload.ts");
+    expect(desktopPackageConfig.scripts.build).toContain("--format=cjs");
+    expect(desktopPackageConfig.scripts.build).toContain("preload.cjs");
   });
 
   it("exposes a local Linux packaging script", () => {

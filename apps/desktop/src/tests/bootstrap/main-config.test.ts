@@ -11,15 +11,15 @@ describe("browser window security defaults", () => {
     expect(options.webPreferences?.preload).toBeTruthy();
   });
 
-  it("uses the source preload entry when running from TypeScript", () => {
+  it("uses the built preload entry when running from TypeScript source main", () => {
     expect(resolvePreloadScriptPath("/repo/apps/desktop/main.ts")).toBe(
-      "/repo/apps/desktop/preload.ts",
+      "/repo/apps/desktop/dist/desktop/preload.cjs",
     );
   });
 
   it("uses the built preload entry when running from compiled output", () => {
     expect(resolvePreloadScriptPath("/repo/apps/desktop/dist/desktop/main.js")).toBe(
-      "/repo/apps/desktop/dist/desktop/preload.js",
+      "/repo/apps/desktop/dist/desktop/preload.cjs",
     );
   });
 });
