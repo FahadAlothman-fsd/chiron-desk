@@ -1,21 +1,24 @@
 # L3 Slice 1 Correction — Context Facts and Form
 
+> **Status: Superseded / historical only. DO NOT EXECUTE THIS PLAN.**
+> This file is retained only for traceability of the intermediate correction pass.
+> The sole active slice-1 execution source of truth is `.sisyphus/plans/l3-slice-1-design-time-context-facts-form.md`.
+
 ## TL;DR
-> **Summary**: Correct the implemented slice-1 foundations so they reach the real product target: full workflow-editor context-fact CRUD plus full Form CRUD/runtime, without throwing away the good step-core, route, schema, and activation foundations already built.
+> **Summary**: Correct the shipped slice-1 product model so workflow-editor context-fact CRUD and Form-step design-time CRUD become fully usable and authoritative, while deferring runtime work to a later dedicated plan.
 > **Deliverables**:
 > - Corrected context-fact-first contract/model across contracts, routers, services, and tests
 > - Fully usable workflow-editor context-fact CRUD surface
 > - Fully usable Form dialog and field-binding CRUD based on linked workflow context facts
-> - Corrected Form runtime behavior, step detail tabs, and bound/definition-backed semantics
-> - End-to-end `projectRootPath` persistence and project-fact manual-authoring support
-> - Corrected demo-fixture path and temporary test-only workflow-reference example
+> - Corrected design-time methodology schema/repository/service authority for context facts and Form steps
+> - Locked design-time seed additions for the 9 BMAD-derived methodology/work-unit fact definitions, added as the last task set
 > **Effort**: Large
-> **Parallel**: YES - 4 waves
-> **Critical Path**: contracts/model correction → methodology schema/repos/services → workflow-editor UX → runtime form semantics → projectRootPath/project-facts flow → demo fixture + verification
+> **Parallel**: YES - 3 waves
+> **Critical Path**: contracts/model correction → methodology schema/repos/services → workflow-editor UX → design-time seed additions → verification
 
 ## Context
 ### Original Request
-Finalize a new implementation-correction plan for slice-1. This plan must not become cleanup-only. It must preserve the good foundations already implemented while repairing the wrong ownership model so slice-1 actually delivers full workflow-editor context-fact CRUD and full Form CRUD/runtime.
+Finalize a new implementation-correction plan for slice-1. This plan must not become cleanup-only. It must preserve the good foundations already implemented while repairing the wrong ownership model so slice-1 actually delivers full workflow-editor context-fact CRUD and full Form-step design-time CRUD. Runtime is explicitly deferred to a later plan.
 
 ### Implemented-State Summary
 - Good foundations already exist and should be preserved: explicit workflow-editor route identity, workflow launch wiring, dark shell + disabled later-step tiles, one-outgoing-edge rule, first-step activation seam, typed methodology/runtime table direction, runtime step-core services, step detail route, and baseline/demo seed split concept.
@@ -23,9 +26,8 @@ Finalize a new implementation-correction plan for slice-1. This plan must not be
   - Form contracts still couple Form fields and context-fact definitions.
   - The Form dialog still behaves as `Contract | Fields | Context Facts` with placeholders instead of real field-binding CRUD.
   - Context-fact semantics are not fully expressed in the workflow-editor CRUD/read-models.
-  - `form-step-execution-service.ts` still uses shortcuts like key-prefix routing rather than context-fact-definition-driven semantics.
   - `SetupTags` lives in shared invariants even though it is slice-1/demo-specific.
-  - `projectRootPath` is wired in UI but not persisted end-to-end through project creation.
+  - Runtime/project-fact-instance concerns exist, but this correction pass is intentionally narrowing away from them.
 
 ### Refinement Draft Authority
 Use `.sisyphus/drafts/l3-slice-1-form-dialog-refinement.md` as the product-model authority for the correction work. It locks:
@@ -46,30 +48,40 @@ Use `.sisyphus/drafts/l3-slice-1-form-dialog-refinement.md` as the product-model
 ### Metis Review (gaps addressed)
 - Lock the active kind set to 6 and explicitly remove `work_unit_reference_fact` from current scope.
 - Add architecture guardrails so Form never again owns inline context-fact definitions.
-- Add acceptance criteria for tab ownership, widget derivation, UI multiplicity, bound-external zero-instance behavior, and end-to-end `projectRootPath` persistence.
+- Add acceptance criteria for tab ownership, widget derivation, UI multiplicity, and exact design-time ownership.
 - Use the triage model directly in the plan: preserve foundations, patch wrong/incomplete seams in place, and explicitly replace/remove stale ownership artifacts.
 - Keep unrelated desktop/server/package churn out of correction commits.
 
+### Postmortem Guardrails (locked)
+- This is **not** a reusable-foundations exercise. Any work whose primary output is generic infrastructure, future-proofing, or cross-slice abstraction fails scope unless the task names it as required to unlock a concrete product acceptance criterion.
+- `.sisyphus/drafts/l3-slice-1-form-dialog-refinement.md` is the sole product-model authority for slice-1 behavior. Service/repo/layer structure is subordinate to that authority, not the other way around.
+- The following stale artifacts are blocking failures if they appear anywhere in active slice-1 contracts, routers, services, read models, tests, or UI:
+  - `FormStepPayload.contextFacts`
+  - Form dialog `Context Facts` tab
+  - standalone `inputKind`
+  - `SetupTags` in `packages/contracts/src/shared/invariants.ts`
+  - active `work_unit_reference_fact`
+- Placeholder or stub UX in active slice-1 surfaces is forbidden. Any `coming in slice-2`, decorative CRUD shell, or dead tab in scoped surfaces fails acceptance.
+- Every service/repository change must trace directly to one visible product behavior: workflow-editor context-fact CRUD, Form field-binding CRUD, or design-time seed-definition correctness.
+- Atomic commits must map to one product correction seam only. Unrelated desktop/server/package churn is out of scope.
+
 ## Work Objectives
 ### Core Objective
-Repair slice-1 so the implemented route/shell/runtime foundations become a coherent product slice centered on workflow-level context-fact CRUD and Form authoring/runtime behavior, while preserving good existing infrastructure and avoiding cleanup-only churn.
+Repair slice-1 so the implemented route/shell foundations become a coherent product slice centered on workflow-level context-fact CRUD and Form-step design-time authoring behavior, while preserving good existing infrastructure and avoiding cleanup-only churn. Runtime step behavior, project-fact-instance CRUD, and projectRootPath persistence are deferred.
 
 ### Deliverables
 - Corrected contracts in `packages/contracts/src/methodology/workflow.ts`, `packages/contracts/src/runtime/executions.ts`, and related tests.
 - Corrected methodology schema/repository/service authority for workflow context facts and Form field bindings.
 - Corrected workflow-editor surfaces in `apps/web/src/features/workflow-editor/**` and the explicit workflow-editor route.
-- Corrected runtime Form semantics in workflow-engine and step-detail/web surfaces.
-- Corrected `createAndPinProject` → project-context → repository → `projects.project_root_path` persistence chain.
-- Corrected project-fact manual-authoring path for the `bound_external_fact` zero-instance flow.
-- Corrected demo-fixture path and temporary workflow-reference fixture behavior.
+- Correct design-time seed additions in `packages/scripts/src/seed/methodology/**` for the locked 9 BMAD-derived fact definitions.
+- Corrected demo-fixture path and temporary workflow-reference fixture behavior only as needed to support design-time authoring proof.
 
 ### Definition of Done
 - `bunx vitest run packages/contracts/src/tests/l3-slice-1-contracts.test.ts`
 - `bunx vitest run packages/db/src/tests/schema/l3-slice-1-schema.test.ts packages/db/src/tests/repository/l3-slice-1-repositories.test.ts packages/db/src/tests/repository/l3-slice-1-runtime-repositories.test.ts`
 - `bunx vitest run packages/methodology-engine/src/tests/l3/l3-slice-1-workflow-editor-services.test.ts`
-- `bunx vitest run packages/workflow-engine/src/tests/runtime/l3-slice-1-step-core.test.ts packages/workflow-engine/src/tests/runtime/l3-slice-1-form-runtime.test.ts`
-- `bunx vitest run packages/api/src/tests/routers/l3-slice-1-methodology-router.test.ts packages/api/src/tests/routers/l3-slice-1-router.test.ts packages/api/src/tests/architecture/l3-slice-1-deferred-surfaces.test.ts`
-- `bunx vitest run apps/web/src/tests/routes/workflow-editor-form-slice.integration.test.tsx apps/web/src/tests/routes/runtime-form-step-detail.test.tsx apps/web/src/tests/routes/runtime-workflow-execution-detail.test.tsx apps/web/src/tests/routes/runtime-project-facts.test.tsx apps/web/src/tests/routes/projects.new.integration.test.tsx`
+- `bunx vitest run packages/api/src/tests/routers/l3-slice-1-methodology-router.test.ts`
+- `bunx vitest run apps/web/src/tests/routes/workflow-editor-form-slice.integration.test.tsx`
 - `bunx vitest run packages/scripts/src/tests/seeding/methodology-seed-integrity.test.ts packages/scripts/src/tests/seeding/l3-slice-1-demo-fixture.test.ts`
 
 ### Must Have
@@ -79,24 +91,26 @@ Repair slice-1 so the implemented route/shell/runtime foundations become a coher
 - Context-fact dialog tabs are exactly `Contract | Value Semantics | Guidance`.
 - `Contract` vs `Value Semantics` vs `Guidance` ownership is enforced exactly as locked in the refinement draft.
 - Field widget/runtime behavior is derived from linked context-fact definitions.
-- `bound_external_fact` zero-instance behavior shows explicit empty state and routes the operator into project-fact manual authoring.
-- `projectRootPath` persists end-to-end into `projects.project_root_path`.
-- Good foundations are preserved: route identity, one-outgoing-edge invariant, first-step activation seam, typed tables direction, runtime step-core seams.
+- Good foundations are preserved: route identity, one-outgoing-edge invariant, and typed methodology table direction.
+- The 9 BMAD-derived design-time fact definitions are locked for the last seed task set in this plan.
 
 ### Must NOT Have
 - No cleanup-only plan shape.
+- No reusable-foundations detour where generic abstractions outrank product correctness.
 - No reintroduction of Form-owned inline context facts.
 - No `Context Facts` tab inside the Form dialog.
 - No standalone `inputKind` field or enum driving runtime widget behavior.
 - No `SetupTags` in `packages/contracts/src/shared/invariants.ts`.
 - No active slice-1 implementation/testing surface for `work_unit_reference_fact`.
 - No unrelated desktop/server/package-manifest churn folded into slice-1 correction commits.
+- No runtime Form/context-fact/project-fact-instance implementation in this plan.
 - No expansion into Agent/Action/Invoke/Branch runtime behavior beyond existing deferred/default surfaces.
 
 ## Verification Strategy
 > ZERO HUMAN INTERVENTION — all verification is agent-executed.
 - Test decision: tests-after against the already implemented slice-1 foundations.
 - QA policy: every correction task must preserve good infrastructure while proving the corrected product model with concrete tests.
+- Negative gates are mandatory: stale ownership artifacts, placeholder tabs, and forbidden kinds must be asserted absent, not merely omitted from happy-path tests.
 - Evidence: `.sisyphus/evidence/task-{N}-{slug}.{ext}`
 
 ## Execution Strategy
@@ -107,38 +121,21 @@ Repair slice-1 so the implemented route/shell/runtime foundations become a coher
 - `apps/web/src/features/workflow-editor/step-types-grid.tsx`
 - `apps/web/src/features/workflow-editor/step-list-inspector.tsx` (preserve seam, patch details only if task says so)
 - `apps/web/src/features/workflow-editor/workflow-editor-shell.tsx` (preserve shell + left-rail/canvas seam)
-- `apps/web/src/routes/projects.$projectId.workflow-executions.$workflowExecutionId.tsx` (preserve role as activation surface)
-- `apps/web/src/routes/projects.$projectId.step-executions.$stepExecutionId.tsx` (preserve dedicated step-detail route)
 - `packages/methodology-engine/src/services/workflow-topology-mutation-service.ts`
-- `packages/workflow-engine/src/services/workflow-execution-step-command-service.ts`
-- `packages/workflow-engine/src/services/step-execution-detail-service.ts`
-- `packages/workflow-engine/src/services/step-execution-lifecycle-service.ts`
-- `packages/workflow-engine/src/services/step-progression-service.ts`
-- `packages/workflow-engine/src/services/step-context-query-service.ts`
-- `packages/workflow-engine/src/services/step-context-mutation-service.ts`
-- `packages/workflow-engine/src/services/step-execution-transaction-service.ts`
-- `packages/db/src/runtime-repositories/step-execution-repository.ts`
-- Typed methodology/runtime table direction in `packages/db/src/schema/methodology.ts` and `packages/db/src/schema/runtime.ts`
+- Typed methodology table direction in `packages/db/src/schema/methodology.ts`
 
 #### Patch in place
 - `apps/web/src/features/workflow-editor/dialogs.tsx`
 - `apps/web/src/features/workflow-editor/workflow-editor-shell.tsx`
-- `apps/web/src/routes/projects.new.tsx`
-- `apps/web/src/routes/projects.$projectId.workflow-executions.$workflowExecutionId.tsx`
-- `apps/web/src/routes/projects.$projectId.step-executions.$stepExecutionId.tsx`
-- `apps/web/src/routes/projects.$projectId.facts.tsx`
-- `apps/web/src/routes/projects.$projectId.facts.$factDefinitionId.tsx`
 - `packages/contracts/src/methodology/workflow.ts`
 - `packages/api/src/routers/methodology.ts`
-- `packages/api/src/routers/project.ts`
 - `packages/methodology-engine/src/services/form-step-definition-service.ts`
 - `packages/methodology-engine/src/services/workflow-context-fact-definition-service.ts`
 - `packages/methodology-engine/src/services/workflow-editor-definition-service.ts`
-- `packages/workflow-engine/src/services/form-step-execution-service.ts`
-- `packages/workflow-engine/src/services/step-progression-service.ts` and `step-execution-transaction-service.ts` if deferred behavior is too eager
 - `packages/scripts/src/seed/methodology/setup/slice-1-demo-fixture.ts`
 - `packages/scripts/src/tests/seeding/l3-slice-1-demo-fixture.test.ts`
-- project-context create/persist seams under `packages/project-context/src/**`
+- `packages/scripts/src/seed/methodology/setup/setup-bmad-mapping.ts`
+- `packages/scripts/src/seed/methodology/index.ts`
 
 #### Replace / remove
 - `SetupTags` in `packages/contracts/src/shared/invariants.ts`
@@ -158,15 +155,10 @@ Repair slice-1 so the implemented route/shell/runtime foundations become a coher
 3. `apps/web/src/features/workflow-editor/dialogs.tsx`
    - Form dialog = `Contract | Fields | Guidance`
    - Context-fact dialog = `Contract | Value Semantics | Guidance`
-4. `apps/web/src/routes/projects.$projectId.workflow-executions.$workflowExecutionId.tsx`
-   - explicit activation CTA when no step exists
-   - compact step summary after activation
-5. `apps/web/src/routes/projects.$projectId.step-executions.$stepExecutionId.tsx`
-   - tabs and semantics aligned to corrected runtime model
-6. `apps/web/src/routes/projects.new.tsx`
-   - `projectRootPath` browse/validate/normalize/persist works end-to-end
-7. `apps/web/src/routes/projects.$projectId.facts.tsx` and `...facts.$factDefinitionId.tsx`
-   - project-fact instance authoring is practical and clearly the manual path for `bound_external_fact`
+4. `apps/web/src/features/workflow-editor/workflow-editor-shell.tsx`
+   - context-fact definitions list/create/edit/delete is practical and authoritative
+5. `apps/web/src/features/workflow-editor/step-list-inspector.tsx`
+   - step and edge selection behavior remains aligned with the refined design-time model
 
 ### Service / repo / transaction inventory
 #### Methodology-engine
@@ -176,24 +168,15 @@ Repair slice-1 so the implemented route/shell/runtime foundations become a coher
   - `FormStepDefinitionService`
   - `WorkflowContextFactDefinitionService`
   - `WorkflowAuthoringTransactionService`
-- Add or split explicitly if needed for clarity:
-  - `WorkflowMetadataService` as a distinct service only if required to make metadata ownership cleaner; otherwise document canonical ownership in `WorkflowService`
+- Do not add a new `WorkflowMetadataService`; existing workflow metadata CRUD stays in `WorkflowService`.
 
 #### Workflow-engine
-- Keep and patch:
-  - `WorkflowExecutionStepCommandService`
-  - `StepExecutionDetailService`
-  - `StepExecutionLifecycleService`
-  - `StepProgressionService`
-  - `StepContextQueryService`
-  - `StepContextMutationService`
-  - `FormStepExecutionService`
-  - `StepExecutionTransactionService`
+- Deferred from this plan. Runtime services remain untouched except where a shared contract/test import must be kept compiling under the corrected design-time model.
 
 #### Repositories
 - Preserve existing repo seams where real and aligned.
 - Patch methodology repositories to provide real editor-definition / form-field / edge / context-fact CRUD methods.
-- Patch project-context create/persist seams so `projectRootPath` reaches `projects.project_root_path`.
+- Patch seed-definition files only under `packages/scripts/src/seed/methodology/**` for the locked 9 design-time facts.
 
 #### Effect guardrails
 - Routers remain thin; one top-level service call per procedure.
@@ -204,23 +187,19 @@ Repair slice-1 so the implemented route/shell/runtime foundations become a coher
 ### Parallel Execution Waves
 Wave 1: contracts/tests + stale artifact removal rules + schema/repository authority corrections
 Wave 2: methodology-engine services/read models + workflow-editor dialogs/shell corrections
-Wave 3: runtime form semantics + projectRootPath/project-fact manual-authoring flow + demo fixture correction
-Wave 4: integrated verification, correction sweep, final review wave
+Wave 3: design-time seed-definition additions + integrated verification + final review wave
 
 ### Dependency Matrix
-- T1 blocks T2, T3, T4, T5, T6, T7, T8
-- T2 blocks T3, T4, T7, T8
-- T3 blocks T4, T5
-- T4 blocks T5, T7
-- T5 blocks T8
-- T6 blocks T5, T8
-- T7 blocks T8
+- T1 blocks T2, T3, T4, T5, T6
+- T2 blocks T3, T4, T5, T6
+- T3 blocks T4, T6
+- T4 blocks T5, T6
+- T5 blocks T6
 
 ### Agent Dispatch Summary
 - Wave 1 → 2 tasks → deep
 - Wave 2 → 2 tasks → deep / visual-engineering
-- Wave 3 → 3 tasks → deep / unspecified-high
-- Wave 4 → 1 task + final verification → oracle / unspecified-high / deep
+- Wave 3 → 1 task + integrated verification + final review wave → deep / oracle / unspecified-high
 
 ## TODOs
 > This is an implementation-correction plan. Preserve good foundations; patch or replace only where the product model is wrong or incomplete.
@@ -235,11 +214,10 @@ Wave 4: integrated verification, correction sweep, final review wave
   - Skills: [`effect-best-practices`, `effect-solutions`] — Reason: service/contract boundaries and typed errors must stay future-safe
   - Omitted: [`hono`] — Reason: not transport-specific work
 
-  **Parallelization**: Can Parallel: NO | Wave 1 | Blocks: 2,3,4,5,6,7,8 | Blocked By: none
+  **Parallelization**: Can Parallel: NO | Wave 1 | Blocks: 2,3,4,5,6 | Blocked By: none
 
   **References**:
   - Pattern: `packages/contracts/src/methodology/workflow.ts`
-  - Pattern: `packages/contracts/src/runtime/executions.ts`
   - Pattern: `packages/contracts/src/shared/invariants.ts`
   - Authority: `.sisyphus/drafts/l3-slice-1-form-dialog-refinement.md`
   - Drift map: `.sisyphus/drafts/l3-slice-1-implementation-triage.md`
@@ -278,7 +256,7 @@ Wave 4: integrated verification, correction sweep, final review wave
   - Skills: [`effect-best-practices`, `effect-solutions`] — Reason: service layering and typed failures matter here
   - Omitted: [`brainstorming`] — Reason: decisions are already locked
 
-  **Parallelization**: Can Parallel: YES | Wave 1 | Blocks: 4,7,8 | Blocked By: 1
+  **Parallelization**: Can Parallel: YES | Wave 1 | Blocks: 3,4,5,6 | Blocked By: 1
 
   **References**:
   - Pattern: `packages/db/src/schema/methodology.ts`
@@ -322,7 +300,7 @@ Wave 4: integrated verification, correction sweep, final review wave
   - Skills: [`effect-best-practices`] — Reason: keep data-flow/query state clean in React
   - Omitted: [`web-design-guidelines`] — Reason: product-model correctness is higher priority than general design audit
 
-  **Parallelization**: Can Parallel: YES | Wave 2 | Blocks: 4,5,8 | Blocked By: 1,2
+  **Parallelization**: Can Parallel: YES | Wave 2 | Blocks: 4,6 | Blocked By: 1,2
 
   **References**:
   - Authority: `.sisyphus/drafts/l3-slice-1-form-dialog-refinement.md`
@@ -366,7 +344,7 @@ Wave 4: integrated verification, correction sweep, final review wave
   - Skills: [`effect-best-practices`] — Reason: query/mutation state and invalidation must stay clean
   - Omitted: [`brainstorming`] — Reason: layout and ownership are already decided
 
-  **Parallelization**: Can Parallel: YES | Wave 2 | Blocks: 5,8 | Blocked By: 2,3
+  **Parallelization**: Can Parallel: YES | Wave 2 | Blocks: 5,6 | Blocked By: 2,3
 
   **References**:
   - Target: `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId.tsx`
@@ -398,144 +376,62 @@ Wave 4: integrated verification, correction sweep, final review wave
 
   **Commit**: YES | Message: `fix(web): finish workflow editor context-fact surface` | Files: `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId.tsx`, `apps/web/src/features/workflow-editor/**`
 
-- [ ] 5. Correct runtime Form behavior, step detail semantics, and deferred later-step behavior
 
-  **What to do**: Patch workflow-engine runtime services and the web runtime routes so Form submission/writes are driven by linked context-fact definitions rather than key-prefix shortcuts, step detail tabs explain exactly what `Submission & Progression`, `Writes`, and `Context Fact Semantics` mean, bound/definition-backed behavior matches the refinement draft, and progression/deferred behavior does not accidentally behave like later steps are fully active.
-  **Must NOT do**: Do not remove the explicit first-step activation seam. Do not expand into non-Form runtime commands. Do not auto-activate next non-Form steps with real semantics.
+- [ ] 5. Add the locked 9 design-time BMAD fact definitions to the methodology seed and keep demo examples clearly separate
 
-  **Recommended Agent Profile**:
-  - Category: `deep` — Reason: runtime semantics drift is subtle and cross-layer
-  - Skills: [`effect-best-practices`, `effect-solutions`] — Reason: service boundaries, errors, and transactions must be precise
-  - Omitted: [`hono`] — Reason: no Hono-specific work here
-
-  **Parallelization**: Can Parallel: YES | Wave 3 | Blocks: 8 | Blocked By: 1,2,3,4
-
-  **References**:
-  - Target: `packages/workflow-engine/src/services/form-step-execution-service.ts`
-  - Target: `packages/workflow-engine/src/services/step-execution-detail-service.ts`
-  - Target: `packages/workflow-engine/src/services/step-progression-service.ts`
-  - Target: `packages/workflow-engine/src/services/step-execution-transaction-service.ts`
-  - Target: `apps/web/src/routes/projects.$projectId.workflow-executions.$workflowExecutionId.tsx`
-  - Target: `apps/web/src/routes/projects.$projectId.step-executions.$stepExecutionId.tsx`
-
-  **Acceptance Criteria**:
-  - [ ] Form runtime semantics are context-fact-definition-driven, not key-prefix-driven.
-  - [ ] Step detail tabs and copy match the corrected runtime model.
-  - [ ] `bound_external_fact` zero-instance behavior is explicit and routes operators into project-fact authoring.
-  - [ ] Later step types remain deferred/default rather than eagerly gaining runtime behavior.
-
-  **QA Scenarios**:
-  ```
-  Scenario: Runtime Form semantics follow corrected model
-    Tool: Bash
-    Steps: Run `bunx vitest run packages/workflow-engine/src/tests/runtime/l3-slice-1-step-core.test.ts packages/workflow-engine/src/tests/runtime/l3-slice-1-form-runtime.test.ts apps/web/src/tests/routes/runtime-form-step-detail.test.tsx apps/web/src/tests/routes/runtime-workflow-execution-detail.test.tsx`
-    Expected: PASS; activation is explicit/idempotent, Form writes follow context-fact definitions, and step-detail tabs match corrected semantics
-    Evidence: .sisyphus/evidence/task-5-runtime.txt
-
-  Scenario: Bound external fact with zero instances shows explicit empty-state path
-    Tool: Bash
-    Steps: Re-run the same suites and assert a bound_external field with zero project-fact instances surfaces the locked empty state instead of inline create-new behavior
-    Expected: PASS; operator is redirected into the project-fact manual-authoring path
-    Evidence: .sisyphus/evidence/task-5-runtime-error.txt
-  ```
-
-  **Commit**: YES | Message: `fix(runtime): align form execution with context-fact semantics` | Files: `packages/workflow-engine/src/**`, `apps/web/src/routes/projects.$projectId.workflow-executions.$workflowExecutionId.tsx`, `apps/web/src/routes/projects.$projectId.step-executions.$stepExecutionId.tsx`
-
-- [ ] 6. Complete projectRootPath persistence and practical project-fact manual authoring
-
-  **What to do**: Patch `projects.new.tsx`, `packages/api/src/routers/project.ts`, and the project-context service/repository seams so `projectRootPath` persists end-to-end into `projects.project_root_path`. Patch project-facts list/detail surfaces so manual authoring of project-fact instances is practical and clearly the operator path used by `bound_external_fact` zero-instance flows.
-  **Must NOT do**: Do not leave the path flow half-wired at UI/contract level only. Do not broaden manual authoring into non-project scopes.
-
-  **Recommended Agent Profile**:
-  - Category: `unspecified-high` — Reason: this is cross-package glue with concrete product impact
-  - Skills: [`effect-best-practices`] — Reason: keep project-context seams disciplined
-  - Omitted: [`hono`] — Reason: no server transport redesign
-
-  **Parallelization**: Can Parallel: YES | Wave 3 | Blocks: 8 | Blocked By: 1
-
-  **References**:
-  - Target: `apps/web/src/routes/projects.new.tsx`
-  - Target: `apps/web/src/routes/projects.$projectId.facts.tsx`
-  - Target: `apps/web/src/routes/projects.$projectId.facts.$factDefinitionId.tsx`
-  - Target: `packages/api/src/routers/project.ts`
-  - Target: `packages/project-context/src/service.ts`
-  - Target: `packages/project-context/src/repository.ts`
-  - Authority: `packages/db/src/schema/project.ts`
-
-  **Acceptance Criteria**:
-  - [ ] `projectRootPath` persists through API/service/repository into `projects.project_root_path`.
-  - [ ] Project facts list/detail surfaces clearly support manual project-fact instance authoring.
-  - [ ] Non-project manual authoring remains unavailable.
-
-  **QA Scenarios**:
-  ```
-  Scenario: Project root path persists end-to-end
-    Tool: Bash
-    Steps: Run `bunx vitest run apps/web/src/tests/routes/projects.new.integration.test.tsx packages/project-context/src/tests/service/service.test.ts packages/api/src/tests/routers/l3-slice-1-router.test.ts`
-    Expected: PASS; normalized projectRootPath reaches persisted project row and round-trips correctly
-    Evidence: .sisyphus/evidence/task-6-project-root.txt
-
-  Scenario: Project-fact manual authoring stays project-scoped only
-    Tool: Bash
-    Steps: Run `bunx vitest run apps/web/src/tests/routes/runtime-project-facts.test.tsx packages/api/src/tests/routers/l3-slice-1-router.test.ts`
-    Expected: PASS; project-fact instance creation works, and non-project manual authoring remains blocked/unavailable
-    Evidence: .sisyphus/evidence/task-6-project-facts.txt
-  ```
-
-  **Commit**: YES | Message: `fix(project): persist project root and complete project-fact authoring` | Files: `apps/web/src/routes/projects.new.tsx`, `apps/web/src/routes/projects.$projectId.facts*.tsx`, `packages/api/src/routers/project.ts`, `packages/project-context/src/**`
-
-- [ ] 7. Correct the demo fixture and temporary reference examples
-
-  **What to do**: Patch the demo fixture path so it matches the corrected slice-1 model, explicitly keep baseline seed integrity unchanged, keep the temporary `workflow_reference_fact` example test-only with exactly two stub workflows under setup, and remove any active fixture/test expectations that still depend on `work_unit_reference_fact` or stale Form-owned context facts.
-  **Must NOT do**: Do not collapse baseline and demo profiles together. Do not treat temporary workflow-reference stubs as stable setup facts.
+  **What to do**: Patch only `packages/scripts/src/seed/methodology/**` and related seed tests so the 9 locked BMAD-derived fact definitions are added at design time only, with no runtime rows and no runtime instance creation flows. Keep baseline seed integrity intentionally updated, keep demo fixture examples clearly marked fixture-only, and ensure temporary workflow-reference proof rows remain removable/test-only.
+  **Must NOT do**: Do not seed runtime rows. Do not add `project_root_path` as a methodology/work-unit fact definition. Do not turn fixture-only workflow-context examples into permanent methodology fact definitions.
 
   **Recommended Agent Profile**:
   - Category: `deep` — Reason: fixture drift can silently encode the wrong model
   - Skills: [`effect-best-practices`] — Reason: maintain deterministic contracts and tests
   - Omitted: [`brainstorming`] — Reason: fixture scope is already locked
 
-  **Parallelization**: Can Parallel: YES | Wave 3 | Blocks: 8 | Blocked By: 1,2,4
+  **Parallelization**: Can Parallel: YES | Wave 3 | Blocks: 6 | Blocked By: 1,2,4
 
   **References**:
+  - Target: `packages/scripts/src/seed/methodology/setup/setup-bmad-mapping.ts`
+  - Target: `packages/scripts/src/seed/methodology/index.ts`
   - Target: `packages/scripts/src/seed/methodology/setup/slice-1-demo-fixture.ts`
   - Target: `packages/scripts/src/tests/seeding/l3-slice-1-demo-fixture.test.ts`
   - Baseline lock: `packages/scripts/src/tests/seeding/methodology-seed-integrity.test.ts`
   - Authority: `.sisyphus/drafts/l3-slice-1-form-dialog-refinement.md`
 
   **Acceptance Criteria**:
-  - [ ] Baseline seed remains zero-step/zero-edge.
-  - [ ] Demo fixture matches corrected context-fact-first model.
-  - [ ] Temporary workflow-reference example is explicitly test-only and removable.
-  - [ ] No fixture/test path keeps `work_unit_reference_fact` in active slice-1 scope.
+  - [ ] Permanent seed additions include exactly these 9 design-time fact definitions and no runtime rows: `workflow_mode`, `scan_level`, `requires_brainstorming`, `deep_dive_target`, `repository_type`, `project_parts`, `technology_stack_by_part`, `existing_documentation_inventory`, `integration_points`.
+  - [ ] `workflow_mode`, `scan_level`, `requires_brainstorming`, and `deep_dive_target` are added as `work_unit_fact_definitions` for `WU.SETUP`.
+  - [ ] `repository_type`, `project_parts`, `technology_stack_by_part`, `existing_documentation_inventory`, and `integration_points` are added as `methodology_fact_definitions`.
+  - [ ] `project_root_path` is not added as a seeded fact definition.
+  - [ ] Demo fixture examples remain separate from permanent seed definitions.
 
   **QA Scenarios**:
   ```
-  Scenario: Baseline and demo fixture remain intentionally separated
+  Scenario: Permanent design-time fact definitions and demo fixture remain intentionally separated
     Tool: Bash
     Steps: Run `bunx vitest run packages/scripts/src/tests/seeding/methodology-seed-integrity.test.ts packages/scripts/src/tests/seeding/l3-slice-1-demo-fixture.test.ts`
-    Expected: PASS; baseline stays zero-step/zero-edge, demo fixture reflects corrected slice-1 model only
-    Evidence: .sisyphus/evidence/task-7-fixtures.txt
+    Expected: PASS; permanent seeded fact definitions are present, no runtime rows are introduced, and demo fixture remains fixture-only
+    Evidence: .sisyphus/evidence/task-5-fixtures.txt
 
-  Scenario: Temporary workflow-reference example is constrained and removable
+  Scenario: Temporary workflow-reference example stays proof-only
     Tool: Bash
     Steps: Re-run the demo-fixture suite and assert the temporary workflow-reference example uses exactly two setup stub workflows and is marked test-only
     Expected: PASS; fixture does not pretend the temporary example is stable setup truth
-    Evidence: .sisyphus/evidence/task-7-fixtures-temp.txt
+    Evidence: .sisyphus/evidence/task-5-fixtures-temp.txt
   ```
 
-  **Commit**: YES | Message: `fix(seed): align slice-1 demo fixture with corrected model` | Files: `packages/scripts/src/seed/methodology/setup/slice-1-demo-fixture.ts`, `packages/scripts/src/tests/seeding/**`
+  **Commit**: YES | Message: `feat(seed): add locked design-time BMAD fact definitions` | Files: `packages/scripts/src/seed/methodology/**`, `packages/scripts/src/tests/seeding/**`
 
-- [ ] 8. Run integrated correction sweep and prepare the branch for execution handoff
+- [ ] 6. Run integrated design-time correction sweep and prepare the branch for execution handoff
 
-  **What to do**: Run all slice-1 correction tests, ensure only the intended files remain in scope, verify the plan’s preserve/patch/replace decisions are reflected in the branch, and confirm the corrected slice is now centered on full workflow-editor context-fact CRUD and full Form CRUD/runtime instead of placeholder scaffolding.
-  **Must NOT do**: Do not let unrelated desktop/server/churn files slip into the correction branch. Do not mark the slice done if the product model is still placeholder-heavy.
+  **What to do**: Run all slice-1 design-time correction tests, ensure only the intended files remain in scope, verify the plan’s preserve/patch/replace decisions are reflected in the branch, and confirm the corrected slice is now centered on full workflow-editor context-fact CRUD and full Form-step design-time CRUD instead of placeholder scaffolding.
+  **Must NOT do**: Do not let unrelated desktop/server/churn files slip into the correction branch. Do not mark the slice done if the design-time product model is still placeholder-heavy.
 
   **Recommended Agent Profile**:
   - Category: `unspecified-high` — Reason: final integrated sweep across multiple packages
   - Skills: [`effect-best-practices`] — Reason: maintain clean layer and test boundaries during final verification
   - Omitted: [`hono`] — Reason: not needed
 
-  **Parallelization**: Can Parallel: NO | Wave 4 | Blocks: none | Blocked By: 2,3,4,5,6,7
+  **Parallelization**: Can Parallel: NO | Wave 3 | Blocks: none | Blocked By: 2,3,4,5
 
   **References**:
   - Authority: `.sisyphus/drafts/l3-slice-1-form-dialog-refinement.md`
@@ -554,13 +450,13 @@ Wave 4: integrated verification, correction sweep, final review wave
     Tool: Bash
     Steps: Run every command listed in Definition of Done in sequence from repo root
     Expected: PASS; contracts, schema, repositories, services, routers, web routes, and fixture tests are all green
-    Evidence: .sisyphus/evidence/task-8-full-suite.txt
+    Evidence: .sisyphus/evidence/task-6-full-suite.txt
 
   Scenario: Correction branch scope excludes unrelated churn
     Tool: Bash
     Steps: Run `git status --short` and compare remaining paths against the preserve/patch/replace inventory in this plan
     Expected: Only intended slice-1 correction files remain; unrelated desktop/server/evidence/package churn is absent or isolated
-    Evidence: .sisyphus/evidence/task-8-scope.txt
+    Evidence: .sisyphus/evidence/task-6-scope.txt
   ```
 
   **Commit**: NO | Message: `n/a` | Files: `n/a`
@@ -574,7 +470,7 @@ Wave 4: integrated verification, correction sweep, final review wave
   ```
   Scenario: Oracle validates corrected implementation against this plan
     Tool: task
-    Steps: Run `task(subagent_type="oracle", load_skills=[], run_in_background=false, description="Slice1 compliance", prompt="Review the implemented changes for /home/gondilf/Desktop/projects/masters/chiron against /home/gondilf/Desktop/projects/masters/chiron/.sisyphus/plans/l3-slice-1-context-facts-form-correction.md. Check preserve/patch/replace decisions, active kind scope, dialog tab ownership, runtime semantics, and projectRootPath persistence. Return blocking issues only.")`
+    Steps: Run `task(subagent_type="oracle", load_skills=[], run_in_background=false, description="Slice1 compliance", prompt="Review the implemented changes for /home/gondilf/Desktop/projects/masters/chiron against /home/gondilf/Desktop/projects/masters/chiron/.sisyphus/plans/l3-slice-1-context-facts-form-correction.md. Check preserve/patch/replace decisions, active kind scope, dialog tab ownership, design-time-only scope, and seed-definition boundaries. Return blocking issues only.")`
     Expected: Oracle returns no blocking issues.
     Evidence: .sisyphus/evidence/f1-plan-compliance.txt
   ```
@@ -585,19 +481,19 @@ Wave 4: integrated verification, correction sweep, final review wave
   ```
   Scenario: Independent code review of corrected slice-1 files
     Tool: task
-    Steps: Run `task(category="unspecified-high", load_skills=[], run_in_background=false, description="Slice1 code review", prompt="Review the corrected slice-1 implementation for workflow-editor context-fact CRUD and Form CRUD/runtime. Focus on contract drift, stale ownership artifacts, Effect service boundaries, router thinness, and test sufficiency. Return concrete findings only.")`
+    Steps: Run `task(category="unspecified-high", load_skills=[], run_in_background=false, description="Slice1 code review", prompt="Review the corrected slice-1 implementation for workflow-editor context-fact CRUD and Form-step design-time CRUD only. Focus on contract drift, stale ownership artifacts, Effect service boundaries, router thinness, design-time-only scope, and test sufficiency. Return concrete findings only.")`
     Expected: Reviewer returns no blocking issues.
     Evidence: .sisyphus/evidence/f2-code-quality.txt
   ```
 
-- [ ] F3. Real Manual QA — unspecified-high (+ playwright if UI)
+- [ ] F3. Browser-level agent QA — unspecified-high (+ playwright if UI)
 
   **QA Scenarios**:
   ```
   Scenario: Browser-level QA of the corrected workflow-editor and runtime form flow
     Tool: task
-    Steps: Run `task(category="unspecified-high", load_skills=[], run_in_background=false, description="Slice1 manual QA", prompt="Using Playwright and the repo test commands where useful, manually QA the corrected slice-1 workflow-editor context-fact CRUD, Form dialog CRUD, first-step activation, runtime step detail tabs, projectRootPath flow, and project-fact manual authoring. Return blocking defects only.")`
-    Expected: Reviewer returns no blocking UI/runtime defects.
+    Steps: Run `task(category="unspecified-high", load_skills=[], run_in_background=false, description="Slice1 browser QA", prompt="Using Playwright and the repo test commands where useful, QA the corrected slice-1 workflow-editor context-fact CRUD, Form dialog CRUD, field-binding behavior, and design-time-only seed boundaries. Return blocking defects only.")`
+    Expected: Reviewer returns no blocking UI/design-time defects.
     Evidence: .sisyphus/evidence/f3-manual-qa.txt
   ```
 
@@ -616,12 +512,11 @@ Wave 4: integrated verification, correction sweep, final review wave
 - Commit 1: correct contracts + remove stale shared invariant / stale active kind expectations
 - Commit 2: correct methodology schema/repos/services for context-fact-first model
 - Commit 3: replace stale Form dialog and finish workflow-editor context-fact CRUD surfaces
-- Commit 4: correct runtime Form semantics and step-detail/workflow-detail behavior
-- Commit 5: complete projectRootPath + project-facts manual-authoring path
-- Commit 6: correct demo fixture/test alignment
+- Commit 4: add locked design-time BMAD fact definitions and keep fixture-only examples separate
 
 ## Success Criteria
 - Workflow-editor context-fact CRUD is a real usable feature, not a placeholder.
-- Form CRUD and runtime behavior are definition-driven and match the refinement authority.
+- Form design-time CRUD and field-binding behavior are definition-driven and match the refinement authority.
 - Good slice-1 foundations are preserved rather than unnecessarily rewritten.
 - The branch no longer encodes the stale ownership model that caused the current drift.
+- Runtime work remains explicitly deferred rather than half-implemented in this plan.

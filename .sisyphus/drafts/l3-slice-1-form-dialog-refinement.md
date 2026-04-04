@@ -23,6 +23,10 @@
 - If the Fields tab has no reusable workflow context-fact options, the user should go through a separate workflow-level context-fact creation flow rather than inline creation inside the field-binding flow.
 - Within a single Form step definition, a workflow context fact may be bound to at most one field binding. The same context fact may still be reused by a different Form step definition.
 - The Fields tab empty/fully-bound state must not deep-link or auto-open context-fact CRUD; it should only instruct the user to use the separate `Context Facts` area manually.
+- The `no workflow context facts yet` empty state in the Fields tab should be note-only text with no action button and no focus-jumping behavior.
+- Field cards should use the same thick-corner card chrome already used elsewhere in the app.
+- Field removal should require a stacked destructive confirmation dialog rather than immediate removal or undo-only behavior.
+- Field reordering should use a real drag-and-drop interaction built on a library that works cleanly with shadcn-styled cards; current registry search found no dedicated shadcn sortable component, so the recommendation is to use `dnd-kit` with shadcn card styling and a drag handle.
 - Context-fact kind should be locked after creation in slice-1; changing kind requires delete + recreate.
 - For `plain_value_fact`, `Value Type` remains editable after creation in slice-1.
 - Changing `Value Type` must deterministically clear or reset incompatible value-semantics configuration rather than preserving stale configuration from the previous type.
@@ -31,6 +35,8 @@
 - The context-fact dialog `Contract` tab is limited strictly to: key, label/display name, description `{ markdown }`, fact kind, and cardinality.
 - The context-fact dialog `Value Semantics` tab owns the actual definition semantics for the chosen fact kind; no kind-specific definition fields belong in `Contract`.
 - `plain_value_fact` is now treated as locked for this refinement pass: `Contract` owns only key/label/description/kind/cardinality; `Value Semantics` owns value type and type-specific configuration; JSON uses the exact same card-based sub-schema UX, behavior, and labels as the methodology fact dialog.
+- In the `Context Fact Definitions` left-rail section, edit and delete are explicit row-card actions; edit opens the populated edit dialog and delete opens a destructive confirmation dialog with destructive styling throughout.
+- For fact kinds with inherited cardinality (`definition_backed_external_fact`, `bound_external_fact`, `artifact_reference_fact`, `work_unit_draft_spec_fact`), the cardinality rule must be explicit: if the bound underlying definition has cardinality `many`, the user may choose the context-fact cardinality; if the bound underlying definition has cardinality `one`, the cardinality field is disabled, visibly set to `One`, and a note explains why. This visibility/disable behavior applies only to non-`plain_value_fact` and non-`workflow_reference_fact` kinds.
 
 ## Research Findings
 - `apps/web/src/features/workflow-editor/dialogs.tsx` currently hardcodes `Contract *` and renders `Fields authoring coming in slice-2` plus `Context facts authoring coming in slice-2`, which conflicts with the intended slice-1 scope.
@@ -48,11 +54,25 @@
 ## Open Questions
 - Should `fieldKey` be user-authored or auto-derived from the bound context-fact key by default with optional override?
 
+## Next Locked Discussion Track
+- Workflow context facts are now treated as locked enough to move on.
+- Next topic is the Form step at design time with the same level of exhaustiveness:
+  - exact Form dialog contents
+  - exact field-binding CRUD behavior
+  - exact create/update payload shape
+  - exact list/empty-state/reorder/remove behavior
+  - exact delete semantics and invariants
+  - exact relation between Form step contract and reusable workflow context-fact definitions
+- Form `Contract` is narrowed to:
+  - `step key`
+  - `step title`
+  - `step description { markdown }`
+
 ## Form Dialog Spec (current recommendation)
 ### Tabs
 1. `Contract`
    - Step key
-   - Step label
+   - Step title
    - Step description `{ markdown }`
 2. `Fields`
     - Ordered list of field bindings
@@ -64,6 +84,374 @@
 3. `Guidance`
    - Human guidance `{ markdown }`
    - Agent guidance `{ markdown }`
+
+### Public Procedure Shape (locked)
+- Public frontend/backend procedures stay scoped to the Form-step aggregate only:
+  - `createFormStep`
+  - `updateFormStep`
+  - `deleteFormStep`
+- There are no public field-specific procedures such as:
+  - `createFormField`
+  - `updateFormField`
+  - `deleteFormField`
+  - `reorderFormField`
+
+### Create Mode (locked)
+- Opening the Form dialog in create mode does not create any persisted rows.
+- The dialog is backed only by local TanStack Form state until the user clicks `Create`.
+- `Create` submits the full Form-step payload and only then creates:
+  - the workflow step shell row
+  - zero or more field-binding child rows
+- In create mode, the dialog-level footer actions are exactly:
+  - `Create`
+  - `Cancel`
+- In create mode there is no dialog-level `Delete` action for the Form step itself.
+- Field removal inside the `Fields` tab is still allowed in create mode because it only mutates local TanStack Form state before submit.
+- Zero fields is allowed in create mode as long as the contract tab is valid.
+
+### Edit Mode (locked)
+- Opening the Form dialog in edit mode loads persisted contract, field bindings, and guidance into local TanStack Form state.
+- Submit label is `Save`.
+- In edit mode, the dialog-level footer actions are exactly:
+  - `Save`
+  - `Delete`
+- Saving submits the full authoritative Form-step payload, including the complete ordered field-binding list.
+
+### Form Step Storage Simplification (locked)
+- Remove the separate `methodology_workflow_form_steps` table from the design.
+- The Form step itself is represented only by the `methodology_workflow_steps` shell row with `type = form`.
+- `methodology_workflow_form_fields` should reference `methodology_workflow_steps` directly rather than referencing a separate typed Form-step parent row.
+- The Form-specific authored payload lives in the step shell plus its owned field-binding child rows; there is no extra typed Form-step row with duplicated identity fields.
+
+### Form Step Storage Replace Map (locked implementation checklist)
+
+#### Execution Order
+1. Replace schema authority first.
+2. Replace foreign keys second.
+3. Rewrite DB repository shape against the new canonical parent.
+4. Patch methodology-engine service/repo capability naming to the new parent model.
+5. Keep public Form procedures but repoint them at canonical workflow-step identity.
+6. Rewrite fixture rows and fixture tests.
+7. Rewrite schema/repository/runtime tests to prove the old typed parent table is gone.
+
+#### 1. Files To Delete / Replace / Change
+
+##### Delete / remove from active implementation
+- `packages/db/src/schema/methodology.ts`
+  - Delete the `methodology_workflow_form_steps` table definition entirely.
+- `packages/scripts/src/seed/methodology/setup/slice-1-demo-fixture.ts`
+  - Delete all `MethodologyWorkflowFormStepSeedRow` usage and all seeded `methodologyWorkflowFormSteps` rows.
+
+##### Replace heavily
+- `packages/db/src/repositories/form-step-repository.ts`
+  - Replace the current dual-parent implementation.
+  - It must stop importing/using `methodologyWorkflowFormSteps` as a real persisted parent.
+  - It must use `methodologyWorkflowSteps` as the only canonical parent row for Form steps.
+
+##### Change
+- `packages/db/src/schema/methodology.ts`
+  - Repoint `methodology_workflow_form_fields.formStepId` to `methodology_workflow_steps.id`.
+- `packages/db/src/schema/runtime.ts`
+  - Repoint `step_executions.stepDefinitionId` to `methodology_workflow_steps.id`.
+- `packages/db/src/index.ts`
+  - Remove exports/wiring that expose the deleted `methodologyWorkflowFormSteps` table or assume it still exists.
+- `packages/db/src/tests/schema/l3-slice-1-schema.test.ts`
+- `packages/db/src/tests/repository/l3-slice-1-repositories.test.ts`
+- `packages/db/src/tests/repository/l3-slice-1-runtime-repositories.test.ts`
+- `packages/methodology-engine/src/services/form-step-definition-service.ts`
+- `packages/methodology-engine/src/services/workflow-authoring-transaction-service.ts`
+- `packages/api/src/routers/methodology.ts`
+- `packages/contracts/src/methodology/workflow.ts`
+- `packages/scripts/src/tests/seeding/l3-slice-1-demo-fixture.test.ts`
+
+##### Likely light-touch patch points
+- `packages/db/src/methodology-repository.ts`
+  - Patch any helper/capability names or read-model assembly that still imply a separate typed Form-step parent.
+- `packages/db/src/createMethodologyRepoLayer` provider / repo layer implementation site
+  - Remove capabilities that imply `methodology_workflow_form_steps` is still authoritative.
+- `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId.tsx`
+  - Only if read-model assumptions currently expect separate typed Form-step identities.
+
+#### 2. Exact FK Changes
+
+##### Remove these foreign keys
+- `methodology_workflow_form_fields.form_step_id -> methodology_workflow_form_steps.id`
+- `step_executions.step_definition_id -> methodology_workflow_form_steps.id`
+
+##### Replace with these foreign keys
+- `methodology_workflow_form_fields.form_step_id -> methodology_workflow_steps.id`
+  - Invariant: referenced parent step must have `type = form`.
+- `step_executions.step_definition_id -> methodology_workflow_steps.id`
+  - Runtime step identity always points at the canonical workflow-step shell row.
+
+##### Canonical parent ownership after replacement
+- `methodology_workflow_steps`
+  - owns step identity
+  - owns `type = form`
+  - owns generic step shell fields (`key`, display/title field, description json, workflow linkage)
+- `methodology_workflow_form_fields`
+  - owned children of the shell step
+  - no intermediate typed Form-step parent table
+
+#### 3. Exact Repository / Service Shape Changes
+
+##### DB repository: replace the old conceptual seam
+Current bad conceptual seam:
+- `createWorkflowFormStep`
+- `updateWorkflowFormStep`
+- `deleteWorkflowFormStep`
+- list/get operations centered on `methodology_workflow_form_steps`
+
+##### New DB repository seam (locked recommendation)
+- `createFormStepDefinition(input)`
+- `updateFormStepDefinition(input)`
+- `deleteFormStepDefinition(input)`
+- `listFormStepDefinitions(workflowDefinitionId)`
+- `getFormStepDefinition(stepDefinitionId)`
+
+##### `createFormStepDefinition(input)` must do exactly this
+1. Insert one shell row into `methodology_workflow_steps`:
+   - `id`
+   - `workflowDefinitionId`
+   - `key`
+   - `type = form`
+   - title/display field mapped from `stepTitle`
+   - `descriptionJson`
+2. Insert zero or more child rows into `methodology_workflow_form_fields`:
+   - `formStepId = methodology_workflow_steps.id`
+   - `contextFactDefinitionId`
+   - `fieldLabel`
+   - `fieldKey`
+   - `helpText`
+   - `required`
+   - `uiMultiplicityMode`
+   - `order`
+3. It must not insert any second parent row anywhere.
+
+##### `updateFormStepDefinition(input)` must do exactly this
+1. Update the canonical shell row in `methodology_workflow_steps`.
+2. Full-replace the child field rows in `methodology_workflow_form_fields`:
+   - incoming row with matching existing id → update
+   - incoming row without id or without matching existing id → create
+   - existing row absent from incoming ids → delete
+   - final order rewritten from incoming array order
+3. It must not update any second typed Form-step parent row because none should exist.
+
+##### `deleteFormStepDefinition(input)` must do exactly this
+1. Delete the shell row from `methodology_workflow_steps`.
+2. Let `methodology_workflow_form_fields` delete by DB-level cascade.
+3. Delete structural edges attached to that step according to workflow-topology rules.
+4. Never delete workflow context-fact definitions.
+5. Never assume a separate `methodology_workflow_form_steps` row exists.
+
+##### Methodology-engine service layer
+
+Keep conceptually:
+- `FormStepDefinitionService`
+- Form-scoped aggregate procedures
+
+Patch required:
+- `packages/methodology-engine/src/services/form-step-definition-service.ts`
+  - stop assuming a typed Form parent table exists
+  - stop assuming repo capabilities named around `WorkflowFormStep` imply a second parent row
+  - use canonical `stepDefinitionId` from `methodology_workflow_steps`
+- `packages/methodology-engine/src/services/workflow-authoring-transaction-service.ts`
+  - ensure transaction orchestration treats Form as shell row + field children only
+
+##### Router layer
+
+Keep:
+- `createFormStep`
+- `updateFormStep`
+- `deleteFormStep`
+
+Patch:
+- `packages/api/src/routers/methodology.ts`
+  - keep Form-scoped aggregate procedure names
+  - ensure public procedure semantics target canonical workflow-step identity
+  - ensure no payload/response shape depends on a second Form parent id namespace
+
+##### Contract layer
+- `packages/contracts/src/methodology/workflow.ts`
+  - keep Form aggregate payload model
+  - ensure no contract assumes a separate typed Form-step parent identity
+  - shell parent = workflow step definition
+  - child rows = form field bindings only
+
+#### 4. Exact Tests To Update
+
+##### Schema tests
+Update:
+- `packages/db/src/tests/schema/l3-slice-1-schema.test.ts`
+
+New assertions required:
+- `methodology_workflow_form_steps` is absent
+- `methodology_workflow_form_fields.form_step_id` references `methodology_workflow_steps.id`
+- `step_executions.step_definition_id` references `methodology_workflow_steps.id`
+
+##### Repository tests
+Update:
+- `packages/db/src/tests/repository/l3-slice-1-repositories.test.ts`
+- `packages/db/src/tests/repository/l3-slice-1-runtime-repositories.test.ts`
+
+New assertions required:
+- `createFormStep` inserts exactly:
+  - 1 shell step row in `methodology_workflow_steps`
+  - N child rows in `methodology_workflow_form_fields`
+  - 0 typed Form parent rows anywhere else
+- `updateFormStep` performs full replacement of child field rows
+- `deleteFormStep` removes shell row and cascades child field rows
+- runtime `step_executions.stepDefinitionId` points at shell step ids directly
+
+##### Methodology-engine tests
+Update:
+- tests for `FormStepDefinitionService`
+- tests for `WorkflowAuthoringTransactionService`
+
+New assertions required:
+- service methods use shell-step identity only
+- no dependency on `methodology_workflow_form_steps`
+- no repo capability names that imply duplicated parent-table ownership
+
+##### API router tests
+Update:
+- methodology router tests covering `createFormStep`, `updateFormStep`, `deleteFormStep`
+
+New assertions required:
+- public procedure shape remains Form-scoped aggregate CRUD
+- ids returned/read are canonical `methodology_workflow_steps.id`
+- aggregate payload round-trips without any typed Form parent id assumption
+
+##### Seed / fixture tests
+Update:
+- `packages/scripts/src/seed/methodology/setup/slice-1-demo-fixture.ts`
+- `packages/scripts/src/tests/seeding/l3-slice-1-demo-fixture.test.ts`
+
+New assertions required:
+- fixture creates `methodology_workflow_steps` rows only
+- fixture creates `methodology_workflow_form_fields` rows pointing directly at shell step ids
+- no `MethodologyWorkflowFormStepSeedRow` remains
+- no seeded `methodologyWorkflowFormSteps` rows remain
+
+#### 5. Severity / Action Classification
+
+##### Replace/remove completely
+- `methodology_workflow_form_steps` table
+- all schema references to it
+- all fixture row types/usages for it
+
+##### Patch heavily
+- `packages/db/src/repositories/form-step-repository.ts`
+- `packages/db/src/schema/runtime.ts` foreign key for `step_executions.stepDefinitionId`
+- DB schema/repository/runtime tests
+- `packages/scripts/src/seed/methodology/setup/slice-1-demo-fixture.ts`
+
+##### Patch lightly
+- `packages/methodology-engine/src/services/form-step-definition-service.ts`
+- `packages/methodology-engine/src/services/workflow-authoring-transaction-service.ts`
+- `packages/api/src/routers/methodology.ts`
+- `packages/contracts/src/methodology/workflow.ts`
+- any methodology read-model assembly that still implies a separate typed Form parent
+
+##### Probably keep
+- public methodology procedures `createFormStep`, `updateFormStep`, `deleteFormStep`
+- Form aggregate-only public API model
+- canonical step identity centered on `methodology_workflow_steps`
+
+### `createFormStep` Payload (locked)
+```ts
+{
+  workflowDefinitionId: string
+  stepKey: string
+  stepTitle: string
+  stepDescriptionJson: { markdown: string }
+  fields: Array<{
+    contextFactDefinitionId: string
+    fieldLabel: string
+    fieldKey: string
+    helpText: string | null
+    required: boolean
+    uiMultiplicityMode?: "many" | "one"
+  }>
+}
+```
+
+Rules:
+- `stepKey`, `stepTitle`, and `stepDescriptionJson` are required.
+- `fields` may be empty.
+- Field order comes from array order.
+- No duplicate `contextFactDefinitionId` within one Form step.
+- `uiMultiplicityMode = "one"` is allowed only when linked context-fact cardinality is `many`.
+- If omitted for a many-cardinality linked fact, default is canonical `many`.
+
+### `updateFormStep` Payload (locked)
+```ts
+{
+  workflowDefinitionId: string
+  stepDefinitionId: string
+  stepKey: string
+  stepTitle: string
+  stepDescriptionJson: { markdown: string }
+  fields: Array<{
+    id?: string
+    contextFactDefinitionId: string
+    fieldLabel: string
+    fieldKey: string
+    helpText: string | null
+    required: boolean
+    uiMultiplicityMode?: "many" | "one"
+  }>
+}
+```
+
+Rules:
+- Existing rows use stable optional `id` values for update matching.
+- The client submits the full authoritative ordered `fields` array on every update.
+
+### `updateFormStep` Full-Replacement Semantics (locked)
+- Server loads existing field-binding rows for the target Form step.
+- Server compares existing ids against incoming ids.
+- Diff behavior:
+  - incoming row with matching existing id → update
+  - incoming row without matching existing id → create
+  - existing row absent from incoming ids → delete
+- Final order is rewritten from the incoming array position.
+- Removal is detected by absence from the submitted list, not by a separate field-delete procedure.
+
+### `deleteFormStep` Payload (locked)
+```ts
+{
+  workflowDefinitionId: string
+  stepDefinitionId: string
+}
+```
+
+### Form-Step Delete Semantics (locked)
+- Deleting a Form step means:
+  - delete the workflow step shell row
+  - delete all owned field-binding rows
+  - delete structural edges attached to that step according to workflow-topology rules
+- Deleting a Form step must not:
+  - delete workflow context-fact definitions
+  - delete anything shared by other steps
+- Field-binding child rows should be deleted via DB-level cascade from the workflow step shell row.
+
+### Form-Step Delete UI Behavior (locked)
+- In the step list, each Form step row exposes exactly two actions:
+  - `Edit`
+  - `Delete`
+- `Edit` opens the Form dialog in edit mode with populated persisted data.
+- `Delete` opens a stacked destructive confirmation dialog.
+- Confirm action label should be explicit/destructive (for example `Delete Form Step`).
+- On successful delete:
+  - the step disappears from the list
+  - the step disappears from the graph
+  - any current step inspector selection clears
+- Detailed graph/edge consequence discussion is intentionally deferred until after the Form-step type is fully locked.
+
+### Form-Level Uniqueness Rules (locked)
+- `stepKey` must be unique within a workflow.
+- `fieldKey` must be unique within a single Form step.
 
 ### Fields Tab Row Design
 - Primary identity block:
@@ -118,9 +506,80 @@
 
 ### Empty-State Flow For The Fields Tab
 - If no workflow context-fact definitions exist yet, the field-binding area should show a dedicated empty state rather than an inline creator.
-- The empty state should direct the user into the separate workflow-level context-fact CRUD flow.
-- The empty state should not auto-open or deep-link into context-fact CRUD; it should only explain that the user must create or edit context facts from the separate `Context Facts` area.
-- The same instructional empty state should appear when all existing context facts are already bound in the current Form step.
+- Empty state A (`no workflow context facts yet`) is note-only text.
+- Empty state A must not render any button, focus-jump action, deep link, or auto-open behavior.
+- The empty state should direct the user into the separate workflow-level context-fact CRUD flow only by explanatory note text.
+- The empty state should not auto-open, deep-link, switch focus, or provide action buttons into context-fact CRUD; it should only explain that the user must create or edit context facts from the separate `Context Facts` area.
+- Empty state B (`no fields in this Form yet`) appears when workflow context facts exist but this Form has zero bound fields:
+  - note text explains the user can add a field by selecting one of the workflow context facts already defined for the workflow
+  - action: `Add Field`
+- Empty state C (`all workflow context facts already used`) appears when every workflow context fact is already bound in the current Form:
+  - inline explanatory note, not a large empty-state screen
+  - message explains all current workflow context facts are already used and another context fact must be defined before another field can be added
+  - `Add Field` should be disabled or immediately surface this note instead of creating an invalid duplicate row
+
+### Add Field Flow (locked)
+- Clicking `Add Field` inserts a new inline field card in local TanStack Form state.
+- The first required control in the new card is the bound context-fact autocomplete.
+- Only workflow context facts not already used in the current Form appear in the picker.
+- After a context fact is selected, the card auto-populates defaults:
+  - `fieldLabel` defaults from the context-fact display name
+  - `fieldKey` defaults from the context-fact key
+  - `helpText` defaults to empty
+  - `required` defaults to `false`
+  - `uiMultiplicityMode` defaults to canonical `many` when applicable
+- There is no per-field save button; field edits persist only when the overall Form dialog is submitted.
+
+### Field Card Layout Chrome (locked)
+- Each field binding renders as a `chiron-cut-frame-thick` style thick-corner card consistent with the app's existing card language.
+- Each card has exactly three main content sections:
+  1. `Bound Context Fact`
+  2. `Derived Runtime Behavior`
+  3. `Field Settings`
+- `Derived Runtime Behavior` is a textual explanatory info box only; it never renders the real runtime widget preview.
+- Card chrome also contains a left-side drag handle and a destructive `Remove field` action.
+
+### Reorder Interaction (locked)
+- Field bindings are reordered with drag-and-drop.
+- There is currently no direct shadcn registry sortable component in the configured `@shadcn` registry for this use case.
+- Recommended implementation direction: `dnd-kit` sortable list with `chiron-cut-frame-thick` field cards and a visible left-side dots/grip handle.
+- The sortable item is the whole field card, but drag initiation is allowed only from the handle, not from the whole card surface.
+- Reordering updates only the in-memory TanStack Form field array until the overall Form dialog is submitted.
+
+### Remove Field Behavior (locked)
+- Clicking `Remove field` on a field card opens a stacked destructive confirmation dialog.
+- Confirming removal deletes only the field-binding row from the current Form dialog state.
+- Removing a field never deletes the underlying workflow context-fact definition.
+- After confirmed removal, the field disappears from the list immediately, ordering re-normalizes in local dialog state, and the released context fact becomes available again for future `Add Field` actions.
+
+### Field Validation and Error Presentation (locked)
+- Validation exists both inline on the card and at whole-dialog submit time.
+- Errors render under the offending control and the `Fields` tab should surface the dirty/error state when relevant.
+
+Validation rules:
+- Missing bound context fact:
+  - `Select a workflow context fact.`
+- Duplicate context fact in the same Form:
+  - `This context fact is already used in this Form.`
+- Empty field label:
+  - `Field label is required.`
+- Empty field key:
+  - `Field key is required.`
+- Duplicate field key:
+  - `Field key must be unique within this Form.`
+- Invalid UI multiplicity mode:
+  - `UI multiplicity mode can only be configured for many-cardinality context facts.`
+- Invalid field-key format:
+  - field key must start with a letter and contain only lowercase letters, numbers, and underscores
+
+Validation timing:
+- duplicate context-fact selection and invalid multiplicity errors appear immediately
+- text-input errors appear on blur and on submit
+- on submit failure, the dialog stays open, switches to `Fields` if needed, and focuses the first invalid control
+
+Server-side validation must mirror client validation and also reject:
+- references to missing/deleted workflow context facts
+- field row ids that do not belong to the current Form step during update
 
 ### Field Key Behavior
 - default value auto-derives from the selected context-fact key
@@ -153,6 +612,387 @@
 - When either list grows long, the list region inside that section should become scrollable.
 - Prefer a `flex` / `min-h-0` left-rail composition with per-section scroll regions over large empty fixed-height boxes.
 
+## Graph Layout Persistence And Dirty-State Rules (locked)
+- Workflow step shell rows should gain `metadataJson` for editor-only UI/layout state.
+- `metadataJson` is the correct place for graph-layout metadata; do **not** put node position into `configJson`.
+- For slice-1, `metadataJson` should contain only graph-layout state:
+  - `position: { x: number, y: number }`
+- Business/domain semantics must not be stored in `metadataJson`.
+- Node dragging updates only local editor state until the user explicitly saves the graph layout.
+- Moving one or more nodes must surface a canvas-level dirty state and a visible `Save changes` action at the top of the canvas.
+- Clicking `Save changes` should batch-persist the latest positions for all dirty nodes in one mutation.
+- Reloading the workflow editor should restore saved node positions from `metadataJson.position`.
+- If a step has no saved position yet, the editor may use deterministic default placement until the first save.
+
+### Page-Level Unsaved-Changes Guard (locked)
+- Unsaved graph-layout changes are page-level workflow-editor dirty state.
+- If the user tries to leave the workflow-editor page with unsaved node-position changes, navigation must be blocked by a discard/leave warning.
+- This guard must apply to:
+  - in-app route changes
+  - browser back/forward navigation
+  - other page-leave paths supported by the router/app shell
+- The behavior should be consistent with existing dialog discard-confirm semantics, but scoped to the whole workflow-editor page rather than a modal.
+- Choosing to stay preserves local unsaved graph positions.
+- Choosing to leave discards unsaved graph-layout changes only; it does not mutate persisted workflow data.
+
+### Node Move / Save Behavior (locked)
+- Dragging a node updates only in-memory editor state until the user explicitly saves.
+- Moving one or more nodes should surface a canvas-level `Save changes` affordance above the graph canvas.
+- Clicking `Save changes` should send the latest saved positions for all dirty nodes in one batch update.
+- The persisted source of truth for graph position is `methodology_workflow_steps.metadataJson.position`.
+- If the user reloads the workflow editor, the graph should restore from persisted `metadataJson.position` values.
+- If a workflow step has no saved graph position yet, the editor may use deterministic default placement until the first explicit save.
+
+## Graph Edge Model And CRUD (locked current recommendation)
+
+### Edge Table Shape
+- `methodology_workflow_edges` remains the structural edge table.
+- Remove these fields from the design:
+  - `conditionJson`
+  - `guidanceJson`
+- Do **not** add `descriptionJson` to the edge table for slice-1.
+- Slice-1 edges are structural only and should contain only the canonical structural fields:
+  - parent workflow identity
+  - `fromStepId`
+  - `toStepId`
+  - `edgeKey`
+  - timestamps
+
+### Edge Geometry / Visual Direction
+- Each Form node should expose:
+  - one source handle at the bottom
+  - one target handle at the top
+- Edge visual direction should be from the bottom of the source node to the top of the target node.
+- The edge arrow marker should point at the `to` node.
+- Slice-1 does not persist custom edge bend/control geometry.
+- React Flow should derive the visible edge path from source node position, target node position, and the source/target handles.
+
+### Edge Create Interaction
+- Edge creation should happen directly from the React Flow connect interaction.
+- User interaction model:
+  1. click/drag from the bottom source handle of a step node
+  2. drop onto the top target handle of another step node
+  3. `onConnect` creates the structural edge immediately after validation
+- The default edge key should auto-generate from the current step keys:
+  - `fromStep.key + "->" + toStep.key`
+- The generated default edge key is editable later in the edge dialog.
+
+### Edge Create Validation Rules
+- Validate that both source and target steps exist.
+- Reject self-loop edges.
+- Reject a second outgoing edge from the same source step.
+- Allow many incoming edges into the same target step.
+- Reject duplicate exact same `fromStepId + toStepId` pair.
+- Reject edges whose source and target steps do not belong to the same workflow definition.
+- Enforce the one-outgoing-edge rule in both UI and backend.
+
+### Edge Dialog (locked)
+- Clicking an existing edge opens a single-surface dialog with no tabs.
+- The edge dialog should support exactly these actions:
+  - edit edge key
+  - edit `from` step
+  - edit `to` step
+  - delete edge
+- If the user changes `from` or `to`, edge validation must re-run before save.
+- If the edge key is still in untouched/default-derived state, changing endpoints should re-derive the key from the new step keys.
+- If the user manually edited the edge key, changing endpoints must not overwrite that custom key.
+
+### Edge Delete Behavior (locked)
+- Deleting an edge must use a stacked destructive confirmation dialog.
+- On successful delete:
+  - the edge disappears from the graph immediately
+  - any inspector selection for that edge clears
+  - no step rows or context-fact definitions are deleted
+
+### Graph / Edges Replace Map (locked implementation checklist)
+
+#### Execution Order
+1. Replace graph metadata storage authority on workflow-step shell rows.
+2. Simplify edge schema to structural-only fields.
+3. Patch graph read/write repository methods around node positions and structural edges.
+4. Patch methodology-engine topology/service logic to use the new graph metadata + structural edge rules.
+5. Patch workflow-editor UI behavior for drag/save/leave-guard and edge CRUD.
+6. Rewrite schema/repository/router/web tests to prove the old edge semantics are gone.
+
+#### 1. Files To Delete / Replace / Change
+
+##### Delete / remove from active implementation
+- `packages/db/src/schema/methodology.ts`
+  - remove `conditionJson` from `methodology_workflow_edges`
+  - remove `guidanceJson` from `methodology_workflow_edges`
+- any code path that still treats edges as carrying branch-condition semantics in slice-1
+
+##### Replace heavily
+- `apps/web/src/features/workflow-editor/workflow-canvas.tsx`
+  - replace graph behavior so node drag dirties layout locally, surfaces canvas-level `Save changes`, persists only on explicit save, and creates edges through `onConnect` with source-bottom / target-top semantics.
+- `apps/web/src/features/workflow-editor/step-list-inspector.tsx`
+  - replace any stale edge editing affordances/debug controls with the locked edge-inspector + edge-dialog flow only.
+
+##### Change
+- `packages/db/src/schema/methodology.ts`
+  - add `metadataJson` to `methodology_workflow_steps` as editor-only layout metadata
+  - keep edge table structural only
+- `packages/db/src/methodology-repository.ts`
+  - patch step read/write helpers to load/save `metadataJson.position`
+  - patch edge CRUD helpers to stop reading/writing `conditionJson` and `guidanceJson`
+- `packages/db/src/createMethodologyRepoLayer` provider / repo layer implementation site
+  - ensure node-position and structural-edge capabilities are wired through the real repo layer used by app services
+- `packages/methodology-engine/src/services/workflow-topology-mutation-service.ts`
+  - patch one-outgoing-edge validation and structural edge CRUD against the simplified edge shape
+- `packages/methodology-engine/src/services/workflow-editor-definition-service.ts`
+  - patch editor-definition read model to expose `metadataJson.position` and structural edges only
+- `packages/api/src/routers/methodology.ts`
+  - patch edge procedures and add/update graph-layout persistence procedure if not already present
+- `packages/contracts/src/methodology/workflow.ts`
+  - patch contracts so workflow-step read models carry layout metadata and edges are structural only
+- `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId.tsx`
+  - patch route integration to use explicit graph dirty-state, layout save, edge create/update/delete, and page-leave guard
+- `apps/web/src/features/workflow-editor/workflow-editor-shell.tsx`
+  - patch top-of-canvas dirty/save affordance and navigation-blocking integration
+
+##### Likely light-touch patch points
+- `packages/api/src/tests/routers/l3-slice-1-methodology-router.test.ts`
+- `apps/web/src/tests/routes/workflow-editor-form-slice.integration.test.tsx`
+- any React Flow helper types or local graph mappers in `apps/web/src/features/workflow-editor/types.ts`
+
+#### 2. Exact Schema Changes
+
+##### Workflow step shell row
+Add to `methodology_workflow_steps`:
+- `metadataJson`
+  - json column
+  - slice-1 locked meaning: editor-only layout metadata
+  - current allowed shape:
+    - `{ position: { x: number, y: number } }`
+
+Locked rules:
+- do **not** put graph position into `configJson`
+- do **not** put business/domain semantics into `metadataJson`
+- `metadataJson` is layout-only for slice-1
+
+##### Workflow edges table
+Keep structural fields only:
+- workflow identity
+- `fromStepId`
+- `toStepId`
+- `edgeKey`
+- timestamps
+
+Remove:
+- `conditionJson`
+- `guidanceJson`
+
+Do **not** add:
+- `descriptionJson`
+- custom edge geometry columns
+
+#### 3. Exact Procedure / Service Shape Changes
+
+##### Methodology router procedures
+Keep conceptually:
+- `createEdge`
+- `updateEdge`
+- `deleteEdge`
+
+Add / patch:
+- graph-layout save procedure (locked recommendation name):
+  - `saveWorkflowGraphLayout`
+
+##### `createEdge` shape (locked recommendation)
+```ts
+{
+  workflowDefinitionId: string
+  fromStepId: string
+  toStepId: string
+}
+```
+
+Server behavior:
+1. validate both steps exist in workflow
+2. reject self-loop
+3. reject second outgoing edge from same source step
+4. reject duplicate exact same edge pair
+5. generate default `edgeKey = fromStep.key + "->" + toStep.key`
+6. persist structural edge row
+
+##### `updateEdge` shape (locked recommendation)
+```ts
+{
+  workflowDefinitionId: string
+  edgeId: string
+  edgeKey: string
+  fromStepId: string
+  toStepId: string
+}
+```
+
+Server behavior:
+- re-run the same structural validation rules as create
+- if edge key is still default-derived, endpoint changes may re-derive key
+- if user supplied custom key, preserve custom key unless explicitly edited
+
+##### `deleteEdge` shape (locked recommendation)
+```ts
+{
+  workflowDefinitionId: string
+  edgeId: string
+}
+```
+
+##### `saveWorkflowGraphLayout` shape (locked recommendation)
+```ts
+{
+  workflowDefinitionId: string
+  positions: Array<{
+    stepDefinitionId: string
+    position: { x: number; y: number }
+  }>
+}
+```
+
+Server behavior:
+- batch-update `methodology_workflow_steps.metadataJson.position`
+- only touch steps belonging to the target workflow
+- do not mutate edge rows
+- do not mutate any business semantics
+
+##### Methodology-engine service boundaries
+
+Keep conceptually:
+- `WorkflowTopologyMutationService`
+- `WorkflowEditorDefinitionService`
+
+Patch exact responsibilities:
+
+`WorkflowTopologyMutationService`
+- owns structural edge create/update/delete
+- owns one-outgoing-edge validation
+- owns self-loop / duplicate-edge / same-workflow validation
+- must not own branch condition semantics in slice-1
+
+`WorkflowEditorDefinitionService`
+- assembles graph read model
+- returns:
+  - step shell rows with `metadataJson.position`
+  - structural edge rows only
+- must not expose `conditionJson` / `guidanceJson` as active edge semantics
+
+Recommended additional service seam if needed strictly for this product behavior:
+- `WorkflowGraphLayoutService`
+  - owns batch save of node positions only
+  - no topology semantics
+
+Hard constraint:
+- do not invent generic graph/foundation services beyond what is required for:
+  - node position persistence
+  - structural edge CRUD
+  - page-level dirty-state save flow
+
+##### Web/editor behavior
+
+`workflow-canvas.tsx`
+- node drag updates local graph state only
+- moved nodes mark page dirty
+- top-of-canvas `Save changes` persists dirty positions in batch
+- edge create happens on React Flow `onConnect`
+- source handle bottom / target handle top
+- no implicit auto-save per drag
+
+`workflow-editor-shell.tsx`
+- owns canvas-level dirty/save affordance visibility
+- owns page-level unsaved-changes navigation guard
+
+`step-list-inspector.tsx`
+- selected edge opens edge inspector/dialog path
+- no debug affordances that bypass canonical edge CRUD flow
+
+#### 4. Exact Tests To Update
+
+##### Schema tests
+Update:
+- `packages/db/src/tests/schema/l3-slice-1-schema.test.ts`
+
+New assertions required:
+- `methodology_workflow_steps` has `metadataJson`
+- `methodology_workflow_edges` does **not** have `conditionJson`
+- `methodology_workflow_edges` does **not** have `guidanceJson`
+- no edge `descriptionJson` was introduced
+
+##### Repository tests
+Update:
+- `packages/db/src/tests/repository/l3-slice-1-repositories.test.ts`
+
+New assertions required:
+- graph-layout save updates `metadataJson.position` for targeted steps only
+- createEdge persists only structural fields
+- updateEdge revalidates one-outgoing-edge rule
+- deleteEdge removes structural edge row only
+
+##### Methodology-engine tests
+Update:
+- `packages/methodology-engine/src/tests/l3/l3-slice-1-workflow-editor-services.test.ts`
+
+New assertions required:
+- read model returns persisted node positions
+- create/update/delete edge flows enforce:
+  - one outgoing max
+  - many incoming allowed
+  - no self-loop
+  - no duplicate exact edge pair
+- no edge branch/guidance semantics leak into slice-1 services
+
+##### Router tests
+Update:
+- `packages/api/src/tests/routers/l3-slice-1-methodology-router.test.ts`
+
+New assertions required:
+- `createEdge`, `updateEdge`, `deleteEdge` remain structural-only
+- `saveWorkflowGraphLayout` batch-persist positions correctly
+- router never accepts/writes `conditionJson` or `guidanceJson`
+
+##### Web route / integration tests
+Update:
+- `apps/web/src/tests/routes/workflow-editor-form-slice.integration.test.tsx`
+
+New assertions required:
+- dragging a node marks page dirty
+- `Save changes` appears after layout movement
+- saving persists positions and clears dirty state
+- leaving route with unsaved node moves triggers discard/leave warning
+- connecting source-bottom to target-top creates edge immediately
+- second outgoing edge from same source fails in UI
+- many incoming edges to one target are allowed
+- clicking edge opens single-surface edge dialog with:
+  - edge key
+  - from step
+  - to step
+  - delete edge
+
+#### 5. Severity / Action Classification
+
+##### Replace/remove completely
+- edge `conditionJson`
+- edge `guidanceJson`
+- any slice-1 code path treating edges as branch/guidance carriers
+
+##### Patch heavily
+- `workflow-canvas.tsx`
+- `workflow-editor-shell.tsx`
+- `workflow-topology-mutation-service.ts`
+- methodology schema + repo read/write paths for graph metadata and structural edges
+
+##### Patch lightly
+- methodology router edge procedures
+- workflow-editor route integration
+- local graph mapping/types
+- edge selection/inspector flow
+
+##### Probably keep
+- explicit `workflowDefinitionId` route identity
+- structural edge CRUD concept
+- one-outgoing-edge invariant direction
+- React Flow `onConnect` creation model
+
 ## Context Fact CRUD Surface Placement
 - Keep context-fact CRUD in the existing `Context Fact Definitions` section of the workflow editor.
 - That section should contain:
@@ -161,14 +1001,16 @@
   - edit action per row
   - delete action per row
 - Clicking create opens the context-fact create dialog.
-- Clicking a row opens the context-fact edit dialog.
-- Delete should be triggered from the edit dialog and should open a destructive confirmation dialog.
+- Clicking the explicit edit action on a row opens the context-fact edit dialog with the row's data populated.
+- Clicking the explicit delete action on a row opens a destructive confirmation dialog with destructive/red styling throughout, and deletion occurs only after confirm.
 
 ### Context Fact Definitions List Row Design
 - Primary line: display name / name
 - Secondary line: key in muted/grey text
 - Right-side badges: fact kind badge + cardinality badge
-- Whole row is clickable and opens the edit dialog
+- Right-side row actions: `Edit` and `Delete`
+- `Edit` opens the populated edit dialog for that context fact definition
+- `Delete` opens the destructive confirm dialog
 
 ## Context Fact Dialog Spec (current recommendation)
 ### Tabs
@@ -204,7 +1046,11 @@
 - In create mode, `Fact Kind` and `Cardinality` should be presented together as paired contract selectors because both define the core shape of the context fact before the `Value Semantics` tab can be interpreted correctly.
 - `Description` uses `{ markdown }` shape.
 - For fact kinds whose multiplicity is inherited from a selected target entity (`definition_backed_external_fact`, `bound_external_fact`, `artifact_reference_fact`, `work_unit_draft_spec_fact`), the target selection should still live in `Value Semantics`, not in `Contract`.
-- For those inherited-cardinality kinds, `Contract` should keep the cardinality field but treat it as derived/read-only once the target entity is selected; do not move bound-target selection into `Contract`.
+- For those inherited-cardinality kinds, the cardinality field must behave as follows once the target entity is selected:
+  - if the underlying bound definition/entity has cardinality `many`, the cardinality control stays enabled and the user may choose the workflow context-fact cardinality
+  - if the underlying bound definition/entity has cardinality `one`, the cardinality control is disabled, visibly set to `One`, and a note explains that the bound target constrains the context fact to one
+  - this explicit disabled-note behavior applies only to non-`plain_value_fact` and non-`workflow_reference_fact` kinds
+  - do not move bound-target selection into `Contract`
 
 ### Value Semantics Tab Ownership
 - The `Value Semantics` tab owns the actual definition semantics for the selected fact kind.
@@ -869,6 +1715,384 @@
 - `Guidance *` only when guidance is dirty
 - overall dialog dirty state is the OR of the tab states
 - close with dirty state uses the same discard-confirm behavior already established in L1/L2 dialogs
+
+### Workflow Context-Fact Definition Replace Map (locked implementation checklist)
+
+#### Actual Current Blast Radius (repo-grounded)
+- `packages/contracts/src/methodology/workflow.ts`
+  - still uses stale kinds/names (`plain_value`, `external_binding`, `draft_spec_field`)
+  - still couples `FormStepPayload.contextFacts`
+  - still carries `FormFieldInput` / `input` ownership on Form fields
+- `packages/api/src/routers/methodology.ts`
+  - mirrors the stale contract model in Zod
+  - still exposes `contextFacts` inside Form payloads
+  - still uses stale edge/description shapes
+- `packages/db/src/schema/methodology.ts`
+  - root context-fact table is too thin for the locked `Contract` tab ownership model
+  - subtype tables still reflect stale kinds (`work_unit_reference`, `draft_spec_field`, provider/bindingKey style external binding)
+- `packages/db/src/repositories/workflow-context-fact-repository.ts`
+  - is a standalone side repository, not the real app-wired methodology repo seam
+  - supports only create/list, not the full CRUD/read-model the product now requires
+  - still encodes removed/stale kinds and stale payload shape
+- `packages/methodology-engine/src/services/workflow-context-fact-definition-service.ts`
+  - depends on optional `MethodologyRepository` capabilities that are not guaranteed by the actual repo layer
+  - conceptually salvageable, but currently shaped around stale DTOs/capabilities
+- `packages/methodology-engine/src/services/workflow-editor-definition-service.ts`
+  - still returns `WorkflowContextFactDto[]` + `FormStepPayload`-centric `formDefinitions`, which preserves the old coupled ownership model
+- `apps/web/src/features/workflow-editor/dialogs.tsx`
+  - has no real context-fact create/edit dialog yet
+  - Form dialog still has stale `Context Facts` tab placeholder
+- `apps/web/src/features/workflow-editor/workflow-editor-shell.tsx`
+  - context-fact section is read-only list only; no actual CRUD actions wired to the locked dialog model
+- `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId.tsx`
+  - route currently maps stale `contextFacts` / `FormStepPayload` assumptions into local editor state
+
+#### Execution Order
+1. Replace contract authority first.
+2. Replace methodology schema authority second.
+3. Replace stale standalone repo seam with the real methodology-repo capability surface.
+4. Patch methodology-engine services/read models to the new authority.
+5. Patch router schemas and route integration.
+6. Replace placeholder web context-fact CRUD surfaces with the locked dialog/list UX.
+7. Rewrite tests to prove the stale ownership model is gone.
+
+#### 1. Files To Delete / Replace / Change
+
+##### Delete / remove from active implementation
+- `packages/db/src/repositories/workflow-context-fact-repository.ts`
+  - delete/retire this standalone repository seam if the app is going to continue using `MethodologyRepository` + `createMethodologyRepoLayer` as the real runtime wiring.
+  - It is currently a parallel stale seam carrying the wrong kind set and partial CRUD shape.
+- any active contract/router/test usage of these removed or stale forms:
+  - `FormStepPayload.contextFacts`
+  - `FormFieldInput`
+  - standalone `inputKind`
+  - active `work_unit_reference_fact`
+  - `draft_spec_field` as a top-level active context-fact kind
+
+##### Replace heavily
+- `packages/contracts/src/methodology/workflow.ts`
+  - replace the context-fact kind model, DTO shapes, Form payload ownership model, field-binding model, and editor read-model shapes.
+- `packages/api/src/routers/methodology.ts`
+  - replace the stale Zod schemas for Form/context-facts/edges so they match the locked design-time-only model.
+- `apps/web/src/features/workflow-editor/dialogs.tsx`
+  - replace placeholder context-fact/form tabs with the real locked dialog surfaces.
+- `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId.tsx`
+  - replace stale route mapping assumptions so it hydrates/saves context facts and Form fields from the new canonical read model.
+
+##### Change
+- `packages/db/src/schema/methodology.ts`
+  - patch root context-fact definition row to carry the real `Contract`/`Guidance` ownership fields
+  - patch subtype tables to the locked active kind set and subtype semantics
+- `packages/db/src/methodology-repository.ts`
+  - add/patch the real CRUD/read-model methods for workflow context-fact definitions on the actual app-wired repo
+- `packages/db/src/index.ts`
+  - remove exports for the retired standalone repo seam and export the corrected schema/repo surfaces
+- `packages/methodology-engine/src/repository.ts`
+  - patch the `MethodologyRepository` interface to include the real required context-fact CRUD/read-model capabilities
+- `packages/methodology-engine/src/services/workflow-context-fact-definition-service.ts`
+  - patch service contract and capability calls to the new canonical repo interface
+- `packages/methodology-engine/src/services/workflow-editor-definition-service.ts`
+  - patch editor read model away from `FormStepPayload.contextFacts` coupling and toward separate workflow-level context-fact definitions + Form field bindings
+- `packages/methodology-engine/src/services/form-step-definition-service.ts`
+  - patch so Form-field binding behavior depends on linked context-fact definitions rather than owning semantic inputs locally
+- `packages/methodology-engine/src/services/workflow-authoring-transaction-service.ts`
+  - patch transaction orchestration so context-fact CRUD and Form CRUD use the corrected ownership model
+- `apps/web/src/features/workflow-editor/workflow-editor-shell.tsx`
+  - patch the `Context Fact Definitions` section into the real CRUD surface (list/create/edit/delete)
+- `apps/web/src/features/workflow-editor/types.ts`
+  - patch local editor types to the corrected context-fact contract/read-model shape
+
+##### Likely light-touch patch points
+- `packages/methodology-engine/src/layers/live.ts`
+- `packages/api/src/tests/routers/l3-slice-1-methodology-router.test.ts`
+- `apps/web/src/tests/routes/workflow-editor-form-slice.integration.test.tsx`
+- `packages/contracts/src/tests/l3-slice-1-contracts.test.ts`
+
+#### 2. Exact Schema Changes
+
+##### Root definition table: `methodology_workflow_context_fact_definitions`
+Patch root row so it owns the full locked `Contract` + `Guidance` shape:
+- `workflowDefinitionId`
+- `factKey`
+- `displayName` / label field
+- `descriptionJson: { markdown: string }`
+- `factKind`
+- `cardinality`
+- `guidanceJson` carrying human/agent markdown guidance
+- timestamps
+
+Root table must be the authority for:
+- key
+- label/display name
+- description
+- kind
+- cardinality
+- guidance
+
+##### Active subtype tables to keep / patch
+- `methodology_workflow_context_fact_plain_values`
+- `methodology_workflow_context_fact_external_bindings`
+- `methodology_workflow_context_fact_workflow_refs`
+- `methodology_workflow_context_fact_artifact_refs`
+- `methodology_workflow_context_fact_draft_specs`
+- `methodology_workflow_context_fact_draft_spec_fields`
+
+##### Remove from active slice-1 schema surface
+- `methodology_workflow_context_fact_work_unit_refs`
+  - remove from active slice-1 context-fact model because `work_unit_reference_fact` is removed from current consideration
+
+##### Subtype semantics to patch exactly
+
+`plain_value_fact`
+- plain-values subtype must support:
+  - value type = `string | number | boolean | json`
+  - type-specific semantics owned in subtype data
+  - JSON sub-schema entries matching methodology-fact dialog behavior
+
+`definition_backed_external_fact` and `bound_external_fact`
+- do not use generic `provider` / `bindingKey` vocabulary anymore
+- store explicit authoritative target references to:
+  - methodology fact definition id, or
+  - current work-unit fact definition id
+- external-binding subtype must be able to distinguish:
+  - create-new semantics (`definition_backed_external_fact`)
+  - bind/update-existing semantics (`bound_external_fact`)
+
+`workflow_reference_fact`
+- workflow-ref subtype must support:
+  - one root context-fact definition with cardinality on the root row
+  - one-or-many allowed workflow selections under that definition
+  - no separate fake top-level kind rows per selected workflow
+
+`artifact_reference_fact`
+- artifact-ref subtype must reference exactly one artifact slot definition
+  - slot cardinality is inherited from the selected slot
+
+`work_unit_draft_spec_fact`
+- draft-spec subtype must reference exactly one target work-unit definition
+- draft-spec field rows must represent the included target-fact set only
+
+##### Hard schema rules
+- `descriptionJson` everywhere in this slice uses `{ markdown: string }`
+- `guidanceJson` lives on the root context-fact definition row, not in subtype tables
+- `Fact Kind` is locked after creation
+- `Cardinality` is root-owned, except where runtime/design rules make it derived/read-only from the chosen target entity
+
+#### 3. Exact Repository / Service / Procedure Shape Changes
+
+##### Contracts
+Replace current stale kind set:
+- remove active: `plain_value`, `external_binding`, `work_unit_reference`, `draft_spec_field`
+
+Use locked active kind set instead:
+- `plain_value_fact`
+- `definition_backed_external_fact`
+- `bound_external_fact`
+- `workflow_reference_fact`
+- `artifact_reference_fact`
+- `work_unit_draft_spec_fact`
+
+##### Form contract shape corrections
+- remove `FormStepPayload.contextFacts`
+- remove `FormFieldInput`
+- remove binding-owned semantic input configuration
+- Form field bindings should only carry:
+  - `contextFactDefinitionId`
+  - `fieldLabel`
+  - `fieldKey`
+  - `helpText`
+  - `required`
+  - optional UI multiplicity mode when linked fact cardinality is `many`
+
+##### Context-fact DTO/read-model shape
+Patch `packages/contracts/src/methodology/workflow.ts` so context-fact DTOs/read models reflect the locked tab ownership:
+- root contract fields
+- kind-specific `valueSemantics`
+- guidance
+- derived read-only notes/preview content as read-model output, not authored contract fields
+
+##### Methodology repository interface
+Patch `packages/methodology-engine/src/repository.ts` to require real non-optional capabilities for:
+- `listWorkflowContextFactsByDefinitionId`
+- `createWorkflowContextFactByDefinitionId`
+- `updateWorkflowContextFactByDefinitionId`
+- `deleteWorkflowContextFactByDefinitionId`
+- `getWorkflowEditorDefinition`
+
+Those capabilities must be implemented by the actual app-wired repo layer, not by a parallel side repository.
+
+##### Methodology DB repo implementation
+Patch `packages/db/src/methodology-repository.ts` to implement the real context-fact CRUD and editor-definition read model:
+- list workflow context facts with root + subtype semantics
+- create root row + subtype row(s)
+- update root row + subtype row(s)
+- delete root row with cascade / dependency checks
+- assemble editor-definition payload that returns:
+  - workflow metadata
+  - shell steps
+  - structural edges
+  - workflow context-fact definitions
+  - Form field bindings separately from context-fact definitions
+
+##### Methodology-engine service layer
+
+`WorkflowContextFactDefinitionService`
+- keep conceptually
+- patch to the real kind set and canonical repo capabilities
+- enforce:
+  - no `work_unit_reference_fact`
+  - no stale provider/bindingKey abstraction
+  - no kind changes after creation
+  - delete blocked when in use by Form bindings unless explicit design says otherwise
+
+`WorkflowEditorDefinitionService`
+- keep conceptually
+- patch read model so it no longer returns `formDefinitions.payload.contextFacts`
+- workflow context facts must be editor-level siblings, not Form-owned nested payloads
+
+`FormStepDefinitionService`
+- patch so Form field widgets/behavior are derived from linked context-fact definitions
+- no Form-owned semantic config
+
+##### Methodology router procedures
+Keep / patch:
+- `workflow.contextFact.list`
+- `workflow.contextFact.create`
+- `workflow.contextFact.update`
+- `workflow.contextFact.delete`
+
+Router payloads must match the locked design:
+- `Contract` payload = key, label, description, kind, cardinality
+- `Value Semantics` payload = kind-specific payload only
+- `Guidance` payload = human/agent markdown guidance
+
+Hard router constraints:
+- no stale `work_unit_reference_fact`
+- no `draft_spec_field` top-level create/update path
+- no `provider` / `bindingKey` generic external-binding payloads
+
+##### Web/editor behavior
+
+`dialogs.tsx`
+- add the real context-fact create/edit dialog with tabs:
+  - `Contract`
+  - `Value Semantics`
+  - `Guidance`
+- remove any Form-dialog `Context Facts` tab
+- create/edit one context fact per dialog only
+
+`workflow-editor-shell.tsx`
+- `Context Fact Definitions` section becomes the real CRUD list surface:
+  - list rows
+  - create button
+  - row edit action
+  - row delete action
+
+`workflow-editor route`
+- hydrate and mutate context facts through dedicated workflow context-fact procedures/read models
+- stop reconstructing context-fact ownership through `FormStepPayload`
+
+#### 4. Exact Tests To Update
+
+##### Contract tests
+Update:
+- `packages/contracts/src/tests/l3-slice-1-contracts.test.ts`
+
+New assertions required:
+- `FormStepPayload.contextFacts` is absent
+- stale `FormFieldInput` / `inputKind` model is absent
+- active kind set is exactly:
+  - `plain_value_fact`
+  - `definition_backed_external_fact`
+  - `bound_external_fact`
+  - `workflow_reference_fact`
+  - `artifact_reference_fact`
+  - `work_unit_draft_spec_fact`
+- active `work_unit_reference_fact` is absent from slice-1 contracts
+
+##### Schema tests
+Update:
+- `packages/db/src/tests/schema/l3-slice-1-schema.test.ts`
+
+New assertions required:
+- root context-fact definition table owns key/label/description/kind/cardinality/guidance
+- `methodology_workflow_context_fact_work_unit_refs` is absent from active slice-1 schema expectations
+- subtype tables align to the locked active kind set
+
+##### Repository tests
+Update:
+- `packages/db/src/tests/repository/l3-slice-1-repositories.test.ts`
+- `packages/db/src/tests/repository/workflow-context-fact-list.integration.test.ts`
+
+New assertions required:
+- create/update/delete/list for each active context-fact kind
+- editor-definition read model returns context facts separately from Form payloads
+- delete fails deterministically when the context fact is still bound to a Form field (unless explicitly unbound first)
+- no stale `provider/bindingKey` generic model remains
+
+##### Methodology-engine tests
+Update:
+- `packages/methodology-engine/src/tests/l3/l3-slice-1-workflow-editor-services.test.ts`
+
+New assertions required:
+- editor-definition service returns workflow-level context facts + separate Form field bindings
+- context-fact service enforces kind lock on edit
+- context-fact delete semantics are deterministic and dependency-aware
+- Form field behavior derives from linked context-fact definitions only
+
+##### Router tests
+Update:
+- `packages/api/src/tests/routers/l3-slice-1-methodology-router.test.ts`
+
+New assertions required:
+- workflow context-fact CRUD uses the corrected payload shapes
+- stale kinds rejected/absent
+- no Form-owned context-fact payloads accepted
+
+##### Web integration tests
+Update:
+- `apps/web/src/tests/routes/workflow-editor-form-slice.integration.test.tsx`
+
+New assertions required:
+- `Context Fact Definitions` section supports create/edit/delete
+- context-fact dialog tabs are exactly `Contract | Value Semantics | Guidance`
+- Form dialog tabs are exactly `Contract | Fields | Guidance`
+- no `Context Facts` tab appears inside Form dialog
+- field-binding picker uses existing workflow context-fact definitions only
+- field derived behavior is text-only and definition-driven
+
+#### 5. Severity / Action Classification
+
+##### Replace/remove completely
+- `packages/db/src/repositories/workflow-context-fact-repository.ts`
+- `FormStepPayload.contextFacts`
+- stale active `work_unit_reference_fact`
+- stale top-level `draft_spec_field` kind
+- generic `provider` / `bindingKey` external-binding model
+- Form dialog `Context Facts` tab
+
+##### Patch heavily
+- `packages/contracts/src/methodology/workflow.ts`
+- `packages/api/src/routers/methodology.ts`
+- `packages/db/src/schema/methodology.ts`
+- `packages/db/src/methodology-repository.ts`
+- `packages/methodology-engine/src/services/workflow-context-fact-definition-service.ts`
+- `packages/methodology-engine/src/services/workflow-editor-definition-service.ts`
+- `apps/web/src/features/workflow-editor/dialogs.tsx`
+- `apps/web/src/features/workflow-editor/workflow-editor-shell.tsx`
+- workflow-editor route integration
+
+##### Patch lightly
+- `packages/methodology-engine/src/services/form-step-definition-service.ts`
+- `packages/methodology-engine/src/services/workflow-authoring-transaction-service.ts`
+- `apps/web/src/features/workflow-editor/types.ts`
+- route/integration tests that only need renamed DTO/read-model fields
+
+##### Probably keep
+- workflow-level placement of context-fact CRUD in the left rail
+- dedicated `WorkflowContextFactDefinitionService` concept
+- dedicated workflow-context CRUD procedures
+- context-fact-first ownership model as the active slice-1 authority
 
 ## Scope Boundaries
 - INCLUDE: Form dialog redesign, context-fact-first authoring separation, tab/dirty-state behavior, and plan refinement.

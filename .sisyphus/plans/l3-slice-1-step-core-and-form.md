@@ -1,8 +1,9 @@
 # L3 Slice 1 — Step Core and Form
 
-> **Status: Superseded (partial implementation).**
+> **Status: Superseded / historical only. DO NOT EXECUTE THIS PLAN.**
 > Completed foundations are preserved in commits `34f6cb67f5` (step-core runtime foundations) and `fb5e7fbbc2` (triage/refinement handoff).
-> Remaining correction scope is tracked in `.sisyphus/plans/l3-slice-1-context-facts-form-correction.md`.
+> The sole active slice-1 execution source of truth is `.sisyphus/plans/l3-slice-1-context-facts-form-correction.md`.
+> This file is retained only for historical traceability of how the first slice-1 plan drifted.
 
 ## TL;DR
 > **Summary**: Deliver the first executable L3 slice by adding shared step-execution core, explicit first-step activation, a Form-only workflow editor, Form runtime execution, workflow context-fact definitions, and the minimal `WU.SETUP` `Form -> Form` demo path against the reset repo baseline.
