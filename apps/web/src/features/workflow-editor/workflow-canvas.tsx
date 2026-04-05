@@ -17,7 +17,6 @@ import {
 
 import { Button } from "../../components/ui/button";
 import {
-  STEP_TYPE_COLORS,
   STEP_TYPE_ICON_CODES,
   STEP_TYPE_LABELS,
   type WorkflowEditorEdge,
@@ -233,6 +232,7 @@ function getWorkflowCanvasBounds(nodes: readonly WorkflowCanvasNode[]) {
 
 function WorkflowStepNode({ data }: NodeProps<WorkflowCanvasNode>) {
   const { step, isSelected, isEntry } = data;
+  const stepTitle = step.payload.label?.trim() || step.payload.key;
 
   return (
     <div
@@ -265,9 +265,9 @@ function WorkflowStepNode({ data }: NodeProps<WorkflowCanvasNode>) {
         position={Position.Left}
         className="!size-3 !rounded-full !border-2 !border-sky-300/90 !bg-sky-400/80"
       />
-      <div className="relative z-[2] grid gap-3 p-3 text-left text-foreground">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
+      <div className="relative z-[2] grid min-w-0 gap-3 p-3 text-left text-foreground">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <span
               className={[
                 "inline-flex w-fit items-center gap-1.5 rounded-full border px-2 py-1 text-[0.62rem] uppercase tracking-[0.12em]",
@@ -288,23 +288,20 @@ function WorkflowStepNode({ data }: NodeProps<WorkflowCanvasNode>) {
               </span>
             ) : null}
           </div>
-          <span className="text-[0.62rem] uppercase tracking-[0.14em] text-muted-foreground/80">
-            {STEP_TYPE_COLORS[step.stepType]}
-          </span>
         </div>
 
-        <div className="grid gap-1.5">
-          <span className="font-geist-pixel-square text-sm uppercase tracking-[0.14em] text-foreground">
+        <div className="grid min-w-0 gap-1.5">
+          <span className="truncate font-geist-pixel-square text-[0.68rem] uppercase tracking-[0.08em] text-foreground">
+            {stepTitle}
+          </span>
+          <span className="truncate text-[0.5rem] uppercase tracking-[0.1em] text-muted-foreground/60">
             {step.payload.key}
           </span>
-          <span className="text-[0.64rem] uppercase tracking-[0.18em] text-muted-foreground">
-            Workflow step
-          </span>
         </div>
 
-        {step.payload.label ? (
-          <span className="max-w-[22ch] text-xs/relaxed text-muted-foreground">
-            {step.payload.label}
+        {step.payload.descriptionJson?.markdown?.trim() ? (
+          <span className="line-clamp-2 text-xs/relaxed text-muted-foreground">
+            {step.payload.descriptionJson.markdown.trim()}
           </span>
         ) : null}
       </div>
