@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   CreateFormStepInput,
   FormStepPayload,
+  FormFieldUiMultiplicityMode,
   UpdateFormStepInput,
   WORKFLOW_CONTEXT_FACT_KINDS,
   WorkflowContextFactDto,
@@ -14,7 +15,7 @@ import {
 } from "../methodology/workflow";
 import { CreateAndPinProjectInput } from "../project/project";
 import { RuntimeStepExecutionDto } from "../runtime/executions";
-import { DescriptionJson, SetupTags } from "../shared/invariants";
+import { DescriptionJson } from "../shared/invariants";
 
 describe("slice-1 contract locks", () => {
   it("locks workflow-editor route identity on workflowDefinitionId", () => {
@@ -68,18 +69,12 @@ describe("slice-1 contract locks", () => {
       descriptionJson: { markdown: "Capture operator context" },
       fields: [
         {
-          key: "summary",
-          label: "Summary",
-          valueType: "string",
+          contextFactDefinitionId: "fact-summary",
+          fieldLabel: "Summary",
+          fieldKey: "summary",
+          helpText: "Shown to the operator before the agent runs",
           required: true,
-          input: { kind: "text", multiline: true },
-        },
-      ],
-      contextFacts: [
-        {
-          kind: "plain_value",
-          key: "projectSummary",
-          valueType: "string",
+          uiMultiplicityMode: "one",
         },
       ],
     } as const;
@@ -107,20 +102,42 @@ describe("slice-1 contract locks", () => {
     ).toEqual(decodePayload(payload));
   });
 
-  it("rejects standalone inputKind in form field payload", () => {
+  it("drops stale inline form semantics from form payload", () => {
     const decode = Schema.decodeUnknownSync(FormStepPayload);
-    expect(() =>
-      decode({
-        key: "collect-context",
-        fields: [
-          {
-            key: "summary",
-            valueType: "string",
-            inputKind: "text",
-          },
-        ],
-      }),
-    ).toThrow();
+    const decoded = decode({
+      key: "collect-context",
+      fields: [
+        {
+          contextFactDefinitionId: "fact-summary",
+          fieldLabel: "Summary",
+          fieldKey: "summary",
+          helpText: null,
+          required: false,
+          inputKind: "text",
+        },
+      ],
+      contextFacts: [
+        {
+          kind: "plain_value_fact",
+          key: "summary",
+          cardinality: "one",
+          valueType: "string",
+        },
+      ],
+    });
+
+    expect(decoded).toEqual({
+      key: "collect-context",
+      fields: [
+        {
+          contextFactDefinitionId: "fact-summary",
+          fieldLabel: "Summary",
+          fieldKey: "summary",
+          helpText: null,
+          required: false,
+        },
+      ],
+    });
   });
 
   it("locks edge DTO description shape", () => {
@@ -135,39 +152,49 @@ describe("slice-1 contract locks", () => {
     ).toEqual({ markdown: "Only when approved" });
   });
 
-  it("locks all 7 context-fact kinds", () => {
+  it("locks the active 6 context-fact kinds", () => {
     expect(WORKFLOW_CONTEXT_FACT_KINDS).toEqual([
-      "plain_value",
-      "external_binding",
-      "workflow_reference",
-      "work_unit_reference",
-      "artifact_reference",
-      "draft_spec",
-      "draft_spec_field",
+      "plain_value_fact",
+      "definition_backed_external_fact",
+      "bound_external_fact",
+      "workflow_reference_fact",
+      "artifact_reference_fact",
+      "work_unit_draft_spec_fact",
     ]);
 
     const decode = Schema.decodeUnknownSync(WorkflowContextFactDto);
     const samples = [
-      { kind: "plain_value", key: "name", valueType: "string" },
+      { kind: "plain_value_fact", key: "name", cardinality: "one", valueType: "string" },
       {
-        kind: "external_binding",
+        kind: "definition_backed_external_fact",
         key: "gitRoot",
-        source: { provider: "project", bindingKey: "projectRootPath" },
+        cardinality: "one",
+        externalFactDefinitionId: "ext-workflow-mode",
       },
-      { kind: "workflow_reference", key: "sourceWf", workflowDefinitionId: "wf-2" },
-      { kind: "work_unit_reference", key: "story", workUnitTypeKey: "WU.STORY" },
-      { kind: "artifact_reference", key: "prd", artifactSlotKey: "ART.PRD" },
       {
-        kind: "draft_spec",
+        kind: "bound_external_fact",
+        key: "repositoryType",
+        cardinality: "one",
+        externalFactDefinitionId: "ext-repository-type",
+      },
+      {
+        kind: "workflow_reference_fact",
+        key: "sourceWf",
+        cardinality: "many",
+        allowedWorkflowDefinitionIds: ["wf-2", "wf-3"],
+      },
+      {
+        kind: "artifact_reference_fact",
+        key: "prd",
+        cardinality: "many",
+        artifactSlotDefinitionId: "ART.PRD",
+      },
+      {
+        kind: "work_unit_draft_spec_fact",
         key: "storyDraft",
-        fields: [{ key: "title", valueType: "string", required: true }],
-      },
-      {
-        kind: "draft_spec_field",
-        key: "storyDraft.title",
-        draftSpecKey: "storyDraft",
-        fieldKey: "title",
-        valueType: "string",
+        cardinality: "many",
+        workUnitTypeKey: "WU.STORY",
+        includedFactKeys: ["title", "acceptance_criteria"],
       },
     ] as const;
 
@@ -175,18 +202,50 @@ describe("slice-1 contract locks", () => {
       expect(decode(sample).kind).toBe(sample.kind);
     }
 
-    expect(() => decode({ kind: "input_kind", key: "x" })).toThrow();
+    expect(() => decode({ kind: "work_unit_reference_fact", key: "x" })).toThrow();
+    expect(() => decode({ kind: "draft_spec_field", key: "x" })).toThrow();
   });
 
-  it("codifies descriptionJson and setup_tags invariants", () => {
+  it("locks form field bindings to binding and presentation data only", () => {
+    const decodeMode = Schema.decodeUnknownSync(FormFieldUiMultiplicityMode);
+
+    expect(decodeMode("one")).toBe("one");
+    expect(decodeMode("many")).toBe("many");
+    expect(() => decodeMode("zero-or-many")).toThrow();
+
+    const decoded = Schema.decodeUnknownSync(FormStepPayload)({
+      key: "collect-context",
+      fields: [
+        {
+          contextFactDefinitionId: "fact-summary",
+          fieldLabel: "Summary",
+          fieldKey: "summary",
+          helpText: null,
+          required: true,
+          uiMultiplicityMode: "many",
+          cardinality: "many",
+          kind: "plain_value_fact",
+          input: { kind: "text" },
+          valueType: "string",
+        },
+      ],
+    });
+
+    expect(decoded.fields[0]).toEqual({
+      contextFactDefinitionId: "fact-summary",
+      fieldLabel: "Summary",
+      fieldKey: "summary",
+      helpText: null,
+      required: true,
+      uiMultiplicityMode: "many",
+    });
+  });
+
+  it("codifies descriptionJson invariants", () => {
     const decodeDescription = Schema.decodeUnknownSync(DescriptionJson);
-    const decodeTags = Schema.decodeUnknownSync(SetupTags);
 
     expect(decodeDescription({ markdown: "hello" })).toEqual({ markdown: "hello" });
     expect(() => decodeDescription({})).toThrow();
-
-    expect(decodeTags({ branch: "main", env: "dev" })).toEqual({ branch: "main", env: "dev" });
-    expect(() => decodeTags({ branch: 1 })).toThrow();
   });
 
   it("locks deferred/default read models for non-form steps", () => {

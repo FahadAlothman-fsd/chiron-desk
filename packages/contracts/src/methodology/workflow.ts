@@ -21,92 +21,71 @@ export type WorkflowMetadataDialogInput = typeof WorkflowMetadataDialogInput.Typ
 export const FormFieldValueType = Schema.Literal("string", "number", "boolean", "json");
 export type FormFieldValueType = typeof FormFieldValueType.Type;
 
-export const FormFieldInput = Schema.Union(
-  Schema.Struct({
-    kind: Schema.Literal("text"),
-    multiline: Schema.optionalWith(Schema.Boolean, { default: () => false }),
-  }),
-  Schema.Struct({
-    kind: Schema.Literal("select"),
-    options: Schema.Array(Schema.String),
-  }),
-  Schema.Struct({
-    kind: Schema.Literal("checkbox"),
-  }),
-);
-export type FormFieldInput = typeof FormFieldInput.Type;
+export const FormFieldUiMultiplicityMode = Schema.Literal("one", "many");
+export type FormFieldUiMultiplicityMode = typeof FormFieldUiMultiplicityMode.Type;
 
 export const FormStepFieldPayload = Schema.Struct({
-  key: Schema.NonEmptyString,
-  label: Schema.optional(Schema.String),
-  valueType: FormFieldValueType,
+  contextFactDefinitionId: Schema.NonEmptyString,
+  fieldLabel: Schema.NonEmptyString,
+  fieldKey: Schema.NonEmptyString,
+  helpText: Schema.optionalWith(Schema.NullOr(Schema.String), { default: () => null }),
   required: Schema.optionalWith(Schema.Boolean, { default: () => false }),
-  input: FormFieldInput,
-  descriptionJson: Schema.optional(DescriptionJson),
+  uiMultiplicityMode: Schema.optional(FormFieldUiMultiplicityMode),
 });
 export type FormStepFieldPayload = typeof FormStepFieldPayload.Type;
 
 export const WORKFLOW_CONTEXT_FACT_KINDS = [
-  "plain_value",
-  "external_binding",
-  "workflow_reference",
-  "work_unit_reference",
-  "artifact_reference",
-  "draft_spec",
-  "draft_spec_field",
+  "plain_value_fact",
+  "definition_backed_external_fact",
+  "bound_external_fact",
+  "workflow_reference_fact",
+  "artifact_reference_fact",
+  "work_unit_draft_spec_fact",
 ] as const;
 
 export const WorkflowContextFactKind = Schema.Literal(...WORKFLOW_CONTEXT_FACT_KINDS);
 export type WorkflowContextFactKind = typeof WorkflowContextFactKind.Type;
 
-export const WorkflowDraftSpecFieldDto = Schema.Struct({
-  key: Schema.NonEmptyString,
-  valueType: FormFieldValueType,
-  required: Schema.optionalWith(Schema.Boolean, { default: () => false }),
-  descriptionJson: Schema.optional(DescriptionJson),
-});
-export type WorkflowDraftSpecFieldDto = typeof WorkflowDraftSpecFieldDto.Type;
+export const WorkflowContextFactCardinality = Schema.Literal("one", "many");
+export type WorkflowContextFactCardinality = typeof WorkflowContextFactCardinality.Type;
 
 export const WorkflowContextFactDto = Schema.Union(
   Schema.Struct({
-    kind: Schema.Literal("plain_value"),
+    kind: Schema.Literal("plain_value_fact"),
     key: Schema.NonEmptyString,
+    cardinality: WorkflowContextFactCardinality,
     valueType: FormFieldValueType,
   }),
   Schema.Struct({
-    kind: Schema.Literal("external_binding"),
+    kind: Schema.Literal("definition_backed_external_fact"),
     key: Schema.NonEmptyString,
-    source: Schema.Struct({
-      provider: Schema.NonEmptyString,
-      bindingKey: Schema.NonEmptyString,
-    }),
+    cardinality: WorkflowContextFactCardinality,
+    externalFactDefinitionId: Schema.NonEmptyString,
   }),
   Schema.Struct({
-    kind: Schema.Literal("workflow_reference"),
+    kind: Schema.Literal("bound_external_fact"),
     key: Schema.NonEmptyString,
-    workflowDefinitionId: Schema.NonEmptyString,
+    cardinality: WorkflowContextFactCardinality,
+    externalFactDefinitionId: Schema.NonEmptyString,
   }),
   Schema.Struct({
-    kind: Schema.Literal("work_unit_reference"),
+    kind: Schema.Literal("workflow_reference_fact"),
     key: Schema.NonEmptyString,
+    cardinality: WorkflowContextFactCardinality,
+    allowedWorkflowDefinitionIds: Schema.Array(Schema.NonEmptyString),
+  }),
+  Schema.Struct({
+    kind: Schema.Literal("artifact_reference_fact"),
+    key: Schema.NonEmptyString,
+    cardinality: WorkflowContextFactCardinality,
+    artifactSlotDefinitionId: Schema.NonEmptyString,
+  }),
+  Schema.Struct({
+    kind: Schema.Literal("work_unit_draft_spec_fact"),
+    key: Schema.NonEmptyString,
+    cardinality: WorkflowContextFactCardinality,
     workUnitTypeKey: Schema.NonEmptyString,
-  }),
-  Schema.Struct({
-    kind: Schema.Literal("artifact_reference"),
-    key: Schema.NonEmptyString,
-    artifactSlotKey: Schema.NonEmptyString,
-  }),
-  Schema.Struct({
-    kind: Schema.Literal("draft_spec"),
-    key: Schema.NonEmptyString,
-    fields: Schema.Array(WorkflowDraftSpecFieldDto),
-  }),
-  Schema.Struct({
-    kind: Schema.Literal("draft_spec_field"),
-    key: Schema.NonEmptyString,
-    draftSpecKey: Schema.NonEmptyString,
-    fieldKey: Schema.NonEmptyString,
-    valueType: FormFieldValueType,
+    includedFactKeys: Schema.Array(Schema.NonEmptyString),
   }),
 );
 export type WorkflowContextFactDto = typeof WorkflowContextFactDto.Type;
@@ -116,7 +95,6 @@ export const FormStepPayload = Schema.Struct({
   label: Schema.optional(Schema.String),
   descriptionJson: Schema.optional(DescriptionJson),
   fields: Schema.Array(FormStepFieldPayload),
-  contextFacts: Schema.optionalWith(Schema.Array(WorkflowContextFactDto), { default: () => [] }),
 });
 export type FormStepPayload = typeof FormStepPayload.Type;
 
