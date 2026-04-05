@@ -15,6 +15,7 @@ export const WorkflowMetadataDialogInput = Schema.Struct({
   key: Schema.NonEmptyString,
   displayName: Schema.optional(Schema.String),
   descriptionJson: Schema.optional(DescriptionJson),
+  entryStepId: Schema.optionalWith(Schema.NullOr(Schema.NonEmptyString), { default: () => null }),
 });
 export type WorkflowMetadataDialogInput = typeof WorkflowMetadataDialogInput.Type;
 

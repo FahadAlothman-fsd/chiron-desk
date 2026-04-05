@@ -127,6 +127,7 @@ export interface WorkflowEditorDefinitionReadModel {
     readonly key: string;
     readonly displayName: string | null;
     readonly descriptionJson: unknown;
+    readonly metadata?: unknown;
   };
   readonly steps: readonly WorkflowStepReadModel[];
   readonly edges: readonly WorkflowEdgeDto[];
@@ -458,12 +459,14 @@ export class MethodologyRepository extends Context.Tag("MethodologyRepository")<
       readonly key: string;
       readonly displayName: string | null;
       readonly descriptionJson: unknown;
+      readonly entryStepId: string | null;
     }) => Effect.Effect<
       {
         readonly workflowDefinitionId: string;
         readonly key: string;
         readonly displayName: string | null;
         readonly descriptionJson: unknown;
+        readonly metadata?: unknown;
       },
       RepositoryError
     >;
