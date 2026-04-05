@@ -261,7 +261,11 @@ function toWorkflowSteps(rawSteps: unknown, rawFormDefinitions: unknown): Workfl
             return null;
           }
 
-          return { stepId, stepType: "form", payload };
+          return {
+            stepId,
+            stepType: "form",
+            payload,
+          };
         })
         .filter((step): step is WorkflowEditorStep => step !== null)
     : [];
@@ -917,11 +921,12 @@ export function MethodologyWorkflowEditorRoute() {
     typeof workflow.workflowDefinitionId === "string" && workflow.workflowDefinitionId.length > 0
       ? workflow.workflowDefinitionId
       : workflowDefinitionId;
+  const initialSteps = toWorkflowSteps(editorDefinition?.steps, editorDefinition?.formDefinitions);
 
   return (
     <WorkflowEditorShell
       metadata={toWorkflowMetadata(resolvedWorkflowDefinitionId, workflow)}
-      initialSteps={toWorkflowSteps(editorDefinition?.steps, editorDefinition?.formDefinitions)}
+      initialSteps={initialSteps}
       initialEdges={toWorkflowEdges(editorDefinition?.edges)}
       contextFactDefinitions={toContextFactDefinitions(editorDefinition?.contextFacts)}
       methodologyFacts={toMethodologyFactOptions(
