@@ -398,6 +398,8 @@ function toContextFactDefinitions(rawFacts: unknown): WorkflowContextFactDefinit
 
 function toContextFactMutationPayload(draft: WorkflowContextFactDraft) {
   const descriptionMarkdown = draft.descriptionMarkdown.trim();
+  const humanMarkdown = draft.guidance.humanMarkdown.trim();
+  const agentMarkdown = draft.guidance.agentMarkdown.trim();
 
   const base = {
     kind: draft.kind,
@@ -409,6 +411,10 @@ function toContextFactMutationPayload(draft: WorkflowContextFactDraft) {
           descriptionJson: { markdown: descriptionMarkdown },
         }
       : {}),
+    guidanceJson: {
+      human: humanMarkdown.length > 0 ? { markdown: humanMarkdown } : undefined,
+      agent: agentMarkdown.length > 0 ? { markdown: agentMarkdown } : undefined,
+    },
   };
 
   switch (draft.kind) {
