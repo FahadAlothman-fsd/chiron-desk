@@ -133,6 +133,7 @@ function toWorkflowMetadata(
   workflow: unknown,
 ): WorkflowEditorMetadata {
   const value = asRecord(workflow) ?? {};
+  const metadata = asRecord(value.metadata) ?? asRecord(value.metadataJson) ?? {};
 
   const descriptionMarkdown =
     readMarkdown(value.descriptionJson) ||
@@ -150,6 +151,10 @@ function toWorkflowMetadata(
     key,
     displayName,
     descriptionMarkdown,
+    entryStepId:
+      typeof metadata.entryStepId === "string" && metadata.entryStepId.trim().length > 0
+        ? metadata.entryStepId
+        : null,
   };
 }
 
@@ -955,6 +960,7 @@ export function MethodologyWorkflowEditorRoute() {
             ...(metadata.descriptionMarkdown.length > 0
               ? { descriptionJson: { markdown: metadata.descriptionMarkdown } }
               : {}),
+            entryStepId: metadata.entryStepId,
           },
         });
 

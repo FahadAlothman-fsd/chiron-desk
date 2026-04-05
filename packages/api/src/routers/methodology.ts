@@ -105,6 +105,7 @@ const workflowMetadataSchema = z
     key: z.string().min(1),
     displayName: z.string().optional(),
     descriptionJson: z.object({ markdown: z.string() }).optional(),
+    entryStepId: z.string().min(1).nullable().optional(),
     workUnitTypeKey: z.string().min(1).optional(),
     metadata: z.record(z.string(), workflowMetadataValueSchema).optional(),
     guidance: z
@@ -1793,6 +1794,7 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
               key: input.payload.key,
               displayName: input.payload.displayName,
               descriptionJson: input.payload.descriptionJson,
+              entryStepId: input.payload.entryStepId ?? null,
             };
             return yield* svc.updateWorkflowMetadata(
               {

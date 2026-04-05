@@ -310,6 +310,7 @@ async function findWorkflowRow(
   readonly key: string;
   readonly displayName: string | null;
   readonly descriptionJson: unknown;
+  readonly metadataJson: unknown;
   readonly methodologyVersionId: string;
   readonly workUnitTypeKey: string | null;
 } | null> {
@@ -319,6 +320,7 @@ async function findWorkflowRow(
       key: methodologyWorkflows.key,
       displayName: methodologyWorkflows.displayName,
       descriptionJson: methodologyWorkflows.descriptionJson,
+      metadataJson: methodologyWorkflows.metadataJson,
       methodologyVersionId: methodologyWorkflows.methodologyVersionId,
       workUnitTypeKey: methodologyWorkUnitTypes.key,
     })
@@ -3281,6 +3283,27 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               ),
             );
 
+          const workflowMetadata =
+            workflow.metadataJson &&
+            typeof workflow.metadataJson === "object" &&
+            workflow.metadataJson !== null &&
+            !Array.isArray(workflow.metadataJson)
+              ? { ...(workflow.metadataJson as Record<string, unknown>) }
+              : null;
+
+          if (workflowMetadata?.entryStepId === stepId) {
+            delete workflowMetadata.entryStepId;
+            await tx
+              .update(methodologyWorkflows)
+              .set({
+                metadataJson:
+                  workflowMetadata && Object.keys(workflowMetadata).length > 0
+                    ? workflowMetadata
+                    : null,
+              })
+              .where(eq(methodologyWorkflows.id, workflowDefinitionId));
+          }
+
           await tx
             .delete(methodologyWorkflowSteps)
             .where(
@@ -3554,6 +3577,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             key: workflow.key,
             displayName: workflow.displayName,
             descriptionJson: workflow.descriptionJson,
+            ...(workflow.metadataJson ? { metadata: workflow.metadataJson } : {}),
           },
           steps,
           edges,
@@ -3569,6 +3593,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
       key: string;
       displayName: string | null;
       descriptionJson: unknown;
+      entryStepId: string | null;
     }) =>
       dbEffect("methodology.updateWorkflowMetadataByDefinitionId", async () => {
         const workflow = await findWorkflowRow(db, {
@@ -3581,12 +3606,44 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           throw new Error("Workflow not found");
         }
 
+        if (input.entryStepId) {
+          const matchingStepRows = await db
+            .select({ id: methodologyWorkflowSteps.id })
+            .from(methodologyWorkflowSteps)
+            .where(
+              and(
+                eq(methodologyWorkflowSteps.id, input.entryStepId),
+                eq(methodologyWorkflowSteps.workflowId, workflow.id),
+              ),
+            )
+            .limit(1);
+
+          if (matchingStepRows.length === 0) {
+            throw new Error(`Workflow entry step '${input.entryStepId}' not found`);
+          }
+        }
+
+        const metadataJson =
+          workflow.metadataJson &&
+          typeof workflow.metadataJson === "object" &&
+          workflow.metadataJson !== null &&
+          !Array.isArray(workflow.metadataJson)
+            ? { ...(workflow.metadataJson as Record<string, unknown>) }
+            : {};
+
+        if (input.entryStepId) {
+          metadataJson.entryStepId = input.entryStepId;
+        } else {
+          delete metadataJson.entryStepId;
+        }
+
         const updated = await db
           .update(methodologyWorkflows)
           .set({
             key: input.key,
             displayName: input.displayName,
             descriptionJson: input.descriptionJson,
+            metadataJson: Object.keys(metadataJson).length > 0 ? metadataJson : null,
           })
           .where(eq(methodologyWorkflows.id, workflow.id))
           .returning();
@@ -3601,6 +3658,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           key: row.key,
           displayName: row.displayName,
           descriptionJson: row.descriptionJson,
+          ...(row.metadataJson ? { metadata: row.metadataJson } : {}),
         };
       }),
   });

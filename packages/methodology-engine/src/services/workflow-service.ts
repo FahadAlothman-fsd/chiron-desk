@@ -26,12 +26,14 @@ type WorkflowMetadataRepository = {
     readonly key: string;
     readonly displayName: string | null;
     readonly descriptionJson: unknown;
+    readonly entryStepId: string | null;
   }) => Effect.Effect<
     {
       readonly workflowDefinitionId: string;
       readonly key: string;
       readonly displayName: string | null;
       readonly descriptionJson: unknown;
+      readonly metadata?: unknown;
     },
     RepositoryError
   >;
@@ -89,6 +91,7 @@ export class WorkflowService extends Context.Tag("WorkflowService")<
           readonly key: string;
           readonly displayName: string | null;
           readonly descriptionJson: unknown;
+          readonly metadata?: unknown;
         };
       },
       VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
@@ -325,6 +328,7 @@ export const WorkflowServiceLive = Layer.effect(
           key: input.payload.key,
           displayName: input.payload.displayName ?? null,
           descriptionJson: input.payload.descriptionJson ?? null,
+          entryStepId: input.payload.entryStepId ?? null,
         });
 
         yield* repo.recordEvent({
