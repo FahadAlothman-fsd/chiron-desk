@@ -470,30 +470,6 @@ export const methodologyWorkflowEdges = sqliteTable(
   ],
 );
 
-export const methodologyWorkflowFormSteps = sqliteTable(
-  "methodology_workflow_form_steps",
-  {
-    id: text("id")
-      .primaryKey()
-      .$defaultFn(() => crypto.randomUUID()),
-    workflowId: text("workflow_definition_id")
-      .notNull()
-      .references(() => methodologyWorkflows.id, { onDelete: "cascade" }),
-    key: text("key").notNull(),
-    label: text("label"),
-    descriptionJson: text("description_json", { mode: "json" }),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
-      .default(timestampDefault)
-      .notNull()
-      .$onUpdate(() => new Date()),
-  },
-  (table) => [
-    uniqueIndex("methodology_workflow_form_steps_wid_key_idx").on(table.workflowId, table.key),
-    index("methodology_workflow_form_steps_wid_idx").on(table.workflowId),
-  ],
-);
-
 export const methodologyWorkflowFormFields = sqliteTable(
   "methodology_workflow_form_fields",
   {
@@ -502,7 +478,7 @@ export const methodologyWorkflowFormFields = sqliteTable(
       .$defaultFn(() => crypto.randomUUID()),
     formStepId: text("form_step_id")
       .notNull()
-      .references(() => methodologyWorkflowFormSteps.id, { onDelete: "cascade" }),
+      .references(() => methodologyWorkflowSteps.id, { onDelete: "cascade" }),
     key: text("key").notNull(),
     label: text("label"),
     valueType: text("value_type").notNull(),
@@ -528,6 +504,10 @@ export const methodologyWorkflowContextFactDefinitions = sqliteTable(
       .references(() => methodologyWorkflows.id, { onDelete: "cascade" }),
     factKey: text("fact_key").notNull(),
     factKind: text("fact_kind").notNull(),
+    label: text("label"),
+    descriptionJson: text("description_json", { mode: "json" }),
+    cardinality: text("cardinality").notNull().default("one"),
+    guidanceJson: text("guidance_json", { mode: "json" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .default(timestampDefault)
@@ -589,20 +569,6 @@ export const methodologyWorkflowContextFactWorkflowReferences = sqliteTable(
       .references(() => methodologyWorkflows.id, { onDelete: "restrict" }),
   },
   (table) => [uniqueIndex("methodology_wf_ctx_wf_ref_def_idx").on(table.contextFactDefinitionId)],
-);
-
-export const methodologyWorkflowContextFactWorkUnitReferences = sqliteTable(
-  "methodology_workflow_context_fact_work_unit_refs",
-  {
-    id: text("id")
-      .primaryKey()
-      .$defaultFn(() => crypto.randomUUID()),
-    contextFactDefinitionId: text("context_fact_definition_id")
-      .notNull()
-      .references(() => methodologyWorkflowContextFactDefinitions.id, { onDelete: "cascade" }),
-    workUnitTypeKey: text("work_unit_type_key").notNull(),
-  },
-  (table) => [uniqueIndex("methodology_wf_ctx_wu_ref_def_idx").on(table.contextFactDefinitionId)],
 );
 
 export const methodologyWorkflowContextFactArtifactReferences = sqliteTable(

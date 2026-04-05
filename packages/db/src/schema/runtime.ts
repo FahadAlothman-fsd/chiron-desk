@@ -5,7 +5,7 @@ import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import {
   methodologyArtifactSlotDefinitions,
   methodologyFactDefinitions,
-  methodologyWorkflowFormSteps,
+  methodologyWorkflowSteps,
   methodologyWorkUnitTypes,
   workUnitFactDefinitions,
   workUnitLifecycleStates,
@@ -274,7 +274,7 @@ export const stepExecutions = sqliteTable(
       .references(() => workflowExecutions.id, { onDelete: "cascade" }),
     stepDefinitionId: text("step_definition_id")
       .notNull()
-      .references(() => methodologyWorkflowFormSteps.id, { onDelete: "restrict" }),
+      .references(() => methodologyWorkflowSteps.id, { onDelete: "restrict" }),
     stepType: text("step_type").notNull(),
     status: text("status").notNull(),
     activatedAt: integer("activated_at", { mode: "timestamp_ms" })

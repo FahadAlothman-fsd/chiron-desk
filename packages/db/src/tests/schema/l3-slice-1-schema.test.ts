@@ -1,76 +1,76 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  methodologyWorkflowContextFactArtifactReferences,
-  methodologyWorkflowContextFactDefinitions,
-  methodologyWorkflowContextFactDraftSpecFields,
-  methodologyWorkflowContextFactDraftSpecs,
-  methodologyWorkflowContextFactExternalBindings,
-  methodologyWorkflowContextFactPlainValues,
-  methodologyWorkflowContextFactWorkUnitReferences,
-  methodologyWorkflowContextFactWorkflowReferences,
-  methodologyWorkflowFormFields,
-  methodologyWorkflowFormSteps,
-} from "../../schema/methodology";
-import {
-  formStepExecutionState,
-  stepExecutions,
-  workflowExecutionContextFacts,
-} from "../../schema/runtime";
+import { WORKFLOW_CONTEXT_FACT_KINDS } from "../../../../contracts/src/methodology/workflow";
+import * as methodologySchema from "../../schema/methodology";
+
+const drizzleNameSymbol = Symbol.for("drizzle:Name");
+const drizzleInlineForeignKeysSymbol = Symbol.for("drizzle:SQLiteInlineForeignKeys");
+
+function getTableName(table: unknown): string {
+  return (table as Record<symbol, string | undefined>)[drizzleNameSymbol] ?? "";
+}
+
+function getInlineForeignKey(table: unknown, index = 0) {
+  return (
+    table as Record<symbol, Array<{ reference: () => { foreignTable: unknown } }> | undefined>
+  )[drizzleInlineForeignKeysSymbol]?.[index];
+}
 
 describe("l3 slice-1 schema", () => {
-  it("exposes design-time form tables", () => {
-    expect(methodologyWorkflowFormSteps.id).toBeDefined();
-    expect(methodologyWorkflowFormSteps.workflowId).toBeDefined();
-    expect(methodologyWorkflowFormSteps.key).toBeDefined();
-    expect(methodologyWorkflowFormSteps.label).toBeDefined();
-    expect(methodologyWorkflowFormSteps.descriptionJson).toBeDefined();
-    expect(methodologyWorkflowFormSteps.createdAt).toBeDefined();
-    expect(methodologyWorkflowFormSteps.updatedAt).toBeDefined();
+  it("removes the typed form parent table and points form fields at workflow steps", () => {
+    expect("methodologyWorkflowFormSteps" in methodologySchema).toBe(false);
 
-    expect(methodologyWorkflowFormFields.id).toBeDefined();
-    expect(methodologyWorkflowFormFields.formStepId).toBeDefined();
-    expect(methodologyWorkflowFormFields.key).toBeDefined();
-    expect(methodologyWorkflowFormFields.label).toBeDefined();
-    expect(methodologyWorkflowFormFields.valueType).toBeDefined();
-    expect(methodologyWorkflowFormFields.required).toBeDefined();
-    expect(methodologyWorkflowFormFields.inputJson).toBeDefined();
-    expect(methodologyWorkflowFormFields.descriptionJson).toBeDefined();
-    expect(methodologyWorkflowFormFields.sortOrder).toBeDefined();
+    expect(methodologySchema.methodologyWorkflowFormFields.id).toBeDefined();
+    expect(methodologySchema.methodologyWorkflowFormFields.formStepId).toBeDefined();
+    expect(methodologySchema.methodologyWorkflowFormFields.key).toBeDefined();
+    expect(methodologySchema.methodologyWorkflowFormFields.label).toBeDefined();
+    expect(methodologySchema.methodologyWorkflowFormFields.valueType).toBeDefined();
+    expect(methodologySchema.methodologyWorkflowFormFields.required).toBeDefined();
+    expect(methodologySchema.methodologyWorkflowFormFields.inputJson).toBeDefined();
+    expect(methodologySchema.methodologyWorkflowFormFields.descriptionJson).toBeDefined();
+    expect(methodologySchema.methodologyWorkflowFormFields.sortOrder).toBeDefined();
+
+    const formFieldForeignKey = getInlineForeignKey(
+      methodologySchema.methodologyWorkflowFormFields,
+    );
+    expect(formFieldForeignKey).toBeDefined();
+    if (!formFieldForeignKey) {
+      throw new Error("Expected methodologyWorkflowFormFields.formStepId foreign key");
+    }
+    const formFieldReference = formFieldForeignKey.reference();
+
+    expect(getTableName(formFieldReference.foreignTable)).toBe("methodology_workflow_steps");
   });
 
-  it("exposes all 7 typed context-fact design-time tables", () => {
-    expect(methodologyWorkflowContextFactDefinitions).toBeDefined();
-    expect(methodologyWorkflowContextFactPlainValues).toBeDefined();
-    expect(methodologyWorkflowContextFactExternalBindings).toBeDefined();
-    expect(methodologyWorkflowContextFactWorkflowReferences).toBeDefined();
-    expect(methodologyWorkflowContextFactWorkUnitReferences).toBeDefined();
-    expect(methodologyWorkflowContextFactArtifactReferences).toBeDefined();
-    expect(methodologyWorkflowContextFactDraftSpecs).toBeDefined();
-    expect(methodologyWorkflowContextFactDraftSpecFields).toBeDefined();
+  it("keeps context-fact contract and guidance ownership on the root definition row", () => {
+    expect(methodologySchema.methodologyWorkflowContextFactDefinitions.factKey).toBeDefined();
+    expect(methodologySchema.methodologyWorkflowContextFactDefinitions.factKind).toBeDefined();
+    expect(methodologySchema.methodologyWorkflowContextFactDefinitions.label).toBeDefined();
+    expect(
+      methodologySchema.methodologyWorkflowContextFactDefinitions.descriptionJson,
+    ).toBeDefined();
+    expect(methodologySchema.methodologyWorkflowContextFactDefinitions.cardinality).toBeDefined();
+    expect(methodologySchema.methodologyWorkflowContextFactDefinitions.guidanceJson).toBeDefined();
   });
 
-  it("exposes runtime step-core tables", () => {
-    expect(stepExecutions.id).toBeDefined();
-    expect(stepExecutions.workflowExecutionId).toBeDefined();
-    expect(stepExecutions.stepDefinitionId).toBeDefined();
-    expect(stepExecutions.stepType).toBeDefined();
-    expect(stepExecutions.status).toBeDefined();
-    expect(stepExecutions.activatedAt).toBeDefined();
-    expect(stepExecutions.completedAt).toBeDefined();
-    expect(stepExecutions.progressionData).toBeDefined();
+  it("supports exactly the six active workflow context-fact kinds", () => {
+    expect(WORKFLOW_CONTEXT_FACT_KINDS).toHaveLength(6);
+    expect(WORKFLOW_CONTEXT_FACT_KINDS).toEqual([
+      "plain_value_fact",
+      "definition_backed_external_fact",
+      "bound_external_fact",
+      "workflow_reference_fact",
+      "artifact_reference_fact",
+      "work_unit_draft_spec_fact",
+    ]);
 
-    expect(formStepExecutionState.id).toBeDefined();
-    expect(formStepExecutionState.stepExecutionId).toBeDefined();
-    expect(formStepExecutionState.draftValuesJson).toBeDefined();
-    expect(formStepExecutionState.submittedSnapshotJson).toBeDefined();
-    expect(formStepExecutionState.submittedAt).toBeDefined();
-
-    expect(workflowExecutionContextFacts.id).toBeDefined();
-    expect(workflowExecutionContextFacts.workflowExecutionId).toBeDefined();
-    expect(workflowExecutionContextFacts.factKey).toBeDefined();
-    expect(workflowExecutionContextFacts.factKind).toBeDefined();
-    expect(workflowExecutionContextFacts.valueJson).toBeDefined();
-    expect(workflowExecutionContextFacts.sourceStepExecutionId).toBeDefined();
+    expect(methodologySchema.methodologyWorkflowContextFactPlainValues).toBeDefined();
+    expect(methodologySchema.methodologyWorkflowContextFactExternalBindings).toBeDefined();
+    expect(methodologySchema.methodologyWorkflowContextFactWorkflowReferences).toBeDefined();
+    expect(methodologySchema.methodologyWorkflowContextFactArtifactReferences).toBeDefined();
+    expect(methodologySchema.methodologyWorkflowContextFactDraftSpecs).toBeDefined();
+    expect(methodologySchema.methodologyWorkflowContextFactDraftSpecFields).toBeDefined();
+    expect("methodologyWorkflowContextFactWorkUnitReferences" in methodologySchema).toBe(false);
+    expect(WORKFLOW_CONTEXT_FACT_KINDS).not.toContain("work_unit_reference_fact");
   });
 });
