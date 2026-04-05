@@ -13,6 +13,7 @@ import {
 import {
   EdgeDialog,
   FormStepDialog,
+  getPickerBadgeClassName,
   WorkflowContextFactDialog,
   WorkflowMetadataDialog,
 } from "./dialogs";
@@ -24,6 +25,7 @@ import type {
   WorkflowContextFactMutationHandlers,
   WorkflowEditorEdge,
   WorkflowEditorMetadata,
+  WorkflowEditorPickerBadge,
   WorkflowEditorPickerOption,
   WorkflowEditorSelection,
   WorkflowEditorStep,
@@ -80,6 +82,112 @@ function summarizeContextFact(fact: WorkflowContextFactDraft | WorkflowContextFa
         : lead;
     case "work_unit_draft_spec_fact":
       return fact.workUnitTypeKey?.trim() ? `${lead} · ${fact.workUnitTypeKey.trim()}` : lead;
+  }
+}
+
+function getValueTypeBadge(
+  valueType: WorkflowContextFactDraft["valueType"] | "work unit" | null | undefined,
+): WorkflowEditorPickerBadge {
+  switch (valueType) {
+    case "number":
+      return { label: "number", tone: "type-number" };
+    case "boolean":
+      return { label: "boolean", tone: "type-boolean" };
+    case "json":
+      return { label: "json", tone: "type-json" };
+    case "work unit":
+      return { label: "work unit", tone: "type-work-unit" };
+    case "string":
+    default:
+      return { label: "string", tone: "type-string" };
+  }
+}
+
+function getPickerOptionTypeBadge(
+  option: WorkflowEditorPickerOption | undefined,
+): WorkflowEditorPickerBadge | undefined {
+  return option?.badges?.find(
+    (badge) =>
+      badge.tone === "type-string" ||
+      badge.tone === "type-number" ||
+      badge.tone === "type-boolean" ||
+      badge.tone === "type-json" ||
+      badge.tone === "type-work-unit",
+  );
+}
+
+function toCountLabel(count: number, noun: string) {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+
+function getContextFactBadges(
+  fact: WorkflowContextFactDefinitionItem,
+  externalFactsById: ReadonlyMap<string, WorkflowEditorPickerOption>,
+  artifactSlotsById: ReadonlyMap<string, WorkflowEditorPickerOption>,
+): WorkflowEditorPickerBadge[] {
+  const badges: WorkflowEditorPickerBadge[] = [{ label: fact.cardinality, tone: "cardinality" }];
+
+  switch (fact.kind) {
+    case "plain_value_fact":
+      badges.push(getValueTypeBadge(fact.valueType));
+      return badges;
+    case "definition_backed_external_fact": {
+      const externalFact = fact.externalFactDefinitionId
+        ? externalFactsById.get(fact.externalFactDefinitionId)
+        : undefined;
+      const externalType = getPickerOptionTypeBadge(externalFact);
+
+      badges.push({ label: "external", tone: "external-fact" });
+      if (externalType) {
+        badges.push(externalType);
+      }
+      return badges;
+    }
+    case "bound_external_fact": {
+      const externalFact = fact.externalFactDefinitionId
+        ? externalFactsById.get(fact.externalFactDefinitionId)
+        : undefined;
+      const externalType = getPickerOptionTypeBadge(externalFact);
+
+      badges.push({ label: "bound", tone: "bound-fact" });
+      if (externalType) {
+        badges.push(externalType);
+      }
+      return badges;
+    }
+    case "workflow_reference_fact": {
+      const allowedWorkflowCount = new Set(
+        fact.allowedWorkflowDefinitionIds
+          .map((workflowDefinitionId) => workflowDefinitionId.trim())
+          .filter((workflowDefinitionId) => workflowDefinitionId.length > 0),
+      ).size;
+
+      badges.push({ label: "workflow", tone: "workflow-reference" });
+      badges.push({
+        label: toCountLabel(allowedWorkflowCount, "workflow"),
+        tone: "workflow-reference",
+      });
+      return badges;
+    }
+    case "artifact_reference_fact": {
+      const artifactSlotKey = fact.artifactSlotDefinitionId?.trim() ?? "";
+      const artifactSlot = artifactSlotKey ? artifactSlotsById.get(artifactSlotKey) : undefined;
+
+      badges.push({ label: "artifact", tone: "artifact-reference" });
+      if (artifactSlotKey.length > 0) {
+        badges.push({
+          label: artifactSlot?.label ?? artifactSlotKey,
+          tone: "artifact-reference",
+        });
+      }
+      return badges;
+    }
+    case "work_unit_draft_spec_fact":
+      badges.push({ label: "work unit", tone: "type-work-unit" });
+      if (fact.workUnitTypeKey?.trim()) {
+        badges.push({ label: fact.workUnitTypeKey.trim(), tone: "work-unit-definition" });
+      }
+      return badges;
   }
 }
 
@@ -199,6 +307,23 @@ export function WorkflowEditorShell({
         ? localContextFacts.find((fact) => fact.contextFactDefinitionId === deletingContextFactId)
         : undefined,
     [deletingContextFactId, localContextFacts],
+  );
+  const externalFactsById = useMemo(() => {
+    const optionsByValue = new Map<string, WorkflowEditorPickerOption>();
+
+    methodologyFacts.forEach((option) => {
+      optionsByValue.set(option.value, option);
+    });
+
+    currentWorkUnitFacts.forEach((option) => {
+      optionsByValue.set(option.value, option);
+    });
+
+    return optionsByValue;
+  }, [currentWorkUnitFacts, methodologyFacts]);
+  const artifactSlotsById = useMemo(
+    () => new Map(artifactSlots.map((option) => [option.value, option])),
+    [artifactSlots],
   );
 
   const openCreateFormDialog = () => {
@@ -340,8 +465,8 @@ export function WorkflowEditorShell({
                     key={fact.contextFactDefinitionId}
                     className="chiron-cut-frame-thick grid gap-2 p-3"
                   >
-                    <div className="grid gap-1">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="grid gap-3">
+                      <div className="grid gap-0.5">
                         <p className="font-geist-pixel-square text-sm uppercase tracking-[0.12em]">
                           {fact.label || fact.key}
                         </p>
@@ -349,12 +474,18 @@ export function WorkflowEditorShell({
                           {fact.key}
                         </p>
                       </div>
-                      <p className="text-xs text-muted-foreground">{fact.summary}</p>
-                      {fact.descriptionMarkdown.length > 0 ? (
-                        <p className="line-clamp-2 text-xs text-muted-foreground">
-                          {fact.descriptionMarkdown}
-                        </p>
-                      ) : null}
+                      <div className="flex flex-wrap gap-1.5">
+                        {getContextFactBadges(fact, externalFactsById, artifactSlotsById).map(
+                          (badge, index) => (
+                            <span
+                              key={`${fact.contextFactDefinitionId}-${badge.tone}-${badge.label}-${index}`}
+                              className={getPickerBadgeClassName(badge)}
+                            >
+                              {badge.label}
+                            </span>
+                          ),
+                        )}
+                      </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Button

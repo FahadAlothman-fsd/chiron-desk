@@ -531,7 +531,7 @@ function SearchableCombobox(props: {
   );
 }
 
-function getPickerBadgeClassName(badge: WorkflowEditorPickerBadge) {
+export function getPickerBadgeClassName(badge: WorkflowEditorPickerBadge) {
   return cn(
     "inline-flex max-w-full items-center rounded-full border px-2 py-0.5 text-[0.68rem] uppercase tracking-[0.12em]",
     badge.tone === "source-methodology"
@@ -540,17 +540,25 @@ function getPickerBadgeClassName(badge: WorkflowEditorPickerBadge) {
         ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200"
         : badge.tone === "cardinality"
           ? "border-border/70 bg-muted/60 text-muted-foreground"
-          : badge.tone === "type-string"
-            ? "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-200"
-            : badge.tone === "type-number"
-              ? "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-200"
-              : badge.tone === "type-boolean"
-                ? "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-200"
-                : badge.tone === "type-json"
+          : badge.tone === "external-fact"
+            ? "border-indigo-500/30 bg-indigo-500/10 text-indigo-700 dark:text-indigo-200"
+            : badge.tone === "bound-fact"
+              ? "border-indigo-500/30 bg-indigo-500/15 text-indigo-700 dark:text-indigo-200"
+              : badge.tone === "workflow-reference"
+                ? "border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200"
+                : badge.tone === "artifact-reference"
                   ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-200"
-                  : badge.tone === "type-work-unit"
-                    ? "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-200"
-                    : "border-border/70 bg-background/70 text-muted-foreground",
+                  : badge.tone === "type-string"
+                    ? "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-200"
+                    : badge.tone === "type-number"
+                      ? "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-200"
+                      : badge.tone === "type-boolean"
+                        ? "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-200"
+                        : badge.tone === "type-json"
+                          ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-200"
+                          : badge.tone === "type-work-unit"
+                            ? "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-200"
+                            : "border-border/70 bg-background/70 text-muted-foreground",
   );
 }
 
