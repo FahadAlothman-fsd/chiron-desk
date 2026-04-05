@@ -611,15 +611,14 @@ export const methodologyWorkflowContextFactDraftSpecFields = sqliteTable(
     draftSpecId: text("draft_spec_id")
       .notNull()
       .references(() => methodologyWorkflowContextFactDraftSpecs.id, { onDelete: "cascade" }),
-    fieldKey: text("field_key").notNull(),
-    valueType: text("value_type").notNull(),
-    required: integer("required", { mode: "boolean" }).notNull().default(false),
-    descriptionJson: text("description_json", { mode: "json" }),
+    workUnitFactDefinitionId: text("work_unit_fact_definition_id")
+      .notNull()
+      .references(() => workUnitFactDefinitions.id, { onDelete: "cascade" }),
   },
   (table) => [
-    uniqueIndex("methodology_wf_ctx_draft_spec_field_key_idx").on(
+    uniqueIndex("methodology_wf_ctx_draft_spec_fact_def_idx").on(
       table.draftSpecId,
-      table.fieldKey,
+      table.workUnitFactDefinitionId,
     ),
   ],
 );

@@ -70,6 +70,21 @@ describe("l3 slice-1 schema", () => {
     expect(methodologySchema.methodologyWorkflowContextFactArtifactReferences).toBeDefined();
     expect(methodologySchema.methodologyWorkflowContextFactDraftSpecs).toBeDefined();
     expect(methodologySchema.methodologyWorkflowContextFactDraftSpecFields).toBeDefined();
+    expect(
+      methodologySchema.methodologyWorkflowContextFactDraftSpecFields.workUnitFactDefinitionId,
+    ).toBeDefined();
+    expect("fieldKey" in methodologySchema.methodologyWorkflowContextFactDraftSpecFields).toBe(
+      false,
+    );
+    expect("valueType" in methodologySchema.methodologyWorkflowContextFactDraftSpecFields).toBe(
+      false,
+    );
+    expect("required" in methodologySchema.methodologyWorkflowContextFactDraftSpecFields).toBe(
+      false,
+    );
+    expect(
+      "descriptionJson" in methodologySchema.methodologyWorkflowContextFactDraftSpecFields,
+    ).toBe(false);
     expect("methodologyWorkflowContextFactWorkUnitReferences" in methodologySchema).toBe(false);
     expect(WORKFLOW_CONTEXT_FACT_KINDS).not.toContain("work_unit_reference_fact");
   });
