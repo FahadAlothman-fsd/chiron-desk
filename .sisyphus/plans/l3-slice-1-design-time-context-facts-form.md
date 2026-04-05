@@ -182,7 +182,7 @@ In `packages/api/src/routers/methodology.ts`:
 ## TODOs
 > Implementation + test = one task. Runtime is deferred. Seed additions are last.
 
-- [ ] 1. Correct contracts and remove stale ownership artifacts
+- [x] 1. Correct contracts and remove stale ownership artifacts
 
   **What to do**: Patch `packages/contracts/src/methodology/workflow.ts` and `packages/contracts/src/tests/l3-slice-1-contracts.test.ts` so contracts match the locked refinement model: 6 active kinds only, no `FormStepPayload.contextFacts`, no `inputKind`, no active `work_unit_reference_fact`, no top-level `draft_spec_field`, and Form field bindings carry only binding/presentation data.
   **Must NOT do**: Do not preserve any contract shape that lets Form own context-fact semantics. Do not touch runtime contracts in this plan.
@@ -223,7 +223,7 @@ In `packages/api/src/routers/methodology.ts`:
 
   **Commit**: YES | Message: `fix(contracts): correct design-time context-fact and form ownership` | Files: `packages/contracts/src/**`
 
-- [ ] 2. Replace schema authority and repoint Form storage to workflow step shell rows
+- [x] 2. Replace schema authority and repoint Form storage to workflow step shell rows
 
   **What to do**: Patch `packages/db/src/schema/methodology.ts` so `methodology_workflow_form_steps` is removed, `methodology_workflow_form_fields.formStepId` references `methodology_workflow_steps.id`, and the workflow context-fact root/subtype tables match the locked active kind set and root ownership model. Patch tests to prove the removed table is gone.
   **Must NOT do**: Do not keep a duplicate typed Form parent row. Do not leave `work_unit_reference_fact` as an active schema surface.
@@ -263,7 +263,7 @@ In `packages/api/src/routers/methodology.ts`:
 
   **Commit**: YES | Message: `fix(db): replace form-step parent model and context-fact schema authority` | Files: `packages/db/src/schema/**`, `packages/db/src/tests/schema/**`
 
-- [ ] 3. Patch the real methodology repository and authoring services to the corrected design-time model
+- [x] 3. Patch the real methodology repository and authoring services to the corrected design-time model
 
   **What to do**: Patch `packages/db/src/methodology-repository.ts`, `packages/methodology-engine/src/repository.ts`, `packages/methodology-engine/src/services/form-step-definition-service.ts`, `packages/methodology-engine/src/services/workflow-context-fact-definition-service.ts`, `packages/methodology-engine/src/services/workflow-editor-definition-service.ts`, and `packages/methodology-engine/src/services/workflow-authoring-transaction-service.ts` so the actual app-wired repo/service path supports the corrected context-fact-first model. Retire or replace `packages/db/src/repositories/workflow-context-fact-repository.ts` and heavily rewrite `packages/db/src/repositories/form-step-repository.ts` if kept.
   **Must NOT do**: Do not add new generic foundation services. Do not preserve optional/missing repo capabilities that leave CRUD half-wired.
@@ -308,7 +308,7 @@ In `packages/api/src/routers/methodology.ts`:
 
   **Commit**: YES | Message: `fix(methodology): wire real context-fact and form authoring seams` | Files: `packages/db/src/**`, `packages/methodology-engine/src/**`
 
-- [ ] 4. Replace placeholder workflow-editor UI with the locked design-time CRUD surfaces
+- [x] 4. Replace placeholder workflow-editor UI with the locked design-time CRUD surfaces
 
   **What to do**: Patch `apps/web/src/features/workflow-editor/dialogs.tsx`, `apps/web/src/features/workflow-editor/workflow-editor-shell.tsx`, `apps/web/src/features/workflow-editor/types.ts`, and `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId.tsx` so the workflow editor becomes the canonical design-time CRUD surface for context-fact definitions and Form steps. The Form dialog must become exactly `Contract | Fields | Guidance`; the context-fact dialog must become exactly `Contract | Value Semantics | Guidance`.
   **Must NOT do**: Do not leave any `coming in slice-2` placeholders. Do not keep a Form `Context Facts` tab. Do not reconstruct editor state from `workflow.list` when `getEditorDefinition` should be authoritative.
@@ -352,7 +352,7 @@ In `packages/api/src/routers/methodology.ts`:
 
   **Commit**: YES | Message: `fix(web): finish workflow-editor context-fact and form CRUD surfaces` | Files: `apps/web/src/features/workflow-editor/**`, `apps/web/src/routes/**`
 
-- [ ] 5. Add the locked 9 BMAD-derived design-time fact definitions as the final seed task set
+- [x] 5. Add the locked 9 BMAD-derived design-time fact definitions as the final seed task set
 
   **What to do**: Patch only `packages/scripts/src/seed/methodology/**` and related tests so the 9 locked BMAD-derived fact definitions are added as design-time-only methodology/work-unit fact definitions. Keep fixture-only examples clearly separate. Do not seed runtime rows.
   **Must NOT do**: Do not add `project_root_path` as a seeded fact definition. Do not add runtime instances. Do not make temporary fixture examples look like permanent seed truth.
@@ -404,7 +404,7 @@ In `packages/api/src/routers/methodology.ts`:
 
   **Commit**: YES | Message: `feat(seed): add locked design-time BMAD fact definitions` | Files: `packages/scripts/src/seed/methodology/**`, `packages/scripts/src/tests/seeding/**`
 
-- [ ] 6. Run integrated design-time-only verification and prepare handoff
+- [x] 6. Run integrated design-time-only verification and prepare handoff
 
   **What to do**: Run the full named design-time suites, verify only intended files are in scope, and confirm the new plan is the sole execution authority while old plans remain historical-only.
   **Must NOT do**: Do not let runtime or unrelated churn sneak into the branch. Do not mark the slice done if placeholder design-time UX remains.

@@ -10,3 +10,22 @@ Locked assertions covered:
 - setup_tags as `Record<string, string>`
 - workflowDefinitionId route identity contract
 - deferred/default later-step read models for non-Form steps
+
+---
+
+2026-04-05 rerun after locked refinement patch
+
+bunx vitest run packages/contracts/src/tests/l3-slice-1-contracts.test.ts
+
+Result:
+- Test Files: 1 passed
+- Tests: 10 passed
+
+Patched assertions covered:
+- active context-fact kinds are exactly: plain_value_fact, definition_backed_external_fact, bound_external_fact, workflow_reference_fact, artifact_reference_fact, work_unit_draft_spec_fact
+- FormStepPayload no longer carries contextFacts
+- stale inputKind/contextFacts payload data is dropped from decoded form payloads
+- form field bindings only carry contextFactDefinitionId, fieldLabel, fieldKey, helpText, required, uiMultiplicityMode
+- work_unit_reference_fact and draft_spec_field are rejected from active slice-1 contracts
+- shared invariants only retain descriptionJson `{ markdown: string }`
+- lsp_diagnostics reported clean results for workflow.ts, l3-slice-1-contracts.test.ts, and shared/invariants.ts
