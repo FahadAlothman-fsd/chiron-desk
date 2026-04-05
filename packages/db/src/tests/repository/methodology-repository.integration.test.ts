@@ -143,7 +143,7 @@ const SCHEMA_SQL = [
     from_step_id TEXT,
     to_step_id TEXT,
     edge_key TEXT,
-    description_markdown TEXT,
+    description_json TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   )`,

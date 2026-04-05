@@ -452,7 +452,7 @@ export const methodologyWorkflowEdges = sqliteTable(
       onDelete: "set null",
     }),
     edgeKey: text("edge_key"),
-    descriptionMarkdown: text("description_markdown"),
+    descriptionJson: text("description_json", { mode: "json" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampDefault).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .default(timestampDefault)

@@ -6,3 +6,6 @@
 - Cardinality dropdown now marks the Contract tab dirty by calling `setIsContractTabDirty(true)` before handling form value changes, aligning with other fact fields and enabling discard warnings.
 - Project pinning boundaries now accept `methodologyId` + `versionId` end-to-end; UI still fetches methodology details by key for read queries but all pin/repin mutations are ID-based to avoid secondary lookup indirection.
 - `ProjectContextService` pin/repin validation now checks both methodology existence (`listDefinitions` by ID) and version existence (`findVersionById` + methodology ownership) before enforcing active-status compatibility.
+
+- Workflow edge descriptions now come from the JSON column `descriptionJson` so repository writes and reads can pass the `{ markdown: string }` payload directly instead of converting to plain text.
+- Tests and demo seeds now refer to `description_json` and store `{ markdown }` when exercising edge descriptions, so follow that pattern when adding edges to fixtures or SQL scaffolding.

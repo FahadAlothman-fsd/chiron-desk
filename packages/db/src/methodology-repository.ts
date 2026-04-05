@@ -918,7 +918,7 @@ async function syncWorkflowGraph(
         fromStepId,
         toStepId,
         edgeKey: edge.edgeKey ?? null,
-        descriptionMarkdown: null,
+        descriptionJson: edge.descriptionJson ?? null,
       });
     }
   }
@@ -1627,7 +1627,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             fromStepId: methodologyWorkflowEdges.fromStepId,
             toStepId: methodologyWorkflowEdges.toStepId,
             edgeKey: methodologyWorkflowEdges.edgeKey,
-            descriptionMarkdown: methodologyWorkflowEdges.descriptionMarkdown,
+            descriptionJson: methodologyWorkflowEdges.descriptionJson,
           })
           .from(methodologyWorkflowEdges)
           .where(eq(methodologyWorkflowEdges.methodologyVersionId, versionId))
@@ -1684,6 +1684,9 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             fromStepKey: edgeRow.fromStepId ? (stepKeyById.get(edgeRow.fromStepId) ?? null) : null,
             toStepKey: edgeRow.toStepId ? (stepKeyById.get(edgeRow.toStepId) ?? null) : null,
             ...(edgeRow.edgeKey ? { edgeKey: edgeRow.edgeKey } : {}),
+            ...(edgeRow.descriptionJson
+              ? { descriptionJson: edgeRow.descriptionJson as { readonly markdown: string } }
+              : {}),
           })),
         }));
       }),
@@ -1754,7 +1757,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               fromStepId,
               toStepId,
               edgeKey: edge.edgeKey ?? null,
-              descriptionMarkdown: null,
+              descriptionJson: edge.descriptionJson ?? null,
             });
           }
         }),
@@ -1844,7 +1847,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               fromStepId,
               toStepId,
               edgeKey: edge.edgeKey ?? null,
-              descriptionMarkdown: null,
+              descriptionJson: edge.descriptionJson ?? null,
             });
           }
         }),
@@ -3227,7 +3230,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
                 fromStepId: predecessorId,
                 toStepId: step.id,
                 edgeKey: null,
-                descriptionMarkdown: null,
+                descriptionJson: null,
               });
 
               const successorId = outgoingEdges[0]?.toStepId ?? null;
@@ -3238,7 +3241,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
                   fromStepId: step.id,
                   toStepId: successorId,
                   edgeKey: null,
-                  descriptionMarkdown: null,
+                  descriptionJson: null,
                 });
               }
             }
@@ -3430,8 +3433,8 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           edgeId: edge.id,
           fromStepKey: edge.fromStepId ? (stepKeyById.get(edge.fromStepId) ?? null) : null,
           toStepKey: edge.toStepId ? (stepKeyById.get(edge.toStepId) ?? null) : null,
-          ...(typeof edge.descriptionMarkdown === "string"
-            ? { descriptionJson: { markdown: edge.descriptionMarkdown } }
+          ...(edge.descriptionJson
+            ? { descriptionJson: edge.descriptionJson as { readonly markdown: string } }
             : {}),
         }));
       }),
@@ -3477,7 +3480,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               fromStepId,
               toStepId,
               edgeKey: null,
-              descriptionMarkdown: extractMarkdown(descriptionJson),
+              descriptionJson: descriptionJson ?? null,
             })
             .returning();
 
@@ -3490,8 +3493,8 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             edgeId: edge.id,
             fromStepKey,
             toStepKey,
-            ...(typeof edge.descriptionMarkdown === "string"
-              ? { descriptionJson: { markdown: edge.descriptionMarkdown } }
+            ...(edge.descriptionJson
+              ? { descriptionJson: edge.descriptionJson as { readonly markdown: string } }
               : {}),
           } satisfies WorkflowEdgeDto;
         }),
@@ -3536,7 +3539,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             .set({
               fromStepId,
               toStepId,
-              descriptionMarkdown: extractMarkdown(descriptionJson),
+              descriptionJson: descriptionJson ?? null,
             })
             .where(
               and(
@@ -3555,8 +3558,8 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             edgeId: edge.id,
             fromStepKey,
             toStepKey,
-            ...(typeof edge.descriptionMarkdown === "string"
-              ? { descriptionJson: { markdown: edge.descriptionMarkdown } }
+            ...(edge.descriptionJson
+              ? { descriptionJson: edge.descriptionJson as { readonly markdown: string } }
               : {}),
           } satisfies WorkflowEdgeDto;
         }),
@@ -3638,8 +3641,8 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           edgeId: edge.id,
           fromStepKey: edge.fromStepId ? (stepKeyById.get(edge.fromStepId) ?? null) : null,
           toStepKey: edge.toStepId ? (stepKeyById.get(edge.toStepId) ?? null) : null,
-          ...(typeof edge.descriptionMarkdown === "string"
-            ? { descriptionJson: { markdown: edge.descriptionMarkdown } }
+          ...(edge.descriptionJson
+            ? { descriptionJson: edge.descriptionJson as { readonly markdown: string } }
             : {}),
         }));
 

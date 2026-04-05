@@ -30,7 +30,7 @@ const SCHEMA_SQL = [
     from_step_id TEXT,
     to_step_id TEXT,
     edge_key TEXT,
-    description_markdown TEXT,
+    description_json TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   )`,
@@ -102,7 +102,7 @@ describe("l3 slice-1 runtime repositories", () => {
     `);
     await client.execute(`
       INSERT INTO methodology_workflow_edges (
-        id, methodology_version_id, workflow_id, from_step_id, to_step_id, edge_key, description_markdown, created_at, updated_at
+        id, methodology_version_id, workflow_id, from_step_id, to_step_id, edge_key, description_json, created_at, updated_at
       ) VALUES
         ('edge-1', 'version-1', 'workflow-1', 'step-1', 'step-2', 'capture->confirm', NULL, strftime('%s','now') * 1000, strftime('%s','now') * 1000)
     `);

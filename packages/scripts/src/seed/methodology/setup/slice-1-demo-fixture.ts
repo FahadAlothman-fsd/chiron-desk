@@ -337,10 +337,12 @@ function buildSlice1DemoFixtureSeedRows(methodologyVersionId: string): Slice1Dem
         fromStepId: setupStepId,
         toStepId: factStepId,
         edgeKey: "collect_setup_context_to_exercise_context_fact_bindings",
-        descriptionMarkdown: guidanceJson(
-          "Proceed to the draft runtime test form once the real setup context has been collected.",
-          "Use this edge to hand off from the real setup intake to the context-fact binding test harness.",
-        ).human.markdown,
+        descriptionJson: {
+          markdown: guidanceJson(
+            "Proceed to the draft runtime test form once the real setup context has been collected.",
+            "Use this edge to hand off from the real setup intake to the context-fact binding test harness.",
+          ).human.markdown,
+        },
       },
     ] satisfies readonly MethodologyWorkflowEdgeSeedRow[],
     methodologyWorkflowFormFields: [
