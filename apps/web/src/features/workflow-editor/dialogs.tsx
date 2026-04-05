@@ -310,7 +310,10 @@ function getPickerOptionCardinality(
 ): WorkflowContextFactDraft["cardinality"] | undefined {
   const label = option?.badges?.find((badge) => badge.tone === "cardinality")?.label;
 
-  return label === "one" || label === "many" ? label : undefined;
+  // Map artifact slot cardinality (single/fileset) to fact cardinality (one/many)
+  if (label === "one" || label === "single") return "one";
+  if (label === "many" || label === "fileset") return "many";
+  return undefined;
 }
 
 function toFieldDraft(
@@ -1376,6 +1379,13 @@ export function WorkflowContextFactDialog({
         : undefined,
     [draft.kind, pendingIncludedFactKey, selectedWorkUnitFacts],
   );
+  const selectedArtifactSlot = useMemo(
+    () =>
+      draft.kind === "artifact_reference_fact"
+        ? artifactSlots.find((option) => option.value === draft.artifactSlotDefinitionId)
+        : undefined,
+    [draft.kind, draft.artifactSlotDefinitionId, artifactSlots],
+  );
   const constrainedSourceCardinality = useMemo(() => {
     switch (draft.kind) {
       case "definition_backed_external_fact":
@@ -1383,10 +1393,12 @@ export function WorkflowContextFactDialog({
         return getPickerOptionCardinality(selectedExternalFact);
       case "work_unit_draft_spec_fact":
         return getPickerOptionCardinality(selectedDraftSpecFact);
+      case "artifact_reference_fact":
+        return getPickerOptionCardinality(selectedArtifactSlot);
       default:
         return undefined;
     }
-  }, [draft.kind, selectedDraftSpecFact, selectedExternalFact]);
+  }, [draft.kind, selectedDraftSpecFact, selectedExternalFact, selectedArtifactSlot]);
   const availableCardinalityOptions = useMemo(
     () =>
       constrainedSourceCardinality === "one"

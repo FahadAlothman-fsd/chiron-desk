@@ -666,21 +666,28 @@ function toArtifactSlotOptions(rawArtifactSlots: unknown) {
         return null;
       }
 
+      const cardinality =
+        typeof slot.cardinality === "string" ? slot.cardinality.replaceAll("_", " ") : null;
+
       return {
         value: slot.key,
         label:
           typeof slot.displayName === "string" && slot.displayName.trim().length > 0
             ? slot.displayName.trim()
             : slot.key,
-        description:
-          readMarkdown(slot.description) ||
-          (typeof slot.cardinality === "string"
-            ? `Artifact slot · ${slot.cardinality.replaceAll("_", " ")}`
-            : "Artifact slot"),
+        description: readMarkdown(slot.description) || "Artifact slot",
+        badges: cardinality ? [{ label: cardinality, tone: "cardinality" as const }] : [],
       };
     })
     .filter(
-      (entry): entry is { value: string; label: string; description: string } => entry !== null,
+      (
+        entry,
+      ): entry is {
+        value: string;
+        label: string;
+        description: string;
+        badges: { label: string; tone: "cardinality" }[];
+      } => entry !== null,
     );
 }
 
