@@ -34,14 +34,126 @@ describe("l3 slice-1 demo fixture", () => {
     for (const row of formStepRows) {
       expect(row.type).toBe("form");
       expect(row.workflowId).toBe(SLICE_1_DEMO_FIXTURE.workflowId);
+      expect(row.guidanceJson).toMatchObject({
+        human: { markdown: expect.any(String) },
+        agent: { markdown: expect.any(String) },
+      });
+    }
+
+    expect(slice1DemoFixtureSeedRows.workflowMetadataPatch).toEqual({
+      workflowId: SLICE_1_DEMO_FIXTURE.workflowId,
+      metadataJson: {
+        entryStepId: "seed:l3-slice-1:setup-project:mver_bmad_v1_active:step:collect-setup",
+      },
+    });
+
+    expect(slice1DemoFixtureSeedRows.methodologyWorkflowContextFactDefinitions).toHaveLength(9);
+    for (const fact of slice1DemoFixtureSeedRows.methodologyWorkflowContextFactDefinitions) {
+      expect(fact.workflowId).toBe(SLICE_1_DEMO_FIXTURE.workflowId);
+      expect(fact.guidanceJson).toMatchObject({
+        human: { markdown: expect.any(String) },
+        agent: { markdown: expect.any(String) },
+      });
     }
 
     expect(
-      slice1DemoFixtureSeedRows.methodologyWorkflowFormFields.map((row) => row.key).toSorted(),
-    ).toEqual(["initiativeName", "projectKind"]);
-    expect(slice1DemoFixtureSeedRows.methodologyWorkflowFormFields).toEqual([
-      expect.objectContaining({ inputJson: { contextFactDefinitionId: "initiative_name" } }),
-      expect.objectContaining({ inputJson: { contextFactDefinitionId: "workflow_mode" } }),
+      slice1DemoFixtureSeedRows.methodologyWorkflowFormFields
+        .map((row) => row.key)
+        .slice()
+        .sort(),
+    ).toEqual([
+      "deepDiveTarget",
+      "draftSpecTarget",
+      "projectParts",
+      "projectSummary",
+      "referenceArtifact",
+      "referenceWorkflow",
+      "repositoryType",
+      "requiresBrainstorming",
+      "scanLevel",
+      "workflowMode",
+      "workflowModeReference",
+    ]);
+    expect(slice1DemoFixtureSeedRows.methodologyWorkflowFormFields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          inputJson: {
+            contextFactDefinitionId:
+              "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:workflow-mode",
+          },
+        }),
+        expect.objectContaining({
+          inputJson: {
+            contextFactDefinitionId:
+              "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:scan-level",
+          },
+        }),
+        expect.objectContaining({
+          inputJson: {
+            contextFactDefinitionId:
+              "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:requires-brainstorming",
+          },
+        }),
+        expect.objectContaining({
+          inputJson: {
+            contextFactDefinitionId:
+              "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:deep-dive-target",
+          },
+        }),
+        expect.objectContaining({
+          inputJson: {
+            contextFactDefinitionId:
+              "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:project-summary",
+          },
+        }),
+        expect.objectContaining({
+          inputJson: {
+            contextFactDefinitionId:
+              "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:workflow-mode",
+          },
+        }),
+        expect.objectContaining({
+          inputJson: {
+            contextFactDefinitionId:
+              "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:repository-type",
+          },
+        }),
+        expect.objectContaining({
+          inputJson: {
+            contextFactDefinitionId:
+              "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:reference-workflow",
+          },
+        }),
+        expect.objectContaining({
+          inputJson: {
+            contextFactDefinitionId:
+              "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:reference-artifact",
+          },
+        }),
+        expect.objectContaining({
+          inputJson: {
+            contextFactDefinitionId:
+              "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:deep-dive-target",
+          },
+        }),
+        expect.objectContaining({
+          inputJson: {
+            contextFactDefinitionId:
+              "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:project-parts",
+          },
+        }),
+      ]),
+    );
+
+    expect(slice1DemoFixtureSeedRows.methodologyWorkflowContextFactDraftSpecFacts).toEqual([
+      expect.objectContaining({
+        workUnitFactDefinitionId:
+          "seed:work-unit-fact:brainstorming:constraints:mver_bmad_v1_active",
+      }),
+      expect.objectContaining({
+        workUnitFactDefinitionId:
+          "seed:work-unit-fact:brainstorming:setup-work-unit:mver_bmad_v1_active",
+      }),
     ]);
   });
 

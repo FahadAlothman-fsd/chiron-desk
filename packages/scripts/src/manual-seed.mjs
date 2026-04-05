@@ -8,6 +8,7 @@ import {
   METHODOLOGY_CANONICAL_TABLE_SEED_ORDER,
   methodologyCanonicalTableSeedRows,
 } from "./seed/methodology/index.ts";
+import { slice1DemoFixtureSeedRowsAllVersions } from "./seed/methodology/setup/slice-1-demo-fixture.ts";
 import { classifySeedError, shouldSkipSeedError } from "./seed-error-handling.ts";
 import { BASELINE_MANUAL_SEED_PLAN } from "./manual-seed-fixtures.ts";
 
@@ -96,6 +97,19 @@ const CANONICAL_TABLES = {
   methodology_fact_definitions: schema.methodologyFactDefinitions,
 };
 
+const RUNTIME_FIXTURE_TABLE_INSERTIONS = [
+  ["methodologyWorkflowContextFactDefinitions", schema.methodologyWorkflowContextFactDefinitions],
+  ["methodologyWorkflowContextFactPlainValues", schema.methodologyWorkflowContextFactPlainValues],
+  ["methodologyWorkflowContextFactExternalBindings", schema.methodologyWorkflowContextFactExternalBindings],
+  ["methodologyWorkflowContextFactWorkflowReferences", schema.methodologyWorkflowContextFactWorkflowReferences],
+  ["methodologyWorkflowContextFactArtifactReferences", schema.methodologyWorkflowContextFactArtifactReferences],
+  ["methodologyWorkflowContextFactDraftSpecs", schema.methodologyWorkflowContextFactDraftSpecs],
+  ["methodologyWorkflowContextFactDraftSpecFacts", schema.methodologyWorkflowContextFactDraftSpecFields],
+  ["methodology_workflow_steps", schema.methodologyWorkflowSteps],
+  ["methodology_workflow_edges", schema.methodologyWorkflowEdges],
+  ["methodologyWorkflowFormFields", schema.methodologyWorkflowFormFields],
+];
+
 const seedCanonicalMethodologyTables = (plan) =>
   Effect.gen(function* () {
     const versionIds = plan.methodologyVersions.map((version) => version.id);
@@ -128,6 +142,133 @@ const seedCanonicalMethodologyTables = (plan) =>
       },
       { discard: true },
     );
+  });
+
+const seedSetupRuntimeWorkflowFixtures = (plan) =>
+  Effect.gen(function* () {
+    const versionIds = new Set(plan.methodologyVersions.map((version) => version.id));
+    const bundles = slice1DemoFixtureSeedRowsAllVersions.filter((bundle) =>
+      versionIds.has(bundle.methodologyVersionId),
+    );
+
+    if (bundles.length === 0) {
+      return;
+    }
+
+    const workflowIds = bundles.map((bundle) => bundle.workflowId);
+    const stepIds = bundles.flatMap((bundle) => bundle.methodology_workflow_steps.map((row) => row.id));
+    const contextFactDefinitionIds = bundles.flatMap((bundle) =>
+      bundle.methodologyWorkflowContextFactDefinitions.map((row) => row.id),
+    );
+    const draftSpecIds = bundles.flatMap((bundle) =>
+      bundle.methodologyWorkflowContextFactDraftSpecs.map((row) => row.id),
+    );
+
+    yield* tryDb("clear_fixture_workflow_form_fields", () =>
+      db.delete(schema.methodologyWorkflowFormFields).where(inArray(schema.methodologyWorkflowFormFields.formStepId, stepIds)),
+    ).pipe(Effect.asVoid);
+
+    yield* tryDb("clear_fixture_workflow_edges", () =>
+      db.delete(schema.methodologyWorkflowEdges).where(inArray(schema.methodologyWorkflowEdges.workflowId, workflowIds)),
+    ).pipe(Effect.asVoid);
+
+    yield* tryDb("clear_fixture_workflow_steps", () =>
+      db.delete(schema.methodologyWorkflowSteps).where(inArray(schema.methodologyWorkflowSteps.workflowId, workflowIds)),
+    ).pipe(Effect.asVoid);
+
+    yield* tryDb("clear_fixture_draft_spec_facts", () =>
+      db
+        .delete(schema.methodologyWorkflowContextFactDraftSpecFields)
+        .where(inArray(schema.methodologyWorkflowContextFactDraftSpecFields.draftSpecId, draftSpecIds)),
+    ).pipe(Effect.asVoid);
+
+    yield* tryDb("clear_fixture_draft_specs", () =>
+      db
+        .delete(schema.methodologyWorkflowContextFactDraftSpecs)
+        .where(
+          inArray(
+            schema.methodologyWorkflowContextFactDraftSpecs.contextFactDefinitionId,
+            contextFactDefinitionIds,
+          ),
+        ),
+    ).pipe(Effect.asVoid);
+
+    yield* tryDb("clear_fixture_artifact_refs", () =>
+      db
+        .delete(schema.methodologyWorkflowContextFactArtifactReferences)
+        .where(
+          inArray(
+            schema.methodologyWorkflowContextFactArtifactReferences.contextFactDefinitionId,
+            contextFactDefinitionIds,
+          ),
+        ),
+    ).pipe(Effect.asVoid);
+
+    yield* tryDb("clear_fixture_workflow_refs", () =>
+      db
+        .delete(schema.methodologyWorkflowContextFactWorkflowReferences)
+        .where(
+          inArray(
+            schema.methodologyWorkflowContextFactWorkflowReferences.contextFactDefinitionId,
+            contextFactDefinitionIds,
+          ),
+        ),
+    ).pipe(Effect.asVoid);
+
+    yield* tryDb("clear_fixture_external_bindings", () =>
+      db
+        .delete(schema.methodologyWorkflowContextFactExternalBindings)
+        .where(
+          inArray(
+            schema.methodologyWorkflowContextFactExternalBindings.contextFactDefinitionId,
+            contextFactDefinitionIds,
+          ),
+        ),
+    ).pipe(Effect.asVoid);
+
+    yield* tryDb("clear_fixture_plain_values", () =>
+      db
+        .delete(schema.methodologyWorkflowContextFactPlainValues)
+        .where(
+          inArray(schema.methodologyWorkflowContextFactPlainValues.contextFactDefinitionId, contextFactDefinitionIds),
+        ),
+    ).pipe(Effect.asVoid);
+
+    yield* tryDb("clear_fixture_context_facts", () =>
+      db
+        .delete(schema.methodologyWorkflowContextFactDefinitions)
+        .where(inArray(schema.methodologyWorkflowContextFactDefinitions.workflowId, workflowIds)),
+    ).pipe(Effect.asVoid);
+
+    for (const [rowsKey, table] of RUNTIME_FIXTURE_TABLE_INSERTIONS) {
+      const rows = bundles.flatMap((bundle) => bundle[rowsKey]);
+      if (rows.length === 0) {
+        continue;
+      }
+
+      yield* tryDb(`insert_${rowsKey}`, () => db.insert(table).values(rows)).pipe(Effect.asVoid);
+    }
+
+    for (const bundle of bundles) {
+      yield* tryDb(`patch_${bundle.workflowId}_metadata`, async () => {
+        const existing = await db
+          .select({ metadataJson: schema.methodologyWorkflows.metadataJson })
+          .from(schema.methodologyWorkflows)
+          .where(sql`${schema.methodologyWorkflows.id} = ${bundle.workflowId}`)
+          .limit(1);
+
+        const currentMetadata = existing[0]?.metadataJson;
+        const nextMetadata =
+          currentMetadata && typeof currentMetadata === "object" && !Array.isArray(currentMetadata)
+            ? { ...currentMetadata, ...bundle.workflowMetadataPatch.metadataJson }
+            : { ...bundle.workflowMetadataPatch.metadataJson };
+
+        await db
+          .update(schema.methodologyWorkflows)
+          .set({ metadataJson: nextMetadata })
+          .where(sql`${schema.methodologyWorkflows.id} = ${bundle.workflowId}`);
+      }).pipe(Effect.asVoid);
+    }
   });
 
 const seedUsers = (plan) =>
@@ -204,6 +345,7 @@ const program = Effect.gen(function* () {
   yield* upsertMethodologyDefinitions(plan);
   yield* upsertMethodologyVersions(plan);
   yield* seedCanonicalMethodologyTables(plan);
+  yield* seedSetupRuntimeWorkflowFixtures(plan);
   yield* seedUsers(plan);
 
   yield* Console.log("Manual baseline seed applied successfully.");
