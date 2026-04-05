@@ -166,7 +166,6 @@ export interface CreateWorkflowEdgeByDefinitionIdParams {
   readonly fromStepKey: string | null;
   readonly toStepKey: string | null;
   readonly descriptionJson: unknown;
-  readonly condition: unknown;
 }
 
 export interface UpdateWorkflowEdgeByDefinitionIdParams {
@@ -176,7 +175,6 @@ export interface UpdateWorkflowEdgeByDefinitionIdParams {
   readonly fromStepKey: string | null;
   readonly toStepKey: string | null;
   readonly descriptionJson: unknown;
-  readonly condition: unknown;
 }
 
 export interface DeleteWorkflowEdgeByDefinitionIdParams {

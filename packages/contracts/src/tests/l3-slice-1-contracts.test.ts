@@ -151,6 +151,7 @@ describe("slice-1 contract locks", () => {
         fromStepKey: "s1",
         toStepKey: "s2",
         descriptionJson: { markdown: "Only when approved" },
+        condition: { legacy: true },
       }).descriptionJson,
     ).toEqual({ markdown: "Only when approved" });
   });

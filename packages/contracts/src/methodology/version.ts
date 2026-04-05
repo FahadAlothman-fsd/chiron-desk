@@ -74,7 +74,6 @@ export const WorkflowEdge = Schema.Struct({
   fromStepKey: Schema.optionalWith(Schema.NullOr(Schema.NonEmptyString), { default: () => null }),
   toStepKey: Schema.optionalWith(Schema.NullOr(Schema.NonEmptyString), { default: () => null }),
   edgeKey: Schema.optional(Schema.NonEmptyString),
-  condition: Schema.optional(Schema.Unknown),
 });
 export type WorkflowEdge = typeof WorkflowEdge.Type;
 

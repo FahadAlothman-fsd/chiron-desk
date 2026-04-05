@@ -9,7 +9,6 @@ export interface WorkflowEdgeEntity {
   readonly fromStepKey: string | null;
   readonly toStepKey: string | null;
   readonly edgeKey?: string;
-  readonly condition?: unknown;
 }
 
 export interface WorkflowEntity {

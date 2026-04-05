@@ -384,25 +384,6 @@ export function validateDraftDefinition(
           ),
         );
       }
-
-      for (const edge of outgoing) {
-        if (edge.condition === undefined || edge.condition === null) {
-          diagnostics.push(
-            makeDiagnostic(
-              {
-                code: "BRANCH_EDGE_MISSING_CONDITION",
-                scope: `definition.workflows.${workflow.key}.edges.${edge.fromStepKey}->${edge.toStepKey}`,
-                blocking: true,
-                required: "Branch outgoing edges to include explicit conditions",
-                observed: "Edge condition is missing",
-                remediation:
-                  "Provide a deterministic condition payload for each outgoing branch edge",
-              },
-              timestamp,
-            ),
-          );
-        }
-      }
     }
 
     for (const step of workflow.steps.filter((candidate) => candidate.type !== "branch")) {

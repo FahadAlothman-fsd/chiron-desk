@@ -73,7 +73,7 @@ const SCHEMA_SQL = [
     methodology_version_id TEXT NOT NULL,
     key TEXT NOT NULL,
     display_name TEXT,
-    description TEXT,
+    description_json TEXT,
     persona TEXT NOT NULL,
     default_model_json TEXT,
     mcp_servers_json TEXT,
@@ -104,6 +104,7 @@ const SCHEMA_SQL = [
     transition_key TEXT NOT NULL,
     from_state_id TEXT,
     to_state_id TEXT,
+    description_json TEXT,
     guidance_json TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
@@ -115,6 +116,7 @@ const SCHEMA_SQL = [
     work_unit_type_id TEXT,
     key TEXT NOT NULL,
     display_name TEXT,
+    description_json TEXT,
     metadata_json TEXT,
     guidance_json TEXT,
     created_at INTEGER NOT NULL,
@@ -141,8 +143,7 @@ const SCHEMA_SQL = [
     from_step_id TEXT,
     to_step_id TEXT,
     edge_key TEXT,
-    condition_json TEXT,
-    guidance_json TEXT,
+    description_markdown TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   )`,
@@ -211,6 +212,7 @@ const SCHEMA_SQL = [
   `CREATE TABLE projects (
     id TEXT PRIMARY KEY,
     name TEXT,
+    project_root_path TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   )`,
@@ -239,6 +241,80 @@ const SCHEMA_SQL = [
     project_id TEXT NOT NULL,
     methodology_version_id TEXT NOT NULL,
     created_at INTEGER NOT NULL
+  )`,
+  `CREATE TABLE project_work_units (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    work_unit_type_id TEXT NOT NULL,
+    current_state_id TEXT,
+    active_transition_execution_id TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
+  `CREATE TABLE transition_executions (
+    id TEXT PRIMARY KEY,
+    project_work_unit_id TEXT NOT NULL,
+    transition_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    primary_workflow_execution_id TEXT,
+    superseded_by_transition_execution_id TEXT,
+    started_at INTEGER NOT NULL,
+    completed_at INTEGER,
+    superseded_at INTEGER
+  )`,
+  `CREATE TABLE workflow_executions (
+    id TEXT PRIMARY KEY,
+    transition_execution_id TEXT NOT NULL,
+    workflow_id TEXT NOT NULL,
+    workflow_role TEXT NOT NULL,
+    status TEXT NOT NULL,
+    superseded_by_workflow_execution_id TEXT,
+    started_at INTEGER NOT NULL,
+    completed_at INTEGER,
+    superseded_at INTEGER
+  )`,
+  `CREATE TABLE project_fact_instances (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    fact_definition_id TEXT NOT NULL,
+    value_json TEXT,
+    status TEXT NOT NULL,
+    superseded_by_fact_instance_id TEXT,
+    produced_by_transition_execution_id TEXT,
+    produced_by_workflow_execution_id TEXT,
+    authored_by_user_id TEXT,
+    created_at INTEGER NOT NULL
+  )`,
+  `CREATE TABLE work_unit_fact_instances (
+    id TEXT PRIMARY KEY,
+    project_work_unit_id TEXT NOT NULL,
+    fact_definition_id TEXT NOT NULL,
+    value_json TEXT,
+    referenced_project_work_unit_id TEXT,
+    status TEXT NOT NULL,
+    superseded_by_fact_instance_id TEXT,
+    produced_by_transition_execution_id TEXT,
+    produced_by_workflow_execution_id TEXT,
+    authored_by_user_id TEXT,
+    created_at INTEGER NOT NULL
+  )`,
+  `CREATE TABLE project_artifact_snapshots (
+    id TEXT PRIMARY KEY,
+    project_work_unit_id TEXT NOT NULL,
+    slot_definition_id TEXT NOT NULL,
+    recorded_by_transition_execution_id TEXT,
+    recorded_by_workflow_execution_id TEXT,
+    recorded_by_user_id TEXT,
+    superseded_by_project_artifact_snapshot_id TEXT,
+    created_at INTEGER NOT NULL
+  )`,
+  `CREATE TABLE artifact_snapshot_files (
+    id TEXT PRIMARY KEY,
+    artifact_snapshot_id TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    member_status TEXT NOT NULL,
+    git_commit_hash TEXT,
+    git_blob_hash TEXT
   )`,
 ];
 
@@ -426,7 +502,7 @@ describe("methodology repository integration", () => {
       methodologyVersionId: versionId,
       key: "analyst",
       displayName: "Analyst",
-      description: null,
+      descriptionJson: null,
       persona: "analysis",
       defaultModelJson: null,
       mcpServersJson: null,
@@ -532,12 +608,12 @@ describe("methodology repository integration", () => {
     const snapshot = await runRepo((repo) => repo.findWorkflowSnapshot(versionId));
 
     expect(snapshot.workflows.map((workflow) => workflow.key)).toEqual(["wf-start"]);
-    expect(snapshot.transitionWorkflowBindings).toEqual({ start: ["wf-start"] });
+    expect(snapshot.transitionWorkflowBindings).toEqual({ task: { start: ["wf-start"] } });
     expect(snapshot.guidance).toEqual({
       global: { label: "global" },
       byWorkUnitType: { task: { label: "wut" } },
       byAgentType: { analyst: { label: "agent" } },
-      byTransition: { start: { label: "transition" } },
+      byTransition: {},
       byWorkflow: {},
     });
   });

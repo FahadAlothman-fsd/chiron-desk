@@ -918,8 +918,7 @@ async function syncWorkflowGraph(
         fromStepId,
         toStepId,
         edgeKey: edge.edgeKey ?? null,
-        conditionJson: edge.condition ?? null,
-        guidanceJson: null,
+        descriptionMarkdown: null,
       });
     }
   }
@@ -1376,7 +1375,6 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               fromStepId: methodologyWorkflowEdges.fromStepId,
               toStepId: methodologyWorkflowEdges.toStepId,
               edgeKey: methodologyWorkflowEdges.edgeKey,
-              conditionJson: methodologyWorkflowEdges.conditionJson,
             })
             .from(methodologyWorkflowEdges)
             .where(eq(methodologyWorkflowEdges.methodologyVersionId, versionId))
@@ -1465,7 +1463,6 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             fromStepKey: edgeRow.fromStepId ? (stepKeyById.get(edgeRow.fromStepId) ?? null) : null,
             toStepKey: edgeRow.toStepId ? (stepKeyById.get(edgeRow.toStepId) ?? null) : null,
             edgeKey: edgeRow.edgeKey ?? undefined,
-            condition: edgeRow.conditionJson ?? undefined,
           })),
         }));
 
@@ -1630,7 +1627,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             fromStepId: methodologyWorkflowEdges.fromStepId,
             toStepId: methodologyWorkflowEdges.toStepId,
             edgeKey: methodologyWorkflowEdges.edgeKey,
-            conditionJson: methodologyWorkflowEdges.conditionJson,
+            descriptionMarkdown: methodologyWorkflowEdges.descriptionMarkdown,
           })
           .from(methodologyWorkflowEdges)
           .where(eq(methodologyWorkflowEdges.methodologyVersionId, versionId))
@@ -1687,7 +1684,6 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             fromStepKey: edgeRow.fromStepId ? (stepKeyById.get(edgeRow.fromStepId) ?? null) : null,
             toStepKey: edgeRow.toStepId ? (stepKeyById.get(edgeRow.toStepId) ?? null) : null,
             ...(edgeRow.edgeKey ? { edgeKey: edgeRow.edgeKey } : {}),
-            ...(edgeRow.conditionJson ? { condition: edgeRow.conditionJson } : {}),
           })),
         }));
       }),
@@ -1758,8 +1754,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               fromStepId,
               toStepId,
               edgeKey: edge.edgeKey ?? null,
-              conditionJson: edge.condition ?? null,
-              guidanceJson: null,
+              descriptionMarkdown: null,
             });
           }
         }),
@@ -1849,8 +1844,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               fromStepId,
               toStepId,
               edgeKey: edge.edgeKey ?? null,
-              conditionJson: edge.condition ?? null,
-              guidanceJson: null,
+              descriptionMarkdown: null,
             });
           }
         }),
@@ -3233,8 +3227,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
                 fromStepId: predecessorId,
                 toStepId: step.id,
                 edgeKey: null,
-                conditionJson: null,
-                guidanceJson: null,
+                descriptionMarkdown: null,
               });
 
               const successorId = outgoingEdges[0]?.toStepId ?? null;
@@ -3245,8 +3238,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
                   fromStepId: step.id,
                   toStepId: successorId,
                   edgeKey: null,
-                  conditionJson: null,
-                  guidanceJson: null,
+                  descriptionMarkdown: null,
                 });
               }
             }
@@ -3438,11 +3430,8 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           edgeId: edge.id,
           fromStepKey: edge.fromStepId ? (stepKeyById.get(edge.fromStepId) ?? null) : null,
           toStepKey: edge.toStepId ? (stepKeyById.get(edge.toStepId) ?? null) : null,
-          ...(edge.guidanceJson !== null && edge.guidanceJson !== undefined
-            ? { descriptionJson: edge.guidanceJson as { readonly markdown: string } }
-            : {}),
-          ...(edge.conditionJson !== null && edge.conditionJson !== undefined
-            ? { condition: edge.conditionJson }
+          ...(typeof edge.descriptionMarkdown === "string"
+            ? { descriptionJson: { markdown: edge.descriptionMarkdown } }
             : {}),
         }));
       }),
@@ -3453,7 +3442,6 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
       fromStepKey,
       toStepKey,
       descriptionJson,
-      condition,
     }) =>
       dbEffect("methodology.createWorkflowEdgeByDefinitionId", () =>
         db.transaction(async (tx) => {
@@ -3489,8 +3477,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               fromStepId,
               toStepId,
               edgeKey: null,
-              conditionJson: condition,
-              guidanceJson: descriptionJson,
+              descriptionMarkdown: extractMarkdown(descriptionJson),
             })
             .returning();
 
@@ -3503,11 +3490,8 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             edgeId: edge.id,
             fromStepKey,
             toStepKey,
-            ...(edge.guidanceJson !== null && edge.guidanceJson !== undefined
-              ? { descriptionJson: edge.guidanceJson as { readonly markdown: string } }
-              : {}),
-            ...(edge.conditionJson !== null && edge.conditionJson !== undefined
-              ? { condition: edge.conditionJson }
+            ...(typeof edge.descriptionMarkdown === "string"
+              ? { descriptionJson: { markdown: edge.descriptionMarkdown } }
               : {}),
           } satisfies WorkflowEdgeDto;
         }),
@@ -3520,7 +3504,6 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
       fromStepKey,
       toStepKey,
       descriptionJson,
-      condition,
     }) =>
       dbEffect("methodology.updateWorkflowEdgeByDefinitionId", () =>
         db.transaction(async (tx) => {
@@ -3553,8 +3536,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             .set({
               fromStepId,
               toStepId,
-              conditionJson: condition,
-              guidanceJson: descriptionJson,
+              descriptionMarkdown: extractMarkdown(descriptionJson),
             })
             .where(
               and(
@@ -3573,11 +3555,8 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             edgeId: edge.id,
             fromStepKey,
             toStepKey,
-            ...(edge.guidanceJson !== null && edge.guidanceJson !== undefined
-              ? { descriptionJson: edge.guidanceJson as { readonly markdown: string } }
-              : {}),
-            ...(edge.conditionJson !== null && edge.conditionJson !== undefined
-              ? { condition: edge.conditionJson }
+            ...(typeof edge.descriptionMarkdown === "string"
+              ? { descriptionJson: { markdown: edge.descriptionMarkdown } }
               : {}),
           } satisfies WorkflowEdgeDto;
         }),
@@ -3659,11 +3638,8 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           edgeId: edge.id,
           fromStepKey: edge.fromStepId ? (stepKeyById.get(edge.fromStepId) ?? null) : null,
           toStepKey: edge.toStepId ? (stepKeyById.get(edge.toStepId) ?? null) : null,
-          ...(edge.guidanceJson !== null && edge.guidanceJson !== undefined
-            ? { descriptionJson: edge.guidanceJson as { readonly markdown: string } }
-            : {}),
-          ...(edge.conditionJson !== null && edge.conditionJson !== undefined
-            ? { condition: edge.conditionJson }
+          ...(typeof edge.descriptionMarkdown === "string"
+            ? { descriptionJson: { markdown: edge.descriptionMarkdown } }
             : {}),
         }));
 

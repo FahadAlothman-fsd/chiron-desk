@@ -60,8 +60,7 @@ const SCHEMA_SQL = [
     from_step_id TEXT,
     to_step_id TEXT,
     edge_key TEXT,
-    condition_json TEXT,
-    guidance_json TEXT,
+    description_markdown TEXT,
     created_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000),
     updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000)
   )`,
@@ -527,7 +526,6 @@ describe("l3 slice-1 methodology repository", () => {
           fromStepKey: "step-a",
           toStepKey: "step-b",
           descriptionJson: { markdown: "A to B" },
-          condition: null,
         });
 
         expect(created).toMatchObject({
@@ -549,7 +547,6 @@ describe("l3 slice-1 methodology repository", () => {
           fromStepKey: "step-a",
           toStepKey: "step-c",
           descriptionJson: { markdown: "A to C" },
-          condition: null,
         });
 
         expect(updated).toMatchObject({

@@ -41,7 +41,6 @@ function makeRepo() {
       fromStepKey: "step-a",
       toStepKey: "step-b",
       descriptionJson: { markdown: "a->b" },
-      condition: null,
     },
   ];
 
@@ -121,7 +120,6 @@ function makeRepo() {
           fromStepKey: input.fromStepKey,
           toStepKey: input.toStepKey,
           descriptionJson: input.descriptionJson,
-          condition: input.condition,
         };
         edges.push(edge);
         return edge;
@@ -134,7 +132,6 @@ function makeRepo() {
           fromStepKey: input.fromStepKey,
           toStepKey: input.toStepKey,
           descriptionJson: input.descriptionJson,
-          condition: input.condition,
         };
         return edges[index]!;
       }),

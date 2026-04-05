@@ -175,7 +175,6 @@ function makeServiceLayer() {
           fromStepKey: "step-a",
           toStepKey: "step-b",
           descriptionJson: { markdown: "A to B" },
-          condition: null,
         }),
       updateEdge: () =>
         Effect.succeed({
@@ -183,7 +182,6 @@ function makeServiceLayer() {
           fromStepKey: "step-a",
           toStepKey: "step-c",
           descriptionJson: { markdown: "A to C" },
-          condition: null,
         }),
       deleteEdge: () => Effect.void,
     }),

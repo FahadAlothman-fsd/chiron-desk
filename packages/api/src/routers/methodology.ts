@@ -81,7 +81,6 @@ const workflowEdgeSchema = z.object({
   fromStepKey: z.string().min(1).nullable().optional().default(null),
   toStepKey: z.string().min(1).nullable().optional().default(null),
   edgeKey: z.string().min(1).optional(),
-  condition: z.unknown().optional(),
 });
 
 const workflowSchema = z.object({

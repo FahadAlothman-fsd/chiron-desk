@@ -104,7 +104,7 @@ describe("validateDraftDefinition", () => {
           ],
           edges: [
             { fromStepKey: null, toStepKey: "start", edgeKey: "entry" },
-            { fromStepKey: "start", toStepKey: "x", condition: { when: "a" } },
+            { fromStepKey: "start", toStepKey: "x", edgeKey: "path-a" },
             { fromStepKey: "x", toStepKey: "end" },
             { fromStepKey: "x", toStepKey: null },
           ],

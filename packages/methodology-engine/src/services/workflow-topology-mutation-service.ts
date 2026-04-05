@@ -20,7 +20,6 @@ type WorkflowTopologyRepository = {
     readonly fromStepKey: string | null;
     readonly toStepKey: string | null;
     readonly descriptionJson: unknown;
-    readonly condition: unknown;
   }) => Effect.Effect<WorkflowEdgeDto, RepositoryError>;
   readonly updateWorkflowEdgeByDefinitionId?: (input: {
     readonly versionId: string;
@@ -29,7 +28,6 @@ type WorkflowTopologyRepository = {
     readonly fromStepKey: string | null;
     readonly toStepKey: string | null;
     readonly descriptionJson: unknown;
-    readonly condition: unknown;
   }) => Effect.Effect<WorkflowEdgeDto, RepositoryError>;
   readonly deleteWorkflowEdgeByDefinitionId?: (input: {
     readonly versionId: string;
@@ -173,7 +171,6 @@ export const WorkflowTopologyMutationServiceLive = Layer.effect(
           fromStepKey: input.fromStepKey,
           toStepKey: input.toStepKey,
           descriptionJson: input.descriptionJson ?? null,
-          condition: null,
         });
 
         yield* repo.recordEvent({
@@ -225,7 +222,6 @@ export const WorkflowTopologyMutationServiceLive = Layer.effect(
           fromStepKey: input.fromStepKey,
           toStepKey: input.toStepKey,
           descriptionJson: input.descriptionJson ?? null,
-          condition: null,
         });
 
         yield* repo.recordEvent({

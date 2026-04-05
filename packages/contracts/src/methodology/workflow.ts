@@ -126,7 +126,6 @@ export const WorkflowEdgeDto = Schema.Struct({
   fromStepKey: Schema.optionalWith(Schema.NullOr(Schema.NonEmptyString), { default: () => null }),
   toStepKey: Schema.optionalWith(Schema.NullOr(Schema.NonEmptyString), { default: () => null }),
   descriptionJson: Schema.optional(DescriptionJson),
-  condition: Schema.optional(Schema.Unknown),
 });
 export type WorkflowEdgeDto = typeof WorkflowEdgeDto.Type;
 
