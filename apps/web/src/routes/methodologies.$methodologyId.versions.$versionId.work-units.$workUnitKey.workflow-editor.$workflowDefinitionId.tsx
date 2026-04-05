@@ -128,6 +128,34 @@ function summarizeContextFact(fact: WorkflowContextFactDraft | WorkflowContextFa
   }
 }
 
+function inferWorkUnitTypeKeyFromDraftSpecFactDefinitionIds(
+  rawWorkUnits: unknown,
+  factDefinitionIds: readonly string[],
+) {
+  if (factDefinitionIds.length === 0) {
+    return "";
+  }
+
+  for (const entry of getWorkUnitEntries(rawWorkUnits)) {
+    const workUnit = asRecord(entry);
+    if (!workUnit || typeof workUnit.key !== "string") {
+      continue;
+    }
+
+    const factIds = new Set(
+      getWorkUnitFactEntries(rawWorkUnits, workUnit.key)
+        .map((fact) => asRecord(fact)?.id)
+        .filter((id): id is string => typeof id === "string"),
+    );
+
+    if (factDefinitionIds.every((factDefinitionId) => factIds.has(factDefinitionId))) {
+      return workUnit.key;
+    }
+  }
+
+  return "";
+}
+
 function toWorkflowMetadata(
   workflowDefinitionId: string,
   workflow: unknown,
@@ -317,7 +345,10 @@ function toWorkflowEdges(rawEdges: unknown): WorkflowEditorEdge[] {
     .filter((edge): edge is WorkflowEditorEdge => edge !== null);
 }
 
-function toContextFactDefinitions(rawFacts: unknown): WorkflowContextFactDefinitionItem[] {
+function toContextFactDefinitions(
+  rawFacts: unknown,
+  rawWorkUnits: unknown,
+): WorkflowContextFactDefinitionItem[] {
   if (!Array.isArray(rawFacts)) {
     return [];
   }
@@ -361,14 +392,14 @@ function toContextFactDefinitions(rawFacts: unknown): WorkflowContextFactDefinit
               (workflowId): workflowId is string => typeof workflowId === "string",
             )
           : [],
-        includedFactKeys: Array.isArray(value.includedFactKeys)
-          ? value.includedFactKeys.filter(
-              (factKey): factKey is string => typeof factKey === "string",
+        includedFactDefinitionIds: Array.isArray(value.includedFactDefinitionIds)
+          ? value.includedFactDefinitionIds.filter(
+              (factId): factId is string => typeof factId === "string",
             )
           : Array.isArray(value.fields)
             ? value.fields
-                .map((field) => asRecord(field)?.key)
-                .filter((factKey): factKey is string => typeof factKey === "string")
+                .map((field) => asRecord(field)?.id)
+                .filter((factId): factId is string => typeof factId === "string")
             : [],
         summary: typeof value.summary === "string" ? value.summary : "",
       };
@@ -393,8 +424,11 @@ function toContextFactDefinitions(rawFacts: unknown): WorkflowContextFactDefinit
         item.artifactSlotDefinitionId = value.artifactSlotKey;
       }
 
-      if (typeof value.workUnitTypeKey === "string") {
-        item.workUnitTypeKey = value.workUnitTypeKey;
+      if (kind === "work_unit_draft_spec_fact") {
+        item.workUnitTypeKey = inferWorkUnitTypeKeyFromDraftSpecFactDefinitionIds(
+          rawWorkUnits,
+          item.includedFactDefinitionIds,
+        );
       }
 
       return {
@@ -448,8 +482,7 @@ function toContextFactMutationPayload(draft: WorkflowContextFactDraft) {
     case "work_unit_draft_spec_fact":
       return {
         ...base,
-        workUnitTypeKey: draft.workUnitTypeKey?.trim() ?? "",
-        includedFactKeys: draft.includedFactKeys,
+        includedFactDefinitionIds: draft.includedFactDefinitionIds,
       };
   }
 }
@@ -551,6 +584,7 @@ function toFactOptions(
   fallbackDescription: string,
   rawWorkUnits: unknown,
   source: "methodology" | "current_work_unit",
+  mode: "key" | "id" = "key",
 ): WorkflowEditorPickerOption[] {
   const facts = getFactDefinitionEntries(rawFactDefinitions);
 
@@ -569,6 +603,11 @@ function toFactOptions(
             : typeof value.displayName === "string" && value.displayName.trim().length > 0
               ? value.displayName.trim()
               : value.key;
+      const optionValue =
+        mode === "id" && typeof value.id === "string" && value.id.trim().length > 0
+          ? value.id.trim()
+          : value.key;
+
       const description = readMarkdown(value.descriptionJson) || readMarkdown(value.description);
       const cardinality =
         value.cardinality === "one" || value.cardinality === "many" ? value.cardinality : null;
@@ -604,8 +643,9 @@ function toFactOptions(
         .join(" ");
 
       return {
-        value: value.key,
+        value: optionValue,
         label,
+        secondaryLabel: value.key,
         description: description || fallbackDescription,
         searchText,
         badges,
@@ -624,6 +664,16 @@ function toWorkUnitFactOptions(rawWorkUnits: unknown, workUnitTypeKey: string) {
     "Work unit fact",
     rawWorkUnits,
     "current_work_unit",
+  );
+}
+
+function toWorkUnitDraftSpecFactOptions(rawWorkUnits: unknown, workUnitTypeKey: string) {
+  return toFactOptions(
+    getWorkUnitFactEntries(rawWorkUnits, workUnitTypeKey),
+    "Work unit fact",
+    rawWorkUnits,
+    "current_work_unit",
+    "id",
   );
 }
 
@@ -933,7 +983,10 @@ export function MethodologyWorkflowEditorRoute() {
       metadata={toWorkflowMetadata(resolvedWorkflowDefinitionId, workflow)}
       initialSteps={initialSteps}
       initialEdges={toWorkflowEdges(editorDefinition?.edges)}
-      contextFactDefinitions={toContextFactDefinitions(editorDefinition?.contextFacts)}
+      contextFactDefinitions={toContextFactDefinitions(
+        editorDefinition?.contextFacts,
+        workUnitFactsQuery.data,
+      )}
       methodologyFacts={toMethodologyFactOptions(
         methodologyFactsQuery.data,
         workUnitTypesQuery.data,
@@ -946,7 +999,7 @@ export function MethodologyWorkflowEditorRoute() {
       loadWorkUnitFacts={async (selectedWorkUnitTypeKey) => {
         const data = await queryClient.fetchQuery(workUnitFactsQueryOptions);
 
-        return toWorkUnitFactOptions(data, selectedWorkUnitTypeKey);
+        return toWorkUnitDraftSpecFactOptions(data, selectedWorkUnitTypeKey);
       }}
       onSaveMetadata={async (metadata) => {
         await updateWorkflowMutation.mutateAsync({

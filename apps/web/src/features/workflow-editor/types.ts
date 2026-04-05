@@ -82,6 +82,7 @@ export type WorkflowEditorGuidance = {
 export type WorkflowEditorPickerOption = {
   value: string;
   label: string;
+  secondaryLabel?: string;
   description?: string;
   searchText?: string;
   badges?: readonly WorkflowEditorPickerBadge[];
@@ -121,7 +122,7 @@ export type WorkflowContextFactDraft = {
   allowedWorkflowDefinitionIds: string[];
   artifactSlotDefinitionId?: string;
   workUnitTypeKey?: string;
-  includedFactKeys: string[];
+  includedFactDefinitionIds: string[];
 };
 
 export type WorkflowContextFactDefinitionItem = {
@@ -137,7 +138,7 @@ export type WorkflowContextFactDefinitionItem = {
   allowedWorkflowDefinitionIds: string[];
   artifactSlotDefinitionId?: string;
   workUnitTypeKey?: string;
-  includedFactKeys: string[];
+  includedFactDefinitionIds: string[];
   summary: string;
 };
 

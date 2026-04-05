@@ -91,8 +91,8 @@ function EntryBadge() {
 
 function NextStepBadge({ label }: { label: string }) {
   return (
-    <span className="inline-flex w-fit items-center rounded-none border border-border/80 bg-background/80 px-2 py-1 text-[0.62rem] uppercase tracking-[0.12em] text-muted-foreground">
-      {label}
+    <span className="inline-flex max-w-full items-center rounded-none border border-border/80 bg-background/80 px-2 py-1 text-[0.62rem] uppercase tracking-[0.12em] text-muted-foreground">
+      <span className="block truncate">{label}</span>
     </span>
   );
 }
@@ -159,31 +159,31 @@ export function StepListInspector({
                     onClick={() => onSelectStep(step.stepId)}
                     aria-label={`Inspect Step ${step.payload.key}`}
                   >
-                    <div className="relative z-[2] grid w-full gap-3 p-3 text-foreground">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex flex-wrap items-center gap-2">
+                    <div className="relative z-[2] grid w-full min-w-0 gap-3 p-3 text-foreground">
+                      <div className="flex min-w-0 items-start justify-between gap-3">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
                           <StepTypeBadge stepType={step.stepType} />
                           {metadata.entryStepId === step.stepId ? <EntryBadge /> : null}
                         </div>
-                        <span className="text-[0.62rem] uppercase tracking-[0.14em] text-muted-foreground/80">
+                        <span className="shrink-0 text-[0.62rem] uppercase tracking-[0.14em] text-muted-foreground/80">
                           {STEP_TYPE_COLORS[step.stepType]}
                         </span>
                       </div>
 
-                      <div className="grid gap-1.5">
-                        <span className="font-geist-pixel-square text-sm uppercase tracking-[0.14em] text-foreground">
+                      <div className="grid min-w-0 gap-1.5">
+                        <span className="truncate font-geist-pixel-square text-sm uppercase tracking-[0.14em] text-foreground">
                           {step.payload.key}
                         </span>
-                        <span className="text-[0.64rem] uppercase tracking-[0.18em] text-muted-foreground">
+                        <span className="truncate text-[0.64rem] uppercase tracking-[0.18em] text-muted-foreground">
                           Workflow step
                         </span>
                       </div>
 
-                      <span className="text-xs/relaxed text-muted-foreground">
+                      <span className="truncate text-xs text-muted-foreground">
                         {step.payload.label?.trim() || "No label yet"}
                       </span>
 
-                      <div className="flex justify-end">
+                      <div className="flex min-w-0 justify-end">
                         <NextStepBadge
                           label={nextStepLabelByStepId.get(step.stepId) ?? "--> END"}
                         />
@@ -204,13 +204,13 @@ export function StepListInspector({
                 <button
                   key={edge.edgeId}
                   type="button"
-                  className="chiron-frame-flat flex items-center justify-between gap-2 px-2 py-1.5 text-left text-xs hover:bg-accent/25"
+                  className="chiron-frame-flat flex min-w-0 items-center justify-between gap-2 px-2 py-1.5 text-left text-xs hover:bg-accent/25"
                   onClick={() => onSelectEdge(edge.edgeId)}
                 >
-                  <span>
+                  <span className="min-w-0 flex-1 truncate">
                     {edge.fromStepKey} → {edge.toStepKey}
                   </span>
-                  <span className="text-[0.64rem] uppercase tracking-[0.12em] text-muted-foreground">
+                  <span className="shrink-0 text-[0.64rem] uppercase tracking-[0.12em] text-muted-foreground">
                     inspect
                   </span>
                 </button>
@@ -229,11 +229,14 @@ export function StepListInspector({
                   type="button"
                   size="xs"
                   variant="outline"
+                  className="min-w-0 justify-start overflow-hidden"
                   onClick={() =>
                     onConnectSteps(steps[0]?.payload.key ?? "", targetStep.payload.key)
                   }
                 >
-                  Connect {steps[0]?.payload.key ?? "source"} to {targetStep.payload.key}
+                  <span className="block truncate">
+                    Connect {steps[0]?.payload.key ?? "source"} to {targetStep.payload.key}
+                  </span>
                 </Button>
               ))}
             </div>
@@ -257,30 +260,30 @@ export function StepListInspector({
             ].join(" ")}
             style={getStepFrameStyle(true)}
           >
-            <div className="relative z-[2] grid gap-3 p-3 text-foreground">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-2">
+            <div className="relative z-[2] grid min-w-0 gap-3 p-3 text-foreground">
+              <div className="flex min-w-0 items-start justify-between gap-3">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <StepTypeBadge stepType={selectedStep.stepType} />
                   {metadata.entryStepId === selectedStep.stepId ? <EntryBadge /> : null}
                 </div>
-                <span className="text-[0.62rem] uppercase tracking-[0.14em] text-muted-foreground/80">
+                <span className="shrink-0 text-[0.62rem] uppercase tracking-[0.14em] text-muted-foreground/80">
                   {STEP_TYPE_COLORS[selectedStep.stepType]}
                 </span>
               </div>
 
-              <div className="grid gap-1.5">
-                <p className="font-geist-pixel-square text-sm uppercase tracking-[0.14em] text-foreground">
+              <div className="grid min-w-0 gap-1.5">
+                <p className="truncate font-geist-pixel-square text-sm uppercase tracking-[0.14em] text-foreground">
                   {selectedStep.payload.key}
                 </p>
-                <p className="text-[0.64rem] uppercase tracking-[0.18em] text-muted-foreground">
+                <p className="truncate text-[0.64rem] uppercase tracking-[0.18em] text-muted-foreground">
                   Workflow step
                 </p>
               </div>
 
-              <div className="grid gap-1 text-xs/relaxed text-muted-foreground">
-                <p>{selectedStep.payload.label?.trim() || "No label yet"}</p>
+              <div className="grid min-w-0 gap-1 text-xs/relaxed text-muted-foreground">
+                <p className="truncate">{selectedStep.payload.label?.trim() || "No label yet"}</p>
                 <p>{selectedStep.payload.descriptionJson?.markdown?.trim() || "No description"}</p>
-                <div className="flex justify-end pt-1">
+                <div className="flex min-w-0 justify-end pt-1">
                   <NextStepBadge
                     label={nextStepLabelByStepId.get(selectedStep.stepId) ?? "--> END"}
                   />

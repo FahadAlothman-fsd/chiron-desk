@@ -596,7 +596,7 @@ describe("workflow editor form slice route", () => {
       allowedWorkflowDefinitionIds: [],
       artifactSlotDefinitionId: "",
       workUnitTypeKey: "",
-      includedFactKeys: [],
+      includedFactDefinitionIds: [],
       summary: "plain value fact · one · string",
     };
 

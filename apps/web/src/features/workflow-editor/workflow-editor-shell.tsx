@@ -222,7 +222,7 @@ function toContextFactDefinitionItem(
       ? { artifactSlotDefinitionId: draft.artifactSlotDefinitionId.trim() }
       : {}),
     ...(draft.workUnitTypeKey?.trim() ? { workUnitTypeKey: draft.workUnitTypeKey.trim() } : {}),
-    includedFactKeys: draft.includedFactKeys,
+    includedFactDefinitionIds: draft.includedFactDefinitionIds,
     summary: summarizeContextFact(draft),
   };
 }

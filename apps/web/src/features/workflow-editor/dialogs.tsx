@@ -109,6 +109,7 @@ type PlainStringValidationType = "none" | "path" | "regex" | "allowed-values";
 
 type WorkUnitDraftFactCard = {
   localId: string;
+  factDefinitionId: string;
   factKey: string;
   displayName: string;
   description: string | undefined;
@@ -128,7 +129,7 @@ type WorkflowContextFactDialogSnapshot = {
     allowedWorkflowDefinitionIds: string[];
     artifactSlotDefinitionId: string;
     workUnitTypeKey: string;
-    includedFactKeys: string[];
+    includedFactDefinitionIds: string[];
     plainStringDefaultValue: string;
     plainStringValidationType: PlainStringValidationType;
     plainStringPathKind: "file" | "directory";
@@ -139,7 +140,7 @@ type WorkflowContextFactDialogSnapshot = {
     pendingAllowedValueTag: string;
     allowedValueTags: string[];
     jsonSubSchemaDrafts: Array<Omit<JsonSubSchemaDraft, "localId">>;
-    pendingIncludedFactKey: string;
+    pendingIncludedFactDefinitionId: string;
   };
   guidance: WorkflowEditorGuidance;
 };
@@ -175,7 +176,7 @@ function toContextFactDraft(
     allowedWorkflowDefinitionIds: fact?.allowedWorkflowDefinitionIds ?? [],
     artifactSlotDefinitionId: fact?.artifactSlotDefinitionId ?? "",
     workUnitTypeKey: fact?.workUnitTypeKey ?? "",
-    includedFactKeys: fact?.includedFactKeys ?? [],
+    includedFactDefinitionIds: fact?.includedFactDefinitionIds ?? [],
   };
 }
 
@@ -191,7 +192,7 @@ function toWorkflowContextFactDialogSnapshot(params: {
   pendingAllowedValueTag: string;
   allowedValueTags: readonly string[];
   jsonSubSchemaDrafts: readonly JsonSubSchemaDraft[];
-  pendingIncludedFactKey: string;
+  pendingIncludedFactDefinitionId: string;
   draftSpecCards: readonly WorkUnitDraftFactCard[];
 }): WorkflowContextFactDialogSnapshot {
   return {
@@ -208,7 +209,7 @@ function toWorkflowContextFactDialogSnapshot(params: {
       allowedWorkflowDefinitionIds: [...params.draft.allowedWorkflowDefinitionIds],
       artifactSlotDefinitionId: params.draft.artifactSlotDefinitionId ?? "",
       workUnitTypeKey: params.draft.workUnitTypeKey ?? "",
-      includedFactKeys: params.draftSpecCards.map((entry) => entry.factKey),
+      includedFactDefinitionIds: params.draftSpecCards.map((entry) => entry.factDefinitionId),
       plainStringDefaultValue: params.plainStringDefaultValue,
       plainStringValidationType: params.plainStringValidationType,
       plainStringPathKind: params.plainStringPathKind,
@@ -221,7 +222,7 @@ function toWorkflowContextFactDialogSnapshot(params: {
       jsonSubSchemaDrafts: params.jsonSubSchemaDrafts.map(({ localId: _localId, ...entry }) => ({
         ...entry,
       })),
-      pendingIncludedFactKey: params.pendingIncludedFactKey,
+      pendingIncludedFactDefinitionId: params.pendingIncludedFactDefinitionId,
     },
     guidance: {
       humanMarkdown: params.draft.guidance.humanMarkdown,
@@ -293,15 +294,16 @@ function createEmptyJsonSubSchemaDraft(
 }
 
 function createWorkUnitDraftFactCard(
-  factKey: string,
+  factDefinitionId: string,
   workUnitFacts: readonly WorkflowEditorPickerOption[],
 ): WorkUnitDraftFactCard {
-  const matchedOption = workUnitFacts.find((option) => option.value === factKey);
+  const matchedOption = workUnitFacts.find((option) => option.value === factDefinitionId);
 
   return {
     localId: createLocalId("draft-spec-fact"),
-    factKey,
-    displayName: matchedOption?.label ?? titleizeKey(factKey),
+    factDefinitionId,
+    factKey: matchedOption?.secondaryLabel ?? factDefinitionId,
+    displayName: matchedOption?.label ?? titleizeKey(factDefinitionId),
     description: matchedOption?.description,
   };
 }
@@ -1325,7 +1327,7 @@ export function WorkflowContextFactDialog({
   const [pendingAllowedValueTag, setPendingAllowedValueTag] = useState("");
   const [allowedValueTags, setAllowedValueTags] = useState<string[]>([]);
   const [jsonSubSchemaDrafts, setJsonSubSchemaDrafts] = useState<JsonSubSchemaDraft[]>([]);
-  const [pendingIncludedFactKey, setPendingIncludedFactKey] = useState("");
+  const [pendingIncludedFactDefinitionId, setPendingIncludedFactDefinitionId] = useState("");
   const [draftSpecCards, setDraftSpecCards] = useState<WorkUnitDraftFactCard[]>([]);
   const selectedWorkUnitTypeKey =
     draft.kind === "work_unit_draft_spec_fact" ? (draft.workUnitTypeKey?.trim() ?? "") : "";
@@ -1376,9 +1378,9 @@ export function WorkflowContextFactDialog({
   const selectedDraftSpecFact = useMemo(
     () =>
       draft.kind === "work_unit_draft_spec_fact"
-        ? selectedWorkUnitFacts.find((option) => option.value === pendingIncludedFactKey)
+        ? selectedWorkUnitFacts.find((option) => option.value === pendingIncludedFactDefinitionId)
         : undefined,
-    [draft.kind, pendingIncludedFactKey, selectedWorkUnitFacts],
+    [draft.kind, pendingIncludedFactDefinitionId, selectedWorkUnitFacts],
   );
   const selectedArtifactSlot = useMemo(
     () =>
@@ -1430,9 +1432,9 @@ export function WorkflowContextFactDialog({
       nextDraft.kind === "plain_value_fact" && nextDraft.valueType === "json"
         ? [createEmptyJsonSubSchemaDraft([])]
         : [];
-    const nextPendingIncludedFactKey = "";
-    const nextDraftSpecCards = nextDraft.includedFactKeys.map((factKey) =>
-      createWorkUnitDraftFactCard(factKey, []),
+    const nextPendingIncludedFactDefinitionId = "";
+    const nextDraftSpecCards = nextDraft.includedFactDefinitionIds.map((factDefinitionId) =>
+      createWorkUnitDraftFactCard(factDefinitionId, []),
     );
 
     setDraft(nextDraft);
@@ -1446,7 +1448,7 @@ export function WorkflowContextFactDialog({
     setPendingAllowedValueTag(nextPendingAllowedValueTag);
     setAllowedValueTags(nextAllowedValueTags);
     setJsonSubSchemaDrafts(nextJsonSubSchemaDrafts);
-    setPendingIncludedFactKey(nextPendingIncludedFactKey);
+    setPendingIncludedFactDefinitionId(nextPendingIncludedFactDefinitionId);
     setDraftSpecCards(nextDraftSpecCards);
     setInitialSnapshot(
       toWorkflowContextFactDialogSnapshot({
@@ -1461,7 +1463,7 @@ export function WorkflowContextFactDialog({
         pendingAllowedValueTag: nextPendingAllowedValueTag,
         allowedValueTags: nextAllowedValueTags,
         jsonSubSchemaDrafts: nextJsonSubSchemaDrafts,
-        pendingIncludedFactKey: nextPendingIncludedFactKey,
+        pendingIncludedFactDefinitionId: nextPendingIncludedFactDefinitionId,
         draftSpecCards: nextDraftSpecCards,
       }),
     );
@@ -1477,12 +1479,13 @@ export function WorkflowContextFactDialog({
     setDraftSpecCards((current) =>
       current.map((entry) => {
         const matchedOption = selectedWorkUnitFacts.find(
-          (option) => option.value === entry.factKey,
+          (option) => option.value === entry.factDefinitionId,
         );
 
         return matchedOption
           ? {
               ...entry,
+              factKey: matchedOption.secondaryLabel ?? entry.factKey,
               displayName: matchedOption.label,
               description: matchedOption.description,
             }
@@ -1504,7 +1507,7 @@ export function WorkflowContextFactDialog({
   const availableDraftSpecFactOptions = useMemo(
     () =>
       selectedDraftSpecPickerFacts.filter(
-        (option) => !draftSpecCards.some((entry) => entry.factKey === option.value),
+        (option) => !draftSpecCards.some((entry) => entry.factDefinitionId === option.value),
       ),
     [draftSpecCards, selectedDraftSpecPickerFacts],
   );
@@ -1523,7 +1526,7 @@ export function WorkflowContextFactDialog({
         pendingAllowedValueTag,
         allowedValueTags,
         jsonSubSchemaDrafts,
-        pendingIncludedFactKey,
+        pendingIncludedFactDefinitionId,
         draftSpecCards,
       }),
     [
@@ -1532,7 +1535,7 @@ export function WorkflowContextFactDialog({
       draftSpecCards,
       jsonSubSchemaDrafts,
       pendingAllowedValueTag,
-      pendingIncludedFactKey,
+      pendingIncludedFactDefinitionId,
       plainStringDefaultValue,
       plainStringDisallowAbsolute,
       plainStringPathKind,
@@ -1617,8 +1620,8 @@ export function WorkflowContextFactDialog({
                 allowedWorkflowDefinitionIds: draft.allowedWorkflowDefinitionIds.map((entry) =>
                   entry.trim(),
                 ),
-                includedFactKeys: draftSpecCards
-                  .map((entry) => entry.factKey.trim())
+                includedFactDefinitionIds: draftSpecCards
+                  .map((entry) => entry.factDefinitionId.trim())
                   .filter((entry) => entry.length > 0),
                 guidance: {
                   humanMarkdown: draft.guidance.humanMarkdown.trim(),
@@ -1727,7 +1730,7 @@ export function WorkflowContextFactDialog({
                           setPendingAllowedValueTag("");
                           setAllowedValueTags([]);
                           setJsonSubSchemaDrafts([]);
-                          setPendingIncludedFactKey("");
+                          setPendingIncludedFactDefinitionId("");
                           setDraftSpecCards([]);
 
                           return {
@@ -2358,12 +2361,12 @@ export function WorkflowContextFactDialog({
                           labelId="workflow-editor-context-fact-work-unit-type"
                           value={draft.workUnitTypeKey ?? ""}
                           onChange={(value) => {
-                            setPendingIncludedFactKey("");
+                            setPendingIncludedFactDefinitionId("");
                             setDraftSpecCards([]);
                             setDraft((previous) => ({
                               ...previous,
                               workUnitTypeKey: value,
-                              includedFactKeys: [],
+                              includedFactDefinitionIds: [],
                             }));
                           }}
                           options={workUnitTypes}
@@ -2377,10 +2380,11 @@ export function WorkflowContextFactDialog({
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="grid gap-1">
                             <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
-                              Included Fact Keys
+                              Included Fact Definitions
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              Compose the reusable draft-spec envelope as removable fact cards.
+                              Compose the reusable draft-spec envelope from selected work-unit fact
+                              definitions.
                             </p>
                           </div>
                         </div>
@@ -2389,25 +2393,25 @@ export function WorkflowContextFactDialog({
                           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
                             <div className="grid gap-2">
                               <Label id="workflow-editor-context-fact-draft-spec-fields">
-                                Fact Key
+                                Fact Definition
                               </Label>
                               <SearchableCombobox
                                 labelId="workflow-editor-context-fact-draft-spec-fields"
-                                value={pendingIncludedFactKey}
-                                onChange={setPendingIncludedFactKey}
+                                value={pendingIncludedFactDefinitionId}
+                                onChange={setPendingIncludedFactDefinitionId}
                                 options={availableDraftSpecFactOptions}
                                 placeholder={
                                   selectedWorkUnitTypeKey.length > 0
-                                    ? "Select a fact key"
+                                    ? "Select a fact definition"
                                     : "Select a work unit type first"
                                 }
-                                searchPlaceholder="Search fact keys..."
+                                searchPlaceholder="Search fact definitions..."
                                 emptyLabel={
                                   selectedWorkUnitTypeKey.length === 0
                                     ? "Select a work unit type first."
                                     : selectedWorkUnitFactsQuery.isLoading
-                                      ? "Loading fact keys..."
-                                      : "No fact keys found."
+                                      ? "Loading fact definitions..."
+                                      : "No fact definitions found."
                                 }
                                 disabled={selectedWorkUnitTypeKey.length === 0}
                               />
@@ -2418,37 +2422,39 @@ export function WorkflowContextFactDialog({
                                 className="rounded-none"
                                 disabled={
                                   selectedWorkUnitTypeKey.length === 0 ||
-                                  pendingIncludedFactKey.length === 0
+                                  pendingIncludedFactDefinitionId.length === 0
                                 }
                                 onClick={() => {
-                                  if (pendingIncludedFactKey.length === 0) {
+                                  if (pendingIncludedFactDefinitionId.length === 0) {
                                     return;
                                   }
 
                                   const nextCards = [
                                     ...draftSpecCards,
                                     createWorkUnitDraftFactCard(
-                                      pendingIncludedFactKey,
+                                      pendingIncludedFactDefinitionId,
                                       selectedWorkUnitFacts,
                                     ),
                                   ];
                                   setDraftSpecCards(nextCards);
                                   setDraft((previous) => ({
                                     ...previous,
-                                    includedFactKeys: nextCards.map((entry) => entry.factKey),
+                                    includedFactDefinitionIds: nextCards.map(
+                                      (entry) => entry.factDefinitionId,
+                                    ),
                                   }));
-                                  setPendingIncludedFactKey("");
+                                  setPendingIncludedFactDefinitionId("");
                                 }}
                               >
                                 <PlusIcon className="size-3.5" />
-                                Add Fact Key
+                                Add Fact Definition
                               </Button>
                             </div>
                           </div>
                         ) : (
                           <p className="text-xs text-muted-foreground">
                             {selectedWorkUnitTypeKey.length === 0
-                              ? "Select a work unit type to load draft-spec fact keys."
+                              ? "Select a work unit type to load draft-spec fact definitions."
                               : selectedWorkUnitFactsQuery.isLoading
                                 ? "Loading facts for the selected work unit..."
                                 : "Every available work unit fact is already included in this draft-spec composer."}
@@ -2457,7 +2463,8 @@ export function WorkflowContextFactDialog({
 
                         {draftSpecCards.length === 0 ? (
                           <p className="text-xs text-muted-foreground">
-                            No included fact keys yet. Add cards from the searchable picker above.
+                            No included fact definitions yet. Add cards from the searchable picker
+                            above.
                           </p>
                         ) : (
                           <div className="grid gap-3">
@@ -2509,7 +2516,9 @@ export function WorkflowContextFactDialog({
                                       setDraftSpecCards(nextCards);
                                       setDraft((previous) => ({
                                         ...previous,
-                                        includedFactKeys: nextCards.map((card) => card.factKey),
+                                        includedFactDefinitionIds: nextCards.map(
+                                          (card) => card.factDefinitionId,
+                                        ),
                                       }));
                                     }}
                                   >
