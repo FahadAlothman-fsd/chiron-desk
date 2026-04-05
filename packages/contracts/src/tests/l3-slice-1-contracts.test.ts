@@ -59,6 +59,7 @@ describe("slice-1 contract locks", () => {
       key: "create-story",
       displayName: "Create story",
       descriptionJson: { markdown: "Workflow description" },
+      entryStepId: null,
     });
   });
 
@@ -194,7 +195,7 @@ describe("slice-1 contract locks", () => {
         key: "storyDraft",
         cardinality: "many",
         workUnitTypeKey: "WU.STORY",
-        includedFactKeys: ["title", "acceptance_criteria"],
+        includedFactDefinitionIds: ["fact-title", "fact-acceptance-criteria"],
       },
     ] as const;
 

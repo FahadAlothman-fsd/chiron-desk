@@ -290,6 +290,7 @@ export interface SaveWorkUnitLifecycleTransitionBundleParams {
 }
 
 export interface PublishFactSchemaRow {
+  id: string;
   name: string | null;
   key: string;
   factType: string;

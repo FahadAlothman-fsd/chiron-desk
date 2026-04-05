@@ -90,8 +90,7 @@ export const WorkflowContextFactDto = Schema.Union(
     kind: Schema.Literal("work_unit_draft_spec_fact"),
     key: Schema.NonEmptyString,
     cardinality: WorkflowContextFactCardinality,
-    workUnitTypeKey: Schema.NonEmptyString,
-    includedFactKeys: Schema.Array(Schema.NonEmptyString),
+    includedFactDefinitionIds: Schema.Array(Schema.NonEmptyString),
   }).pipe(Schema.extend(WorkflowContextFactMetadata)),
 );
 export type WorkflowContextFactDto = typeof WorkflowContextFactDto.Type;
