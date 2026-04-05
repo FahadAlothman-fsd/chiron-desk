@@ -501,7 +501,7 @@ In `packages/api/src/routers/methodology.ts`:
 6. **Form-step CRUD** — proper `Contract | Fields | Guidance` tabs with field-binding to workflow context facts
 7. **Removed stale artifacts** — `methodology_workflow_form_steps` table eliminated, `FormStepPayload.contextFacts` removed
 8. **Form dialog UX polish** — dirty state tracking with tab indicators (*) and discard confirmation dialog
-9. **Edge schema cleanup** — removed obsolete `conditionJson` and `guidanceJson` from `methodology_workflow_edges`, replaced with `descriptionMarkdown`
+9. **Edge schema cleanup** — removed obsolete `conditionJson` and `guidanceJson` from `methodology_workflow_edges`, kept `descriptionJson` (consistent with codebase pattern `{ markdown: string }`)
 
 ### Commits
 
@@ -520,6 +520,7 @@ In `packages/api/src/routers/methodology.ts`:
 
 **Schema cleanup:**
 - `5ae18a43c5` `refactor(db): remove conditionJson and guidanceJson from workflow edges`
+- `81be6bdfcd` `fix(db): use descriptionJson instead of descriptionMarkdown for edges`
 
 **Documentation:**
 - `0b4880cfe0` `docs(plan): close out L3 slice 1 design-time context facts and form`
@@ -532,4 +533,4 @@ In `packages/api/src/routers/methodology.ts`:
 - ✅ User manual verification confirmed working behavior
 - ✅ Design-time-only scope maintained (no runtime drift)
 - ✅ Form dialog dirty tracking and discard confirmation working
-- ✅ Edge schema cleaned up (conditionJson/guidanceJson removed, descriptionMarkdown added)
+- ✅ Edge schema cleaned up (conditionJson/guidanceJson removed, descriptionJson kept with proper JSON shape `{ markdown: string }`)
