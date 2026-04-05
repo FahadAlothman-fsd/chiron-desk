@@ -113,6 +113,36 @@ type WorkUnitDraftFactCard = {
   description: string | undefined;
 };
 
+type WorkflowContextFactDialogSnapshot = {
+  contract: {
+    key: string;
+    label: string;
+    descriptionMarkdown: string;
+    kind: WorkflowContextFactDraft["kind"];
+    cardinality: WorkflowContextFactDraft["cardinality"];
+  };
+  valueSemantics: {
+    valueType: WorkflowContextFactDraft["valueType"];
+    externalFactDefinitionId: string;
+    allowedWorkflowDefinitionIds: string[];
+    artifactSlotDefinitionId: string;
+    workUnitTypeKey: string;
+    includedFactKeys: string[];
+    plainStringDefaultValue: string;
+    plainStringValidationType: PlainStringValidationType;
+    plainStringPathKind: "file" | "directory";
+    plainStringTrimWhitespace: boolean;
+    plainStringDisallowAbsolute: boolean;
+    plainStringPreventTraversal: boolean;
+    plainStringRegexPattern: string;
+    pendingAllowedValueTag: string;
+    allowedValueTags: string[];
+    jsonSubSchemaDrafts: Array<Omit<JsonSubSchemaDraft, "localId">>;
+    pendingIncludedFactKey: string;
+  };
+  guidance: WorkflowEditorGuidance;
+};
+
 function createLocalId(prefix: string) {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return `${prefix}-${crypto.randomUUID()}`;
@@ -146,6 +176,61 @@ function toContextFactDraft(
     workUnitTypeKey: fact?.workUnitTypeKey ?? "",
     includedFactKeys: fact?.includedFactKeys ?? [],
   };
+}
+
+function toWorkflowContextFactDialogSnapshot(params: {
+  draft: WorkflowContextFactDraft;
+  plainStringDefaultValue: string;
+  plainStringValidationType: PlainStringValidationType;
+  plainStringPathKind: "file" | "directory";
+  plainStringTrimWhitespace: boolean;
+  plainStringDisallowAbsolute: boolean;
+  plainStringPreventTraversal: boolean;
+  plainStringRegexPattern: string;
+  pendingAllowedValueTag: string;
+  allowedValueTags: readonly string[];
+  jsonSubSchemaDrafts: readonly JsonSubSchemaDraft[];
+  pendingIncludedFactKey: string;
+  draftSpecCards: readonly WorkUnitDraftFactCard[];
+}): WorkflowContextFactDialogSnapshot {
+  return {
+    contract: {
+      key: params.draft.key,
+      label: params.draft.label,
+      descriptionMarkdown: params.draft.descriptionMarkdown,
+      kind: params.draft.kind,
+      cardinality: params.draft.cardinality,
+    },
+    valueSemantics: {
+      valueType: params.draft.valueType,
+      externalFactDefinitionId: params.draft.externalFactDefinitionId ?? "",
+      allowedWorkflowDefinitionIds: [...params.draft.allowedWorkflowDefinitionIds],
+      artifactSlotDefinitionId: params.draft.artifactSlotDefinitionId ?? "",
+      workUnitTypeKey: params.draft.workUnitTypeKey ?? "",
+      includedFactKeys: params.draftSpecCards.map((entry) => entry.factKey),
+      plainStringDefaultValue: params.plainStringDefaultValue,
+      plainStringValidationType: params.plainStringValidationType,
+      plainStringPathKind: params.plainStringPathKind,
+      plainStringTrimWhitespace: params.plainStringTrimWhitespace,
+      plainStringDisallowAbsolute: params.plainStringDisallowAbsolute,
+      plainStringPreventTraversal: params.plainStringPreventTraversal,
+      plainStringRegexPattern: params.plainStringRegexPattern,
+      pendingAllowedValueTag: params.pendingAllowedValueTag,
+      allowedValueTags: [...params.allowedValueTags],
+      jsonSubSchemaDrafts: params.jsonSubSchemaDrafts.map(({ localId: _localId, ...entry }) => ({
+        ...entry,
+      })),
+      pendingIncludedFactKey: params.pendingIncludedFactKey,
+    },
+    guidance: {
+      humanMarkdown: params.draft.guidance.humanMarkdown,
+      agentMarkdown: params.draft.guidance.agentMarkdown,
+    },
+  };
+}
+
+function areDialogSnapshotSectionsEqual(first: unknown, second: unknown) {
+  return JSON.stringify(first) === JSON.stringify(second);
 }
 
 function summarizeContextFact(fact: WorkflowContextFactDraft | WorkflowContextFactDefinitionItem) {
@@ -556,7 +641,13 @@ function SearchableMultiSelect(props: {
   );
 }
 
-function TabButton(props: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+function TabButton(props: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  isDirty?: boolean;
+  dirtyIndicatorTestId?: string;
+}) {
   return (
     <Button
       type="button"
@@ -566,6 +657,11 @@ function TabButton(props: { active: boolean; onClick: () => void; children: Reac
       onClick={props.onClick}
     >
       {props.children}
+      {props.isDirty ? (
+        <span data-testid={props.dirtyIndicatorTestId} className="ml-1 leading-none">
+          *
+        </span>
+      ) : null}
     </Button>
   );
 }
@@ -1201,7 +1297,11 @@ export function WorkflowContextFactDialog({
   onSave,
 }: WorkflowContextFactDialogProps) {
   const [draft, setDraft] = useState<WorkflowContextFactDraft>(toContextFactDraft());
+  const [initialSnapshot, setInitialSnapshot] = useState<WorkflowContextFactDialogSnapshot | null>(
+    null,
+  );
   const [activeTab, setActiveTab] = useState<WorkflowContextFactDialogTab>("contract");
+  const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
   const [plainStringDefaultValue, setPlainStringDefaultValue] = useState("");
   const [plainStringValidationType, setPlainStringValidationType] =
     useState<PlainStringValidationType>("none");
@@ -1291,29 +1391,60 @@ export function WorkflowContextFactDialog({
 
   useEffect(() => {
     if (!open) {
+      setIsDiscardDialogOpen(false);
       return;
     }
 
     const nextDraft = toContextFactDraft(fact);
-    setDraft(nextDraft);
-    setPlainStringDefaultValue("");
-    setPlainStringValidationType("none");
-    setPlainStringPathKind("file");
-    setPlainStringTrimWhitespace(true);
-    setPlainStringDisallowAbsolute(true);
-    setPlainStringPreventTraversal(true);
-    setPlainStringRegexPattern("");
-    setPendingAllowedValueTag("");
-    setAllowedValueTags([]);
-    setJsonSubSchemaDrafts(
+    const nextPlainStringDefaultValue = "";
+    const nextPlainStringValidationType = "none" as const;
+    const nextPlainStringPathKind = "file" as const;
+    const nextPlainStringTrimWhitespace = true;
+    const nextPlainStringDisallowAbsolute = true;
+    const nextPlainStringPreventTraversal = true;
+    const nextPlainStringRegexPattern = "";
+    const nextPendingAllowedValueTag = "";
+    const nextAllowedValueTags: string[] = [];
+    const nextJsonSubSchemaDrafts =
       nextDraft.kind === "plain_value_fact" && nextDraft.valueType === "json"
         ? [createEmptyJsonSubSchemaDraft([])]
-        : [],
+        : [];
+    const nextPendingIncludedFactKey = "";
+    const nextDraftSpecCards = nextDraft.includedFactKeys.map((factKey) =>
+      createWorkUnitDraftFactCard(factKey, []),
     );
-    setPendingIncludedFactKey("");
-    setDraftSpecCards(
-      nextDraft.includedFactKeys.map((factKey) => createWorkUnitDraftFactCard(factKey, [])),
+
+    setDraft(nextDraft);
+    setPlainStringDefaultValue(nextPlainStringDefaultValue);
+    setPlainStringValidationType(nextPlainStringValidationType);
+    setPlainStringPathKind(nextPlainStringPathKind);
+    setPlainStringTrimWhitespace(nextPlainStringTrimWhitespace);
+    setPlainStringDisallowAbsolute(nextPlainStringDisallowAbsolute);
+    setPlainStringPreventTraversal(nextPlainStringPreventTraversal);
+    setPlainStringRegexPattern(nextPlainStringRegexPattern);
+    setPendingAllowedValueTag(nextPendingAllowedValueTag);
+    setAllowedValueTags(nextAllowedValueTags);
+    setJsonSubSchemaDrafts(nextJsonSubSchemaDrafts);
+    setPendingIncludedFactKey(nextPendingIncludedFactKey);
+    setDraftSpecCards(nextDraftSpecCards);
+    setInitialSnapshot(
+      toWorkflowContextFactDialogSnapshot({
+        draft: nextDraft,
+        plainStringDefaultValue: nextPlainStringDefaultValue,
+        plainStringValidationType: nextPlainStringValidationType,
+        plainStringPathKind: nextPlainStringPathKind,
+        plainStringTrimWhitespace: nextPlainStringTrimWhitespace,
+        plainStringDisallowAbsolute: nextPlainStringDisallowAbsolute,
+        plainStringPreventTraversal: nextPlainStringPreventTraversal,
+        plainStringRegexPattern: nextPlainStringRegexPattern,
+        pendingAllowedValueTag: nextPendingAllowedValueTag,
+        allowedValueTags: nextAllowedValueTags,
+        jsonSubSchemaDrafts: nextJsonSubSchemaDrafts,
+        pendingIncludedFactKey: nextPendingIncludedFactKey,
+        draftSpecCards: nextDraftSpecCards,
+      }),
     );
+    setIsDiscardDialogOpen(false);
     setActiveTab("contract");
   }, [fact, open]);
 
@@ -1357,7 +1488,71 @@ export function WorkflowContextFactDialog({
     [draftSpecCards, selectedDraftSpecPickerFacts],
   );
 
+  const currentSnapshot = useMemo(
+    () =>
+      toWorkflowContextFactDialogSnapshot({
+        draft,
+        plainStringDefaultValue,
+        plainStringValidationType,
+        plainStringPathKind,
+        plainStringTrimWhitespace,
+        plainStringDisallowAbsolute,
+        plainStringPreventTraversal,
+        plainStringRegexPattern,
+        pendingAllowedValueTag,
+        allowedValueTags,
+        jsonSubSchemaDrafts,
+        pendingIncludedFactKey,
+        draftSpecCards,
+      }),
+    [
+      allowedValueTags,
+      draft,
+      draftSpecCards,
+      jsonSubSchemaDrafts,
+      pendingAllowedValueTag,
+      pendingIncludedFactKey,
+      plainStringDefaultValue,
+      plainStringDisallowAbsolute,
+      plainStringPathKind,
+      plainStringPreventTraversal,
+      plainStringRegexPattern,
+      plainStringTrimWhitespace,
+      plainStringValidationType,
+    ],
+  );
+  const isContractDirty =
+    open && initialSnapshot
+      ? !areDialogSnapshotSectionsEqual(currentSnapshot.contract, initialSnapshot.contract)
+      : false;
+  const isValueSemanticsDirty =
+    open && initialSnapshot
+      ? !areDialogSnapshotSectionsEqual(
+          currentSnapshot.valueSemantics,
+          initialSnapshot.valueSemantics,
+        )
+      : false;
+  const isGuidanceDirty =
+    open && initialSnapshot
+      ? !areDialogSnapshotSectionsEqual(currentSnapshot.guidance, initialSnapshot.guidance)
+      : false;
+  const isDialogDirty = isContractDirty || isValueSemanticsDirty || isGuidanceDirty;
+
   const canSave = draft.key.trim().length > 0;
+
+  const closeDialog = () => {
+    setIsDiscardDialogOpen(false);
+    onOpenChange(false);
+  };
+
+  const requestCloseDialog = () => {
+    if (isDialogDirty) {
+      setIsDiscardDialogOpen(true);
+      return;
+    }
+
+    closeDialog();
+  };
 
   const addAllowedValueTag = () => {
     const nextValue = pendingAllowedValueTag.trim();
@@ -1370,478 +1565,865 @@ export function WorkflowContextFactDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="chiron-cut-frame-thick flex w-[min(60rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] flex-col overflow-hidden p-6 sm:max-w-none sm:p-8">
-        <form
-          className="flex min-h-0 flex-1 flex-col overflow-hidden"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!canSave) {
-              return;
-            }
+    <>
+      <Dialog
+        open={open}
+        onOpenChange={(nextOpen) => {
+          if (nextOpen) {
+            return;
+          }
 
-            void onSave({
-              ...draft,
-              key: draft.key.trim(),
-              label: draft.label.trim(),
-              descriptionMarkdown: draft.descriptionMarkdown.trim(),
-              externalFactDefinitionId: draft.externalFactDefinitionId?.trim() ?? "",
-              artifactSlotDefinitionId: draft.artifactSlotDefinitionId?.trim() ?? "",
-              workUnitTypeKey: draft.workUnitTypeKey?.trim() ?? "",
-              allowedWorkflowDefinitionIds: draft.allowedWorkflowDefinitionIds.map((entry) =>
-                entry.trim(),
-              ),
-              includedFactKeys: draftSpecCards
-                .map((entry) => entry.factKey.trim())
-                .filter((entry) => entry.length > 0),
-              guidance: {
-                humanMarkdown: draft.guidance.humanMarkdown.trim(),
-                agentMarkdown: draft.guidance.agentMarkdown.trim(),
-              },
-            });
-          }}
-        >
-          <DialogHeader className="shrink-0 gap-2">
-            <DialogTitle className="text-base font-semibold uppercase tracking-[0.08em]">
-              {mode === "create"
-                ? "Create Context Fact Definition"
-                : `Edit Context Fact Definition: ${fact?.label || fact?.key || ""}`}
-            </DialogTitle>
-            <DialogDescription>
-              Workflow-level context facts are the canonical reusable inputs for Form field
-              bindings.
-            </DialogDescription>
-            <div className="mt-1 flex flex-wrap gap-2 border-b border-border pb-3">
-              <TabButton active={activeTab === "contract"} onClick={() => setActiveTab("contract")}>
-                Contract
-              </TabButton>
-              <TabButton
-                active={activeTab === "value-semantics"}
-                onClick={() => setActiveTab("value-semantics")}
-              >
-                Value Semantics
-              </TabButton>
-              <TabButton active={activeTab === "guidance"} onClick={() => setActiveTab("guidance")}>
-                Guidance
-              </TabButton>
-            </div>
-          </DialogHeader>
+          requestCloseDialog();
+        }}
+      >
+        <DialogContent className="chiron-cut-frame-thick flex w-[min(60rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] flex-col overflow-hidden p-6 sm:max-w-none sm:p-8">
+          <form
+            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!canSave) {
+                return;
+              }
 
-          <div className="min-h-0 flex-1 overflow-y-auto py-4 pr-1 scrollbar-thin">
-            {activeTab === "contract" ? (
-              <div className="grid gap-4 lg:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label htmlFor="workflow-editor-context-fact-key">Fact Key</Label>
-                  <Input
-                    id="workflow-editor-context-fact-key"
-                    className="rounded-none border-border/70 bg-background/50"
-                    value={draft.key}
-                    onChange={(event) =>
-                      setDraft((previous) => ({ ...previous, key: event.target.value }))
-                    }
-                    placeholder="project-summary"
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="workflow-editor-context-fact-label">Display Name</Label>
-                  <Input
-                    id="workflow-editor-context-fact-label"
-                    className="rounded-none border-border/70 bg-background/50"
-                    value={draft.label}
-                    onChange={(event) =>
-                      setDraft((previous) => ({ ...previous, label: event.target.value }))
-                    }
-                    placeholder="Project Summary"
-                  />
-                </div>
-
-                <div className="grid gap-2 lg:col-span-2">
-                  <Label htmlFor="workflow-editor-context-fact-description">Description</Label>
-                  <Textarea
-                    id="workflow-editor-context-fact-description"
-                    className="min-h-32 resize-none rounded-none border-border/70 bg-background/50"
-                    value={draft.descriptionMarkdown}
-                    onChange={(event) =>
-                      setDraft((previous) => ({
-                        ...previous,
-                        descriptionMarkdown: event.target.value,
-                      }))
-                    }
-                    placeholder="Markdown description for this reusable workflow context fact"
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="workflow-editor-context-fact-kind">Fact Kind</Label>
-                  <Select
-                    value={draft.kind}
-                    onValueChange={(value) =>
-                      setDraft((previous) => {
-                        const nextKind = value as WorkflowContextFactDraft["kind"];
-                        setPlainStringDefaultValue("");
-                        setPlainStringValidationType("none");
-                        setPlainStringPathKind("file");
-                        setPlainStringTrimWhitespace(true);
-                        setPlainStringDisallowAbsolute(true);
-                        setPlainStringPreventTraversal(true);
-                        setPlainStringRegexPattern("");
-                        setPendingAllowedValueTag("");
-                        setAllowedValueTags([]);
-                        setJsonSubSchemaDrafts([]);
-                        setPendingIncludedFactKey("");
-                        setDraftSpecCards([]);
-
-                        return {
-                          ...toContextFactDraft(undefined, nextKind),
-                          key: previous.key,
-                          label: previous.label,
-                          descriptionMarkdown: previous.descriptionMarkdown,
-                          cardinality: previous.cardinality,
-                          guidance: previous.guidance,
-                          kind: nextKind,
-                        };
-                      })
-                    }
-                    disabled={mode === "edit"}
-                  >
-                    <SelectTrigger
-                      id="workflow-editor-context-fact-kind"
-                      className="w-full rounded-none border-border/70 bg-background/50"
-                    >
-                      <SelectValue placeholder="Select fact kind" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-none">
-                      {CONTEXT_FACT_KIND_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {mode === "edit" ? (
-                    <p className="text-xs text-muted-foreground">
-                      Fact kind is locked after creation in slice-1. Delete and recreate to change
-                      it.
-                    </p>
-                  ) : null}
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="workflow-editor-context-fact-cardinality">Cardinality</Label>
-                  <Select
-                    value={selectedCardinalityValue}
-                    onValueChange={(value) =>
-                      setDraft((previous) => ({
-                        ...previous,
-                        cardinality: value as WorkflowContextFactDraft["cardinality"],
-                      }))
-                    }
-                  >
-                    <SelectTrigger
-                      id="workflow-editor-context-fact-cardinality"
-                      className="w-full rounded-none border-border/70 bg-background/50"
-                    >
-                      <SelectValue placeholder="Select cardinality" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-none">
-                      {availableCardinalityOptions.map((option) => (
-                        <SelectItem key={option} value={option}>
-                          {option}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              void onSave({
+                ...draft,
+                key: draft.key.trim(),
+                label: draft.label.trim(),
+                descriptionMarkdown: draft.descriptionMarkdown.trim(),
+                externalFactDefinitionId: draft.externalFactDefinitionId?.trim() ?? "",
+                artifactSlotDefinitionId: draft.artifactSlotDefinitionId?.trim() ?? "",
+                workUnitTypeKey: draft.workUnitTypeKey?.trim() ?? "",
+                allowedWorkflowDefinitionIds: draft.allowedWorkflowDefinitionIds.map((entry) =>
+                  entry.trim(),
+                ),
+                includedFactKeys: draftSpecCards
+                  .map((entry) => entry.factKey.trim())
+                  .filter((entry) => entry.length > 0),
+                guidance: {
+                  humanMarkdown: draft.guidance.humanMarkdown.trim(),
+                  agentMarkdown: draft.guidance.agentMarkdown.trim(),
+                },
+              });
+            }}
+          >
+            <DialogHeader className="shrink-0 gap-2">
+              <DialogTitle className="text-base font-semibold uppercase tracking-[0.08em]">
+                {mode === "create"
+                  ? "Create Context Fact Definition"
+                  : `Edit Context Fact Definition: ${fact?.label || fact?.key || ""}`}
+              </DialogTitle>
+              <DialogDescription>
+                Workflow-level context facts are the canonical reusable inputs for Form field
+                bindings.
+              </DialogDescription>
+              <div className="mt-1 flex flex-wrap gap-2 border-b border-border pb-3">
+                <TabButton
+                  active={activeTab === "contract"}
+                  onClick={() => setActiveTab("contract")}
+                  isDirty={isContractDirty}
+                  dirtyIndicatorTestId="workflow-context-fact-contract-modified-indicator"
+                >
+                  Contract
+                </TabButton>
+                <TabButton
+                  active={activeTab === "value-semantics"}
+                  onClick={() => setActiveTab("value-semantics")}
+                  isDirty={isValueSemanticsDirty}
+                  dirtyIndicatorTestId="workflow-context-fact-value-semantics-modified-indicator"
+                >
+                  Value Semantics
+                </TabButton>
+                <TabButton
+                  active={activeTab === "guidance"}
+                  onClick={() => setActiveTab("guidance")}
+                  isDirty={isGuidanceDirty}
+                  dirtyIndicatorTestId="workflow-context-fact-guidance-modified-indicator"
+                >
+                  Guidance
+                </TabButton>
               </div>
-            ) : null}
+            </DialogHeader>
 
-            {activeTab === "value-semantics" ? (
-              <div className="chiron-frame-flat chiron-tone-context grid gap-4 p-4">
-                <div className="grid gap-1">
-                  <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
-                    {CONTEXT_FACT_KIND_OPTIONS.find((option) => option.value === draft.kind)?.label}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{summarizeContextFact(draft)}</p>
-                </div>
+            <div className="min-h-0 flex-1 overflow-y-auto py-4 pr-1 scrollbar-thin">
+              {activeTab === "contract" ? (
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label htmlFor="workflow-editor-context-fact-key">Fact Key</Label>
+                    <Input
+                      id="workflow-editor-context-fact-key"
+                      className="rounded-none border-border/70 bg-background/50"
+                      value={draft.key}
+                      onChange={(event) =>
+                        setDraft((previous) => ({ ...previous, key: event.target.value }))
+                      }
+                      placeholder="project-summary"
+                    />
+                  </div>
 
-                {draft.kind === "plain_value_fact" ? (
-                  <div className="grid gap-4">
-                    <div className="grid gap-2 lg:max-w-sm">
-                      <Label htmlFor="workflow-editor-context-fact-value-type">Value Type</Label>
-                      <Select
-                        value={draft.valueType ?? "string"}
-                        onValueChange={(value) => {
-                          const nextValueType = (value ?? "string") as
-                            | "string"
-                            | "number"
-                            | "boolean"
-                            | "json";
+                  <div className="grid gap-2">
+                    <Label htmlFor="workflow-editor-context-fact-label">Display Name</Label>
+                    <Input
+                      id="workflow-editor-context-fact-label"
+                      className="rounded-none border-border/70 bg-background/50"
+                      value={draft.label}
+                      onChange={(event) =>
+                        setDraft((previous) => ({ ...previous, label: event.target.value }))
+                      }
+                      placeholder="Project Summary"
+                    />
+                  </div>
 
-                          setDraft((previous) => ({
-                            ...previous,
-                            valueType: nextValueType,
-                          }));
+                  <div className="grid gap-2 lg:col-span-2">
+                    <Label htmlFor="workflow-editor-context-fact-description">Description</Label>
+                    <Textarea
+                      id="workflow-editor-context-fact-description"
+                      className="min-h-32 resize-none rounded-none border-border/70 bg-background/50"
+                      value={draft.descriptionMarkdown}
+                      onChange={(event) =>
+                        setDraft((previous) => ({
+                          ...previous,
+                          descriptionMarkdown: event.target.value,
+                        }))
+                      }
+                      placeholder="Markdown description for this reusable workflow context fact"
+                    />
+                  </div>
 
-                          if (nextValueType === "json") {
-                            setJsonSubSchemaDrafts((current) =>
-                              current.length > 0 ? current : [createEmptyJsonSubSchemaDraft([])],
-                            );
-                          }
-                        }}
+                  <div className="grid gap-2">
+                    <Label htmlFor="workflow-editor-context-fact-kind">Fact Kind</Label>
+                    <Select
+                      value={draft.kind}
+                      onValueChange={(value) =>
+                        setDraft((previous) => {
+                          const nextKind = value as WorkflowContextFactDraft["kind"];
+                          setPlainStringDefaultValue("");
+                          setPlainStringValidationType("none");
+                          setPlainStringPathKind("file");
+                          setPlainStringTrimWhitespace(true);
+                          setPlainStringDisallowAbsolute(true);
+                          setPlainStringPreventTraversal(true);
+                          setPlainStringRegexPattern("");
+                          setPendingAllowedValueTag("");
+                          setAllowedValueTags([]);
+                          setJsonSubSchemaDrafts([]);
+                          setPendingIncludedFactKey("");
+                          setDraftSpecCards([]);
+
+                          return {
+                            ...toContextFactDraft(undefined, nextKind),
+                            key: previous.key,
+                            label: previous.label,
+                            descriptionMarkdown: previous.descriptionMarkdown,
+                            cardinality: previous.cardinality,
+                            guidance: previous.guidance,
+                            kind: nextKind,
+                          };
+                        })
+                      }
+                      disabled={mode === "edit"}
+                    >
+                      <SelectTrigger
+                        id="workflow-editor-context-fact-kind"
+                        className="w-full rounded-none border-border/70 bg-background/50"
                       >
-                        <SelectTrigger
-                          id="workflow-editor-context-fact-value-type"
-                          className="w-full rounded-none border-border/70 bg-background/50"
+                        <SelectValue placeholder="Select fact kind" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-none">
+                        {CONTEXT_FACT_KIND_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {mode === "edit" ? (
+                      <p className="text-xs text-muted-foreground">
+                        Fact kind is locked after creation in slice-1. Delete and recreate to change
+                        it.
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label htmlFor="workflow-editor-context-fact-cardinality">Cardinality</Label>
+                    <Select
+                      value={selectedCardinalityValue}
+                      onValueChange={(value) =>
+                        setDraft((previous) => ({
+                          ...previous,
+                          cardinality: value as WorkflowContextFactDraft["cardinality"],
+                        }))
+                      }
+                    >
+                      <SelectTrigger
+                        id="workflow-editor-context-fact-cardinality"
+                        className="w-full rounded-none border-border/70 bg-background/50"
+                      >
+                        <SelectValue placeholder="Select cardinality" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-none">
+                        {availableCardinalityOptions.map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              ) : null}
+
+              {activeTab === "value-semantics" ? (
+                <div className="chiron-frame-flat chiron-tone-context grid gap-4 p-4">
+                  <div className="grid gap-1">
+                    <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
+                      {
+                        CONTEXT_FACT_KIND_OPTIONS.find((option) => option.value === draft.kind)
+                          ?.label
+                      }
+                    </p>
+                    <p className="text-xs text-muted-foreground">{summarizeContextFact(draft)}</p>
+                  </div>
+
+                  {draft.kind === "plain_value_fact" ? (
+                    <div className="grid gap-4">
+                      <div className="grid gap-2 lg:max-w-sm">
+                        <Label htmlFor="workflow-editor-context-fact-value-type">Value Type</Label>
+                        <Select
+                          value={draft.valueType ?? "string"}
+                          onValueChange={(value) => {
+                            const nextValueType = (value ?? "string") as
+                              | "string"
+                              | "number"
+                              | "boolean"
+                              | "json";
+
+                            setDraft((previous) => ({
+                              ...previous,
+                              valueType: nextValueType,
+                            }));
+
+                            if (nextValueType === "json") {
+                              setJsonSubSchemaDrafts((current) =>
+                                current.length > 0 ? current : [createEmptyJsonSubSchemaDraft([])],
+                              );
+                            }
+                          }}
                         >
-                          <SelectValue placeholder="Select value type" />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-none">
-                          {VALUE_TYPE_OPTIONS.map((valueType) => (
-                            <SelectItem key={valueType} value={valueType}>
-                              {valueType}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                          <SelectTrigger
+                            id="workflow-editor-context-fact-value-type"
+                            className="w-full rounded-none border-border/70 bg-background/50"
+                          >
+                            <SelectValue placeholder="Select value type" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-none">
+                            {VALUE_TYPE_OPTIONS.map((valueType) => (
+                              <SelectItem key={valueType} value={valueType}>
+                                {valueType}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-                    {draft.valueType === "string" ? (
-                      <Card frame="cut-thick" tone="context" className="shadow-none">
-                        <CardHeader className="border-b border-border/70">
-                          <CardTitle className="font-geist-pixel-square text-sm uppercase tracking-[0.12em]">
-                            String Validation
-                          </CardTitle>
-                          <CardDescription>
-                            Configure default input semantics and operator-side validation rules.
-                          </CardDescription>
-                        </CardHeader>
-                        <CardContent className="grid gap-4 py-4 lg:grid-cols-2">
-                          <div className="grid gap-2 lg:col-span-2">
-                            <Label htmlFor="workflow-editor-context-fact-string-default-value">
-                              Default Value
-                            </Label>
-                            <Input
-                              id="workflow-editor-context-fact-string-default-value"
-                              className="rounded-none border-border/70 bg-background/50"
-                              value={plainStringDefaultValue}
-                              onChange={(event) => setPlainStringDefaultValue(event.target.value)}
-                              placeholder="Enter a default string value"
-                            />
-                          </div>
-
-                          <div className="grid gap-2">
-                            <Label htmlFor="workflow-editor-context-fact-string-validation-type">
-                              Validation Type
-                            </Label>
-                            <Select
-                              value={plainStringValidationType}
-                              onValueChange={(value) =>
-                                setPlainStringValidationType(value as PlainStringValidationType)
-                              }
-                            >
-                              <SelectTrigger
-                                id="workflow-editor-context-fact-string-validation-type"
-                                className="w-full rounded-none border-border/70 bg-background/50"
-                              >
-                                <SelectValue placeholder="Select validation type" />
-                              </SelectTrigger>
-                              <SelectContent className="rounded-none">
-                                <SelectItem value="none">none</SelectItem>
-                                <SelectItem value="path">path</SelectItem>
-                                <SelectItem value="regex">regex</SelectItem>
-                                <SelectItem value="allowed-values">allowed-values</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          {plainStringValidationType === "regex" ? (
-                            <div className="grid gap-2">
-                              <Label htmlFor="workflow-editor-context-fact-string-regex-pattern">
-                                Regex Pattern
+                      {draft.valueType === "string" ? (
+                        <Card frame="cut-thick" tone="context" className="shadow-none">
+                          <CardHeader className="border-b border-border/70">
+                            <CardTitle className="font-geist-pixel-square text-sm uppercase tracking-[0.12em]">
+                              String Validation
+                            </CardTitle>
+                            <CardDescription>
+                              Configure default input semantics and operator-side validation rules.
+                            </CardDescription>
+                          </CardHeader>
+                          <CardContent className="grid gap-4 py-4 lg:grid-cols-2">
+                            <div className="grid gap-2 lg:col-span-2">
+                              <Label htmlFor="workflow-editor-context-fact-string-default-value">
+                                Default Value
                               </Label>
                               <Input
-                                id="workflow-editor-context-fact-string-regex-pattern"
+                                id="workflow-editor-context-fact-string-default-value"
                                 className="rounded-none border-border/70 bg-background/50"
-                                value={plainStringRegexPattern}
-                                onChange={(event) => setPlainStringRegexPattern(event.target.value)}
-                                placeholder="^src/.+\\.tsx$"
+                                value={plainStringDefaultValue}
+                                onChange={(event) => setPlainStringDefaultValue(event.target.value)}
+                                placeholder="Enter a default string value"
                               />
                             </div>
-                          ) : null}
 
-                          {plainStringValidationType === "allowed-values" ? (
-                            <div className="grid gap-3 lg:col-span-2">
-                              <Label htmlFor="workflow-editor-context-fact-string-allowed-value-input">
-                                Allowed Values
+                            <div className="grid gap-2">
+                              <Label htmlFor="workflow-editor-context-fact-string-validation-type">
+                                Validation Type
                               </Label>
-                              <div className="flex flex-col gap-2 sm:flex-row">
-                                <Input
-                                  id="workflow-editor-context-fact-string-allowed-value-input"
-                                  className="rounded-none border-border/70 bg-background/50"
-                                  value={pendingAllowedValueTag}
-                                  onChange={(event) =>
-                                    setPendingAllowedValueTag(event.target.value)
-                                  }
-                                  onKeyDown={(event) => {
-                                    if (event.key === "Enter") {
-                                      event.preventDefault();
-                                      addAllowedValueTag();
-                                    }
-                                  }}
-                                  placeholder="Enter an allowed value"
-                                />
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  className="rounded-none"
-                                  onClick={addAllowedValueTag}
+                              <Select
+                                value={plainStringValidationType}
+                                onValueChange={(value) =>
+                                  setPlainStringValidationType(value as PlainStringValidationType)
+                                }
+                              >
+                                <SelectTrigger
+                                  id="workflow-editor-context-fact-string-validation-type"
+                                  className="w-full rounded-none border-border/70 bg-background/50"
                                 >
-                                  Add allowed value
-                                </Button>
+                                  <SelectValue placeholder="Select validation type" />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-none">
+                                  <SelectItem value="none">none</SelectItem>
+                                  <SelectItem value="path">path</SelectItem>
+                                  <SelectItem value="regex">regex</SelectItem>
+                                  <SelectItem value="allowed-values">allowed-values</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            {plainStringValidationType === "regex" ? (
+                              <div className="grid gap-2">
+                                <Label htmlFor="workflow-editor-context-fact-string-regex-pattern">
+                                  Regex Pattern
+                                </Label>
+                                <Input
+                                  id="workflow-editor-context-fact-string-regex-pattern"
+                                  className="rounded-none border-border/70 bg-background/50"
+                                  value={plainStringRegexPattern}
+                                  onChange={(event) =>
+                                    setPlainStringRegexPattern(event.target.value)
+                                  }
+                                  placeholder="^src/.+\\.tsx$"
+                                />
                               </div>
-                              {allowedValueTags.length > 0 ? (
-                                <div className="flex flex-wrap gap-2">
-                                  {allowedValueTags.map((value) => (
-                                    <span
-                                      key={value}
-                                      className="chiron-frame-flat inline-flex items-center gap-1 px-2 py-1 text-xs"
+                            ) : null}
+
+                            {plainStringValidationType === "allowed-values" ? (
+                              <div className="grid gap-3 lg:col-span-2">
+                                <Label htmlFor="workflow-editor-context-fact-string-allowed-value-input">
+                                  Allowed Values
+                                </Label>
+                                <div className="flex flex-col gap-2 sm:flex-row">
+                                  <Input
+                                    id="workflow-editor-context-fact-string-allowed-value-input"
+                                    className="rounded-none border-border/70 bg-background/50"
+                                    value={pendingAllowedValueTag}
+                                    onChange={(event) =>
+                                      setPendingAllowedValueTag(event.target.value)
+                                    }
+                                    onKeyDown={(event) => {
+                                      if (event.key === "Enter") {
+                                        event.preventDefault();
+                                        addAllowedValueTag();
+                                      }
+                                    }}
+                                    placeholder="Enter an allowed value"
+                                  />
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="rounded-none"
+                                    onClick={addAllowedValueTag}
+                                  >
+                                    Add allowed value
+                                  </Button>
+                                </div>
+                                {allowedValueTags.length > 0 ? (
+                                  <div className="flex flex-wrap gap-2">
+                                    {allowedValueTags.map((value) => (
+                                      <span
+                                        key={value}
+                                        className="chiron-frame-flat inline-flex items-center gap-1 px-2 py-1 text-xs"
+                                      >
+                                        {value}
+                                        <button
+                                          type="button"
+                                          aria-label={`Remove ${value}`}
+                                          className="text-muted-foreground transition-colors hover:text-foreground"
+                                          onClick={() =>
+                                            setAllowedValueTags((current) =>
+                                              current.filter((entry) => entry !== value),
+                                            )
+                                          }
+                                        >
+                                          <XIcon className="size-3" />
+                                        </button>
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : null}
+                              </div>
+                            ) : null}
+
+                            {plainStringValidationType === "path" ? (
+                              <div className="chiron-frame-flat grid gap-4 p-4 lg:col-span-2">
+                                <div className="grid gap-2 lg:max-w-sm">
+                                  <Label htmlFor="workflow-editor-context-fact-string-path-kind">
+                                    Path Kind
+                                  </Label>
+                                  <Select
+                                    value={plainStringPathKind}
+                                    onValueChange={(value) =>
+                                      setPlainStringPathKind(value as "file" | "directory")
+                                    }
+                                  >
+                                    <SelectTrigger
+                                      id="workflow-editor-context-fact-string-path-kind"
+                                      className="w-full rounded-none border-border/70 bg-background/50"
                                     >
-                                      {value}
-                                      <button
-                                        type="button"
-                                        aria-label={`Remove ${value}`}
-                                        className="text-muted-foreground transition-colors hover:text-foreground"
-                                        onClick={() =>
-                                          setAllowedValueTags((current) =>
-                                            current.filter((entry) => entry !== value),
+                                      <SelectValue placeholder="Select path kind" />
+                                    </SelectTrigger>
+                                    <SelectContent className="rounded-none">
+                                      <SelectItem value="file">file</SelectItem>
+                                      <SelectItem value="directory">directory</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                <div className="flex flex-wrap gap-x-8 gap-y-4">
+                                  <div className="flex items-center gap-2">
+                                    <Checkbox
+                                      id="workflow-editor-context-fact-string-trim-whitespace"
+                                      checked={plainStringTrimWhitespace}
+                                      onCheckedChange={(checked) =>
+                                        setPlainStringTrimWhitespace(checked === true)
+                                      }
+                                    />
+                                    <Label
+                                      htmlFor="workflow-editor-context-fact-string-trim-whitespace"
+                                      className="text-[0.68rem] uppercase tracking-[0.16em] text-muted-foreground"
+                                    >
+                                      Trim Whitespace
+                                    </Label>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Checkbox
+                                      id="workflow-editor-context-fact-string-disallow-absolute"
+                                      checked={plainStringDisallowAbsolute}
+                                      onCheckedChange={(checked) =>
+                                        setPlainStringDisallowAbsolute(checked === true)
+                                      }
+                                    />
+                                    <Label
+                                      htmlFor="workflow-editor-context-fact-string-disallow-absolute"
+                                      className="text-[0.68rem] uppercase tracking-[0.16em] text-muted-foreground"
+                                    >
+                                      Disallow Absolute
+                                    </Label>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Checkbox
+                                      id="workflow-editor-context-fact-string-prevent-traversal"
+                                      checked={plainStringPreventTraversal}
+                                      onCheckedChange={(checked) =>
+                                        setPlainStringPreventTraversal(checked === true)
+                                      }
+                                    />
+                                    <Label
+                                      htmlFor="workflow-editor-context-fact-string-prevent-traversal"
+                                      className="text-[0.68rem] uppercase tracking-[0.16em] text-muted-foreground"
+                                    >
+                                      Prevent Traversal
+                                    </Label>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : null}
+                          </CardContent>
+                        </Card>
+                      ) : null}
+
+                      {draft.valueType === "json" ? (
+                        <div className="grid gap-4">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="grid gap-1">
+                              <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
+                                JSON Sub-schema
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Define nested keys with the same dense card language used elsewhere
+                                in the editor.
+                              </p>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="rounded-none"
+                              onClick={() =>
+                                setJsonSubSchemaDrafts((current) => [
+                                  ...current,
+                                  createEmptyJsonSubSchemaDraft(current),
+                                ])
+                              }
+                            >
+                              <PlusIcon className="size-3.5" />
+                              Add JSON Key
+                            </Button>
+                          </div>
+
+                          {jsonSubSchemaDrafts.length === 0 ? (
+                            <div className="chiron-frame-flat grid gap-2 p-4">
+                              <p className="text-xs text-muted-foreground">
+                                No JSON keys authored yet. Add a key to shape the nested contract.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="grid gap-3">
+                              {jsonSubSchemaDrafts.map((entry, index) => (
+                                <Card
+                                  key={entry.localId}
+                                  frame="cut-thick"
+                                  tone="context"
+                                  className="shadow-none"
+                                >
+                                  <CardHeader className="border-b border-border/70">
+                                    <CardTitle className="font-geist-pixel-square text-sm uppercase tracking-[0.12em]">
+                                      {entry.displayName || entry.key || `JSON Key ${index + 1}`}
+                                    </CardTitle>
+                                    <CardDescription>
+                                      Key {index + 1} · nested JSON field contract
+                                    </CardDescription>
+                                  </CardHeader>
+                                  <CardContent className="grid gap-4 py-4 lg:grid-cols-2">
+                                    <div className="grid gap-2">
+                                      <Label
+                                        htmlFor={`workflow-editor-json-display-name-${entry.localId}`}
+                                      >
+                                        Key Display Name
+                                      </Label>
+                                      <Input
+                                        id={`workflow-editor-json-display-name-${entry.localId}`}
+                                        className="rounded-none border-border/70 bg-background/50"
+                                        value={entry.displayName}
+                                        onChange={(event) =>
+                                          setJsonSubSchemaDrafts((current) =>
+                                            current.map((currentEntry) =>
+                                              currentEntry.localId === entry.localId
+                                                ? {
+                                                    ...currentEntry,
+                                                    displayName: event.target.value,
+                                                  }
+                                                : currentEntry,
+                                            ),
+                                          )
+                                        }
+                                        placeholder="Project Root"
+                                      />
+                                    </div>
+                                    <div className="grid gap-2">
+                                      <Label
+                                        htmlFor={`workflow-editor-json-key-name-${entry.localId}`}
+                                      >
+                                        Key Name
+                                      </Label>
+                                      <Input
+                                        id={`workflow-editor-json-key-name-${entry.localId}`}
+                                        className="rounded-none border-border/70 bg-background/50"
+                                        value={entry.key}
+                                        onChange={(event) =>
+                                          setJsonSubSchemaDrafts((current) =>
+                                            current.map((currentEntry) =>
+                                              currentEntry.localId === entry.localId
+                                                ? { ...currentEntry, key: event.target.value }
+                                                : currentEntry,
+                                            ),
+                                          )
+                                        }
+                                        placeholder="project_root"
+                                      />
+                                    </div>
+                                    <div className="grid gap-2">
+                                      <Label
+                                        htmlFor={`workflow-editor-json-default-value-${entry.localId}`}
+                                      >
+                                        Default Value
+                                      </Label>
+                                      <Input
+                                        id={`workflow-editor-json-default-value-${entry.localId}`}
+                                        className="rounded-none border-border/70 bg-background/50"
+                                        value={entry.defaultValue}
+                                        onChange={(event) =>
+                                          setJsonSubSchemaDrafts((current) =>
+                                            current.map((currentEntry) =>
+                                              currentEntry.localId === entry.localId
+                                                ? {
+                                                    ...currentEntry,
+                                                    defaultValue: event.target.value,
+                                                  }
+                                                : currentEntry,
+                                            ),
+                                          )
+                                        }
+                                        placeholder="./docs"
+                                      />
+                                    </div>
+                                    <div className="grid gap-2">
+                                      <Label
+                                        htmlFor={`workflow-editor-json-value-type-${entry.localId}`}
+                                      >
+                                        Value Type
+                                      </Label>
+                                      <Select
+                                        value={entry.valueType}
+                                        onValueChange={(value) =>
+                                          setJsonSubSchemaDrafts((current) =>
+                                            current.map((currentEntry) =>
+                                              currentEntry.localId === entry.localId
+                                                ? {
+                                                    ...currentEntry,
+                                                    valueType: (value ?? "string") as
+                                                      | "string"
+                                                      | "number"
+                                                      | "boolean"
+                                                      | "json",
+                                                  }
+                                                : currentEntry,
+                                            ),
                                           )
                                         }
                                       >
-                                        <XIcon className="size-3" />
-                                      </button>
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : null}
+                                        <SelectTrigger
+                                          id={`workflow-editor-json-value-type-${entry.localId}`}
+                                          className="w-full rounded-none border-border/70 bg-background/50"
+                                        >
+                                          <SelectValue placeholder="Select value type" />
+                                        </SelectTrigger>
+                                        <SelectContent className="rounded-none">
+                                          {VALUE_TYPE_OPTIONS.map((valueType) => (
+                                            <SelectItem key={valueType} value={valueType}>
+                                              {valueType}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </CardContent>
+                                  <CardFooter className="justify-end border-border/70">
+                                    <Button
+                                      type="button"
+                                      size="xs"
+                                      variant="destructive"
+                                      className="rounded-none"
+                                      onClick={() =>
+                                        setJsonSubSchemaDrafts((current) =>
+                                          current.filter(
+                                            (currentEntry) =>
+                                              currentEntry.localId !== entry.localId,
+                                          ),
+                                        )
+                                      }
+                                    >
+                                      Remove Key
+                                    </Button>
+                                  </CardFooter>
+                                </Card>
+                              ))}
                             </div>
-                          ) : null}
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
 
-                          {plainStringValidationType === "path" ? (
-                            <div className="chiron-frame-flat grid gap-4 p-4 lg:col-span-2">
-                              <div className="grid gap-2 lg:max-w-sm">
-                                <Label htmlFor="workflow-editor-context-fact-string-path-kind">
-                                  Path Kind
-                                </Label>
-                                <Select
-                                  value={plainStringPathKind}
-                                  onValueChange={(value) =>
-                                    setPlainStringPathKind(value as "file" | "directory")
-                                  }
-                                >
-                                  <SelectTrigger
-                                    id="workflow-editor-context-fact-string-path-kind"
-                                    className="w-full rounded-none border-border/70 bg-background/50"
-                                  >
-                                    <SelectValue placeholder="Select path kind" />
-                                  </SelectTrigger>
-                                  <SelectContent className="rounded-none">
-                                    <SelectItem value="file">file</SelectItem>
-                                    <SelectItem value="directory">directory</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
+                  {draft.kind === "definition_backed_external_fact" ||
+                  draft.kind === "bound_external_fact" ? (
+                    <div className="grid gap-2 lg:max-w-2xl">
+                      <Label id="workflow-editor-context-fact-external-definition">
+                        External Fact Definition Id
+                      </Label>
+                      <SearchableCombobox
+                        labelId="workflow-editor-context-fact-external-definition"
+                        value={draft.externalFactDefinitionId ?? ""}
+                        onChange={(value) =>
+                          setDraft((previous) => ({ ...previous, externalFactDefinitionId: value }))
+                        }
+                        options={externalFactOptions}
+                        placeholder="Select an external fact"
+                        searchPlaceholder="Search external facts..."
+                        emptyLabel="No external facts found."
+                      />
+                    </div>
+                  ) : null}
 
-                              <div className="flex flex-wrap gap-x-8 gap-y-4">
-                                <div className="flex items-center gap-2">
-                                  <Checkbox
-                                    id="workflow-editor-context-fact-string-trim-whitespace"
-                                    checked={plainStringTrimWhitespace}
-                                    onCheckedChange={(checked) =>
-                                      setPlainStringTrimWhitespace(checked === true)
-                                    }
-                                  />
-                                  <Label
-                                    htmlFor="workflow-editor-context-fact-string-trim-whitespace"
-                                    className="text-[0.68rem] uppercase tracking-[0.16em] text-muted-foreground"
-                                  >
-                                    Trim Whitespace
-                                  </Label>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Checkbox
-                                    id="workflow-editor-context-fact-string-disallow-absolute"
-                                    checked={plainStringDisallowAbsolute}
-                                    onCheckedChange={(checked) =>
-                                      setPlainStringDisallowAbsolute(checked === true)
-                                    }
-                                  />
-                                  <Label
-                                    htmlFor="workflow-editor-context-fact-string-disallow-absolute"
-                                    className="text-[0.68rem] uppercase tracking-[0.16em] text-muted-foreground"
-                                  >
-                                    Disallow Absolute
-                                  </Label>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Checkbox
-                                    id="workflow-editor-context-fact-string-prevent-traversal"
-                                    checked={plainStringPreventTraversal}
-                                    onCheckedChange={(checked) =>
-                                      setPlainStringPreventTraversal(checked === true)
-                                    }
-                                  />
-                                  <Label
-                                    htmlFor="workflow-editor-context-fact-string-prevent-traversal"
-                                    className="text-[0.68rem] uppercase tracking-[0.16em] text-muted-foreground"
-                                  >
-                                    Prevent Traversal
-                                  </Label>
-                                </div>
-                              </div>
-                            </div>
-                          ) : null}
-                        </CardContent>
-                      </Card>
-                    ) : null}
+                  {draft.kind === "workflow_reference_fact" ? (
+                    <div className="grid gap-3">
+                      <Label id="workflow-editor-context-fact-workflow-ids">
+                        Allowed Workflow Definition Ids
+                      </Label>
+                      <SearchableMultiSelect
+                        labelId="workflow-editor-context-fact-workflow-ids"
+                        values={draft.allowedWorkflowDefinitionIds}
+                        onChange={(values) =>
+                          setDraft((previous) => ({
+                            ...previous,
+                            allowedWorkflowDefinitionIds: values,
+                          }))
+                        }
+                        options={availableWorkflows}
+                        placeholder="Select allowed workflows"
+                        searchPlaceholder="Search workflows..."
+                        emptyLabel="No workflows found."
+                        singularLabel="workflow"
+                        pluralLabel="workflows"
+                      />
 
-                    {draft.valueType === "json" ? (
-                      <div className="grid gap-4">
+                      {draft.allowedWorkflowDefinitionIds.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">
+                          No workflows selected yet. Add one or more reusable workflow references.
+                        </p>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {draft.allowedWorkflowDefinitionIds.map((workflowId) => (
+                            <button
+                              key={workflowId}
+                              type="button"
+                              className="chiron-frame-flat flex items-center gap-2 px-3 py-2 text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground"
+                              onClick={() =>
+                                setDraft((previous) => ({
+                                  ...previous,
+                                  allowedWorkflowDefinitionIds:
+                                    previous.allowedWorkflowDefinitionIds.filter(
+                                      (value) => value !== workflowId,
+                                    ),
+                                }))
+                              }
+                            >
+                              <span>{workflowId}</span>
+                              <span className="text-foreground">×</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+
+                  {draft.kind === "artifact_reference_fact" ? (
+                    <div className="grid gap-2 lg:max-w-2xl">
+                      <Label id="workflow-editor-context-fact-artifact-slot">
+                        Artifact Slot Definition Id
+                      </Label>
+                      <SearchableCombobox
+                        labelId="workflow-editor-context-fact-artifact-slot"
+                        value={draft.artifactSlotDefinitionId ?? ""}
+                        onChange={(value) =>
+                          setDraft((previous) => ({ ...previous, artifactSlotDefinitionId: value }))
+                        }
+                        options={artifactSlots}
+                        placeholder="Select an artifact slot"
+                        searchPlaceholder="Search artifact slots..."
+                        emptyLabel="No artifact slots found."
+                      />
+                    </div>
+                  ) : null}
+
+                  {draft.kind === "work_unit_draft_spec_fact" ? (
+                    <div className="grid gap-4">
+                      <div className="grid gap-2 lg:max-w-2xl">
+                        <Label id="workflow-editor-context-fact-work-unit-type">
+                          Work Unit Type Key
+                        </Label>
+                        <SearchableCombobox
+                          labelId="workflow-editor-context-fact-work-unit-type"
+                          value={draft.workUnitTypeKey ?? ""}
+                          onChange={(value) => {
+                            setPendingIncludedFactKey("");
+                            setDraftSpecCards([]);
+                            setDraft((previous) => ({
+                              ...previous,
+                              workUnitTypeKey: value,
+                              includedFactKeys: [],
+                            }));
+                          }}
+                          options={workUnitTypes}
+                          placeholder="Select a work unit type"
+                          searchPlaceholder="Search work unit types..."
+                          emptyLabel="No work unit types found."
+                        />
+                      </div>
+
+                      <div className="chiron-frame-flat grid gap-3 p-4">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="grid gap-1">
                             <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
-                              JSON Sub-schema
+                              Included Fact Keys
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              Define nested keys with the same dense card language used elsewhere in
-                              the editor.
+                              Compose the reusable draft-spec envelope as removable fact cards.
                             </p>
                           </div>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="rounded-none"
-                            onClick={() =>
-                              setJsonSubSchemaDrafts((current) => [
-                                ...current,
-                                createEmptyJsonSubSchemaDraft(current),
-                              ])
-                            }
-                          >
-                            <PlusIcon className="size-3.5" />
-                            Add JSON Key
-                          </Button>
                         </div>
 
-                        {jsonSubSchemaDrafts.length === 0 ? (
-                          <div className="chiron-frame-flat grid gap-2 p-4">
-                            <p className="text-xs text-muted-foreground">
-                              No JSON keys authored yet. Add a key to shape the nested contract.
-                            </p>
+                        {availableDraftSpecFactOptions.length > 0 ? (
+                          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+                            <div className="grid gap-2">
+                              <Label id="workflow-editor-context-fact-draft-spec-fields">
+                                Fact Key
+                              </Label>
+                              <SearchableCombobox
+                                labelId="workflow-editor-context-fact-draft-spec-fields"
+                                value={pendingIncludedFactKey}
+                                onChange={setPendingIncludedFactKey}
+                                options={availableDraftSpecFactOptions}
+                                placeholder={
+                                  selectedWorkUnitTypeKey.length > 0
+                                    ? "Select a fact key"
+                                    : "Select a work unit type first"
+                                }
+                                searchPlaceholder="Search fact keys..."
+                                emptyLabel={
+                                  selectedWorkUnitTypeKey.length === 0
+                                    ? "Select a work unit type first."
+                                    : selectedWorkUnitFactsQuery.isLoading
+                                      ? "Loading fact keys..."
+                                      : "No fact keys found."
+                                }
+                                disabled={selectedWorkUnitTypeKey.length === 0}
+                              />
+                            </div>
+                            <div className="flex items-end">
+                              <Button
+                                type="button"
+                                className="rounded-none"
+                                disabled={
+                                  selectedWorkUnitTypeKey.length === 0 ||
+                                  pendingIncludedFactKey.length === 0
+                                }
+                                onClick={() => {
+                                  if (pendingIncludedFactKey.length === 0) {
+                                    return;
+                                  }
+
+                                  const nextCards = [
+                                    ...draftSpecCards,
+                                    createWorkUnitDraftFactCard(
+                                      pendingIncludedFactKey,
+                                      selectedWorkUnitFacts,
+                                    ),
+                                  ];
+                                  setDraftSpecCards(nextCards);
+                                  setDraft((previous) => ({
+                                    ...previous,
+                                    includedFactKeys: nextCards.map((entry) => entry.factKey),
+                                  }));
+                                  setPendingIncludedFactKey("");
+                                }}
+                              >
+                                <PlusIcon className="size-3.5" />
+                                Add Fact Key
+                              </Button>
+                            </div>
                           </div>
                         ) : (
+                          <p className="text-xs text-muted-foreground">
+                            {selectedWorkUnitTypeKey.length === 0
+                              ? "Select a work unit type to load draft-spec fact keys."
+                              : selectedWorkUnitFactsQuery.isLoading
+                                ? "Loading facts for the selected work unit..."
+                                : "Every available work unit fact is already included in this draft-spec composer."}
+                          </p>
+                        )}
+
+                        {draftSpecCards.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">
+                            No included fact keys yet. Add cards from the searchable picker above.
+                          </p>
+                        ) : (
                           <div className="grid gap-3">
-                            {jsonSubSchemaDrafts.map((entry, index) => (
+                            {draftSpecCards.map((entry) => (
                               <Card
                                 key={entry.localId}
                                 frame="cut-thick"
@@ -1850,121 +2432,30 @@ export function WorkflowContextFactDialog({
                               >
                                 <CardHeader className="border-b border-border/70">
                                   <CardTitle className="font-geist-pixel-square text-sm uppercase tracking-[0.12em]">
-                                    {entry.displayName || entry.key || `JSON Key ${index + 1}`}
+                                    {entry.displayName}
                                   </CardTitle>
-                                  <CardDescription>
-                                    Key {index + 1} · nested JSON field contract
-                                  </CardDescription>
+                                  <CardDescription>{entry.factKey}</CardDescription>
                                 </CardHeader>
-                                <CardContent className="grid gap-4 py-4 lg:grid-cols-2">
-                                  <div className="grid gap-2">
-                                    <Label
-                                      htmlFor={`workflow-editor-json-display-name-${entry.localId}`}
-                                    >
-                                      Key Display Name
-                                    </Label>
-                                    <Input
-                                      id={`workflow-editor-json-display-name-${entry.localId}`}
-                                      className="rounded-none border-border/70 bg-background/50"
-                                      value={entry.displayName}
-                                      onChange={(event) =>
-                                        setJsonSubSchemaDrafts((current) =>
-                                          current.map((currentEntry) =>
-                                            currentEntry.localId === entry.localId
-                                              ? { ...currentEntry, displayName: event.target.value }
-                                              : currentEntry,
-                                          ),
-                                        )
-                                      }
-                                      placeholder="Project Root"
-                                    />
+                                <CardContent className="grid gap-3 py-4 lg:grid-cols-3">
+                                  <div className="grid gap-1">
+                                    <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
+                                      Fact Key
+                                    </p>
+                                    <p className="text-xs">{entry.factKey}</p>
                                   </div>
-                                  <div className="grid gap-2">
-                                    <Label
-                                      htmlFor={`workflow-editor-json-key-name-${entry.localId}`}
-                                    >
-                                      Key Name
-                                    </Label>
-                                    <Input
-                                      id={`workflow-editor-json-key-name-${entry.localId}`}
-                                      className="rounded-none border-border/70 bg-background/50"
-                                      value={entry.key}
-                                      onChange={(event) =>
-                                        setJsonSubSchemaDrafts((current) =>
-                                          current.map((currentEntry) =>
-                                            currentEntry.localId === entry.localId
-                                              ? { ...currentEntry, key: event.target.value }
-                                              : currentEntry,
-                                          ),
-                                        )
-                                      }
-                                      placeholder="project_root"
-                                    />
+                                  <div className="grid gap-1">
+                                    <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
+                                      Display Name
+                                    </p>
+                                    <p className="text-xs">{entry.displayName}</p>
                                   </div>
-                                  <div className="grid gap-2">
-                                    <Label
-                                      htmlFor={`workflow-editor-json-default-value-${entry.localId}`}
-                                    >
-                                      Default Value
-                                    </Label>
-                                    <Input
-                                      id={`workflow-editor-json-default-value-${entry.localId}`}
-                                      className="rounded-none border-border/70 bg-background/50"
-                                      value={entry.defaultValue}
-                                      onChange={(event) =>
-                                        setJsonSubSchemaDrafts((current) =>
-                                          current.map((currentEntry) =>
-                                            currentEntry.localId === entry.localId
-                                              ? {
-                                                  ...currentEntry,
-                                                  defaultValue: event.target.value,
-                                                }
-                                              : currentEntry,
-                                          ),
-                                        )
-                                      }
-                                      placeholder="./docs"
-                                    />
-                                  </div>
-                                  <div className="grid gap-2">
-                                    <Label
-                                      htmlFor={`workflow-editor-json-value-type-${entry.localId}`}
-                                    >
-                                      Value Type
-                                    </Label>
-                                    <Select
-                                      value={entry.valueType}
-                                      onValueChange={(value) =>
-                                        setJsonSubSchemaDrafts((current) =>
-                                          current.map((currentEntry) =>
-                                            currentEntry.localId === entry.localId
-                                              ? {
-                                                  ...currentEntry,
-                                                  valueType: (value ?? "string") as
-                                                    | "string"
-                                                    | "number"
-                                                    | "boolean"
-                                                    | "json",
-                                                }
-                                              : currentEntry,
-                                          ),
-                                        )
-                                      }
-                                    >
-                                      <SelectTrigger
-                                        id={`workflow-editor-json-value-type-${entry.localId}`}
-                                        className="w-full rounded-none border-border/70 bg-background/50"
-                                      >
-                                        <SelectValue placeholder="Select value type" />
-                                      </SelectTrigger>
-                                      <SelectContent className="rounded-none">
-                                        {VALUE_TYPE_OPTIONS.map((valueType) => (
-                                          <SelectItem key={valueType} value={valueType}>
-                                            {valueType}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
+                                  <div className="grid gap-1">
+                                    <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
+                                      Description
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {entry.description ?? "Work unit fact"}
+                                    </p>
                                   </div>
                                 </CardContent>
                                 <CardFooter className="justify-end border-border/70">
@@ -1973,15 +2464,18 @@ export function WorkflowContextFactDialog({
                                     size="xs"
                                     variant="destructive"
                                     className="rounded-none"
-                                    onClick={() =>
-                                      setJsonSubSchemaDrafts((current) =>
-                                        current.filter(
-                                          (currentEntry) => currentEntry.localId !== entry.localId,
-                                        ),
-                                      )
-                                    }
+                                    onClick={() => {
+                                      const nextCards = draftSpecCards.filter(
+                                        (currentEntry) => currentEntry.localId !== entry.localId,
+                                      );
+                                      setDraftSpecCards(nextCards);
+                                      setDraft((previous) => ({
+                                        ...previous,
+                                        includedFactKeys: nextCards.map((card) => card.factKey),
+                                      }));
+                                    }}
                                   >
-                                    Remove Key
+                                    Remove
                                   </Button>
                                 </CardFooter>
                               </Card>
@@ -1989,303 +2483,68 @@ export function WorkflowContextFactDialog({
                           </div>
                         )}
                       </div>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                {draft.kind === "definition_backed_external_fact" ||
-                draft.kind === "bound_external_fact" ? (
-                  <div className="grid gap-2 lg:max-w-2xl">
-                    <Label id="workflow-editor-context-fact-external-definition">
-                      External Fact Definition Id
-                    </Label>
-                    <SearchableCombobox
-                      labelId="workflow-editor-context-fact-external-definition"
-                      value={draft.externalFactDefinitionId ?? ""}
-                      onChange={(value) =>
-                        setDraft((previous) => ({ ...previous, externalFactDefinitionId: value }))
-                      }
-                      options={externalFactOptions}
-                      placeholder="Select an external fact"
-                      searchPlaceholder="Search external facts..."
-                      emptyLabel="No external facts found."
-                    />
-                  </div>
-                ) : null}
-
-                {draft.kind === "workflow_reference_fact" ? (
-                  <div className="grid gap-3">
-                    <Label id="workflow-editor-context-fact-workflow-ids">
-                      Allowed Workflow Definition Ids
-                    </Label>
-                    <SearchableMultiSelect
-                      labelId="workflow-editor-context-fact-workflow-ids"
-                      values={draft.allowedWorkflowDefinitionIds}
-                      onChange={(values) =>
-                        setDraft((previous) => ({
-                          ...previous,
-                          allowedWorkflowDefinitionIds: values,
-                        }))
-                      }
-                      options={availableWorkflows}
-                      placeholder="Select allowed workflows"
-                      searchPlaceholder="Search workflows..."
-                      emptyLabel="No workflows found."
-                      singularLabel="workflow"
-                      pluralLabel="workflows"
-                    />
-
-                    {draft.allowedWorkflowDefinitionIds.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">
-                        No workflows selected yet. Add one or more reusable workflow references.
-                      </p>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        {draft.allowedWorkflowDefinitionIds.map((workflowId) => (
-                          <button
-                            key={workflowId}
-                            type="button"
-                            className="chiron-frame-flat flex items-center gap-2 px-3 py-2 text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground"
-                            onClick={() =>
-                              setDraft((previous) => ({
-                                ...previous,
-                                allowedWorkflowDefinitionIds:
-                                  previous.allowedWorkflowDefinitionIds.filter(
-                                    (value) => value !== workflowId,
-                                  ),
-                              }))
-                            }
-                          >
-                            <span>{workflowId}</span>
-                            <span className="text-foreground">×</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ) : null}
-
-                {draft.kind === "artifact_reference_fact" ? (
-                  <div className="grid gap-2 lg:max-w-2xl">
-                    <Label id="workflow-editor-context-fact-artifact-slot">
-                      Artifact Slot Definition Id
-                    </Label>
-                    <SearchableCombobox
-                      labelId="workflow-editor-context-fact-artifact-slot"
-                      value={draft.artifactSlotDefinitionId ?? ""}
-                      onChange={(value) =>
-                        setDraft((previous) => ({ ...previous, artifactSlotDefinitionId: value }))
-                      }
-                      options={artifactSlots}
-                      placeholder="Select an artifact slot"
-                      searchPlaceholder="Search artifact slots..."
-                      emptyLabel="No artifact slots found."
-                    />
-                  </div>
-                ) : null}
-
-                {draft.kind === "work_unit_draft_spec_fact" ? (
-                  <div className="grid gap-4">
-                    <div className="grid gap-2 lg:max-w-2xl">
-                      <Label id="workflow-editor-context-fact-work-unit-type">
-                        Work Unit Type Key
-                      </Label>
-                      <SearchableCombobox
-                        labelId="workflow-editor-context-fact-work-unit-type"
-                        value={draft.workUnitTypeKey ?? ""}
-                        onChange={(value) => {
-                          setPendingIncludedFactKey("");
-                          setDraftSpecCards([]);
-                          setDraft((previous) => ({
-                            ...previous,
-                            workUnitTypeKey: value,
-                            includedFactKeys: [],
-                          }));
-                        }}
-                        options={workUnitTypes}
-                        placeholder="Select a work unit type"
-                        searchPlaceholder="Search work unit types..."
-                        emptyLabel="No work unit types found."
-                      />
                     </div>
+                  ) : null}
+                </div>
+              ) : null}
 
-                    <div className="chiron-frame-flat grid gap-3 p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="grid gap-1">
-                          <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
-                            Included Fact Keys
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Compose the reusable draft-spec envelope as removable fact cards.
-                          </p>
-                        </div>
-                      </div>
+              {activeTab === "guidance" ? (
+                <GuidanceFields
+                  guidance={draft.guidance}
+                  onChange={(guidance) => setDraft((previous) => ({ ...previous, guidance }))}
+                />
+              ) : null}
+            </div>
 
-                      {availableDraftSpecFactOptions.length > 0 ? (
-                        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
-                          <div className="grid gap-2">
-                            <Label id="workflow-editor-context-fact-draft-spec-fields">
-                              Fact Key
-                            </Label>
-                            <SearchableCombobox
-                              labelId="workflow-editor-context-fact-draft-spec-fields"
-                              value={pendingIncludedFactKey}
-                              onChange={setPendingIncludedFactKey}
-                              options={availableDraftSpecFactOptions}
-                              placeholder={
-                                selectedWorkUnitTypeKey.length > 0
-                                  ? "Select a fact key"
-                                  : "Select a work unit type first"
-                              }
-                              searchPlaceholder="Search fact keys..."
-                              emptyLabel={
-                                selectedWorkUnitTypeKey.length === 0
-                                  ? "Select a work unit type first."
-                                  : selectedWorkUnitFactsQuery.isLoading
-                                    ? "Loading fact keys..."
-                                    : "No fact keys found."
-                              }
-                              disabled={selectedWorkUnitTypeKey.length === 0}
-                            />
-                          </div>
-                          <div className="flex items-end">
-                            <Button
-                              type="button"
-                              className="rounded-none"
-                              disabled={
-                                selectedWorkUnitTypeKey.length === 0 ||
-                                pendingIncludedFactKey.length === 0
-                              }
-                              onClick={() => {
-                                if (pendingIncludedFactKey.length === 0) {
-                                  return;
-                                }
+            <DialogFooter className="shrink-0 border-t border-border/70 pt-4 sm:justify-between">
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-none"
+                onClick={requestCloseDialog}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" className="rounded-none" disabled={!canSave}>
+                {mode === "create" ? "Create" : "Save"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-                                const nextCards = [
-                                  ...draftSpecCards,
-                                  createWorkUnitDraftFactCard(
-                                    pendingIncludedFactKey,
-                                    selectedWorkUnitFacts,
-                                  ),
-                                ];
-                                setDraftSpecCards(nextCards);
-                                setDraft((previous) => ({
-                                  ...previous,
-                                  includedFactKeys: nextCards.map((entry) => entry.factKey),
-                                }));
-                                setPendingIncludedFactKey("");
-                              }}
-                            >
-                              <PlusIcon className="size-3.5" />
-                              Add Fact Key
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">
-                          {selectedWorkUnitTypeKey.length === 0
-                            ? "Select a work unit type to load draft-spec fact keys."
-                            : selectedWorkUnitFactsQuery.isLoading
-                              ? "Loading facts for the selected work unit..."
-                              : "Every available work unit fact is already included in this draft-spec composer."}
-                        </p>
-                      )}
-
-                      {draftSpecCards.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">
-                          No included fact keys yet. Add cards from the searchable picker above.
-                        </p>
-                      ) : (
-                        <div className="grid gap-3">
-                          {draftSpecCards.map((entry) => (
-                            <Card
-                              key={entry.localId}
-                              frame="cut-thick"
-                              tone="context"
-                              className="shadow-none"
-                            >
-                              <CardHeader className="border-b border-border/70">
-                                <CardTitle className="font-geist-pixel-square text-sm uppercase tracking-[0.12em]">
-                                  {entry.displayName}
-                                </CardTitle>
-                                <CardDescription>{entry.factKey}</CardDescription>
-                              </CardHeader>
-                              <CardContent className="grid gap-3 py-4 lg:grid-cols-3">
-                                <div className="grid gap-1">
-                                  <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
-                                    Fact Key
-                                  </p>
-                                  <p className="text-xs">{entry.factKey}</p>
-                                </div>
-                                <div className="grid gap-1">
-                                  <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
-                                    Display Name
-                                  </p>
-                                  <p className="text-xs">{entry.displayName}</p>
-                                </div>
-                                <div className="grid gap-1">
-                                  <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
-                                    Description
-                                  </p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {entry.description ?? "Work unit fact"}
-                                  </p>
-                                </div>
-                              </CardContent>
-                              <CardFooter className="justify-end border-border/70">
-                                <Button
-                                  type="button"
-                                  size="xs"
-                                  variant="destructive"
-                                  className="rounded-none"
-                                  onClick={() => {
-                                    const nextCards = draftSpecCards.filter(
-                                      (currentEntry) => currentEntry.localId !== entry.localId,
-                                    );
-                                    setDraftSpecCards(nextCards);
-                                    setDraft((previous) => ({
-                                      ...previous,
-                                      includedFactKeys: nextCards.map((card) => card.factKey),
-                                    }));
-                                  }}
-                                >
-                                  Remove
-                                </Button>
-                              </CardFooter>
-                            </Card>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-
-            {activeTab === "guidance" ? (
-              <GuidanceFields
-                guidance={draft.guidance}
-                onChange={(guidance) => setDraft((previous) => ({ ...previous, guidance }))}
-              />
-            ) : null}
-          </div>
-
-          <DialogFooter className="shrink-0 border-t border-border/70 pt-4 sm:justify-between">
+      <Dialog open={isDiscardDialogOpen} onOpenChange={setIsDiscardDialogOpen}>
+        <DialogContent className="chiron-cut-frame-thick w-[min(28rem,calc(100vw-2rem))] p-8 sm:max-w-none">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold uppercase tracking-[0.08em]">
+              Discard unsaved changes?
+            </DialogTitle>
+            <DialogDescription>
+              You have unsaved fact edits. Discarding now will close the dialog and lose those
+              changes.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
             <Button
               type="button"
               variant="outline"
               className="rounded-none"
-              onClick={() => onOpenChange(false)}
+              onClick={() => setIsDiscardDialogOpen(false)}
             >
-              Cancel
+              Keep Editing
             </Button>
-            <Button type="submit" className="rounded-none" disabled={!canSave}>
-              {mode === "create" ? "Create" : "Save"}
+            <Button
+              type="button"
+              variant="destructive"
+              className="rounded-none"
+              onClick={closeDialog}
+            >
+              Discard Changes
             </Button>
           </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

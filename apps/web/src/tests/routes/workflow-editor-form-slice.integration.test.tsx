@@ -45,7 +45,8 @@ if (typeof globalThis.document === "undefined") {
   setGlobal("cancelAnimationFrame", (id: number) => clearTimeout(id));
 }
 
-const { fireEvent, render, screen, waitFor, within } = await import("@testing-library/react");
+const { cleanup, fireEvent, render, screen, waitFor, within } =
+  await import("@testing-library/react");
 
 const {
   useParamsMock,
@@ -363,6 +364,7 @@ function renderRoute(node: ReactNode) {
 
 describe("workflow editor form slice route", () => {
   beforeEach(() => {
+    cleanup();
     useParamsMock.mockReset();
     useRouteContextMock.mockReset();
     updateWorkflowMutationSpy.mockClear();
@@ -423,9 +425,9 @@ describe("workflow editor form slice route", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
     await waitFor(() => {
-      const createFormCall = createFormStepMutationSpy.mock.calls.at(0);
-      expect(createFormCall).toBeDefined();
-      expect(createFormCall?.[0]).toEqual(
+      const createFormPayload = (createFormStepMutationSpy.mock.calls as unknown[][])[0]?.[0];
+      expect(createFormPayload).toBeDefined();
+      expect(createFormPayload).toEqual(
         expect.objectContaining({
           versionId: "v1",
           workUnitTypeKey: "WU.SETUP",
@@ -482,9 +484,11 @@ describe("workflow editor form slice route", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
     await waitFor(() => {
-      const createContextFactCall = createContextFactMutationSpy.mock.calls.at(0);
-      expect(createContextFactCall).toBeDefined();
-      expect(createContextFactCall?.[0]).toEqual(
+      const createContextFactPayload = (
+        createContextFactMutationSpy.mock.calls as unknown[][]
+      )[0]?.[0];
+      expect(createContextFactPayload).toBeDefined();
+      expect(createContextFactPayload).toEqual(
         expect.objectContaining({
           versionId: "v1",
           workUnitTypeKey: "WU.SETUP",
@@ -514,9 +518,9 @@ describe("workflow editor form slice route", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save metadata" }));
 
     await waitFor(() => {
-      const updateWorkflowCall = updateWorkflowMutationSpy.mock.calls.at(0);
-      expect(updateWorkflowCall).toBeDefined();
-      expect(updateWorkflowCall?.[0]).toEqual(
+      const updateWorkflowPayload = (updateWorkflowMutationSpy.mock.calls as unknown[][])[0]?.[0];
+      expect(updateWorkflowPayload).toBeDefined();
+      expect(updateWorkflowPayload).toEqual(
         expect.objectContaining({
           versionId: "v1",
           workUnitTypeKey: "WU.SETUP",
@@ -528,6 +532,104 @@ describe("workflow editor form slice route", () => {
         }),
       );
     });
+  });
+
+  it("shows dirty indicators and discard confirmation for create-mode context facts", async () => {
+    const { WorkflowContextFactDialog } = await import("../../features/workflow-editor/dialogs");
+    const onOpenChange = vi.fn();
+
+    renderRoute(
+      <WorkflowContextFactDialog
+        open
+        mode="create"
+        methodologyFacts={[]}
+        currentWorkUnitFacts={[]}
+        artifactSlots={[]}
+        workUnitTypes={[]}
+        availableWorkflows={[]}
+        workUnitFactsQueryScope="WU.SETUP"
+        loadWorkUnitFacts={async () => []}
+        onOpenChange={onOpenChange}
+        onSave={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Fact Key"), {
+      target: { value: "architecture-summary" },
+    });
+
+    expect(screen.getByRole("button", { name: /Contract\s*\*/ })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(await screen.findByText("Discard unsaved changes?")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Keep Editing" }));
+
+    expect(screen.queryByText("Discard unsaved changes?")).toBeNull();
+    expect((screen.getByLabelText("Fact Key") as HTMLInputElement).value).toBe(
+      "architecture-summary",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Discard Changes" }));
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("shows dirty indicators and discard confirmation for edit-mode context facts", async () => {
+    const { WorkflowContextFactDialog } = await import("../../features/workflow-editor/dialogs");
+    const onOpenChange = vi.fn();
+    const fact = {
+      contextFactDefinitionId: "summary",
+      key: "summary",
+      label: "Summary",
+      descriptionMarkdown: "Reusable summary for downstream steps.",
+      kind: "plain_value_fact" as const,
+      cardinality: "one" as const,
+      guidance: {
+        humanMarkdown: "Provide the concise project summary.",
+        agentMarkdown: "Keep the summary concise and reusable.",
+      },
+      valueType: "string" as const,
+      externalFactDefinitionId: "",
+      allowedWorkflowDefinitionIds: [],
+      artifactSlotDefinitionId: "",
+      workUnitTypeKey: "",
+      includedFactKeys: [],
+      summary: "plain value fact · one · string",
+    };
+
+    renderRoute(
+      <WorkflowContextFactDialog
+        open
+        mode="edit"
+        fact={fact}
+        methodologyFacts={[]}
+        currentWorkUnitFacts={[]}
+        artifactSlots={[]}
+        workUnitTypes={[]}
+        availableWorkflows={[]}
+        workUnitFactsQueryScope="WU.SETUP"
+        loadWorkUnitFacts={async () => []}
+        onOpenChange={onOpenChange}
+        onSave={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Display Name"), {
+      target: { value: "Updated Summary" },
+    });
+
+    expect(screen.getByRole("button", { name: /Contract\s*\*/ })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(await screen.findByText("Discard unsaved changes?")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Discard Changes" }));
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it("shows an error when the authoritative editor definition cannot resolve the workflow", async () => {
