@@ -12,6 +12,11 @@ export type WorkflowEditorMetadata = {
   descriptionMarkdown: string;
 };
 
+export type WorkflowEditorNodePosition = {
+  x: number;
+  y: number;
+};
+
 export type WorkflowFormStepPayload = {
   key: string;
   label?: string;
