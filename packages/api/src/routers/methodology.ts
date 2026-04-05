@@ -129,49 +129,61 @@ const workflowContextFactSchema: z.ZodType<WorkflowContextFactDtoContract> = z.d
   [
     z.object({
       kind: z.literal("plain_value_fact"),
+      contextFactDefinitionId: z.string().min(1).optional(),
       key: z.string().min(1),
       label: z.string().optional(),
       descriptionJson: z.object({ markdown: z.string() }).optional(),
+      guidance: workflowMetadataSchema.shape.guidance,
       cardinality: z.enum(["one", "many"]),
       valueType: z.enum(["string", "number", "boolean", "json"]),
     }),
     z.object({
       kind: z.literal("definition_backed_external_fact"),
+      contextFactDefinitionId: z.string().min(1).optional(),
       key: z.string().min(1),
       label: z.string().optional(),
       descriptionJson: z.object({ markdown: z.string() }).optional(),
+      guidance: workflowMetadataSchema.shape.guidance,
       cardinality: z.enum(["one", "many"]),
       externalFactDefinitionId: z.string().min(1),
     }),
     z.object({
       kind: z.literal("bound_external_fact"),
+      contextFactDefinitionId: z.string().min(1).optional(),
       key: z.string().min(1),
       label: z.string().optional(),
       descriptionJson: z.object({ markdown: z.string() }).optional(),
+      guidance: workflowMetadataSchema.shape.guidance,
       cardinality: z.enum(["one", "many"]),
       externalFactDefinitionId: z.string().min(1),
     }),
     z.object({
       kind: z.literal("workflow_reference_fact"),
+      contextFactDefinitionId: z.string().min(1).optional(),
       key: z.string().min(1),
       label: z.string().optional(),
       descriptionJson: z.object({ markdown: z.string() }).optional(),
+      guidance: workflowMetadataSchema.shape.guidance,
       cardinality: z.enum(["one", "many"]),
       allowedWorkflowDefinitionIds: z.array(z.string().min(1)),
     }),
     z.object({
       kind: z.literal("artifact_reference_fact"),
+      contextFactDefinitionId: z.string().min(1).optional(),
       key: z.string().min(1),
       label: z.string().optional(),
       descriptionJson: z.object({ markdown: z.string() }).optional(),
+      guidance: workflowMetadataSchema.shape.guidance,
       cardinality: z.enum(["one", "many"]),
       artifactSlotDefinitionId: z.string().min(1),
     }),
     z.object({
       kind: z.literal("work_unit_draft_spec_fact"),
+      contextFactDefinitionId: z.string().min(1).optional(),
       key: z.string().min(1),
       label: z.string().optional(),
       descriptionJson: z.object({ markdown: z.string() }).optional(),
+      guidance: workflowMetadataSchema.shape.guidance,
       cardinality: z.enum(["one", "many"]),
       includedFactDefinitionIds: z.array(z.string().min(1)),
     }),
@@ -182,6 +194,7 @@ const formStepPayloadSchema: z.ZodType<FormStepPayloadContract> = z.object({
   key: z.string().min(1),
   label: z.string().optional(),
   descriptionJson: z.object({ markdown: z.string() }).optional(),
+  guidance: workflowMetadataSchema.shape.guidance,
   fields: z.array(
     z
       .object({
@@ -261,7 +274,7 @@ const updateWorkflowContextFactSchema = z.object({
   versionId: z.string().min(1),
   workUnitTypeKey: z.string().min(1),
   workflowDefinitionId: z.string().min(1),
-  factKey: z.string().min(1),
+  contextFactDefinitionId: z.string().min(1),
   fact: workflowContextFactSchema,
 });
 
@@ -269,7 +282,7 @@ const deleteWorkflowContextFactSchema = z.object({
   versionId: z.string().min(1),
   workUnitTypeKey: z.string().min(1),
   workflowDefinitionId: z.string().min(1),
-  factKey: z.string().min(1),
+  contextFactDefinitionId: z.string().min(1),
 });
 
 const toWorkflowDescription = (
@@ -1984,7 +1997,7 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
                 versionId: input.versionId,
                 workUnitTypeKey: input.workUnitTypeKey,
                 workflowDefinitionId: input.workflowDefinitionId,
-                factKey: input.factKey,
+                contextFactDefinitionId: input.contextFactDefinitionId,
                 fact: input.fact,
               },
               actorId,
@@ -2006,7 +2019,7 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
                 versionId: input.versionId,
                 workUnitTypeKey: input.workUnitTypeKey,
                 workflowDefinitionId: input.workflowDefinitionId,
-                factKey: input.factKey,
+                contextFactDefinitionId: input.contextFactDefinitionId,
               },
               actorId,
             );
@@ -2119,6 +2132,7 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
           const snapshot = yield* svc.getAuthoringSnapshot(input.versionId);
           return {
             workUnitTypes: snapshot.workUnitTypes.map((workUnitType) => ({
+              id: workUnitType.id,
               key: workUnitType.key,
               factSchemas: workUnitType.factSchemas,
             })),

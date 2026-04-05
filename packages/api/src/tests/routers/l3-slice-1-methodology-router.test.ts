@@ -54,9 +54,14 @@ function makeServiceLayer() {
           edges: [],
           contextFacts: [
             {
+              contextFactDefinitionId: "ctx-summary",
               kind: "plain_value_fact",
               key: "summary",
               cardinality: "one",
+              guidance: {
+                human: { markdown: "Capture the reusable summary." },
+                agent: { markdown: "Preserve the authored summary." },
+              },
               valueType: "string",
             },
           ],
@@ -67,19 +72,19 @@ function makeServiceLayer() {
                 key: "capture",
                 label: "Capture",
                 descriptionJson: { markdown: "Capture" },
+                guidance: {
+                  human: { markdown: "Ask for the reusable summary." },
+                  agent: { markdown: "Normalize the summary for downstream steps." },
+                },
                 fields: [
                   {
-                    contextFactDefinitionId: "summary",
+                    contextFactDefinitionId: "ctx-summary",
                     fieldLabel: "Summary",
                     fieldKey: "summary",
                     helpText: null,
                     required: true,
                   },
                 ],
-                guidance: {
-                  humanMarkdown: "Ask for the reusable summary.",
-                  agentMarkdown: "Normalize the summary for downstream steps.",
-                },
               },
             },
           ],
@@ -123,20 +128,20 @@ function makeServiceLayer() {
             key: "capture",
             label: "Capture",
             descriptionJson: { markdown: "Capture" },
+            guidance: {
+              human: { markdown: "Ask for the reusable summary." },
+              agent: { markdown: "Normalize the summary for downstream steps." },
+            },
             fields: [
               {
-                contextFactDefinitionId: "summary",
+                contextFactDefinitionId: "ctx-summary",
                 fieldLabel: "Summary",
                 fieldKey: "summary",
                 helpText: null,
                 required: true,
               },
             ],
-            guidance: {
-              humanMarkdown: "Ask for the reusable summary.",
-              agentMarkdown: "Normalize the summary for downstream steps.",
-            },
-          } as any,
+          },
         }),
       updateFormStep: () =>
         Effect.succeed({
@@ -145,9 +150,13 @@ function makeServiceLayer() {
             key: "capture.v2",
             label: "Capture v2",
             descriptionJson: { markdown: "Capture v2" },
+            guidance: {
+              human: { markdown: "Confirm the reusable workflow set." },
+              agent: { markdown: "Preserve workflow ids in order." },
+            },
             fields: [
               {
-                contextFactDefinitionId: "supporting-workflows",
+                contextFactDefinitionId: "ctx-supporting-workflows",
                 fieldLabel: "Supporting Workflows",
                 fieldKey: "supportingWorkflows",
                 helpText: null,
@@ -155,11 +164,7 @@ function makeServiceLayer() {
                 uiMultiplicityMode: "one",
               },
             ],
-            guidance: {
-              humanMarkdown: "Confirm the reusable workflow set.",
-              agentMarkdown: "Preserve workflow ids in order.",
-            },
-          } as any,
+          },
         }),
       deleteFormStep: () => Effect.void,
     }),
@@ -186,14 +191,20 @@ function makeServiceLayer() {
       list: () =>
         Effect.succeed([
           {
+            contextFactDefinitionId: "ctx-summary",
             kind: "plain_value_fact",
             key: "summary",
             cardinality: "one",
+            guidance: {
+              human: { markdown: "Capture the reusable summary." },
+              agent: { markdown: "Preserve the authored summary." },
+            },
             valueType: "string",
           },
         ]),
       create: () =>
         Effect.succeed({
+          contextFactDefinitionId: "ctx-fact-b",
           kind: "plain_value_fact",
           key: "fact.b",
           cardinality: "one",
@@ -201,6 +212,7 @@ function makeServiceLayer() {
         }),
       update: () =>
         Effect.succeed({
+          contextFactDefinitionId: "ctx-fact-c",
           kind: "workflow_reference_fact",
           key: "fact.c",
           cardinality: "many",
@@ -272,9 +284,13 @@ describe("l3 slice-1 methodology router", () => {
           key: "capture",
           label: "Capture",
           descriptionJson: { markdown: "Capture" },
+          guidance: {
+            human: { markdown: "Ask for the reusable summary." },
+            agent: { markdown: "Normalize the summary for downstream steps." },
+          },
           fields: [
             {
-              contextFactDefinitionId: "summary",
+              contextFactDefinitionId: "ctx-summary",
               fieldLabel: "Summary",
               fieldKey: "summary",
               helpText: null,
@@ -311,9 +327,14 @@ describe("l3 slice-1 methodology router", () => {
     expect(editor.workflow.workflowDefinitionId).toBe("wf-1");
     expect(editor.contextFacts).toEqual([
       {
+        contextFactDefinitionId: "ctx-summary",
         kind: "plain_value_fact",
         key: "summary",
         cardinality: "one",
+        guidance: {
+          human: { markdown: "Capture the reusable summary." },
+          agent: { markdown: "Preserve the authored summary." },
+        },
         valueType: "string",
       },
     ]);
@@ -323,14 +344,14 @@ describe("l3 slice-1 methodology router", () => {
         payload: expect.objectContaining({
           fields: [
             expect.objectContaining({
-              contextFactDefinitionId: "summary",
+              contextFactDefinitionId: "ctx-summary",
               fieldLabel: "Summary",
               fieldKey: "summary",
             }),
           ],
           guidance: {
-            humanMarkdown: "Ask for the reusable summary.",
-            agentMarkdown: "Normalize the summary for downstream steps.",
+            human: { markdown: "Ask for the reusable summary." },
+            agent: { markdown: "Normalize the summary for downstream steps." },
           },
         }),
       }),
@@ -339,14 +360,24 @@ describe("l3 slice-1 methodology router", () => {
     expect(createdStep.stepId).toBe("step-1");
     expect(createdStep.payload.fields).toEqual([
       expect.objectContaining({
-        contextFactDefinitionId: "summary",
+        contextFactDefinitionId: "ctx-summary",
         fieldLabel: "Summary",
         fieldKey: "summary",
       }),
     ]);
     expect(edge.edgeId).toBe("edge-1");
     expect(facts).toEqual([
-      { kind: "plain_value_fact", key: "summary", cardinality: "one", valueType: "string" },
+      {
+        contextFactDefinitionId: "ctx-summary",
+        kind: "plain_value_fact",
+        key: "summary",
+        cardinality: "one",
+        guidance: {
+          human: { markdown: "Capture the reusable summary." },
+          agent: { markdown: "Preserve the authored summary." },
+        },
+        valueType: "string",
+      },
     ]);
   });
 
