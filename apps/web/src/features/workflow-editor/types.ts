@@ -38,6 +38,12 @@ export type WorkflowEditorGuidance = {
   agentMarkdown: string;
 };
 
+export type WorkflowEditorPickerOption = {
+  value: string;
+  label: string;
+  description?: string;
+};
+
 export type WorkflowEditorFieldDraft = FormStepFieldPayload & {
   localId: string;
 };

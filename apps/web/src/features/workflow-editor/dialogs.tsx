@@ -47,6 +47,7 @@ import type {
   WorkflowEditorFieldDraft,
   WorkflowEditorGuidance,
   WorkflowEditorMetadata,
+  WorkflowEditorPickerOption,
   WorkflowEditorStep,
   WorkflowFormStepPayload,
 } from "./types";
@@ -65,11 +66,13 @@ type WorkflowContextFactDialogProps = {
   open: boolean;
   mode: "create" | "edit";
   fact?: WorkflowContextFactDefinitionItem | undefined;
-  methodologyFacts: readonly PickerOption[];
-  workUnitTypes: readonly PickerOption[];
-  availableWorkflows: readonly PickerOption[];
+  methodologyFacts: readonly WorkflowEditorPickerOption[];
+  currentWorkUnitFacts: readonly WorkflowEditorPickerOption[];
+  artifactSlots: readonly WorkflowEditorPickerOption[];
+  workUnitTypes: readonly WorkflowEditorPickerOption[];
+  availableWorkflows: readonly WorkflowEditorPickerOption[];
   workUnitFactsQueryScope: string;
-  loadWorkUnitFacts: (workUnitTypeKey: string) => Promise<readonly PickerOption[]>;
+  loadWorkUnitFacts: (workUnitTypeKey: string) => Promise<readonly WorkflowEditorPickerOption[]>;
   onOpenChange: (open: boolean) => void;
   onSave: (draft: WorkflowContextFactDraft) => Promise<void> | void;
 };
@@ -87,19 +90,6 @@ const CONTEXT_FACT_KIND_OPTIONS = [
 ] as const;
 
 const VALUE_TYPE_OPTIONS = ["string", "number", "boolean", "json"] as const;
-
-const ARTIFACT_REFERENCE_OPTIONS = [
-  { value: "ART.PRD", label: "ART.PRD", description: "Product requirements artifact" },
-  { value: "ART.ARCH", label: "ART.ARCH", description: "Architecture artifact" },
-  { value: "ART.STORY", label: "ART.STORY", description: "Story artifact" },
-  { value: "ART.CODE", label: "ART.CODE", description: "Implementation/code artifact" },
-] as const;
-
-type PickerOption = {
-  value: string;
-  label: string;
-  description?: string;
-};
 
 type JsonSubSchemaDraft = {
   localId: string;
@@ -213,7 +203,7 @@ function createEmptyJsonSubSchemaDraft(
 
 function createWorkUnitDraftFactCard(
   factKey: string,
-  workUnitFacts: readonly PickerOption[],
+  workUnitFacts: readonly WorkflowEditorPickerOption[],
 ): WorkUnitDraftFactCard {
   const matchedOption = workUnitFacts.find((option) => option.value === factKey);
 
@@ -341,7 +331,7 @@ function SearchableCombobox(props: {
   labelId?: string;
   value: string;
   onChange: (value: string) => void;
-  options: readonly PickerOption[];
+  options: readonly WorkflowEditorPickerOption[];
   placeholder: string;
   searchPlaceholder: string;
   emptyLabel: string;
@@ -424,7 +414,7 @@ function SearchableMultiSelect(props: {
   labelId?: string;
   values: readonly string[];
   onChange: (values: string[]) => void;
-  options: readonly PickerOption[];
+  options: readonly WorkflowEditorPickerOption[];
   placeholder: string;
   searchPlaceholder: string;
   emptyLabel: string;
@@ -1142,6 +1132,8 @@ export function WorkflowContextFactDialog({
   mode,
   fact,
   methodologyFacts,
+  currentWorkUnitFacts,
+  artifactSlots,
   workUnitTypes,
   availableWorkflows,
   workUnitFactsQueryScope,
@@ -1178,6 +1170,19 @@ export function WorkflowContextFactDialog({
       open && draft.kind === "work_unit_draft_spec_fact" && selectedWorkUnitTypeKey.length > 0,
   });
   const selectedWorkUnitFacts = selectedWorkUnitFactsQuery.data ?? [];
+  const externalFactOptions = useMemo(() => {
+    const optionsByValue = new Map<string, WorkflowEditorPickerOption>();
+
+    methodologyFacts.forEach((option) => {
+      optionsByValue.set(option.value, option);
+    });
+
+    currentWorkUnitFacts.forEach((option) => {
+      optionsByValue.set(option.value, option);
+    });
+
+    return [...optionsByValue.values()];
+  }, [currentWorkUnitFacts, methodologyFacts]);
 
   useEffect(() => {
     if (!open) {
@@ -1882,7 +1887,7 @@ export function WorkflowContextFactDialog({
                       onChange={(value) =>
                         setDraft((previous) => ({ ...previous, externalFactDefinitionId: value }))
                       }
-                      options={methodologyFacts}
+                      options={externalFactOptions}
                       placeholder="Select an external fact"
                       searchPlaceholder="Search external facts..."
                       emptyLabel="No external facts found."
@@ -1953,7 +1958,7 @@ export function WorkflowContextFactDialog({
                       onChange={(value) =>
                         setDraft((previous) => ({ ...previous, artifactSlotDefinitionId: value }))
                       }
-                      options={ARTIFACT_REFERENCE_OPTIONS}
+                      options={artifactSlots}
                       placeholder="Select an artifact slot"
                       searchPlaceholder="Search artifact slots..."
                       emptyLabel="No artifact slots found."

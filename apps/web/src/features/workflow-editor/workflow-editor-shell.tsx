@@ -24,6 +24,7 @@ import type {
   WorkflowContextFactMutationHandlers,
   WorkflowEditorEdge,
   WorkflowEditorMetadata,
+  WorkflowEditorPickerOption,
   WorkflowEditorSelection,
   WorkflowEditorStep,
   WorkflowFormStepMutationHandlers,
@@ -35,29 +36,13 @@ type WorkflowEditorShellProps = {
   initialSteps: readonly WorkflowEditorStep[];
   initialEdges: readonly WorkflowEditorEdge[];
   contextFactDefinitions: readonly WorkflowContextFactDefinitionItem[];
-  methodologyFacts: readonly {
-    value: string;
-    label: string;
-    description?: string;
-  }[];
-  workUnitTypes: readonly {
-    value: string;
-    label: string;
-    description?: string;
-  }[];
-  availableWorkflows: readonly {
-    value: string;
-    label: string;
-    description?: string;
-  }[];
+  methodologyFacts: readonly WorkflowEditorPickerOption[];
+  currentWorkUnitFacts: readonly WorkflowEditorPickerOption[];
+  artifactSlots: readonly WorkflowEditorPickerOption[];
+  workUnitTypes: readonly WorkflowEditorPickerOption[];
+  availableWorkflows: readonly WorkflowEditorPickerOption[];
   workUnitFactsQueryScope: string;
-  loadWorkUnitFacts: (workUnitTypeKey: string) => Promise<
-    readonly {
-      value: string;
-      label: string;
-      description?: string;
-    }[]
-  >;
+  loadWorkUnitFacts: (workUnitTypeKey: string) => Promise<readonly WorkflowEditorPickerOption[]>;
   onSaveMetadata: (metadata: WorkflowEditorMetadata) => Promise<void>;
   onCreateEdge?: (edge: WorkflowEditorEdge) => Promise<void>;
   onUpdateEdge?: (edgeId: string, descriptionMarkdown: string) => Promise<void>;
@@ -140,6 +125,8 @@ export function WorkflowEditorShell({
   initialEdges,
   contextFactDefinitions,
   methodologyFacts,
+  currentWorkUnitFacts,
+  artifactSlots,
   workUnitTypes,
   availableWorkflows,
   workUnitFactsQueryScope,
@@ -482,6 +469,8 @@ export function WorkflowEditorShell({
         mode={contextFactDialogMode}
         fact={contextFactDialogMode === "edit" ? editingContextFact : undefined}
         methodologyFacts={methodologyFacts}
+        currentWorkUnitFacts={currentWorkUnitFacts}
+        artifactSlots={artifactSlots}
         workUnitTypes={workUnitTypes}
         availableWorkflows={availableWorkflows}
         workUnitFactsQueryScope={workUnitFactsQueryScope}

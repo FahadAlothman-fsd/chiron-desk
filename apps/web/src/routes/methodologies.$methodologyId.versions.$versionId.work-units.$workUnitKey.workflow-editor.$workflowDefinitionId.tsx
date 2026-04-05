@@ -456,6 +456,25 @@ function getFactDefinitionEntries(rawFactDefinitions: unknown) {
         : [];
 }
 
+function getWorkUnitEntries(rawWorkUnits: unknown) {
+  const record = asRecord(rawWorkUnits);
+  return Array.isArray(record?.workUnitTypes)
+    ? record.workUnitTypes
+    : Array.isArray(rawWorkUnits)
+      ? rawWorkUnits
+      : [];
+}
+
+function getWorkUnitFactEntries(rawWorkUnits: unknown, workUnitTypeKey: string) {
+  const matchedWorkUnit = getWorkUnitEntries(rawWorkUnits).find((entry) => {
+    const workUnit = asRecord(entry);
+    return workUnit && workUnit.key === workUnitTypeKey;
+  });
+  const workUnit = asRecord(matchedWorkUnit);
+
+  return Array.isArray(workUnit?.factSchemas) ? workUnit.factSchemas : [];
+}
+
 function toFactOptions(rawFactDefinitions: unknown, fallbackDescription: string) {
   const facts = getFactDefinitionEntries(rawFactDefinitions);
 
@@ -501,17 +520,12 @@ function toMethodologyFactOptions(rawFactDefinitions: unknown) {
   return toFactOptions(rawFactDefinitions, "Methodology fact");
 }
 
-function toWorkUnitFactOptions(rawFactDefinitions: unknown) {
-  return toFactOptions(rawFactDefinitions, "Work unit fact");
+function toWorkUnitFactOptions(rawWorkUnits: unknown, workUnitTypeKey: string) {
+  return toFactOptions(getWorkUnitFactEntries(rawWorkUnits, workUnitTypeKey), "Work unit fact");
 }
 
 function toWorkUnitTypeOptions(rawWorkUnits: unknown) {
-  const record = asRecord(rawWorkUnits);
-  const workUnitTypes = Array.isArray(record?.workUnitTypes)
-    ? record.workUnitTypes
-    : Array.isArray(rawWorkUnits)
-      ? rawWorkUnits
-      : [];
+  const workUnitTypes = getWorkUnitEntries(rawWorkUnits);
 
   return workUnitTypes
     .map((entry) => {
@@ -536,6 +550,39 @@ function toWorkUnitTypeOptions(rawWorkUnits: unknown) {
         value: workUnit.key,
         label,
         description,
+      };
+    })
+    .filter(
+      (entry): entry is { value: string; label: string; description: string } => entry !== null,
+    );
+}
+
+function toArtifactSlotOptions(rawArtifactSlots: unknown) {
+  const record = asRecord(rawArtifactSlots);
+  const slots = Array.isArray(rawArtifactSlots)
+    ? rawArtifactSlots
+    : Array.isArray(record?.artifactSlots)
+      ? record.artifactSlots
+      : [];
+
+  return slots
+    .map((entry) => {
+      const slot = asRecord(entry);
+      if (!slot || typeof slot.key !== "string") {
+        return null;
+      }
+
+      return {
+        value: slot.key,
+        label:
+          typeof slot.displayName === "string" && slot.displayName.trim().length > 0
+            ? slot.displayName.trim()
+            : slot.key,
+        description:
+          readMarkdown(slot.description) ||
+          (typeof slot.cardinality === "string"
+            ? `Artifact slot · ${slot.cardinality.replaceAll("_", " ")}`
+            : "Artifact slot"),
       };
     })
     .filter(
@@ -653,6 +700,27 @@ export function MethodologyWorkflowEditorRoute() {
     queryFn: () => Promise<unknown>;
   };
   const workUnitTypesQuery = useQuery(workUnitTypesQueryOptions);
+  const workUnitFactsQueryOptions = (orpc.methodology.version.workUnit.fact?.list?.queryOptions?.({
+    input: { versionId },
+  }) ?? {
+    queryKey: ["work-unit-facts", versionId],
+    queryFn: async () => ({ workUnitTypes: [] }),
+  }) as unknown as {
+    queryKey: unknown[];
+    queryFn: () => Promise<unknown>;
+  };
+  const workUnitFactsQuery = useQuery(workUnitFactsQueryOptions);
+  const artifactSlotsQueryOptions =
+    (orpc.methodology.version.workUnit.artifactSlot?.list?.queryOptions?.({
+      input: { versionId, workUnitTypeKey: workUnitKey },
+    }) ?? {
+      queryKey: ["work-unit-artifact-slots", versionId, workUnitKey],
+      queryFn: async () => [],
+    }) as unknown as {
+      queryKey: unknown[];
+      queryFn: () => Promise<unknown>;
+    };
+  const artifactSlotsQuery = useQuery(artifactSlotsQueryOptions);
   const availableWorkflowsQueryOptions =
     (orpc.methodology.version.workUnit.workflow.list?.queryOptions?.({
       input: { versionId, workUnitTypeKey: workUnitKey },
@@ -756,24 +824,15 @@ export function MethodologyWorkflowEditorRoute() {
       initialEdges={toWorkflowEdges(editorDefinition?.edges)}
       contextFactDefinitions={toContextFactDefinitions(editorDefinition?.contextFacts)}
       methodologyFacts={toMethodologyFactOptions(methodologyFactsQuery.data)}
+      currentWorkUnitFacts={toWorkUnitFactOptions(workUnitFactsQuery.data, workUnitKey)}
+      artifactSlots={toArtifactSlotOptions(artifactSlotsQuery.data)}
       workUnitTypes={toWorkUnitTypeOptions(workUnitTypesQuery.data)}
       availableWorkflows={toWorkflowOptions(availableWorkflowsQuery.data)}
       workUnitFactsQueryScope={versionId}
       loadWorkUnitFacts={async (selectedWorkUnitTypeKey) => {
-        const workUnitFactsQueryOptions =
-          (orpc.methodology.version.workUnit.fact?.list?.queryOptions?.({
-            input: { versionId, workUnitTypeKey: selectedWorkUnitTypeKey },
-          }) ?? {
-            queryKey: ["work-unit-facts", versionId, selectedWorkUnitTypeKey],
-            queryFn: async () => [],
-          }) as unknown as {
-            queryKey: unknown[];
-            queryFn: () => Promise<unknown>;
-          };
-
         const data = await queryClient.fetchQuery(workUnitFactsQueryOptions);
 
-        return toWorkUnitFactOptions(data);
+        return toWorkUnitFactOptions(data, selectedWorkUnitTypeKey);
       }}
       onSaveMetadata={async (metadata) => {
         await updateWorkflowMutation.mutateAsync({
