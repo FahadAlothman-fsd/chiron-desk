@@ -8,7 +8,12 @@ import type {
   ValidationResult,
   WorkflowDefinition,
 } from "@chiron/contracts/methodology/version";
-import type { WorkflowContextFactDto } from "@chiron/contracts/methodology/workflow";
+import type {
+  FormStepPayload,
+  WorkflowContextFactDto,
+  WorkflowEdgeDto,
+  WorkflowStepReadModel,
+} from "@chiron/contracts/methodology/workflow";
 import type {
   LifecycleState,
   TransitionConditionSet,
@@ -109,6 +114,63 @@ export interface VersionWorkspaceStats {
   transitions: number;
   workflows: number;
   factDefinitions: number;
+}
+
+export interface WorkflowFormDefinitionReadModel {
+  readonly stepId: string;
+  readonly payload: FormStepPayload;
+}
+
+export interface WorkflowEditorDefinitionReadModel {
+  readonly workflow: {
+    readonly workflowDefinitionId: string;
+    readonly key: string;
+    readonly displayName: string | null;
+    readonly descriptionJson: unknown;
+  };
+  readonly steps: readonly WorkflowStepReadModel[];
+  readonly edges: readonly WorkflowEdgeDto[];
+  readonly contextFacts: readonly WorkflowContextFactDto[];
+  readonly formDefinitions: readonly WorkflowFormDefinitionReadModel[];
+}
+
+export interface CreateFormStepDefinitionParams {
+  readonly versionId: string;
+  readonly workflowDefinitionId: string;
+  readonly afterStepKey: string | null;
+  readonly payload: FormStepPayload;
+}
+
+export interface UpdateFormStepDefinitionParams {
+  readonly versionId: string;
+  readonly workflowDefinitionId: string;
+  readonly stepId: string;
+  readonly payload: FormStepPayload;
+}
+
+export interface DeleteFormStepDefinitionParams {
+  readonly versionId: string;
+  readonly workflowDefinitionId: string;
+  readonly stepId: string;
+}
+
+export interface CreateWorkflowContextFactByDefinitionIdParams {
+  readonly versionId: string;
+  readonly workflowDefinitionId: string;
+  readonly fact: WorkflowContextFactDto;
+}
+
+export interface UpdateWorkflowContextFactByDefinitionIdParams {
+  readonly versionId: string;
+  readonly workflowDefinitionId: string;
+  readonly factKey: string;
+  readonly fact: WorkflowContextFactDto;
+}
+
+export interface DeleteWorkflowContextFactByDefinitionIdParams {
+  readonly versionId: string;
+  readonly workflowDefinitionId: string;
+  readonly factKey: string;
 }
 
 export interface CreateWorkflowParams {
@@ -320,10 +382,49 @@ export class MethodologyRepository extends Context.Tag("MethodologyRepository")<
       versionId: string;
       workUnitTypeKey: string;
     }) => Effect.Effect<readonly WorkflowDefinition[], RepositoryError>;
-    readonly listWorkflowContextFactsByDefinitionId?: (params: {
+    readonly listWorkflowContextFactsByDefinitionId: (params: {
       versionId: string;
       workflowDefinitionId: string;
     }) => Effect.Effect<readonly WorkflowContextFactDto[], RepositoryError>;
+    readonly createWorkflowContextFactByDefinitionId: (
+      params: CreateWorkflowContextFactByDefinitionIdParams,
+    ) => Effect.Effect<WorkflowContextFactDto, RepositoryError>;
+    readonly updateWorkflowContextFactByDefinitionId: (
+      params: UpdateWorkflowContextFactByDefinitionIdParams,
+    ) => Effect.Effect<WorkflowContextFactDto, RepositoryError>;
+    readonly deleteWorkflowContextFactByDefinitionId: (
+      params: DeleteWorkflowContextFactByDefinitionIdParams,
+    ) => Effect.Effect<void, RepositoryError>;
+    readonly createFormStepDefinition: (
+      params: CreateFormStepDefinitionParams,
+    ) => Effect.Effect<WorkflowFormDefinitionReadModel, RepositoryError>;
+    readonly updateFormStepDefinition: (
+      params: UpdateFormStepDefinitionParams,
+    ) => Effect.Effect<WorkflowFormDefinitionReadModel, RepositoryError>;
+    readonly deleteFormStepDefinition: (
+      params: DeleteFormStepDefinitionParams,
+    ) => Effect.Effect<void, RepositoryError>;
+    readonly getWorkflowEditorDefinition: (params: {
+      versionId: string;
+      workUnitTypeKey: string;
+      workflowDefinitionId: string;
+    }) => Effect.Effect<WorkflowEditorDefinitionReadModel, RepositoryError>;
+    readonly updateWorkflowMetadataByDefinitionId: (input: {
+      readonly versionId: string;
+      readonly workUnitTypeKey: string;
+      readonly workflowDefinitionId: string;
+      readonly key: string;
+      readonly displayName: string | null;
+      readonly descriptionJson: unknown;
+    }) => Effect.Effect<
+      {
+        readonly workflowDefinitionId: string;
+        readonly key: string;
+        readonly displayName: string | null;
+        readonly descriptionJson: unknown;
+      },
+      RepositoryError
+    >;
     readonly createWorkflow?: (
       params: CreateWorkflowParams,
     ) => Effect.Effect<void, RepositoryError>;
