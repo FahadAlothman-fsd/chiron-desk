@@ -261,7 +261,7 @@ function WorkflowStepNode({ data }: NodeProps<WorkflowCanvasNode>) {
       <Handle
         type="target"
         position={Position.Left}
-        className="!size-2 !rounded-none !border !border-foreground/60 !bg-background"
+        className="!size-3 !rounded-full !border-2 !border-sky-300/90 !bg-sky-400/80"
       />
       <div className="relative z-[2] grid gap-3 p-3 text-left text-foreground">
         <div className="flex items-start justify-between gap-3">
@@ -302,7 +302,7 @@ function WorkflowStepNode({ data }: NodeProps<WorkflowCanvasNode>) {
       <Handle
         type="source"
         position={Position.Right}
-        className="!size-2 !rounded-none !border !border-foreground/60 !bg-background"
+        className="!size-3 !rounded-none !border-2 !border-amber-200/90 !bg-amber-300/70"
       />
     </div>
   );
