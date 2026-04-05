@@ -173,8 +173,7 @@ const workflowContextFactSchema: z.ZodType<WorkflowContextFactDtoContract> = z.d
       label: z.string().optional(),
       descriptionJson: z.object({ markdown: z.string() }).optional(),
       cardinality: z.enum(["one", "many"]),
-      workUnitTypeKey: z.string().min(1),
-      includedFactKeys: z.array(z.string().min(1)),
+      includedFactDefinitionIds: z.array(z.string().min(1)),
     }),
   ],
 );
