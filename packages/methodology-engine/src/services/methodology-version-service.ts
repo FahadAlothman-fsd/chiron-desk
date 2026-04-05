@@ -305,6 +305,7 @@ function loadPreviousLifecycleDefinition(
     }
 
     const workUnitTypes: WorkUnitTypeDefinition[] = workUnitTypeRows.map((workUnitTypeRow) => ({
+      id: workUnitTypeRow.id,
       key: workUnitTypeRow.key,
       displayName: workUnitTypeRow.displayName ?? undefined,
       description: extractText(workUnitTypeRow.descriptionJson),
@@ -357,6 +358,7 @@ function loadPreviousLifecycleDefinition(
         })
         .filter((transition): transition is NonNullable<typeof transition> => transition !== null),
       factSchemas: (factsByWorkUnitType.get(workUnitTypeRow.id) ?? []).map((factSchemaRow) => ({
+        id: factSchemaRow.id,
         name: factSchemaRow.name ?? undefined,
         key: factSchemaRow.key,
         factType: asFactType(factSchemaRow.factType),

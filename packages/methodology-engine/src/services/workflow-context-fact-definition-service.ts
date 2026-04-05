@@ -50,7 +50,7 @@ export class WorkflowContextFactDefinitionService extends Context.Tag(
         readonly versionId: string;
         readonly workUnitTypeKey: string;
         readonly workflowDefinitionId: string;
-        readonly factKey: string;
+        readonly contextFactDefinitionId: string;
         readonly fact: WorkflowContextFactDto;
       },
       actorId: string | null,
@@ -63,7 +63,7 @@ export class WorkflowContextFactDefinitionService extends Context.Tag(
         readonly versionId: string;
         readonly workUnitTypeKey: string;
         readonly workflowDefinitionId: string;
-        readonly factKey: string;
+        readonly contextFactDefinitionId: string;
       },
       actorId: string | null,
     ) => Effect.Effect<
@@ -137,7 +137,7 @@ export const WorkflowContextFactDefinitionServiceLive = Layer.effect(
         readonly versionId: string;
         readonly workUnitTypeKey: string;
         readonly workflowDefinitionId: string;
-        readonly factKey: string;
+        readonly contextFactDefinitionId: string;
         readonly fact: WorkflowContextFactDto;
       },
       actorId: string | null,
@@ -150,23 +150,25 @@ export const WorkflowContextFactDefinitionServiceLive = Layer.effect(
           versionId: input.versionId,
           workflowDefinitionId: input.workflowDefinitionId,
         });
-        const current = existing.find((fact) => fact.key === input.factKey);
+        const current = existing.find(
+          (fact) => fact.contextFactDefinitionId === input.contextFactDefinitionId,
+        );
         if (!current) {
           return yield* new ValidationDecodeError({
-            message: `Workflow context fact '${input.factKey}' does not exist`,
+            message: `Workflow context fact '${input.contextFactDefinitionId}' does not exist`,
           });
         }
 
         if (current.kind !== input.fact.kind) {
           return yield* new ValidationDecodeError({
-            message: `Workflow context fact kind is locked for '${input.factKey}'`,
+            message: `Workflow context fact kind is locked for '${current.key}'`,
           });
         }
 
         const updated = yield* repo.updateWorkflowContextFactByDefinitionId({
           versionId: input.versionId,
           workflowDefinitionId: input.workflowDefinitionId,
-          factKey: input.factKey,
+          contextFactDefinitionId: input.contextFactDefinitionId,
           fact: input.fact,
         });
 
@@ -191,7 +193,7 @@ export const WorkflowContextFactDefinitionServiceLive = Layer.effect(
         readonly versionId: string;
         readonly workUnitTypeKey: string;
         readonly workflowDefinitionId: string;
-        readonly factKey: string;
+        readonly contextFactDefinitionId: string;
       },
       actorId: string | null,
     ) =>
@@ -202,7 +204,7 @@ export const WorkflowContextFactDefinitionServiceLive = Layer.effect(
         yield* repo.deleteWorkflowContextFactByDefinitionId({
           versionId: input.versionId,
           workflowDefinitionId: input.workflowDefinitionId,
-          factKey: input.factKey,
+          contextFactDefinitionId: input.contextFactDefinitionId,
         });
 
         yield* repo.recordEvent({
@@ -213,7 +215,7 @@ export const WorkflowContextFactDefinitionServiceLive = Layer.effect(
             operation: "delete_context_fact",
             workUnitTypeKey: input.workUnitTypeKey,
             workflowDefinitionId: input.workflowDefinitionId,
-            factKey: input.factKey,
+            contextFactDefinitionId: input.contextFactDefinitionId,
           },
           diagnosticsJson: null,
         });

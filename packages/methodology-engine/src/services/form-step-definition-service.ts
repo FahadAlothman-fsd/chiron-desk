@@ -27,8 +27,15 @@ const validateFieldBindings = (
   facts: readonly WorkflowContextFactDto[],
 ): Effect.Effect<void, ValidationDecodeError> =>
   Effect.gen(function* () {
-    const factByKey = new Map(facts.map((fact) => [fact.key, fact]));
+    const factByIdentifier = new Map<string, WorkflowContextFactDto>();
     const seen = new Set<string>();
+
+    for (const fact of facts) {
+      factByIdentifier.set(fact.key, fact);
+      if (typeof fact.contextFactDefinitionId === "string") {
+        factByIdentifier.set(fact.contextFactDefinitionId, fact);
+      }
+    }
 
     for (const field of payload.fields) {
       if (seen.has(field.contextFactDefinitionId)) {
@@ -39,7 +46,7 @@ const validateFieldBindings = (
 
       seen.add(field.contextFactDefinitionId);
 
-      const fact = factByKey.get(field.contextFactDefinitionId);
+      const fact = factByIdentifier.get(field.contextFactDefinitionId);
       if (!fact) {
         return yield* new ValidationDecodeError({
           message: `Unknown workflow context fact '${field.contextFactDefinitionId}'`,

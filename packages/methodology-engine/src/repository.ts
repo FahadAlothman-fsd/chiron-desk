@@ -194,14 +194,14 @@ export interface CreateWorkflowContextFactByDefinitionIdParams {
 export interface UpdateWorkflowContextFactByDefinitionIdParams {
   readonly versionId: string;
   readonly workflowDefinitionId: string;
-  readonly factKey: string;
+  readonly contextFactDefinitionId: string;
   readonly fact: WorkflowContextFactDto;
 }
 
 export interface DeleteWorkflowContextFactByDefinitionIdParams {
   readonly versionId: string;
   readonly workflowDefinitionId: string;
-  readonly factKey: string;
+  readonly contextFactDefinitionId: string;
 }
 
 export interface CreateWorkflowParams {
