@@ -31,6 +31,13 @@ if (typeof globalThis.document === "undefined") {
   setGlobal("MouseEvent", dom.window.MouseEvent);
   setGlobal("SVGElement", dom.window.SVGElement);
   setGlobal("getComputedStyle", dom.window.getComputedStyle.bind(dom.window));
+  if (typeof dom.window.HTMLElement.prototype.scrollIntoView !== "function") {
+    Object.defineProperty(dom.window.HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      writable: true,
+      value: () => {},
+    });
+  }
   setGlobal(
     "ResizeObserver",
     class {
@@ -45,6 +52,22 @@ if (typeof globalThis.document === "undefined") {
   setGlobal("cancelAnimationFrame", (id: number) => clearTimeout(id));
 }
 
+if (typeof globalThis.HTMLElement !== "undefined") {
+  Object.defineProperty(globalThis.HTMLElement.prototype, "scrollIntoView", {
+    configurable: true,
+    writable: true,
+    value: () => {},
+  });
+}
+
+if (typeof globalThis.Element !== "undefined") {
+  Object.defineProperty(globalThis.Element.prototype, "scrollIntoView", {
+    configurable: true,
+    writable: true,
+    value: () => {},
+  });
+}
+
 const { cleanup, fireEvent, render, screen, waitFor, within } =
   await import("@testing-library/react");
 
@@ -54,12 +77,23 @@ const {
   updateWorkflowMutationSpy,
   createFormStepMutationSpy,
   createContextFactMutationSpy,
+  updateContextFactMutationSpy,
+  deleteContextFactMutationSpy,
 } = vi.hoisted(() => ({
   useParamsMock: vi.fn(),
   useRouteContextMock: vi.fn(),
   updateWorkflowMutationSpy: vi.fn(async () => ({ diagnostics: [] })),
   createFormStepMutationSpy: vi.fn(async () => ({ stepId: "step-new", diagnostics: [] })),
-  createContextFactMutationSpy: vi.fn(async () => ({ diagnostics: [] })),
+  createContextFactMutationSpy: vi.fn(async () => ({
+    contextFactDefinitionId: "ctx-created",
+    kind: "plain_value_fact",
+    key: "architecture-summary",
+    label: "Architecture Summary",
+    cardinality: "one",
+    valueType: "string",
+  })),
+  updateContextFactMutationSpy: vi.fn(async () => ({ diagnostics: [] })),
+  deleteContextFactMutationSpy: vi.fn(async () => ({ diagnostics: [] })),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -246,7 +280,7 @@ function createEditorDefinition() {
           descriptionJson: { markdown: "Capture the reusable context." },
           fields: [
             {
-              contextFactDefinitionId: "summary",
+              contextFactDefinitionId: "ctx-summary",
               fieldLabel: "Summary",
               fieldKey: "summary",
               helpText: null,
@@ -263,7 +297,7 @@ function createEditorDefinition() {
     edges: [],
     contextFacts: [
       {
-        contextFactDefinitionId: "summary",
+        contextFactDefinitionId: "ctx-summary",
         key: "summary",
         label: "Summary",
         descriptionJson: { markdown: "Reusable summary for downstream steps." },
@@ -276,7 +310,7 @@ function createEditorDefinition() {
         },
       },
       {
-        contextFactDefinitionId: "supporting-workflows",
+        contextFactDefinitionId: "ctx-supporting-workflows",
         key: "supporting-workflows",
         label: "Supporting Workflows",
         descriptionJson: { markdown: "Workflow references for fan-out steps." },
@@ -298,7 +332,7 @@ function createEditorDefinition() {
           descriptionJson: { markdown: "Capture the reusable context." },
           fields: [
             {
-              contextFactDefinitionId: "summary",
+              contextFactDefinitionId: "ctx-summary",
               fieldLabel: "Summary",
               fieldKey: "summary",
               helpText: null,
@@ -328,6 +362,74 @@ function createRouteContext(
       methodology: {
         version: {
           workUnit: {
+            list: {
+              queryOptions: () => ({
+                queryKey: ["work-unit-types", "v1"],
+                queryFn: async () => ({
+                  workUnitTypes: [
+                    {
+                      id: "wut-brainstorming",
+                      key: "brainstorming",
+                      displayName: "Brainstorming",
+                      factSchemas: [
+                        {
+                          id: "wuf-selected-directions",
+                          key: "selected_directions",
+                          name: "Selected Directions",
+                          factType: "json",
+                          cardinality: "one",
+                          description:
+                            "Durable convergence checkpoint capturing the directions selected at the end of brainstorming.",
+                        },
+                        {
+                          id: "wuf-desired-outcome",
+                          key: "desired_outcome",
+                          name: "Desired Outcome",
+                          factType: "string",
+                          cardinality: "one",
+                          description: "What the session should produce when it has succeeded.",
+                        },
+                      ],
+                    },
+                  ],
+                }),
+              }),
+            },
+            fact: {
+              list: {
+                queryOptions: () => ({
+                  queryKey: ["work-unit-facts", "v1"],
+                  queryFn: async () => ({
+                    workUnitTypes: [
+                      {
+                        id: "wut-brainstorming",
+                        key: "brainstorming",
+                        displayName: "Brainstorming",
+                        factSchemas: [
+                          {
+                            id: "wuf-selected-directions",
+                            key: "selected_directions",
+                            name: "Selected Directions",
+                            factType: "json",
+                            cardinality: "one",
+                            description:
+                              "Durable convergence checkpoint capturing the directions selected at the end of brainstorming.",
+                          },
+                          {
+                            id: "wuf-desired-outcome",
+                            key: "desired_outcome",
+                            name: "Desired Outcome",
+                            factType: "string",
+                            cardinality: "one",
+                            description: "What the session should produce when it has succeeded.",
+                          },
+                        ],
+                      },
+                    ],
+                  }),
+                }),
+              },
+            },
             workflow: {
               getEditorDefinition: {
                 queryOptions: () => ({
@@ -344,6 +446,12 @@ function createRouteContext(
               contextFact: {
                 create: {
                   mutationOptions: () => ({ mutationFn: createContextFactMutationSpy }),
+                },
+                update: {
+                  mutationOptions: () => ({ mutationFn: updateContextFactMutationSpy }),
+                },
+                delete: {
+                  mutationOptions: () => ({ mutationFn: deleteContextFactMutationSpy }),
                 },
               },
             },
@@ -370,6 +478,8 @@ describe("workflow editor form slice route", () => {
     updateWorkflowMutationSpy.mockClear();
     createFormStepMutationSpy.mockClear();
     createContextFactMutationSpy.mockClear();
+    updateContextFactMutationSpy.mockClear();
+    deleteContextFactMutationSpy.mockClear();
 
     useParamsMock.mockReturnValue({
       methodologyId: "m1",
@@ -405,7 +515,7 @@ describe("workflow editor form slice route", () => {
     const addBindingFactSelect = screen.getAllByLabelText(
       "workflow-editor-add-field",
     )[0] as HTMLSelectElement;
-    fireEvent.change(addBindingFactSelect, { target: { value: "supporting-workflows" } });
+    fireEvent.change(addBindingFactSelect, { target: { value: "ctx-supporting-workflows" } });
     fireEvent.click(screen.getByRole("button", { name: "+ Add Field Binding" }));
 
     fireEvent.change(screen.getByLabelText("Field Label"), {
@@ -437,14 +547,14 @@ describe("workflow editor form slice route", () => {
             label: "Capture Brief",
             fields: expect.arrayContaining([
               expect.objectContaining({
-                contextFactDefinitionId: "supporting-workflows",
+                contextFactDefinitionId: "ctx-supporting-workflows",
                 fieldLabel: "Supporting Workflows",
                 fieldKey: "supportingWorkflows",
               }),
             ]),
             guidance: {
-              humanMarkdown: "Ask for the supporting workflows to run.",
-              agentMarkdown: "Treat the selection as reusable workflow references.",
+              human: { markdown: "Ask for the supporting workflows to run." },
+              agent: { markdown: "Treat the selection as reusable workflow references." },
             },
           }),
         }),
@@ -577,11 +687,98 @@ describe("workflow editor form slice route", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it("submits draft-spec work unit and fact selections as ids", async () => {
+    const { WorkflowContextFactDialog } = await import("../../features/workflow-editor/dialogs");
+    const onSave = vi.fn();
+
+    renderRoute(
+      <WorkflowContextFactDialog
+        open
+        mode="create"
+        methodologyFacts={[]}
+        currentWorkUnitFacts={[]}
+        artifactSlots={[]}
+        workUnitTypes={[
+          {
+            value: "wut-brainstorming",
+            label: "Brainstorming",
+            secondaryLabel: "brainstorming",
+            description: "Brainstorming",
+          },
+        ]}
+        availableWorkflows={[]}
+        workUnitFactsQueryScope="v1"
+        loadWorkUnitFacts={async () => [
+          {
+            value: "wuf-selected-directions",
+            label: "Selected Directions",
+            secondaryLabel: "selected_directions",
+            description:
+              "Durable convergence checkpoint capturing the directions selected at the end of brainstorming.",
+            badges: [
+              { label: "one", tone: "cardinality" },
+              { label: "json", tone: "type-json" },
+            ],
+          },
+          {
+            value: "wuf-desired-outcome",
+            label: "Desired Outcome",
+            secondaryLabel: "desired_outcome",
+            description: "What the session should produce when it has succeeded.",
+            badges: [
+              { label: "one", tone: "cardinality" },
+              { label: "string", tone: "type-string" },
+            ],
+          },
+        ]}
+        onOpenChange={vi.fn()}
+        onSave={onSave}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Fact Key"), {
+      target: { value: "brainstorming-draft-spec" },
+    });
+    fireEvent.change(screen.getByLabelText("Display Name"), {
+      target: { value: "Brainstorming Draft Spec" },
+    });
+    fireEvent.change(screen.getByLabelText("workflow-editor-context-fact-kind"), {
+      target: { value: "work_unit_draft_spec_fact" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Value Semantics" }));
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Work Unit Type Key" }));
+    fireEvent.click((await screen.findAllByText("Brainstorming"))[0]!);
+
+    await waitFor(() => {
+      expect(screen.queryByText("Loading facts for the selected work unit...")).toBeNull();
+    });
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Fact Definition" }));
+    fireEvent.click((await screen.findAllByText("Selected Directions"))[0]!);
+    fireEvent.click(screen.getByRole("button", { name: /Add Fact Definition/i }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Fact Definition" }));
+    fireEvent.click((await screen.findAllByText("Desired Outcome"))[0]!);
+    fireEvent.click(screen.getByRole("button", { name: /Add Fact Definition/i }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: "work_unit_draft_spec_fact",
+          workUnitTypeKey: "wut-brainstorming",
+          includedFactDefinitionIds: ["wuf-selected-directions", "wuf-desired-outcome"],
+        }),
+      );
+    });
+  });
+
   it("shows dirty indicators and discard confirmation for edit-mode context facts", async () => {
     const { WorkflowContextFactDialog } = await import("../../features/workflow-editor/dialogs");
     const onOpenChange = vi.fn();
     const fact = {
-      contextFactDefinitionId: "summary",
+      contextFactDefinitionId: "ctx-summary",
       key: "summary",
       label: "Summary",
       descriptionMarkdown: "Reusable summary for downstream steps.",
@@ -630,6 +827,128 @@ describe("workflow editor form slice route", () => {
     fireEvent.click(screen.getByRole("button", { name: "Discard Changes" }));
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("updates and deletes context facts by definition id when the key differs", async () => {
+    const { MethodologyWorkflowEditorRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId");
+
+    renderRoute(<MethodologyWorkflowEditorRoute />);
+
+    const summaryFactItem = (await screen.findByText("Summary")).closest("li");
+    if (!summaryFactItem) {
+      throw new Error("Expected Summary context fact card to render.");
+    }
+
+    fireEvent.click(within(summaryFactItem).getByRole("button", { name: "Edit" }));
+    fireEvent.change(screen.getByLabelText("Display Name"), {
+      target: { value: "Updated Summary" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      const updateContextFactPayload = (
+        updateContextFactMutationSpy.mock.calls as unknown[][]
+      )[0]?.[0];
+      expect(updateContextFactPayload).toEqual(
+        expect.objectContaining({
+          contextFactDefinitionId: "ctx-summary",
+          workflowDefinitionId: "wf-def-001",
+          versionId: "v1",
+        }),
+      );
+    });
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Delete" })[1]!);
+    fireEvent.click(screen.getByRole("button", { name: "Delete Fact" }));
+
+    await waitFor(() => {
+      const deleteContextFactPayload = (
+        deleteContextFactMutationSpy.mock.calls as unknown[][]
+      )[0]?.[0];
+      expect(deleteContextFactPayload).toEqual(
+        expect.objectContaining({
+          contextFactDefinitionId: "ctx-supporting-workflows",
+          workflowDefinitionId: "wf-def-001",
+          versionId: "v1",
+        }),
+      );
+    });
+  });
+
+  it("uses the returned created id for immediate edit and delete actions", async () => {
+    const { MethodologyWorkflowEditorRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId");
+
+    const editorDefinition = createEditorDefinition();
+    useRouteContextMock.mockReturnValue(createRouteContext(editorDefinition));
+
+    createContextFactMutationSpy.mockImplementationOnce(async () => {
+      const created = {
+        contextFactDefinitionId: "ctx-created",
+        kind: "plain_value_fact",
+        key: "architecture-summary",
+        label: "Architecture Summary",
+        cardinality: "one",
+        valueType: "string",
+      };
+      editorDefinition.contextFacts.push(created);
+      return created;
+    });
+
+    renderRoute(<MethodologyWorkflowEditorRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "+ Fact" }));
+    fireEvent.change(screen.getByLabelText("Fact Key"), {
+      target: { value: "architecture-summary" },
+    });
+    fireEvent.change(screen.getByLabelText("Display Name"), {
+      target: { value: "Architecture Summary" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    const contextFactsSection = screen.getByText("Context Fact Definitions").closest("section");
+    if (!contextFactsSection) {
+      throw new Error("Expected context facts section to render.");
+    }
+
+    const createdFactItem = await within(contextFactsSection).findByText("Architecture Summary");
+    const createdFactRow = createdFactItem.closest("li");
+    if (!createdFactRow) {
+      throw new Error("Expected created context fact row to render.");
+    }
+
+    fireEvent.click(within(createdFactRow).getByRole("button", { name: "Edit" }));
+    await screen.findByText("Edit Context Fact Definition: Architecture Summary");
+    fireEvent.change(screen.getByLabelText("Display Name"), {
+      target: { value: "Architecture Summary Updated" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      const updatePayload = (updateContextFactMutationSpy.mock.calls as unknown[][])[0]?.[0];
+      expect(updatePayload).toEqual(
+        expect.objectContaining({
+          contextFactDefinitionId: "ctx-created",
+          workflowDefinitionId: "wf-def-001",
+          versionId: "v1",
+        }),
+      );
+    });
+
+    fireEvent.click(within(createdFactRow).getByRole("button", { name: "Delete" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete Fact" }));
+
+    await waitFor(() => {
+      const deletePayload = (deleteContextFactMutationSpy.mock.calls as unknown[][])[0]?.[0];
+      expect(deletePayload).toEqual(
+        expect.objectContaining({
+          contextFactDefinitionId: "ctx-created",
+          workflowDefinitionId: "wf-def-001",
+          versionId: "v1",
+        }),
+      );
+    });
   });
 
   it("shows an error when the authoritative editor definition cannot resolve the workflow", async () => {
