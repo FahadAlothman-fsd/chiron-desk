@@ -3292,6 +3292,199 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
         }),
       ),
 
+    listWorkflowEdgesByDefinitionId: ({ versionId, workflowDefinitionId }) =>
+      dbEffect("methodology.listWorkflowEdgesByDefinitionId", async () => {
+        const workflow = await findWorkflowRow(db, { versionId, workflowDefinitionId });
+        if (!workflow) {
+          throw new Error(
+            `Workflow not found for versionId=${versionId}, workflowDefinitionId=${workflowDefinitionId}`,
+          );
+        }
+
+        const [stepRows, edgeRows] = await Promise.all([
+          db
+            .select({ id: methodologyWorkflowSteps.id, key: methodologyWorkflowSteps.key })
+            .from(methodologyWorkflowSteps)
+            .where(eq(methodologyWorkflowSteps.workflowId, workflow.id)),
+          db
+            .select()
+            .from(methodologyWorkflowEdges)
+            .where(eq(methodologyWorkflowEdges.workflowId, workflow.id))
+            .orderBy(asc(methodologyWorkflowEdges.createdAt), asc(methodologyWorkflowEdges.id)),
+        ]);
+
+        const stepKeyById = new Map(stepRows.map((row) => [row.id, row.key]));
+
+        return edgeRows.map((edge) => ({
+          edgeId: edge.id,
+          fromStepKey: edge.fromStepId ? (stepKeyById.get(edge.fromStepId) ?? null) : null,
+          toStepKey: edge.toStepId ? (stepKeyById.get(edge.toStepId) ?? null) : null,
+          ...(edge.guidanceJson !== null && edge.guidanceJson !== undefined
+            ? { descriptionJson: edge.guidanceJson as { readonly markdown: string } }
+            : {}),
+          ...(edge.conditionJson !== null && edge.conditionJson !== undefined
+            ? { condition: edge.conditionJson }
+            : {}),
+        }));
+      }),
+
+    createWorkflowEdgeByDefinitionId: ({
+      versionId,
+      workflowDefinitionId,
+      fromStepKey,
+      toStepKey,
+      descriptionJson,
+      condition,
+    }) =>
+      dbEffect("methodology.createWorkflowEdgeByDefinitionId", () =>
+        db.transaction(async (tx) => {
+          const workflow = await findWorkflowRow(tx, { versionId, workflowDefinitionId });
+          if (!workflow) {
+            throw new Error(
+              `Workflow not found for versionId=${versionId}, workflowDefinitionId=${workflowDefinitionId}`,
+            );
+          }
+
+          const stepRows = await tx
+            .select({ id: methodologyWorkflowSteps.id, key: methodologyWorkflowSteps.key })
+            .from(methodologyWorkflowSteps)
+            .where(eq(methodologyWorkflowSteps.workflowId, workflow.id));
+
+          const stepIdByKey = new Map(stepRows.map((row) => [row.key, row.id]));
+          const fromStepId = fromStepKey === null ? null : (stepIdByKey.get(fromStepKey) ?? null);
+          const toStepId = toStepKey === null ? null : (stepIdByKey.get(toStepKey) ?? null);
+
+          if (fromStepKey !== null && fromStepId === null) {
+            throw new Error(`Workflow edge references unknown fromStepKey '${fromStepKey}'`);
+          }
+
+          if (toStepKey !== null && toStepId === null) {
+            throw new Error(`Workflow edge references unknown toStepKey '${toStepKey}'`);
+          }
+
+          const rows = await tx
+            .insert(methodologyWorkflowEdges)
+            .values({
+              methodologyVersionId: versionId,
+              workflowId: workflow.id,
+              fromStepId,
+              toStepId,
+              edgeKey: null,
+              conditionJson: condition,
+              guidanceJson: descriptionJson,
+            })
+            .returning();
+
+          const edge = rows[0];
+          if (!edge) {
+            throw new Error("Failed to create workflow edge");
+          }
+
+          return {
+            edgeId: edge.id,
+            fromStepKey,
+            toStepKey,
+            ...(edge.guidanceJson !== null && edge.guidanceJson !== undefined
+              ? { descriptionJson: edge.guidanceJson as { readonly markdown: string } }
+              : {}),
+            ...(edge.conditionJson !== null && edge.conditionJson !== undefined
+              ? { condition: edge.conditionJson }
+              : {}),
+          } satisfies WorkflowEdgeDto;
+        }),
+      ),
+
+    updateWorkflowEdgeByDefinitionId: ({
+      versionId,
+      workflowDefinitionId,
+      edgeId,
+      fromStepKey,
+      toStepKey,
+      descriptionJson,
+      condition,
+    }) =>
+      dbEffect("methodology.updateWorkflowEdgeByDefinitionId", () =>
+        db.transaction(async (tx) => {
+          const workflow = await findWorkflowRow(tx, { versionId, workflowDefinitionId });
+          if (!workflow) {
+            throw new Error(
+              `Workflow not found for versionId=${versionId}, workflowDefinitionId=${workflowDefinitionId}`,
+            );
+          }
+
+          const stepRows = await tx
+            .select({ id: methodologyWorkflowSteps.id, key: methodologyWorkflowSteps.key })
+            .from(methodologyWorkflowSteps)
+            .where(eq(methodologyWorkflowSteps.workflowId, workflow.id));
+
+          const stepIdByKey = new Map(stepRows.map((row) => [row.key, row.id]));
+          const fromStepId = fromStepKey === null ? null : (stepIdByKey.get(fromStepKey) ?? null);
+          const toStepId = toStepKey === null ? null : (stepIdByKey.get(toStepKey) ?? null);
+
+          if (fromStepKey !== null && fromStepId === null) {
+            throw new Error(`Workflow edge references unknown fromStepKey '${fromStepKey}'`);
+          }
+
+          if (toStepKey !== null && toStepId === null) {
+            throw new Error(`Workflow edge references unknown toStepKey '${toStepKey}'`);
+          }
+
+          const rows = await tx
+            .update(methodologyWorkflowEdges)
+            .set({
+              fromStepId,
+              toStepId,
+              conditionJson: condition,
+              guidanceJson: descriptionJson,
+            })
+            .where(
+              and(
+                eq(methodologyWorkflowEdges.id, edgeId),
+                eq(methodologyWorkflowEdges.workflowId, workflow.id),
+              ),
+            )
+            .returning();
+
+          const edge = rows[0];
+          if (!edge) {
+            throw new Error(`Workflow edge '${edgeId}' not found`);
+          }
+
+          return {
+            edgeId: edge.id,
+            fromStepKey,
+            toStepKey,
+            ...(edge.guidanceJson !== null && edge.guidanceJson !== undefined
+              ? { descriptionJson: edge.guidanceJson as { readonly markdown: string } }
+              : {}),
+            ...(edge.conditionJson !== null && edge.conditionJson !== undefined
+              ? { condition: edge.conditionJson }
+              : {}),
+          } satisfies WorkflowEdgeDto;
+        }),
+      ),
+
+    deleteWorkflowEdgeByDefinitionId: ({ versionId, workflowDefinitionId, edgeId }) =>
+      dbEffect("methodology.deleteWorkflowEdgeByDefinitionId", () =>
+        db.transaction(async (tx) => {
+          const workflow = await findWorkflowRow(tx, { versionId, workflowDefinitionId });
+          if (!workflow) {
+            throw new Error(
+              `Workflow not found for versionId=${versionId}, workflowDefinitionId=${workflowDefinitionId}`,
+            );
+          }
+
+          await tx
+            .delete(methodologyWorkflowEdges)
+            .where(
+              and(
+                eq(methodologyWorkflowEdges.id, edgeId),
+                eq(methodologyWorkflowEdges.workflowId, workflow.id),
+              ),
+            );
+        }),
+      ),
+
     getWorkflowEditorDefinition: ({ versionId, workUnitTypeKey, workflowDefinitionId }) =>
       dbEffect("methodology.getWorkflowEditorDefinition", async () => {
         const workflow = await findWorkflowRow(db, {

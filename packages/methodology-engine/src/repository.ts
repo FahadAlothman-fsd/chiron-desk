@@ -154,6 +154,36 @@ export interface DeleteFormStepDefinitionParams {
   readonly stepId: string;
 }
 
+export interface ListWorkflowEdgesByDefinitionIdParams {
+  readonly versionId: string;
+  readonly workflowDefinitionId: string;
+}
+
+export interface CreateWorkflowEdgeByDefinitionIdParams {
+  readonly versionId: string;
+  readonly workflowDefinitionId: string;
+  readonly fromStepKey: string | null;
+  readonly toStepKey: string | null;
+  readonly descriptionJson: unknown;
+  readonly condition: unknown;
+}
+
+export interface UpdateWorkflowEdgeByDefinitionIdParams {
+  readonly versionId: string;
+  readonly workflowDefinitionId: string;
+  readonly edgeId: string;
+  readonly fromStepKey: string | null;
+  readonly toStepKey: string | null;
+  readonly descriptionJson: unknown;
+  readonly condition: unknown;
+}
+
+export interface DeleteWorkflowEdgeByDefinitionIdParams {
+  readonly versionId: string;
+  readonly workflowDefinitionId: string;
+  readonly edgeId: string;
+}
+
 export interface CreateWorkflowContextFactByDefinitionIdParams {
   readonly versionId: string;
   readonly workflowDefinitionId: string;
@@ -403,6 +433,18 @@ export class MethodologyRepository extends Context.Tag("MethodologyRepository")<
     ) => Effect.Effect<WorkflowFormDefinitionReadModel, RepositoryError>;
     readonly deleteFormStepDefinition: (
       params: DeleteFormStepDefinitionParams,
+    ) => Effect.Effect<void, RepositoryError>;
+    readonly listWorkflowEdgesByDefinitionId?: (
+      params: ListWorkflowEdgesByDefinitionIdParams,
+    ) => Effect.Effect<readonly WorkflowEdgeDto[], RepositoryError>;
+    readonly createWorkflowEdgeByDefinitionId?: (
+      params: CreateWorkflowEdgeByDefinitionIdParams,
+    ) => Effect.Effect<WorkflowEdgeDto, RepositoryError>;
+    readonly updateWorkflowEdgeByDefinitionId?: (
+      params: UpdateWorkflowEdgeByDefinitionIdParams,
+    ) => Effect.Effect<WorkflowEdgeDto, RepositoryError>;
+    readonly deleteWorkflowEdgeByDefinitionId?: (
+      params: DeleteWorkflowEdgeByDefinitionIdParams,
     ) => Effect.Effect<void, RepositoryError>;
     readonly getWorkflowEditorDefinition: (params: {
       versionId: string;

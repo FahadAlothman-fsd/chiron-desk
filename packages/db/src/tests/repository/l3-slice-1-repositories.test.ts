@@ -426,4 +426,81 @@ describe("l3 slice-1 methodology repository", () => {
       }),
     );
   });
+
+  it("supports workflow edge mutations on the app-wired repo", async () => {
+    await client.execute(`
+      INSERT INTO methodology_workflow_steps (id, methodology_version_id, workflow_id, key, type, display_name)
+      VALUES
+        ('step-a', 'version-1', 'workflow-1', 'step-a', 'form', 'Step A'),
+        ('step-b', 'version-1', 'workflow-1', 'step-b', 'form', 'Step B'),
+        ('step-c', 'version-1', 'workflow-1', 'step-c', 'form', 'Step C')
+    `);
+
+    await runRepo((repo) =>
+      Effect.gen(function* () {
+        const created = yield* repo.createWorkflowEdgeByDefinitionId!({
+          versionId: "version-1",
+          workflowDefinitionId: "workflow-1",
+          fromStepKey: "step-a",
+          toStepKey: "step-b",
+          descriptionJson: { markdown: "A to B" },
+          condition: null,
+        });
+
+        expect(created).toMatchObject({
+          fromStepKey: "step-a",
+          toStepKey: "step-b",
+          descriptionJson: { markdown: "A to B" },
+        });
+
+        const listedAfterCreate = yield* repo.listWorkflowEdgesByDefinitionId!({
+          versionId: "version-1",
+          workflowDefinitionId: "workflow-1",
+        });
+        expect(listedAfterCreate).toHaveLength(1);
+
+        const updated = yield* repo.updateWorkflowEdgeByDefinitionId!({
+          versionId: "version-1",
+          workflowDefinitionId: "workflow-1",
+          edgeId: created.edgeId,
+          fromStepKey: "step-a",
+          toStepKey: "step-c",
+          descriptionJson: { markdown: "A to C" },
+          condition: null,
+        });
+
+        expect(updated).toMatchObject({
+          edgeId: created.edgeId,
+          fromStepKey: "step-a",
+          toStepKey: "step-c",
+          descriptionJson: { markdown: "A to C" },
+        });
+
+        const listedAfterUpdate = yield* repo.listWorkflowEdgesByDefinitionId!({
+          versionId: "version-1",
+          workflowDefinitionId: "workflow-1",
+        });
+        expect(listedAfterUpdate).toEqual([
+          expect.objectContaining({
+            edgeId: created.edgeId,
+            fromStepKey: "step-a",
+            toStepKey: "step-c",
+            descriptionJson: { markdown: "A to C" },
+          }),
+        ]);
+
+        yield* repo.deleteWorkflowEdgeByDefinitionId!({
+          versionId: "version-1",
+          workflowDefinitionId: "workflow-1",
+          edgeId: created.edgeId,
+        });
+
+        const listedAfterDelete = yield* repo.listWorkflowEdgesByDefinitionId!({
+          versionId: "version-1",
+          workflowDefinitionId: "workflow-1",
+        });
+        expect(listedAfterDelete).toEqual([]);
+      }),
+    );
+  });
 });
