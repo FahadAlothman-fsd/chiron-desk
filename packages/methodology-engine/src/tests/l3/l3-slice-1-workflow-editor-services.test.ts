@@ -54,7 +54,7 @@ function makeRepo() {
       descriptionJson: { markdown: "Capture reusable context" },
       fields: [
         {
-          contextFactDefinitionId: "summary",
+          contextFactDefinitionId: "ctx-summary",
           fieldLabel: "Summary",
           fieldKey: "summary",
           helpText: null,
@@ -65,7 +65,8 @@ function makeRepo() {
   });
 
   const contextFacts = new Map<string, any>();
-  contextFacts.set("summary", {
+  contextFacts.set("ctx-summary", {
+    contextFactDefinitionId: "ctx-summary",
     kind: "plain_value_fact",
     key: "summary",
     cardinality: "one",
@@ -169,25 +170,32 @@ function makeRepo() {
       }),
     updateWorkflowContextFactByDefinitionId: (input: any) =>
       Effect.sync(() => {
-        contextFacts.delete(input.factKey);
-        contextFacts.set(input.fact.key, input.fact);
-        return input.fact;
+        const current = contextFacts.get(input.contextFactDefinitionId);
+        const updated = { ...input.fact, contextFactDefinitionId: input.contextFactDefinitionId };
+        if (current) {
+          contextFacts.set(input.contextFactDefinitionId, updated);
+        }
+        return updated;
       }),
     deleteWorkflowContextFactByDefinitionId: (input: any) =>
       Effect.suspend(() => {
         const inUse = [...formSteps.values()].some((step) =>
-          step.payload.fields.some((field: any) => field.contextFactDefinitionId === input.factKey),
+          step.payload.fields.some(
+            (field: any) => field.contextFactDefinitionId === input.contextFactDefinitionId,
+          ),
         );
         if (inUse) {
           return Effect.fail(
             new RepositoryError({
               operation: "workflowContextFact.delete",
-              cause: new Error(`Workflow context fact '${input.factKey}' is still bound`),
+              cause: new Error(
+                `Workflow context fact '${input.contextFactDefinitionId}' is still bound`,
+              ),
             }),
           );
         }
 
-        contextFacts.delete(input.factKey);
+        contextFacts.delete(input.contextFactDefinitionId);
         return Effect.void;
       }),
   } as unknown as Context.Tag.Service<typeof MethodologyRepository>;
@@ -240,6 +248,7 @@ describe("l3 slice-1 workflow editor services", () => {
     expect(result.workflow.workflowDefinitionId).toBe("wf-1");
     expect(result.contextFacts).toEqual([
       {
+        contextFactDefinitionId: "ctx-summary",
         kind: "plain_value_fact",
         key: "summary",
         cardinality: "one",
@@ -255,7 +264,7 @@ describe("l3 slice-1 workflow editor services", () => {
           descriptionJson: { markdown: "Capture reusable context" },
           fields: [
             {
-              contextFactDefinitionId: "summary",
+              contextFactDefinitionId: "ctx-summary",
               fieldLabel: "Summary",
               fieldKey: "summary",
               helpText: null,
@@ -327,7 +336,7 @@ describe("l3 slice-1 workflow editor services", () => {
             versionId: "ver-1",
             workUnitTypeKey: "WU.STORY",
             workflowDefinitionId: "wf-1",
-            factKey: "summary",
+            contextFactDefinitionId: "ctx-summary",
             fact: {
               kind: "artifact_reference_fact",
               key: "summary",
@@ -345,7 +354,7 @@ describe("l3 slice-1 workflow editor services", () => {
             versionId: "ver-1",
             workUnitTypeKey: "WU.STORY",
             workflowDefinitionId: "wf-1",
-            factKey: "summary",
+            contextFactDefinitionId: "ctx-summary",
           },
           "tester",
         ),
