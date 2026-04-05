@@ -500,6 +500,7 @@ In `packages/api/src/routers/methodology.ts`:
 5. **All 6 locked context-fact kinds** — `plain_value_fact`, `definition_backed_external_fact`, `bound_external_fact`, `workflow_reference_fact`, `artifact_reference_fact`, `work_unit_draft_spec_fact`
 6. **Form-step CRUD** — proper `Contract | Fields | Guidance` tabs with field-binding to workflow context facts
 7. **Removed stale artifacts** — `methodology_workflow_form_steps` table eliminated, `FormStepPayload.contextFacts` removed
+8. **Form dialog UX polish** — dirty state tracking with tab indicators (*) and discard confirmation dialog
 
 ### Commits
 
@@ -514,6 +515,11 @@ In `packages/api/src/routers/methodology.ts`:
 
 **UI polish:**
 - `e041a77e25` `fix(workflow-editor): show work unit names in context facts`
+- `d884a0c288` `feat(workflow-editor): add dirty tracking and discard confirmation to Form dialog`
+
+**Documentation:**
+- `0b4880cfe0` `docs(plan): close out L3 slice 1 design-time context facts and form`
+- `a9d0048267` `docs(notepad): record workflow-editor dialog learnings and issues`
 
 ### Verification
 
@@ -521,6 +527,7 @@ In `packages/api/src/routers/methodology.ts`:
 - ✅ Build clean
 - ✅ User manual verification confirmed working behavior
 - ✅ Design-time-only scope maintained (no runtime drift)
+- ✅ Form dialog dirty tracking and discard confirmation working
 
 ### Next Steps
 
