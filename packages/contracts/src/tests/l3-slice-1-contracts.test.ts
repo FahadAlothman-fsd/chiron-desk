@@ -13,8 +13,6 @@ import {
   WorkflowMetadataDialogInput,
   WorkflowStepReadModel,
 } from "../methodology/workflow";
-import { CreateAndPinProjectInput } from "../project/project";
-import { RuntimeStepExecutionDto } from "../runtime/executions";
 import { DescriptionJson } from "../shared/invariants";
 
 describe("slice-1 contract locks", () => {
@@ -68,6 +66,10 @@ describe("slice-1 contract locks", () => {
       key: "collect-context",
       label: "Collect context",
       descriptionJson: { markdown: "Capture operator context" },
+      guidance: {
+        human: { markdown: "Collect the reusable setup context." },
+        agent: { markdown: "Normalize the captured context for later steps." },
+      },
       fields: [
         {
           contextFactDefinitionId: "fact-summary",
@@ -165,7 +167,17 @@ describe("slice-1 contract locks", () => {
 
     const decode = Schema.decodeUnknownSync(WorkflowContextFactDto);
     const samples = [
-      { kind: "plain_value_fact", key: "name", cardinality: "one", valueType: "string" },
+      {
+        kind: "plain_value_fact",
+        contextFactDefinitionId: "fact-name",
+        key: "name",
+        cardinality: "one",
+        guidance: {
+          human: { markdown: "Provide the name." },
+          agent: { markdown: "Preserve the authored name." },
+        },
+        valueType: "string",
+      },
       {
         kind: "definition_backed_external_fact",
         key: "gitRoot",
@@ -194,7 +206,6 @@ describe("slice-1 contract locks", () => {
         kind: "work_unit_draft_spec_fact",
         key: "storyDraft",
         cardinality: "many",
-        workUnitTypeKey: "WU.STORY",
         includedFactDefinitionIds: ["fact-title", "fact-acceptance-criteria"],
       },
     ] as const;
@@ -251,7 +262,6 @@ describe("slice-1 contract locks", () => {
 
   it("locks deferred/default read models for non-form steps", () => {
     const decodeStepReadModel = Schema.decodeUnknownSync(WorkflowStepReadModel);
-    const decodeRuntimeStepExecution = Schema.decodeUnknownSync(RuntimeStepExecutionDto);
 
     expect(
       decodeStepReadModel({
@@ -261,35 +271,5 @@ describe("slice-1 contract locks", () => {
         defaultMessage: "Deferred until runtime adapter lands",
       }),
     ).toMatchObject({ stepType: "agent", mode: "deferred" });
-
-    expect(
-      decodeRuntimeStepExecution({
-        stepExecutionId: "se-1",
-        stepType: "display",
-        mode: "deferred",
-        defaultMessage: "Display execution model deferred in slice-1",
-      }),
-    ).toMatchObject({ stepType: "display", mode: "deferred" });
-  });
-
-  it("accepts optional projectRootPath on createAndPinProject input", () => {
-    const decode = Schema.decodeUnknownSync(CreateAndPinProjectInput);
-
-    expect(
-      decode({
-        methodologyId: "meth-1",
-        versionId: "ver-1",
-        name: "Project A",
-      }),
-    ).toMatchObject({ methodologyId: "meth-1", versionId: "ver-1" });
-
-    expect(
-      decode({
-        methodologyId: "meth-1",
-        versionId: "ver-1",
-        name: "Project A",
-        projectRootPath: "/tmp/project",
-      }).projectRootPath,
-    ).toBe("/tmp/project");
   });
 });

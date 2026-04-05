@@ -77,6 +77,7 @@ export const FactValidation = Schema.Union(
 export type FactValidation = typeof FactValidation.Type;
 
 export const FactSchema = Schema.Struct({
+  id: Schema.optional(Schema.NonEmptyString),
   name: Schema.optional(Schema.String),
   key: Schema.NonEmptyString,
   factType: FactType,

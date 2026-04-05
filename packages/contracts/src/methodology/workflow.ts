@@ -1,4 +1,5 @@
 import * as Schema from "effect/Schema";
+import { AudienceGuidance } from "./guidance.js";
 import { DescriptionJson } from "../shared/invariants.js";
 import { WorkflowDefinition } from "./version.js";
 
@@ -51,8 +52,10 @@ export const WorkflowContextFactCardinality = Schema.Literal("one", "many");
 export type WorkflowContextFactCardinality = typeof WorkflowContextFactCardinality.Type;
 
 const WorkflowContextFactMetadata = Schema.Struct({
+  contextFactDefinitionId: Schema.optional(Schema.NonEmptyString),
   label: Schema.optional(Schema.String),
   descriptionJson: Schema.optional(DescriptionJson),
+  guidance: Schema.optional(AudienceGuidance),
 });
 
 export const WorkflowContextFactDto = Schema.Union(
@@ -100,6 +103,7 @@ export const FormStepPayload = Schema.Struct({
   label: Schema.optional(Schema.String),
   descriptionJson: Schema.optional(DescriptionJson),
   fields: Schema.Array(FormStepFieldPayload),
+  guidance: Schema.optional(AudienceGuidance),
 });
 export type FormStepPayload = typeof FormStepPayload.Type;
 

@@ -62,6 +62,7 @@ export type LifecycleTransition = typeof LifecycleTransition.Type;
 // FactSchema imported from ./fact.ts — no duplicate definition
 
 export const WorkUnitTypeDefinition = Schema.Struct({
+  id: Schema.optional(Schema.NonEmptyString),
   key: Schema.NonEmptyString,
   displayName: Schema.optional(Schema.String),
   description: Schema.optional(Schema.Union(GuidanceMarkdownContent, Schema.String)),
