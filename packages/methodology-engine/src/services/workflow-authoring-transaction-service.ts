@@ -122,6 +122,31 @@ export const WorkflowAuthoringTransactionServiceLive = Layer.effect(
           );
         }
 
+        if (input.createContextFact) {
+          yield* contextFacts.create(
+            {
+              versionId: input.versionId,
+              workUnitTypeKey: input.workUnitTypeKey,
+              workflowDefinitionId: input.workflowDefinitionId,
+              fact: input.createContextFact,
+            },
+            actorId,
+          );
+        }
+
+        if (input.updateContextFact) {
+          yield* contextFacts.update(
+            {
+              versionId: input.versionId,
+              workUnitTypeKey: input.workUnitTypeKey,
+              workflowDefinitionId: input.workflowDefinitionId,
+              factKey: input.updateContextFact.factKey,
+              fact: input.updateContextFact.fact,
+            },
+            actorId,
+          );
+        }
+
         if (input.createFormStep) {
           yield* formSteps.createFormStep(
             {
@@ -148,18 +173,6 @@ export const WorkflowAuthoringTransactionServiceLive = Layer.effect(
           );
         }
 
-        if (input.deleteFormStepId) {
-          yield* formSteps.deleteFormStep(
-            {
-              versionId: input.versionId,
-              workUnitTypeKey: input.workUnitTypeKey,
-              workflowDefinitionId: input.workflowDefinitionId,
-              stepId: input.deleteFormStepId,
-            },
-            actorId,
-          );
-        }
-
         if (input.createEdge) {
           yield* topology.createEdge(
             {
@@ -169,6 +182,18 @@ export const WorkflowAuthoringTransactionServiceLive = Layer.effect(
               fromStepKey: input.createEdge.fromStepKey,
               toStepKey: input.createEdge.toStepKey,
               descriptionJson: input.createEdge.descriptionJson ?? { markdown: "" },
+            },
+            actorId,
+          );
+        }
+
+        if (input.deleteFormStepId) {
+          yield* formSteps.deleteFormStep(
+            {
+              versionId: input.versionId,
+              workUnitTypeKey: input.workUnitTypeKey,
+              workflowDefinitionId: input.workflowDefinitionId,
+              stepId: input.deleteFormStepId,
             },
             actorId,
           );
@@ -196,31 +221,6 @@ export const WorkflowAuthoringTransactionServiceLive = Layer.effect(
               workUnitTypeKey: input.workUnitTypeKey,
               workflowDefinitionId: input.workflowDefinitionId,
               edgeId: input.deleteEdgeId,
-            },
-            actorId,
-          );
-        }
-
-        if (input.createContextFact) {
-          yield* contextFacts.create(
-            {
-              versionId: input.versionId,
-              workUnitTypeKey: input.workUnitTypeKey,
-              workflowDefinitionId: input.workflowDefinitionId,
-              fact: input.createContextFact,
-            },
-            actorId,
-          );
-        }
-
-        if (input.updateContextFact) {
-          yield* contextFacts.update(
-            {
-              versionId: input.versionId,
-              workUnitTypeKey: input.workUnitTypeKey,
-              workflowDefinitionId: input.workflowDefinitionId,
-              factKey: input.updateContextFact.factKey,
-              fact: input.updateContextFact.fact,
             },
             actorId,
           );
