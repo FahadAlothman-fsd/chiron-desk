@@ -158,6 +158,8 @@ describe("l3 slice-1 methodology repository", () => {
           fact: {
             kind: "plain_value_fact",
             key: "summary",
+            label: "Summary",
+            descriptionJson: { markdown: "Reusable summary for downstream workflow steps" },
             cardinality: "one",
             valueType: "string",
           },
@@ -229,6 +231,14 @@ describe("l3 slice-1 methodology repository", () => {
             "work_unit_draft_spec_fact",
           ].sort(),
         );
+        expect(facts).toContainEqual({
+          kind: "plain_value_fact",
+          key: "summary",
+          label: "Summary",
+          descriptionJson: { markdown: "Reusable summary for downstream workflow steps" },
+          cardinality: "one",
+          valueType: "string",
+        });
 
         const createdStep = yield* repo.createFormStepDefinition({
           versionId: "version-1",
@@ -287,6 +297,14 @@ describe("l3 slice-1 methodology repository", () => {
         });
 
         expect(editor.contextFacts.map((fact) => fact.key)).toContain("summary");
+        expect(editor.contextFacts).toContainEqual({
+          kind: "plain_value_fact",
+          key: "summary",
+          label: "Summary",
+          descriptionJson: { markdown: "Reusable summary for downstream workflow steps" },
+          cardinality: "one",
+          valueType: "string",
+        });
         expect(editor.formDefinitions).toEqual([
           {
             stepId: createdStep.stepId,

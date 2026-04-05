@@ -49,44 +49,49 @@ export type WorkflowContextFactKind = typeof WorkflowContextFactKind.Type;
 export const WorkflowContextFactCardinality = Schema.Literal("one", "many");
 export type WorkflowContextFactCardinality = typeof WorkflowContextFactCardinality.Type;
 
+const WorkflowContextFactMetadata = Schema.Struct({
+  label: Schema.optional(Schema.String),
+  descriptionJson: Schema.optional(DescriptionJson),
+});
+
 export const WorkflowContextFactDto = Schema.Union(
   Schema.Struct({
     kind: Schema.Literal("plain_value_fact"),
     key: Schema.NonEmptyString,
     cardinality: WorkflowContextFactCardinality,
     valueType: FormFieldValueType,
-  }),
+  }).pipe(Schema.extend(WorkflowContextFactMetadata)),
   Schema.Struct({
     kind: Schema.Literal("definition_backed_external_fact"),
     key: Schema.NonEmptyString,
     cardinality: WorkflowContextFactCardinality,
     externalFactDefinitionId: Schema.NonEmptyString,
-  }),
+  }).pipe(Schema.extend(WorkflowContextFactMetadata)),
   Schema.Struct({
     kind: Schema.Literal("bound_external_fact"),
     key: Schema.NonEmptyString,
     cardinality: WorkflowContextFactCardinality,
     externalFactDefinitionId: Schema.NonEmptyString,
-  }),
+  }).pipe(Schema.extend(WorkflowContextFactMetadata)),
   Schema.Struct({
     kind: Schema.Literal("workflow_reference_fact"),
     key: Schema.NonEmptyString,
     cardinality: WorkflowContextFactCardinality,
     allowedWorkflowDefinitionIds: Schema.Array(Schema.NonEmptyString),
-  }),
+  }).pipe(Schema.extend(WorkflowContextFactMetadata)),
   Schema.Struct({
     kind: Schema.Literal("artifact_reference_fact"),
     key: Schema.NonEmptyString,
     cardinality: WorkflowContextFactCardinality,
     artifactSlotDefinitionId: Schema.NonEmptyString,
-  }),
+  }).pipe(Schema.extend(WorkflowContextFactMetadata)),
   Schema.Struct({
     kind: Schema.Literal("work_unit_draft_spec_fact"),
     key: Schema.NonEmptyString,
     cardinality: WorkflowContextFactCardinality,
     workUnitTypeKey: Schema.NonEmptyString,
     includedFactKeys: Schema.Array(Schema.NonEmptyString),
-  }),
+  }).pipe(Schema.extend(WorkflowContextFactMetadata)),
 );
 export type WorkflowContextFactDto = typeof WorkflowContextFactDto.Type;
 

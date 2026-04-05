@@ -136,6 +136,14 @@ function getDraftSpecWorkUnitTypeKey(guidanceJson: unknown): string {
   return "";
 }
 
+function getContextFactDescriptionJson(value: unknown): { readonly markdown: string } | undefined {
+  if (isRecord(value) && typeof value.markdown === "string") {
+    return { markdown: value.markdown };
+  }
+
+  return undefined;
+}
+
 function deriveStoredFieldValueType(fact: WorkflowContextFactDto | undefined): string {
   if (!fact) {
     return "json";
@@ -456,6 +464,8 @@ async function readWorkflowContextFacts(
       id: methodologyWorkflowContextFactDefinitions.id,
       factKey: methodologyWorkflowContextFactDefinitions.factKey,
       factKind: methodologyWorkflowContextFactDefinitions.factKind,
+      label: methodologyWorkflowContextFactDefinitions.label,
+      descriptionJson: methodologyWorkflowContextFactDefinitions.descriptionJson,
       cardinality: methodologyWorkflowContextFactDefinitions.cardinality,
       guidanceJson: methodologyWorkflowContextFactDefinitions.guidanceJson,
     })
@@ -555,6 +565,13 @@ async function readWorkflowContextFacts(
   }
 
   return definitionRows.map((definition): WorkflowContextFactDto => {
+    const metadata = {
+      ...(typeof definition.label === "string" ? { label: definition.label } : {}),
+      ...(getContextFactDescriptionJson(definition.descriptionJson)
+        ? { descriptionJson: getContextFactDescriptionJson(definition.descriptionJson) }
+        : {}),
+    };
+
     switch (definition.factKind) {
       case "plain_value_fact": {
         const row = plainByDefinitionId.get(definition.id);
@@ -565,6 +582,7 @@ async function readWorkflowContextFacts(
         return {
           kind: "plain_value_fact",
           key: definition.factKey,
+          ...metadata,
           cardinality: definition.cardinality as "one" | "many",
           valueType: row.valueType as FactValueType,
         };
@@ -579,6 +597,7 @@ async function readWorkflowContextFacts(
         return {
           kind: definition.factKind,
           key: definition.factKey,
+          ...metadata,
           cardinality: definition.cardinality as "one" | "many",
           externalFactDefinitionId: row.bindingKey,
         };
@@ -597,6 +616,7 @@ async function readWorkflowContextFacts(
         return {
           kind: "workflow_reference_fact",
           key: definition.factKey,
+          ...metadata,
           cardinality: definition.cardinality as "one" | "many",
           allowedWorkflowDefinitionIds,
         };
@@ -610,6 +630,7 @@ async function readWorkflowContextFacts(
         return {
           kind: "artifact_reference_fact",
           key: definition.factKey,
+          ...metadata,
           cardinality: definition.cardinality as "one" | "many",
           artifactSlotDefinitionId: row.artifactSlotKey,
         };
@@ -623,6 +644,7 @@ async function readWorkflowContextFacts(
         return {
           kind: "work_unit_draft_spec_fact",
           key: definition.factKey,
+          ...metadata,
           cardinality: definition.cardinality as "one" | "many",
           workUnitTypeKey: getDraftSpecWorkUnitTypeKey(definition.guidanceJson),
           includedFactKeys: (draftFieldsByDraftSpecId.get(row.id) ?? []).map(
@@ -2903,6 +2925,8 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               workflowId: workflowDefinitionId,
               factKey: fact.key,
               factKind: fact.kind,
+              label: fact.label ?? null,
+              descriptionJson: fact.descriptionJson ?? null,
               cardinality: fact.cardinality,
               guidanceJson:
                 fact.kind === "work_unit_draft_spec_fact"
@@ -2951,6 +2975,8 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             .set({
               factKey: fact.key,
               factKind: fact.kind,
+              label: fact.label ?? null,
+              descriptionJson: fact.descriptionJson ?? null,
               cardinality: fact.cardinality,
               guidanceJson:
                 fact.kind === "work_unit_draft_spec_fact"

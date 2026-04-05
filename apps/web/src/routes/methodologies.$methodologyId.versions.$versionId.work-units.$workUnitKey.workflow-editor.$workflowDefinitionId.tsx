@@ -398,25 +398,17 @@ function toContextFactDefinitions(rawFacts: unknown): WorkflowContextFactDefinit
 
 function toContextFactMutationPayload(draft: WorkflowContextFactDraft) {
   const descriptionMarkdown = draft.descriptionMarkdown.trim();
-  const guidance = {
-    human: { markdown: draft.guidance.humanMarkdown.trim() },
-    agent: { markdown: draft.guidance.agentMarkdown.trim() },
-  };
 
   const base = {
     kind: draft.kind,
     key: draft.key.trim(),
     label: draft.label.trim() || undefined,
-    displayName: draft.label.trim() || undefined,
     cardinality: draft.cardinality,
     ...(descriptionMarkdown.length > 0
       ? {
           descriptionJson: { markdown: descriptionMarkdown },
-          description: { markdown: descriptionMarkdown },
         }
       : {}),
-    guidanceJson: guidance,
-    guidance,
   };
 
   switch (draft.kind) {
