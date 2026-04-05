@@ -322,6 +322,20 @@ function createEditorDefinition() {
           agent: { markdown: "Preserve the workflow ids as authored." },
         },
       },
+      {
+        contextFactDefinitionId: "ctx-deep-dive-target",
+        key: "deep_dive_target",
+        label: "Deep Dive Target",
+        descriptionJson: { markdown: "Selected deep-dive target for brainstorming follow-up." },
+        kind: "work_unit_draft_spec_fact",
+        cardinality: "one",
+        workUnitTypeKey: "wut-brainstorming",
+        includedFactDefinitionIds: ["wuf-selected-directions"],
+        guidanceJson: {
+          human: { markdown: "Pick the brainstorming target to deepen." },
+          agent: { markdown: "Reuse the selected brainstorming target in downstream flows." },
+        },
+      },
     ],
     formDefinitions: [
       {
@@ -499,6 +513,9 @@ describe("workflow editor form slice route", () => {
     expect(await screen.findByText("STEP TYPES")).toBeTruthy();
     expect(screen.getByText("Context Fact Definitions")).toBeTruthy();
     expect(screen.getByText("Summary")).toBeTruthy();
+    expect(screen.getByText("Deep Dive Target")).toBeTruthy();
+    expect(screen.getByText("Brainstorming")).toBeTruthy();
+    expect(screen.queryByText("wut-brainstorming")).toBeNull();
     expect(screen.queryByText(/coming in slice-2/i)).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: /Form step type 45/i }));

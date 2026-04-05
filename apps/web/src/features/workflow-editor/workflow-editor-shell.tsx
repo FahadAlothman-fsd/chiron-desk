@@ -124,6 +124,7 @@ function getContextFactBadges(
   fact: WorkflowContextFactDefinitionItem,
   externalFactsById: ReadonlyMap<string, WorkflowEditorPickerOption>,
   artifactSlotsById: ReadonlyMap<string, WorkflowEditorPickerOption>,
+  workUnitTypesById: ReadonlyMap<string, WorkflowEditorPickerOption>,
 ): WorkflowEditorPickerBadge[] {
   const badges: WorkflowEditorPickerBadge[] = [{ label: fact.cardinality, tone: "cardinality" }];
 
@@ -185,7 +186,12 @@ function getContextFactBadges(
     case "work_unit_draft_spec_fact":
       badges.push({ label: "work unit", tone: "type-work-unit" });
       if (fact.workUnitTypeKey?.trim()) {
-        badges.push({ label: fact.workUnitTypeKey.trim(), tone: "work-unit-definition" });
+        const workUnitIdentifier = fact.workUnitTypeKey.trim();
+        const workUnit = workUnitTypesById.get(workUnitIdentifier);
+        badges.push({
+          label: workUnit?.label ?? workUnitIdentifier,
+          tone: "work-unit-definition",
+        });
       }
       return badges;
   }
@@ -325,6 +331,18 @@ export function WorkflowEditorShell({
     () => new Map(artifactSlots.map((option) => [option.value, option])),
     [artifactSlots],
   );
+  const workUnitTypesById = useMemo(() => {
+    const optionsByValue = new Map<string, WorkflowEditorPickerOption>();
+
+    workUnitTypes.forEach((option) => {
+      optionsByValue.set(option.value, option);
+      if (typeof option.secondaryLabel === "string" && option.secondaryLabel.length > 0) {
+        optionsByValue.set(option.secondaryLabel, option);
+      }
+    });
+
+    return optionsByValue;
+  }, [workUnitTypes]);
 
   const openCreateFormDialog = () => {
     setStatusMessage(null);
@@ -475,16 +493,19 @@ export function WorkflowEditorShell({
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
-                        {getContextFactBadges(fact, externalFactsById, artifactSlotsById).map(
-                          (badge, index) => (
-                            <span
-                              key={`${fact.contextFactDefinitionId}-${badge.tone}-${badge.label}-${index}`}
-                              className={getPickerBadgeClassName(badge)}
-                            >
-                              {badge.label}
-                            </span>
-                          ),
-                        )}
+                        {getContextFactBadges(
+                          fact,
+                          externalFactsById,
+                          artifactSlotsById,
+                          workUnitTypesById,
+                        ).map((badge, index) => (
+                          <span
+                            key={`${fact.contextFactDefinitionId}-${badge.tone}-${badge.label}-${index}`}
+                            className={getPickerBadgeClassName(badge)}
+                          >
+                            {badge.label}
+                          </span>
+                        ))}
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
