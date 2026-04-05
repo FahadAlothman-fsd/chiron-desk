@@ -2,32 +2,31 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { rmSync } from "node:fs";
 import { createClient, type Client } from "@libsql/client";
-import { Effect, Layer } from "effect";
+import { Effect } from "effect";
 import { drizzle, type LibSQLDatabase } from "drizzle-orm/libsql";
 
-import {
-  FormStepRepository,
-  createFormStepRepoLayer,
-} from "../../repositories/form-step-repository";
-import {
-  WorkflowContextFactRepository,
-  createWorkflowContextFactRepoLayer,
-} from "../../repositories/workflow-context-fact-repository";
-import {
-  StepExecutionRepository,
-  createStepExecutionRepoLayer,
-} from "../../repositories/step-execution-repository";
+import { MethodologyRepository } from "@chiron/methodology-engine";
+import { createMethodologyRepoLayer } from "../../methodology-repository";
 import * as schema from "../../schema";
 
 const SCHEMA_SQL = [
   `CREATE TABLE methodology_versions (id TEXT PRIMARY KEY)`,
+  `CREATE TABLE methodology_work_unit_types (
+    id TEXT PRIMARY KEY,
+    methodology_version_id TEXT NOT NULL,
+    key TEXT NOT NULL
+  )`,
   `CREATE TABLE methodology_workflows (
     id TEXT PRIMARY KEY,
     methodology_version_id TEXT NOT NULL,
+    work_unit_type_id TEXT,
     key TEXT NOT NULL,
     display_name TEXT,
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
+    description_json TEXT,
+    metadata_json TEXT,
+    guidance_json TEXT,
+    created_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000),
+    updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000)
   )`,
   `CREATE TABLE methodology_workflow_steps (
     id TEXT PRIMARY KEY,
@@ -53,15 +52,6 @@ const SCHEMA_SQL = [
     created_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000),
     updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000)
   )`,
-  `CREATE TABLE methodology_workflow_form_steps (
-    id TEXT PRIMARY KEY,
-    workflow_definition_id TEXT NOT NULL,
-    key TEXT NOT NULL,
-    label TEXT,
-    description_json TEXT,
-    created_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000),
-    updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000)
-  )`,
   `CREATE TABLE methodology_workflow_form_fields (
     id TEXT PRIMARY KEY,
     form_step_id TEXT NOT NULL,
@@ -78,6 +68,10 @@ const SCHEMA_SQL = [
     workflow_definition_id TEXT NOT NULL,
     fact_key TEXT NOT NULL,
     fact_kind TEXT NOT NULL,
+    label TEXT,
+    description_json TEXT,
+    cardinality TEXT NOT NULL,
+    guidance_json TEXT,
     created_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000),
     updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000)
   )`,
@@ -97,11 +91,6 @@ const SCHEMA_SQL = [
     context_fact_definition_id TEXT NOT NULL,
     workflow_definition_id TEXT NOT NULL
   )`,
-  `CREATE TABLE methodology_workflow_context_fact_work_unit_refs (
-    id TEXT PRIMARY KEY,
-    context_fact_definition_id TEXT NOT NULL,
-    work_unit_type_key TEXT NOT NULL
-  )`,
   `CREATE TABLE methodology_workflow_context_fact_artifact_refs (
     id TEXT PRIMARY KEY,
     context_fact_definition_id TEXT NOT NULL,
@@ -119,42 +108,9 @@ const SCHEMA_SQL = [
     required INTEGER NOT NULL,
     description_json TEXT
   )`,
-  `CREATE TABLE workflow_executions (
-    id TEXT PRIMARY KEY,
-    transition_execution_id TEXT NOT NULL,
-    workflow_id TEXT NOT NULL,
-    workflow_role TEXT NOT NULL,
-    status TEXT NOT NULL,
-    started_at INTEGER NOT NULL
-  )`,
-  `CREATE TABLE step_executions (
-    id TEXT PRIMARY KEY,
-    workflow_execution_id TEXT NOT NULL,
-    step_definition_id TEXT NOT NULL,
-    step_type TEXT NOT NULL,
-    status TEXT NOT NULL,
-    activated_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000),
-    completed_at INTEGER,
-    progression_data TEXT
-  )`,
-  `CREATE TABLE form_step_execution_state (
-    id TEXT PRIMARY KEY,
-    step_execution_id TEXT NOT NULL,
-    draft_values_json TEXT,
-    submitted_snapshot_json TEXT,
-    submitted_at INTEGER
-  )`,
-  `CREATE TABLE workflow_execution_context_facts (
-    id TEXT PRIMARY KEY,
-    workflow_execution_id TEXT NOT NULL,
-    fact_key TEXT NOT NULL,
-    fact_kind TEXT NOT NULL,
-    value_json TEXT,
-    source_step_execution_id TEXT
-  )`,
 ];
 
-describe("l3 slice-1 repositories", () => {
+describe("l3 slice-1 methodology repository", () => {
   let client: Client;
   let db: LibSQLDatabase<typeof schema>;
   let dbPath: string;
@@ -169,12 +125,12 @@ describe("l3 slice-1 repositories", () => {
 
     await client.execute(`INSERT INTO methodology_versions (id) VALUES ('version-1')`);
     await client.execute(`
-      INSERT INTO methodology_workflows (id, methodology_version_id, key, display_name, created_at, updated_at)
-      VALUES ('workflow-1', 'version-1', 'wu.setup.form', 'Setup workflow', strftime('%s','now') * 1000, strftime('%s','now') * 1000)
+      INSERT INTO methodology_work_unit_types (id, methodology_version_id, key)
+      VALUES ('wut-1', 'version-1', 'WU.STORY')
     `);
     await client.execute(`
-      INSERT INTO workflow_executions (id, transition_execution_id, workflow_id, workflow_role, status, started_at)
-      VALUES ('wexec-1', 'tx-1', 'workflow-1', 'primary', 'active', strftime('%s','now') * 1000)
+      INSERT INTO methodology_workflows (id, methodology_version_id, work_unit_type_id, key, display_name)
+      VALUES ('workflow-1', 'version-1', 'wut-1', 'wu.story.setup', 'Story setup')
     `);
   });
 
@@ -183,226 +139,273 @@ describe("l3 slice-1 repositories", () => {
     rmSync(dbPath, { force: true });
   });
 
-  const run = <A>(
-    program: Effect.Effect<
-      A,
-      unknown,
-      FormStepRepository | WorkflowContextFactRepository | StepExecutionRepository
-    >,
+  const runRepo = <A>(
+    fn: (repo: MethodologyRepository["Type"]) => Effect.Effect<A, unknown, never>,
   ): Promise<A> =>
     Effect.runPromise(
-      program.pipe(
-        Effect.provide(
-          Layer.mergeAll(
-            createFormStepRepoLayer(db),
-            createWorkflowContextFactRepoLayer(db),
-            createStepExecutionRepoLayer(db),
-          ),
-        ),
-      ),
+      Effect.gen(function* () {
+        const repo = yield* MethodologyRepository;
+        return yield* fn(repo);
+      }).pipe(Effect.provide(createMethodologyRepoLayer(db))),
     );
 
-  it("persists and updates form steps/fields", async () => {
-    const created = await run(
+  it("supports context-fact CRUD and editor-definition reads on the app-wired repo", async () => {
+    await runRepo((repo) =>
       Effect.gen(function* () {
-        const repo = yield* FormStepRepository;
-        return yield* repo.createFormStep({
-          workflowId: "workflow-1",
-          stepDefinition: {
-            key: "capture-setup-context",
-            label: "Capture setup context",
-            descriptionJson: { markdown: "Collect baseline setup facts" },
+        yield* repo.createWorkflowContextFactByDefinitionId({
+          versionId: "version-1",
+          workflowDefinitionId: "workflow-1",
+          fact: {
+            kind: "plain_value_fact",
+            key: "summary",
+            cardinality: "one",
+            valueType: "string",
+          },
+        });
+        yield* repo.createWorkflowContextFactByDefinitionId({
+          versionId: "version-1",
+          workflowDefinitionId: "workflow-1",
+          fact: {
+            kind: "definition_backed_external_fact",
+            key: "repository_root",
+            cardinality: "one",
+            externalFactDefinitionId: "ext-root",
+          },
+        });
+        yield* repo.createWorkflowContextFactByDefinitionId({
+          versionId: "version-1",
+          workflowDefinitionId: "workflow-1",
+          fact: {
+            kind: "bound_external_fact",
+            key: "repository_type",
+            cardinality: "one",
+            externalFactDefinitionId: "ext-type",
+          },
+        });
+        yield* repo.createWorkflowContextFactByDefinitionId({
+          versionId: "version-1",
+          workflowDefinitionId: "workflow-1",
+          fact: {
+            kind: "workflow_reference_fact",
+            key: "supporting_workflows",
+            cardinality: "many",
+            allowedWorkflowDefinitionIds: ["wf-2", "wf-3"],
+          },
+        });
+        yield* repo.createWorkflowContextFactByDefinitionId({
+          versionId: "version-1",
+          workflowDefinitionId: "workflow-1",
+          fact: {
+            kind: "artifact_reference_fact",
+            key: "prd_artifact",
+            cardinality: "many",
+            artifactSlotDefinitionId: "ART.PRD",
+          },
+        });
+        yield* repo.createWorkflowContextFactByDefinitionId({
+          versionId: "version-1",
+          workflowDefinitionId: "workflow-1",
+          fact: {
+            kind: "work_unit_draft_spec_fact",
+            key: "story_draft",
+            cardinality: "many",
+            workUnitTypeKey: "WU.STORY",
+            includedFactKeys: ["title", "acceptance_criteria"],
+          },
+        });
+
+        const facts = yield* repo.listWorkflowContextFactsByDefinitionId({
+          versionId: "version-1",
+          workflowDefinitionId: "workflow-1",
+        });
+
+        expect(facts.map((fact) => fact.kind).sort()).toEqual(
+          [
+            "artifact_reference_fact",
+            "bound_external_fact",
+            "definition_backed_external_fact",
+            "plain_value_fact",
+            "workflow_reference_fact",
+            "work_unit_draft_spec_fact",
+          ].sort(),
+        );
+
+        const createdStep = yield* repo.createFormStepDefinition({
+          versionId: "version-1",
+          workflowDefinitionId: "workflow-1",
+          afterStepKey: null,
+          payload: {
+            key: "capture-context",
+            label: "Capture context",
+            descriptionJson: { markdown: "Collect reusable context" },
             fields: [
               {
-                key: "initiativeName",
-                label: "Initiative",
-                valueType: "string",
+                contextFactDefinitionId: "summary",
+                fieldLabel: "Summary",
+                fieldKey: "summary",
+                helpText: "Required summary",
                 required: true,
-                inputJson: { kind: "text", multiline: false },
-                descriptionJson: { markdown: "Team-visible initiative title" },
-                sortOrder: 0,
               },
             ],
           },
         });
-      }),
-    );
 
-    expect(created.fields).toHaveLength(1);
-
-    const updated = await run(
-      Effect.gen(function* () {
-        const repo = yield* FormStepRepository;
-        return yield* repo.updateFormStep({
-          formStepId: created.formStep.id,
-          stepDefinition: {
-            key: "capture-setup-context",
-            label: "Capture setup context (v2)",
-            descriptionJson: { markdown: "Updated" },
-            fields: [],
-          },
-        });
-      }),
-    );
-    expect(updated?.formStep.label).toBe("Capture setup context (v2)");
-  });
-
-  it("enforces one outgoing edge invariant per step", async () => {
-    const [stepA, stepB, stepC] = await run(
-      Effect.gen(function* () {
-        const repo = yield* FormStepRepository;
-        const a = yield* repo.createFormStep({
-          workflowId: "workflow-1",
-          stepDefinition: { key: "a", label: null, descriptionJson: null, fields: [] },
-        });
-        const b = yield* repo.createFormStep({
-          workflowId: "workflow-1",
-          stepDefinition: { key: "b", label: null, descriptionJson: null, fields: [] },
-        });
-        const c = yield* repo.createFormStep({
-          workflowId: "workflow-1",
-          stepDefinition: { key: "c", label: null, descriptionJson: null, fields: [] },
-        });
-        return [a.formStep, b.formStep, c.formStep] as const;
-      }),
-    );
-
-    await run(
-      Effect.gen(function* () {
-        const repo = yield* FormStepRepository;
-        yield* repo.createEdge({
-          workflowId: "workflow-1",
-          fromStepId: stepA.id,
-          toStepId: stepB.id,
-          edgeKey: "a->b",
-        });
-      }),
-    );
-
-    await expect(
-      run(
-        Effect.gen(function* () {
-          const repo = yield* FormStepRepository;
-          yield* repo.createEdge({
-            workflowId: "workflow-1",
-            fromStepId: stepA.id,
-            toStepId: stepC.id,
-            edgeKey: "a->c",
-          });
-        }),
-      ),
-    ).rejects.toThrow(/An error has occurred/);
-  });
-
-  it("persists all 7 context-fact kinds", async () => {
-    const keys = await run(
-      Effect.gen(function* () {
-        const repo = yield* WorkflowContextFactRepository;
-
-        yield* repo.createContextFactDefinition({
-          workflowId: "workflow-1",
-          factKey: "plain.fact",
-          factKind: "plain_value",
-          payload: { valueType: "string" },
-        });
-        yield* repo.createContextFactDefinition({
-          workflowId: "workflow-1",
-          factKey: "external.fact",
-          factKind: "external_binding",
-          payload: { provider: "project", bindingKey: "projectRootPath" },
-        });
-        yield* repo.createContextFactDefinition({
-          workflowId: "workflow-1",
-          factKey: "wf.ref",
-          factKind: "workflow_reference",
-          payload: { workflowDefinitionId: "workflow-2" },
-        });
-        yield* repo.createContextFactDefinition({
-          workflowId: "workflow-1",
-          factKey: "wu.ref",
-          factKind: "work_unit_reference",
-          payload: { workUnitTypeKey: "WU.STORY" },
-        });
-        yield* repo.createContextFactDefinition({
-          workflowId: "workflow-1",
-          factKey: "artifact.ref",
-          factKind: "artifact_reference",
-          payload: { artifactSlotKey: "ART.PRD" },
-        });
-        const draftSpec = yield* repo.createContextFactDefinition({
-          workflowId: "workflow-1",
-          factKey: "draft.spec",
-          factKind: "draft_spec",
-          payload: {},
-        });
-        yield* repo.createContextFactDefinition({
-          workflowId: "workflow-1",
-          factKey: "draft.spec.field",
-          factKind: "draft_spec_field",
+        const updatedStep = yield* repo.updateFormStepDefinition({
+          versionId: "version-1",
+          workflowDefinitionId: "workflow-1",
+          stepId: createdStep.stepId,
           payload: {
-            draftSpecId: draftSpec.id,
-            fieldKey: "title",
-            valueType: "string",
-            required: true,
-            descriptionJson: { markdown: "Story title" },
+            key: "capture-context-v2",
+            label: "Capture context v2",
+            descriptionJson: { markdown: "Collect more reusable context" },
+            fields: [
+              {
+                contextFactDefinitionId: "summary",
+                fieldLabel: "Summary",
+                fieldKey: "summary",
+                helpText: "Required summary",
+                required: true,
+              },
+              {
+                contextFactDefinitionId: "supporting_workflows",
+                fieldLabel: "Supporting workflows",
+                fieldKey: "supportingWorkflows",
+                helpText: null,
+                required: false,
+                uiMultiplicityMode: "one",
+              },
+            ],
           },
         });
 
-        const rows = yield* repo.listContextFactDefinitions("workflow-1");
-        return rows.map((row) => row.factKind).toSorted();
+        expect(updatedStep.payload.fields).toHaveLength(2);
+
+        const editor = yield* repo.getWorkflowEditorDefinition({
+          versionId: "version-1",
+          workUnitTypeKey: "WU.STORY",
+          workflowDefinitionId: "workflow-1",
+        });
+
+        expect(editor.contextFacts.map((fact) => fact.key)).toContain("summary");
+        expect(editor.formDefinitions).toEqual([
+          {
+            stepId: createdStep.stepId,
+            payload: updatedStep.payload,
+          },
+        ]);
+        expect(editor.steps).toContainEqual({
+          stepId: createdStep.stepId,
+          stepType: "form",
+          payload: updatedStep.payload,
+        });
+
+        const deleteAttempt = yield* Effect.either(
+          repo.deleteWorkflowContextFactByDefinitionId({
+            versionId: "version-1",
+            workflowDefinitionId: "workflow-1",
+            factKey: "summary",
+          }),
+        );
+        expect(deleteAttempt._tag).toBe("Left");
+
+        yield* repo.deleteFormStepDefinition({
+          versionId: "version-1",
+          workflowDefinitionId: "workflow-1",
+          stepId: createdStep.stepId,
+        });
+
+        yield* repo.deleteWorkflowContextFactByDefinitionId({
+          versionId: "version-1",
+          workflowDefinitionId: "workflow-1",
+          factKey: "summary",
+        });
+
+        const remainingFacts = yield* repo.listWorkflowContextFactsByDefinitionId({
+          versionId: "version-1",
+          workflowDefinitionId: "workflow-1",
+        });
+        expect(remainingFacts.map((fact) => fact.key)).not.toContain("summary");
       }),
     );
-
-    expect(keys).toEqual([
-      "artifact_reference",
-      "draft_spec",
-      "draft_spec_field",
-      "external_binding",
-      "plain_value",
-      "work_unit_reference",
-      "workflow_reference",
-    ]);
   });
 
-  it("persists runtime step execution state and context facts", async () => {
-    const state = await run(
+  it("rewires shell-step edges deterministically for form-step insert/delete", async () => {
+    await client.execute(`
+      INSERT INTO methodology_workflow_steps (id, methodology_version_id, workflow_id, key, type, display_name)
+      VALUES
+        ('step-start', 'version-1', 'workflow-1', 'start', 'display', 'Start'),
+        ('step-agent', 'version-1', 'workflow-1', 'agent', 'agent', 'Agent')
+    `);
+    await client.execute(`
+      INSERT INTO methodology_workflow_edges (id, methodology_version_id, workflow_id, from_step_id, to_step_id)
+      VALUES ('edge-1', 'version-1', 'workflow-1', 'step-start', 'step-agent')
+    `);
+
+    await runRepo((repo) =>
       Effect.gen(function* () {
-        const formRepo = yield* FormStepRepository;
-        const runtimeRepo = yield* StepExecutionRepository;
-
-        const step = yield* formRepo.createFormStep({
-          workflowId: "workflow-1",
-          stepDefinition: { key: "setup", label: "Setup", descriptionJson: null, fields: [] },
+        yield* repo.createWorkflowContextFactByDefinitionId({
+          versionId: "version-1",
+          workflowDefinitionId: "workflow-1",
+          fact: {
+            kind: "plain_value_fact",
+            key: "summary",
+            cardinality: "one",
+            valueType: "string",
+          },
         });
 
-        const execution = yield* runtimeRepo.createStepExecution({
-          workflowExecutionId: "wexec-1",
-          stepDefinitionId: step.formStep.id,
-          stepType: "form",
-          status: "active",
-          progressionData: { stage: "collecting" },
+        const inserted = yield* repo.createFormStepDefinition({
+          versionId: "version-1",
+          workflowDefinitionId: "workflow-1",
+          afterStepKey: "start",
+          payload: {
+            key: "capture",
+            label: "Capture",
+            fields: [
+              {
+                contextFactDefinitionId: "summary",
+                fieldLabel: "Summary",
+                fieldKey: "summary",
+                helpText: null,
+                required: true,
+              },
+            ],
+          },
         });
 
-        yield* runtimeRepo.upsertFormStepExecutionState({
-          stepExecutionId: execution.id,
-          draftValuesJson: { initiativeName: "Chiron" },
-          submittedSnapshotJson: { initiativeName: "Chiron" },
-          submittedAt: new Date(),
+        const editorAfterInsert = yield* repo.getWorkflowEditorDefinition({
+          versionId: "version-1",
+          workUnitTypeKey: "WU.STORY",
+          workflowDefinitionId: "workflow-1",
         });
 
-        yield* runtimeRepo.writeWorkflowExecutionContextFact({
-          workflowExecutionId: "wexec-1",
-          factKey: "initiative_name",
-          factKind: "plain_value",
-          valueJson: "Chiron",
-          sourceStepExecutionId: execution.id,
+        expect(
+          editorAfterInsert.edges
+            .map((edge) => [edge.fromStepKey, edge.toStepKey] as const)
+            .sort((a, b) =>
+              `${a[0] ?? ""}->${a[1] ?? ""}`.localeCompare(`${b[0] ?? ""}->${b[1] ?? ""}`),
+            ),
+        ).toEqual([
+          ["capture", "agent"],
+          ["start", "capture"],
+        ]);
+
+        yield* repo.deleteFormStepDefinition({
+          versionId: "version-1",
+          workflowDefinitionId: "workflow-1",
+          stepId: inserted.stepId,
         });
 
-        return yield* runtimeRepo.getFormStepExecutionState(execution.id);
+        const editorAfterDelete = yield* repo.getWorkflowEditorDefinition({
+          versionId: "version-1",
+          workUnitTypeKey: "WU.STORY",
+          workflowDefinitionId: "workflow-1",
+        });
+
+        expect(editorAfterDelete.edges.map((edge) => [edge.fromStepKey, edge.toStepKey])).toEqual([
+          ["start", "agent"],
+        ]);
       }),
     );
-
-    expect(state?.draftValuesJson).toMatchObject({ initiativeName: "Chiron" });
-    expect(state?.submittedSnapshotJson).toMatchObject({ initiativeName: "Chiron" });
   });
 });

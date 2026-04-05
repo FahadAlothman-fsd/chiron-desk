@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { Effect, Layer } from "effect";
 import {
@@ -24,6 +24,8 @@ import {
   type UpsertWorkUnitLifecycleTransitionParams,
   type SaveWorkUnitLifecycleTransitionBundleParams,
   type DeleteWorkUnitLifecycleTransitionParams,
+  type WorkflowEditorDefinitionReadModel,
+  type WorkflowFormDefinitionReadModel,
 } from "@chiron/methodology-engine";
 import type {
   PublicationEvidence,
@@ -31,7 +33,12 @@ import type {
   MethodologyVersionDefinition,
   WorkflowDefinition,
 } from "@chiron/contracts/methodology/version";
-import type { WorkflowContextFactDto } from "@chiron/contracts/methodology/workflow";
+import type {
+  FormStepPayload,
+  WorkflowContextFactDto,
+  WorkflowEdgeDto,
+  WorkflowStepReadModel,
+} from "@chiron/contracts/methodology/workflow";
 import {
   methodologyDefinitions,
   methodologyVersions,
@@ -46,6 +53,7 @@ import {
   methodologyWorkflows,
   methodologyWorkflowSteps,
   methodologyWorkflowEdges,
+  methodologyWorkflowFormFields,
   methodologyTransitionWorkflowBindings,
   workUnitFactDefinitions,
   methodologyArtifactSlotDefinitions,
@@ -56,7 +64,6 @@ import {
   methodologyWorkflowContextFactDraftSpecs,
   methodologyWorkflowContextFactExternalBindings,
   methodologyWorkflowContextFactPlainValues,
-  methodologyWorkflowContextFactWorkUnitReferences,
   methodologyWorkflowContextFactWorkflowReferences,
 } from "./schema/methodology";
 
@@ -76,6 +83,102 @@ function extractMarkdown(value: unknown): string | null {
   }
 
   return null;
+}
+
+const DEFERRED_STEP_MESSAGE = "Deferred in slice-1";
+
+type FactValueType = "string" | "number" | "boolean" | "json";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function parseStringArray(value: string | null): readonly string[] {
+  if (!value) {
+    return [];
+  }
+
+  try {
+    const decoded = JSON.parse(value);
+    return Array.isArray(decoded)
+      ? decoded.filter((entry): entry is string => typeof entry === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function parseFormFieldInput(inputJson: unknown): {
+  readonly contextFactDefinitionId: string | null;
+  readonly uiMultiplicityMode?: "one" | "many";
+} {
+  if (!isRecord(inputJson)) {
+    return { contextFactDefinitionId: null };
+  }
+
+  const contextFactDefinitionId =
+    typeof inputJson.contextFactDefinitionId === "string"
+      ? inputJson.contextFactDefinitionId
+      : null;
+  const uiMultiplicityMode =
+    inputJson.uiMultiplicityMode === "one" || inputJson.uiMultiplicityMode === "many"
+      ? inputJson.uiMultiplicityMode
+      : undefined;
+
+  return { contextFactDefinitionId, ...(uiMultiplicityMode ? { uiMultiplicityMode } : {}) };
+}
+
+function getDraftSpecWorkUnitTypeKey(guidanceJson: unknown): string {
+  if (isRecord(guidanceJson) && typeof guidanceJson.workUnitTypeKey === "string") {
+    return guidanceJson.workUnitTypeKey;
+  }
+
+  return "";
+}
+
+function deriveStoredFieldValueType(fact: WorkflowContextFactDto | undefined): string {
+  if (!fact) {
+    return "json";
+  }
+
+  switch (fact.kind) {
+    case "plain_value_fact":
+      return fact.valueType;
+    case "definition_backed_external_fact":
+    case "bound_external_fact":
+    case "workflow_reference_fact":
+    case "artifact_reference_fact":
+    case "work_unit_draft_spec_fact":
+      return "json";
+  }
+}
+
+function buildFormPayload(
+  step: typeof methodologyWorkflowSteps.$inferSelect,
+  fields: readonly (typeof methodologyWorkflowFormFields.$inferSelect)[],
+): FormStepPayload {
+  const configJson = isRecord(step.configJson) ? step.configJson : {};
+  const descriptionJson =
+    isRecord(configJson.descriptionJson) && typeof configJson.descriptionJson.markdown === "string"
+      ? (configJson.descriptionJson as { readonly markdown: string })
+      : undefined;
+
+  return {
+    key: step.key,
+    ...(step.displayName ? { label: step.displayName } : {}),
+    ...(descriptionJson ? { descriptionJson } : {}),
+    fields: fields.map((field) => {
+      const binding = parseFormFieldInput(field.inputJson);
+      return {
+        contextFactDefinitionId: binding.contextFactDefinitionId ?? field.key,
+        fieldLabel: field.label ?? field.key,
+        fieldKey: field.key,
+        helpText: extractMarkdown(field.descriptionJson),
+        required: field.required,
+        ...(binding.uiMultiplicityMode ? { uiMultiplicityMode: binding.uiMultiplicityMode } : {}),
+      };
+    }),
+  };
 }
 
 function toDefinitionRow(
@@ -190,6 +293,394 @@ function assertDefinitionExtensionsAreNonCanonical(
 }
 
 type TransactionClient = Parameters<Parameters<DB["transaction"]>[0]>[0];
+
+async function findWorkflowRow(
+  db: DB | TransactionClient,
+  params: { versionId: string; workflowDefinitionId: string; workUnitTypeKey?: string },
+): Promise<{
+  readonly id: string;
+  readonly key: string;
+  readonly displayName: string | null;
+  readonly descriptionJson: unknown;
+  readonly methodologyVersionId: string;
+  readonly workUnitTypeKey: string | null;
+} | null> {
+  const rows = await db
+    .select({
+      id: methodologyWorkflows.id,
+      key: methodologyWorkflows.key,
+      displayName: methodologyWorkflows.displayName,
+      descriptionJson: methodologyWorkflows.descriptionJson,
+      methodologyVersionId: methodologyWorkflows.methodologyVersionId,
+      workUnitTypeKey: methodologyWorkUnitTypes.key,
+    })
+    .from(methodologyWorkflows)
+    .leftJoin(
+      methodologyWorkUnitTypes,
+      eq(methodologyWorkflows.workUnitTypeId, methodologyWorkUnitTypes.id),
+    )
+    .where(
+      and(
+        eq(methodologyWorkflows.methodologyVersionId, params.versionId),
+        eq(methodologyWorkflows.id, params.workflowDefinitionId),
+      ),
+    )
+    .limit(1);
+
+  const row = rows[0] ?? null;
+  if (!row) {
+    return null;
+  }
+
+  if (params.workUnitTypeKey && row.workUnitTypeKey !== params.workUnitTypeKey) {
+    return null;
+  }
+
+  return row;
+}
+
+async function deleteContextFactSubtypeRows(
+  tx: TransactionClient,
+  definitionId: string,
+): Promise<void> {
+  const draftSpecRows = await tx
+    .select({ id: methodologyWorkflowContextFactDraftSpecs.id })
+    .from(methodologyWorkflowContextFactDraftSpecs)
+    .where(eq(methodologyWorkflowContextFactDraftSpecs.contextFactDefinitionId, definitionId));
+
+  if (draftSpecRows.length > 0) {
+    await tx.delete(methodologyWorkflowContextFactDraftSpecFields).where(
+      inArray(
+        methodologyWorkflowContextFactDraftSpecFields.draftSpecId,
+        draftSpecRows.map((row) => row.id),
+      ),
+    );
+  }
+
+  await tx
+    .delete(methodologyWorkflowContextFactDraftSpecs)
+    .where(eq(methodologyWorkflowContextFactDraftSpecs.contextFactDefinitionId, definitionId));
+  await tx
+    .delete(methodologyWorkflowContextFactPlainValues)
+    .where(eq(methodologyWorkflowContextFactPlainValues.contextFactDefinitionId, definitionId));
+  await tx
+    .delete(methodologyWorkflowContextFactExternalBindings)
+    .where(
+      eq(methodologyWorkflowContextFactExternalBindings.contextFactDefinitionId, definitionId),
+    );
+  await tx
+    .delete(methodologyWorkflowContextFactWorkflowReferences)
+    .where(
+      eq(methodologyWorkflowContextFactWorkflowReferences.contextFactDefinitionId, definitionId),
+    );
+  await tx
+    .delete(methodologyWorkflowContextFactArtifactReferences)
+    .where(
+      eq(methodologyWorkflowContextFactArtifactReferences.contextFactDefinitionId, definitionId),
+    );
+}
+
+async function insertContextFactSubtypeRow(
+  tx: TransactionClient,
+  definitionId: string,
+  fact: WorkflowContextFactDto,
+): Promise<void> {
+  switch (fact.kind) {
+    case "plain_value_fact":
+      await tx.insert(methodologyWorkflowContextFactPlainValues).values({
+        contextFactDefinitionId: definitionId,
+        valueType: fact.valueType,
+      });
+      return;
+    case "definition_backed_external_fact":
+    case "bound_external_fact":
+      await tx.insert(methodologyWorkflowContextFactExternalBindings).values({
+        contextFactDefinitionId: definitionId,
+        provider: fact.kind,
+        bindingKey: fact.externalFactDefinitionId,
+      });
+      return;
+    case "workflow_reference_fact":
+      await tx.insert(methodologyWorkflowContextFactWorkflowReferences).values({
+        contextFactDefinitionId: definitionId,
+        workflowDefinitionId: JSON.stringify(fact.allowedWorkflowDefinitionIds),
+      });
+      return;
+    case "artifact_reference_fact":
+      await tx.insert(methodologyWorkflowContextFactArtifactReferences).values({
+        contextFactDefinitionId: definitionId,
+        artifactSlotKey: fact.artifactSlotDefinitionId,
+      });
+      return;
+    case "work_unit_draft_spec_fact": {
+      const rows = await tx
+        .insert(methodologyWorkflowContextFactDraftSpecs)
+        .values({ contextFactDefinitionId: definitionId })
+        .returning({ id: methodologyWorkflowContextFactDraftSpecs.id });
+      const draftSpecId = rows[0]?.id;
+      if (!draftSpecId) {
+        throw new Error(`Failed to create draft-spec payload for context fact '${fact.key}'`);
+      }
+
+      if (fact.includedFactKeys.length > 0) {
+        await tx.insert(methodologyWorkflowContextFactDraftSpecFields).values(
+          fact.includedFactKeys.map((fieldKey) => ({
+            draftSpecId,
+            fieldKey,
+            valueType: "json",
+            required: false,
+            descriptionJson: null,
+          })),
+        );
+      }
+
+      return;
+    }
+  }
+}
+
+async function readWorkflowContextFacts(
+  db: DB | TransactionClient,
+  versionId: string,
+  workflowDefinitionId: string,
+): Promise<readonly WorkflowContextFactDto[]> {
+  const workflow = await findWorkflowRow(db, { versionId, workflowDefinitionId });
+  if (!workflow) {
+    throw new Error(
+      `Workflow not found for versionId=${versionId}, workflowDefinitionId=${workflowDefinitionId}`,
+    );
+  }
+
+  const definitionRows = await db
+    .select({
+      id: methodologyWorkflowContextFactDefinitions.id,
+      factKey: methodologyWorkflowContextFactDefinitions.factKey,
+      factKind: methodologyWorkflowContextFactDefinitions.factKind,
+      cardinality: methodologyWorkflowContextFactDefinitions.cardinality,
+      guidanceJson: methodologyWorkflowContextFactDefinitions.guidanceJson,
+    })
+    .from(methodologyWorkflowContextFactDefinitions)
+    .where(eq(methodologyWorkflowContextFactDefinitions.workflowId, workflowDefinitionId))
+    .orderBy(
+      asc(methodologyWorkflowContextFactDefinitions.createdAt),
+      asc(methodologyWorkflowContextFactDefinitions.id),
+    );
+
+  if (definitionRows.length === 0) {
+    return [];
+  }
+
+  const definitionIds = definitionRows.map((row) => row.id);
+  const [
+    plainValueRows,
+    externalBindingRows,
+    workflowReferenceRows,
+    artifactReferenceRows,
+    draftSpecRows,
+  ] = await Promise.all([
+    db
+      .select()
+      .from(methodologyWorkflowContextFactPlainValues)
+      .where(
+        inArray(methodologyWorkflowContextFactPlainValues.contextFactDefinitionId, definitionIds),
+      ),
+    db
+      .select()
+      .from(methodologyWorkflowContextFactExternalBindings)
+      .where(
+        inArray(
+          methodologyWorkflowContextFactExternalBindings.contextFactDefinitionId,
+          definitionIds,
+        ),
+      ),
+    db
+      .select()
+      .from(methodologyWorkflowContextFactWorkflowReferences)
+      .where(
+        inArray(
+          methodologyWorkflowContextFactWorkflowReferences.contextFactDefinitionId,
+          definitionIds,
+        ),
+      ),
+    db
+      .select()
+      .from(methodologyWorkflowContextFactArtifactReferences)
+      .where(
+        inArray(
+          methodologyWorkflowContextFactArtifactReferences.contextFactDefinitionId,
+          definitionIds,
+        ),
+      ),
+    db
+      .select()
+      .from(methodologyWorkflowContextFactDraftSpecs)
+      .where(
+        inArray(methodologyWorkflowContextFactDraftSpecs.contextFactDefinitionId, definitionIds),
+      ),
+  ]);
+
+  const draftSpecIds = draftSpecRows.map((row) => row.id);
+  const draftSpecFieldRows =
+    draftSpecIds.length === 0
+      ? []
+      : await db
+          .select()
+          .from(methodologyWorkflowContextFactDraftSpecFields)
+          .where(inArray(methodologyWorkflowContextFactDraftSpecFields.draftSpecId, draftSpecIds))
+          .orderBy(
+            asc(methodologyWorkflowContextFactDraftSpecFields.draftSpecId),
+            asc(methodologyWorkflowContextFactDraftSpecFields.fieldKey),
+          );
+
+  const plainByDefinitionId = new Map(
+    plainValueRows.map((row) => [row.contextFactDefinitionId, row]),
+  );
+  const externalByDefinitionId = new Map(
+    externalBindingRows.map((row) => [row.contextFactDefinitionId, row]),
+  );
+  const workflowReferenceByDefinitionId = new Map(
+    workflowReferenceRows.map((row) => [row.contextFactDefinitionId, row]),
+  );
+  const artifactReferenceByDefinitionId = new Map(
+    artifactReferenceRows.map((row) => [row.contextFactDefinitionId, row]),
+  );
+  const draftSpecByDefinitionId = new Map(
+    draftSpecRows.map((row) => [row.contextFactDefinitionId, row]),
+  );
+  const draftFieldsByDraftSpecId = new Map<string, typeof draftSpecFieldRows>();
+  for (const row of draftSpecFieldRows) {
+    const entries = draftFieldsByDraftSpecId.get(row.draftSpecId) ?? [];
+    entries.push(row);
+    draftFieldsByDraftSpecId.set(row.draftSpecId, entries);
+  }
+
+  return definitionRows.map((definition): WorkflowContextFactDto => {
+    switch (definition.factKind) {
+      case "plain_value_fact": {
+        const row = plainByDefinitionId.get(definition.id);
+        if (!row) {
+          throw new Error(`Missing plain_value_fact payload for '${definition.factKey}'`);
+        }
+
+        return {
+          kind: "plain_value_fact",
+          key: definition.factKey,
+          cardinality: definition.cardinality as "one" | "many",
+          valueType: row.valueType as FactValueType,
+        };
+      }
+      case "definition_backed_external_fact":
+      case "bound_external_fact": {
+        const row = externalByDefinitionId.get(definition.id);
+        if (!row) {
+          throw new Error(`Missing external fact payload for '${definition.factKey}'`);
+        }
+
+        return {
+          kind: definition.factKind,
+          key: definition.factKey,
+          cardinality: definition.cardinality as "one" | "many",
+          externalFactDefinitionId: row.bindingKey,
+        };
+      }
+      case "workflow_reference_fact": {
+        const row = workflowReferenceByDefinitionId.get(definition.id);
+        if (!row) {
+          throw new Error(`Missing workflow reference payload for '${definition.factKey}'`);
+        }
+
+        const allowedWorkflowDefinitionIds =
+          parseStringArray(row.workflowDefinitionId).length > 0
+            ? parseStringArray(row.workflowDefinitionId)
+            : [row.workflowDefinitionId];
+
+        return {
+          kind: "workflow_reference_fact",
+          key: definition.factKey,
+          cardinality: definition.cardinality as "one" | "many",
+          allowedWorkflowDefinitionIds,
+        };
+      }
+      case "artifact_reference_fact": {
+        const row = artifactReferenceByDefinitionId.get(definition.id);
+        if (!row) {
+          throw new Error(`Missing artifact reference payload for '${definition.factKey}'`);
+        }
+
+        return {
+          kind: "artifact_reference_fact",
+          key: definition.factKey,
+          cardinality: definition.cardinality as "one" | "many",
+          artifactSlotDefinitionId: row.artifactSlotKey,
+        };
+      }
+      case "work_unit_draft_spec_fact": {
+        const row = draftSpecByDefinitionId.get(definition.id);
+        if (!row) {
+          throw new Error(`Missing draft spec payload for '${definition.factKey}'`);
+        }
+
+        return {
+          kind: "work_unit_draft_spec_fact",
+          key: definition.factKey,
+          cardinality: definition.cardinality as "one" | "many",
+          workUnitTypeKey: getDraftSpecWorkUnitTypeKey(definition.guidanceJson),
+          includedFactKeys: (draftFieldsByDraftSpecId.get(row.id) ?? []).map(
+            (field) => field.fieldKey,
+          ),
+        };
+      }
+      default:
+        throw new Error(`Unsupported context fact kind '${definition.factKind}'`);
+    }
+  });
+}
+
+async function readWorkflowFormDefinitions(
+  db: DB | TransactionClient,
+  workflowDefinitionId: string,
+): Promise<readonly WorkflowFormDefinitionReadModel[]> {
+  const stepRows = await db
+    .select()
+    .from(methodologyWorkflowSteps)
+    .where(
+      and(
+        eq(methodologyWorkflowSteps.workflowId, workflowDefinitionId),
+        eq(methodologyWorkflowSteps.type, "form"),
+      ),
+    )
+    .orderBy(asc(methodologyWorkflowSteps.createdAt), asc(methodologyWorkflowSteps.id));
+
+  if (stepRows.length === 0) {
+    return [];
+  }
+
+  const fieldRows = await db
+    .select()
+    .from(methodologyWorkflowFormFields)
+    .where(
+      inArray(
+        methodologyWorkflowFormFields.formStepId,
+        stepRows.map((row) => row.id),
+      ),
+    )
+    .orderBy(
+      asc(methodologyWorkflowFormFields.formStepId),
+      asc(methodologyWorkflowFormFields.sortOrder),
+    );
+
+  const fieldsByStepId = new Map<string, typeof fieldRows>();
+  for (const row of fieldRows) {
+    const entries = fieldsByStepId.get(row.formStepId) ?? [];
+    entries.push(row);
+    fieldsByStepId.set(row.formStepId, entries);
+  }
+
+  return stepRows.map((step) => ({
+    stepId: step.id,
+    payload: buildFormPayload(step, fieldsByStepId.get(step.id) ?? []),
+  }));
+}
 
 async function syncWorkflowGraph(
   tx: TransactionClient,
@@ -1091,25 +1582,33 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
         return workflowRows.map((workflowRow) => ({
           workflowDefinitionId: workflowRow.id,
           key: workflowRow.key,
-          displayName: workflowRow.displayName ?? undefined,
-          description: workflowRow.descriptionJson ?? undefined,
+          ...(workflowRow.displayName ? { displayName: workflowRow.displayName } : {}),
+          ...(workflowRow.descriptionJson
+            ? { description: workflowRow.descriptionJson as WorkflowDefinition["description"] }
+            : {}),
           workUnitTypeKey: workflowRow.workUnitTypeKey,
-          metadata: workflowRow.metadataJson as WorkflowDefinition["metadata"] | undefined,
-          guidance: workflowRow.guidanceJson as WorkflowDefinition["guidance"] | undefined,
+          ...(workflowRow.metadataJson
+            ? { metadata: workflowRow.metadataJson as WorkflowDefinition["metadata"] }
+            : {}),
+          ...(workflowRow.guidanceJson
+            ? { guidance: workflowRow.guidanceJson as WorkflowDefinition["guidance"] }
+            : {}),
           steps: (stepsByWorkflowId.get(workflowRow.id) ?? []).map((stepRow) => ({
             key: stepRow.key,
             type: asWorkflowStepType(stepRow.type),
-            displayName: stepRow.displayName ?? undefined,
-            config: stepRow.configJson ?? undefined,
-            guidance: stepRow.guidanceJson as
-              | WorkflowDefinition["steps"][number]["guidance"]
-              | undefined,
+            ...(stepRow.displayName ? { displayName: stepRow.displayName } : {}),
+            ...(stepRow.configJson ? { config: stepRow.configJson } : {}),
+            ...(stepRow.guidanceJson
+              ? {
+                  guidance: stepRow.guidanceJson as WorkflowDefinition["steps"][number]["guidance"],
+                }
+              : {}),
           })),
           edges: (edgesByWorkflowId.get(workflowRow.id) ?? []).map((edgeRow) => ({
             fromStepKey: edgeRow.fromStepId ? (stepKeyById.get(edgeRow.fromStepId) ?? null) : null,
             toStepKey: edgeRow.toStepId ? (stepKeyById.get(edgeRow.toStepId) ?? null) : null,
-            edgeKey: edgeRow.edgeKey ?? undefined,
-            condition: edgeRow.conditionJson ?? undefined,
+            ...(edgeRow.edgeKey ? { edgeKey: edgeRow.edgeKey } : {}),
+            ...(edgeRow.conditionJson ? { condition: edgeRow.conditionJson } : {}),
           })),
         }));
       }),
@@ -2384,269 +2883,456 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
       }),
 
     listWorkflowContextFactsByDefinitionId: ({ versionId, workflowDefinitionId }) =>
-      dbEffect("methodology.listWorkflowContextFactsByDefinitionId", async () => {
-        const workflowRows = await db
-          .select({ id: methodologyWorkflows.id })
-          .from(methodologyWorkflows)
-          .where(
-            and(
-              eq(methodologyWorkflows.methodologyVersionId, versionId),
-              eq(methodologyWorkflows.id, workflowDefinitionId),
-            ),
-          )
-          .limit(1);
+      dbEffect("methodology.listWorkflowContextFactsByDefinitionId", () =>
+        readWorkflowContextFacts(db, versionId, workflowDefinitionId),
+      ),
 
-        if (workflowRows.length === 0) {
+    createWorkflowContextFactByDefinitionId: ({ versionId, workflowDefinitionId, fact }) =>
+      dbEffect("methodology.createWorkflowContextFactByDefinitionId", () =>
+        db.transaction(async (tx) => {
+          const workflow = await findWorkflowRow(tx, { versionId, workflowDefinitionId });
+          if (!workflow) {
+            throw new Error(
+              `Workflow not found for versionId=${versionId}, workflowDefinitionId=${workflowDefinitionId}`,
+            );
+          }
+
+          const rows = await tx
+            .insert(methodologyWorkflowContextFactDefinitions)
+            .values({
+              workflowId: workflowDefinitionId,
+              factKey: fact.key,
+              factKind: fact.kind,
+              cardinality: fact.cardinality,
+              guidanceJson:
+                fact.kind === "work_unit_draft_spec_fact"
+                  ? { workUnitTypeKey: fact.workUnitTypeKey }
+                  : null,
+            })
+            .returning({ id: methodologyWorkflowContextFactDefinitions.id });
+
+          const definitionId = rows[0]?.id;
+          if (!definitionId) {
+            throw new Error(`Failed to create workflow context fact '${fact.key}'`);
+          }
+
+          await insertContextFactSubtypeRow(tx, definitionId, fact);
+          return fact;
+        }),
+      ),
+
+    updateWorkflowContextFactByDefinitionId: ({ versionId, workflowDefinitionId, factKey, fact }) =>
+      dbEffect("methodology.updateWorkflowContextFactByDefinitionId", () =>
+        db.transaction(async (tx) => {
+          const workflow = await findWorkflowRow(tx, { versionId, workflowDefinitionId });
+          if (!workflow) {
+            throw new Error(
+              `Workflow not found for versionId=${versionId}, workflowDefinitionId=${workflowDefinitionId}`,
+            );
+          }
+
+          const existingRows = await tx
+            .select({ id: methodologyWorkflowContextFactDefinitions.id })
+            .from(methodologyWorkflowContextFactDefinitions)
+            .where(
+              and(
+                eq(methodologyWorkflowContextFactDefinitions.workflowId, workflowDefinitionId),
+                eq(methodologyWorkflowContextFactDefinitions.factKey, factKey),
+              ),
+            )
+            .limit(1);
+          const definitionId = existingRows[0]?.id;
+          if (!definitionId) {
+            throw new Error(`Workflow context fact '${factKey}' not found`);
+          }
+
+          await tx
+            .update(methodologyWorkflowContextFactDefinitions)
+            .set({
+              factKey: fact.key,
+              factKind: fact.kind,
+              cardinality: fact.cardinality,
+              guidanceJson:
+                fact.kind === "work_unit_draft_spec_fact"
+                  ? { workUnitTypeKey: fact.workUnitTypeKey }
+                  : null,
+            })
+            .where(eq(methodologyWorkflowContextFactDefinitions.id, definitionId));
+
+          await deleteContextFactSubtypeRows(tx, definitionId);
+          await insertContextFactSubtypeRow(tx, definitionId, fact);
+
+          return fact;
+        }),
+      ),
+
+    deleteWorkflowContextFactByDefinitionId: ({ versionId, workflowDefinitionId, factKey }) =>
+      dbEffect("methodology.deleteWorkflowContextFactByDefinitionId", () =>
+        db.transaction(async (tx) => {
+          const workflow = await findWorkflowRow(tx, { versionId, workflowDefinitionId });
+          if (!workflow) {
+            throw new Error(
+              `Workflow not found for versionId=${versionId}, workflowDefinitionId=${workflowDefinitionId}`,
+            );
+          }
+
+          const boundFieldRows = await tx
+            .select({
+              inputJson: methodologyWorkflowFormFields.inputJson,
+              fieldKey: methodologyWorkflowFormFields.key,
+            })
+            .from(methodologyWorkflowFormFields)
+            .innerJoin(
+              methodologyWorkflowSteps,
+              eq(methodologyWorkflowFormFields.formStepId, methodologyWorkflowSteps.id),
+            )
+            .where(
+              and(
+                eq(methodologyWorkflowSteps.workflowId, workflowDefinitionId),
+                eq(methodologyWorkflowSteps.type, "form"),
+              ),
+            );
+
+          const boundField = boundFieldRows.find(
+            (row) => parseFormFieldInput(row.inputJson).contextFactDefinitionId === factKey,
+          );
+          if (boundField) {
+            throw new RepositoryError({
+              operation: "methodology.deleteWorkflowContextFactByDefinitionId",
+              cause: new Error(
+                `Workflow context fact '${factKey}' is still bound by form field '${boundField.fieldKey}'`,
+              ),
+            });
+          }
+
+          await tx
+            .delete(methodologyWorkflowContextFactDefinitions)
+            .where(
+              and(
+                eq(methodologyWorkflowContextFactDefinitions.workflowId, workflowDefinitionId),
+                eq(methodologyWorkflowContextFactDefinitions.factKey, factKey),
+              ),
+            );
+        }),
+      ),
+
+    createFormStepDefinition: ({ versionId, workflowDefinitionId, afterStepKey, payload }) =>
+      dbEffect("methodology.createFormStepDefinition", () =>
+        db.transaction(async (tx) => {
+          const workflow = await findWorkflowRow(tx, { versionId, workflowDefinitionId });
+          if (!workflow) {
+            throw new Error(
+              `Workflow not found for versionId=${versionId}, workflowDefinitionId=${workflowDefinitionId}`,
+            );
+          }
+
+          const facts = await readWorkflowContextFacts(tx, versionId, workflowDefinitionId);
+          const factByKey = new Map(facts.map((fact) => [fact.key, fact]));
+
+          const rows = await tx
+            .insert(methodologyWorkflowSteps)
+            .values({
+              methodologyVersionId: versionId,
+              workflowId: workflowDefinitionId,
+              key: payload.key,
+              type: "form",
+              displayName: payload.label ?? null,
+              configJson: { descriptionJson: payload.descriptionJson ?? null },
+              guidanceJson: null,
+            })
+            .returning();
+          const step = rows[0];
+          if (!step) {
+            throw new Error(`Failed to create form step '${payload.key}'`);
+          }
+
+          if (payload.fields.length > 0) {
+            await tx.insert(methodologyWorkflowFormFields).values(
+              payload.fields.map((field, index) => ({
+                formStepId: step.id,
+                key: field.fieldKey,
+                label: field.fieldLabel,
+                valueType: deriveStoredFieldValueType(factByKey.get(field.contextFactDefinitionId)),
+                required: field.required,
+                inputJson: {
+                  contextFactDefinitionId: field.contextFactDefinitionId,
+                  ...(field.uiMultiplicityMode
+                    ? { uiMultiplicityMode: field.uiMultiplicityMode }
+                    : {}),
+                },
+                descriptionJson: field.helpText ? { markdown: field.helpText } : null,
+                sortOrder: index,
+              })),
+            );
+          }
+
+          if (afterStepKey) {
+            const predecessorRows = await tx
+              .select({ id: methodologyWorkflowSteps.id })
+              .from(methodologyWorkflowSteps)
+              .where(
+                and(
+                  eq(methodologyWorkflowSteps.workflowId, workflowDefinitionId),
+                  eq(methodologyWorkflowSteps.key, afterStepKey),
+                ),
+              )
+              .limit(1);
+
+            const predecessorId = predecessorRows[0]?.id;
+            if (predecessorId) {
+              const outgoingEdges = await tx
+                .select({
+                  id: methodologyWorkflowEdges.id,
+                  toStepId: methodologyWorkflowEdges.toStepId,
+                })
+                .from(methodologyWorkflowEdges)
+                .where(
+                  and(
+                    eq(methodologyWorkflowEdges.workflowId, workflowDefinitionId),
+                    eq(methodologyWorkflowEdges.fromStepId, predecessorId),
+                  ),
+                );
+
+              await tx
+                .delete(methodologyWorkflowEdges)
+                .where(
+                  and(
+                    eq(methodologyWorkflowEdges.workflowId, workflowDefinitionId),
+                    eq(methodologyWorkflowEdges.fromStepId, predecessorId),
+                  ),
+                );
+
+              await tx.insert(methodologyWorkflowEdges).values({
+                methodologyVersionId: versionId,
+                workflowId: workflowDefinitionId,
+                fromStepId: predecessorId,
+                toStepId: step.id,
+                edgeKey: null,
+                conditionJson: null,
+                guidanceJson: null,
+              });
+
+              const successorId = outgoingEdges[0]?.toStepId ?? null;
+              if (successorId) {
+                await tx.insert(methodologyWorkflowEdges).values({
+                  methodologyVersionId: versionId,
+                  workflowId: workflowDefinitionId,
+                  fromStepId: step.id,
+                  toStepId: successorId,
+                  edgeKey: null,
+                  conditionJson: null,
+                  guidanceJson: null,
+                });
+              }
+            }
+          }
+
+          return { stepId: step.id, payload };
+        }),
+      ),
+
+    updateFormStepDefinition: ({ versionId, workflowDefinitionId, stepId, payload }) =>
+      dbEffect("methodology.updateFormStepDefinition", () =>
+        db.transaction(async (tx) => {
+          const workflow = await findWorkflowRow(tx, { versionId, workflowDefinitionId });
+          if (!workflow) {
+            throw new Error(
+              `Workflow not found for versionId=${versionId}, workflowDefinitionId=${workflowDefinitionId}`,
+            );
+          }
+
+          const facts = await readWorkflowContextFacts(tx, versionId, workflowDefinitionId);
+          const factByKey = new Map(facts.map((fact) => [fact.key, fact]));
+
+          const rows = await tx
+            .update(methodologyWorkflowSteps)
+            .set({
+              key: payload.key,
+              type: "form",
+              displayName: payload.label ?? null,
+              configJson: { descriptionJson: payload.descriptionJson ?? null },
+            })
+            .where(
+              and(
+                eq(methodologyWorkflowSteps.id, stepId),
+                eq(methodologyWorkflowSteps.workflowId, workflowDefinitionId),
+              ),
+            )
+            .returning({ id: methodologyWorkflowSteps.id });
+
+          if (rows.length === 0) {
+            throw new Error(`Form step '${stepId}' not found`);
+          }
+
+          await tx
+            .delete(methodologyWorkflowFormFields)
+            .where(eq(methodologyWorkflowFormFields.formStepId, stepId));
+
+          if (payload.fields.length > 0) {
+            await tx.insert(methodologyWorkflowFormFields).values(
+              payload.fields.map((field, index) => ({
+                formStepId: stepId,
+                key: field.fieldKey,
+                label: field.fieldLabel,
+                valueType: deriveStoredFieldValueType(factByKey.get(field.contextFactDefinitionId)),
+                required: field.required,
+                inputJson: {
+                  contextFactDefinitionId: field.contextFactDefinitionId,
+                  ...(field.uiMultiplicityMode
+                    ? { uiMultiplicityMode: field.uiMultiplicityMode }
+                    : {}),
+                },
+                descriptionJson: field.helpText ? { markdown: field.helpText } : null,
+                sortOrder: index,
+              })),
+            );
+          }
+
+          return { stepId, payload };
+        }),
+      ),
+
+    deleteFormStepDefinition: ({ versionId, workflowDefinitionId, stepId }) =>
+      dbEffect("methodology.deleteFormStepDefinition", () =>
+        db.transaction(async (tx) => {
+          const workflow = await findWorkflowRow(tx, { versionId, workflowDefinitionId });
+          if (!workflow) {
+            throw new Error(
+              `Workflow not found for versionId=${versionId}, workflowDefinitionId=${workflowDefinitionId}`,
+            );
+          }
+
+          const outgoingEdges = await tx
+            .select({
+              id: methodologyWorkflowEdges.id,
+              toStepId: methodologyWorkflowEdges.toStepId,
+            })
+            .from(methodologyWorkflowEdges)
+            .where(
+              and(
+                eq(methodologyWorkflowEdges.workflowId, workflowDefinitionId),
+                eq(methodologyWorkflowEdges.fromStepId, stepId),
+              ),
+            );
+          const incomingEdges = await tx
+            .select({ id: methodologyWorkflowEdges.id })
+            .from(methodologyWorkflowEdges)
+            .where(
+              and(
+                eq(methodologyWorkflowEdges.workflowId, workflowDefinitionId),
+                eq(methodologyWorkflowEdges.toStepId, stepId),
+              ),
+            );
+
+          const successorId =
+            outgoingEdges.length === 1 ? (outgoingEdges[0]?.toStepId ?? null) : null;
+          if (successorId) {
+            for (const edge of incomingEdges) {
+              await tx
+                .update(methodologyWorkflowEdges)
+                .set({ toStepId: successorId })
+                .where(eq(methodologyWorkflowEdges.id, edge.id));
+            }
+          }
+
+          await tx
+            .delete(methodologyWorkflowEdges)
+            .where(
+              and(
+                eq(methodologyWorkflowEdges.workflowId, workflowDefinitionId),
+                or(
+                  eq(methodologyWorkflowEdges.fromStepId, stepId),
+                  eq(methodologyWorkflowEdges.toStepId, stepId),
+                ),
+              ),
+            );
+
+          await tx
+            .delete(methodologyWorkflowSteps)
+            .where(
+              and(
+                eq(methodologyWorkflowSteps.id, stepId),
+                eq(methodologyWorkflowSteps.workflowId, workflowDefinitionId),
+              ),
+            );
+        }),
+      ),
+
+    getWorkflowEditorDefinition: ({ versionId, workUnitTypeKey, workflowDefinitionId }) =>
+      dbEffect("methodology.getWorkflowEditorDefinition", async () => {
+        const workflow = await findWorkflowRow(db, {
+          versionId,
+          workflowDefinitionId,
+          workUnitTypeKey,
+        });
+        if (!workflow) {
           throw new Error(
             `Workflow not found for versionId=${versionId}, workflowDefinitionId=${workflowDefinitionId}`,
           );
         }
 
-        const definitionRows = await db
-          .select({
-            id: methodologyWorkflowContextFactDefinitions.id,
-            factKey: methodologyWorkflowContextFactDefinitions.factKey,
-            factKind: methodologyWorkflowContextFactDefinitions.factKind,
-          })
-          .from(methodologyWorkflowContextFactDefinitions)
-          .where(eq(methodologyWorkflowContextFactDefinitions.workflowId, workflowDefinitionId))
-          .orderBy(
-            asc(methodologyWorkflowContextFactDefinitions.createdAt),
-            asc(methodologyWorkflowContextFactDefinitions.id),
-          );
-
-        if (definitionRows.length === 0) {
-          return [];
-        }
-
-        const definitionIds = definitionRows.map((row) => row.id);
-        type FactValueType = "string" | "number" | "boolean" | "json";
-
-        const [
-          plainValueRows,
-          externalBindingRows,
-          workflowReferenceRows,
-          workUnitReferenceRows,
-          artifactReferenceRows,
-          draftSpecRows,
-        ] = await Promise.all([
+        const [stepRows, edgeRows, formDefinitions, contextFacts] = await Promise.all([
           db
             .select()
-            .from(methodologyWorkflowContextFactPlainValues)
-            .where(
-              inArray(
-                methodologyWorkflowContextFactPlainValues.contextFactDefinitionId,
-                definitionIds,
-              ),
-            ),
+            .from(methodologyWorkflowSteps)
+            .where(eq(methodologyWorkflowSteps.workflowId, workflowDefinitionId))
+            .orderBy(asc(methodologyWorkflowSteps.createdAt), asc(methodologyWorkflowSteps.id)),
           db
             .select()
-            .from(methodologyWorkflowContextFactExternalBindings)
-            .where(
-              inArray(
-                methodologyWorkflowContextFactExternalBindings.contextFactDefinitionId,
-                definitionIds,
-              ),
-            ),
-          db
-            .select()
-            .from(methodologyWorkflowContextFactWorkflowReferences)
-            .where(
-              inArray(
-                methodologyWorkflowContextFactWorkflowReferences.contextFactDefinitionId,
-                definitionIds,
-              ),
-            ),
-          db
-            .select()
-            .from(methodologyWorkflowContextFactWorkUnitReferences)
-            .where(
-              inArray(
-                methodologyWorkflowContextFactWorkUnitReferences.contextFactDefinitionId,
-                definitionIds,
-              ),
-            ),
-          db
-            .select()
-            .from(methodologyWorkflowContextFactArtifactReferences)
-            .where(
-              inArray(
-                methodologyWorkflowContextFactArtifactReferences.contextFactDefinitionId,
-                definitionIds,
-              ),
-            ),
-          db
-            .select()
-            .from(methodologyWorkflowContextFactDraftSpecs)
-            .where(
-              inArray(
-                methodologyWorkflowContextFactDraftSpecs.contextFactDefinitionId,
-                definitionIds,
-              ),
-            ),
+            .from(methodologyWorkflowEdges)
+            .where(eq(methodologyWorkflowEdges.workflowId, workflowDefinitionId))
+            .orderBy(asc(methodologyWorkflowEdges.createdAt), asc(methodologyWorkflowEdges.id)),
+          readWorkflowFormDefinitions(db, workflowDefinitionId),
+          readWorkflowContextFacts(db, versionId, workflowDefinitionId),
         ]);
 
-        const plainByDefinitionId = new Map(
-          plainValueRows.map((row) => [row.contextFactDefinitionId, row]),
-        );
-        const externalByDefinitionId = new Map(
-          externalBindingRows.map((row) => [row.contextFactDefinitionId, row]),
-        );
-        const workflowRefByDefinitionId = new Map(
-          workflowReferenceRows.map((row) => [row.contextFactDefinitionId, row]),
-        );
-        const workUnitRefByDefinitionId = new Map(
-          workUnitReferenceRows.map((row) => [row.contextFactDefinitionId, row]),
-        );
-        const artifactRefByDefinitionId = new Map(
-          artifactReferenceRows.map((row) => [row.contextFactDefinitionId, row]),
-        );
-        const draftSpecByDefinitionId = new Map(
-          draftSpecRows.map((row) => [row.contextFactDefinitionId, row]),
-        );
-        const draftSpecKeyById = new Map(draftSpecRows.map((row) => [row.id, ""]));
-        for (const row of definitionRows) {
-          const draftSpec = draftSpecByDefinitionId.get(row.id);
-          if (draftSpec) {
-            draftSpecKeyById.set(draftSpec.id, row.factKey);
+        const stepKeyById = new Map(stepRows.map((row) => [row.id, row.key]));
+        const formDefinitionByStepId = new Map(formDefinitions.map((row) => [row.stepId, row]));
+
+        const steps: WorkflowStepReadModel[] = stepRows.map((step) => {
+          const stepType = asWorkflowStepType(step.type);
+
+          if (stepType === "form") {
+            const definition = formDefinitionByStepId.get(step.id);
+            return {
+              stepId: step.id,
+              stepType: "form",
+              payload: definition?.payload ?? buildFormPayload(step, []),
+            };
           }
-        }
 
-        const draftSpecIds = draftSpecRows.map((row) => row.id);
-        const draftSpecFieldRows =
-          draftSpecIds.length === 0
-            ? []
-            : await db
-                .select()
-                .from(methodologyWorkflowContextFactDraftSpecFields)
-                .where(
-                  inArray(methodologyWorkflowContextFactDraftSpecFields.draftSpecId, draftSpecIds),
-                )
-                .orderBy(
-                  asc(methodologyWorkflowContextFactDraftSpecFields.draftSpecId),
-                  asc(methodologyWorkflowContextFactDraftSpecFields.fieldKey),
-                );
-
-        const draftFieldsByDraftSpecId = new Map<string, typeof draftSpecFieldRows>();
-        for (const row of draftSpecFieldRows) {
-          const entries = draftFieldsByDraftSpecId.get(row.draftSpecId) ?? [];
-          entries.push(row);
-          draftFieldsByDraftSpecId.set(row.draftSpecId, entries);
-        }
-
-        return definitionRows.map((definition): WorkflowContextFactDto => {
-          switch (definition.factKind) {
-            case "plain_value": {
-              const row = plainByDefinitionId.get(definition.id);
-              if (!row) {
-                throw new Error(
-                  `Missing plain_value payload for context fact '${definition.factKey}' (${definition.id})`,
-                );
-              }
-              return {
-                kind: "plain_value",
-                key: definition.factKey,
-                valueType: row.valueType as FactValueType,
-              };
-            }
-            case "external_binding": {
-              const row = externalByDefinitionId.get(definition.id);
-              if (!row) {
-                throw new Error(
-                  `Missing external_binding payload for context fact '${definition.factKey}' (${definition.id})`,
-                );
-              }
-              return {
-                kind: "external_binding",
-                key: definition.factKey,
-                source: { provider: row.provider, bindingKey: row.bindingKey },
-              };
-            }
-            case "workflow_reference": {
-              const row = workflowRefByDefinitionId.get(definition.id);
-              if (!row) {
-                throw new Error(
-                  `Missing workflow_reference payload for context fact '${definition.factKey}' (${definition.id})`,
-                );
-              }
-              return {
-                kind: "workflow_reference",
-                key: definition.factKey,
-                workflowDefinitionId: row.workflowDefinitionId,
-              };
-            }
-            case "work_unit_reference": {
-              const row = workUnitRefByDefinitionId.get(definition.id);
-              if (!row) {
-                throw new Error(
-                  `Missing work_unit_reference payload for context fact '${definition.factKey}' (${definition.id})`,
-                );
-              }
-              return {
-                kind: "work_unit_reference",
-                key: definition.factKey,
-                workUnitTypeKey: row.workUnitTypeKey,
-              };
-            }
-            case "artifact_reference": {
-              const row = artifactRefByDefinitionId.get(definition.id);
-              if (!row) {
-                throw new Error(
-                  `Missing artifact_reference payload for context fact '${definition.factKey}' (${definition.id})`,
-                );
-              }
-              return {
-                kind: "artifact_reference",
-                key: definition.factKey,
-                artifactSlotKey: row.artifactSlotKey,
-              };
-            }
-            case "draft_spec": {
-              const row = draftSpecByDefinitionId.get(definition.id);
-              if (!row) {
-                throw new Error(
-                  `Missing draft_spec payload for context fact '${definition.factKey}' (${definition.id})`,
-                );
-              }
-              const fields = (draftFieldsByDraftSpecId.get(row.id) ?? []).map((field) => ({
-                key: field.fieldKey,
-                valueType: field.valueType as FactValueType,
-                required: field.required,
-                ...(field.descriptionJson
-                  ? { descriptionJson: field.descriptionJson as { markdown: string } }
-                  : {}),
-              }));
-              return {
-                kind: "draft_spec",
-                key: definition.factKey,
-                fields,
-              };
-            }
-            case "draft_spec_field": {
-              const row = draftSpecFieldRows.find((entry) => entry.fieldKey === definition.factKey);
-              if (!row) {
-                throw new Error(
-                  `Missing draft_spec_field payload for context fact '${definition.factKey}' (${definition.id})`,
-                );
-              }
-              const draftSpecKey = draftSpecKeyById.get(row.draftSpecId);
-              if (!draftSpecKey) {
-                throw new Error(
-                  `Missing draftSpecKey for context fact '${definition.factKey}' (${definition.id})`,
-                );
-              }
-              return {
-                kind: "draft_spec_field",
-                key: definition.factKey,
-                draftSpecKey,
-                fieldKey: row.fieldKey,
-                valueType: row.valueType as FactValueType,
-              };
-            }
-            default:
-              throw new Error(`Unsupported context fact kind '${definition.factKind}'`);
-          }
+          return {
+            stepId: step.id,
+            stepType,
+            mode: "deferred",
+            defaultMessage: DEFERRED_STEP_MESSAGE,
+          };
         });
+
+        const edges: WorkflowEdgeDto[] = edgeRows.map((edge) => ({
+          edgeId: edge.id,
+          fromStepKey: edge.fromStepId ? (stepKeyById.get(edge.fromStepId) ?? null) : null,
+          toStepKey: edge.toStepId ? (stepKeyById.get(edge.toStepId) ?? null) : null,
+          ...(edge.guidanceJson !== null && edge.guidanceJson !== undefined
+            ? { descriptionJson: edge.guidanceJson as { readonly markdown: string } }
+            : {}),
+          ...(edge.conditionJson !== null && edge.conditionJson !== undefined
+            ? { condition: edge.conditionJson }
+            : {}),
+        }));
+
+        return {
+          workflow: {
+            workflowDefinitionId: workflow.id,
+            key: workflow.key,
+            displayName: workflow.displayName,
+            descriptionJson: workflow.descriptionJson,
+          },
+          steps,
+          edges,
+          contextFacts,
+          formDefinitions,
+        } satisfies WorkflowEditorDefinitionReadModel;
       }),
 
     updateWorkflowMetadataByDefinitionId: (input: {
@@ -2658,6 +3344,16 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
       descriptionJson: unknown;
     }) =>
       dbEffect("methodology.updateWorkflowMetadataByDefinitionId", async () => {
+        const workflow = await findWorkflowRow(db, {
+          versionId: input.versionId,
+          workflowDefinitionId: input.workflowDefinitionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+        });
+
+        if (!workflow) {
+          throw new Error("Workflow not found");
+        }
+
         const updated = await db
           .update(methodologyWorkflows)
           .set({
@@ -2665,13 +3361,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             displayName: input.displayName,
             descriptionJson: input.descriptionJson,
           })
-          .where(
-            and(
-              eq(methodologyWorkflows.methodologyVersionId, input.versionId),
-              eq(methodologyWorkflows.workUnitTypeKey, input.workUnitTypeKey),
-              eq(methodologyWorkflows.id, input.workflowDefinitionId),
-            ),
-          )
+          .where(eq(methodologyWorkflows.id, workflow.id))
           .returning();
 
         if (updated.length === 0) {
