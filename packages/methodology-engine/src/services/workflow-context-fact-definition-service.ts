@@ -9,29 +9,6 @@ import {
 } from "../errors";
 import { MethodologyRepository, type MethodologyVersionRow } from "../repository";
 
-type WorkflowContextFactRepository = {
-  readonly listWorkflowContextFactsByDefinitionId?: (input: {
-    readonly versionId: string;
-    readonly workflowDefinitionId: string;
-  }) => Effect.Effect<readonly WorkflowContextFactDto[], RepositoryError>;
-  readonly createWorkflowContextFactByDefinitionId?: (input: {
-    readonly versionId: string;
-    readonly workflowDefinitionId: string;
-    readonly fact: WorkflowContextFactDto;
-  }) => Effect.Effect<WorkflowContextFactDto, RepositoryError>;
-  readonly updateWorkflowContextFactByDefinitionId?: (input: {
-    readonly versionId: string;
-    readonly workflowDefinitionId: string;
-    readonly factKey: string;
-    readonly fact: WorkflowContextFactDto;
-  }) => Effect.Effect<WorkflowContextFactDto, RepositoryError>;
-  readonly deleteWorkflowContextFactByDefinitionId?: (input: {
-    readonly versionId: string;
-    readonly workflowDefinitionId: string;
-    readonly factKey: string;
-  }) => Effect.Effect<void, RepositoryError>;
-};
-
 const ensureDraftVersion = (
   version: MethodologyVersionRow,
 ): Effect.Effect<void, VersionNotDraftError> =>
@@ -43,12 +20,6 @@ const ensureDraftVersion = (
           currentStatus: version.status,
         }),
       );
-
-const missingCapability = (operation: string) =>
-  new RepositoryError({
-    operation,
-    cause: new Error("Workflow context-fact repository capability is not configured"),
-  });
 
 export class WorkflowContextFactDefinitionService extends Context.Tag(
   "WorkflowContextFactDefinitionService",
@@ -105,8 +76,7 @@ export class WorkflowContextFactDefinitionService extends Context.Tag(
 export const WorkflowContextFactDefinitionServiceLive = Layer.effect(
   WorkflowContextFactDefinitionService,
   Effect.gen(function* () {
-    const repo = (yield* MethodologyRepository) as MethodologyRepository["Type"] &
-      WorkflowContextFactRepository;
+    const repo = yield* MethodologyRepository;
 
     const ensureVersion = (versionId: string) =>
       Effect.gen(function* () {
@@ -120,10 +90,6 @@ export const WorkflowContextFactDefinitionServiceLive = Layer.effect(
     const list = (input: { readonly versionId: string; readonly workflowDefinitionId: string }) =>
       Effect.gen(function* () {
         yield* ensureVersion(input.versionId);
-
-        if (!repo.listWorkflowContextFactsByDefinitionId) {
-          return yield* Effect.fail(missingCapability("workflowContextFact.list"));
-        }
 
         return yield* repo.listWorkflowContextFactsByDefinitionId({
           versionId: input.versionId,
@@ -143,9 +109,6 @@ export const WorkflowContextFactDefinitionServiceLive = Layer.effect(
       Effect.gen(function* () {
         const version = yield* ensureVersion(input.versionId);
         yield* ensureDraftVersion(version);
-        if (!repo.createWorkflowContextFactByDefinitionId) {
-          return yield* Effect.fail(missingCapability("workflowContextFact.create"));
-        }
 
         const created = yield* repo.createWorkflowContextFactByDefinitionId({
           versionId: input.versionId,
@@ -182,8 +145,22 @@ export const WorkflowContextFactDefinitionServiceLive = Layer.effect(
       Effect.gen(function* () {
         const version = yield* ensureVersion(input.versionId);
         yield* ensureDraftVersion(version);
-        if (!repo.updateWorkflowContextFactByDefinitionId) {
-          return yield* Effect.fail(missingCapability("workflowContextFact.update"));
+
+        const existing = yield* repo.listWorkflowContextFactsByDefinitionId({
+          versionId: input.versionId,
+          workflowDefinitionId: input.workflowDefinitionId,
+        });
+        const current = existing.find((fact) => fact.key === input.factKey);
+        if (!current) {
+          return yield* new ValidationDecodeError({
+            message: `Workflow context fact '${input.factKey}' does not exist`,
+          });
+        }
+
+        if (current.kind !== input.fact.kind) {
+          return yield* new ValidationDecodeError({
+            message: `Workflow context fact kind is locked for '${input.factKey}'`,
+          });
         }
 
         const updated = yield* repo.updateWorkflowContextFactByDefinitionId({
@@ -221,9 +198,6 @@ export const WorkflowContextFactDefinitionServiceLive = Layer.effect(
       Effect.gen(function* () {
         const version = yield* ensureVersion(input.versionId);
         yield* ensureDraftVersion(version);
-        if (!repo.deleteWorkflowContextFactByDefinitionId) {
-          return yield* Effect.fail(missingCapability("workflowContextFact.delete"));
-        }
 
         yield* repo.deleteWorkflowContextFactByDefinitionId({
           versionId: input.versionId,

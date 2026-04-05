@@ -1,4 +1,5 @@
 import type { FormStepPayload } from "@chiron/contracts/methodology/workflow";
+import type { WorkflowContextFactDto } from "@chiron/contracts/methodology/workflow";
 import { Context, Effect, Layer } from "effect";
 
 import {
@@ -8,38 +9,6 @@ import {
   VersionNotFoundError,
 } from "../errors";
 import { MethodologyRepository, type MethodologyVersionRow } from "../repository";
-
-type FormStepRepository = {
-  readonly createWorkflowFormStep?: (input: {
-    readonly versionId: string;
-    readonly workflowDefinitionId: string;
-    readonly afterStepKey: string | null;
-    readonly payload: FormStepPayload;
-  }) => Effect.Effect<
-    {
-      readonly stepId: string;
-      readonly payload: FormStepPayload;
-    },
-    RepositoryError
-  >;
-  readonly updateWorkflowFormStep?: (input: {
-    readonly versionId: string;
-    readonly workflowDefinitionId: string;
-    readonly stepId: string;
-    readonly payload: FormStepPayload;
-  }) => Effect.Effect<
-    {
-      readonly stepId: string;
-      readonly payload: FormStepPayload;
-    },
-    RepositoryError
-  >;
-  readonly deleteWorkflowFormStep?: (input: {
-    readonly versionId: string;
-    readonly workflowDefinitionId: string;
-    readonly stepId: string;
-  }) => Effect.Effect<void, RepositoryError>;
-};
 
 const ensureDraftVersion = (
   version: MethodologyVersionRow,
@@ -53,10 +22,36 @@ const ensureDraftVersion = (
         }),
       );
 
-const missingCapability = (operation: string) =>
-  new RepositoryError({
-    operation,
-    cause: new Error("Form-step repository capability is not configured"),
+const validateFieldBindings = (
+  payload: FormStepPayload,
+  facts: readonly WorkflowContextFactDto[],
+): Effect.Effect<void, ValidationDecodeError> =>
+  Effect.gen(function* () {
+    const factByKey = new Map(facts.map((fact) => [fact.key, fact]));
+    const seen = new Set<string>();
+
+    for (const field of payload.fields) {
+      if (seen.has(field.contextFactDefinitionId)) {
+        return yield* new ValidationDecodeError({
+          message: `Form step cannot bind context fact '${field.contextFactDefinitionId}' more than once`,
+        });
+      }
+
+      seen.add(field.contextFactDefinitionId);
+
+      const fact = factByKey.get(field.contextFactDefinitionId);
+      if (!fact) {
+        return yield* new ValidationDecodeError({
+          message: `Unknown workflow context fact '${field.contextFactDefinitionId}'`,
+        });
+      }
+
+      if (fact.cardinality === "one" && field.uiMultiplicityMode !== undefined) {
+        return yield* new ValidationDecodeError({
+          message: `Field '${field.fieldKey}' cannot override multiplicity for one-cardinality context fact '${field.contextFactDefinitionId}'`,
+        });
+      }
+    }
   });
 
 export class FormStepDefinitionService extends Context.Tag("FormStepDefinitionService")<
@@ -112,8 +107,7 @@ export class FormStepDefinitionService extends Context.Tag("FormStepDefinitionSe
 export const FormStepDefinitionServiceLive = Layer.effect(
   FormStepDefinitionService,
   Effect.gen(function* () {
-    const repo = (yield* MethodologyRepository) as MethodologyRepository["Type"] &
-      FormStepRepository;
+    const repo = yield* MethodologyRepository;
 
     const ensureDraft = (versionId: string) =>
       Effect.gen(function* () {
@@ -123,6 +117,20 @@ export const FormStepDefinitionServiceLive = Layer.effect(
         }
 
         yield* ensureDraftVersion(version);
+      });
+
+    const validatePayload = (
+      workflowDefinitionId: string,
+      versionId: string,
+      payload: FormStepPayload,
+    ) =>
+      Effect.gen(function* () {
+        const facts = yield* repo.listWorkflowContextFactsByDefinitionId({
+          versionId,
+          workflowDefinitionId,
+        });
+
+        yield* validateFieldBindings(payload, facts);
       });
 
     const createFormStep = (
@@ -137,11 +145,9 @@ export const FormStepDefinitionServiceLive = Layer.effect(
     ) =>
       Effect.gen(function* () {
         yield* ensureDraft(input.versionId);
-        if (!repo.createWorkflowFormStep) {
-          return yield* Effect.fail(missingCapability("formStep.createWorkflowFormStep"));
-        }
+        yield* validatePayload(input.workflowDefinitionId, input.versionId, input.payload);
 
-        const created = yield* repo.createWorkflowFormStep({
+        const created = yield* repo.createFormStepDefinition({
           versionId: input.versionId,
           workflowDefinitionId: input.workflowDefinitionId,
           afterStepKey: input.afterStepKey,
@@ -176,11 +182,9 @@ export const FormStepDefinitionServiceLive = Layer.effect(
     ) =>
       Effect.gen(function* () {
         yield* ensureDraft(input.versionId);
-        if (!repo.updateWorkflowFormStep) {
-          return yield* Effect.fail(missingCapability("formStep.updateWorkflowFormStep"));
-        }
+        yield* validatePayload(input.workflowDefinitionId, input.versionId, input.payload);
 
-        const updated = yield* repo.updateWorkflowFormStep({
+        const updated = yield* repo.updateFormStepDefinition({
           versionId: input.versionId,
           workflowDefinitionId: input.workflowDefinitionId,
           stepId: input.stepId,
@@ -214,11 +218,8 @@ export const FormStepDefinitionServiceLive = Layer.effect(
     ) =>
       Effect.gen(function* () {
         yield* ensureDraft(input.versionId);
-        if (!repo.deleteWorkflowFormStep) {
-          return yield* Effect.fail(missingCapability("formStep.deleteWorkflowFormStep"));
-        }
 
-        yield* repo.deleteWorkflowFormStep({
+        yield* repo.deleteFormStepDefinition({
           versionId: input.versionId,
           workflowDefinitionId: input.workflowDefinitionId,
           stepId: input.stepId,

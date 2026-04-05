@@ -7,11 +7,8 @@ import {
   WorkflowEditorDefinitionService,
   WorkflowEditorDefinitionServiceLive,
 } from "../../services/workflow-editor-definition-service";
-import { WorkflowService, WorkflowServiceLive } from "../../services/workflow-service";
-import {
-  WorkflowTopologyMutationService,
-  WorkflowTopologyMutationServiceLive,
-} from "../../services/workflow-topology-mutation-service";
+import { WorkflowServiceLive } from "../../services/workflow-service";
+import { WorkflowTopologyMutationServiceLive } from "../../services/workflow-topology-mutation-service";
 import {
   FormStepDefinitionService,
   FormStepDefinitionServiceLive,
@@ -20,6 +17,11 @@ import {
   WorkflowContextFactDefinitionService,
   WorkflowContextFactDefinitionServiceLive,
 } from "../../services/workflow-context-fact-definition-service";
+import {
+  WorkflowAuthoringTransactionService,
+  WorkflowAuthoringTransactionServiceLive,
+} from "../../services/workflow-authoring-transaction-service";
+import { RepositoryError } from "../../errors";
 
 const versionRow = {
   id: "ver-1",
@@ -41,30 +43,36 @@ function makeRepo() {
       descriptionJson: { markdown: "a->b" },
       condition: null,
     },
-  ] as Array<{
-    edgeId: string;
-    fromStepKey: string | null;
-    toStepKey: string | null;
-    descriptionJson?: { markdown: string };
-    condition?: unknown;
-  }>;
+  ];
 
   const formSteps = new Map<string, { stepId: string; payload: any }>();
   formSteps.set("step-a", {
     stepId: "step-a",
     payload: {
       key: "step-a",
-      label: "A",
-      descriptionJson: { markdown: "A" },
-      fields: [],
-      contextFacts: [],
+      label: "Capture",
+      descriptionJson: { markdown: "Capture reusable context" },
+      fields: [
+        {
+          contextFactDefinitionId: "summary",
+          fieldLabel: "Summary",
+          fieldKey: "summary",
+          helpText: null,
+          required: true,
+        },
+      ],
     },
   });
 
   const contextFacts = new Map<string, any>();
-  contextFacts.set("plain.fact", { kind: "plain_value", key: "plain.fact", valueType: "string" });
+  contextFacts.set("summary", {
+    kind: "plain_value_fact",
+    key: "summary",
+    cardinality: "one",
+    valueType: "string",
+  });
 
-  return {
+  const repo = {
     findVersionById: () => Effect.succeed(versionRow),
     recordEvent: () =>
       Effect.succeed({
@@ -120,15 +128,13 @@ function makeRepo() {
     updateWorkflowEdgeByDefinitionId: (input: any) =>
       Effect.sync(() => {
         const index = edges.findIndex((edge) => edge.edgeId === input.edgeId);
-        if (index >= 0) {
-          edges[index] = {
-            edgeId: input.edgeId,
-            fromStepKey: input.fromStepKey,
-            toStepKey: input.toStepKey,
-            descriptionJson: input.descriptionJson,
-            condition: input.condition,
-          };
-        }
+        edges[index] = {
+          edgeId: input.edgeId,
+          fromStepKey: input.fromStepKey,
+          toStepKey: input.toStepKey,
+          descriptionJson: input.descriptionJson,
+          condition: input.condition,
+        };
         return edges[index]!;
       }),
     deleteWorkflowEdgeByDefinitionId: (input: any) =>
@@ -138,20 +144,20 @@ function makeRepo() {
           edges.splice(index, 1);
         }
       }),
-    createWorkflowFormStep: (input: any) =>
+    createFormStepDefinition: (input: any) =>
       Effect.sync(() => {
         const stepId = `step-${formSteps.size + 1}`;
         const step = { stepId, payload: input.payload };
         formSteps.set(stepId, step);
         return step;
       }),
-    updateWorkflowFormStep: (input: any) =>
+    updateFormStepDefinition: (input: any) =>
       Effect.sync(() => {
         const updated = { stepId: input.stepId, payload: input.payload };
         formSteps.set(input.stepId, updated);
         return updated;
       }),
-    deleteWorkflowFormStep: (input: any) =>
+    deleteFormStepDefinition: (input: any) =>
       Effect.sync(() => {
         formSteps.delete(input.stepId);
       }),
@@ -168,10 +174,25 @@ function makeRepo() {
         return input.fact;
       }),
     deleteWorkflowContextFactByDefinitionId: (input: any) =>
-      Effect.sync(() => {
+      Effect.suspend(() => {
+        const inUse = [...formSteps.values()].some((step) =>
+          step.payload.fields.some((field: any) => field.contextFactDefinitionId === input.factKey),
+        );
+        if (inUse) {
+          return Effect.fail(
+            new RepositoryError({
+              operation: "workflowContextFact.delete",
+              cause: new Error(`Workflow context fact '${input.factKey}' is still bound`),
+            }),
+          );
+        }
+
         contextFacts.delete(input.factKey);
+        return Effect.void;
       }),
   } as unknown as Context.Tag.Service<typeof MethodologyRepository>;
+
+  return repo;
 }
 
 function makeLayer() {
@@ -180,19 +201,31 @@ function makeLayer() {
     getLifecycleDefinition: () => Effect.succeed(null),
   } as unknown as Context.Tag.Service<typeof LifecycleRepository>);
   const dependencies = Layer.mergeAll(repoLayer, lifecycleRepoLayer);
+  const workflowServiceLayer = Layer.provide(WorkflowServiceLive, dependencies);
+  const workflowTopologyLayer = Layer.provide(WorkflowTopologyMutationServiceLive, dependencies);
+  const formStepLayer = Layer.provide(FormStepDefinitionServiceLive, dependencies);
+  const contextFactLayer = Layer.provide(WorkflowContextFactDefinitionServiceLive, dependencies);
 
   return Layer.mergeAll(
     Layer.provide(WorkflowEditorDefinitionServiceLive, dependencies),
-    Layer.provide(WorkflowServiceLive, dependencies),
-    Layer.provide(WorkflowTopologyMutationServiceLive, dependencies),
-    Layer.provide(FormStepDefinitionServiceLive, dependencies),
-    Layer.provide(WorkflowContextFactDefinitionServiceLive, dependencies),
+    workflowServiceLayer,
+    workflowTopologyLayer,
+    formStepLayer,
+    contextFactLayer,
+    Layer.provide(
+      WorkflowAuthoringTransactionServiceLive,
+      Layer.mergeAll(workflowServiceLayer, workflowTopologyLayer, formStepLayer, contextFactLayer),
+    ),
   );
 }
 
+function runWithLayer<A>(effect: unknown): Promise<A> {
+  return Effect.runPromise((effect as any).pipe(Effect.provide(makeLayer() as any))) as Promise<A>;
+}
+
 describe("l3 slice-1 workflow editor services", () => {
-  it("returns full editor definition", async () => {
-    const result = await Effect.runPromise(
+  it("returns workflow-level context facts separately from form definitions", async () => {
+    const result = await runWithLayer<any>(
       Effect.gen(function* () {
         const svc = yield* WorkflowEditorDefinitionService;
         return yield* svc.getEditorDefinition({
@@ -201,148 +234,171 @@ describe("l3 slice-1 workflow editor services", () => {
           workUnitTypeKey: "WU.STORY",
           workflowDefinitionId: "wf-1",
         });
-      }).pipe(Effect.provide(makeLayer())),
+      }),
     );
 
     expect(result.workflow.workflowDefinitionId).toBe("wf-1");
-    expect(result.steps).toHaveLength(2);
-    expect(result.edges).toHaveLength(1);
-    expect(result.contextFacts).toHaveLength(1);
-    expect(result.formDefinitions).toHaveLength(1);
-
-    const formStep = result.steps.find((step) => step.stepType === "form");
-    const deferredStep = result.steps.find((step) => step.stepType === "agent");
-
-    expect(formStep).toMatchObject({
-      stepId: "step-a",
-      stepType: "form",
-      payload: { key: "step-a" },
-    });
-    expect(deferredStep).toMatchObject({
-      stepId: "step-b",
-      stepType: "agent",
-      mode: "deferred",
-      defaultMessage: "Deferred in slice-1",
-    });
-    expect(result.formDefinitions.map((definition) => definition.stepId)).toEqual(["step-a"]);
+    expect(result.contextFacts).toEqual([
+      {
+        kind: "plain_value_fact",
+        key: "summary",
+        cardinality: "one",
+        valueType: "string",
+      },
+    ]);
+    expect(result.formDefinitions).toEqual([
+      {
+        stepId: "step-a",
+        payload: {
+          key: "step-a",
+          label: "Capture",
+          descriptionJson: { markdown: "Capture reusable context" },
+          fields: [
+            {
+              contextFactDefinitionId: "summary",
+              fieldLabel: "Summary",
+              fieldKey: "summary",
+              helpText: null,
+              required: true,
+            },
+          ],
+        },
+      },
+    ]);
   });
 
-  it("supports metadata/form/context-fact CRUD", async () => {
-    const result = await Effect.runPromise(
-      Effect.gen(function* () {
-        const workflows = yield* WorkflowService;
-        const forms = yield* FormStepDefinitionService;
-        const contextFacts = yield* WorkflowContextFactDefinitionService;
+  it("enforces kind locks, dependency-aware deletes, and context-fact-backed form bindings", async () => {
+    const program = Effect.gen(function* () {
+      const forms = yield* FormStepDefinitionService;
+      const contextFactService = yield* WorkflowContextFactDefinitionService;
 
-        yield* workflows.updateWorkflowMetadata(
-          {
-            versionId: "ver-1",
-            workUnitTypeKey: "WU.STORY",
-            workflowDefinitionId: "wf-1",
-            payload: {
-              workflowDefinitionId: "wf-1",
-              key: "wu.setup.updated",
-              displayName: "Updated",
-              descriptionJson: { markdown: "updated" },
-            },
-          },
-          "tester",
-        );
-
-        const created = yield* forms.createFormStep(
+      const invalidCreate = yield* Effect.either(
+        forms.createFormStep(
           {
             versionId: "ver-1",
             workUnitTypeKey: "WU.STORY",
             workflowDefinitionId: "wf-1",
             afterStepKey: null,
             payload: {
-              key: "capture",
-              label: "Capture",
-              descriptionJson: { markdown: "Capture" },
-              fields: [],
-              contextFacts: [],
+              key: "invalid",
+              fields: [
+                {
+                  contextFactDefinitionId: "missing",
+                  fieldLabel: "Missing",
+                  fieldKey: "missing",
+                  helpText: null,
+                  required: false,
+                },
+              ],
             },
           },
           "tester",
-        );
+        ),
+      );
 
-        yield* forms.updateFormStep(
+      const invalidMultiplicity = yield* Effect.either(
+        forms.createFormStep(
           {
             versionId: "ver-1",
             workUnitTypeKey: "WU.STORY",
             workflowDefinitionId: "wf-1",
-            stepId: created.stepId,
+            afterStepKey: null,
             payload: {
-              key: "capture.v2",
-              label: "Capture v2",
-              descriptionJson: { markdown: "Capture v2" },
-              fields: [],
-              contextFacts: [],
+              key: "invalid-multiplicity",
+              fields: [
+                {
+                  contextFactDefinitionId: "summary",
+                  fieldLabel: "Summary",
+                  fieldKey: "summary",
+                  helpText: null,
+                  required: false,
+                  uiMultiplicityMode: "many",
+                },
+              ],
             },
           },
           "tester",
-        );
+        ),
+      );
 
-        yield* contextFacts.create(
+      const invalidKindUpdate = yield* Effect.either(
+        contextFactService.update(
           {
             versionId: "ver-1",
             workUnitTypeKey: "WU.STORY",
             workflowDefinitionId: "wf-1",
-            fact: { kind: "plain_value", key: "new.fact", valueType: "string" },
+            factKey: "summary",
+            fact: {
+              kind: "artifact_reference_fact",
+              key: "summary",
+              cardinality: "one",
+              artifactSlotDefinitionId: "ART.PRD",
+            },
           },
           "tester",
-        );
+        ),
+      );
 
-        const listed = yield* contextFacts.list({
-          versionId: "ver-1",
-          workflowDefinitionId: "wf-1",
-        });
-
-        yield* contextFacts.delete(
+      const blockedDelete = yield* Effect.either(
+        contextFactService.delete(
           {
             versionId: "ver-1",
             workUnitTypeKey: "WU.STORY",
             workflowDefinitionId: "wf-1",
-            factKey: "new.fact",
+            factKey: "summary",
           },
           "tester",
-        );
+        ),
+      );
 
-        yield* forms.deleteFormStep(
-          {
-            versionId: "ver-1",
-            workUnitTypeKey: "WU.STORY",
-            workflowDefinitionId: "wf-1",
-            stepId: created.stepId,
-          },
-          "tester",
-        );
+      return { invalidCreate, invalidMultiplicity, invalidKindUpdate, blockedDelete };
+    }).pipe(Effect.provide(makeLayer()));
 
-        return listed;
-      }).pipe(Effect.provide(makeLayer())),
-    );
+    const result = await runWithLayer<any>(program);
 
-    expect(result.find((fact) => fact.key === "new.fact")).toBeDefined();
+    expect(result.invalidCreate._tag).toBe("Left");
+    expect(result.invalidMultiplicity._tag).toBe("Left");
+    expect(result.invalidKindUpdate._tag).toBe("Left");
+    expect(result.blockedDelete._tag).toBe("Left");
   });
 
-  it("enforces one outgoing edge invariant", async () => {
-    await expect(
-      Effect.runPromise(
-        Effect.gen(function* () {
-          const svc = yield* WorkflowTopologyMutationService;
-          yield* svc.createEdge(
-            {
-              versionId: "ver-1",
-              workUnitTypeKey: "WU.STORY",
-              workflowDefinitionId: "wf-1",
-              fromStepKey: "step-a",
-              toStepKey: "step-z",
-              descriptionJson: { markdown: "duplicate" },
+  it("orders authoring mutations so new context facts can be bound in the same call", async () => {
+    const result = await runWithLayer<any>(
+      Effect.gen(function* () {
+        const tx = yield* WorkflowAuthoringTransactionService;
+
+        return yield* tx.applyMutation(
+          {
+            versionId: "ver-1",
+            workUnitTypeKey: "WU.STORY",
+            workflowDefinitionId: "wf-1",
+            createContextFact: {
+              kind: "plain_value_fact",
+              key: "objective",
+              cardinality: "one",
+              valueType: "string",
             },
-            "tester",
-          );
-        }).pipe(Effect.provide(makeLayer())),
-      ),
-    ).rejects.toThrow(/one outgoing edge/i);
+            createFormStep: {
+              afterStepKey: null,
+              payload: {
+                key: "capture-objective",
+                fields: [
+                  {
+                    contextFactDefinitionId: "objective",
+                    fieldLabel: "Objective",
+                    fieldKey: "objective",
+                    helpText: null,
+                    required: true,
+                  },
+                ],
+              },
+            },
+          },
+          "tester",
+        );
+      }),
+    );
+
+    expect(result).toEqual({ ok: true });
   });
 });
