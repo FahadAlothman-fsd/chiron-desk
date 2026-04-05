@@ -128,12 +128,39 @@ function parseFormFieldInput(inputJson: unknown): {
   return { contextFactDefinitionId, ...(uiMultiplicityMode ? { uiMultiplicityMode } : {}) };
 }
 
-function getDraftSpecWorkUnitTypeKey(guidanceJson: unknown): string {
-  if (isRecord(guidanceJson) && typeof guidanceJson.workUnitTypeKey === "string") {
-    return guidanceJson.workUnitTypeKey;
+async function inferDraftSpecWorkUnitTypeKey(
+  db: DB | TransactionClient,
+  includedFactDefinitionIds: readonly string[],
+): Promise<string> {
+  if (includedFactDefinitionIds.length === 0) {
+    throw new Error(
+      "Work-unit draft spec facts must include at least one work-unit fact definition",
+    );
   }
 
-  return "";
+  const rows = await db
+    .select({ id: workUnitFactDefinitions.id, workUnitTypeKey: methodologyWorkUnitTypes.key })
+    .from(workUnitFactDefinitions)
+    .innerJoin(
+      methodologyWorkUnitTypes,
+      eq(workUnitFactDefinitions.workUnitTypeId, methodologyWorkUnitTypes.id),
+    )
+    .where(inArray(workUnitFactDefinitions.id, includedFactDefinitionIds));
+
+  if (rows.length !== includedFactDefinitionIds.length) {
+    throw new Error("One or more selected draft-spec fact definitions do not exist");
+  }
+
+  const uniqueWorkUnitTypeKeys = [...new Set(rows.map((row) => row.workUnitTypeKey))].filter(
+    Boolean,
+  );
+  if (uniqueWorkUnitTypeKeys.length !== 1) {
+    throw new Error(
+      "Selected draft-spec fact definitions must belong to exactly one work-unit type",
+    );
+  }
+
+  return uniqueWorkUnitTypeKeys[0] ?? "";
 }
 
 function getContextFactDescriptionJson(value: unknown): { readonly markdown: string } | undefined {
@@ -440,14 +467,11 @@ async function insertContextFactSubtypeRow(
         throw new Error(`Failed to create draft-spec payload for context fact '${fact.key}'`);
       }
 
-      if (fact.includedFactKeys.length > 0) {
+      if (fact.includedFactDefinitionIds.length > 0) {
         await tx.insert(methodologyWorkflowContextFactDraftSpecFields).values(
-          fact.includedFactKeys.map((fieldKey) => ({
+          fact.includedFactDefinitionIds.map((workUnitFactDefinitionId) => ({
             draftSpecId,
-            fieldKey,
-            valueType: "json",
-            required: false,
-            descriptionJson: null,
+            workUnitFactDefinitionId,
           })),
         );
       }
@@ -549,7 +573,7 @@ async function readWorkflowContextFacts(
           .where(inArray(methodologyWorkflowContextFactDraftSpecFields.draftSpecId, draftSpecIds))
           .orderBy(
             asc(methodologyWorkflowContextFactDraftSpecFields.draftSpecId),
-            asc(methodologyWorkflowContextFactDraftSpecFields.fieldKey),
+            asc(methodologyWorkflowContextFactDraftSpecFields.workUnitFactDefinitionId),
           );
 
   const plainByDefinitionId = new Map(
@@ -656,9 +680,8 @@ async function readWorkflowContextFacts(
           key: definition.factKey,
           ...metadata,
           cardinality: definition.cardinality as "one" | "many",
-          workUnitTypeKey: getDraftSpecWorkUnitTypeKey(definition.guidanceJson),
-          includedFactKeys: (draftFieldsByDraftSpecId.get(row.id) ?? []).map(
-            (field) => field.fieldKey,
+          includedFactDefinitionIds: (draftFieldsByDraftSpecId.get(row.id) ?? []).map(
+            (field) => field.workUnitFactDefinitionId,
           ),
         };
       }
@@ -2457,6 +2480,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
       dbEffect("methodology.findFactSchemasByVersionId", async () => {
         const rows = await db
           .select({
+            id: workUnitFactDefinitions.id,
             name: workUnitFactDefinitions.name,
             key: workUnitFactDefinitions.key,
             factType: workUnitFactDefinitions.factType,
@@ -2470,6 +2494,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           .orderBy(asc(workUnitFactDefinitions.key));
 
         return rows.map((row) => ({
+          id: row.id,
           name: row.name,
           key: row.key,
           factType: row.factType,
@@ -2929,6 +2954,10 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             );
           }
 
+          if (fact.kind === "work_unit_draft_spec_fact") {
+            await inferDraftSpecWorkUnitTypeKey(tx, fact.includedFactDefinitionIds);
+          }
+
           const rows = await tx
             .insert(methodologyWorkflowContextFactDefinitions)
             .values({
@@ -2938,10 +2967,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               label: fact.label ?? null,
               descriptionJson: fact.descriptionJson ?? null,
               cardinality: fact.cardinality,
-              guidanceJson:
-                fact.kind === "work_unit_draft_spec_fact"
-                  ? { workUnitTypeKey: fact.workUnitTypeKey }
-                  : sql.raw("null"),
+              guidanceJson: sql.raw("null"),
             })
             .returning({ id: methodologyWorkflowContextFactDefinitions.id });
 
@@ -2963,6 +2989,10 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             throw new Error(
               `Workflow not found for versionId=${versionId}, workflowDefinitionId=${workflowDefinitionId}`,
             );
+          }
+
+          if (fact.kind === "work_unit_draft_spec_fact") {
+            await inferDraftSpecWorkUnitTypeKey(tx, fact.includedFactDefinitionIds);
           }
 
           const existingRows = await tx
@@ -2988,10 +3018,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               label: fact.label ?? null,
               descriptionJson: fact.descriptionJson ?? null,
               cardinality: fact.cardinality,
-              guidanceJson:
-                fact.kind === "work_unit_draft_spec_fact"
-                  ? { workUnitTypeKey: fact.workUnitTypeKey }
-                  : sql.raw("null"),
+              guidanceJson: sql.raw("null"),
             })
             .where(eq(methodologyWorkflowContextFactDefinitions.id, definitionId));
 

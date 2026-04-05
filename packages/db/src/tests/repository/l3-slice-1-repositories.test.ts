@@ -16,6 +16,19 @@ const SCHEMA_SQL = [
     methodology_version_id TEXT NOT NULL,
     key TEXT NOT NULL
   )`,
+  `CREATE TABLE work_unit_fact_definitions (
+    id TEXT PRIMARY KEY,
+    methodology_version_id TEXT NOT NULL,
+    work_unit_type_id TEXT NOT NULL,
+    name TEXT,
+    key TEXT NOT NULL,
+    fact_type TEXT NOT NULL,
+    cardinality TEXT NOT NULL,
+    description_json TEXT,
+    guidance_json TEXT,
+    default_value_json TEXT,
+    validation_json TEXT
+  )`,
   `CREATE TABLE methodology_workflows (
     id TEXT PRIMARY KEY,
     methodology_version_id TEXT NOT NULL,
@@ -103,10 +116,7 @@ const SCHEMA_SQL = [
   `CREATE TABLE methodology_workflow_context_fact_draft_spec_fields (
     id TEXT PRIMARY KEY,
     draft_spec_id TEXT NOT NULL,
-    field_key TEXT NOT NULL,
-    value_type TEXT NOT NULL,
-    required INTEGER NOT NULL,
-    description_json TEXT
+    work_unit_fact_definition_id TEXT NOT NULL
   )`,
 ];
 
@@ -127,6 +137,12 @@ describe("l3 slice-1 methodology repository", () => {
     await client.execute(`
       INSERT INTO methodology_work_unit_types (id, methodology_version_id, key)
       VALUES ('wut-1', 'version-1', 'WU.STORY')
+    `);
+    await client.execute(`
+      INSERT INTO work_unit_fact_definitions (id, methodology_version_id, work_unit_type_id, name, key, fact_type, cardinality, description_json, guidance_json, default_value_json, validation_json)
+      VALUES
+        ('fact-title', 'version-1', 'wut-1', 'Title', 'title', 'string', 'one', NULL, NULL, NULL, NULL),
+        ('fact-acceptance-criteria', 'version-1', 'wut-1', 'Acceptance Criteria', 'acceptance_criteria', 'json', 'many', NULL, NULL, NULL, NULL)
     `);
     await client.execute(`
       INSERT INTO methodology_workflows (id, methodology_version_id, work_unit_type_id, key, display_name)
@@ -212,7 +228,7 @@ describe("l3 slice-1 methodology repository", () => {
             key: "story_draft",
             cardinality: "many",
             workUnitTypeKey: "WU.STORY",
-            includedFactKeys: ["title", "acceptance_criteria"],
+            includedFactDefinitionIds: ["fact-title", "fact-acceptance-criteria"],
           },
         });
 

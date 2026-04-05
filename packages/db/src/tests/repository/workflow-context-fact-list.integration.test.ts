@@ -22,11 +22,20 @@ const SCHEMA_SQL = [
     created_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000),
     updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000)
   )`,
+  `CREATE TABLE methodology_work_unit_types (
+    id TEXT PRIMARY KEY,
+    methodology_version_id TEXT NOT NULL,
+    key TEXT NOT NULL
+  )`,
   `CREATE TABLE methodology_workflow_context_fact_definitions (
     id TEXT PRIMARY KEY,
     workflow_definition_id TEXT NOT NULL,
     fact_key TEXT NOT NULL,
     fact_kind TEXT NOT NULL,
+    label TEXT,
+    description_json TEXT,
+    cardinality TEXT NOT NULL DEFAULT 'one',
+    guidance_json TEXT,
     created_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000),
     updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000)
   )`,
@@ -63,10 +72,7 @@ const SCHEMA_SQL = [
   `CREATE TABLE methodology_workflow_context_fact_draft_spec_fields (
     id TEXT PRIMARY KEY,
     draft_spec_id TEXT NOT NULL,
-    field_key TEXT NOT NULL,
-    value_type TEXT NOT NULL,
-    required INTEGER NOT NULL,
-    description_json TEXT
+    work_unit_fact_definition_id TEXT NOT NULL
   )`,
 ];
 
@@ -118,8 +124,8 @@ describe("methodology repository context-fact list", () => {
 
   it("returns persisted plain_value context facts", async () => {
     await client.execute(`
-      INSERT INTO methodology_workflow_context_fact_definitions (id, workflow_definition_id, fact_key, fact_kind)
-      VALUES ('ctx-1', 'wf-1', 'initiative_name', 'plain_value')
+      INSERT INTO methodology_workflow_context_fact_definitions (id, workflow_definition_id, fact_key, fact_kind, cardinality)
+      VALUES ('ctx-1', 'wf-1', 'initiative_name', 'plain_value_fact', 'one')
     `);
     await client.execute(`
       INSERT INTO methodology_workflow_context_fact_plain_values (id, context_fact_definition_id, value_type)
@@ -133,6 +139,8 @@ describe("methodology repository context-fact list", () => {
       }),
     );
 
-    expect(facts).toEqual([{ kind: "plain_value", key: "initiative_name", valueType: "string" }]);
+    expect(facts).toEqual([
+      { kind: "plain_value_fact", key: "initiative_name", cardinality: "one", valueType: "string" },
+    ]);
   });
 });
