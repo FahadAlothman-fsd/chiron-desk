@@ -637,9 +637,10 @@ export function WorkflowEditorShell({
               );
             }
           } else {
-            const nextFact = toContextFactDefinitionItem(draft);
-            await onCreateContextFact?.(draft);
-            setLocalContextFacts((previous) => [...previous, nextFact]);
+            const createdFact = await onCreateContextFact?.(draft);
+            if (createdFact) {
+              setLocalContextFacts((previous) => [...previous, createdFact]);
+            }
           }
 
           setContextFactDialogOpen(false);

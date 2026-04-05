@@ -143,9 +143,14 @@ export type WorkflowContextFactDefinitionItem = {
 };
 
 export type WorkflowContextFactMutationHandlers = {
-  onCreateContextFact?: (draft: WorkflowContextFactDraft) => Promise<void>;
-  onUpdateContextFact?: (factKey: string, draft: WorkflowContextFactDraft) => Promise<void>;
-  onDeleteContextFact?: (factKey: string) => Promise<void>;
+  onCreateContextFact?: (
+    draft: WorkflowContextFactDraft,
+  ) => Promise<WorkflowContextFactDefinitionItem>;
+  onUpdateContextFact?: (
+    contextFactDefinitionId: string,
+    draft: WorkflowContextFactDraft,
+  ) => Promise<void>;
+  onDeleteContextFact?: (contextFactDefinitionId: string) => Promise<void>;
 };
 
 export type WorkflowFormStepMutationHandlers = {

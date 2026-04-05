@@ -128,7 +128,7 @@ function summarizeContextFact(fact: WorkflowContextFactDraft | WorkflowContextFa
   }
 }
 
-function inferWorkUnitTypeKeyFromDraftSpecFactDefinitionIds(
+function inferWorkUnitTypeIdentifierFromDraftSpecFactDefinitionIds(
   rawWorkUnits: unknown,
   factDefinitionIds: readonly string[],
 ) {
@@ -149,7 +149,9 @@ function inferWorkUnitTypeKeyFromDraftSpecFactDefinitionIds(
     );
 
     if (factDefinitionIds.every((factDefinitionId) => factIds.has(factDefinitionId))) {
-      return workUnit.key;
+      return typeof workUnit.id === "string" && workUnit.id.trim().length > 0
+        ? workUnit.id
+        : workUnit.key;
     }
   }
 
@@ -425,7 +427,7 @@ function toContextFactDefinitions(
       }
 
       if (kind === "work_unit_draft_spec_fact") {
-        item.workUnitTypeKey = inferWorkUnitTypeKeyFromDraftSpecFactDefinitionIds(
+        item.workUnitTypeKey = inferWorkUnitTypeIdentifierFromDraftSpecFactDefinitionIds(
           rawWorkUnits,
           item.includedFactDefinitionIds,
         );
@@ -454,9 +456,9 @@ function toContextFactMutationPayload(draft: WorkflowContextFactDraft) {
           descriptionJson: { markdown: descriptionMarkdown },
         }
       : {}),
-    guidanceJson: {
-      human: humanMarkdown.length > 0 ? { markdown: humanMarkdown } : undefined,
-      agent: agentMarkdown.length > 0 ? { markdown: agentMarkdown } : undefined,
+    guidance: {
+      human: { markdown: humanMarkdown },
+      agent: { markdown: agentMarkdown },
     },
   };
 
@@ -487,6 +489,21 @@ function toContextFactMutationPayload(draft: WorkflowContextFactDraft) {
   }
 }
 
+function toFormStepMutationPayload(payload: WorkflowFormStepPayload) {
+  const descriptionMarkdown = readMarkdown(payload.descriptionJson);
+
+  return {
+    key: payload.key,
+    ...(typeof payload.label === "string" ? { label: payload.label } : {}),
+    ...(descriptionMarkdown ? { descriptionJson: { markdown: descriptionMarkdown } } : {}),
+    guidance: {
+      human: { markdown: payload.guidance.humanMarkdown },
+      agent: { markdown: payload.guidance.agentMarkdown },
+    },
+    fields: payload.fields,
+  };
+}
+
 function getFactDefinitionEntries(rawFactDefinitions: unknown) {
   const record = asRecord(rawFactDefinitions);
   return Array.isArray(record?.factDefinitions)
@@ -507,10 +524,13 @@ function getWorkUnitEntries(rawWorkUnits: unknown) {
       : [];
 }
 
-function getWorkUnitFactEntries(rawWorkUnits: unknown, workUnitTypeKey: string) {
+function getWorkUnitFactEntries(rawWorkUnits: unknown, workUnitTypeIdentifier: string) {
   const matchedWorkUnit = getWorkUnitEntries(rawWorkUnits).find((entry) => {
     const workUnit = asRecord(entry);
-    return workUnit && workUnit.key === workUnitTypeKey;
+    return (
+      workUnit &&
+      (workUnit.key === workUnitTypeIdentifier || workUnit.id === workUnitTypeIdentifier)
+    );
   });
   const workUnit = asRecord(matchedWorkUnit);
 
@@ -536,10 +556,13 @@ function normalizePickerFactType(value: unknown) {
   }
 }
 
-function getWorkUnitTypeLabel(rawWorkUnits: unknown, workUnitTypeKey: string) {
+function getWorkUnitTypeLabel(rawWorkUnits: unknown, workUnitTypeIdentifier: string) {
   const matchedWorkUnit = getWorkUnitEntries(rawWorkUnits).find((entry) => {
     const workUnit = asRecord(entry);
-    return workUnit && workUnit.key === workUnitTypeKey;
+    return (
+      workUnit &&
+      (workUnit.key === workUnitTypeIdentifier || workUnit.id === workUnitTypeIdentifier)
+    );
   });
   const workUnit = asRecord(matchedWorkUnit);
 
@@ -604,8 +627,14 @@ function toFactOptions(
               ? value.displayName.trim()
               : value.key;
       const optionValue =
-        mode === "id" && typeof value.id === "string" && value.id.trim().length > 0
-          ? value.id.trim()
+        mode === "id"
+          ? typeof value.id === "string" && value.id.trim().length > 0
+            ? value.id.trim()
+            : typeof value.factDefinitionId === "string" && value.factDefinitionId.trim().length > 0
+              ? value.factDefinitionId.trim()
+              : typeof value.definitionId === "string" && value.definitionId.trim().length > 0
+                ? value.definitionId.trim()
+                : value.key
           : value.key;
 
       const description = readMarkdown(value.descriptionJson) || readMarkdown(value.description);
@@ -667,9 +696,9 @@ function toWorkUnitFactOptions(rawWorkUnits: unknown, workUnitTypeKey: string) {
   );
 }
 
-function toWorkUnitDraftSpecFactOptions(rawWorkUnits: unknown, workUnitTypeKey: string) {
+function toWorkUnitDraftSpecFactOptions(rawWorkUnits: unknown, workUnitTypeIdentifier: string) {
   return toFactOptions(
-    getWorkUnitFactEntries(rawWorkUnits, workUnitTypeKey),
+    getWorkUnitFactEntries(rawWorkUnits, workUnitTypeIdentifier),
     "Work unit fact",
     rawWorkUnits,
     "current_work_unit",
@@ -700,14 +729,16 @@ function toWorkUnitTypeOptions(rawWorkUnits: unknown) {
         "Work unit";
 
       return {
-        value: workUnit.key,
+        value:
+          typeof workUnit.id === "string" && workUnit.id.trim().length > 0
+            ? workUnit.id
+            : workUnit.key,
         label,
+        secondaryLabel: workUnit.key,
         description,
       };
     })
-    .filter(
-      (entry): entry is { value: string; label: string; description: string } => entry !== null,
-    );
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
 }
 
 function toArtifactSlotOptions(rawArtifactSlots: unknown) {
@@ -1025,7 +1056,7 @@ export function MethodologyWorkflowEditorRoute() {
           workUnitTypeKey: workUnitKey,
           workflowDefinitionId: resolvedWorkflowDefinitionId,
           afterStepKey: null,
-          payload,
+          payload: toFormStepMutationPayload(payload),
         });
 
         await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
@@ -1036,7 +1067,7 @@ export function MethodologyWorkflowEditorRoute() {
           workUnitTypeKey: workUnitKey,
           workflowDefinitionId: resolvedWorkflowDefinitionId,
           stepId,
-          payload,
+          payload: toFormStepMutationPayload(payload),
         });
 
         await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
@@ -1053,26 +1084,32 @@ export function MethodologyWorkflowEditorRoute() {
       }}
       onCreateContextFact={async (draft) => {
         try {
-          await createContextFactMutation.mutateAsync({
+          const created = await createContextFactMutation.mutateAsync({
             versionId,
             workUnitTypeKey: workUnitKey,
             workflowDefinitionId: resolvedWorkflowDefinitionId,
             fact: toContextFactMutationPayload(draft),
           });
 
+          const nextFact = toContextFactDefinitions([created], workUnitFactsQuery.data)[0];
+          if (!nextFact) {
+            throw new Error("Created context fact did not return an editor definition item.");
+          }
+
           await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
+          return nextFact;
         } catch (error) {
           toast.error(`Failed to create context fact: ${toErrorMessage(error)}`);
           throw error;
         }
       }}
-      onUpdateContextFact={async (factKey, draft) => {
+      onUpdateContextFact={async (contextFactDefinitionId, draft) => {
         try {
           await updateContextFactMutation.mutateAsync({
             versionId,
             workUnitTypeKey: workUnitKey,
             workflowDefinitionId: resolvedWorkflowDefinitionId,
-            factKey,
+            contextFactDefinitionId,
             fact: toContextFactMutationPayload(draft),
           });
 
@@ -1082,12 +1119,12 @@ export function MethodologyWorkflowEditorRoute() {
           throw error;
         }
       }}
-      onDeleteContextFact={async (factKey) => {
+      onDeleteContextFact={async (contextFactDefinitionId) => {
         await deleteContextFactMutation.mutateAsync({
           versionId,
           workUnitTypeKey: workUnitKey,
           workflowDefinitionId: resolvedWorkflowDefinitionId,
-          factKey,
+          contextFactDefinitionId,
         });
 
         await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
