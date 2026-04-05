@@ -145,6 +145,18 @@ type WorkflowContextFactDialogSnapshot = {
   guidance: WorkflowEditorGuidance;
 };
 
+type FormStepDialogSnapshot = {
+  contract: {
+    stepKey: string;
+    label: string;
+    descriptionMarkdown: string;
+  };
+  fields: {
+    fieldDrafts: Array<Omit<WorkflowEditorFieldDraft, "localId">>;
+  };
+  guidance: WorkflowEditorGuidance;
+};
+
 function createLocalId(prefix: string) {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return `${prefix}-${crypto.randomUUID()}`;
@@ -227,6 +239,31 @@ function toWorkflowContextFactDialogSnapshot(params: {
     guidance: {
       humanMarkdown: params.draft.guidance.humanMarkdown,
       agentMarkdown: params.draft.guidance.agentMarkdown,
+    },
+  };
+}
+
+function toFormStepDialogSnapshot(params: {
+  stepKey: string;
+  label: string;
+  descriptionMarkdown: string;
+  fieldDrafts: readonly WorkflowEditorFieldDraft[];
+  guidance: WorkflowEditorGuidance;
+}): FormStepDialogSnapshot {
+  return {
+    contract: {
+      stepKey: params.stepKey,
+      label: params.label,
+      descriptionMarkdown: params.descriptionMarkdown,
+    },
+    fields: {
+      fieldDrafts: params.fieldDrafts.map(({ localId: _localId, ...field }) => ({
+        ...field,
+      })),
+    },
+    guidance: {
+      humanMarkdown: params.guidance.humanMarkdown,
+      agentMarkdown: params.guidance.agentMarkdown,
     },
   };
 }
@@ -739,21 +776,40 @@ export function FormStepDialog({
   const [label, setLabel] = useState("");
   const [descriptionMarkdown, setDescriptionMarkdown] = useState("");
   const [guidance, setGuidance] = useState<WorkflowEditorGuidance>(normalizeGuidance());
+  const [initialSnapshot, setInitialSnapshot] = useState<FormStepDialogSnapshot | null>(null);
   const [activeTab, setActiveTab] = useState<FormStepDialogTab>("contract");
   const [fieldDrafts, setFieldDrafts] = useState<WorkflowEditorFieldDraft[]>([]);
+  const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
   const [pendingFieldContextFactId, setPendingFieldContextFactId] = useState("");
   const [pendingDeleteFieldId, setPendingDeleteFieldId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) {
+      setIsDiscardDialogOpen(false);
       return;
     }
 
-    setStepKey(step?.payload.key ?? "");
-    setLabel(step?.payload.label ?? "");
-    setDescriptionMarkdown(step?.payload.descriptionJson?.markdown ?? "");
-    setGuidance(normalizeGuidance(step?.payload.guidance));
-    setFieldDrafts(normalizeFieldDrafts(step, contextFactDefinitions));
+    const nextStepKey = step?.payload.key ?? "";
+    const nextLabel = step?.payload.label ?? "";
+    const nextDescriptionMarkdown = step?.payload.descriptionJson?.markdown ?? "";
+    const nextGuidance = normalizeGuidance(step?.payload.guidance);
+    const nextFieldDrafts = normalizeFieldDrafts(step, contextFactDefinitions);
+
+    setStepKey(nextStepKey);
+    setLabel(nextLabel);
+    setDescriptionMarkdown(nextDescriptionMarkdown);
+    setGuidance(nextGuidance);
+    setFieldDrafts(nextFieldDrafts);
+    setInitialSnapshot(
+      toFormStepDialogSnapshot({
+        stepKey: nextStepKey,
+        label: nextLabel,
+        descriptionMarkdown: nextDescriptionMarkdown,
+        fieldDrafts: nextFieldDrafts,
+        guidance: nextGuidance,
+      }),
+    );
+    setIsDiscardDialogOpen(false);
     setPendingFieldContextFactId("");
     setPendingDeleteFieldId(null);
     setActiveTab("contract");
@@ -787,15 +843,62 @@ export function FormStepDialog({
     fieldDrafts.every(
       (field) => field.fieldLabel.trim().length > 0 && field.fieldKey.trim().length > 0,
     );
+  const currentSnapshot = useMemo(
+    () =>
+      toFormStepDialogSnapshot({
+        stepKey,
+        label,
+        descriptionMarkdown,
+        fieldDrafts,
+        guidance,
+      }),
+    [descriptionMarkdown, fieldDrafts, guidance, label, stepKey],
+  );
+  const isContractDirty =
+    open && initialSnapshot
+      ? !areDialogSnapshotSectionsEqual(currentSnapshot.contract, initialSnapshot.contract)
+      : false;
+  const isFieldsDirty =
+    open && initialSnapshot
+      ? !areDialogSnapshotSectionsEqual(currentSnapshot.fields, initialSnapshot.fields)
+      : false;
+  const isGuidanceDirty =
+    open && initialSnapshot
+      ? !areDialogSnapshotSectionsEqual(currentSnapshot.guidance, initialSnapshot.guidance)
+      : false;
+  const isDialogDirty = isContractDirty || isFieldsDirty || isGuidanceDirty;
 
   const removeField = (localId: string) => {
     setFieldDrafts((previous) => previous.filter((field) => field.localId !== localId));
     setPendingDeleteFieldId(null);
   };
 
+  const closeDialog = () => {
+    setIsDiscardDialogOpen(false);
+    onOpenChange(false);
+  };
+
+  const requestCloseDialog = () => {
+    if (isDialogDirty) {
+      setIsDiscardDialogOpen(true);
+      return;
+    }
+
+    closeDialog();
+  };
+
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog
+        open={open}
+        onOpenChange={(nextOpen) => {
+          if (nextOpen) {
+            return;
+          }
+
+          requestCloseDialog();
+        }}
+      >
         <DialogContent className="chiron-cut-frame-thick flex w-[min(64rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] flex-col overflow-hidden p-6 sm:max-w-none sm:p-8">
           <form
             className="flex min-h-0 flex-1 flex-col overflow-hidden"
@@ -828,15 +931,24 @@ export function FormStepDialog({
                 <TabButton
                   active={activeTab === "contract"}
                   onClick={() => setActiveTab("contract")}
+                  isDirty={isContractDirty}
+                  dirtyIndicatorTestId="workflow-form-step-contract-modified-indicator"
                 >
                   Contract
                 </TabButton>
-                <TabButton active={activeTab === "fields"} onClick={() => setActiveTab("fields")}>
+                <TabButton
+                  active={activeTab === "fields"}
+                  onClick={() => setActiveTab("fields")}
+                  isDirty={isFieldsDirty}
+                  dirtyIndicatorTestId="workflow-form-step-fields-modified-indicator"
+                >
                   Fields
                 </TabButton>
                 <TabButton
                   active={activeTab === "guidance"}
                   onClick={() => setActiveTab("guidance")}
+                  isDirty={isGuidanceDirty}
+                  dirtyIndicatorTestId="workflow-form-step-guidance-modified-indicator"
                 >
                   Guidance
                 </TabButton>
@@ -1235,7 +1347,7 @@ export function FormStepDialog({
                   type="button"
                   variant="outline"
                   className="rounded-none"
-                  onClick={() => onOpenChange(false)}
+                  onClick={requestCloseDialog}
                 >
                   Cancel
                 </Button>
@@ -1255,6 +1367,38 @@ export function FormStepDialog({
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDiscardDialogOpen} onOpenChange={setIsDiscardDialogOpen}>
+        <DialogContent className="chiron-cut-frame-thick w-[min(28rem,calc(100vw-2rem))] p-8 sm:max-w-none">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold uppercase tracking-[0.08em]">
+              Discard unsaved changes?
+            </DialogTitle>
+            <DialogDescription>
+              You have unsaved form-step edits. Discarding now will close the dialog and lose those
+              changes.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-none"
+              onClick={() => setIsDiscardDialogOpen(false)}
+            >
+              Keep Editing
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              className="rounded-none"
+              onClick={closeDialog}
+            >
+              Discard Changes
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
