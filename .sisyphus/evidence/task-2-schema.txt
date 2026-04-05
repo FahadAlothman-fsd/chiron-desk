@@ -1,0 +1,10 @@
+
+ RUN  v3.2.4 /home/gondilf/Desktop/projects/masters/chiron/packages/db
+
+ ✓ src/tests/schema/l3-slice-1-schema.test.ts (4 tests) 3ms
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  00:53:44
+   Duration  732ms (transform 94ms, setup 0ms, collect 534ms, tests 3ms, environment 0ms, prepare 71ms)
+

@@ -1,0 +1,46 @@
+VERDICT: REJECT
+
+Blocking findings
+1. API/Web contract mismatch breaks design-time CRUD end-to-end.
+   - `packages/api/src/routers/methodology.ts:130-212` still validates the old form/context-fact shapes (`plain_value`, `external_binding`, field `key/valueType/input`, optional inline `contextFacts`).
+   - The current web editor sends the new slice-1 shapes from `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId.tsx:576-625` and `apps/web/src/features/workflow-editor/dialogs.tsx:177-205` (`plain_value_fact`, `contextFactDefinitionId`, `fieldLabel`, `fieldKey`, etc.).
+   - Direct validation checks fail in the real router:
+     - `packages/api`: calling `router.version.workUnit.workflow.createFormStep` with the web payload returns `Error: Input validation failed`.
+     - `packages/api`: calling `router.version.workUnit.workflow.contextFact.create` with the web payload returns `Error: Input validation failed`.
+   - Result: form-step create/update and workflow-context-fact create/update from the shipped web editor are not actually CRUD-correct against the API boundary.
+
+2. Tests are stale at the API boundary and miss the real failure mode.
+   - `packages/api/src/tests/routers/l3-slice-1-methodology-router.test.ts:264-285` still exercises the old field contract (`key`, `label`, `valueType`, `input`) instead of the authoritative slice-1 contract.
+   - `apps/web/src/tests/routes/workflow-editor-form-slice.integration.test.tsx:410-484` only asserts mutation payloads against mocked RPC procedures; it never crosses the router validation boundary.
+   - Because of that gap, the passing test suite does not protect the actual end-to-end authoring path that currently rejects web-originated payloads.
+
+3. Seed/demo fixture is still authored in the removed pre-slice form-field model.
+   - `packages/scripts/src/seed/methodology/setup/slice-1-demo-fixture.ts:89-111` seeds `methodologyWorkflowFormFields` with old UI-style `inputJson` (`{ kind: "text" }`, `{ kind: "select" }`) and no `contextFactDefinitionId` binding payload.
+   - The authoritative read model now reconstructs form fields from `inputJson.contextFactDefinitionId` in `packages/db/src/methodology-repository.ts:109-125,152-177`.
+   - This fixture therefore does not represent the new design-time contract and cannot reliably exercise the authoritative workflow-editor definition surface.
+
+4. DB schema/runtime boundary still contains a removed symbol reference.
+   - `packages/db/src/schema/runtime.ts:5-14,275-277` still imports and references `methodologyWorkflowFormSteps`, but the methodology schema intentionally removed that table (`packages/db/src/tests/schema/l3-slice-1-schema.test.ts:25-46`).
+   - Under Bun's direct module loader this surfaced as: `SyntaxError: Export named 'methodologyWorkflowFormSteps' not found in module .../packages/db/src/schema/methodology.ts`.
+   - Even though the vitest path currently passes, this is an inconsistent schema boundary in a Bun runtime codebase.
+
+Non-blocking notes
+- Contracts, repository/service layering, and service-level typed errors are mostly aligned for the new slice-1 design:
+  - contracts passed: `packages/contracts` slice-1 vitest
+  - db passed under package vitest for the targeted slice-1 tests
+  - methodology-engine passed targeted slice-1 vitest
+  - api/web/scripts targeted package vitest passed
+  - web build passed: `bunx turbo -F web build`
+- Effect usage in the new services is generally acceptable: services use tagged errors, explicit repository boundaries, and avoid untyped exception flow at the service layer.
+
+Verification run
+- LSP diagnostics: clean in reviewed directories/files.
+- Package-script tests run and passed:
+  - `packages/contracts`: `bun run test -- src/tests/l3-slice-1-contracts.test.ts`
+  - `packages/db`: `bun run test -- src/tests/schema/l3-slice-1-schema.test.ts src/tests/repository/l3-slice-1-repositories.test.ts`
+  - `packages/methodology-engine`: `bun run test -- src/tests/l3/l3-slice-1-workflow-editor-services.test.ts`
+  - `packages/api`: `bun run test -- src/tests/routers/l3-slice-1-methodology-router.test.ts src/tests/architecture/l3-slice-1-deferred-surfaces.test.ts`
+  - `apps/web`: `bun run test -- src/tests/routes/workflow-editor-form-slice.integration.test.tsx`
+  - `packages/scripts`: `bun run test -- src/tests/seeding/l3-slice-1-demo-fixture.test.ts src/tests/seeding/methodology-seed-integrity.test.ts`
+- Build run and passed:
+  - `bunx turbo -F web build`

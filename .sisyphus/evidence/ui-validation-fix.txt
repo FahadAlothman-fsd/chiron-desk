@@ -1,0 +1,32 @@
+UI validation fix evidence - 2026-04-05
+
+Changed files:
+- apps/web/src/features/workflow-editor/dialogs.tsx
+- apps/web/src/features/workflow-editor/workflow-editor-shell.tsx
+- apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId.tsx
+- apps/web/src/components/ui/sonner.tsx
+- packages/api/src/routers/methodology.ts
+
+Implemented:
+- Replaced allowed-values textarea with input + add button + removable chip tags in the workflow context-fact dialog.
+- Replaced mock external fact options with methodology fact options loaded from `orpc.methodology.version.fact.list` and threaded into the dialog.
+- Added create/update context-fact mutation error toasts and rethrow behavior so validation failures surface to the user.
+- Removed `.strict()` from the workflow context-fact router union members so extra metadata fields are accepted.
+- Exported `toast` from the shared sonner wrapper and delayed optimistic context-fact shell updates until mutations succeed.
+
+Diagnostics:
+- lsp_diagnostics clean for:
+  - apps/web/src/features/workflow-editor/dialogs.tsx
+  - apps/web/src/features/workflow-editor/workflow-editor-shell.tsx
+  - apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId.tsx
+  - apps/web/src/components/ui/sonner.tsx
+  - packages/api/src/routers/methodology.ts
+
+Verification commands:
+- `bunx vitest run apps/web/src/tests/routes/workflow-editor-form-slice.integration.test.tsx`
+  - PASS (3 tests passed)
+- `bun run build -- --filter=web`
+  - PASS
+
+Notes:
+- Web build still emits the existing Vite chunk-size warning for large bundles; build succeeds.

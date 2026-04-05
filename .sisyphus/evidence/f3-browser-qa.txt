@@ -1,0 +1,28 @@
+2026-04-05 workflow-editor design-time CRUD browser QA
+
+Verdict: APPROVE
+
+Scope verified in browser:
+- Context-fact CRUD works in the workflow editor rail.
+  - Listed existing facts: Summary, Supporting Workflows.
+  - Created Architecture Summary.
+  - Edited it to Architecture Summary Updated.
+  - Deleted it via the delete confirmation dialog.
+- Form-step CRUD works.
+  - Created Capture Brief form step.
+  - Opened step inspector from the canvas node.
+  - Edited the form step.
+  - Deleted the form step from the edit dialog.
+- Form-step dialog tabs are correct: Contract | Fields | Guidance.
+- Context-fact dialog tabs are correct: Contract | Value Semantics | Guidance.
+- No Form "Context Facts" tab exists.
+- Field-binding CRUD works in the Form Fields tab.
+  - Added Supporting Workflows binding.
+  - Edited binding label/key to Supporting Workflows Updated / supportingWorkflowsUpdated.
+  - Removed the binding via Remove -> Remove Binding.
+- No "coming in slice-2" placeholder text remained in the workflow-editor UI under test.
+
+Environment note:
+- Local web UI ran on :3001.
+- Local server dev process failed to boot because of `Export named 'methodologyWorkflowFormSteps' not found` from `packages/db/src/schema/methodology.ts` while starting `apps/server`.
+- To complete browser QA anyway, the workflow-editor UI was exercised in-browser with mocked backend responses while rendering the real frontend route.

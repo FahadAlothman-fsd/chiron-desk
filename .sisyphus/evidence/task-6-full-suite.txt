@@ -1,0 +1,33 @@
+L3 Slice 1 task 6 - integrated design-time-only full suite evidence
+Date: 2026-04-05
+Repo root: /home/gondilf/Desktop/projects/masters/chiron
+
+Authoritative verification commands run from repo root:
+1. bunx vitest run packages/contracts/src/tests/l3-slice-1-contracts.test.ts
+   Result: PASS - 1 file, 10 tests
+
+2. bunx vitest run packages/db/src/tests/schema/l3-slice-1-schema.test.ts packages/db/src/tests/repository/l3-slice-1-repositories.test.ts
+   Initial result before fix: FAIL - "No test files found" because `packages/db/vitest.config.ts` did not exist in the Vitest workspace.
+   Remediation: added `packages/db/vitest.config.ts` so the exact repo-root command is included by `vitest.workspace.ts`.
+   Final rerun result: PASS - 2 files, 6 tests
+
+3. bunx vitest run packages/methodology-engine/src/tests/l3/l3-slice-1-workflow-editor-services.test.ts
+   Result: PASS - 1 file, 3 tests
+
+4. bunx vitest run packages/api/src/tests/routers/l3-slice-1-methodology-router.test.ts
+   Result: PASS - 1 file, 3 tests
+
+5. bunx vitest run apps/web/src/tests/routes/workflow-editor-form-slice.integration.test.tsx
+   Result: PASS - 1 file, 3 tests
+
+6. bunx vitest run packages/scripts/src/tests/seeding/methodology-seed-integrity.test.ts packages/scripts/src/tests/seeding/l3-slice-1-demo-fixture.test.ts
+   Result: PASS - 2 files, 6 tests
+
+Final status:
+- All six named Definition-of-Done verification commands pass from repo root.
+- Total passing tests across rerun: 31
+- Noted warning only: Vitest prints the existing workspace deprecation notice about migrating from `vitest.workspace.ts` to root `test.projects`.
+
+Additional verification:
+- LSP diagnostics: clean for `apps/web/src/features/workflow-editor`, `packages/contracts/src`, `packages/db/src`, `packages/methodology-engine/src`, `packages/scripts/src`, and `packages/db/vitest.config.ts`.
+- Build: `bun run build` PASS via Turbo (successful builds for `@chiron/contracts`, `@chiron/core`, `desktop`, `server`, and `web`).

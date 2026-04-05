@@ -330,7 +330,10 @@ async function findWorkflowRow(
     .where(
       and(
         eq(methodologyWorkflows.methodologyVersionId, params.versionId),
-        eq(methodologyWorkflows.id, params.workflowDefinitionId),
+        or(
+          eq(methodologyWorkflows.id, params.workflowDefinitionId),
+          eq(methodologyWorkflows.key, params.workflowDefinitionId),
+        ),
       ),
     )
     .limit(1);
@@ -409,10 +412,15 @@ async function insertContextFactSubtypeRow(
       });
       return;
     case "workflow_reference_fact":
-      await tx.insert(methodologyWorkflowContextFactWorkflowReferences).values({
-        contextFactDefinitionId: definitionId,
-        workflowDefinitionId: JSON.stringify(fact.allowedWorkflowDefinitionIds),
-      });
+      // Insert multiple rows - one for each allowed workflow
+      if (fact.allowedWorkflowDefinitionIds.length > 0) {
+        await tx.insert(methodologyWorkflowContextFactWorkflowReferences).values(
+          fact.allowedWorkflowDefinitionIds.map((workflowId) => ({
+            contextFactDefinitionId: definitionId,
+            workflowDefinitionId: workflowId,
+          })),
+        );
+      }
       return;
     case "artifact_reference_fact":
       await tx.insert(methodologyWorkflowContextFactArtifactReferences).values({
@@ -2931,7 +2939,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               guidanceJson:
                 fact.kind === "work_unit_draft_spec_fact"
                   ? { workUnitTypeKey: fact.workUnitTypeKey }
-                  : null,
+                  : sql.raw("null"),
             })
             .returning({ id: methodologyWorkflowContextFactDefinitions.id });
 
@@ -2981,7 +2989,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               guidanceJson:
                 fact.kind === "work_unit_draft_spec_fact"
                   ? { workUnitTypeKey: fact.workUnitTypeKey }
-                  : null,
+                  : sql.raw("null"),
             })
             .where(eq(methodologyWorkflowContextFactDefinitions.id, definitionId));
 

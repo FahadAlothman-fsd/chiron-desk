@@ -1,0 +1,51 @@
+ DEPRECATED  The workspace file is deprecated and will be removed in the next major. Please, use the `test.projects` field in the root config file instead.
+
+ RUN  v3.2.4 /home/gondilf/Desktop/projects/masters/chiron
+
+ ✓ |web| src/tests/routes/workflow-editor-form-slice.integration.test.tsx (3 tests) 794ms
+   ✓ workflow editor form slice route > renders locked design-time CRUD surfaces for forms and context facts  740ms
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  01:44:23
+   Duration  1.41s (transform 128ms, setup 4ms, collect 135ms, tests 794ms, environment 266ms, prepare 74ms)
+
+ DEPRECATED  The workspace file is deprecated and will be removed in the next major. Please, use the `test.projects` field in the root config file instead.
+
+ RUN  v3.2.4 /home/gondilf/Desktop/projects/masters/chiron
+
+ ✓ |api| src/tests/routers/l3-slice-1-methodology-router.test.ts (3 tests) 23ms
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  01:44:24
+   Duration  773ms (transform 210ms, setup 0ms, collect 554ms, tests 23ms, environment 0ms, prepare 67ms)
+
+$ turbo build "--filter=web" "--filter=@chiron/api"
+• turbo 2.8.10
+• Packages in scope: @chiron/api, web
+• Running build in 2 packages
+• Remote caching disabled
+@chiron/contracts:build: cache miss, executing 79406e521d08c52c
+@chiron/contracts:build: $ tsc -p tsconfig.json
+web:build: cache miss, executing be050681aec02e05
+web:build: $ vite build
+web:build: vite v6.4.1 building for production...
+web:build: transforming...
+web:build: ✓ 2830 modules transformed.
+web:build: rendering chunks...
+web:build: computing gzip size...
+web:build: dist/index.html                     0.39 kB │ gzip:   0.26 kB
+web:build: dist/assets/index-BuzxX98I.css    156.23 kB │ gzip:  23.66 kB
+web:build: dist/assets/index-mA9peosf.js   1,834.36 kB │ gzip: 511.32 kB
+web:build: 
+web:build: (!) Some chunks are larger than 500 kB after minification. Consider:
+web:build: - Using dynamic import() to code-split the application
+web:build: - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+web:build: - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+web:build: ✓ built in 4.49s
+
+ Tasks:    2 successful, 2 total
+Cached:    0 cached, 2 total
+  Time:    7.341s 
+

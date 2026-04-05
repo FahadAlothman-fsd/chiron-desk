@@ -1,0 +1,96 @@
+{
+  "active_plan": "/home/gondilf/Desktop/projects/masters/chiron/.sisyphus/plans/l3-slice-1-design-time-context-facts-form.md",
+  "started_at": "2026-04-05T00:00:00.000Z",
+  "session_ids": [
+    "ses_2a58a7328ffeoXt1RI5UK3BESD",
+    "ses_2a589ee82ffep86YOaNQlCMegJ",
+    "ses_2a58614c6ffey9Wk1wF3UAL3Gs",
+    "ses_2a58249f0ffefMxR6wFoca6B91",
+    "ses_2a56d3c02ffeM7kCOyLu8okuky",
+    "ses_2a553ab0affewVCXeUW2hnTb7M",
+    "ses_2a54c42f3ffeQjKKeAJm5Q76bh",
+    "ses_2a546250dffesj4RlosnXNR7Ks",
+    "ses_2a546306affe582f0fpjdz4Crn",
+    "ses_2a5462c99ffecwlhpYcMLD5amP",
+    "ses_2a5462954ffe3cYxIModqlljdR",
+    "ses_2a5391589ffe82d15AoR3R4sn4",
+    "ses_2a5241026ffeJHEndroiKRvaSt",
+    "ses_2a50c2954ffehT3D1A6KxxKN8e",
+    "ses_2a502a28affeZNGsujXSo0OW6t",
+    "ses_2a4f17359ffermb59P5CccSmOw",
+    "ses_2a4dc2b91ffelZex7M216I4cUx",
+    "ses_2a4c96c7affeXW6VaHkQAbsuG7",
+    "ses_2a4bc20e5ffepZHc05ep0y1TgV",
+    "ses_2a4b5204cffekfC27IY76aY6JE",
+    "ses_2a4a5b78dffe6RpTvGKPc7H7al",
+    "ses_2a49ac028ffeXuqGIgGElJ7Qfi",
+    "ses_2a481bd06ffe34r2YvQ6IracCq",
+    "ses_2a481b842ffejriAIkkEQcPRN7",
+    "ses_2a481b25fffeMMQR0y4Vl4Zwmu"
+  ],
+  "plan_name": "l3-slice-1-design-time-context-facts-form",
+  "task_sessions": {
+    "todo:1": {
+      "task_key": "todo:1",
+      "task_label": "1",
+      "task_title": "Correct contracts and remove stale ownership artifacts",
+      "session_id": "ses_2a589ee82ffep86YOaNQlCMegJ",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-04T21:50:04.342Z"
+    },
+    "todo:2": {
+      "task_key": "todo:2",
+      "task_label": "2",
+      "task_title": "Replace schema authority and repoint Form storage to workflow step shell rows",
+      "session_id": "ses_2a58614c6ffey9Wk1wF3UAL3Gs",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-04T21:54:14.247Z"
+    },
+    "todo:3": {
+      "task_key": "todo:3",
+      "task_label": "3",
+      "task_title": "Patch the real methodology repository and authoring services to the corrected design-time model",
+      "session_id": "ses_2a58249f0ffefMxR6wFoca6B91",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-04T22:15:48.824Z"
+    },
+    "todo:4": {
+      "task_key": "todo:4",
+      "task_label": "4",
+      "task_title": "Replace placeholder workflow-editor UI with the locked design-time CRUD surfaces",
+      "session_id": "ses_2a56d3c02ffeM7kCOyLu8okuky",
+      "agent": "Sisyphus-Junior",
+      "category": "visual-engineering",
+      "updated_at": "2026-04-04T22:45:09.107Z"
+    },
+    "todo:5": {
+      "task_key": "todo:5",
+      "task_label": "5",
+      "task_title": "Add the locked 9 BMAD-derived design-time fact definitions as the final seed task set",
+      "session_id": "ses_2a553ab0affewVCXeUW2hnTb7M",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-04T22:53:12.505Z"
+    },
+    "todo:6": {
+      "task_key": "todo:6",
+      "task_label": "6",
+      "task_title": "Run integrated design-time-only verification and prepare handoff",
+      "session_id": "ses_2a54c42f3ffeQjKKeAJm5Q76bh",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-04-04T23:00:05.485Z"
+    },
+    "final-wave:f1": {
+      "task_key": "final-wave:f1",
+      "task_label": "F1",
+      "task_title": "Plan Compliance Audit — oracle",
+      "session_id": "ses_2a481bd06ffe34r2YvQ6IracCq",
+      "agent": "explore",
+      "updated_at": "2026-04-05T02:35:06.068Z"
+    }
+  }
+}

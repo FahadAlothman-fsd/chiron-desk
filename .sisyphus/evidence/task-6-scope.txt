@@ -1,0 +1,58 @@
+L3 Slice 1 task 6 - scope and authority evidence
+Date: 2026-04-05
+
+Plan authority verification:
+- `.sisyphus/plans/l3-slice-1-design-time-context-facts-form.md:3-5` marks the file as the sole active slice-1 execution plan and says the two older plans are preserved for traceability only.
+- `.sisyphus/plans/l3-slice-1-step-core-and-form.md:3-6` is marked `Superseded / historical only. DO NOT EXECUTE THIS PLAN.`
+- `.sisyphus/plans/l3-slice-1-context-facts-form-correction.md:3-5` is marked `Superseded / historical only. DO NOT EXECUTE THIS PLAN.`
+
+Stale ownership / placeholder verification:
+- `coming in slice-2` appears only in `apps/web/src/tests/routes/workflow-editor-form-slice.integration.test.tsx` as a negative assertion; no active workflow-editor source match remains.
+- `FormStepPayload.contextFacts` has no matches in active app/package source.
+- `SetupTags` has no matches in active app/package source.
+- `work_unit_reference_fact` and `inputKind` remain only in tests as regression guards; no active source match remains.
+- `Context Facts` has no matches under `apps/web/src/features/workflow-editor`.
+
+`GIT_MASTER=1 git status --short` snapshot:
+ M .sisyphus/evidence/task-1-contracts.txt
+ M .sisyphus/plans/l3-slice-1-design-time-context-facts-form.md
+ M apps/web/src/features/workflow-editor/dialogs.tsx
+ M apps/web/src/features/workflow-editor/types.ts
+ M apps/web/src/features/workflow-editor/workflow-editor-shell.tsx
+ M apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId.tsx
+ M apps/web/src/tests/routes/workflow-editor-form-slice.integration.test.tsx
+ M packages/api/src/tests/routers/l3-slice-1-methodology-router.test.ts
+ M packages/contracts/src/methodology/workflow.ts
+ M packages/contracts/src/shared/invariants.ts
+ M packages/contracts/src/tests/l3-slice-1-contracts.test.ts
+ M packages/db/src/methodology-repository.ts
+ M packages/db/src/repositories/form-step-repository.ts
+ M packages/db/src/repositories/workflow-context-fact-repository.ts
+ M packages/db/src/schema/methodology.ts
+ M packages/db/src/tests/repository/l3-slice-1-repositories.test.ts
+ M packages/db/src/tests/schema/l3-slice-1-schema.test.ts
+ M packages/methodology-engine/src/repository.ts
+ M packages/methodology-engine/src/services/form-step-definition-service.ts
+ M packages/methodology-engine/src/services/workflow-authoring-transaction-service.ts
+ M packages/methodology-engine/src/services/workflow-context-fact-definition-service.ts
+ M packages/methodology-engine/src/services/workflow-editor-definition-service.ts
+ M packages/methodology-engine/src/tests/l3/l3-slice-1-workflow-editor-services.test.ts
+ M packages/scripts/src/seed/methodology/index.ts
+ M packages/scripts/src/seed/methodology/setup/setup-bmad-mapping.ts
+ M packages/scripts/src/seed/methodology/setup/slice-1-demo-fixture.ts
+ M packages/scripts/src/tests/seeding/l3-slice-1-demo-fixture.test.ts
+ M packages/scripts/src/tests/seeding/methodology-seed-integrity.test.ts
+?? .opencode/package-lock.json
+?? .sisyphus/boulder.json
+?? .sisyphus/evidence/task-2-schema.txt
+?? .sisyphus/evidence/task-3-methodology.txt
+?? .sisyphus/evidence/task-4-web.txt
+?? .sisyphus/evidence/task-5-seeds.txt
+?? .sisyphus/notepads/l3-slice-1-design-time-context-facts-form/
+?? packages/db/vitest.config.ts
+
+Scope assessment:
+- In-scope design-time changes are concentrated in the expected workflow-editor, contracts, db, methodology-engine, api-router-test, and seed/test files.
+- No runtime/project-context/desktop/server code churn appears in the status snapshot.
+- Out-of-scope churn is still present and should be cleaned before calling branch scope fully clean: the active plan file is modified, `.opencode/package-lock.json` is unrelated, and `.sisyphus/boulder.json` is unrelated.
+- `packages/db/vitest.config.ts` is a verification-support addition required to make the exact repo-root DB suite command pass.

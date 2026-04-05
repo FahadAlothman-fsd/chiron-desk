@@ -1,0 +1,50 @@
+VERDICT: REJECT
+
+Summary:
+- All six Definition of Done commands pass from repo root as of 2026-04-05.
+- The schema/table cleanup and seed-last ordering are largely in place.
+- The implementation is still not plan-compliant because active router contracts remain stale and branch scope hygiene fails the plan's final gate.
+
+Checks:
+1. Design-time-only scope
+   - PASS for primary implementation files: active changes are concentrated in contracts, db methodology schema/repository, methodology-engine services, workflow-editor UI, router tests, and seed files.
+   - BLOCKER for final scope gate: `git status --short` still includes unrelated churn (`.opencode/package-lock.json`, `.sisyphus/boulder.json`) and the sacred plan file itself is modified.
+
+2. Form/context-fact ownership boundaries
+   - BLOCKER: `packages/api/src/routers/methodology.ts:130-212` still exposes the old router schemas:
+     - `formFieldInputSchema` keeps widget/input ownership alive.
+     - `formStepPayloadSchema` still accepts `contextFacts`.
+     - `workflowContextFactSchema` still uses stale kinds (`plain_value`, `external_binding`, `workflow_reference`, `work_unit_reference`, `artifact_reference`, `draft_spec`, `draft_spec_field`).
+   - This directly conflicts with the locked slice-1 model and with the active web payloads emitted by:
+     - `apps/web/src/features/workflow-editor/dialogs.tsx:177-205`
+     - `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId.tsx:367-415`
+   - Result: the real UI/API seam is still carrying stale ownership semantics even though tests pass.
+
+3. Removed table/model artifacts (`methodology_workflow_form_steps`)
+   - PASS: `packages/db/src/schema/methodology.ts:473-494` stores form fields under `methodology_workflow_form_fields.formStepId -> methodology_workflow_steps.id`.
+   - PASS: active source no longer defines `methodology_workflow_form_steps`; remaining match is only a negative regression fixture in `packages/db/src/tests/repository/l3-slice-1-runtime-repositories.test.ts:53`.
+
+4. Seed-last behavior (9 BMAD fact definitions added last)
+   - PASS: `packages/scripts/src/seed/methodology/index.ts:28-43` places `methodology_fact_definitions` last in `METHODOLOGY_CANONICAL_TABLE_SEED_ORDER`.
+   - PASS: `packages/scripts/src/tests/seeding/methodology-seed-integrity.test.ts:53-68,102-127` asserts the last-table ordering and the exact 9 locked BMAD-derived fact keys.
+
+5. All 6 implementation tasks completed
+   - NOT ACCEPTED: tasks 1/2/3/5/6 are substantially represented, but the router/procedure surface is not fully corrected, so the slice is not actually complete against the plan.
+   - BLOCKER: task 6 explicitly requires only intended design-time files in scope; current worktree fails that gate because the plan file was edited and unrelated files remain.
+
+6. All Definition of Done tests pass
+   - PASS:
+     - `bunx vitest run packages/contracts/src/tests/l3-slice-1-contracts.test.ts`
+     - `bunx vitest run packages/db/src/tests/schema/l3-slice-1-schema.test.ts packages/db/src/tests/repository/l3-slice-1-repositories.test.ts`
+     - `bunx vitest run packages/methodology-engine/src/tests/l3/l3-slice-1-workflow-editor-services.test.ts`
+     - `bunx vitest run packages/api/src/tests/routers/l3-slice-1-methodology-router.test.ts`
+     - `bunx vitest run apps/web/src/tests/routes/workflow-editor-form-slice.integration.test.tsx`
+     - `bunx vitest run packages/scripts/src/tests/seeding/methodology-seed-integrity.test.ts packages/scripts/src/tests/seeding/l3-slice-1-demo-fixture.test.ts`
+
+Additional blocking correctness issue:
+- `packages/db/src/schema/methodology.ts:558-571` models workflow references as a single `workflowDefinitionId` FK row, but `packages/db/src/methodology-repository.ts:392-396,547-561` serializes the entire `allowedWorkflowDefinitionIds` array into that one FK column. That does not faithfully implement the contract's multi-id semantics for `workflow_reference_fact`.
+
+Blocking issues to fix before approval:
+1. Patch `packages/api/src/routers/methodology.ts` so the active router schemas match the corrected slice-1 contracts/read models and remove stale form/context-fact shapes.
+2. Reconcile workflow-reference persistence so `allowedWorkflowDefinitionIds` is modeled consistently with the contract instead of being JSON-packed into a singular FK column.
+3. Revert the plan-file checkbox edits and remove unrelated worktree churn (`.opencode/package-lock.json`, `.sisyphus/boulder.json`) before claiming task-6 scope compliance.

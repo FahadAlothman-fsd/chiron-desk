@@ -1,0 +1,20 @@
+Value Semantics UI fix evidence
+Date: 2026-04-05
+
+Updated file:
+- apps/web/src/features/workflow-editor/dialogs.tsx
+
+Implemented:
+- plain_value_fact/string now shows default-value + validation UI with path safety checkboxes
+- plain_value_fact/json now shows card-based JSON sub-schema editor with Add JSON Key affordance
+- definition_backed_external_fact and bound_external_fact now use searchable combobox pickers
+- workflow_reference_fact now uses searchable multi-select picker with removable selected chips
+- artifact_reference_fact now uses searchable combobox picker
+- work_unit_draft_spec_fact now uses searchable work-unit combobox + card-based included fact list
+
+Verification:
+- LSP diagnostics: clean for apps/web/src/features/workflow-editor/dialogs.tsx
+- Build: `bun run build -- --filter=web` ✅
+
+Build note:
+- Vite emitted the pre-existing large-chunk warning for web output, but the build completed successfully.

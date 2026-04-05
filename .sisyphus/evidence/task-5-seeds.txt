@@ -1,0 +1,37 @@
+Task 5 Seed Evidence
+Date: 2026-04-05
+
+Changed seed surfaces
+- packages/scripts/src/seed/methodology/setup/setup-bmad-mapping.ts
+- packages/scripts/src/seed/methodology/index.ts
+- packages/scripts/src/seed/methodology/setup/slice-1-demo-fixture.ts
+- packages/scripts/src/tests/seeding/methodology-seed-integrity.test.ts
+- packages/scripts/src/tests/seeding/l3-slice-1-demo-fixture.test.ts
+
+Locked permanent design-time fact definitions added
+- setup work-unit facts: workflow_mode, scan_level, requires_brainstorming, deep_dive_target
+- methodology facts: repository_type, project_parts, technology_stack_by_part, existing_documentation_inventory, integration_points
+
+Explicit exclusions and boundaries
+- project_root_path was not seeded as a permanent fact definition
+- runtime project-fact instances were not seeded
+- runtime work-unit-fact instances were not seeded
+- fixture-only examples remain separate in slice-1-demo-fixture.ts
+
+Verification
+1) bunx vitest run packages/scripts/src/tests/seeding/methodology-seed-integrity.test.ts
+   Result: PASS
+   Notes:
+   - 1 test file passed
+   - 3 tests passed
+   - duration ~1.61s
+
+2) bunx vitest run packages/scripts/src/tests/seeding/l3-slice-1-demo-fixture.test.ts
+   Result: PASS
+   Notes:
+   - 1 test file passed
+   - 3 tests passed
+   - duration ~1.50s
+
+Diagnostics
+- lsp_diagnostics clean for all 5 changed source/test files

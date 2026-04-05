@@ -1,0 +1,22 @@
+Task 3 evidence - methodology repo/service patch
+
+Changed surfaces
+- packages/db/src/methodology-repository.ts
+- packages/methodology-engine/src/repository.ts
+- packages/methodology-engine/src/services/form-step-definition-service.ts
+- packages/methodology-engine/src/services/workflow-context-fact-definition-service.ts
+- packages/methodology-engine/src/services/workflow-editor-definition-service.ts
+- packages/methodology-engine/src/services/workflow-authoring-transaction-service.ts
+- packages/db/src/repositories/form-step-repository.ts
+- packages/db/src/repositories/workflow-context-fact-repository.ts
+- packages/db/src/tests/repository/l3-slice-1-repositories.test.ts
+- packages/methodology-engine/src/tests/l3/l3-slice-1-workflow-editor-services.test.ts
+
+Verification
+- LSP diagnostics: clean on all changed repository/service/test files.
+- PASS: `bunx vitest run --root packages/db src/tests/repository/l3-slice-1-repositories.test.ts`
+- PASS: `bunx vitest run packages/methodology-engine/src/tests/l3/l3-slice-1-workflow-editor-services.test.ts`
+
+Additional notes
+- The exact root-workspace command `bunx vitest run packages/db/src/tests/repository/l3-slice-1-repositories.test.ts` does not discover db tests in the current workspace configuration, so verification used `--root packages/db` to execute the requested file directly.
+- Attempted broader type/build verification (`bun run check-types`, package-level `tsc`) surfaced many pre-existing and out-of-scope failures in api/runtime/schema files, including stale router contracts and runtime references to removed form-step tables. Those failures were not modified here because this task explicitly restricted file edits to the listed repo/service/test paths.

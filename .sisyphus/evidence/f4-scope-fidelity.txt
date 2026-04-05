@@ -1,0 +1,28 @@
+VERDICT: REJECT
+
+Blocking scope violations
+1. Runtime scope leaked into the slice-1 deliverable.
+   - packages/db/src/tests/schema/l3-slice-1-schema.test.ts:5-9 imports runtime schema tables.
+   - packages/db/src/tests/schema/l3-slice-1-schema.test.ts:78-100 explicitly asserts stepExecutions, formStepExecutionState, and workflowExecutionContextFacts.
+   - This violates the draft's design-time-only boundary: no step execution / runtime implementation in slice-1.
+
+2. methodology_workflow_form_steps is not fully eliminated from active codepaths.
+   - packages/db/src/schema/runtime.ts:5-14 still imports methodologyWorkflowFormSteps.
+   - packages/db/src/schema/runtime.ts:275-277 still points step_executions.step_definition_id at methodologyWorkflowFormSteps.id.
+   - This violates the draft requirement to remove the typed Form parent table and also breaks typecheck.
+
+Verification evidence
+- bun run check-types FAILED.
+- Key failing error: packages/db/src/schema/runtime.ts(8,3): TS2724: "./methodology" has no exported member named 'methodologyWorkflowFormSteps'. Did you mean 'methodologyWorkflowSteps'?
+
+Confirmed in-scope requirements that DO pass
+- NO projectRootPath work in the slice-1 seed/design changes; project_root_path is only explicitly excluded or mentioned as guidance text.
+- NO active work_unit_reference_fact in contracts/schema; active kind set is 6 only.
+- NO stale FormStepPayload.contextFacts ownership in contracts; FormStepPayload now contains key/label/descriptionJson/fields only.
+- 6 active context-fact kinds are locked in packages/contracts/src/methodology/workflow.ts and packages/db/src/tests/schema/l3-slice-1-schema.test.ts.
+- 9 BMAD fact-definition keys are seeded via LOCKED_BMAD_DESIGN_TIME_FACT_KEYS in packages/scripts/src/seed/methodology/setup/setup-bmad-mapping.ts and exposed in packages/scripts/src/seed/methodology/index.ts.
+- Form dialog tabs are Contract | Fields | Guidance in apps/web/src/features/workflow-editor/dialogs.tsx:398-401.
+- Context-fact dialog tabs are Contract | Value Semantics | Guidance in apps/web/src/features/workflow-editor/dialogs.tsx:897-915.
+
+Additional process issue observed
+- .sisyphus/plans/l3-slice-1-design-time-context-facts-form.md is modified in git status even though plan files are declared read-only.

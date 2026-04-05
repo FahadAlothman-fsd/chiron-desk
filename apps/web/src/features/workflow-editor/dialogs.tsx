@@ -2252,22 +2252,39 @@ export function WorkflowContextFactDialog({
                       <Label id="workflow-editor-context-fact-workflow-ids">
                         Allowed Workflow Definition Ids
                       </Label>
-                      <SearchableMultiSelect
-                        labelId="workflow-editor-context-fact-workflow-ids"
-                        values={draft.allowedWorkflowDefinitionIds}
-                        onChange={(values) =>
-                          setDraft((previous) => ({
-                            ...previous,
-                            allowedWorkflowDefinitionIds: values,
-                          }))
-                        }
-                        options={availableWorkflows}
-                        placeholder="Select allowed workflows"
-                        searchPlaceholder="Search workflows..."
-                        emptyLabel="No workflows found."
-                        singularLabel="workflow"
-                        pluralLabel="workflows"
-                      />
+                      {draft.cardinality === "one" ? (
+                        <SearchableCombobox
+                          labelId="workflow-editor-context-fact-workflow-ids"
+                          value={draft.allowedWorkflowDefinitionIds[0] ?? ""}
+                          onChange={(value) =>
+                            setDraft((previous) => ({
+                              ...previous,
+                              allowedWorkflowDefinitionIds: value ? [value] : [],
+                            }))
+                          }
+                          options={availableWorkflows}
+                          placeholder="Select an allowed workflow"
+                          searchPlaceholder="Search workflows..."
+                          emptyLabel="No workflows found."
+                        />
+                      ) : (
+                        <SearchableMultiSelect
+                          labelId="workflow-editor-context-fact-workflow-ids"
+                          values={draft.allowedWorkflowDefinitionIds}
+                          onChange={(values) =>
+                            setDraft((previous) => ({
+                              ...previous,
+                              allowedWorkflowDefinitionIds: values,
+                            }))
+                          }
+                          options={availableWorkflows}
+                          placeholder="Select allowed workflows"
+                          searchPlaceholder="Search workflows..."
+                          emptyLabel="No workflows found."
+                          singularLabel="workflow"
+                          pluralLabel="workflows"
+                        />
+                      )}
 
                       {draft.allowedWorkflowDefinitionIds.length === 0 ? (
                         <p className="text-xs text-muted-foreground">

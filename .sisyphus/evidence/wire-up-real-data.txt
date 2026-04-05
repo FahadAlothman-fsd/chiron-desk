@@ -1,0 +1,27 @@
+# Workflow-editor real picker data evidence
+
+Date: 2026-04-05
+
+Changed files:
+- apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId.tsx
+- apps/web/src/features/workflow-editor/workflow-editor-shell.tsx
+- apps/web/src/features/workflow-editor/dialogs.tsx
+
+What changed:
+- Replaced workflow-editor picker mocks for workflow references with live `orpc.methodology.version.workUnit.workflow.list` data.
+- Added live `orpc.methodology.version.workUnit.fact.list` hydration for draft-spec fact-key options.
+- Threaded `workUnitFacts` and `availableWorkflows` through the route -> shell -> dialog path.
+- Removed `WORKFLOW_REFERENCE_OPTIONS` and `DRAFT_SPEC_FACT_KEY_OPTIONS` from the dialog surface.
+
+Verification:
+- `lsp_diagnostics` clean on all changed files:
+  - apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId.tsx
+  - apps/web/src/features/workflow-editor/workflow-editor-shell.tsx
+  - apps/web/src/features/workflow-editor/dialogs.tsx
+- `bunx vitest run apps/web/src/tests/routes/workflow-editor-form-slice.integration.test.tsx`
+  - PASS (3 tests)
+- `bun run build -- --filter=web`
+  - PASS
+
+Notes:
+- Web build emitted the existing Vite chunk-size warning for the large `index` bundle, but the build completed successfully.

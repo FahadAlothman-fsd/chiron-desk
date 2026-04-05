@@ -1,0 +1,38 @@
+Final Verification Wave blocker fix evidence
+
+Changed files
+- packages/api/src/routers/methodology.ts
+- packages/db/src/schema/runtime.ts
+- packages/db/src/tests/schema/l3-slice-1-schema.test.ts
+- packages/scripts/src/seed/methodology/setup/slice-1-demo-fixture.ts
+- packages/api/src/tests/routers/l3-slice-1-methodology-router.test.ts
+- packages/scripts/src/tests/seeding/l3-slice-1-demo-fixture.test.ts
+
+Targeted diagnostics
+- lsp_diagnostics clean for all changed files.
+
+Command results
+1) bun run check-types
+- FAIL
+- Failure is outside this fix scope and remains in pre-existing runtime/read-model typing paths, including:
+  - packages/db/src/runtime-repositories/execution-read-repository.ts
+  - packages/db/src/runtime-repositories/step-execution-repository.ts
+  - packages/workflow-engine/src/services/runtime-artifact-service.ts
+  - packages/workflow-engine/src/services/runtime-guidance-service.ts
+  - packages/workflow-engine/src/services/runtime-work-unit-service.ts
+  - packages/workflow-engine/src/services/step-execution-detail-service.ts
+  - packages/workflow-engine/src/services/transition-execution-command-service.ts
+
+2) Definition of Done test commands
+- PASS: bunx vitest run packages/contracts/src/tests/l3-slice-1-contracts.test.ts
+- PASS: bunx vitest run packages/db/src/tests/schema/l3-slice-1-schema.test.ts packages/db/src/tests/repository/l3-slice-1-repositories.test.ts
+- PASS: bunx vitest run packages/methodology-engine/src/tests/l3/l3-slice-1-workflow-editor-services.test.ts
+- PASS: bunx vitest run packages/api/src/tests/routers/l3-slice-1-methodology-router.test.ts
+- PASS: bunx vitest run apps/web/src/tests/routes/workflow-editor-form-slice.integration.test.tsx
+- PASS: bunx vitest run packages/scripts/src/tests/seeding/methodology-seed-integrity.test.ts packages/scripts/src/tests/seeding/l3-slice-1-demo-fixture.test.ts
+
+Behavior fixed
+- API router now accepts corrected slice-1 workflow context-fact and Form field binding payloads.
+- Runtime schema no longer references removed methodologyWorkflowFormSteps table.
+- Schema-only slice-1 test no longer imports runtime tables.
+- Demo fixture now seeds authoritative contextFactDefinitionId bindings.

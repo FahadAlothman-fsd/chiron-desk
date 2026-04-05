@@ -700,11 +700,11 @@ function toWorkflowOptions(rawWorkflows: unknown) {
       }
 
       const value =
-        typeof workflow.key === "string" && workflow.key.trim().length > 0
-          ? workflow.key
-          : typeof workflow.workflowDefinitionId === "string" &&
-              workflow.workflowDefinitionId.trim().length > 0
-            ? workflow.workflowDefinitionId
+        typeof workflow.workflowDefinitionId === "string" &&
+        workflow.workflowDefinitionId.trim().length > 0
+          ? workflow.workflowDefinitionId
+          : typeof workflow.key === "string" && workflow.key.trim().length > 0
+            ? workflow.key
             : null;
 
       if (!value) {
