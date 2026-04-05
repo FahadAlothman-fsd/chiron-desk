@@ -22,6 +22,26 @@ export type MethodologyArtifactSlotDefinitionSeedRow =
 export type MethodologyArtifactSlotTemplateSeedRow =
   typeof schema.methodologyArtifactSlotTemplates.$inferInsert;
 
+export const LOCKED_BMAD_SETUP_WORK_UNIT_FACT_KEYS = [
+  "workflow_mode",
+  "scan_level",
+  "requires_brainstorming",
+  "deep_dive_target",
+] as const;
+
+export const LOCKED_BMAD_METHODOLOGY_FACT_KEYS = [
+  "repository_type",
+  "project_parts",
+  "technology_stack_by_part",
+  "existing_documentation_inventory",
+  "integration_points",
+] as const;
+
+export const LOCKED_BMAD_DESIGN_TIME_FACT_KEYS = [
+  ...LOCKED_BMAD_SETUP_WORK_UNIT_FACT_KEYS,
+  ...LOCKED_BMAD_METHODOLOGY_FACT_KEYS,
+] as const;
+
 export const methodologyDefinitionId = "mdef_bmad_v1";
 export const methodologyVersionIds = {
   draft: "mver_bmad_v1_draft",
@@ -437,6 +457,98 @@ const canonicalSetupFactDefinitions = [
         safety: {
           disallowAbsolute: true,
           preventTraversal: true,
+        },
+      },
+    },
+  },
+  {
+    idSuffix: "workflow-mode",
+    key: "workflow_mode",
+    name: "Workflow Mode",
+    factType: "string",
+    cardinality: "one" as const,
+    defaultValueJson: null,
+    descriptionJson: toDescriptionJson(
+      "Setup run mode that determines whether the workflow performs an initial scan, a full rescan, or a deep-dive pass.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Use this to declare the intended setup scan mode before discovery begins.",
+      "Treat this as the authoritative design-time setup contract for scan-mode selection.",
+    ),
+    validationJson: {
+      kind: "json-schema" as const,
+      schemaDialect: "draft-2020-12",
+      schema: {
+        type: "string",
+        enum: ["initial_scan", "full_rescan", "deep_dive"],
+      },
+    },
+  },
+  {
+    idSuffix: "scan-level",
+    key: "scan_level",
+    name: "Scan Level",
+    factType: "string",
+    cardinality: "one" as const,
+    defaultValueJson: null,
+    descriptionJson: toDescriptionJson(
+      "Expected scan depth for setup discovery and project analysis.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Select the discovery depth required for this setup run.",
+      "Use this to tune setup breadth and effort while keeping the workflow contract explicit.",
+    ),
+    validationJson: {
+      kind: "json-schema" as const,
+      schemaDialect: "draft-2020-12",
+      schema: {
+        type: "string",
+        enum: ["quick", "deep", "exhaustive"],
+      },
+    },
+  },
+  {
+    idSuffix: "requires-brainstorming",
+    key: "requires_brainstorming",
+    name: "Requires Brainstorming",
+    factType: "boolean",
+    cardinality: "one" as const,
+    defaultValueJson: null,
+    descriptionJson: toDescriptionJson(
+      "Whether setup should hand off into a brainstorming follow-up before downstream planning continues.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Turn this on when setup reveals ambiguity or option space that should be widened before commitment.",
+      "Treat this as a durable setup decision signal for downstream workflow routing.",
+    ),
+    validationJson: { kind: "none" as const },
+  },
+  {
+    idSuffix: "deep-dive-target",
+    key: "deep_dive_target",
+    name: "Deep Dive Target",
+    factType: "json",
+    cardinality: "one" as const,
+    defaultValueJson: null,
+    descriptionJson: toDescriptionJson(
+      "Structured target descriptor for a focused deep-dive scan within the project root.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Capture the relative project target that a deep-dive setup run should inspect.",
+      "Store target paths relative to the project root; do not model project_root_path as a separate fact definition.",
+    ),
+    validationJson: {
+      kind: "json-schema" as const,
+      schemaDialect: "draft-2020-12",
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["target_type", "target_path", "target_name", "target_scope"],
+        properties: {
+          target_type: { type: "string", cardinality: "one" },
+          target_path: { type: "string", cardinality: "one" },
+          target_name: { type: "string", cardinality: "one" },
+          target_scope: { type: "string", cardinality: "one" },
         },
       },
     },
@@ -1881,6 +1993,149 @@ const canonicalMethodologyFactDefinitions = [
       },
     },
   },
+  {
+    idSuffix: "repository-type",
+    name: "Repository Type",
+    key: "repository_type",
+    valueType: "string",
+    cardinality: "one" as const,
+    descriptionJson: toDescriptionJson(
+      "Detected repository structure classification for the current project.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Use this to capture whether discovery found a monolith, monorepo, or multi-part repository shape.",
+      "Treat this as a reusable design-time methodology fact definition that later bindings can point at without seeding runtime rows.",
+    ),
+    defaultValueJson: null,
+    validationJson: {
+      kind: "json-schema" as const,
+      schemaDialect: "draft-2020-12",
+      schema: {
+        type: "string",
+        enum: ["monolith", "monorepo", "multi_part"],
+      },
+    },
+  },
+  {
+    idSuffix: "project-parts",
+    name: "Project Parts",
+    key: "project_parts",
+    valueType: "json",
+    cardinality: "many" as const,
+    descriptionJson: toDescriptionJson(
+      "Structured inventory of repository parts discovered during setup.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Record each discovered project part with a stable id, root path, and project-type classification.",
+      "Paths must stay relative to the canonical project root rather than duplicating project_root_path as a fact.",
+    ),
+    defaultValueJson: null,
+    validationJson: {
+      kind: "json-schema" as const,
+      schemaDialect: "draft-2020-12",
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["part_id", "root_path", "project_type_id"],
+        properties: {
+          part_id: { type: "string", cardinality: "one" },
+          root_path: { type: "string", cardinality: "one" },
+          project_type_id: { type: "string", cardinality: "one" },
+        },
+      },
+    },
+  },
+  {
+    idSuffix: "technology-stack-by-part",
+    name: "Technology Stack by Part",
+    key: "technology_stack_by_part",
+    valueType: "json",
+    cardinality: "many" as const,
+    descriptionJson: toDescriptionJson(
+      "Per-part technology inventory discovered across the repository.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Capture the primary framework, language, version, database, and dependency cues for each discovered part.",
+      "Keep this as a reusable design-time fact definition only; runtime stack rows are seeded later through project facts, not here.",
+    ),
+    defaultValueJson: null,
+    validationJson: {
+      kind: "json-schema" as const,
+      schemaDialect: "draft-2020-12",
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["part_id", "framework", "language", "version", "database", "dependencies"],
+        properties: {
+          part_id: { type: "string", cardinality: "one" },
+          framework: { type: "string", cardinality: "one" },
+          language: { type: "string", cardinality: "one" },
+          version: { type: "string", cardinality: "one" },
+          database: { type: "string", cardinality: "one" },
+          dependencies: { type: "string", cardinality: "one" },
+        },
+      },
+    },
+  },
+  {
+    idSuffix: "existing-documentation-inventory",
+    name: "Existing Documentation Inventory",
+    key: "existing_documentation_inventory",
+    valueType: "json",
+    cardinality: "many" as const,
+    descriptionJson: toDescriptionJson(
+      "Inventory of existing documentation discovered within the repository.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Capture known documentation paths, types, and related project parts discovered during setup.",
+      "Keep documentation paths relative to the project root and store them as reusable design-time shape only.",
+    ),
+    defaultValueJson: null,
+    validationJson: {
+      kind: "json-schema" as const,
+      schemaDialect: "draft-2020-12",
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["path", "doc_type", "related_part_id"],
+        properties: {
+          path: { type: "string", cardinality: "one" },
+          doc_type: { type: "string", cardinality: "one" },
+          related_part_id: { type: "string", cardinality: "one" },
+        },
+      },
+    },
+  },
+  {
+    idSuffix: "integration-points",
+    name: "Integration Points",
+    key: "integration_points",
+    valueType: "json",
+    cardinality: "many" as const,
+    descriptionJson: toDescriptionJson(
+      "Structured inventory of integration points discovered between project parts.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Capture the directional connections between discovered project parts and the type of each integration.",
+      "Use this as reusable methodology fact-definition shape only; do not seed project-level integration instances here.",
+    ),
+    defaultValueJson: null,
+    validationJson: {
+      kind: "json-schema" as const,
+      schemaDialect: "draft-2020-12",
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["from_part_id", "to_part_id", "integration_type", "details"],
+        properties: {
+          from_part_id: { type: "string", cardinality: "one" },
+          to_part_id: { type: "string", cardinality: "one" },
+          integration_type: { type: "string", cardinality: "one" },
+          details: { type: "string", cardinality: "one" },
+        },
+      },
+    },
+  },
 ] as const;
 
 function buildMethodologyFactDefinitionSeedRows(
@@ -1911,6 +2166,7 @@ export const setupSeedMetadata = {
   slice: "slice_a_setup",
   workUnitKeys: ["setup"] as const,
   workflowKeys: ["setup_project", "generate_project_context"] as const,
+  lockedDesignTimeFactDefinitionKeys: LOCKED_BMAD_DESIGN_TIME_FACT_KEYS,
   sourceRefs,
 } as const;
 

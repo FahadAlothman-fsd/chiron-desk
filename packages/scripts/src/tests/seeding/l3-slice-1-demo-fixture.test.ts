@@ -39,37 +39,54 @@ describe("l3 slice-1 demo fixture", () => {
     expect(
       slice1DemoFixtureSeedRows.methodologyWorkflowFormFields.map((row) => row.key).toSorted(),
     ).toEqual(["initiativeName", "projectKind"]);
+    expect(slice1DemoFixtureSeedRows.methodologyWorkflowFormFields).toEqual([
+      expect.objectContaining({ inputJson: { contextFactDefinitionId: "initiative_name" } }),
+      expect.objectContaining({ inputJson: { contextFactDefinitionId: "workflow_mode" } }),
+    ]);
   });
 
-  it("includes all 7 context-fact kinds in deterministic examples", async () => {
-    const { fixture } = await loadSeedArtifacts();
-    const { slice1DemoFixtureSeedRows } = fixture;
+  it("keeps fixture-only BMAD-derived context-fact examples separate from permanent seeds", async () => {
+    const { methodology, fixture } = await loadSeedArtifacts();
+    const { methodologyCanonicalTableSeedRows, methodologyDesignTimeSeedFacts } = methodology;
+    const { slice1FixtureOnlyFactExamples } = fixture;
 
-    expect(slice1DemoFixtureSeedRows.contextFactDefinitions).toHaveLength(7);
+    const permanentMethodologyFactKeys = new Set(
+      methodologyCanonicalTableSeedRows.methodology_fact_definitions.map((row) => row.key),
+    );
+    const permanentWorkUnitFactKeys = new Set(
+      methodologyCanonicalTableSeedRows.work_unit_fact_definitions.map((row) => row.key),
+    );
+
+    expect(slice1FixtureOnlyFactExamples.definitionBackedExternalFacts).toHaveLength(4);
+    expect(slice1FixtureOnlyFactExamples.boundExternalFacts).toHaveLength(5);
+
     expect(
-      slice1DemoFixtureSeedRows.contextFactDefinitions.map((row) => row.factKind).toSorted(),
-    ).toEqual([
-      "artifact_reference",
-      "draft_spec",
-      "draft_spec_field",
-      "external_binding",
-      "plain_value",
-      "work_unit_reference",
-      "workflow_reference",
+      slice1FixtureOnlyFactExamples.definitionBackedExternalFacts.map((row) => row.factKey),
+    ).toEqual([...methodologyDesignTimeSeedFacts.setupWorkUnitFactDefinitionKeys]);
+    expect(slice1FixtureOnlyFactExamples.boundExternalFacts.map((row) => row.factKey)).toEqual([
+      ...methodologyDesignTimeSeedFacts.methodologyFactDefinitionKeys,
     ]);
 
-    expect(slice1DemoFixtureSeedRows.contextFactExternalBindings[0]).toMatchObject({
-      provider: "project",
-      bindingKey: "projectRootPath",
-    });
+    for (const example of slice1FixtureOnlyFactExamples.definitionBackedExternalFacts) {
+      expect(example.seedSource).toBe("work_unit_fact_definition");
+      expect(example.workflowContextFactKind).toBe("definition_backed_external_fact");
+      expect(example.permanence).toBe("fixture_only");
+      expect(permanentWorkUnitFactKeys.has(example.factKey)).toBe(true);
+      expect(permanentMethodologyFactKeys.has(example.factKey)).toBe(false);
+    }
+
+    for (const example of slice1FixtureOnlyFactExamples.boundExternalFacts) {
+      expect(example.seedSource).toBe("methodology_fact_definition");
+      expect(example.workflowContextFactKind).toBe("bound_external_fact");
+      expect(example.permanence).toBe("fixture_only");
+      expect(permanentMethodologyFactKeys.has(example.factKey)).toBe(true);
+      expect(permanentWorkUnitFactKeys.has(example.factKey)).toBe(false);
+    }
+
     expect(
-      slice1DemoFixtureSeedRows.contextFactWorkflowReferences[0]?.workflowDefinitionId,
-    ).toContain("generate-project-context");
-    expect(slice1DemoFixtureSeedRows.contextFactWorkUnitReferences[0]?.workUnitTypeKey).toBe(
-      "research",
-    );
-    expect(slice1DemoFixtureSeedRows.contextFactArtifactReferences[0]?.artifactSlotKey).toBe(
-      "setup_readme",
-    );
+      slice1FixtureOnlyFactExamples.explicitlyExcludedFactKeys.includes("project_root_path"),
+    ).toBe(true);
+    expect(permanentMethodologyFactKeys.has("project_root_path")).toBe(false);
+    expect(permanentWorkUnitFactKeys.has("project_root_path")).toBe(false);
   });
 });

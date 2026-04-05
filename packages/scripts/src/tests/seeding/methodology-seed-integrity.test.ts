@@ -45,6 +45,8 @@ describe("methodology seed integrity", () => {
     const {
       METHODOLOGY_CANONICAL_TABLE_SEED_ORDER,
       methodologyCanonicalTableSeedRows,
+      methodologyDesignTimeSeedFacts,
+      methodologyRuntimeSeedPolicy,
       methodologySeedSlices,
     } = await loadMethodologySeedArtifacts();
 
@@ -86,7 +88,7 @@ describe("methodology seed integrity", () => {
       work_unit_lifecycle_states: 6,
       work_unit_lifecycle_transitions: 6,
       transition_condition_sets: 12,
-      work_unit_fact_definitions: 30,
+      work_unit_fact_definitions: 38,
       methodology_artifact_slot_definitions: 6,
       methodology_artifact_slot_templates: 10,
       methodology_link_type_definitions: 4,
@@ -94,7 +96,38 @@ describe("methodology seed integrity", () => {
       methodology_workflow_steps: 0,
       methodology_workflow_edges: 0,
       methodology_transition_workflow_bindings: 10,
-      methodology_fact_definitions: 6,
+      methodology_fact_definitions: 16,
+    });
+
+    expect(methodologyDesignTimeSeedFacts).toEqual({
+      setupWorkUnitFactDefinitionKeys: [
+        "workflow_mode",
+        "scan_level",
+        "requires_brainstorming",
+        "deep_dive_target",
+      ],
+      methodologyFactDefinitionKeys: [
+        "repository_type",
+        "project_parts",
+        "technology_stack_by_part",
+        "existing_documentation_inventory",
+        "integration_points",
+      ],
+      lockedBmadDerivedFactDefinitionKeys: [
+        "workflow_mode",
+        "scan_level",
+        "requires_brainstorming",
+        "deep_dive_target",
+        "repository_type",
+        "project_parts",
+        "technology_stack_by_part",
+        "existing_documentation_inventory",
+        "integration_points",
+      ],
+    });
+    expect(methodologyRuntimeSeedPolicy).toEqual({
+      seedProjectFactInstances: false,
+      seedWorkUnitFactInstances: false,
     });
 
     const workUnitDefinitions = methodologyCanonicalTableSeedRows.methodology_work_unit_types;
@@ -762,7 +795,7 @@ describe("methodology seed integrity", () => {
     expect(methodologyCanonicalTableSeedRows.methodology_workflow_edges).toHaveLength(0);
 
     const factDefinitions = methodologyCanonicalTableSeedRows.methodology_fact_definitions;
-    expect(factDefinitions).toHaveLength(6);
+    expect(factDefinitions).toHaveLength(16);
 
     const dependencyDefinitions =
       methodologyCanonicalTableSeedRows.methodology_link_type_definitions;
@@ -774,8 +807,20 @@ describe("methodology seed integrity", () => {
     expect(versionIds).toEqual(new Set(["mver_bmad_v1_draft", "mver_bmad_v1_active"]));
 
     expect(new Set(factDefinitions.map((factDefinition) => factDefinition.key))).toEqual(
-      new Set(["communication_language", "document_output_language", "project_root_directory"]),
+      new Set([
+        "communication_language",
+        "document_output_language",
+        "project_root_directory",
+        "repository_type",
+        "project_parts",
+        "technology_stack_by_part",
+        "existing_documentation_inventory",
+        "integration_points",
+      ]),
     );
+    expect(
+      factDefinitions.some((factDefinition) => factDefinition.key === "project_root_path"),
+    ).toBe(false);
 
     expect(
       new Set(dependencyDefinitions.map((dependencyDefinition) => dependencyDefinition.key)),
@@ -810,6 +855,117 @@ describe("methodology seed integrity", () => {
         pathKind: "directory",
       },
     });
+
+    const repositoryTypeFactRows = factDefinitions.filter(
+      (factDefinition) => factDefinition.key === "repository_type",
+    );
+    expect(repositoryTypeFactRows).toHaveLength(2);
+    for (const repositoryTypeFact of repositoryTypeFactRows) {
+      expect(repositoryTypeFact.validationJson).toEqual({
+        kind: "json-schema",
+        schemaDialect: "draft-2020-12",
+        schema: {
+          type: "string",
+          enum: ["monolith", "monorepo", "multi_part"],
+        },
+      });
+    }
+
+    const projectPartsFactRows = factDefinitions.filter(
+      (factDefinition) => factDefinition.key === "project_parts",
+    );
+    expect(projectPartsFactRows).toHaveLength(2);
+    for (const projectPartsFact of projectPartsFactRows) {
+      expect(projectPartsFact.valueType).toBe("json");
+      expect(projectPartsFact.cardinality).toBe("many");
+      expect(projectPartsFact.validationJson).toMatchObject({
+        kind: "json-schema",
+        schemaDialect: "draft-2020-12",
+        schema: {
+          type: "object",
+          additionalProperties: false,
+          required: ["part_id", "root_path", "project_type_id"],
+          properties: {
+            part_id: { type: "string", cardinality: "one" },
+            root_path: { type: "string", cardinality: "one" },
+            project_type_id: { type: "string", cardinality: "one" },
+          },
+        },
+      });
+    }
+
+    const technologyStackByPartFactRows = factDefinitions.filter(
+      (factDefinition) => factDefinition.key === "technology_stack_by_part",
+    );
+    expect(technologyStackByPartFactRows).toHaveLength(2);
+    for (const technologyStackByPartFact of technologyStackByPartFactRows) {
+      expect(technologyStackByPartFact.valueType).toBe("json");
+      expect(technologyStackByPartFact.cardinality).toBe("many");
+      expect(technologyStackByPartFact.validationJson).toMatchObject({
+        kind: "json-schema",
+        schemaDialect: "draft-2020-12",
+        schema: {
+          type: "object",
+          additionalProperties: false,
+          required: ["part_id", "framework", "language", "version", "database", "dependencies"],
+          properties: {
+            part_id: { type: "string", cardinality: "one" },
+            framework: { type: "string", cardinality: "one" },
+            language: { type: "string", cardinality: "one" },
+            version: { type: "string", cardinality: "one" },
+            database: { type: "string", cardinality: "one" },
+            dependencies: { type: "string", cardinality: "one" },
+          },
+        },
+      });
+    }
+
+    const existingDocumentationInventoryFactRows = factDefinitions.filter(
+      (factDefinition) => factDefinition.key === "existing_documentation_inventory",
+    );
+    expect(existingDocumentationInventoryFactRows).toHaveLength(2);
+    for (const documentationInventoryFact of existingDocumentationInventoryFactRows) {
+      expect(documentationInventoryFact.valueType).toBe("json");
+      expect(documentationInventoryFact.cardinality).toBe("many");
+      expect(documentationInventoryFact.validationJson).toMatchObject({
+        kind: "json-schema",
+        schemaDialect: "draft-2020-12",
+        schema: {
+          type: "object",
+          additionalProperties: false,
+          required: ["path", "doc_type", "related_part_id"],
+          properties: {
+            path: { type: "string", cardinality: "one" },
+            doc_type: { type: "string", cardinality: "one" },
+            related_part_id: { type: "string", cardinality: "one" },
+          },
+        },
+      });
+    }
+
+    const integrationPointsFactRows = factDefinitions.filter(
+      (factDefinition) => factDefinition.key === "integration_points",
+    );
+    expect(integrationPointsFactRows).toHaveLength(2);
+    for (const integrationPointsFact of integrationPointsFactRows) {
+      expect(integrationPointsFact.valueType).toBe("json");
+      expect(integrationPointsFact.cardinality).toBe("many");
+      expect(integrationPointsFact.validationJson).toMatchObject({
+        kind: "json-schema",
+        schemaDialect: "draft-2020-12",
+        schema: {
+          type: "object",
+          additionalProperties: false,
+          required: ["from_part_id", "to_part_id", "integration_type", "details"],
+          properties: {
+            from_part_id: { type: "string", cardinality: "one" },
+            to_part_id: { type: "string", cardinality: "one" },
+            integration_type: { type: "string", cardinality: "one" },
+            details: { type: "string", cardinality: "one" },
+          },
+        },
+      });
+    }
 
     const draftFactRows = factDefinitions
       .filter((factDefinition) => factDefinition.methodologyVersionId === "mver_bmad_v1_draft")
@@ -858,13 +1014,17 @@ describe("methodology seed integrity", () => {
     expect(draftWorkUnitRows).toEqual(activeWorkUnitRows);
 
     const workUnitFactDefinitions = methodologyCanonicalTableSeedRows.work_unit_fact_definitions;
-    expect(workUnitFactDefinitions).toHaveLength(30);
+    expect(workUnitFactDefinitions).toHaveLength(38);
     expect(new Set(workUnitFactDefinitions.map((fact) => fact.key))).toEqual(
       new Set([
         "initiative_name",
         "project_kind",
         "project_knowledge_directory",
         "planning_artifacts_directory",
+        "workflow_mode",
+        "scan_level",
+        "requires_brainstorming",
+        "deep_dive_target",
         "setup_work_unit",
         "objectives",
         "desired_outcome",
@@ -880,7 +1040,7 @@ describe("methodology seed integrity", () => {
     const setupWorkUnitFactDefinitions = workUnitFactDefinitions.filter((fact) =>
       fact.workUnitTypeId.includes(":wut:setup:"),
     );
-    expect(setupWorkUnitFactDefinitions).toHaveLength(8);
+    expect(setupWorkUnitFactDefinitions).toHaveLength(16);
     for (const factDefinition of setupWorkUnitFactDefinitions) {
       expect(factDefinition.workUnitTypeId).toBe(
         `seed:wut:setup:${factDefinition.methodologyVersionId}`,
@@ -1128,6 +1288,73 @@ describe("methodology seed integrity", () => {
         path: {
           pathKind: "directory",
           safety: { disallowAbsolute: true, preventTraversal: true },
+        },
+      });
+    }
+
+    const workflowModeFactRows = workUnitFactDefinitions.filter(
+      (fact) => fact.key === "workflow_mode",
+    );
+    expect(workflowModeFactRows).toHaveLength(2);
+    for (const workflowModeFact of workflowModeFactRows) {
+      expect(workflowModeFact.factType).toBe("string");
+      expect(workflowModeFact.cardinality).toBe("one");
+      expect(workflowModeFact.validationJson).toEqual({
+        kind: "json-schema",
+        schemaDialect: "draft-2020-12",
+        schema: {
+          type: "string",
+          enum: ["initial_scan", "full_rescan", "deep_dive"],
+        },
+      });
+    }
+
+    const scanLevelFactRows = workUnitFactDefinitions.filter((fact) => fact.key === "scan_level");
+    expect(scanLevelFactRows).toHaveLength(2);
+    for (const scanLevelFact of scanLevelFactRows) {
+      expect(scanLevelFact.factType).toBe("string");
+      expect(scanLevelFact.cardinality).toBe("one");
+      expect(scanLevelFact.validationJson).toEqual({
+        kind: "json-schema",
+        schemaDialect: "draft-2020-12",
+        schema: {
+          type: "string",
+          enum: ["quick", "deep", "exhaustive"],
+        },
+      });
+    }
+
+    const requiresBrainstormingFactRows = workUnitFactDefinitions.filter(
+      (fact) => fact.key === "requires_brainstorming",
+    );
+    expect(requiresBrainstormingFactRows).toHaveLength(2);
+    for (const requiresBrainstormingFact of requiresBrainstormingFactRows) {
+      expect(requiresBrainstormingFact.factType).toBe("boolean");
+      expect(requiresBrainstormingFact.cardinality).toBe("one");
+      expect(requiresBrainstormingFact.defaultValueJson).toBeNull();
+      expect(requiresBrainstormingFact.validationJson).toEqual({ kind: "none" });
+    }
+
+    const deepDiveTargetFactRows = workUnitFactDefinitions.filter(
+      (fact) => fact.key === "deep_dive_target",
+    );
+    expect(deepDiveTargetFactRows).toHaveLength(2);
+    for (const deepDiveTargetFact of deepDiveTargetFactRows) {
+      expect(deepDiveTargetFact.factType).toBe("json");
+      expect(deepDiveTargetFact.cardinality).toBe("one");
+      expect(deepDiveTargetFact.validationJson).toMatchObject({
+        kind: "json-schema",
+        schemaDialect: "draft-2020-12",
+        schema: {
+          type: "object",
+          additionalProperties: false,
+          required: ["target_type", "target_path", "target_name", "target_scope"],
+          properties: {
+            target_type: { type: "string", cardinality: "one" },
+            target_path: { type: "string", cardinality: "one" },
+            target_name: { type: "string", cardinality: "one" },
+            target_scope: { type: "string", cardinality: "one" },
+          },
         },
       });
     }

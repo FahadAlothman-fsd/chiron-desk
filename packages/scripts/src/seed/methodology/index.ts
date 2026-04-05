@@ -15,6 +15,9 @@ import {
   methodologyWorkflowStepSeedRows,
 } from "./tables";
 import {
+  LOCKED_BMAD_DESIGN_TIME_FACT_KEYS,
+  LOCKED_BMAD_METHODOLOGY_FACT_KEYS,
+  LOCKED_BMAD_SETUP_WORK_UNIT_FACT_KEYS,
   brainstormingSeedMetadata,
   researchSeedMetadata,
   setupSeedMetadata,
@@ -60,4 +63,15 @@ export const methodologySeedSlices = {
   slice_a_setup: setupSeedMetadata,
   slice_a_brainstorming: brainstormingSeedMetadata,
   slice_a_research: researchSeedMetadata,
+} as const;
+
+export const methodologyDesignTimeSeedFacts = {
+  setupWorkUnitFactDefinitionKeys: LOCKED_BMAD_SETUP_WORK_UNIT_FACT_KEYS,
+  methodologyFactDefinitionKeys: LOCKED_BMAD_METHODOLOGY_FACT_KEYS,
+  lockedBmadDerivedFactDefinitionKeys: LOCKED_BMAD_DESIGN_TIME_FACT_KEYS,
+} as const;
+
+export const methodologyRuntimeSeedPolicy = {
+  seedProjectFactInstances: false,
+  seedWorkUnitFactInstances: false,
 } as const;
