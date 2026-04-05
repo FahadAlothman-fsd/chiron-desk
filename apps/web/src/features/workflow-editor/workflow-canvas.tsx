@@ -54,11 +54,13 @@ type WorkflowStepNodeStyle = CSSProperties & {
 type WorkflowCanvasNodeData = {
   step: WorkflowEditorStep;
   isSelected: boolean;
+  isEntry: boolean;
 };
 
 type WorkflowCanvasNode = Node<WorkflowCanvasNodeData, "workflowStep">;
 
 type WorkflowCanvasProps = {
+  entryStepId: string | null;
   steps: readonly WorkflowEditorStep[];
   edges: readonly WorkflowEditorEdge[];
   selection: WorkflowEditorSelection;
@@ -230,7 +232,7 @@ function getWorkflowCanvasBounds(nodes: readonly WorkflowCanvasNode[]) {
 }
 
 function WorkflowStepNode({ data }: NodeProps<WorkflowCanvasNode>) {
-  const { step, isSelected } = data;
+  const { step, isSelected, isEntry } = data;
 
   return (
     <div
@@ -265,20 +267,27 @@ function WorkflowStepNode({ data }: NodeProps<WorkflowCanvasNode>) {
       />
       <div className="relative z-[2] grid gap-3 p-3 text-left text-foreground">
         <div className="flex items-start justify-between gap-3">
-          <span
-            className={[
-              "inline-flex w-fit items-center gap-1.5 rounded-full border px-2 py-1 text-[0.62rem] uppercase tracking-[0.12em]",
-              STEP_TYPE_BADGE_CLASS_NAMES[step.stepType],
-            ].join(" ")}
-          >
-            <img
-              src={`/visuals/workflow-editor/step-types/asset-${STEP_TYPE_ICON_CODES[step.stepType]}.svg`}
-              alt=""
-              aria-hidden="true"
-              className="size-3.5 shrink-0 object-contain invert brightness-150 contrast-125"
-            />
-            <span>{STEP_TYPE_LABELS[step.stepType]}</span>
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={[
+                "inline-flex w-fit items-center gap-1.5 rounded-full border px-2 py-1 text-[0.62rem] uppercase tracking-[0.12em]",
+                STEP_TYPE_BADGE_CLASS_NAMES[step.stepType],
+              ].join(" ")}
+            >
+              <img
+                src={`/visuals/workflow-editor/step-types/asset-${STEP_TYPE_ICON_CODES[step.stepType]}.svg`}
+                alt=""
+                aria-hidden="true"
+                className="size-3.5 shrink-0 object-contain invert brightness-150 contrast-125"
+              />
+              <span>{STEP_TYPE_LABELS[step.stepType]}</span>
+            </span>
+            {isEntry ? (
+              <span className="inline-flex w-fit items-center rounded-full border border-lime-500/30 bg-lime-500/10 px-2 py-1 text-[0.62rem] uppercase tracking-[0.12em] text-lime-200">
+                Entry
+              </span>
+            ) : null}
+          </div>
           <span className="text-[0.62rem] uppercase tracking-[0.14em] text-muted-foreground/80">
             {STEP_TYPE_COLORS[step.stepType]}
           </span>
@@ -313,6 +322,7 @@ const WORKFLOW_CANVAS_NODE_TYPES = {
 } as const;
 
 export function WorkflowCanvas({
+  entryStepId,
   steps,
   edges,
   selection,
@@ -340,6 +350,7 @@ export function WorkflowCanvas({
         data: {
           step,
           isSelected: selection?.kind === "step" && selection.stepId === step.stepId,
+          isEntry: entryStepId === step.stepId,
         },
         type: "workflowStep",
         position: layoutPositions[step.stepId] ?? getGridPosition(index),
@@ -355,7 +366,7 @@ export function WorkflowCanvas({
           boxShadow: "none",
         },
       })),
-    [layoutPositions, selection, steps],
+    [entryStepId, layoutPositions, selection, steps],
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState<WorkflowCanvasNode>(baseNodes);

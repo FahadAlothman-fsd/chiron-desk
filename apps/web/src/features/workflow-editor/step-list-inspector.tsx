@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { useMemo, type CSSProperties } from "react";
 
 import { Button } from "../../components/ui/button";
 
@@ -69,26 +69,42 @@ function StepTypeBadge({ stepType }: { stepType: WorkflowEditorStepType }) {
 }
 
 type StepListInspectorProps = {
+  metadata: { entryStepId: string | null };
   steps: readonly WorkflowEditorStep[];
   edges: readonly WorkflowEditorEdge[];
   selection: WorkflowEditorSelection;
   onSelectStep: (stepId: string) => void;
   onSelectEdge: (edgeId: string) => void;
   onClearSelection: () => void;
-  onCreateFormStep: () => void;
   onEditSelectedStep: () => void;
   onEditSelectedEdge: () => void;
   onConnectSteps: (sourceStepKey: string, targetStepKey: string) => void;
 };
 
+function EntryBadge() {
+  return (
+    <span className="inline-flex w-fit items-center rounded-full border border-lime-500/30 bg-lime-500/10 px-2 py-1 text-[0.62rem] uppercase tracking-[0.12em] text-lime-200">
+      Entry
+    </span>
+  );
+}
+
+function NextStepBadge({ label }: { label: string }) {
+  return (
+    <span className="inline-flex w-fit items-center rounded-none border border-border/80 bg-background/80 px-2 py-1 text-[0.62rem] uppercase tracking-[0.12em] text-muted-foreground">
+      {label}
+    </span>
+  );
+}
+
 export function StepListInspector({
+  metadata,
   steps,
   edges,
   selection,
   onSelectStep,
   onSelectEdge,
   onClearSelection,
-  onCreateFormStep,
   onEditSelectedStep,
   onEditSelectedEdge,
   onConnectSteps,
@@ -97,6 +113,21 @@ export function StepListInspector({
     selection?.kind === "step" ? steps.find((step) => step.stepId === selection.stepId) : undefined;
   const selectedEdge =
     selection?.kind === "edge" ? edges.find((edge) => edge.edgeId === selection.edgeId) : undefined;
+  const stepByKey = useMemo(() => new Map(steps.map((step) => [step.payload.key, step])), [steps]);
+  const nextStepLabelByStepId = useMemo(() => {
+    const labels = new Map<string, string>();
+
+    steps.forEach((step) => {
+      const nextEdge = edges.find((edge) => edge.fromStepKey === step.payload.key);
+      const nextStep = nextEdge ? stepByKey.get(nextEdge.toStepKey) : undefined;
+      labels.set(
+        step.stepId,
+        nextStep ? `--> ${nextStep.payload.label?.trim() || nextStep.payload.key}` : "--> END",
+      );
+    });
+
+    return labels;
+  }, [edges, stepByKey, steps]);
 
   return (
     <section className="chiron-frame-flat mt-3 grid gap-2 p-2">
@@ -104,9 +135,6 @@ export function StepListInspector({
         <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
           STEP LIST & INSPECTOR
         </p>
-        <Button type="button" size="xs" variant="outline" onClick={onCreateFormStep}>
-          + Form
-        </Button>
       </div>
 
       {selection === null ? (
@@ -114,7 +142,7 @@ export function StepListInspector({
           {steps.length === 0 ? (
             <p className="text-xs text-muted-foreground">No steps authored yet.</p>
           ) : (
-            <ul className="grid gap-2">
+            <ul className="grid max-h-[22rem] gap-2 overflow-y-auto pr-1 scrollbar-thin">
               {steps.map((step) => (
                 <li key={step.stepId}>
                   <button
@@ -133,7 +161,10 @@ export function StepListInspector({
                   >
                     <div className="relative z-[2] grid w-full gap-3 p-3 text-foreground">
                       <div className="flex items-start justify-between gap-3">
-                        <StepTypeBadge stepType={step.stepType} />
+                        <div className="flex flex-wrap items-center gap-2">
+                          <StepTypeBadge stepType={step.stepType} />
+                          {metadata.entryStepId === step.stepId ? <EntryBadge /> : null}
+                        </div>
                         <span className="text-[0.62rem] uppercase tracking-[0.14em] text-muted-foreground/80">
                           {STEP_TYPE_COLORS[step.stepType]}
                         </span>
@@ -151,6 +182,12 @@ export function StepListInspector({
                       <span className="text-xs/relaxed text-muted-foreground">
                         {step.payload.label?.trim() || "No label yet"}
                       </span>
+
+                      <div className="flex justify-end">
+                        <NextStepBadge
+                          label={nextStepLabelByStepId.get(step.stepId) ?? "--> END"}
+                        />
+                      </div>
                     </div>
                   </button>
                 </li>
@@ -222,7 +259,10 @@ export function StepListInspector({
           >
             <div className="relative z-[2] grid gap-3 p-3 text-foreground">
               <div className="flex items-start justify-between gap-3">
-                <StepTypeBadge stepType={selectedStep.stepType} />
+                <div className="flex flex-wrap items-center gap-2">
+                  <StepTypeBadge stepType={selectedStep.stepType} />
+                  {metadata.entryStepId === selectedStep.stepId ? <EntryBadge /> : null}
+                </div>
                 <span className="text-[0.62rem] uppercase tracking-[0.14em] text-muted-foreground/80">
                   {STEP_TYPE_COLORS[selectedStep.stepType]}
                 </span>
@@ -240,6 +280,11 @@ export function StepListInspector({
               <div className="grid gap-1 text-xs/relaxed text-muted-foreground">
                 <p>{selectedStep.payload.label?.trim() || "No label yet"}</p>
                 <p>{selectedStep.payload.descriptionJson?.markdown?.trim() || "No description"}</p>
+                <div className="flex justify-end pt-1">
+                  <NextStepBadge
+                    label={nextStepLabelByStepId.get(selectedStep.stepId) ?? "--> END"}
+                  />
+                </div>
               </div>
             </div>
           </div>
