@@ -7,7 +7,9 @@ import type {
   WorkflowContextFactDraft,
   WorkflowEditorEdge,
   WorkflowEditorGuidance,
+  WorkflowEditorPickerBadge,
   WorkflowEditorMetadata,
+  WorkflowEditorPickerOption,
   WorkflowEditorStep,
   WorkflowFormStepPayload,
 } from "../features/workflow-editor/types";
@@ -475,7 +477,74 @@ function getWorkUnitFactEntries(rawWorkUnits: unknown, workUnitTypeKey: string) 
   return Array.isArray(workUnit?.factSchemas) ? workUnit.factSchemas : [];
 }
 
-function toFactOptions(rawFactDefinitions: unknown, fallbackDescription: string) {
+function normalizePickerFactType(value: unknown) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  switch (value) {
+    case "string":
+    case "number":
+    case "boolean":
+    case "json":
+      return value;
+    case "work_unit":
+    case "work unit":
+      return "work unit";
+    default:
+      return null;
+  }
+}
+
+function getWorkUnitTypeLabel(rawWorkUnits: unknown, workUnitTypeKey: string) {
+  const matchedWorkUnit = getWorkUnitEntries(rawWorkUnits).find((entry) => {
+    const workUnit = asRecord(entry);
+    return workUnit && workUnit.key === workUnitTypeKey;
+  });
+  const workUnit = asRecord(matchedWorkUnit);
+
+  if (!workUnit) {
+    return null;
+  }
+
+  if (typeof workUnit.displayName === "string" && workUnit.displayName.trim().length > 0) {
+    return workUnit.displayName.trim();
+  }
+
+  if (typeof workUnit.name === "string" && workUnit.name.trim().length > 0) {
+    return workUnit.name.trim();
+  }
+
+  return typeof workUnit.key === "string" && workUnit.key.trim().length > 0
+    ? workUnit.key.trim()
+    : null;
+}
+
+function getFactTypeBadgeTone(
+  type: ReturnType<typeof normalizePickerFactType>,
+): WorkflowEditorPickerBadge["tone"] {
+  switch (type) {
+    case "string":
+      return "type-string";
+    case "number":
+      return "type-number";
+    case "boolean":
+      return "type-boolean";
+    case "json":
+      return "type-json";
+    case "work unit":
+      return "type-work-unit";
+    default:
+      return "cardinality";
+  }
+}
+
+function toFactOptions(
+  rawFactDefinitions: unknown,
+  fallbackDescription: string,
+  rawWorkUnits: unknown,
+  source: "methodology" | "current_work_unit",
+): WorkflowEditorPickerOption[] {
   const facts = getFactDefinitionEntries(rawFactDefinitions);
 
   return facts
@@ -493,35 +562,62 @@ function toFactOptions(rawFactDefinitions: unknown, fallbackDescription: string)
             : typeof value.displayName === "string" && value.displayName.trim().length > 0
               ? value.displayName.trim()
               : value.key;
-      const description =
-        readMarkdown(value.descriptionJson) ||
-        readMarkdown(value.description) ||
-        [
-          typeof value.factType === "string" ? value.factType : null,
-          typeof value.valueType === "string" ? value.valueType : null,
-          value.cardinality === "one" || value.cardinality === "many" ? value.cardinality : null,
-        ]
-          .filter((segment): segment is string => Boolean(segment))
-          .join(" · ") ||
-        fallbackDescription;
+      const description = readMarkdown(value.descriptionJson) || readMarkdown(value.description);
+      const cardinality =
+        value.cardinality === "one" || value.cardinality === "many" ? value.cardinality : null;
+      const factType = normalizePickerFactType(value.valueType ?? value.factType);
+      const workUnitTypeKey =
+        typeof value.workUnitTypeKey === "string" && value.workUnitTypeKey.trim().length > 0
+          ? value.workUnitTypeKey.trim()
+          : null;
+      const workUnitTypeLabel =
+        factType === "work unit" && workUnitTypeKey
+          ? getWorkUnitTypeLabel(rawWorkUnits, workUnitTypeKey)
+          : null;
+      const badges: WorkflowEditorPickerBadge[] = [
+        {
+          label: source === "methodology" ? "Methodology" : "Current Work Unit",
+          tone: source === "methodology" ? "source-methodology" : "source-current-work-unit",
+        },
+        ...(cardinality ? [{ label: cardinality, tone: "cardinality" as const }] : []),
+        ...(factType ? [{ label: factType, tone: getFactTypeBadgeTone(factType) }] : []),
+        ...(workUnitTypeLabel
+          ? [{ label: workUnitTypeLabel, tone: "work-unit-definition" as const }]
+          : []),
+      ];
+      const searchText = [
+        value.key,
+        label,
+        description,
+        fallbackDescription,
+        workUnitTypeKey,
+        ...badges.map((badge) => badge.label),
+      ]
+        .filter((segment): segment is string => typeof segment === "string" && segment.length > 0)
+        .join(" ");
 
       return {
         value: value.key,
         label,
-        description,
+        description: description || fallbackDescription,
+        searchText,
+        badges,
       };
     })
-    .filter(
-      (entry): entry is { value: string; label: string; description: string } => entry !== null,
-    );
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
 }
 
-function toMethodologyFactOptions(rawFactDefinitions: unknown) {
-  return toFactOptions(rawFactDefinitions, "Methodology fact");
+function toMethodologyFactOptions(rawFactDefinitions: unknown, rawWorkUnits: unknown) {
+  return toFactOptions(rawFactDefinitions, "Methodology fact", rawWorkUnits, "methodology");
 }
 
 function toWorkUnitFactOptions(rawWorkUnits: unknown, workUnitTypeKey: string) {
-  return toFactOptions(getWorkUnitFactEntries(rawWorkUnits, workUnitTypeKey), "Work unit fact");
+  return toFactOptions(
+    getWorkUnitFactEntries(rawWorkUnits, workUnitTypeKey),
+    "Work unit fact",
+    rawWorkUnits,
+    "current_work_unit",
+  );
 }
 
 function toWorkUnitTypeOptions(rawWorkUnits: unknown) {
@@ -823,7 +919,10 @@ export function MethodologyWorkflowEditorRoute() {
       initialSteps={toWorkflowSteps(editorDefinition?.steps, editorDefinition?.formDefinitions)}
       initialEdges={toWorkflowEdges(editorDefinition?.edges)}
       contextFactDefinitions={toContextFactDefinitions(editorDefinition?.contextFacts)}
-      methodologyFacts={toMethodologyFactOptions(methodologyFactsQuery.data)}
+      methodologyFacts={toMethodologyFactOptions(
+        methodologyFactsQuery.data,
+        workUnitTypesQuery.data,
+      )}
       currentWorkUnitFacts={toWorkUnitFactOptions(workUnitFactsQuery.data, workUnitKey)}
       artifactSlots={toArtifactSlotOptions(artifactSlotsQuery.data)}
       workUnitTypes={toWorkUnitTypeOptions(workUnitTypesQuery.data)}

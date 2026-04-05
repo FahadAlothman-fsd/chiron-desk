@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { CheckIcon, ChevronsUpDownIcon, PlusIcon, XIcon } from "lucide-react";
 
+import { cn } from "@/lib/utils";
+
 import { Button } from "../../components/ui/button";
 import {
   Card,
@@ -44,6 +46,7 @@ import type {
   WorkflowContextFactDefinitionItem,
   WorkflowContextFactDraft,
   WorkflowEditorEdge,
+  WorkflowEditorPickerBadge,
   WorkflowEditorFieldDraft,
   WorkflowEditorGuidance,
   WorkflowEditorMetadata,
@@ -384,22 +387,45 @@ function SearchableCombobox(props: {
               {props.options.map((option) => (
                 <CommandItem
                   key={option.value}
-                  value={`${option.value} ${option.label} ${option.description ?? ""}`}
+                  value={
+                    option.searchText ??
+                    [
+                      option.value,
+                      option.label,
+                      option.description ?? "",
+                      ...(option.badges?.map((badge) => badge.label) ?? []),
+                    ].join(" ")
+                  }
                   density="compact"
                   onSelect={() => {
                     props.onChange(option.value);
                     setOpen(false);
                   }}
                 >
-                  <div className="grid min-w-0 flex-1 gap-0.5">
-                    <span className="truncate font-medium">{option.label}</span>
-                    {option.description ? (
-                      <span className="truncate text-[0.68rem] uppercase tracking-[0.08em] text-muted-foreground">
-                        {option.description}
-                      </span>
+                  <div className="flex min-w-0 items-start gap-2">
+                    <div className="grid min-w-0 flex-1 gap-1">
+                      <span className="truncate font-medium">{option.label}</span>
+                      {option.badges?.length ? (
+                        <div className="flex flex-wrap gap-1">
+                          {option.badges.map((badge) => (
+                            <span
+                              key={`${option.value}-${badge.tone}-${badge.label}`}
+                              className={getPickerBadgeClassName(badge)}
+                            >
+                              {badge.label}
+                            </span>
+                          ))}
+                        </div>
+                      ) : option.description ? (
+                        <span className="truncate text-[0.68rem] uppercase tracking-[0.08em] text-muted-foreground">
+                          {option.description}
+                        </span>
+                      ) : null}
+                    </div>
+                    {props.value === option.value ? (
+                      <CheckIcon className="mt-0.5 size-3.5 shrink-0" />
                     ) : null}
                   </div>
-                  {props.value === option.value ? <CheckIcon className="size-3.5" /> : null}
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -407,6 +433,29 @@ function SearchableCombobox(props: {
         </Command>
       </PopoverContent>
     </Popover>
+  );
+}
+
+function getPickerBadgeClassName(badge: WorkflowEditorPickerBadge) {
+  return cn(
+    "inline-flex max-w-full items-center rounded-full border px-2 py-0.5 text-[0.68rem] uppercase tracking-[0.12em]",
+    badge.tone === "source-methodology"
+      ? "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-200"
+      : badge.tone === "source-current-work-unit"
+        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200"
+        : badge.tone === "cardinality"
+          ? "border-border/70 bg-muted/60 text-muted-foreground"
+          : badge.tone === "type-string"
+            ? "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-200"
+            : badge.tone === "type-number"
+              ? "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-200"
+              : badge.tone === "type-boolean"
+                ? "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-200"
+                : badge.tone === "type-json"
+                  ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-200"
+                  : badge.tone === "type-work-unit"
+                    ? "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-200"
+                    : "border-border/70 bg-background/70 text-muted-foreground",
   );
 }
 
@@ -1170,6 +1219,18 @@ export function WorkflowContextFactDialog({
       open && draft.kind === "work_unit_draft_spec_fact" && selectedWorkUnitTypeKey.length > 0,
   });
   const selectedWorkUnitFacts = selectedWorkUnitFactsQuery.data ?? [];
+  const selectedDraftSpecPickerFacts = useMemo(
+    () =>
+      selectedWorkUnitFacts.map((option) => {
+        const nextBadges = option.badges?.filter(
+          (badge) =>
+            badge.tone !== "source-methodology" && badge.tone !== "source-current-work-unit",
+        );
+
+        return nextBadges ? { ...option, badges: nextBadges } : option;
+      }),
+    [selectedWorkUnitFacts],
+  );
   const externalFactOptions = useMemo(() => {
     const optionsByValue = new Map<string, WorkflowEditorPickerOption>();
 
@@ -1236,10 +1297,10 @@ export function WorkflowContextFactDialog({
 
   const availableDraftSpecFactOptions = useMemo(
     () =>
-      selectedWorkUnitFacts.filter(
+      selectedDraftSpecPickerFacts.filter(
         (option) => !draftSpecCards.some((entry) => entry.factKey === option.value),
       ),
-    [draftSpecCards, selectedWorkUnitFacts],
+    [draftSpecCards, selectedDraftSpecPickerFacts],
   );
 
   const canSave = draft.key.trim().length > 0;

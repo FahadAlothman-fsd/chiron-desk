@@ -42,6 +42,22 @@ export type WorkflowEditorPickerOption = {
   value: string;
   label: string;
   description?: string;
+  searchText?: string;
+  badges?: readonly WorkflowEditorPickerBadge[];
+};
+
+export type WorkflowEditorPickerBadge = {
+  label: string;
+  tone:
+    | "source-methodology"
+    | "source-current-work-unit"
+    | "cardinality"
+    | "type-string"
+    | "type-number"
+    | "type-boolean"
+    | "type-json"
+    | "type-work-unit"
+    | "work-unit-definition";
 };
 
 export type WorkflowEditorFieldDraft = FormStepFieldPayload & {
