@@ -7,7 +7,6 @@ import {
   WorkflowTopologyMutationService,
   FormStepDefinitionService,
   WorkflowContextFactDefinitionService,
-  WorkflowAuthoringTransactionService,
   type MethodologyVersionRow,
   type MethodologyVersionEventRow,
   type MethodologyError,
@@ -64,9 +63,6 @@ import type {
   WorkflowContextFactDto as WorkflowContextFactDtoContract,
   WorkflowEditorRouteIdentity as WorkflowEditorRouteIdentityContract,
   WorkflowMetadataDialogInput as WorkflowMetadataDialogInputContract,
-  WorkflowEdgeDto as WorkflowEdgeDtoContract,
-  CreateFormStepInput as CreateFormStepInputContract,
-  UpdateFormStepInput as UpdateFormStepInputContract,
   UpdateWorkUnitWorkflowInput,
 } from "@chiron/contracts/methodology/workflow";
 import type { UpdateDraftWorkflowsInputDto } from "@chiron/contracts/methodology/dto";
@@ -127,69 +123,45 @@ const workflowEditorRouteIdentitySchema = z.object({
   workflowDefinitionId: z.string().min(1),
 });
 
-const formFieldInputSchema = z.discriminatedUnion("kind", [
-  z.object({
-    kind: z.literal("text"),
-    multiline: z.boolean().optional(),
-  }),
-  z.object({
-    kind: z.literal("select"),
-    options: z.array(z.string()),
-  }),
-  z.object({
-    kind: z.literal("checkbox"),
-  }),
-]);
-
 const workflowContextFactSchema: z.ZodType<WorkflowContextFactDtoContract> = z.discriminatedUnion(
   "kind",
   [
     z.object({
-      kind: z.literal("plain_value"),
+      kind: z.literal("plain_value_fact"),
       key: z.string().min(1),
+      cardinality: z.enum(["one", "many"]),
       valueType: z.enum(["string", "number", "boolean", "json"]),
     }),
     z.object({
-      kind: z.literal("external_binding"),
+      kind: z.literal("definition_backed_external_fact"),
       key: z.string().min(1),
-      source: z.object({
-        provider: z.string().min(1),
-        bindingKey: z.string().min(1),
-      }),
+      cardinality: z.enum(["one", "many"]),
+      externalFactDefinitionId: z.string().min(1),
     }),
     z.object({
-      kind: z.literal("workflow_reference"),
+      kind: z.literal("bound_external_fact"),
       key: z.string().min(1),
-      workflowDefinitionId: z.string().min(1),
+      cardinality: z.enum(["one", "many"]),
+      externalFactDefinitionId: z.string().min(1),
     }),
     z.object({
-      kind: z.literal("work_unit_reference"),
+      kind: z.literal("workflow_reference_fact"),
       key: z.string().min(1),
+      cardinality: z.enum(["one", "many"]),
+      allowedWorkflowDefinitionIds: z.array(z.string().min(1)),
+    }),
+    z.object({
+      kind: z.literal("artifact_reference_fact"),
+      key: z.string().min(1),
+      cardinality: z.enum(["one", "many"]),
+      artifactSlotDefinitionId: z.string().min(1),
+    }),
+    z.object({
+      kind: z.literal("work_unit_draft_spec_fact"),
+      key: z.string().min(1),
+      cardinality: z.enum(["one", "many"]),
       workUnitTypeKey: z.string().min(1),
-    }),
-    z.object({
-      kind: z.literal("artifact_reference"),
-      key: z.string().min(1),
-      artifactSlotKey: z.string().min(1),
-    }),
-    z.object({
-      kind: z.literal("draft_spec"),
-      key: z.string().min(1),
-      fields: z.array(
-        z.object({
-          key: z.string().min(1),
-          valueType: z.enum(["string", "number", "boolean", "json"]),
-          required: z.boolean().optional(),
-          descriptionJson: z.object({ markdown: z.string() }).optional(),
-        }),
-      ),
-    }),
-    z.object({
-      kind: z.literal("draft_spec_field"),
-      key: z.string().min(1),
-      draftSpecKey: z.string().min(1),
-      fieldKey: z.string().min(1),
-      valueType: z.enum(["string", "number", "boolean", "json"]),
+      includedFactKeys: z.array(z.string().min(1)),
     }),
   ],
 );
@@ -199,16 +171,17 @@ const formStepPayloadSchema: z.ZodType<FormStepPayloadContract> = z.object({
   label: z.string().optional(),
   descriptionJson: z.object({ markdown: z.string() }).optional(),
   fields: z.array(
-    z.object({
-      key: z.string().min(1),
-      label: z.string().optional(),
-      valueType: z.enum(["string", "number", "boolean", "json"]),
-      required: z.boolean().optional(),
-      input: formFieldInputSchema,
-      descriptionJson: z.object({ markdown: z.string() }).optional(),
-    }),
+    z
+      .object({
+        contextFactDefinitionId: z.string().min(1),
+        fieldLabel: z.string().min(1),
+        fieldKey: z.string().min(1),
+        helpText: z.string().nullable().default(null),
+        required: z.boolean().default(false),
+        uiMultiplicityMode: z.enum(["one", "many"]).optional(),
+      })
+      .strict(),
   ),
-  contextFacts: z.array(workflowContextFactSchema).optional(),
 });
 
 const createFormStepSchema = z.object({
@@ -1900,7 +1873,7 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
               workflowDefinitionId: input.workflowDefinitionId,
               fromStepKey: input.fromStepKey,
               toStepKey: input.toStepKey,
-              descriptionJson: input.descriptionJson,
+              ...(input.descriptionJson ? { descriptionJson: input.descriptionJson } : {}),
             },
             actorId,
           );
@@ -1922,7 +1895,7 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
               edgeId: input.edgeId,
               fromStepKey: input.fromStepKey,
               toStepKey: input.toStepKey,
-              descriptionJson: input.descriptionJson,
+              ...(input.descriptionJson ? { descriptionJson: input.descriptionJson } : {}),
             },
             actorId,
           );

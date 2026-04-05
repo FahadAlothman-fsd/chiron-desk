@@ -52,8 +52,37 @@ function makeServiceLayer() {
           },
           steps: [],
           edges: [],
-          contextFacts: [],
-          formDefinitions: [],
+          contextFacts: [
+            {
+              kind: "plain_value_fact",
+              key: "summary",
+              cardinality: "one",
+              valueType: "string",
+            },
+          ],
+          formDefinitions: [
+            {
+              stepId: "step-1",
+              payload: {
+                key: "capture",
+                label: "Capture",
+                descriptionJson: { markdown: "Capture" },
+                fields: [
+                  {
+                    contextFactDefinitionId: "summary",
+                    fieldLabel: "Summary",
+                    fieldKey: "summary",
+                    helpText: null,
+                    required: true,
+                  },
+                ],
+                guidance: {
+                  humanMarkdown: "Ask for the reusable summary.",
+                  agentMarkdown: "Normalize the summary for downstream steps.",
+                },
+              },
+            },
+          ],
         }),
     }),
     Layer.succeed(WorkflowService, {
@@ -94,9 +123,20 @@ function makeServiceLayer() {
             key: "capture",
             label: "Capture",
             descriptionJson: { markdown: "Capture" },
-            fields: [],
-            contextFacts: [],
-          },
+            fields: [
+              {
+                contextFactDefinitionId: "summary",
+                fieldLabel: "Summary",
+                fieldKey: "summary",
+                helpText: null,
+                required: true,
+              },
+            ],
+            guidance: {
+              humanMarkdown: "Ask for the reusable summary.",
+              agentMarkdown: "Normalize the summary for downstream steps.",
+            },
+          } as any,
         }),
       updateFormStep: () =>
         Effect.succeed({
@@ -105,9 +145,21 @@ function makeServiceLayer() {
             key: "capture.v2",
             label: "Capture v2",
             descriptionJson: { markdown: "Capture v2" },
-            fields: [],
-            contextFacts: [],
-          },
+            fields: [
+              {
+                contextFactDefinitionId: "supporting-workflows",
+                fieldLabel: "Supporting Workflows",
+                fieldKey: "supportingWorkflows",
+                helpText: null,
+                required: false,
+                uiMultiplicityMode: "one",
+              },
+            ],
+            guidance: {
+              humanMarkdown: "Confirm the reusable workflow set.",
+              agentMarkdown: "Preserve workflow ids in order.",
+            },
+          } as any,
         }),
       deleteFormStep: () => Effect.void,
     }),
@@ -131,9 +183,29 @@ function makeServiceLayer() {
       deleteEdge: () => Effect.void,
     }),
     Layer.succeed(WorkflowContextFactDefinitionService, {
-      list: () => Effect.succeed([{ kind: "plain_value", key: "fact.a", valueType: "string" }]),
-      create: () => Effect.succeed({ kind: "plain_value", key: "fact.b", valueType: "string" }),
-      update: () => Effect.succeed({ kind: "plain_value", key: "fact.c", valueType: "string" }),
+      list: () =>
+        Effect.succeed([
+          {
+            kind: "plain_value_fact",
+            key: "summary",
+            cardinality: "one",
+            valueType: "string",
+          },
+        ]),
+      create: () =>
+        Effect.succeed({
+          kind: "plain_value_fact",
+          key: "fact.b",
+          cardinality: "one",
+          valueType: "string",
+        }),
+      update: () =>
+        Effect.succeed({
+          kind: "workflow_reference_fact",
+          key: "fact.c",
+          cardinality: "many",
+          allowedWorkflowDefinitionIds: ["wf.review"],
+        }),
       delete: () => Effect.void,
     }),
   );
@@ -200,8 +272,15 @@ describe("l3 slice-1 methodology router", () => {
           key: "capture",
           label: "Capture",
           descriptionJson: { markdown: "Capture" },
-          fields: [],
-          contextFacts: [],
+          fields: [
+            {
+              contextFactDefinitionId: "summary",
+              fieldLabel: "Summary",
+              fieldKey: "summary",
+              helpText: null,
+              required: true,
+            },
+          ],
         },
       },
       AUTHENTICATED_CTX,
@@ -230,10 +309,45 @@ describe("l3 slice-1 methodology router", () => {
     );
 
     expect(editor.workflow.workflowDefinitionId).toBe("wf-1");
+    expect(editor.contextFacts).toEqual([
+      {
+        kind: "plain_value_fact",
+        key: "summary",
+        cardinality: "one",
+        valueType: "string",
+      },
+    ]);
+    expect(editor.formDefinitions).toEqual([
+      expect.objectContaining({
+        stepId: "step-1",
+        payload: expect.objectContaining({
+          fields: [
+            expect.objectContaining({
+              contextFactDefinitionId: "summary",
+              fieldLabel: "Summary",
+              fieldKey: "summary",
+            }),
+          ],
+          guidance: {
+            humanMarkdown: "Ask for the reusable summary.",
+            agentMarkdown: "Normalize the summary for downstream steps.",
+          },
+        }),
+      }),
+    ]);
     expect(metadata.workflow.key).toBe("wu.updated");
     expect(createdStep.stepId).toBe("step-1");
+    expect(createdStep.payload.fields).toEqual([
+      expect.objectContaining({
+        contextFactDefinitionId: "summary",
+        fieldLabel: "Summary",
+        fieldKey: "summary",
+      }),
+    ]);
     expect(edge.edgeId).toBe("edge-1");
-    expect(facts).toEqual([{ kind: "plain_value", key: "fact.a", valueType: "string" }]);
+    expect(facts).toEqual([
+      { kind: "plain_value_fact", key: "summary", cardinality: "one", valueType: "string" },
+    ]);
   });
 
   it("returns canonical workflowDefinitionId from workflow list", async () => {
