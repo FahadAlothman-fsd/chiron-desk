@@ -1,0 +1,44 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e7]:
+      - paragraph [ref=e8]: Operator Authentication
+      - paragraph [ref=e9]: Sign in to access methodology controls, deterministic routing, and guarded runtime surfaces.
+      - generic [ref=e11]:
+        - generic [ref=e12]:
+          - heading "Sign In" [level=1] [ref=e13]
+          - paragraph [ref=e14]: Access the operator console
+        - group [ref=e15]:
+          - generic [ref=e16]: Email
+          - textbox "Email" [ref=e17]:
+            - /placeholder: operator@chiron.local
+        - group [ref=e18]:
+          - generic [ref=e19]: Password
+          - textbox "Password" [ref=e20]
+        - group [ref=e21]:
+          - button "Sign In" [ref=e22]
+        - generic [ref=e23]:
+          - separator [ref=e24]
+          - generic [ref=e25]: Security Notice
+        - paragraph [ref=e26]:
+          - text: Need an account?
+          - button "Sign up" [ref=e27]
+    - complementary [ref=e28]:
+      - img [ref=e31]
+      - generic [ref=e33]:
+        - paragraph [ref=e34]: Command Deck
+        - paragraph [ref=e35]: Prepare workflow context before execution.
+        - paragraph [ref=e36]: Methodology governance, deterministic routing, and runtime safety checks stay behind operator authentication.
+        - paragraph [ref=e37]: "Appendix Asset: Bitmap Dreams asset-41"
+  - region "Notifications alt+T"
+  - generic:
+    - contentinfo:
+      - button "Open TanStack Router Devtools" [ref=e38] [cursor=pointer]:
+        - generic [ref=e39]:
+          - img [ref=e41]
+          - img [ref=e76]
+        - generic [ref=e110]: "-"
+        - generic [ref=e111]: TanStack Router
+  - generic [ref=e112]:
+    - img [ref=e114]
+    - button "Open Tanstack query devtools" [ref=e162] [cursor=pointer]:
+      - img [ref=e163]

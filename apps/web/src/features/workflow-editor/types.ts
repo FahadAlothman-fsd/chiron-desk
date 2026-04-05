@@ -20,9 +20,44 @@ export type WorkflowFormStepPayload = {
   guidance: WorkflowEditorGuidance;
 };
 
+export type WorkflowEditorStepType = "form" | "agent" | "action" | "invoke" | "branch" | "display";
+
+export const STEP_TYPE_LABELS: Record<WorkflowEditorStepType, string> = {
+  form: "Form",
+  agent: "Agent",
+  action: "Action",
+  invoke: "Invoke",
+  branch: "Branch",
+  display: "Display",
+};
+
+export const STEP_TYPE_ICON_CODES: Record<
+  WorkflowEditorStepType,
+  "45" | "58" | "08" | "33" | "61" | "22"
+> = {
+  form: "45",
+  agent: "58",
+  action: "08",
+  invoke: "33",
+  branch: "61",
+  display: "22",
+};
+
+export const STEP_TYPE_COLORS: Record<
+  WorkflowEditorStepType,
+  "sky" | "violet" | "emerald" | "amber" | "rose" | "slate"
+> = {
+  form: "sky",
+  agent: "violet",
+  action: "emerald",
+  invoke: "amber",
+  branch: "rose",
+  display: "slate",
+};
+
 export type WorkflowEditorStep = {
   stepId: string;
-  stepType: "form";
+  stepType: WorkflowEditorStepType;
   payload: WorkflowFormStepPayload;
 };
 
