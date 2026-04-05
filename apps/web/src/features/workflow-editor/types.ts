@@ -10,6 +10,7 @@ export type WorkflowEditorMetadata = {
   key: string;
   displayName: string;
   descriptionMarkdown: string;
+  entryStepId: string | null;
 };
 
 export type WorkflowEditorNodePosition = {

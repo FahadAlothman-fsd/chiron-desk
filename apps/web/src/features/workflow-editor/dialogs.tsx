@@ -54,6 +54,7 @@ import type {
   WorkflowEditorStep,
   WorkflowFormStepPayload,
 } from "./types";
+import { STEP_TYPE_ICON_CODES, STEP_TYPE_LABELS } from "./types";
 
 type FormStepDialogProps = {
   open: boolean;
@@ -2653,19 +2654,36 @@ export function EdgeDialog({ open, edge, onOpenChange, onSave, onDelete }: EdgeD
 type WorkflowMetadataDialogProps = {
   open: boolean;
   metadata: WorkflowEditorMetadata;
+  steps: readonly WorkflowEditorStep[];
   onOpenChange: (open: boolean) => void;
   onSave: (nextMetadata: WorkflowEditorMetadata) => Promise<void> | void;
 };
 
+function WorkflowStepOptionBadge({ step }: { step: WorkflowEditorStep }) {
+  return (
+    <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-1 text-[0.62rem] uppercase tracking-[0.12em] text-sky-200">
+      <img
+        src={`/visuals/workflow-editor/step-types/asset-${STEP_TYPE_ICON_CODES[step.stepType]}.svg`}
+        alt=""
+        aria-hidden="true"
+        className="size-3.5 shrink-0 object-contain invert brightness-150 contrast-125"
+      />
+      <span>{STEP_TYPE_LABELS[step.stepType]}</span>
+    </span>
+  );
+}
+
 export function WorkflowMetadataDialog({
   open,
   metadata,
+  steps,
   onOpenChange,
   onSave,
 }: WorkflowMetadataDialogProps) {
   const [key, setKey] = useState(metadata.key);
   const [displayName, setDisplayName] = useState(metadata.displayName);
   const [descriptionMarkdown, setDescriptionMarkdown] = useState(metadata.descriptionMarkdown);
+  const [entryStepId, setEntryStepId] = useState<string | null>(metadata.entryStepId);
 
   useEffect(() => {
     if (!open) {
@@ -2674,9 +2692,14 @@ export function WorkflowMetadataDialog({
     setKey(metadata.key);
     setDisplayName(metadata.displayName);
     setDescriptionMarkdown(metadata.descriptionMarkdown);
+    setEntryStepId(metadata.entryStepId);
   }, [metadata, open]);
 
   const normalizedDisplayName = useMemo(() => displayName.trim(), [displayName]);
+  const selectedEntryStep = useMemo(
+    () => steps.find((step) => step.stepId === entryStepId) ?? null,
+    [entryStepId, steps],
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -2693,6 +2716,7 @@ export function WorkflowMetadataDialog({
               key: key.trim(),
               displayName: normalizedDisplayName,
               descriptionMarkdown: descriptionMarkdown.trim(),
+              entryStepId,
             });
           }}
         >
@@ -2719,6 +2743,66 @@ export function WorkflowMetadataDialog({
                 value={displayName}
                 onChange={(event) => setDisplayName(event.target.value)}
               />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="workflow-editor-metadata-entry-step">Entry Step</Label>
+              <Select
+                value={entryStepId ?? "__none__"}
+                onValueChange={(value) => setEntryStepId(value === "__none__" ? null : value)}
+              >
+                <SelectTrigger
+                  id="workflow-editor-metadata-entry-step"
+                  className="h-auto min-h-8 w-full"
+                >
+                  <span className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left">
+                    <span className="grid min-w-0 gap-0.5">
+                      <span className="truncate text-xs text-foreground">
+                        {selectedEntryStep
+                          ? selectedEntryStep.payload.label?.trim() || selectedEntryStep.payload.key
+                          : "No entry step selected"}
+                      </span>
+                      <span className="truncate text-[0.64rem] uppercase tracking-[0.12em] text-muted-foreground">
+                        {selectedEntryStep
+                          ? selectedEntryStep.payload.key
+                          : "Workflow starts with no explicit entry"}
+                      </span>
+                    </span>
+                    {selectedEntryStep ? (
+                      <WorkflowStepOptionBadge step={selectedEntryStep} />
+                    ) : null}
+                  </span>
+                </SelectTrigger>
+                <SelectContent align="start" className="w-[var(--anchor-width)]">
+                  <SelectItem value="__none__">
+                    <span className="grid min-w-0 gap-0.5">
+                      <span>No entry step</span>
+                      <span className="text-[0.64rem] uppercase tracking-[0.12em] text-muted-foreground">
+                        Clear explicit entry selection
+                      </span>
+                    </span>
+                  </SelectItem>
+                  {steps.map((step) => (
+                    <SelectItem key={step.stepId} value={step.stepId}>
+                      <span className="flex min-w-0 flex-1 items-center justify-between gap-3">
+                        <span className="grid min-w-0 gap-0.5">
+                          <span className="truncate text-xs text-foreground">
+                            {step.payload.label?.trim() || step.payload.key}
+                          </span>
+                          <span className="truncate text-[0.64rem] uppercase tracking-[0.12em] text-muted-foreground">
+                            {step.payload.key}
+                          </span>
+                        </span>
+                        <WorkflowStepOptionBadge step={step} />
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[0.68rem] text-muted-foreground">
+                {selectedEntryStep
+                  ? `Current entry: ${selectedEntryStep.payload.label?.trim() || selectedEntryStep.payload.key}`
+                  : "Choose which workflow step should be treated as the entry step."}
+              </p>
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="workflow-editor-metadata-description">Description</Label>

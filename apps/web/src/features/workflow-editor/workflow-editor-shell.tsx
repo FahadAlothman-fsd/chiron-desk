@@ -416,6 +416,7 @@ export function WorkflowEditorShell({
           <StepTypesGrid onCreateFormStep={openCreateFormDialog} />
 
           <StepListInspector
+            metadata={metadata}
             steps={steps}
             edges={edges}
             selection={selection}
@@ -431,7 +432,6 @@ export function WorkflowEditorShell({
               setStatusMessage(null);
               setSelection(null);
             }}
-            onCreateFormStep={openCreateFormDialog}
             onEditSelectedStep={openEditFormDialog}
             onEditSelectedEdge={() => setEdgeDialogOpen(true)}
             onConnectSteps={(sourceStepKey, targetStepKey) =>
@@ -515,6 +515,7 @@ export function WorkflowEditorShell({
         </aside>
 
         <WorkflowCanvas
+          entryStepId={metadata.entryStepId}
           steps={steps}
           edges={edges}
           selection={selection}
@@ -746,6 +747,7 @@ export function WorkflowEditorShell({
       <WorkflowMetadataDialog
         open={isMetadataDialogOpen}
         metadata={metadata}
+        steps={steps}
         onOpenChange={setMetadataDialogOpen}
         onSave={async (nextMetadata) => {
           await onSaveMetadata(nextMetadata);
