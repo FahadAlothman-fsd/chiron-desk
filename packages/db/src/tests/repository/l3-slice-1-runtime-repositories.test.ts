@@ -50,15 +50,6 @@ const SCHEMA_SQL = [
     status TEXT NOT NULL,
     started_at INTEGER NOT NULL
   )`,
-  `CREATE TABLE methodology_workflow_form_steps (
-    id TEXT PRIMARY KEY,
-    workflow_definition_id TEXT NOT NULL,
-    key TEXT NOT NULL,
-    label TEXT,
-    description_json TEXT,
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
-  )`,
   `CREATE TABLE step_executions (
     id TEXT PRIMARY KEY,
     workflow_execution_id TEXT NOT NULL,

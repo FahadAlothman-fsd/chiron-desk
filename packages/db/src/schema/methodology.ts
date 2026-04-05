@@ -568,7 +568,13 @@ export const methodologyWorkflowContextFactWorkflowReferences = sqliteTable(
       .notNull()
       .references(() => methodologyWorkflows.id, { onDelete: "restrict" }),
   },
-  (table) => [uniqueIndex("methodology_wf_ctx_wf_ref_def_idx").on(table.contextFactDefinitionId)],
+  (table) => [
+    index("methodology_wf_ctx_wf_ref_def_idx").on(table.contextFactDefinitionId),
+    uniqueIndex("methodology_wf_ctx_wf_ref_def_workflow_idx").on(
+      table.contextFactDefinitionId,
+      table.workflowDefinitionId,
+    ),
+  ],
 );
 
 export const methodologyWorkflowContextFactArtifactReferences = sqliteTable(

@@ -93,21 +93,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function parseStringArray(value: string | null): readonly string[] {
-  if (!value) {
-    return [];
-  }
-
-  try {
-    const decoded = JSON.parse(value);
-    return Array.isArray(decoded)
-      ? decoded.filter((entry): entry is string => typeof entry === "string")
-      : [];
-  } catch {
-    return [];
-  }
-}
-
 function parseFormFieldInput(inputJson: unknown): {
   readonly contextFactDefinitionId: string | null;
   readonly uiMultiplicityMode?: "one" | "many";
@@ -126,6 +111,42 @@ function parseFormFieldInput(inputJson: unknown): {
       : undefined;
 
   return { contextFactDefinitionId, ...(uiMultiplicityMode ? { uiMultiplicityMode } : {}) };
+}
+
+function getAudienceGuidance(
+  value: unknown,
+):
+  | { readonly human: { readonly markdown: string }; readonly agent: { readonly markdown: string } }
+  | undefined {
+  if (!isRecord(value) || !isRecord(value.human) || !isRecord(value.agent)) {
+    return undefined;
+  }
+
+  if (typeof value.human.markdown !== "string" || typeof value.agent.markdown !== "string") {
+    return undefined;
+  }
+
+  return {
+    human: { markdown: value.human.markdown },
+    agent: { markdown: value.agent.markdown },
+  };
+}
+
+function getFormFieldBindingReference(inputJson: unknown): string | null {
+  return parseFormFieldInput(inputJson).contextFactDefinitionId;
+}
+
+function buildFactIdentifierMap(facts: readonly WorkflowContextFactDto[]) {
+  const factByIdentifier = new Map<string, WorkflowContextFactDto>();
+
+  for (const fact of facts) {
+    factByIdentifier.set(fact.key, fact);
+    if (typeof fact.contextFactDefinitionId === "string") {
+      factByIdentifier.set(fact.contextFactDefinitionId, fact);
+    }
+  }
+
+  return factByIdentifier;
 }
 
 async function inferDraftSpecWorkUnitTypeKey(
@@ -202,6 +223,9 @@ function buildFormPayload(
     key: step.key,
     ...(step.displayName ? { label: step.displayName } : {}),
     ...(descriptionJson ? { descriptionJson } : {}),
+    ...(getAudienceGuidance(step.guidanceJson)
+      ? { guidance: getAudienceGuidance(step.guidanceJson) }
+      : {}),
     fields: fields.map((field) => {
       const binding = parseFormFieldInput(field.inputJson);
       return {
@@ -582,9 +606,6 @@ async function readWorkflowContextFacts(
   const externalByDefinitionId = new Map(
     externalBindingRows.map((row) => [row.contextFactDefinitionId, row]),
   );
-  const workflowReferenceByDefinitionId = new Map(
-    workflowReferenceRows.map((row) => [row.contextFactDefinitionId, row]),
-  );
   const artifactReferenceByDefinitionId = new Map(
     artifactReferenceRows.map((row) => [row.contextFactDefinitionId, row]),
   );
@@ -600,9 +621,13 @@ async function readWorkflowContextFacts(
 
   return definitionRows.map((definition): WorkflowContextFactDto => {
     const metadata = {
+      contextFactDefinitionId: definition.id,
       ...(typeof definition.label === "string" ? { label: definition.label } : {}),
       ...(getContextFactDescriptionJson(definition.descriptionJson)
         ? { descriptionJson: getContextFactDescriptionJson(definition.descriptionJson) }
+        : {}),
+      ...(getAudienceGuidance(definition.guidanceJson)
+        ? { guidance: getAudienceGuidance(definition.guidanceJson) }
         : {}),
     };
 
@@ -637,15 +662,14 @@ async function readWorkflowContextFacts(
         };
       }
       case "workflow_reference_fact": {
-        const row = workflowReferenceByDefinitionId.get(definition.id);
-        if (!row) {
+        const rows = workflowReferenceRows.filter(
+          (row) => row.contextFactDefinitionId === definition.id,
+        );
+        if (rows.length === 0) {
           throw new Error(`Missing workflow reference payload for '${definition.factKey}'`);
         }
 
-        const allowedWorkflowDefinitionIds =
-          parseStringArray(row.workflowDefinitionId).length > 0
-            ? parseStringArray(row.workflowDefinitionId)
-            : [row.workflowDefinitionId];
+        const allowedWorkflowDefinitionIds = rows.map((row) => row.workflowDefinitionId);
 
         return {
           kind: "workflow_reference_fact",
@@ -2967,7 +2991,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               label: fact.label ?? null,
               descriptionJson: fact.descriptionJson ?? null,
               cardinality: fact.cardinality,
-              guidanceJson: sql.raw("null"),
+              guidanceJson: fact.guidance ?? null,
             })
             .returning({ id: methodologyWorkflowContextFactDefinitions.id });
 
@@ -2977,11 +3001,19 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           }
 
           await insertContextFactSubtypeRow(tx, definitionId, fact);
-          return fact;
+          return {
+            ...fact,
+            contextFactDefinitionId: definitionId,
+          };
         }),
       ),
 
-    updateWorkflowContextFactByDefinitionId: ({ versionId, workflowDefinitionId, factKey, fact }) =>
+    updateWorkflowContextFactByDefinitionId: ({
+      versionId,
+      workflowDefinitionId,
+      contextFactDefinitionId,
+      fact,
+    }) =>
       dbEffect("methodology.updateWorkflowContextFactByDefinitionId", () =>
         db.transaction(async (tx) => {
           const workflow = await findWorkflowRow(tx, { versionId, workflowDefinitionId });
@@ -3001,13 +3033,13 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             .where(
               and(
                 eq(methodologyWorkflowContextFactDefinitions.workflowId, workflowDefinitionId),
-                eq(methodologyWorkflowContextFactDefinitions.factKey, factKey),
+                eq(methodologyWorkflowContextFactDefinitions.id, contextFactDefinitionId),
               ),
             )
             .limit(1);
           const definitionId = existingRows[0]?.id;
           if (!definitionId) {
-            throw new Error(`Workflow context fact '${factKey}' not found`);
+            throw new Error(`Workflow context fact '${contextFactDefinitionId}' not found`);
           }
 
           await tx
@@ -3018,7 +3050,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               label: fact.label ?? null,
               descriptionJson: fact.descriptionJson ?? null,
               cardinality: fact.cardinality,
-              guidanceJson: sql.raw("null"),
+              guidanceJson: fact.guidance ?? null,
             })
             .where(eq(methodologyWorkflowContextFactDefinitions.id, definitionId));
 
@@ -3029,7 +3061,11 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
         }),
       ),
 
-    deleteWorkflowContextFactByDefinitionId: ({ versionId, workflowDefinitionId, factKey }) =>
+    deleteWorkflowContextFactByDefinitionId: ({
+      versionId,
+      workflowDefinitionId,
+      contextFactDefinitionId,
+    }) =>
       dbEffect("methodology.deleteWorkflowContextFactByDefinitionId", () =>
         db.transaction(async (tx) => {
           const workflow = await findWorkflowRow(tx, { versionId, workflowDefinitionId });
@@ -3037,6 +3073,25 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             throw new Error(
               `Workflow not found for versionId=${versionId}, workflowDefinitionId=${workflowDefinitionId}`,
             );
+          }
+
+          const definitionRows = await tx
+            .select({
+              id: methodologyWorkflowContextFactDefinitions.id,
+              factKey: methodologyWorkflowContextFactDefinitions.factKey,
+            })
+            .from(methodologyWorkflowContextFactDefinitions)
+            .where(
+              and(
+                eq(methodologyWorkflowContextFactDefinitions.workflowId, workflowDefinitionId),
+                eq(methodologyWorkflowContextFactDefinitions.id, contextFactDefinitionId),
+              ),
+            )
+            .limit(1);
+          const definitionId = definitionRows[0]?.id;
+          const factKey = definitionRows[0]?.factKey;
+          if (!definitionId) {
+            throw new Error(`Workflow context fact '${contextFactDefinitionId}' not found`);
           }
 
           const boundFieldRows = await tx
@@ -3056,9 +3111,10 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               ),
             );
 
-          const boundField = boundFieldRows.find(
-            (row) => parseFormFieldInput(row.inputJson).contextFactDefinitionId === factKey,
-          );
+          const boundField = boundFieldRows.find((row) => {
+            const binding = getFormFieldBindingReference(row.inputJson);
+            return binding === factKey || binding === definitionId;
+          });
           if (boundField) {
             throw new RepositoryError({
               operation: "methodology.deleteWorkflowContextFactByDefinitionId",
@@ -3073,7 +3129,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             .where(
               and(
                 eq(methodologyWorkflowContextFactDefinitions.workflowId, workflowDefinitionId),
-                eq(methodologyWorkflowContextFactDefinitions.factKey, factKey),
+                eq(methodologyWorkflowContextFactDefinitions.id, contextFactDefinitionId),
               ),
             );
         }),
@@ -3090,7 +3146,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           }
 
           const facts = await readWorkflowContextFacts(tx, versionId, workflowDefinitionId);
-          const factByKey = new Map(facts.map((fact) => [fact.key, fact]));
+          const factByIdentifier = buildFactIdentifierMap(facts);
 
           const rows = await tx
             .insert(methodologyWorkflowSteps)
@@ -3101,7 +3157,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               type: "form",
               displayName: payload.label ?? null,
               configJson: { descriptionJson: payload.descriptionJson ?? null },
-              guidanceJson: null,
+              guidanceJson: payload.guidance ?? null,
             })
             .returning();
           const step = rows[0];
@@ -3111,21 +3167,27 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
 
           if (payload.fields.length > 0) {
             await tx.insert(methodologyWorkflowFormFields).values(
-              payload.fields.map((field, index) => ({
-                formStepId: step.id,
-                key: field.fieldKey,
-                label: field.fieldLabel,
-                valueType: deriveStoredFieldValueType(factByKey.get(field.contextFactDefinitionId)),
-                required: field.required,
-                inputJson: {
-                  contextFactDefinitionId: field.contextFactDefinitionId,
-                  ...(field.uiMultiplicityMode
-                    ? { uiMultiplicityMode: field.uiMultiplicityMode }
-                    : {}),
-                },
-                descriptionJson: field.helpText ? { markdown: field.helpText } : null,
-                sortOrder: index,
-              })),
+              payload.fields.map((field, index) => {
+                const fact = factByIdentifier.get(field.contextFactDefinitionId);
+                const contextFactDefinitionId =
+                  fact?.contextFactDefinitionId ?? field.contextFactDefinitionId;
+
+                return {
+                  formStepId: step.id,
+                  key: field.fieldKey,
+                  label: field.fieldLabel,
+                  valueType: deriveStoredFieldValueType(fact),
+                  required: field.required,
+                  inputJson: {
+                    contextFactDefinitionId,
+                    ...(field.uiMultiplicityMode
+                      ? { uiMultiplicityMode: field.uiMultiplicityMode }
+                      : {}),
+                  },
+                  descriptionJson: field.helpText ? { markdown: field.helpText } : null,
+                  sortOrder: index,
+                };
+              }),
             );
           }
 
@@ -3205,7 +3267,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           }
 
           const facts = await readWorkflowContextFacts(tx, versionId, workflowDefinitionId);
-          const factByKey = new Map(facts.map((fact) => [fact.key, fact]));
+          const factByIdentifier = buildFactIdentifierMap(facts);
 
           const rows = await tx
             .update(methodologyWorkflowSteps)
@@ -3214,6 +3276,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               type: "form",
               displayName: payload.label ?? null,
               configJson: { descriptionJson: payload.descriptionJson ?? null },
+              guidanceJson: payload.guidance ?? null,
             })
             .where(
               and(
@@ -3233,21 +3296,27 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
 
           if (payload.fields.length > 0) {
             await tx.insert(methodologyWorkflowFormFields).values(
-              payload.fields.map((field, index) => ({
-                formStepId: stepId,
-                key: field.fieldKey,
-                label: field.fieldLabel,
-                valueType: deriveStoredFieldValueType(factByKey.get(field.contextFactDefinitionId)),
-                required: field.required,
-                inputJson: {
-                  contextFactDefinitionId: field.contextFactDefinitionId,
-                  ...(field.uiMultiplicityMode
-                    ? { uiMultiplicityMode: field.uiMultiplicityMode }
-                    : {}),
-                },
-                descriptionJson: field.helpText ? { markdown: field.helpText } : null,
-                sortOrder: index,
-              })),
+              payload.fields.map((field, index) => {
+                const fact = factByIdentifier.get(field.contextFactDefinitionId);
+                const contextFactDefinitionId =
+                  fact?.contextFactDefinitionId ?? field.contextFactDefinitionId;
+
+                return {
+                  formStepId: stepId,
+                  key: field.fieldKey,
+                  label: field.fieldLabel,
+                  valueType: deriveStoredFieldValueType(fact),
+                  required: field.required,
+                  inputJson: {
+                    contextFactDefinitionId,
+                    ...(field.uiMultiplicityMode
+                      ? { uiMultiplicityMode: field.uiMultiplicityMode }
+                      : {}),
+                  },
+                  descriptionJson: field.helpText ? { markdown: field.helpText } : null,
+                  sortOrder: index,
+                };
+              }),
             );
           }
 

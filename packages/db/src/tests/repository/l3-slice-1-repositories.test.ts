@@ -173,9 +173,14 @@ describe("l3 slice-1 methodology repository", () => {
           workflowDefinitionId: "workflow-1",
           fact: {
             kind: "plain_value_fact",
+            contextFactDefinitionId: "ctx-summary",
             key: "summary",
             label: "Summary",
             descriptionJson: { markdown: "Reusable summary for downstream workflow steps" },
+            guidance: {
+              human: { markdown: "Capture the reusable summary." },
+              agent: { markdown: "Preserve the authored summary." },
+            },
             cardinality: "one",
             valueType: "string",
           },
@@ -205,6 +210,7 @@ describe("l3 slice-1 methodology repository", () => {
           workflowDefinitionId: "workflow-1",
           fact: {
             kind: "workflow_reference_fact",
+            contextFactDefinitionId: "ctx-supporting-workflows",
             key: "supporting_workflows",
             cardinality: "many",
             allowedWorkflowDefinitionIds: ["wf-2", "wf-3"],
@@ -227,7 +233,6 @@ describe("l3 slice-1 methodology repository", () => {
             kind: "work_unit_draft_spec_fact",
             key: "story_draft",
             cardinality: "many",
-            workUnitTypeKey: "WU.STORY",
             includedFactDefinitionIds: ["fact-title", "fact-acceptance-criteria"],
           },
         });
@@ -236,6 +241,13 @@ describe("l3 slice-1 methodology repository", () => {
           versionId: "version-1",
           workflowDefinitionId: "workflow-1",
         });
+        const summaryFactId = facts.find((fact) => fact.key === "summary")?.contextFactDefinitionId;
+        const supportingWorkflowsFactId = facts.find(
+          (fact) => fact.key === "supporting_workflows",
+        )?.contextFactDefinitionId;
+
+        expect(summaryFactId).toEqual(expect.any(String));
+        expect(supportingWorkflowsFactId).toEqual(expect.any(String));
 
         expect(facts.map((fact) => fact.kind).sort()).toEqual(
           [
@@ -249,11 +261,23 @@ describe("l3 slice-1 methodology repository", () => {
         );
         expect(facts).toContainEqual({
           kind: "plain_value_fact",
+          contextFactDefinitionId: expect.any(String),
           key: "summary",
           label: "Summary",
           descriptionJson: { markdown: "Reusable summary for downstream workflow steps" },
+          guidance: {
+            human: { markdown: "Capture the reusable summary." },
+            agent: { markdown: "Preserve the authored summary." },
+          },
           cardinality: "one",
           valueType: "string",
+        });
+        expect(facts).toContainEqual({
+          kind: "workflow_reference_fact",
+          contextFactDefinitionId: expect.any(String),
+          key: "supporting_workflows",
+          cardinality: "many",
+          allowedWorkflowDefinitionIds: ["wf-2", "wf-3"],
         });
 
         const createdStep = yield* repo.createFormStepDefinition({
@@ -264,9 +288,13 @@ describe("l3 slice-1 methodology repository", () => {
             key: "capture-context",
             label: "Capture context",
             descriptionJson: { markdown: "Collect reusable context" },
+            guidance: {
+              human: { markdown: "Ask for the reusable context." },
+              agent: { markdown: "Normalize the reusable context." },
+            },
             fields: [
               {
-                contextFactDefinitionId: "summary",
+                contextFactDefinitionId: summaryFactId!,
                 fieldLabel: "Summary",
                 fieldKey: "summary",
                 helpText: "Required summary",
@@ -284,16 +312,20 @@ describe("l3 slice-1 methodology repository", () => {
             key: "capture-context-v2",
             label: "Capture context v2",
             descriptionJson: { markdown: "Collect more reusable context" },
+            guidance: {
+              human: { markdown: "Confirm the reusable context." },
+              agent: { markdown: "Keep workflow references ordered." },
+            },
             fields: [
               {
-                contextFactDefinitionId: "summary",
+                contextFactDefinitionId: summaryFactId!,
                 fieldLabel: "Summary",
                 fieldKey: "summary",
                 helpText: "Required summary",
                 required: true,
               },
               {
-                contextFactDefinitionId: "supporting_workflows",
+                contextFactDefinitionId: supportingWorkflowsFactId!,
                 fieldLabel: "Supporting workflows",
                 fieldKey: "supportingWorkflows",
                 helpText: null,
@@ -315,29 +347,63 @@ describe("l3 slice-1 methodology repository", () => {
         expect(editor.contextFacts.map((fact) => fact.key)).toContain("summary");
         expect(editor.contextFacts).toContainEqual({
           kind: "plain_value_fact",
+          contextFactDefinitionId: expect.any(String),
           key: "summary",
           label: "Summary",
           descriptionJson: { markdown: "Reusable summary for downstream workflow steps" },
+          guidance: {
+            human: { markdown: "Capture the reusable summary." },
+            agent: { markdown: "Preserve the authored summary." },
+          },
           cardinality: "one",
           valueType: "string",
         });
         expect(editor.formDefinitions).toEqual([
           {
             stepId: createdStep.stepId,
-            payload: updatedStep.payload,
+            payload: expect.objectContaining({
+              key: "capture-context-v2",
+              label: "Capture context v2",
+              descriptionJson: { markdown: "Collect more reusable context" },
+              guidance: {
+                human: { markdown: "Confirm the reusable context." },
+                agent: { markdown: "Keep workflow references ordered." },
+              },
+              fields: expect.arrayContaining([
+                expect.objectContaining({
+                  contextFactDefinitionId: expect.any(String),
+                  fieldLabel: "Summary",
+                  fieldKey: "summary",
+                }),
+                expect.objectContaining({
+                  contextFactDefinitionId: expect.any(String),
+                  fieldLabel: "Supporting workflows",
+                  fieldKey: "supportingWorkflows",
+                  uiMultiplicityMode: "one",
+                }),
+              ]),
+            }),
           },
         ]);
-        expect(editor.steps).toContainEqual({
-          stepId: createdStep.stepId,
-          stepType: "form",
-          payload: updatedStep.payload,
-        });
+        expect(editor.steps).toContainEqual(
+          expect.objectContaining({
+            stepId: createdStep.stepId,
+            stepType: "form",
+            payload: expect.objectContaining({
+              key: "capture-context-v2",
+              fields: expect.arrayContaining([
+                expect.objectContaining({ fieldKey: "summary" }),
+                expect.objectContaining({ fieldKey: "supportingWorkflows" }),
+              ]),
+            }),
+          }),
+        );
 
         const deleteAttempt = yield* Effect.either(
           repo.deleteWorkflowContextFactByDefinitionId({
             versionId: "version-1",
             workflowDefinitionId: "workflow-1",
-            factKey: "summary",
+            contextFactDefinitionId: summaryFactId!,
           }),
         );
         expect(deleteAttempt._tag).toBe("Left");
@@ -351,7 +417,7 @@ describe("l3 slice-1 methodology repository", () => {
         yield* repo.deleteWorkflowContextFactByDefinitionId({
           versionId: "version-1",
           workflowDefinitionId: "workflow-1",
-          factKey: "summary",
+          contextFactDefinitionId: summaryFactId!,
         });
 
         const remainingFacts = yield* repo.listWorkflowContextFactsByDefinitionId({
@@ -382,6 +448,7 @@ describe("l3 slice-1 methodology repository", () => {
           workflowDefinitionId: "workflow-1",
           fact: {
             kind: "plain_value_fact",
+            contextFactDefinitionId: "ctx-summary",
             key: "summary",
             cardinality: "one",
             valueType: "string",
@@ -397,7 +464,7 @@ describe("l3 slice-1 methodology repository", () => {
             label: "Capture",
             fields: [
               {
-                contextFactDefinitionId: "summary",
+                contextFactDefinitionId: "ctx-summary",
                 fieldLabel: "Summary",
                 fieldKey: "summary",
                 helpText: null,
