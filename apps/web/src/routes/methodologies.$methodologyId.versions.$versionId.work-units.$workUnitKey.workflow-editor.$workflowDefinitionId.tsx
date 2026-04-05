@@ -505,6 +505,44 @@ function toWorkUnitFactOptions(rawFactDefinitions: unknown) {
   return toFactOptions(rawFactDefinitions, "Work unit fact");
 }
 
+function toWorkUnitTypeOptions(rawWorkUnits: unknown) {
+  const record = asRecord(rawWorkUnits);
+  const workUnitTypes = Array.isArray(record?.workUnitTypes)
+    ? record.workUnitTypes
+    : Array.isArray(rawWorkUnits)
+      ? rawWorkUnits
+      : [];
+
+  return workUnitTypes
+    .map((entry) => {
+      const workUnit = asRecord(entry);
+      if (!workUnit || typeof workUnit.key !== "string") {
+        return null;
+      }
+
+      const label =
+        typeof workUnit.displayName === "string" && workUnit.displayName.trim().length > 0
+          ? workUnit.displayName.trim()
+          : workUnit.key;
+      const description =
+        readMarkdown(workUnit.descriptionJson) ||
+        readMarkdown(workUnit.description) ||
+        (typeof workUnit.cardinality === "string"
+          ? workUnit.cardinality.replaceAll("_", " ")
+          : "") ||
+        "Work unit";
+
+      return {
+        value: workUnit.key,
+        label,
+        description,
+      };
+    })
+    .filter(
+      (entry): entry is { value: string; label: string; description: string } => entry !== null,
+    );
+}
+
 function toWorkflowOptions(rawWorkflows: unknown) {
   const record = asRecord(rawWorkflows);
   const workflows = Array.isArray(record?.workflows)
@@ -605,16 +643,16 @@ export function MethodologyWorkflowEditorRoute() {
     queryFn: () => Promise<unknown>;
   };
   const methodologyFactsQuery = useQuery(methodologyFactsQueryOptions);
-  const workUnitFactsQueryOptions = (orpc.methodology.version.workUnit.fact?.list?.queryOptions?.({
-    input: { versionId, workUnitTypeKey: workUnitKey },
+  const workUnitTypesQueryOptions = (orpc.methodology.version.workUnit.list?.queryOptions?.({
+    input: { versionId },
   }) ?? {
-    queryKey: ["work-unit-facts", versionId, workUnitKey],
-    queryFn: async () => [],
+    queryKey: ["work-unit-types", versionId],
+    queryFn: async () => ({ workUnitTypes: [] }),
   }) as unknown as {
     queryKey: unknown[];
     queryFn: () => Promise<unknown>;
   };
-  const workUnitFactsQuery = useQuery(workUnitFactsQueryOptions);
+  const workUnitTypesQuery = useQuery(workUnitTypesQueryOptions);
   const availableWorkflowsQueryOptions =
     (orpc.methodology.version.workUnit.workflow.list?.queryOptions?.({
       input: { versionId, workUnitTypeKey: workUnitKey },
@@ -718,8 +756,25 @@ export function MethodologyWorkflowEditorRoute() {
       initialEdges={toWorkflowEdges(editorDefinition?.edges)}
       contextFactDefinitions={toContextFactDefinitions(editorDefinition?.contextFacts)}
       methodologyFacts={toMethodologyFactOptions(methodologyFactsQuery.data)}
-      workUnitFacts={toWorkUnitFactOptions(workUnitFactsQuery.data)}
+      workUnitTypes={toWorkUnitTypeOptions(workUnitTypesQuery.data)}
       availableWorkflows={toWorkflowOptions(availableWorkflowsQuery.data)}
+      workUnitFactsQueryScope={versionId}
+      loadWorkUnitFacts={async (selectedWorkUnitTypeKey) => {
+        const workUnitFactsQueryOptions =
+          (orpc.methodology.version.workUnit.fact?.list?.queryOptions?.({
+            input: { versionId, workUnitTypeKey: selectedWorkUnitTypeKey },
+          }) ?? {
+            queryKey: ["work-unit-facts", versionId, selectedWorkUnitTypeKey],
+            queryFn: async () => [],
+          }) as unknown as {
+            queryKey: unknown[];
+            queryFn: () => Promise<unknown>;
+          };
+
+        const data = await queryClient.fetchQuery(workUnitFactsQueryOptions);
+
+        return toWorkUnitFactOptions(data);
+      }}
       onSaveMetadata={async (metadata) => {
         await updateWorkflowMutation.mutateAsync({
           versionId,

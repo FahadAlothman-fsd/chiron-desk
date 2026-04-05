@@ -40,7 +40,7 @@ type WorkflowEditorShellProps = {
     label: string;
     description?: string;
   }[];
-  workUnitFacts: readonly {
+  workUnitTypes: readonly {
     value: string;
     label: string;
     description?: string;
@@ -50,6 +50,14 @@ type WorkflowEditorShellProps = {
     label: string;
     description?: string;
   }[];
+  workUnitFactsQueryScope: string;
+  loadWorkUnitFacts: (workUnitTypeKey: string) => Promise<
+    readonly {
+      value: string;
+      label: string;
+      description?: string;
+    }[]
+  >;
   onSaveMetadata: (metadata: WorkflowEditorMetadata) => Promise<void>;
   onCreateEdge?: (edge: WorkflowEditorEdge) => Promise<void>;
   onUpdateEdge?: (edgeId: string, descriptionMarkdown: string) => Promise<void>;
@@ -132,8 +140,10 @@ export function WorkflowEditorShell({
   initialEdges,
   contextFactDefinitions,
   methodologyFacts,
-  workUnitFacts,
+  workUnitTypes,
   availableWorkflows,
+  workUnitFactsQueryScope,
+  loadWorkUnitFacts,
   onSaveMetadata,
   onCreateFormStep,
   onUpdateFormStep,
@@ -472,8 +482,10 @@ export function WorkflowEditorShell({
         mode={contextFactDialogMode}
         fact={contextFactDialogMode === "edit" ? editingContextFact : undefined}
         methodologyFacts={methodologyFacts}
-        workUnitFacts={workUnitFacts}
+        workUnitTypes={workUnitTypes}
         availableWorkflows={availableWorkflows}
+        workUnitFactsQueryScope={workUnitFactsQueryScope}
+        loadWorkUnitFacts={loadWorkUnitFacts}
         onOpenChange={setContextFactDialogOpen}
         onSave={async (draft) => {
           setStatusMessage(null);

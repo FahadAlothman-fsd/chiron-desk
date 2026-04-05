@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { CheckIcon, ChevronsUpDownIcon, PlusIcon, XIcon } from "lucide-react";
 
@@ -65,8 +66,10 @@ type WorkflowContextFactDialogProps = {
   mode: "create" | "edit";
   fact?: WorkflowContextFactDefinitionItem | undefined;
   methodologyFacts: readonly PickerOption[];
-  workUnitFacts: readonly PickerOption[];
+  workUnitTypes: readonly PickerOption[];
   availableWorkflows: readonly PickerOption[];
+  workUnitFactsQueryScope: string;
+  loadWorkUnitFacts: (workUnitTypeKey: string) => Promise<readonly PickerOption[]>;
   onOpenChange: (open: boolean) => void;
   onSave: (draft: WorkflowContextFactDraft) => Promise<void> | void;
 };
@@ -90,12 +93,6 @@ const ARTIFACT_REFERENCE_OPTIONS = [
   { value: "ART.ARCH", label: "ART.ARCH", description: "Architecture artifact" },
   { value: "ART.STORY", label: "ART.STORY", description: "Story artifact" },
   { value: "ART.CODE", label: "ART.CODE", description: "Implementation/code artifact" },
-] as const;
-
-const WORK_UNIT_TYPE_OPTIONS = [
-  { value: "WU.STORY", label: "WU.STORY", description: "Story delivery work unit" },
-  { value: "WU.EPIC", label: "WU.EPIC", description: "Epic decomposition work unit" },
-  { value: "WU.TASK", label: "WU.TASK", description: "Task execution work unit" },
 ] as const;
 
 type PickerOption = {
@@ -348,12 +345,22 @@ function SearchableCombobox(props: {
   placeholder: string;
   searchPlaceholder: string;
   emptyLabel: string;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const selectedOption = props.options.find((option) => option.value === props.value);
 
+  useEffect(() => {
+    if (props.disabled && open) {
+      setOpen(false);
+    }
+  }, [open, props.disabled]);
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={props.disabled ? false : open}
+      onOpenChange={props.disabled ? undefined : setOpen}
+    >
       <PopoverTrigger
         render={
           <Button
@@ -362,6 +369,7 @@ function SearchableCombobox(props: {
             role="combobox"
             aria-labelledby={props.labelId}
             aria-expanded={open}
+            disabled={props.disabled}
             className="h-8 w-full justify-between rounded-none border-input bg-transparent px-2.5 py-1 font-normal"
           >
             <span className="truncate text-xs">
@@ -1134,8 +1142,10 @@ export function WorkflowContextFactDialog({
   mode,
   fact,
   methodologyFacts,
-  workUnitFacts,
+  workUnitTypes,
   availableWorkflows,
+  workUnitFactsQueryScope,
+  loadWorkUnitFacts,
   onOpenChange,
   onSave,
 }: WorkflowContextFactDialogProps) {
@@ -1154,6 +1164,20 @@ export function WorkflowContextFactDialog({
   const [jsonSubSchemaDrafts, setJsonSubSchemaDrafts] = useState<JsonSubSchemaDraft[]>([]);
   const [pendingIncludedFactKey, setPendingIncludedFactKey] = useState("");
   const [draftSpecCards, setDraftSpecCards] = useState<WorkUnitDraftFactCard[]>([]);
+  const selectedWorkUnitTypeKey =
+    draft.kind === "work_unit_draft_spec_fact" ? (draft.workUnitTypeKey?.trim() ?? "") : "";
+  const selectedWorkUnitFactsQuery = useQuery({
+    queryKey: [
+      "workflow-editor",
+      "work-unit-draft-spec-facts",
+      workUnitFactsQueryScope,
+      selectedWorkUnitTypeKey,
+    ],
+    queryFn: async () => loadWorkUnitFacts(selectedWorkUnitTypeKey),
+    enabled:
+      open && draft.kind === "work_unit_draft_spec_fact" && selectedWorkUnitTypeKey.length > 0,
+  });
+  const selectedWorkUnitFacts = selectedWorkUnitFactsQuery.data ?? [];
 
   useEffect(() => {
     if (!open) {
@@ -1178,21 +1202,21 @@ export function WorkflowContextFactDialog({
     );
     setPendingIncludedFactKey("");
     setDraftSpecCards(
-      nextDraft.includedFactKeys.map((factKey) =>
-        createWorkUnitDraftFactCard(factKey, workUnitFacts),
-      ),
+      nextDraft.includedFactKeys.map((factKey) => createWorkUnitDraftFactCard(factKey, [])),
     );
     setActiveTab("contract");
-  }, [fact, open, workUnitFacts]);
+  }, [fact, open]);
 
   useEffect(() => {
-    if (!open || workUnitFacts.length === 0) {
+    if (!open || selectedWorkUnitFacts.length === 0) {
       return;
     }
 
     setDraftSpecCards((current) =>
       current.map((entry) => {
-        const matchedOption = workUnitFacts.find((option) => option.value === entry.factKey);
+        const matchedOption = selectedWorkUnitFacts.find(
+          (option) => option.value === entry.factKey,
+        );
 
         return matchedOption
           ? {
@@ -1203,14 +1227,14 @@ export function WorkflowContextFactDialog({
           : entry;
       }),
     );
-  }, [open, workUnitFacts]);
+  }, [open, selectedWorkUnitFacts]);
 
   const availableDraftSpecFactOptions = useMemo(
     () =>
-      workUnitFacts.filter(
+      selectedWorkUnitFacts.filter(
         (option) => !draftSpecCards.some((entry) => entry.factKey === option.value),
       ),
-    [draftSpecCards, workUnitFacts],
+    [draftSpecCards, selectedWorkUnitFacts],
   );
 
   const canSave = draft.key.trim().length > 0;
@@ -1946,10 +1970,16 @@ export function WorkflowContextFactDialog({
                       <SearchableCombobox
                         labelId="workflow-editor-context-fact-work-unit-type"
                         value={draft.workUnitTypeKey ?? ""}
-                        onChange={(value) =>
-                          setDraft((previous) => ({ ...previous, workUnitTypeKey: value }))
-                        }
-                        options={WORK_UNIT_TYPE_OPTIONS}
+                        onChange={(value) => {
+                          setPendingIncludedFactKey("");
+                          setDraftSpecCards([]);
+                          setDraft((previous) => ({
+                            ...previous,
+                            workUnitTypeKey: value,
+                            includedFactKeys: [],
+                          }));
+                        }}
+                        options={workUnitTypes}
                         placeholder="Select a work unit type"
                         searchPlaceholder="Search work unit types..."
                         emptyLabel="No work unit types found."
@@ -1979,16 +2009,30 @@ export function WorkflowContextFactDialog({
                               value={pendingIncludedFactKey}
                               onChange={setPendingIncludedFactKey}
                               options={availableDraftSpecFactOptions}
-                              placeholder="Select a fact key"
+                              placeholder={
+                                selectedWorkUnitTypeKey.length > 0
+                                  ? "Select a fact key"
+                                  : "Select a work unit type first"
+                              }
                               searchPlaceholder="Search fact keys..."
-                              emptyLabel="No fact keys found."
+                              emptyLabel={
+                                selectedWorkUnitTypeKey.length === 0
+                                  ? "Select a work unit type first."
+                                  : selectedWorkUnitFactsQuery.isLoading
+                                    ? "Loading fact keys..."
+                                    : "No fact keys found."
+                              }
+                              disabled={selectedWorkUnitTypeKey.length === 0}
                             />
                           </div>
                           <div className="flex items-end">
                             <Button
                               type="button"
                               className="rounded-none"
-                              disabled={pendingIncludedFactKey.length === 0}
+                              disabled={
+                                selectedWorkUnitTypeKey.length === 0 ||
+                                pendingIncludedFactKey.length === 0
+                              }
                               onClick={() => {
                                 if (pendingIncludedFactKey.length === 0) {
                                   return;
@@ -1998,7 +2042,7 @@ export function WorkflowContextFactDialog({
                                   ...draftSpecCards,
                                   createWorkUnitDraftFactCard(
                                     pendingIncludedFactKey,
-                                    workUnitFacts,
+                                    selectedWorkUnitFacts,
                                   ),
                                 ];
                                 setDraftSpecCards(nextCards);
@@ -2016,8 +2060,11 @@ export function WorkflowContextFactDialog({
                         </div>
                       ) : (
                         <p className="text-xs text-muted-foreground">
-                          Every available work unit fact is already included in this draft-spec
-                          composer.
+                          {selectedWorkUnitTypeKey.length === 0
+                            ? "Select a work unit type to load draft-spec fact keys."
+                            : selectedWorkUnitFactsQuery.isLoading
+                              ? "Loading facts for the selected work unit..."
+                              : "Every available work unit fact is already included in this draft-spec composer."}
                         </p>
                       )}
 
