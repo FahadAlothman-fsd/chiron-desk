@@ -1,12 +1,15 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import type { FormStepPayload } from "@chiron/contracts/methodology/workflow";
+import { toast } from "@/components/ui/sonner";
 
-import {
-  type WorkflowContextFactDefinitionItem,
-  type WorkflowEditorEdge,
-  type WorkflowEditorMetadata,
-  type WorkflowEditorStep,
+import type {
+  WorkflowContextFactDefinitionItem,
+  WorkflowContextFactDraft,
+  WorkflowEditorEdge,
+  WorkflowEditorGuidance,
+  WorkflowEditorMetadata,
+  WorkflowEditorStep,
+  WorkflowFormStepPayload,
 } from "../features/workflow-editor/types";
 import { WorkflowEditorShell } from "../features/workflow-editor/workflow-editor-shell";
 
@@ -16,139 +19,273 @@ export const Route = createFileRoute(
   component: MethodologyWorkflowEditorRoute,
 });
 
-type RawWorkflow = {
-  workflowDefinitionId?: unknown;
-  key?: unknown;
-  displayName?: unknown;
-  descriptionJson?: { markdown?: unknown } | null;
-  description?: { markdown?: unknown } | string | null;
-  metadata?: Record<string, unknown> | null;
-  steps?: unknown[];
-  edges?: unknown[];
+type RawEditorDefinition = {
+  workflow?: unknown;
+  steps?: unknown;
+  edges?: unknown;
+  contextFacts?: unknown;
+  formDefinitions?: unknown;
 };
 
-function resolveWorkflowDefinitionId(workflow: RawWorkflow): string {
-  if (
-    typeof workflow.workflowDefinitionId === "string" &&
-    workflow.workflowDefinitionId.length > 0
-  ) {
-    return workflow.workflowDefinitionId;
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function readMarkdown(value: unknown) {
+  if (typeof value === "string") {
+    return value;
   }
 
-  if (typeof workflow.metadata?.workflowDefinitionId === "string") {
-    return workflow.metadata.workflowDefinitionId;
+  const record = asRecord(value);
+  if (!record) {
+    return "";
+  }
+
+  if (typeof record.markdown === "string") {
+    return record.markdown;
   }
 
   return "";
 }
 
+function readGuidance(value: unknown): WorkflowEditorGuidance {
+  const record = asRecord(value);
+  if (!record) {
+    return { humanMarkdown: "", agentMarkdown: "" };
+  }
+
+  const human = readMarkdown(record.human);
+  const agent = readMarkdown(record.agent);
+
+  return { humanMarkdown: human, agentMarkdown: agent };
+}
+
+function toErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (error && typeof error === "object" && "message" in error) {
+    return String((error as { message: unknown }).message);
+  }
+
+  return String(error);
+}
+
+function normalizeContextFactKind(
+  value: unknown,
+): WorkflowContextFactDefinitionItem["kind"] | null {
+  switch (value) {
+    case "plain_value_fact":
+    case "definition_backed_external_fact":
+    case "bound_external_fact":
+    case "workflow_reference_fact":
+    case "artifact_reference_fact":
+    case "work_unit_draft_spec_fact":
+      return value;
+    case "plain_value":
+      return "plain_value_fact";
+    case "workflow_reference":
+      return "workflow_reference_fact";
+    case "artifact_reference":
+      return "artifact_reference_fact";
+    case "draft_spec":
+      return "work_unit_draft_spec_fact";
+    case "external_binding":
+      return "bound_external_fact";
+    default:
+      return null;
+  }
+}
+
+function summarizeContextFact(fact: WorkflowContextFactDraft | WorkflowContextFactDefinitionItem) {
+  const lead = `${fact.kind.replaceAll("_", " ")} · ${fact.cardinality}`;
+
+  switch (fact.kind) {
+    case "plain_value_fact":
+      return `${lead} · ${fact.valueType ?? "string"}`;
+    case "definition_backed_external_fact":
+    case "bound_external_fact":
+      return fact.externalFactDefinitionId?.trim()
+        ? `${lead} · ${fact.externalFactDefinitionId.trim()}`
+        : lead;
+    case "workflow_reference_fact":
+      return fact.allowedWorkflowDefinitionIds.length > 0
+        ? `${lead} · ${fact.allowedWorkflowDefinitionIds.length} workflow${
+            fact.allowedWorkflowDefinitionIds.length === 1 ? "" : "s"
+          }`
+        : lead;
+    case "artifact_reference_fact":
+      return fact.artifactSlotDefinitionId?.trim()
+        ? `${lead} · ${fact.artifactSlotDefinitionId.trim()}`
+        : lead;
+    case "work_unit_draft_spec_fact":
+      return fact.workUnitTypeKey?.trim() ? `${lead} · ${fact.workUnitTypeKey.trim()}` : lead;
+  }
+}
+
 function toWorkflowMetadata(
   workflowDefinitionId: string,
-  workflow: RawWorkflow,
+  workflow: unknown,
 ): WorkflowEditorMetadata {
+  const value = asRecord(workflow) ?? {};
+
   const descriptionMarkdown =
-    typeof workflow.descriptionJson?.markdown === "string"
-      ? workflow.descriptionJson.markdown
-      : typeof workflow.description === "object" && workflow.description !== null
-        ? typeof workflow.description.markdown === "string"
-          ? workflow.description.markdown
-          : ""
-        : typeof workflow.description === "string"
-          ? workflow.description
-          : "";
+    readMarkdown(value.descriptionJson) ||
+    readMarkdown(value.description) ||
+    readMarkdown(value.guidanceJson);
+  const key =
+    typeof value.key === "string" && value.key.trim().length > 0 ? value.key : workflowDefinitionId;
+  const displayName =
+    typeof value.displayName === "string" && value.displayName.trim().length > 0
+      ? value.displayName
+      : key;
 
   return {
     workflowDefinitionId,
-    key: typeof workflow.key === "string" ? workflow.key : workflowDefinitionId,
-    displayName:
-      typeof workflow.displayName === "string" && workflow.displayName.trim().length > 0
-        ? workflow.displayName
-        : typeof workflow.key === "string"
-          ? workflow.key
-          : workflowDefinitionId,
+    key,
+    displayName,
     descriptionMarkdown,
   };
 }
 
-function toWorkflowSteps(rawSteps: unknown[]): WorkflowEditorStep[] {
-  return rawSteps
-    .map((rawStep, index): WorkflowEditorStep | null => {
-      if (!rawStep || typeof rawStep !== "object") {
-        return null;
-      }
+function toFormFields(rawFields: unknown): WorkflowFormStepPayload["fields"] {
+  if (!Array.isArray(rawFields)) {
+    return [];
+  }
 
-      const step = rawStep as {
-        stepId?: unknown;
-        stepType?: unknown;
-        payload?: unknown;
-        key?: unknown;
-        type?: unknown;
-        displayName?: unknown;
-      };
+  const fields: WorkflowFormStepPayload["fields"] = [];
 
-      if (step.stepType === "form" && step.payload && typeof step.payload === "object") {
-        const payload = step.payload as {
-          key?: unknown;
-          label?: unknown;
-          descriptionJson?: { markdown?: unknown };
-          fields?: unknown;
-          contextFacts?: unknown;
-        };
-        if (typeof payload.key !== "string") {
-          return null;
-        }
+  rawFields.forEach((entry) => {
+    const field = asRecord(entry);
+    if (!field) {
+      return;
+    }
 
-        return {
-          stepId: typeof step.stepId === "string" ? step.stepId : `step-${index}`,
-          stepType: "form",
-          payload: {
-            key: payload.key,
-            ...(typeof payload.label === "string" ? { label: payload.label } : {}),
-            ...(typeof payload.descriptionJson?.markdown === "string"
-              ? { descriptionJson: { markdown: payload.descriptionJson.markdown } }
-              : {}),
-            fields: Array.isArray(payload.fields)
-              ? (payload.fields as FormStepPayload["fields"])
-              : [],
-            contextFacts: Array.isArray(payload.contextFacts)
-              ? (payload.contextFacts as FormStepPayload["contextFacts"])
-              : [],
-          },
-        };
-      }
+    if (typeof field.contextFactDefinitionId === "string") {
+      fields.push({
+        contextFactDefinitionId: field.contextFactDefinitionId,
+        fieldLabel:
+          typeof field.fieldLabel === "string" && field.fieldLabel.trim().length > 0
+            ? field.fieldLabel
+            : field.contextFactDefinitionId,
+        fieldKey:
+          typeof field.fieldKey === "string" && field.fieldKey.trim().length > 0
+            ? field.fieldKey
+            : field.contextFactDefinitionId,
+        helpText:
+          typeof field.helpText === "string"
+            ? field.helpText
+            : field.helpText === null
+              ? null
+              : null,
+        required: field.required === true,
+        ...(field.uiMultiplicityMode === "one" || field.uiMultiplicityMode === "many"
+          ? { uiMultiplicityMode: field.uiMultiplicityMode }
+          : {}),
+      });
+      return;
+    }
 
-      if (step.type !== "form" || typeof step.key !== "string") {
-        return null;
-      }
+    if (typeof field.key === "string") {
+      fields.push({
+        contextFactDefinitionId: field.key,
+        fieldLabel:
+          typeof field.label === "string" && field.label.trim().length > 0
+            ? field.label
+            : field.key,
+        fieldKey: field.key,
+        helpText: readMarkdown(field.descriptionJson) || null,
+        required: field.required === true,
+      });
+    }
+  });
 
-      return {
-        stepId: typeof step.stepId === "string" ? step.stepId : `step-${index}`,
-        stepType: "form",
-        payload: {
-          key: step.key,
-          ...(typeof step.displayName === "string" ? { label: step.displayName } : {}),
-          fields: [],
-          contextFacts: [],
-        },
-      };
-    })
-    .filter((step): step is WorkflowEditorStep => step !== null);
+  return fields;
 }
 
-function toWorkflowEdges(rawEdges: unknown[]): WorkflowEditorEdge[] {
-  return rawEdges
-    .map((rawEdge, index): WorkflowEditorEdge | null => {
-      if (!rawEdge || typeof rawEdge !== "object") {
-        return null;
+function toWorkflowFormPayload(rawPayload: unknown): WorkflowFormStepPayload | null {
+  const payload = asRecord(rawPayload);
+  if (!payload || typeof payload.key !== "string") {
+    return null;
+  }
+
+  return {
+    key: payload.key,
+    ...(typeof payload.label === "string" ? { label: payload.label } : {}),
+    ...(readMarkdown(payload.descriptionJson)
+      ? { descriptionJson: { markdown: readMarkdown(payload.descriptionJson) } }
+      : {}),
+    fields: toFormFields(payload.fields),
+    guidance: readGuidance(payload.guidanceJson ?? payload.guidance),
+  };
+}
+
+function toWorkflowSteps(rawSteps: unknown, rawFormDefinitions: unknown): WorkflowEditorStep[] {
+  const definitionsByStepId = new Map<string, WorkflowFormStepPayload>();
+
+  if (Array.isArray(rawFormDefinitions)) {
+    rawFormDefinitions.forEach((entry) => {
+      const definition = asRecord(entry);
+      if (!definition || typeof definition.stepId !== "string") {
+        return;
       }
 
-      const edge = rawEdge as {
-        edgeId?: unknown;
-        edgeKey?: unknown;
-        fromStepKey?: unknown;
-        toStepKey?: unknown;
-        descriptionJson?: { markdown?: unknown };
-      };
+      const payload = toWorkflowFormPayload(definition.payload);
+      if (payload) {
+        definitionsByStepId.set(definition.stepId, payload);
+      }
+    });
+  }
+
+  const stepsFromWorkflow = Array.isArray(rawSteps)
+    ? rawSteps
+        .map((rawStep, index): WorkflowEditorStep | null => {
+          const step = asRecord(rawStep);
+          if (!step) {
+            return null;
+          }
+
+          if (step.stepType !== "form" && step.type !== "form") {
+            return null;
+          }
+
+          const stepId = typeof step.stepId === "string" ? step.stepId : `step-${index}`;
+          const payload = toWorkflowFormPayload(step.payload) ?? definitionsByStepId.get(stepId);
+
+          if (!payload) {
+            return null;
+          }
+
+          return { stepId, stepType: "form", payload };
+        })
+        .filter((step): step is WorkflowEditorStep => step !== null)
+    : [];
+
+  if (stepsFromWorkflow.length > 0) {
+    return stepsFromWorkflow;
+  }
+
+  return [...definitionsByStepId.entries()].map(([stepId, payload]) => ({
+    stepId,
+    stepType: "form",
+    payload,
+  }));
+}
+
+function toWorkflowEdges(rawEdges: unknown): WorkflowEditorEdge[] {
+  if (!Array.isArray(rawEdges)) {
+    return [];
+  }
+
+  return rawEdges
+    .map((rawEdge, index): WorkflowEditorEdge | null => {
+      const edge = asRecord(rawEdge);
+      if (!edge) {
+        return null;
+      }
 
       if (typeof edge.fromStepKey !== "string" || typeof edge.toStepKey !== "string") {
         return null;
@@ -163,8 +300,7 @@ function toWorkflowEdges(rawEdges: unknown[]): WorkflowEditorEdge[] {
               : `edge-${index}`,
         fromStepKey: edge.fromStepKey,
         toStepKey: edge.toStepKey,
-        descriptionMarkdown:
-          typeof edge.descriptionJson?.markdown === "string" ? edge.descriptionJson.markdown : "",
+        descriptionMarkdown: readMarkdown(edge.descriptionJson),
       };
     })
     .filter((edge): edge is WorkflowEditorEdge => edge !== null);
@@ -176,35 +312,242 @@ function toContextFactDefinitions(rawFacts: unknown): WorkflowContextFactDefinit
   }
 
   return rawFacts
-    .map((entry, index): WorkflowContextFactDefinitionItem | null => {
-      if (!entry || typeof entry !== "object") {
+    .map((entry): WorkflowContextFactDefinitionItem | null => {
+      const value = asRecord(entry);
+      if (!value) {
         return null;
       }
 
-      const value = entry as {
-        contextFactDefinitionId?: unknown;
-        key?: unknown;
-        kind?: unknown;
-        valueType?: unknown;
-        summary?: unknown;
+      const kind = normalizeContextFactKind(value.kind);
+      if (!kind || typeof value.key !== "string") {
+        return null;
+      }
+
+      const cardinality = value.cardinality === "many" ? "many" : "one";
+      const item: WorkflowContextFactDefinitionItem = {
+        contextFactDefinitionId:
+          typeof value.contextFactDefinitionId === "string"
+            ? value.contextFactDefinitionId
+            : typeof value.factKey === "string"
+              ? value.factKey
+              : value.key,
+        key: value.key,
+        label:
+          typeof value.label === "string"
+            ? value.label
+            : typeof value.displayName === "string"
+              ? value.displayName
+              : value.key,
+        descriptionMarkdown:
+          readMarkdown(value.descriptionJson) ||
+          readMarkdown(value.description) ||
+          readMarkdown(value.summaryJson),
+        kind: kind as WorkflowContextFactDefinitionItem["kind"],
+        cardinality,
+        guidance: readGuidance(value.guidanceJson ?? value.guidance),
+        allowedWorkflowDefinitionIds: Array.isArray(value.allowedWorkflowDefinitionIds)
+          ? value.allowedWorkflowDefinitionIds.filter(
+              (workflowId): workflowId is string => typeof workflowId === "string",
+            )
+          : [],
+        includedFactKeys: Array.isArray(value.includedFactKeys)
+          ? value.includedFactKeys.filter(
+              (factKey): factKey is string => typeof factKey === "string",
+            )
+          : Array.isArray(value.fields)
+            ? value.fields
+                .map((field) => asRecord(field)?.key)
+                .filter((factKey): factKey is string => typeof factKey === "string")
+            : [],
+        summary: typeof value.summary === "string" ? value.summary : "",
       };
 
-      if (typeof value.key !== "string" || typeof value.kind !== "string") {
+      if (
+        kind === "plain_value_fact" &&
+        (value.valueType === "string" ||
+          value.valueType === "number" ||
+          value.valueType === "boolean" ||
+          value.valueType === "json")
+      ) {
+        item.valueType = value.valueType;
+      }
+
+      if (typeof value.externalFactDefinitionId === "string") {
+        item.externalFactDefinitionId = value.externalFactDefinitionId;
+      }
+
+      if (typeof value.artifactSlotDefinitionId === "string") {
+        item.artifactSlotDefinitionId = value.artifactSlotDefinitionId;
+      } else if (typeof value.artifactSlotKey === "string") {
+        item.artifactSlotDefinitionId = value.artifactSlotKey;
+      }
+
+      if (typeof value.workUnitTypeKey === "string") {
+        item.workUnitTypeKey = value.workUnitTypeKey;
+      }
+
+      return {
+        ...item,
+        summary: item.summary || summarizeContextFact(item),
+      };
+    })
+    .filter((item): item is WorkflowContextFactDefinitionItem => item !== null);
+}
+
+function toContextFactMutationPayload(draft: WorkflowContextFactDraft) {
+  const descriptionMarkdown = draft.descriptionMarkdown.trim();
+  const guidance = {
+    human: { markdown: draft.guidance.humanMarkdown.trim() },
+    agent: { markdown: draft.guidance.agentMarkdown.trim() },
+  };
+
+  const base = {
+    kind: draft.kind,
+    key: draft.key.trim(),
+    label: draft.label.trim() || undefined,
+    displayName: draft.label.trim() || undefined,
+    cardinality: draft.cardinality,
+    ...(descriptionMarkdown.length > 0
+      ? {
+          descriptionJson: { markdown: descriptionMarkdown },
+          description: { markdown: descriptionMarkdown },
+        }
+      : {}),
+    guidanceJson: guidance,
+    guidance,
+  };
+
+  switch (draft.kind) {
+    case "plain_value_fact":
+      return { ...base, valueType: draft.valueType ?? "string" };
+    case "definition_backed_external_fact":
+    case "bound_external_fact":
+      return {
+        ...base,
+        externalFactDefinitionId: draft.externalFactDefinitionId?.trim() ?? "",
+      };
+    case "workflow_reference_fact":
+      return {
+        ...base,
+        allowedWorkflowDefinitionIds: draft.allowedWorkflowDefinitionIds,
+      };
+    case "artifact_reference_fact":
+      return {
+        ...base,
+        artifactSlotDefinitionId: draft.artifactSlotDefinitionId?.trim() ?? "",
+      };
+    case "work_unit_draft_spec_fact":
+      return {
+        ...base,
+        workUnitTypeKey: draft.workUnitTypeKey?.trim() ?? "",
+        includedFactKeys: draft.includedFactKeys,
+      };
+  }
+}
+
+function getFactDefinitionEntries(rawFactDefinitions: unknown) {
+  const record = asRecord(rawFactDefinitions);
+  return Array.isArray(record?.factDefinitions)
+    ? record.factDefinitions
+    : Array.isArray(record?.factSchemas)
+      ? record.factSchemas
+      : Array.isArray(rawFactDefinitions)
+        ? rawFactDefinitions
+        : [];
+}
+
+function toFactOptions(rawFactDefinitions: unknown, fallbackDescription: string) {
+  const facts = getFactDefinitionEntries(rawFactDefinitions);
+
+  return facts
+    .map((entry) => {
+      const value = asRecord(entry);
+      if (!value || typeof value.key !== "string") {
+        return null;
+      }
+
+      const label =
+        typeof value.name === "string" && value.name.trim().length > 0
+          ? value.name.trim()
+          : typeof value.label === "string" && value.label.trim().length > 0
+            ? value.label.trim()
+            : typeof value.displayName === "string" && value.displayName.trim().length > 0
+              ? value.displayName.trim()
+              : value.key;
+      const description =
+        readMarkdown(value.descriptionJson) ||
+        readMarkdown(value.description) ||
+        [
+          typeof value.factType === "string" ? value.factType : null,
+          typeof value.valueType === "string" ? value.valueType : null,
+          value.cardinality === "one" || value.cardinality === "many" ? value.cardinality : null,
+        ]
+          .filter((segment): segment is string => Boolean(segment))
+          .join(" · ") ||
+        fallbackDescription;
+
+      return {
+        value: value.key,
+        label,
+        description,
+      };
+    })
+    .filter(
+      (entry): entry is { value: string; label: string; description: string } => entry !== null,
+    );
+}
+
+function toMethodologyFactOptions(rawFactDefinitions: unknown) {
+  return toFactOptions(rawFactDefinitions, "Methodology fact");
+}
+
+function toWorkUnitFactOptions(rawFactDefinitions: unknown) {
+  return toFactOptions(rawFactDefinitions, "Work unit fact");
+}
+
+function toWorkflowOptions(rawWorkflows: unknown) {
+  const record = asRecord(rawWorkflows);
+  const workflows = Array.isArray(record?.workflows)
+    ? record.workflows
+    : Array.isArray(rawWorkflows)
+      ? rawWorkflows
+      : [];
+
+  return workflows
+    .map((entry) => {
+      const workflow = asRecord(entry);
+      if (!workflow) {
+        return null;
+      }
+
+      const value =
+        typeof workflow.key === "string" && workflow.key.trim().length > 0
+          ? workflow.key
+          : typeof workflow.workflowDefinitionId === "string" &&
+              workflow.workflowDefinitionId.trim().length > 0
+            ? workflow.workflowDefinitionId
+            : null;
+
+      if (!value) {
         return null;
       }
 
       return {
-        contextFactDefinitionId:
-          typeof value.contextFactDefinitionId === "string"
-            ? value.contextFactDefinitionId
-            : `context-fact-${index}`,
-        key: value.key,
-        kind: value.kind,
-        ...(typeof value.valueType === "string" ? { valueType: value.valueType } : {}),
-        ...(typeof value.summary === "string" ? { summary: value.summary } : {}),
+        value,
+        label:
+          typeof workflow.displayName === "string" && workflow.displayName.trim().length > 0
+            ? workflow.displayName
+            : value,
+        description:
+          readMarkdown(workflow.descriptionJson) ||
+          readMarkdown(workflow.description) ||
+          readMarkdown(workflow.guidanceJson) ||
+          "Workflow",
       };
     })
-    .filter((item): item is WorkflowContextFactDefinitionItem => item !== null);
+    .filter(
+      (entry): entry is { value: string; label: string; description: string } => entry !== null,
+    );
 }
 
 export function MethodologyWorkflowEditorRoute() {
@@ -212,69 +555,82 @@ export function MethodologyWorkflowEditorRoute() {
   const { orpc, queryClient } = Route.useRouteContext();
 
   const workflowProcedures = orpc.methodology.version.workUnit.workflow as unknown as {
-    list: {
-      queryOptions: (args: { input: { versionId: string; workUnitTypeKey: string } }) => unknown;
+    getEditorDefinition?: {
+      queryOptions: (args: {
+        input: {
+          methodologyId: string;
+          versionId: string;
+          workUnitTypeKey: string;
+          workflowDefinitionId: string;
+        };
+      }) => unknown;
     };
-    update?: { mutationOptions: () => unknown };
     updateWorkflowMetadata?: { mutationOptions: () => unknown };
     createFormStep?: { mutationOptions: () => unknown };
     updateFormStep?: { mutationOptions: () => unknown };
+    deleteFormStep?: { mutationOptions: () => unknown };
     createEdge?: { mutationOptions: () => unknown };
     updateEdge?: { mutationOptions: () => unknown };
     deleteEdge?: { mutationOptions: () => unknown };
     contextFact?: {
-      list?: {
-        queryOptions: (args: {
-          input: {
-            versionId: string;
-            workUnitTypeKey: string;
-            workflowDefinitionId: string;
-          };
-        }) => unknown;
-      };
+      create?: { mutationOptions: () => unknown };
+      update?: { mutationOptions: () => unknown };
+      delete?: { mutationOptions: () => unknown };
     };
   };
 
-  const workflowsQueryOptions = workflowProcedures.list.queryOptions({
-    input: { versionId, workUnitTypeKey: workUnitKey },
-  }) as {
-    queryKey: unknown[];
-    queryFn: () => Promise<unknown>;
-  };
-  const workflowsQuery = useQuery(workflowsQueryOptions);
-
-  const contextFactListQueryOptions = workflowProcedures.contextFact?.list?.queryOptions?.({
+  const editorQueryOptions = (workflowProcedures.getEditorDefinition?.queryOptions?.({
     input: {
+      methodologyId,
       versionId,
       workUnitTypeKey: workUnitKey,
       workflowDefinitionId,
     },
-  }) as
-    | {
-        queryKey: unknown[];
-        queryFn: () => Promise<unknown>;
-      }
-    | undefined;
+  }) ?? {
+    queryKey: ["workflow-editor", methodologyId, versionId, workUnitKey, workflowDefinitionId],
+    queryFn: async () => null,
+  }) as unknown as {
+    queryKey: unknown[];
+    queryFn: () => Promise<unknown>;
+  };
 
-  const contextFactDefinitionsQuery = useQuery({
-    ...(contextFactListQueryOptions ?? {
-      queryKey: [
-        "workflow-editor",
-        "context-facts",
-        methodologyId,
-        versionId,
-        workUnitKey,
-        workflowDefinitionId,
-      ],
+  const editorDefinitionQuery = useQuery(editorQueryOptions);
+  const methodologyFactsQueryOptions = (orpc.methodology.version.fact?.list?.queryOptions?.({
+    input: { versionId },
+  }) ?? {
+    queryKey: ["methodology-facts", versionId],
+    queryFn: async () => ({ factDefinitions: [] }),
+  }) as unknown as {
+    queryKey: unknown[];
+    queryFn: () => Promise<unknown>;
+  };
+  const methodologyFactsQuery = useQuery(methodologyFactsQueryOptions);
+  const workUnitFactsQueryOptions = (orpc.methodology.version.workUnit.fact?.list?.queryOptions?.({
+    input: { versionId, workUnitTypeKey: workUnitKey },
+  }) ?? {
+    queryKey: ["work-unit-facts", versionId, workUnitKey],
+    queryFn: async () => [],
+  }) as unknown as {
+    queryKey: unknown[];
+    queryFn: () => Promise<unknown>;
+  };
+  const workUnitFactsQuery = useQuery(workUnitFactsQueryOptions);
+  const availableWorkflowsQueryOptions =
+    (orpc.methodology.version.workUnit.workflow.list?.queryOptions?.({
+      input: { versionId, workUnitTypeKey: workUnitKey },
+    }) ?? {
+      queryKey: ["work-unit-workflows", versionId, workUnitKey],
       queryFn: async () => [],
-    }),
-  });
+    }) as unknown as {
+      queryKey: unknown[];
+      queryFn: () => Promise<unknown>;
+    };
+  const availableWorkflowsQuery = useQuery(availableWorkflowsQueryOptions);
 
   const updateWorkflowMutation = useMutation(
-    (workflowProcedures.updateWorkflowMetadata?.mutationOptions?.() ??
-      workflowProcedures.update?.mutationOptions?.() ?? { mutationFn: async () => null }) as {
-      mutationFn: (input: unknown) => Promise<unknown>;
-    },
+    (workflowProcedures.updateWorkflowMetadata?.mutationOptions?.() ?? {
+      mutationFn: async () => null,
+    }) as { mutationFn: (input: unknown) => Promise<unknown> },
   );
   const createFormStepMutation = useMutation(
     (workflowProcedures.createFormStep?.mutationOptions?.() ?? {
@@ -283,6 +639,26 @@ export function MethodologyWorkflowEditorRoute() {
   );
   const updateFormStepMutation = useMutation(
     (workflowProcedures.updateFormStep?.mutationOptions?.() ?? {
+      mutationFn: async () => null,
+    }) as { mutationFn: (input: unknown) => Promise<unknown> },
+  );
+  const deleteFormStepMutation = useMutation(
+    (workflowProcedures.deleteFormStep?.mutationOptions?.() ?? {
+      mutationFn: async () => null,
+    }) as { mutationFn: (input: unknown) => Promise<unknown> },
+  );
+  const createContextFactMutation = useMutation(
+    (workflowProcedures.contextFact?.create?.mutationOptions?.() ?? {
+      mutationFn: async () => null,
+    }) as { mutationFn: (input: unknown) => Promise<unknown> },
+  );
+  const updateContextFactMutation = useMutation(
+    (workflowProcedures.contextFact?.update?.mutationOptions?.() ?? {
+      mutationFn: async () => null,
+    }) as { mutationFn: (input: unknown) => Promise<unknown> },
+  );
+  const deleteContextFactMutation = useMutation(
+    (workflowProcedures.contextFact?.delete?.mutationOptions?.() ?? {
       mutationFn: async () => null,
     }) as { mutationFn: (input: unknown) => Promise<unknown> },
   );
@@ -302,15 +678,11 @@ export function MethodologyWorkflowEditorRoute() {
     }) as { mutationFn: (input: unknown) => Promise<unknown> },
   );
 
-  const workflows = Array.isArray(workflowsQuery.data)
-    ? (workflowsQuery.data as RawWorkflow[])
-    : [];
-  const workflow = workflows.find((entry) => {
-    const entryId = resolveWorkflowDefinitionId(entry);
-    return entryId === workflowDefinitionId;
-  });
+  const editorDefinition =
+    (editorDefinitionQuery.data as RawEditorDefinition | null | undefined) ?? null;
+  const workflow = editorDefinition ? asRecord(editorDefinition.workflow) : null;
 
-  if (workflowsQuery.isLoading) {
+  if (editorDefinitionQuery.isLoading) {
     return (
       <section className="chiron-frame-flat chiron-tone-canvas grid gap-2 p-4">
         <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
@@ -334,20 +706,26 @@ export function MethodologyWorkflowEditorRoute() {
     );
   }
 
-  const resolvedWorkflowDefinitionId = resolveWorkflowDefinitionId(workflow);
+  const resolvedWorkflowDefinitionId =
+    typeof workflow.workflowDefinitionId === "string" && workflow.workflowDefinitionId.length > 0
+      ? workflow.workflowDefinitionId
+      : workflowDefinitionId;
 
   return (
     <WorkflowEditorShell
       metadata={toWorkflowMetadata(resolvedWorkflowDefinitionId, workflow)}
-      initialSteps={toWorkflowSteps(Array.isArray(workflow.steps) ? workflow.steps : [])}
-      initialEdges={toWorkflowEdges(Array.isArray(workflow.edges) ? workflow.edges : [])}
-      contextFactDefinitions={toContextFactDefinitions(contextFactDefinitionsQuery.data)}
+      initialSteps={toWorkflowSteps(editorDefinition?.steps, editorDefinition?.formDefinitions)}
+      initialEdges={toWorkflowEdges(editorDefinition?.edges)}
+      contextFactDefinitions={toContextFactDefinitions(editorDefinition?.contextFacts)}
+      methodologyFacts={toMethodologyFactOptions(methodologyFactsQuery.data)}
+      workUnitFacts={toWorkUnitFactOptions(workUnitFactsQuery.data)}
+      availableWorkflows={toWorkflowOptions(availableWorkflowsQuery.data)}
       onSaveMetadata={async (metadata) => {
         await updateWorkflowMutation.mutateAsync({
           versionId,
           workUnitTypeKey: workUnitKey,
-          workflowKey: workflow.key,
-          workflow: {
+          workflowDefinitionId: resolvedWorkflowDefinitionId,
+          payload: {
             workflowDefinitionId: metadata.workflowDefinitionId,
             key: metadata.key,
             ...(metadata.displayName.length > 0 ? { displayName: metadata.displayName } : {}),
@@ -357,24 +735,85 @@ export function MethodologyWorkflowEditorRoute() {
           },
         });
 
-        await queryClient.invalidateQueries({ queryKey: workflowsQueryOptions.queryKey });
+        await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
       }}
       onCreateFormStep={async (payload) => {
         await createFormStepMutation.mutateAsync({
+          versionId,
+          workUnitTypeKey: workUnitKey,
           workflowDefinitionId: resolvedWorkflowDefinitionId,
           afterStepKey: null,
           payload,
         });
+
+        await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
       }}
       onUpdateFormStep={async (stepId, payload) => {
         await updateFormStepMutation.mutateAsync({
+          versionId,
+          workUnitTypeKey: workUnitKey,
           workflowDefinitionId: resolvedWorkflowDefinitionId,
           stepId,
           payload,
         });
+
+        await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
+      }}
+      onDeleteFormStep={async (stepId) => {
+        await deleteFormStepMutation.mutateAsync({
+          versionId,
+          workUnitTypeKey: workUnitKey,
+          workflowDefinitionId: resolvedWorkflowDefinitionId,
+          stepId,
+        });
+
+        await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
+      }}
+      onCreateContextFact={async (draft) => {
+        try {
+          await createContextFactMutation.mutateAsync({
+            versionId,
+            workUnitTypeKey: workUnitKey,
+            workflowDefinitionId: resolvedWorkflowDefinitionId,
+            fact: toContextFactMutationPayload(draft),
+          });
+
+          await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
+        } catch (error) {
+          toast.error(`Failed to create context fact: ${toErrorMessage(error)}`);
+          throw error;
+        }
+      }}
+      onUpdateContextFact={async (factKey, draft) => {
+        try {
+          await updateContextFactMutation.mutateAsync({
+            versionId,
+            workUnitTypeKey: workUnitKey,
+            workflowDefinitionId: resolvedWorkflowDefinitionId,
+            factKey,
+            fact: toContextFactMutationPayload(draft),
+          });
+
+          await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
+        } catch (error) {
+          toast.error(`Failed to update context fact: ${toErrorMessage(error)}`);
+          throw error;
+        }
+      }}
+      onDeleteContextFact={async (factKey) => {
+        await deleteContextFactMutation.mutateAsync({
+          versionId,
+          workUnitTypeKey: workUnitKey,
+          workflowDefinitionId: resolvedWorkflowDefinitionId,
+          factKey,
+        });
+
+        await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
       }}
       onCreateEdge={async (edge) => {
         await createEdgeMutation.mutateAsync({
+          versionId,
+          workUnitTypeKey: workUnitKey,
           workflowDefinitionId: resolvedWorkflowDefinitionId,
           fromStepKey: edge.fromStepKey,
           toStepKey: edge.toStepKey,
@@ -382,21 +821,31 @@ export function MethodologyWorkflowEditorRoute() {
             ? { descriptionJson: { markdown: edge.descriptionMarkdown } }
             : {}),
         });
+
+        await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
       }}
       onUpdateEdge={async (edgeId, descriptionMarkdown) => {
         await updateEdgeMutation.mutateAsync({
+          versionId,
+          workUnitTypeKey: workUnitKey,
           workflowDefinitionId: resolvedWorkflowDefinitionId,
           edgeId,
           ...(descriptionMarkdown.length > 0
             ? { descriptionJson: { markdown: descriptionMarkdown } }
             : {}),
         });
+
+        await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
       }}
       onDeleteEdge={async (edgeId) => {
         await deleteEdgeMutation.mutateAsync({
+          versionId,
+          workUnitTypeKey: workUnitKey,
           workflowDefinitionId: resolvedWorkflowDefinitionId,
           edgeId,
         });
+
+        await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
       }}
     />
   );
