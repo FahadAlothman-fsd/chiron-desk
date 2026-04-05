@@ -501,6 +501,7 @@ In `packages/api/src/routers/methodology.ts`:
 6. **Form-step CRUD** — proper `Contract | Fields | Guidance` tabs with field-binding to workflow context facts
 7. **Removed stale artifacts** — `methodology_workflow_form_steps` table eliminated, `FormStepPayload.contextFacts` removed
 8. **Form dialog UX polish** — dirty state tracking with tab indicators (*) and discard confirmation dialog
+9. **Edge schema cleanup** — removed obsolete `conditionJson` and `guidanceJson` from `methodology_workflow_edges`, replaced with `descriptionMarkdown`
 
 ### Commits
 
@@ -517,6 +518,9 @@ In `packages/api/src/routers/methodology.ts`:
 - `e041a77e25` `fix(workflow-editor): show work unit names in context facts`
 - `d884a0c288` `feat(workflow-editor): add dirty tracking and discard confirmation to Form dialog`
 
+**Schema cleanup:**
+- `5ae18a43c5` `refactor(db): remove conditionJson and guidanceJson from workflow edges`
+
 **Documentation:**
 - `0b4880cfe0` `docs(plan): close out L3 slice 1 design-time context facts and form`
 - `a9d0048267` `docs(notepad): record workflow-editor dialog learnings and issues`
@@ -528,7 +532,4 @@ In `packages/api/src/routers/methodology.ts`:
 - ✅ User manual verification confirmed working behavior
 - ✅ Design-time-only scope maintained (no runtime drift)
 - ✅ Form dialog dirty tracking and discard confirmation working
-
-### Next Steps
-
-None — slice complete. Ready for next L3 planning work.
+- ✅ Edge schema cleaned up (conditionJson/guidanceJson removed, descriptionMarkdown added)
