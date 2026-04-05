@@ -92,6 +92,8 @@ const CONTEXT_FACT_KIND_OPTIONS = [
   { value: "work_unit_draft_spec_fact", label: "Work Unit Draft Spec Fact" },
 ] as const;
 
+const CARDINALITY_OPTIONS = ["one", "many"] as const;
+
 const VALUE_TYPE_OPTIONS = ["string", "number", "boolean", "json"] as const;
 
 type JsonSubSchemaDraft = {
@@ -216,6 +218,14 @@ function createWorkUnitDraftFactCard(
     displayName: matchedOption?.label ?? titleizeKey(factKey),
     description: matchedOption?.description,
   };
+}
+
+function getPickerOptionCardinality(
+  option: WorkflowEditorPickerOption | undefined,
+): WorkflowContextFactDraft["cardinality"] | undefined {
+  const label = option?.badges?.find((badge) => badge.tone === "cardinality")?.label;
+
+  return label === "one" || label === "many" ? label : undefined;
 }
 
 function toFieldDraft(
@@ -1244,6 +1254,40 @@ export function WorkflowContextFactDialog({
 
     return [...optionsByValue.values()];
   }, [currentWorkUnitFacts, methodologyFacts]);
+  const selectedExternalFact = useMemo(
+    () =>
+      draft.kind === "definition_backed_external_fact" || draft.kind === "bound_external_fact"
+        ? externalFactOptions.find((option) => option.value === draft.externalFactDefinitionId)
+        : undefined,
+    [draft.externalFactDefinitionId, draft.kind, externalFactOptions],
+  );
+  const selectedDraftSpecFact = useMemo(
+    () =>
+      draft.kind === "work_unit_draft_spec_fact"
+        ? selectedWorkUnitFacts.find((option) => option.value === pendingIncludedFactKey)
+        : undefined,
+    [draft.kind, pendingIncludedFactKey, selectedWorkUnitFacts],
+  );
+  const constrainedSourceCardinality = useMemo(() => {
+    switch (draft.kind) {
+      case "definition_backed_external_fact":
+      case "bound_external_fact":
+        return getPickerOptionCardinality(selectedExternalFact);
+      case "work_unit_draft_spec_fact":
+        return getPickerOptionCardinality(selectedDraftSpecFact);
+      default:
+        return undefined;
+    }
+  }, [draft.kind, selectedDraftSpecFact, selectedExternalFact]);
+  const availableCardinalityOptions = useMemo(
+    () =>
+      constrainedSourceCardinality === "one"
+        ? CARDINALITY_OPTIONS.filter((option) => option === "one")
+        : CARDINALITY_OPTIONS,
+    [constrainedSourceCardinality],
+  );
+  const selectedCardinalityValue =
+    constrainedSourceCardinality === "one" ? "one" : draft.cardinality;
 
   useEffect(() => {
     if (!open) {
@@ -1294,6 +1338,16 @@ export function WorkflowContextFactDialog({
       }),
     );
   }, [open, selectedWorkUnitFacts]);
+
+  useEffect(() => {
+    if (!open || constrainedSourceCardinality !== "one" || draft.cardinality === "one") {
+      return;
+    }
+
+    setDraft((previous) =>
+      previous.cardinality === "one" ? previous : { ...previous, cardinality: "one" },
+    );
+  }, [draft.cardinality, open, constrainedSourceCardinality]);
 
   const availableDraftSpecFactOptions = useMemo(
     () =>
@@ -1476,7 +1530,7 @@ export function WorkflowContextFactDialog({
                 <div className="grid gap-2">
                   <Label htmlFor="workflow-editor-context-fact-cardinality">Cardinality</Label>
                   <Select
-                    value={draft.cardinality}
+                    value={selectedCardinalityValue}
                     onValueChange={(value) =>
                       setDraft((previous) => ({
                         ...previous,
@@ -1491,8 +1545,11 @@ export function WorkflowContextFactDialog({
                       <SelectValue placeholder="Select cardinality" />
                     </SelectTrigger>
                     <SelectContent className="rounded-none">
-                      <SelectItem value="one">one</SelectItem>
-                      <SelectItem value="many">many</SelectItem>
+                      {availableCardinalityOptions.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
