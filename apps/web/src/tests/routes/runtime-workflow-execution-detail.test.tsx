@@ -39,14 +39,43 @@ vi.mock("@/components/ui/button", () => ({
   ),
 }));
 
+vi.mock("@/components/ui/dialog", () => ({
+  Dialog: ({ open, children }: { open: boolean; children: ReactNode }) =>
+    open ? <div data-slot="dialog">{children}</div> : <div data-slot="dialog-root" />,
+  DialogContent: ({ children, className }: { children: ReactNode; className?: string }) => (
+    <div data-slot="dialog-content" className={className}>
+      {children}
+    </div>
+  ),
+  DialogDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
+  DialogFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
+}));
+
 vi.mock("@/lib/utils", () => ({
   cn: (...classes: Array<string | null | undefined | false>) => classes.filter(Boolean).join(" "),
 }));
 
 import {
+  WorkflowContextFactDialog,
   WorkflowExecutionDetailRoute,
   runtimeWorkflowExecutionDetailQueryKey,
 } from "../../routes/projects.$projectId.workflow-executions.$workflowExecutionId";
+
+type WorkflowContextFactGroup = {
+  contextFactDefinitionId: string;
+  definitionKey?: string;
+  definitionLabel?: string;
+  definitionDescriptionJson?: unknown;
+  instances: Array<{
+    contextFactInstanceId?: string;
+    instanceOrder: number;
+    valueJson: unknown;
+    sourceStepExecutionId?: string;
+    recordedAt?: string;
+  }>;
+};
 
 type WorkflowDetail = {
   workflowExecution: {
@@ -105,26 +134,103 @@ type WorkflowDetail = {
       futureStepExecutionCount?: number;
     };
   };
-  stepsSurface: {
-    mode: "deferred";
-    message: string;
+  stepSurface:
+    | {
+        state: "entry_pending";
+        entryStep: { stepDefinitionId: string; stepType: string; stepKey?: string };
+      }
+    | {
+        state: "active_step";
+        activeStep: {
+          stepExecutionId: string;
+          stepDefinitionId: string;
+          stepType: string;
+          status: "active" | "completed";
+          activatedAt: string;
+          completedAt?: string;
+          target: { page: "step-execution-detail"; stepExecutionId: string };
+        };
+      }
+    | {
+        state: "next_pending";
+        afterStep: {
+          stepExecutionId: string;
+          stepDefinitionId: string;
+          stepType: string;
+          status: "active" | "completed";
+          activatedAt: string;
+          completedAt?: string;
+          target: { page: "step-execution-detail"; stepExecutionId: string };
+        };
+        nextStep: { stepDefinitionId: string; stepType: string; stepKey?: string };
+      }
+    | {
+        state: "terminal_no_next_step";
+        terminalStep?: {
+          stepExecutionId: string;
+          stepDefinitionId: string;
+          stepType: string;
+          status: "active" | "completed";
+          activatedAt: string;
+          completedAt?: string;
+          target: { page: "step-execution-detail"; stepExecutionId: string };
+        };
+      }
+    | {
+        state: "invalid_definition";
+        reason: "missing_entry_step" | "ambiguous_entry_step";
+      };
+  workflowContextFacts: {
+    mode: "read_only_by_definition";
+    groups: WorkflowContextFactGroup[];
   };
 };
 
-function buildWorkflowDetail(retryEnabled: boolean, stepsMessage: string): WorkflowDetail {
-  const retryAction: NonNullable<WorkflowDetail["retryAction"]> = retryEnabled
-    ? {
-        kind: "retry_same_workflow",
-        enabled: true,
-        parentTransitionExecutionId: "te_story_start_001",
-      }
-    : {
-        kind: "retry_same_workflow",
-        enabled: false,
-        reasonIfDisabled: "Retry is allowed only while parent transition execution remains active.",
-        parentTransitionExecutionId: "te_story_start_001",
-      };
+const baseContextGroups: WorkflowContextFactGroup[] = [
+  {
+    contextFactDefinitionId: "ctx-empty",
+    definitionKey: "workflow_mode",
+    definitionLabel: "Workflow Mode",
+    definitionDescriptionJson: { markdown: "Select the setup workflow mode." },
+    instances: [],
+  },
+  {
+    contextFactDefinitionId: "ctx-summary",
+    definitionKey: "project_summary",
+    definitionLabel: "Project Summary",
+    definitionDescriptionJson: { markdown: "Capture a concise reusable project summary." },
+    instances: [
+      {
+        contextFactInstanceId: "ctx-summary-1",
+        instanceOrder: 0,
+        valueJson: "Ship runtime setup detail.",
+        recordedAt: "2026-03-28T12:03:00.000Z",
+      },
+    ],
+  },
+  {
+    contextFactDefinitionId: "ctx-parts",
+    definitionKey: "project_parts",
+    definitionLabel: "Project Parts",
+    definitionDescriptionJson: { markdown: "Reference discovered project parts." },
+    instances: [
+      {
+        contextFactInstanceId: "ctx-parts-1",
+        instanceOrder: 0,
+        valueJson: { projectWorkUnitId: "wu-part-1" },
+        recordedAt: "2026-03-28T12:04:00.000Z",
+      },
+      {
+        contextFactInstanceId: "ctx-parts-2",
+        instanceOrder: 1,
+        valueJson: { projectWorkUnitId: "wu-part-2" },
+        recordedAt: "2026-03-28T12:04:30.000Z",
+      },
+    ],
+  },
+];
 
+function buildWorkflowDetail(stepSurface: WorkflowDetail["stepSurface"]): WorkflowDetail {
   return {
     workflowExecution: {
       workflowExecutionId: "we_story_start_primary_003",
@@ -175,7 +281,11 @@ function buildWorkflowDetail(retryEnabled: boolean, stepsMessage: string): Workf
         },
       ],
     },
-    retryAction,
+    retryAction: {
+      kind: "retry_same_workflow",
+      enabled: true,
+      parentTransitionExecutionId: "te_story_start_001",
+    },
     impactDialog: {
       requiredForRetry: true,
       affectedEntitiesSummary: {
@@ -183,9 +293,10 @@ function buildWorkflowDetail(retryEnabled: boolean, stepsMessage: string): Workf
         workflowExecutionIds: ["we_story_start_primary_003"],
       },
     },
-    stepsSurface: {
-      mode: "deferred",
-      message: stepsMessage,
+    stepSurface,
+    workflowContextFacts: {
+      mode: "read_only_by_definition",
+      groups: baseContextGroups,
     },
   };
 }
@@ -211,7 +322,7 @@ async function renderWorkflowDetailRoute(detail: WorkflowDetail) {
     }),
   );
 
-  const activateFirstWorkflowStepExecutionMutationOptionsMock = vi.fn(() => ({
+  const activateWorkflowStepExecutionMutationOptionsMock = vi.fn(() => ({
     mutationFn: async () => ({
       stepExecutionId: "step-1",
       workflowExecutionId: detail.workflowExecution.workflowExecutionId,
@@ -226,8 +337,8 @@ async function renderWorkflowDetailRoute(detail: WorkflowDetail) {
       retrySameWorkflowExecution: {
         mutationOptions: retrySameWorkflowMutationOptionsMock,
       },
-      activateFirstWorkflowStepExecution: {
-        mutationOptions: activateFirstWorkflowStepExecutionMutationOptionsMock,
+      activateWorkflowStepExecution: {
+        mutationOptions: activateWorkflowStepExecutionMutationOptionsMock,
       },
     },
   };
@@ -264,7 +375,7 @@ async function renderWorkflowDetailRoute(detail: WorkflowDetail) {
   return {
     markup,
     getRuntimeWorkflowExecutionDetailQueryOptionsMock,
-    activateFirstWorkflowStepExecutionMutationOptionsMock,
+    activateWorkflowStepExecutionMutationOptionsMock,
   };
 }
 
@@ -273,37 +384,41 @@ describe("runtime workflow execution detail route", () => {
     vi.clearAllMocks();
   });
 
-  it("renders workflow summary plus first-step activation CTA when no step execution exists yet", async () => {
+  it("renders entry-pending orchestration state and read-only context fact cards", async () => {
     const {
       markup,
       getRuntimeWorkflowExecutionDetailQueryOptionsMock,
-      activateFirstWorkflowStepExecutionMutationOptionsMock,
+      activateWorkflowStepExecutionMutationOptionsMock,
     } = await renderWorkflowDetailRoute(
-      buildWorkflowDetail(
-        true,
-        "No step execution exists yet. Activate the first step to begin runtime execution.",
-      ),
+      buildWorkflowDetail({
+        state: "entry_pending",
+        entryStep: {
+          stepDefinitionId: "step-entry",
+          stepType: "form",
+          stepKey: "capture_setup",
+        },
+      }),
     );
 
     expect(markup).toContain("Workflow runtime summary");
     expect(markup).toContain("Retry and supersession lineage");
-    expect(markup).toContain("Step execution runtime");
-    expect(markup).toContain("Start story workflow");
-    expect(markup).toContain("TR.STORY.START");
-    expect(markup).toContain("WU.STORY");
-    expect(markup).toContain("Retry same workflow");
-    expect(markup).toContain("Activate first step");
-    expect(markup).toContain("Activate the first step to begin runtime execution.");
+    expect(markup).toContain("Workflow step surface");
+    expect(markup).toContain("Entry step pending activation");
+    expect(markup).toContain("Activate entry step");
+    expect(markup).toContain("Workflow context facts");
+    expect(markup).toContain("Workflow Mode");
+    expect(markup).toContain("Project Summary");
+    expect(markup).toContain("Project Parts");
+    expect(markup).toContain("0 instances");
+    expect(markup).toContain("1 instance");
+    expect(markup).toContain("2 instances");
+    expect(markup).toContain("View instances");
+    expect(markup).not.toContain("Save draft");
+    expect(markup).not.toContain("Submit");
+    expect(markup).not.toContain("Replace value");
+    expect(markup).not.toContain("Add instance");
 
-    expect(activateFirstWorkflowStepExecutionMutationOptionsMock).toHaveBeenCalledTimes(1);
-
-    expect(markup).not.toContain("Choose another primary workflow");
-    expect(markup).not.toContain("Choose different workflow");
-
-    expect(
-      runtimeWorkflowExecutionDetailQueryKey("project-1", "we_story_start_primary_003"),
-    ).toEqual(["runtime-workflow-execution-detail", "project-1", "we_story_start_primary_003"]);
-
+    expect(activateWorkflowStepExecutionMutationOptionsMock).toHaveBeenCalledTimes(1);
     expect(getRuntimeWorkflowExecutionDetailQueryOptionsMock).toHaveBeenCalledWith({
       input: {
         projectId: "project-1",
@@ -312,17 +427,158 @@ describe("runtime workflow execution detail route", () => {
     });
   });
 
-  it("shows retry disabled reason when same-workflow retry is not currently allowed", async () => {
+  it("renders active-step summary only and hides next-step activation while a step is active", async () => {
     const { markup } = await renderWorkflowDetailRoute(
-      buildWorkflowDetail(false, "Step execution runtime is active (2 executions recorded)."),
+      buildWorkflowDetail({
+        state: "active_step",
+        activeStep: {
+          stepExecutionId: "step-active",
+          stepDefinitionId: "step-entry",
+          stepType: "form",
+          status: "active",
+          activatedAt: "2026-03-28T12:02:00.000Z",
+          target: { page: "step-execution-detail", stepExecutionId: "step-active" },
+        },
+      }),
     );
 
-    expect(markup).toContain("Retry unavailable");
-    expect(markup).toContain(
-      "Retry is allowed only while parent transition execution remains active.",
+    expect(markup).toContain("Active step in progress");
+    expect(markup).toContain("Open active step");
+    expect(markup).toContain("While an active step exists, next-step activation stays hidden");
+    expect(markup).not.toContain("Activate next step");
+  });
+
+  it("renders next-pending orchestration summary with activation CTA", async () => {
+    const { markup } = await renderWorkflowDetailRoute(
+      buildWorkflowDetail({
+        state: "next_pending",
+        afterStep: {
+          stepExecutionId: "step-completed",
+          stepDefinitionId: "step-entry",
+          stepType: "form",
+          status: "completed",
+          activatedAt: "2026-03-28T12:02:00.000Z",
+          completedAt: "2026-03-28T12:03:00.000Z",
+          target: { page: "step-execution-detail", stepExecutionId: "step-completed" },
+        },
+        nextStep: {
+          stepDefinitionId: "step-next",
+          stepType: "display",
+          stepKey: "show_summary",
+        },
+      }),
     );
-    expect(markup).toContain("Step execution runtime is active (2 executions recorded).");
-    expect(markup).not.toContain("Activate first step");
-    expect(markup).not.toContain("Choose another primary workflow");
+
+    expect(markup).toContain("Next step pending activation");
+    expect(markup).toContain("Open completed step");
+    expect(markup).toContain("Activate next step");
+    expect(markup).toContain("show_summary");
+  });
+
+  it("renders terminal state summary card", async () => {
+    const { markup } = await renderWorkflowDetailRoute(
+      buildWorkflowDetail({
+        state: "terminal_no_next_step",
+        terminalStep: {
+          stepExecutionId: "step-terminal",
+          stepDefinitionId: "step-finish",
+          stepType: "display",
+          status: "completed",
+          activatedAt: "2026-03-28T12:03:00.000Z",
+          completedAt: "2026-03-28T12:04:00.000Z",
+          target: { page: "step-execution-detail", stepExecutionId: "step-terminal" },
+        },
+      }),
+    );
+
+    expect(markup).toContain("Workflow is terminal");
+    expect(markup).toContain("Open terminal step");
+    expect(markup).not.toContain("Activate next step");
+  });
+
+  it("renders invalid-definition blocking summary card", async () => {
+    const { markup } = await renderWorkflowDetailRoute(
+      buildWorkflowDetail({
+        state: "invalid_definition",
+        reason: "ambiguous_entry_step",
+      }),
+    );
+
+    expect(markup).toContain("Workflow definition is invalid");
+    expect(markup).toContain("Multiple entry steps were derived");
+    expect(markup).not.toContain("Activate entry step");
+    expect(markup).not.toContain("Activate next step");
+  });
+
+  it("renders read-only context-fact dialog empty, single, and multi-instance layouts", () => {
+    const emptyMarkup = renderToStaticMarkup(
+      <WorkflowContextFactDialog
+        group={baseContextGroups[0]!}
+        open
+        onOpenChange={() => undefined}
+      />,
+    );
+    const singleMarkup = renderToStaticMarkup(
+      <WorkflowContextFactDialog
+        group={{
+          contextFactDefinitionId: "ctx-reference-workflow",
+          definitionKey: "reference_workflow",
+          definitionLabel: "Reference Workflow",
+          definitionDescriptionJson: { markdown: "Reference another workflow." },
+          instances: [
+            {
+              contextFactInstanceId: "ctx-reference-workflow-1",
+              instanceOrder: 0,
+              valueJson: { workflowDefinitionId: "wf.generate-project-context" },
+              recordedAt: "2026-03-28T12:05:00.000Z",
+            },
+          ],
+        }}
+        open
+        onOpenChange={() => undefined}
+      />,
+    );
+    const multiMarkup = renderToStaticMarkup(
+      <WorkflowContextFactDialog
+        group={{
+          contextFactDefinitionId: "ctx-reference-artifact",
+          definitionKey: "reference_artifact",
+          definitionLabel: "Reference Artifact",
+          definitionDescriptionJson: { markdown: "Reference the setup README artifact slot." },
+          instances: [
+            {
+              contextFactInstanceId: "ctx-reference-artifact-1",
+              instanceOrder: 0,
+              valueJson: { relativePath: "docs/setup/README.md" },
+              recordedAt: "2026-03-28T12:05:00.000Z",
+            },
+            {
+              contextFactInstanceId: "ctx-reference-artifact-2",
+              instanceOrder: 1,
+              valueJson: { relativePath: "apps/web/src/routes/projects.new.tsx" },
+              recordedAt: "2026-03-28T12:06:00.000Z",
+            },
+          ],
+        }}
+        open
+        onOpenChange={() => undefined}
+      />,
+    );
+
+    expect(emptyMarkup).toContain("No current instances recorded for this definition.");
+    expect(singleMarkup).toContain("Workflow definition ID");
+    expect(singleMarkup).toContain("wf.generate-project-context");
+    expect(multiMarkup).toContain("Instance 1");
+    expect(multiMarkup).toContain("Instance 2");
+    expect(multiMarkup).toContain("Relative path");
+    expect(multiMarkup).toContain("docs/setup/README.md");
+    expect(multiMarkup).toContain("max-h-[min(85vh,48rem)]");
+    expect(multiMarkup).toContain("overflow-y-auto");
+  });
+
+  it("keeps the workflow detail query key stable", () => {
+    expect(
+      runtimeWorkflowExecutionDetailQueryKey("project-1", "we_story_start_primary_003"),
+    ).toEqual(["runtime-workflow-execution-detail", "project-1", "we_story_start_primary_003"]);
   });
 });

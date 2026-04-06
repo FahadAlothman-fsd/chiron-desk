@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { useRouteContextMock, useParamsMock } = vi.hoisted(() => ({
@@ -14,7 +15,7 @@ vi.mock("@tanstack/react-router", () => ({
     useRouteContext: useRouteContextMock,
     useParams: useParamsMock,
   }),
-  Link: ({ to, children }: { to: string; children: ReactNode }) => <a href={to}>{children}</a>,
+  Link: ({ children }: { children: ReactNode }) => <a href="/">{children}</a>,
 }));
 
 vi.mock("@/features/methodologies/workspace-shell", () => ({
@@ -31,70 +32,350 @@ vi.mock("@/components/ui/skeleton", () => ({
 }));
 
 vi.mock("@/components/ui/button", () => ({
-  buttonVariants: () => "",
+  Button: ({ children, ...props }: React.ComponentProps<"button">) => (
+    <button {...props}>{children}</button>
+  ),
 }));
 
-vi.mock("@/lib/utils", () => ({
-  cn: (...classes: Array<string | null | undefined | false>) => classes.filter(Boolean).join(" "),
+vi.mock("@/components/ui/card", () => ({
+  Card: ({ children }: { children: ReactNode }) => <section>{children}</section>,
+  CardHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  CardTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
+  CardDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
+  CardContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  CardFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
-import { RuntimeFormStepDetailRoute } from "../../routes/projects.$projectId.step-executions.$stepExecutionId";
+vi.mock("@/components/ui/checkbox", () => ({
+  Checkbox: ({ checked, onCheckedChange, ...props }: any) => (
+    <input
+      type="checkbox"
+      checked={Boolean(checked)}
+      onChange={(event) => onCheckedChange?.(event.target.checked)}
+      {...props}
+    />
+  ),
+}));
 
-function createHarness() {
+vi.mock("@/components/ui/field", () => ({
+  Field: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  FieldContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  FieldDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
+  FieldGroup: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+}));
+
+vi.mock("@/components/ui/input", () => ({
+  Input: (props: React.ComponentProps<"input">) => <input {...props} />,
+}));
+
+vi.mock("@/components/ui/textarea", () => ({
+  Textarea: (props: React.ComponentProps<"textarea">) => <textarea {...props} />,
+}));
+
+import {
+  RuntimeFormStepDetailRoute,
+  runtimeStepExecutionDetailQueryKey,
+} from "../../routes/projects.$projectId.step-executions.$stepExecutionId";
+
+type Detail = ReturnType<typeof buildDetail>;
+
+function buildDetail() {
+  return {
+    shell: {
+      stepExecutionId: "step-1",
+      workflowExecutionId: "workflow-1",
+      stepDefinitionId: "def-form-1",
+      stepType: "form" as const,
+      status: "active" as const,
+      activatedAt: "2026-04-01T12:00:00.000Z",
+      completedAt: undefined,
+      completionAction: {
+        kind: "complete_step_execution" as const,
+        visible: true,
+        enabled: true,
+      },
+    },
+    body: {
+      stepType: "form" as const,
+      page: {
+        formKey: "collect-context",
+        formLabel: "Collect context",
+        descriptionMarkdown: "Capture the setup facts that drive runtime execution.",
+        projectRootPath: "/tmp/workspace/chiron",
+        fields: [
+          {
+            fieldKey: "initiativeName",
+            fieldLabel: "Initiative name",
+            helpText: "Reusable project summary anchor.",
+            required: true,
+            contextFactDefinitionId: "ctx-initiative-name",
+            contextFactKey: "initiative_name",
+            contextFactKind: "plain_value_fact" as const,
+            widget: {
+              control: "text" as const,
+              valueType: "string" as const,
+              cardinality: "one" as const,
+              renderedMultiplicity: "one" as const,
+            },
+          },
+          {
+            fieldKey: "workflowMode",
+            fieldLabel: "Workflow mode",
+            helpText: "Definition-backed external fact using allowed values.",
+            required: true,
+            contextFactDefinitionId: "ctx-workflow-mode",
+            contextFactKey: "workflow_mode",
+            contextFactKind: "definition_backed_external_fact" as const,
+            widget: {
+              control: "select" as const,
+              valueType: "string" as const,
+              cardinality: "one" as const,
+              renderedMultiplicity: "one" as const,
+              externalBindingKey: "workflow_mode",
+              options: [
+                { value: "initial_scan", label: "initial_scan" },
+                { value: "full_rescan", label: "full_rescan" },
+                { value: "deep_dive", label: "deep_dive" },
+              ],
+            },
+          },
+          {
+            fieldKey: "requiresBrainstorming",
+            fieldLabel: "Requires brainstorming",
+            helpText: "Boolean runtime widget.",
+            required: false,
+            contextFactDefinitionId: "ctx-requires-brainstorming",
+            contextFactKey: "requires_brainstorming",
+            contextFactKind: "plain_value_fact" as const,
+            widget: {
+              control: "checkbox" as const,
+              valueType: "boolean" as const,
+              cardinality: "one" as const,
+              renderedMultiplicity: "one" as const,
+            },
+          },
+          {
+            fieldKey: "existingRepositoryType",
+            fieldLabel: "Existing repository type",
+            helpText: "Bound external fact selector.",
+            required: false,
+            contextFactDefinitionId: "ctx-repository-type",
+            contextFactKey: "repository_type",
+            contextFactKind: "bound_external_fact" as const,
+            widget: {
+              control: "reference" as const,
+              valueType: "string" as const,
+              cardinality: "one" as const,
+              renderedMultiplicity: "one" as const,
+              externalBindingKey: "repository_type",
+              emptyState:
+                "No eligible existing instances are available yet. Create the required fact first.",
+            },
+          },
+          {
+            fieldKey: "referenceWorkflow",
+            fieldLabel: "Reference workflow",
+            helpText: "Workflow reference selector.",
+            required: false,
+            contextFactDefinitionId: "ctx-reference-workflow",
+            contextFactKey: "reference_workflow",
+            contextFactKind: "workflow_reference_fact" as const,
+            widget: {
+              control: "workflow-reference" as const,
+              valueType: "json" as const,
+              cardinality: "one" as const,
+              renderedMultiplicity: "one" as const,
+              options: [{ value: "wf-setup", label: "Setup workflow" }],
+            },
+          },
+          {
+            fieldKey: "referenceArtifact",
+            fieldLabel: "Reference artifact",
+            helpText: "Artifact reference path widget.",
+            required: false,
+            contextFactDefinitionId: "ctx-reference-artifact",
+            contextFactKey: "reference_artifact",
+            contextFactKind: "artifact_reference_fact" as const,
+            widget: {
+              control: "artifact-reference" as const,
+              valueType: "json" as const,
+              cardinality: "one" as const,
+              renderedMultiplicity: "one" as const,
+              artifactSlotDefinitionId: "setup_readme",
+            },
+          },
+          {
+            fieldKey: "draftSpecTarget",
+            fieldLabel: "Draft spec target",
+            helpText: "Work-unit draft-spec nested editor.",
+            required: false,
+            contextFactDefinitionId: "ctx-draft-spec-target",
+            contextFactKey: "draft_spec_target",
+            contextFactKind: "work_unit_draft_spec_fact" as const,
+            widget: {
+              control: "draft-spec" as const,
+              valueType: "json" as const,
+              cardinality: "one" as const,
+              renderedMultiplicity: "one" as const,
+              nestedFields: [
+                {
+                  key: "constraints",
+                  label: "Constraints",
+                  factType: "string" as const,
+                  cardinality: "one" as const,
+                  required: false,
+                },
+                {
+                  key: "setupWorkUnit",
+                  label: "Setup work unit",
+                  factType: "work_unit" as const,
+                  cardinality: "one" as const,
+                  required: false,
+                },
+              ],
+            },
+          },
+        ],
+      },
+      draft: {
+        payloadMode: "latest_only" as const,
+        payload: {
+          initiativeName: "Draft initiative",
+          workflowMode: "initial_scan",
+          requiresBrainstorming: true,
+          existingRepositoryType: { factInstanceId: "fact-1" },
+          referenceWorkflow: { workflowDefinitionId: "wf-setup" },
+          referenceArtifact: { relativePath: "docs/setup.md" },
+          draftSpecTarget: {
+            constraints: "be concise",
+            setupWorkUnit: { projectWorkUnitId: "wu-2" },
+          },
+        },
+        lastSavedAt: "2026-04-01T12:03:00.000Z",
+      },
+      saveDraftAction: {
+        kind: "save_form_step_draft" as const,
+        enabled: true,
+      },
+      submission: {
+        payloadMode: "latest_only" as const,
+        payload: {
+          initiativeName: "Submitted initiative",
+          workflowMode: "full_rescan",
+        },
+        submittedAt: "2026-04-01T12:04:00.000Z",
+      },
+      submitAction: {
+        kind: "submit_form_step" as const,
+        enabled: true,
+      },
+      progression: {
+        latest: { submittedAt: "2026-04-01T12:04:00.000Z" },
+      },
+    },
+  };
+}
+
+function toFieldPayload(detail: Detail, values: Record<string, unknown>) {
+  if (detail.body.stepType !== "form") {
+    return values;
+  }
+
+  return Object.fromEntries(
+    detail.body.page.fields.map((field) => [field.fieldKey, values[field.contextFactDefinitionId]]),
+  );
+}
+
+async function renderHarness(params?: { currentDetail?: Detail }) {
+  let currentDetail = params?.currentDetail ?? buildDetail();
+  const saveDraftCalls: Array<Record<string, unknown>> = [];
+  const submitCalls: Array<Record<string, unknown>> = [];
+  const completeCalls: Array<Record<string, unknown>> = [];
+  let saveCounter = 0;
+  let submitCounter = 0;
+
   const getRuntimeStepExecutionDetailQueryOptionsMock = vi.fn(
     (_input: { input: { projectId: string; stepExecutionId: string } }) => ({
       queryKey: ["runtime-step-execution-detail", "project-1", "step-1"],
-      queryFn: async () => ({
-        stepExecution: {
-          stepExecutionId: "step-1",
-          workflowExecutionId: "workflow-1",
-          stepDefinitionId: "def-form-1",
-          stepType: "form",
-          status: "completed",
-          activatedAt: "2026-04-01T12:00:00.000Z",
-          completedAt: "2026-04-01T12:05:00.000Z",
-        },
-        tabs: {
-          submissionAndProgression: {
-            draftValues: { title: "Draft title" },
-            submittedSnapshot: { title: "Submitted title", "project.fact-1": "alpha" },
-            submittedAt: "2026-04-01T12:04:00.000Z",
-            progression: { status: "completed", activatedFromStepExecutionId: null },
-            nextStepExecutionId: "step-2",
+      queryFn: async () => currentDetail,
+    }),
+  );
+
+  const saveFormStepDraftMutationOptionsMock = vi.fn(
+    (options?: { onSuccess?: () => Promise<void> | void }) => ({
+      mutationFn: async (input: Record<string, any>) => {
+        saveCounter += 1;
+        saveDraftCalls.push(input);
+        currentDetail = {
+          ...currentDetail,
+          body:
+            currentDetail.body.stepType === "form"
+              ? {
+                  ...currentDetail.body,
+                  draft: {
+                    ...currentDetail.body.draft,
+                    payload: toFieldPayload(currentDetail, input.values),
+                    lastSavedAt: `2026-04-01T12:0${saveCounter + 4}:00.000Z`,
+                  },
+                }
+              : currentDetail.body,
+        };
+        await options?.onSuccess?.();
+        return { stepExecutionId: "step-1", status: "draft_saved" as const };
+      },
+    }),
+  );
+
+  const submitFormStepMutationOptionsMock = vi.fn(
+    (options?: { onSuccess?: () => Promise<void> | void }) => ({
+      mutationFn: async (input: Record<string, any>) => {
+        submitCounter += 1;
+        submitCalls.push(input);
+        currentDetail = {
+          ...currentDetail,
+          body:
+            currentDetail.body.stepType === "form"
+              ? {
+                  ...currentDetail.body,
+                  draft: {
+                    ...currentDetail.body.draft,
+                    payload: toFieldPayload(currentDetail, input.values),
+                    lastSavedAt: `2026-04-01T12:1${submitCounter}:00.000Z`,
+                  },
+                  submission: {
+                    ...currentDetail.body.submission,
+                    payload: toFieldPayload(currentDetail, input.values),
+                    submittedAt: `2026-04-01T12:2${submitCounter}:00.000Z`,
+                  },
+                }
+              : currentDetail.body,
+        };
+        await options?.onSuccess?.();
+        return { stepExecutionId: "step-1", status: "captured" as const };
+      },
+    }),
+  );
+
+  const completeStepExecutionMutationOptionsMock = vi.fn(
+    (options?: { onSuccess?: () => Promise<void> | void }) => ({
+      mutationFn: async (input: Record<string, any>) => {
+        completeCalls.push(input);
+        currentDetail = {
+          ...currentDetail,
+          shell: {
+            ...currentDetail.shell,
+            status: "completed",
+            completedAt: "2026-04-01T12:30:00.000Z",
+            completionAction: {
+              kind: "complete_step_execution",
+              visible: false,
+              enabled: false,
+            },
           },
-          writes: {
-            workflowContextWrites: [
-              {
-                contextFactId: "ctx-1",
-                factKey: "setup.title",
-                factKind: "plain_value",
-                value: "Submitted title",
-              },
-            ],
-            authoritativeProjectFactWrites: [
-              {
-                projectFactInstanceId: "pfi-1",
-                factDefinitionId: "fact-1",
-                value: "alpha",
-              },
-            ],
-          },
-          contextFactSemantics: {
-            notes: [
-              "Submission snapshot is immutable once submitted.",
-              "Progression records lifecycle outcomes and next-step activation lineage.",
-              "Workflow context writes stay within workflow execution context.",
-              "Authoritative writes are propagated into project fact instances when mapped via 'project.<factDefinitionId>' keys.",
-            ],
-            mappings: [
-              {
-                factKey: "setup.title",
-                semantics: "Captured as workflow-local context for downstream steps.",
-              },
-            ],
-          },
-        },
-      }),
+        };
+        await options?.onSuccess?.();
+        return { stepExecutionId: "step-1", status: "completed" as const };
+      },
     }),
   );
 
@@ -102,6 +383,15 @@ function createHarness() {
     project: {
       getRuntimeStepExecutionDetail: {
         queryOptions: getRuntimeStepExecutionDetailQueryOptionsMock,
+      },
+      saveFormStepDraft: {
+        mutationOptions: saveFormStepDraftMutationOptionsMock,
+      },
+      submitFormStep: {
+        mutationOptions: submitFormStepMutationOptionsMock,
+      },
+      completeStepExecution: {
+        mutationOptions: completeStepExecutionMutationOptionsMock,
       },
     },
   };
@@ -119,56 +409,114 @@ function createHarness() {
   });
   useRouteContextMock.mockReturnValue({ orpc, queryClient });
 
+  await queryClient.prefetchQuery({
+    ...orpc.project.getRuntimeStepExecutionDetail.queryOptions({
+      input: { projectId: "project-1", stepExecutionId: "step-1" },
+    }),
+    queryKey: runtimeStepExecutionDetailQueryKey("project-1", "step-1"),
+  });
+
+  render(
+    <QueryClientProvider client={queryClient}>
+      <RuntimeFormStepDetailRoute />
+    </QueryClientProvider>,
+  );
+
   return {
     queryClient,
-    orpc,
+    saveDraftCalls,
+    submitCalls,
+    completeCalls,
     getRuntimeStepExecutionDetailQueryOptionsMock,
   };
 }
 
 describe("runtime form step detail route", () => {
   beforeEach(() => {
+    cleanup();
     vi.clearAllMocks();
   });
 
-  it("renders tabs with explanatory copy for submission, progression, and writes semantics", async () => {
-    const { queryClient, orpc, getRuntimeStepExecutionDetailQueryOptionsMock } = createHarness();
+  it("renders the shared header shell plus resolved form widgets and actions", async () => {
+    await renderHarness();
 
-    await queryClient.prefetchQuery(
-      orpc.project.getRuntimeStepExecutionDetail.queryOptions({
-        input: {
-          projectId: "project-1",
-          stepExecutionId: "step-1",
-        },
-      }),
-    );
+    expect(screen.getByText("Step execution detail")).toBeTruthy();
+    expect(screen.getByText("Step execution identity & status")).toBeTruthy();
+    expect(screen.getByText("Collect context")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Complete Step" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Save draft" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Submit" })).toBeTruthy();
 
-    const markup = renderToStaticMarkup(
-      <QueryClientProvider client={queryClient}>
-        <RuntimeFormStepDetailRoute />
-      </QueryClientProvider>,
-    );
+    expect(screen.getByText("Last draft save")).toBeTruthy();
+    expect(screen.getByText("Last submit")).toBeTruthy();
+    expect(screen.getByText("Initiative name")).toBeTruthy();
+    expect(screen.getByText("Workflow mode")).toBeTruthy();
+    expect(screen.getByText("Existing repository type")).toBeTruthy();
+    expect(screen.getByText("Reference workflow")).toBeTruthy();
+    expect(screen.getByText("Reference artifact")).toBeTruthy();
+    expect(screen.getByText("Draft spec target")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "No eligible existing instances are available yet. Create the required fact first.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/workflow-context-facts/i)).toBeNull();
+  });
 
-    expect(markup).toContain("Step execution detail");
-    expect(markup).toContain("Submission &amp; Progression");
-    expect(markup).toContain("Writes");
-    expect(markup).toContain("Context Fact Semantics");
+  it("maps Save draft, Submit, and Complete Step to exact mutations with latest-only semantics", async () => {
+    const user = userEvent.setup();
+    const { saveDraftCalls, submitCalls, completeCalls } = await renderHarness();
 
-    expect(markup).toContain("Submitted snapshot = immutable submit-time value set");
-    expect(markup).toContain("Progression = lifecycle and next-step outcome");
-    expect(markup).toContain("Context writes = workflow execution context mutations");
-    expect(markup).toContain(
-      "Authoritative writes = writes propagated into project fact instances",
-    );
+    const initiativeInput = screen.getByRole("textbox", { name: "Initiative name" });
+    await user.clear(initiativeInput);
+    await user.type(initiativeInput, "Updated initiative");
 
-    expect(markup).toContain("step-2");
-    expect(markup).toContain("project.fact-1");
+    fireEvent.change(screen.getByRole("combobox", { name: "Workflow mode" }), {
+      target: { value: JSON.stringify("deep_dive") },
+    });
 
-    expect(getRuntimeStepExecutionDetailQueryOptionsMock).toHaveBeenCalledWith({
-      input: {
-        projectId: "project-1",
-        stepExecutionId: "step-1",
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+
+    await waitFor(() => expect(saveDraftCalls).toHaveLength(1));
+    expect(saveDraftCalls[0]).toMatchObject({
+      projectId: "project-1",
+      workflowExecutionId: "workflow-1",
+      stepExecutionId: "step-1",
+      values: {
+        "ctx-initiative-name": "Updated initiative",
+        "ctx-workflow-mode": "deep_dive",
       },
     });
+
+    await user.clear(initiativeInput);
+    await user.type(initiativeInput, "Final initiative");
+    await user.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() => expect(submitCalls).toHaveLength(1));
+    expect(submitCalls[0]?.values).toMatchObject({
+      "ctx-initiative-name": "Final initiative",
+      "ctx-workflow-mode": "deep_dive",
+    });
+
+    await user.clear(initiativeInput);
+    await user.type(initiativeInput, "Final initiative v2");
+    await user.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() => expect(submitCalls).toHaveLength(2));
+    expect(submitCalls[1]?.values).toMatchObject({
+      "ctx-initiative-name": "Final initiative v2",
+      "ctx-workflow-mode": "deep_dive",
+    });
+
+    await user.click(screen.getByRole("button", { name: "Complete Step" }));
+
+    await waitFor(() => expect(completeCalls).toHaveLength(1));
+    expect(completeCalls[0]).toMatchObject({
+      projectId: "project-1",
+      workflowExecutionId: "workflow-1",
+      stepExecutionId: "step-1",
+    });
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Complete Step" })).toBeNull());
+    expect(screen.getAllByText("Completed").length).toBeGreaterThan(0);
   });
 });
