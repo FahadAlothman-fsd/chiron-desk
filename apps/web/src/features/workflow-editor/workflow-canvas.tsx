@@ -385,7 +385,6 @@ export function WorkflowCanvas({
             target: targetNode.stepId,
             type: "smoothstep",
             markerEnd: { type: MarkerType.ArrowClosed },
-            label: edge.descriptionMarkdown.length > 0 ? edge.descriptionMarkdown : undefined,
             style: {
               stroke:
                 selection?.kind === "edge" && selection.edgeId === edge.edgeId
