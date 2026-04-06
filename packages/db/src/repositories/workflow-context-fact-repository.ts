@@ -25,13 +25,13 @@ export class WorkflowContextFactRepository extends Context.Tag(
     readonly updateWorkflowContextFactByDefinitionId: (input: {
       readonly versionId: string;
       readonly workflowDefinitionId: string;
-      readonly factKey: string;
+      readonly contextFactDefinitionId: string;
       readonly fact: WorkflowContextFactDto;
     }) => Effect.Effect<WorkflowContextFactDto, RepositoryError>;
     readonly deleteWorkflowContextFactByDefinitionId: (input: {
       readonly versionId: string;
       readonly workflowDefinitionId: string;
-      readonly factKey: string;
+      readonly contextFactDefinitionId: string;
     }) => Effect.Effect<void, RepositoryError>;
   }
 >() {}

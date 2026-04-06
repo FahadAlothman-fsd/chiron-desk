@@ -50,10 +50,10 @@ export class WorkflowAuthoringTransactionService extends Context.Tag(
         readonly deleteEdgeId?: string;
         readonly createContextFact?: WorkflowContextFactDto;
         readonly updateContextFact?: {
-          readonly factKey: string;
+          readonly contextFactDefinitionId: string;
           readonly fact: WorkflowContextFactDto;
         };
-        readonly deleteContextFactKey?: string;
+        readonly deleteContextFactDefinitionId?: string;
       },
       actorId: string | null,
     ) => Effect.Effect<
@@ -102,10 +102,10 @@ export const WorkflowAuthoringTransactionServiceLive = Layer.effect(
         readonly deleteEdgeId?: string;
         readonly createContextFact?: WorkflowContextFactDto;
         readonly updateContextFact?: {
-          readonly factKey: string;
+          readonly contextFactDefinitionId: string;
           readonly fact: WorkflowContextFactDto;
         };
-        readonly deleteContextFactKey?: string;
+        readonly deleteContextFactDefinitionId?: string;
       },
       actorId: string | null,
     ) =>
@@ -140,7 +140,7 @@ export const WorkflowAuthoringTransactionServiceLive = Layer.effect(
               versionId: input.versionId,
               workUnitTypeKey: input.workUnitTypeKey,
               workflowDefinitionId: input.workflowDefinitionId,
-              factKey: input.updateContextFact.factKey,
+              contextFactDefinitionId: input.updateContextFact.contextFactDefinitionId,
               fact: input.updateContextFact.fact,
             },
             actorId,
@@ -226,13 +226,13 @@ export const WorkflowAuthoringTransactionServiceLive = Layer.effect(
           );
         }
 
-        if (input.deleteContextFactKey) {
+        if (input.deleteContextFactDefinitionId) {
           yield* contextFacts.delete(
             {
               versionId: input.versionId,
               workUnitTypeKey: input.workUnitTypeKey,
               workflowDefinitionId: input.workflowDefinitionId,
-              factKey: input.deleteContextFactKey,
+              contextFactDefinitionId: input.deleteContextFactDefinitionId,
             },
             actorId,
           );
