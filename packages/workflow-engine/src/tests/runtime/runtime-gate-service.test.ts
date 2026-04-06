@@ -170,6 +170,94 @@ describe("RuntimeGateService", () => {
     expect(reads).toEqual(["present"]);
   });
 
+  it("evaluates every ALL completion condition exhaustively", async () => {
+    const reads: string[] = [];
+
+    const program = Effect.gen(function* () {
+      const service = yield* RuntimeGateService;
+      return yield* service.evaluateCompletionGateExhaustive({
+        projectId: "project-1",
+        projectWorkUnitId: "wu-1",
+        conditionTree: {
+          mode: "all",
+          conditions: [
+            { kind: "fact", factKey: "missing", operator: "exists" },
+            { kind: "fact", factKey: "present", operator: "exists" },
+          ],
+          groups: [],
+        },
+      });
+    }).pipe(
+      Effect.provide(
+        makeRuntimeGateLayer({
+          existingProjectFactDefinitionIds: ["present"],
+          existingWorkUnitFactDefinitionIds: [],
+          onProjectFactRead: (factDefinitionId) => reads.push(factDefinitionId),
+        }),
+      ),
+    );
+
+    const result = await Effect.runPromise(program);
+    expect(result.result).toBe("blocked");
+    expect(result.firstReason).toContain("missing");
+    expect(reads).toEqual(["missing", "present"]);
+    expect(result.evaluationTree.conditions).toEqual([
+      {
+        condition: { kind: "fact", factKey: "missing", operator: "exists" },
+        met: false,
+        reason: "Project fact 'missing' is missing",
+      },
+      {
+        condition: { kind: "fact", factKey: "present", operator: "exists" },
+        met: true,
+      },
+    ]);
+  });
+
+  it("evaluates every ANY completion branch exhaustively", async () => {
+    const reads: string[] = [];
+
+    const program = Effect.gen(function* () {
+      const service = yield* RuntimeGateService;
+      return yield* service.evaluateCompletionGateExhaustive({
+        projectId: "project-1",
+        projectWorkUnitId: "wu-1",
+        conditionTree: {
+          mode: "any",
+          conditions: [
+            { kind: "fact", factKey: "present", operator: "exists" },
+            { kind: "fact", factKey: "missing", operator: "exists" },
+          ],
+          groups: [],
+        },
+      });
+    }).pipe(
+      Effect.provide(
+        makeRuntimeGateLayer({
+          existingProjectFactDefinitionIds: ["present"],
+          existingWorkUnitFactDefinitionIds: [],
+          onProjectFactRead: (factDefinitionId) => reads.push(factDefinitionId),
+        }),
+      ),
+    );
+
+    const result = await Effect.runPromise(program);
+    expect(result.result).toBe("available");
+    expect(reads).toEqual(["present", "missing"]);
+    expect(result.evaluationTree.met).toBe(true);
+    expect(result.evaluationTree.conditions).toEqual([
+      {
+        condition: { kind: "fact", factKey: "present", operator: "exists" },
+        met: true,
+      },
+      {
+        condition: { kind: "fact", factKey: "missing", operator: "exists" },
+        met: false,
+        reason: "Project fact 'missing' is missing",
+      },
+    ]);
+  });
+
   it("rejects unsupported condition kinds", async () => {
     const program = Effect.gen(function* () {
       const service = yield* RuntimeGateService;

@@ -8,6 +8,7 @@ import {
   WorkflowContextFactKind,
 } from "../methodology/workflow.js";
 import { RuntimeProjectFactDetailDefinition } from "./facts.js";
+import { RuntimeConditionEvaluationTree } from "./conditions.js";
 import { TransitionExecutionStatus, WorkflowExecutionStatus } from "./status.js";
 import { RuntimeWorkUnitFactDetailDefinition, RuntimeWorkUnitIdentity } from "./work-units.js";
 
@@ -221,6 +222,7 @@ export const GetTransitionExecutionDetailOutput = Schema.Struct({
     completedAt: Schema.optional(Schema.String),
     firstBlockingReason: Schema.optional(Schema.String),
     conditionTree: Schema.optional(Schema.Unknown),
+    evaluationTree: Schema.optional(RuntimeConditionEvaluationTree),
     actions: Schema.optional(
       Schema.Struct({
         completeTransition: Schema.optional(

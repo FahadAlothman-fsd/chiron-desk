@@ -57,3 +57,22 @@ export const RuntimeConditionTree = Schema.suspend(
     }),
 );
 export type RuntimeConditionTree = Schema.Schema.Type<typeof RuntimeConditionTree>;
+
+export const RuntimeConditionEvaluation = Schema.Struct({
+  condition: RuntimeCondition,
+  met: Schema.Boolean,
+  reason: Schema.optional(Schema.String),
+});
+export type RuntimeConditionEvaluation = typeof RuntimeConditionEvaluation.Type;
+
+export const RuntimeConditionEvaluationTree = Schema.suspend(
+  (): Schema.Schema.AnyNoContext =>
+    Schema.Struct({
+      mode: RuntimeConditionMode,
+      met: Schema.Boolean,
+      reason: Schema.optional(Schema.String),
+      conditions: Schema.Array(RuntimeConditionEvaluation),
+      groups: Schema.Array(RuntimeConditionEvaluationTree),
+    }),
+);
+export type RuntimeConditionEvaluationTree = typeof RuntimeConditionEvaluationTree.Type;
