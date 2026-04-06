@@ -87,6 +87,36 @@ Ship a decision-complete runtime foundation for the setup workflow’s opening F
 - QA policy: every task includes both happy-path and failure-path scenarios.
 - Evidence: `.sisyphus/evidence/task-{N}-{slug}.{ext}`
 
+## Implementation Status (2026-04-08)
+Status: **IMPLEMENTED** on `feat/effect-migration`.
+
+Closeout summary:
+- The workflow-execution detail shell landed with explicit runtime step-surface states, read-only grouped workflow-context-facts, manual workflow completion, and hierarchy/polish fixes.
+- The step-execution detail page landed as the real Form interaction surface with latest-only draft/submit behavior, read-only completed fields, binding/status affordances, and runtime metadata fidelity fixes.
+- Transition execution detail was completed beyond the original shell scope with activation-path corrections, manual completion support, and an exhaustive completion-gate evaluator that now shows fulfilled/unfulfilled per requirement with reasons.
+- The final completion-gate closeout preserved short-circuit semantics for guidance/start gates while introducing a completion-only exhaustive evaluation path and UI evidence tree.
+
+Primary completion commits:
+- `0baa9c6d51` — `feat(runtime-form-ui): refine step detail form affordances`
+- `1216823511` — `feat(runtime): support manual workflow completion`
+- `2ac27eccf9` — `feat(runtime-ui): add workflow completion dialog`
+- `2b4a41c839` — `feat(runtime): add exhaustive completion gate evaluations`
+- `4d05f7843f` — `fix(runtime): preserve transition gate semantics`
+- `3cea0fa548` — `feat(runtime): expose evaluated completion gate detail`
+- `78f330d0cc` — `feat(runtime-ui): show evaluated completion requirements`
+
+Observed closeout verification in the final completion session:
+- `bunx vitest run "packages/workflow-engine/src/tests/runtime/runtime-gate-service.test.ts"` ✅
+- `bunx vitest run "packages/workflow-engine/src/tests/runtime/transition-execution-services.test.ts"` ✅
+- `bunx vitest run "apps/web/src/tests/routes/runtime-transition-execution-detail.test.tsx"` ✅
+- `bunx vitest run "apps/web/src/tests/routes/runtime-workflow-execution-detail.test.tsx"` ✅
+- `bunx vitest run "apps/web/src/tests/routes/runtime-form-step-detail.test.tsx"` ✅
+- `bun run build` ✅
+- LSP diagnostics clean on the modified contracts/services/routes/tests ✅
+- Oracle review approved the completion-only exhaustive evaluator split; the remaining low-risk cast issue was removed before final re-verification ✅
+
+User approval for closeout was explicitly given after verification and commit creation.
+
 ## Canonical Form Payload / valueJson Matrix
 > Form payload mirrors `workflow_execution_context_facts.valueJson` at the **instance level**.
 > Each `valueJson` stores one current instance. Form payload stores either a single instance shape or an array of instance shapes depending on rendered multiplicity.
@@ -180,7 +210,7 @@ Wave 3: integrated verification + hardening
 ## TODOs
 > Implementation + Test = ONE task. Runtime seed work remains out of scope. Form is the only interactive step type in this slice.
 
-- [ ] 1. Persist `projectRootPath` during project creation as the runtime picker prerequisite
+- [x] 1. Persist `projectRootPath` during project creation as the runtime picker prerequisite
 
   **What to do**: Patch the project create flow so the already-collected `projectRootPath` survives router → project-context service → repository insert and is returned in project summaries/details where needed. Extend tests so repo-scoped runtime path/file picker assumptions have a persisted source of truth before any Form runtime path behavior is implemented.
   **Must NOT do**: Do not redesign the create-project page UX. Do not add any extra project metadata beyond `projectRootPath` persistence in this task.
@@ -223,7 +253,7 @@ Wave 3: integrated verification + hardening
 
   **Commit**: YES | Message: `fix(project): persist project root path on create` | Files: `packages/api/src/routers/project.ts`, `packages/project-context/src/**`, `packages/db/src/project-context-repository.ts`, related tests
 
-- [ ] 2. Freeze runtime contracts and read-model shapes for the generic step shell and Form page
+- [x] 2. Freeze runtime contracts and read-model shapes for the generic step shell and Form page
 
   **What to do**: Patch runtime contracts so workflow-execution detail exposes explicit step-surface states (`entry_pending`, `active_step`, `next_pending`, `terminal_no_next_step`, `invalid_definition`) and a read-only workflow-context-facts section grouped by definition. Patch step-execution detail contracts so the page is modeled as a common header/status shell plus step-type-specific body, with Form-specific draft/submit readiness and latest-only payload semantics.
   **Must NOT do**: Do not keep `stepsSurface` as deferred message text. Do not keep the old step-detail audit tabs shape as the active runtime contract.
@@ -266,7 +296,7 @@ Wave 3: integrated verification + hardening
 
   **Commit**: YES | Message: `feat(runtime): freeze step shell contracts` | Files: `packages/contracts/src/runtime/**`, related tests
 
-- [ ] 3. Replace runtime schema and repository semantics for canonical Form state and current workflow context facts
+- [x] 3. Replace runtime schema and repository semantics for canonical Form state and current workflow context facts
 
   **What to do**: Patch `packages/db/src/schema/runtime.ts` and runtime repositories so:
   - `step_executions.step_definition_id` remains aligned to canonical `methodology_workflow_steps.id`
@@ -312,7 +342,7 @@ Wave 3: integrated verification + hardening
 
   **Commit**: YES | Message: `refactor(runtime-db): align form state and context facts` | Files: `packages/db/src/schema/runtime.ts`, `packages/db/src/runtime-repositories/**`, related tests
 
-- [ ] 4. Implement shared runtime services and command semantics for activate, draft, submit, and complete
+- [x] 4. Implement shared runtime services and command semantics for activate, draft, submit, and complete
 
   **What to do**: Patch shared runtime services so they honor the locked product model:
   - generic step activation by pending step definition, idempotent against duplicate clicks
@@ -362,7 +392,7 @@ Wave 3: integrated verification + hardening
 
   **Commit**: YES | Message: `feat(runtime): implement shared step shell commands` | Files: `packages/workflow-engine/src/services/**`, related tests
 
-- [ ] 5. Implement workflow-execution detail read model, procedures, and read-only context-facts UI
+- [x] 5. Implement workflow-execution detail read model, procedures, and read-only context-facts UI
 
   **What to do**: Patch the workflow-execution detail stack end-to-end so it becomes the orchestration/read page for this slice:
   - service and router return explicit step-surface states
@@ -410,7 +440,7 @@ Wave 3: integrated verification + hardening
 
   **Commit**: YES | Message: `feat(runtime): ship workflow execution detail shell` | Files: `packages/workflow-engine/src/services/workflow-execution-detail-service.ts`, `packages/api/src/routers/project-runtime.ts`, `apps/web/src/routes/projects.$projectId.workflow-executions.$workflowExecutionId.tsx`, related tests
 
-- [ ] 6. Implement step-execution detail read model, procedures, and active Form interaction UI
+- [x] 6. Implement step-execution detail read model, procedures, and active Form interaction UI
 
   **What to do**: Patch the step-execution detail stack end-to-end so it becomes the real interaction surface for Form:
   - service and router return common header/status metadata plus typed Form page model
@@ -460,7 +490,7 @@ Wave 3: integrated verification + hardening
 
   **Commit**: YES | Message: `feat(runtime): ship form step execution detail` | Files: `packages/workflow-engine/src/services/step-execution-detail-service.ts`, `packages/api/src/routers/project-runtime.ts`, `apps/web/src/routes/projects.$projectId.step-executions.$stepExecutionId.tsx`, related tests
 
-- [ ] 7. Run integrated runtime verification and prepare planning handoff
+- [x] 7. Run integrated runtime verification and prepare planning handoff
 
   **What to do**: Run the full named runtime suites, verify only intended runtime/prerequisite files are in scope, and confirm the final implementation still mirrors the imported design-time slice authority and the runtime draft decisions.
   **Must NOT do**: Do not let this slice drift into direct workflow-context-fact CRUD, non-Form interaction UIs, or unrelated cleanup.
@@ -504,6 +534,7 @@ Wave 3: integrated verification + hardening
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit okay before marking work complete.
 > **Do NOT auto-proceed after verification. Wait for user's explicit approval before marking work complete.**
 > **Never mark F1-F4 as checked before getting user's okay.** Rejection or user feedback -> fix -> re-run -> present again -> wait for okay.
+> Closeout note (2026-04-08): explicit user approval was received. The final completion session ran focused runtime/detail verification plus Oracle review and build, but it did not re-run the original broad Playwright/manual-QA wave verbatim from this historical plan.
 - [ ] F1. Plan Compliance Audit — oracle
 - [ ] F2. Code Quality Review — unspecified-high
 - [ ] F3. Real Manual QA — unspecified-high (+ playwright if UI)
