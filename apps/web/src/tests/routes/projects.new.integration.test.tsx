@@ -120,6 +120,7 @@ function createHarness(options?: { createAndPinImpl?: (input: unknown) => Promis
       (async () => ({
         project: {
           id: "project-42",
+          projectRootPath: "/tmp/workspace/chiron",
           createdAt: "2026-03-03T12:00:00.000Z",
           updatedAt: "2026-03-03T12:00:00.000Z",
         },
@@ -279,6 +280,32 @@ describe("create project route projectRootPath", () => {
     });
   });
 
+  it("keeps create disabled until a project root path is provided", async () => {
+    const { queryClient, createAndPinSpy } = createHarness();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <CreateProjectRoute />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByText("Create a project from a pinned methodology");
+
+    fireEvent.change(screen.getByLabelText("Project name"), {
+      target: { value: "Aurora Atlas 321" },
+    });
+
+    const createButton = screen.getByRole("button", { name: "Create and pin project" });
+    await waitFor(() => {
+      expect(createButton).toHaveProperty("disabled", true);
+    });
+
+    fireEvent.click(createButton);
+
+    expect(createAndPinSpy).not.toHaveBeenCalled();
+    expect(screen.getByText("Select a project root path before creating a project.")).toBeTruthy();
+  });
+
   it("blocks invalid project root path formats", async () => {
     const { queryClient, createAndPinSpy } = createHarness();
 
@@ -353,12 +380,16 @@ describe("create project route projectRootPath", () => {
   });
 
   it("supports legacy desktop selectFolder bridge for browse", async () => {
-    window.desktop = {
-      runtime: {},
-      getRuntimeStatus: vi.fn().mockResolvedValue({ backend: "attached" }),
-      recoverLocalServices: vi.fn().mockResolvedValue(undefined),
-      selectFolder: vi.fn().mockResolvedValue("/tmp/legacy/chiron"),
-    } as (typeof window)["desktop"];
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      writable: true,
+      value: {
+        runtime: {},
+        getRuntimeStatus: vi.fn().mockResolvedValue({ backend: "attached" }),
+        recoverLocalServices: vi.fn().mockResolvedValue(undefined),
+        selectFolder: vi.fn().mockResolvedValue("/tmp/legacy/chiron"),
+      },
+    });
 
     const { queryClient } = createHarness();
 
@@ -406,11 +437,15 @@ describe("create project route projectRootPath", () => {
   });
 
   it("shows actionable hint when desktop bridge exists but picker method is missing", async () => {
-    window.desktop = {
-      runtime: {},
-      getRuntimeStatus: vi.fn().mockResolvedValue({ backend: "attached" }),
-      recoverLocalServices: vi.fn().mockResolvedValue(undefined),
-    } as (typeof window)["desktop"];
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      writable: true,
+      value: {
+        runtime: {},
+        getRuntimeStatus: vi.fn().mockResolvedValue({ backend: "attached" }),
+        recoverLocalServices: vi.fn().mockResolvedValue(undefined),
+      },
+    });
 
     const { queryClient } = createHarness();
 

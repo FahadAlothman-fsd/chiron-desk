@@ -19,6 +19,7 @@ const createAndPinProjectInput = z.object({
   methodologyId: z.string().min(1),
   versionId: z.string().min(1),
   name: z.string().trim().min(1).max(120).optional(),
+  projectRootPath: z.string().trim().min(1),
 });
 
 const getProjectDetailsInput = z.object({
@@ -301,7 +302,11 @@ export function createProjectRouter(
           Effect.gen(function* () {
             const projectSvc = yield* ProjectContextService;
             const projectId = randomUUID();
-            const project = yield* projectSvc.createProject(projectId, input.name);
+            const project = yield* projectSvc.createProject({
+              projectId,
+              ...(input.name !== undefined ? { name: input.name } : {}),
+              projectRootPath: input.projectRootPath,
+            });
             const result = yield* projectSvc.pinProjectMethodologyVersion(
               {
                 projectId,

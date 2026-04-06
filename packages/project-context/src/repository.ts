@@ -38,6 +38,7 @@ export interface ProjectMethodologyPinEventRow {
 export interface ProjectRow {
   id: string;
   name: string | null;
+  projectRootPath: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -75,6 +76,7 @@ export class ProjectContextRepository extends Context.Tag("ProjectContextReposit
     readonly createProject: (params: {
       projectId: string;
       name?: string;
+      projectRootPath: string;
     }) => Effect.Effect<ProjectRow, RepositoryError>;
     readonly listProjects: () => Effect.Effect<readonly ProjectRow[], RepositoryError>;
     readonly getProjectById: (params: {

@@ -137,7 +137,7 @@ function normalizeProjectRootPath(input: string): string {
 function validateProjectRootPath(input: string): string | null {
   const normalized = normalizeProjectRootPath(input);
   if (normalized.length === 0) {
-    return null;
+    return "Select a project root path before creating a project.";
   }
 
   const isUnixAbsolute = normalized.startsWith("/");
@@ -453,7 +453,7 @@ function CreateProjectRoute() {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Optional runtime git anchor. Stored in <code>projects.project_root_path</code>.
+              Required runtime git anchor. Stored in <code>projects.project_root_path</code>.
             </p>
             {!canBrowseProjectRootPath && !hasPartialDesktopBridge ? (
               <p className="text-xs text-muted-foreground">
@@ -668,12 +668,17 @@ function CreateProjectRoute() {
               !selectedMethodologyId ||
               !selectedVersionId ||
               projectName.trim().length === 0 ||
+              normalizedProjectRootPath.length === 0 ||
               Boolean(projectRootPathValidationError) ||
               !selectedMethodologyHasPublishedVersions
             }
             className="rounded-none uppercase tracking-[0.12em]"
             onClick={() => {
-              if (!selectedMethodologyId || !selectedVersionId) {
+              if (
+                !selectedMethodologyId ||
+                !selectedVersionId ||
+                normalizedProjectRootPath.length === 0
+              ) {
                 return;
               }
 
@@ -681,9 +686,7 @@ function CreateProjectRoute() {
                 methodologyId: selectedMethodologyId,
                 versionId: selectedVersionId,
                 name: projectName.trim(),
-                ...(normalizedProjectRootPath.length > 0
-                  ? { projectRootPath: normalizedProjectRootPath }
-                  : {}),
+                projectRootPath: normalizedProjectRootPath,
               };
 
               createAndPinMutation.mutate(payload);

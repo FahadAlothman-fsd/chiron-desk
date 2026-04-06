@@ -87,6 +87,7 @@ function toProjectRow(row: typeof projects.$inferSelect): ProjectRow {
   return {
     id: row.id,
     name: row.name,
+    projectRootPath: row.projectRootPath,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -189,11 +190,14 @@ async function hasRuntimeExecutionHistory(
 
 export function createProjectContextRepoLayer(db: DB): Layer.Layer<ProjectContextRepository> {
   return Layer.succeed(ProjectContextRepository, {
-    createProject: ({ projectId, name }) =>
+    createProject: ({ projectId, name, projectRootPath }) =>
       dbEffect("project-context.createProject", async () => {
-        await db.insert(projects).values({ id: projectId, name }).onConflictDoNothing({
-          target: projects.id,
-        });
+        await db
+          .insert(projects)
+          .values({ id: projectId, name, projectRootPath })
+          .onConflictDoNothing({
+            target: projects.id,
+          });
 
         const row = (
           await db.select().from(projects).where(eq(projects.id, projectId)).limit(1)

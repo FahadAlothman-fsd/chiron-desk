@@ -57,6 +57,7 @@ const stubProjectRepo = {
     Effect.succeed({
       id: "project-1",
       name: "Project One",
+      projectRootPath: null,
       createdAt: FIXED_NOW,
       updatedAt: FIXED_NOW,
     }),

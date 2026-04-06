@@ -46,6 +46,7 @@ export interface RepinProjectMethodologyVersionResult {
 export interface ProjectSummary {
   id: string;
   displayName: string;
+  projectRootPath: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -89,10 +90,11 @@ export class ProjectContextService extends Context.Tag("ProjectContextService")<
     readonly getProjectMethodologyPin: (
       projectId: string,
     ) => Effect.Effect<ProjectMethodologyPinState | null, RepositoryError>;
-    readonly createProject: (
-      projectId: string,
-      name?: string,
-    ) => Effect.Effect<ProjectSummary, RepositoryError>;
+    readonly createProject: (input: {
+      projectId: string;
+      name?: string;
+      projectRootPath: string;
+    }) => Effect.Effect<ProjectSummary, RepositoryError>;
     readonly listProjects: () => Effect.Effect<readonly ProjectSummary[], RepositoryError>;
     readonly getProjectById: (
       projectId: string,
@@ -424,12 +426,21 @@ export const ProjectContextServiceLive = Layer.effect(
         .findProjectPin(projectId)
         .pipe(Effect.map((pin) => (pin ? toProjectPinState(pin) : null)));
 
-    const createProject = (
-      projectId: string,
-      name?: string,
-    ): Effect.Effect<ProjectSummary, RepositoryError> =>
+    const createProject = ({
+      projectId,
+      name,
+      projectRootPath,
+    }: {
+      projectId: string;
+      name?: string;
+      projectRootPath: string;
+    }): Effect.Effect<ProjectSummary, RepositoryError> =>
       projectRepo
-        .createProject({ projectId, ...(name !== undefined ? { name } : {}) })
+        .createProject({
+          projectId,
+          ...(name !== undefined ? { name } : {}),
+          projectRootPath,
+        })
         .pipe(Effect.map((project) => toProjectSummary(project)));
 
     const listProjects = (): Effect.Effect<readonly ProjectSummary[], RepositoryError> =>
@@ -515,6 +526,7 @@ const normalizeProjectDisplayName = (project: ProjectRow): string => {
 const toProjectSummary = (project: ProjectRow): ProjectSummary => ({
   id: project.id,
   displayName: normalizeProjectDisplayName(project),
+  projectRootPath: project.projectRootPath,
   createdAt: project.createdAt.toISOString(),
   updatedAt: project.updatedAt.toISOString(),
 });

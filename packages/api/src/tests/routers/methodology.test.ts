@@ -5126,6 +5126,7 @@ describe("methodology router", () => {
           methodologyId: draft.version.methodologyId,
           versionId: draft.version.id,
           name: "Aurora Atlas 321",
+          projectRootPath: "/tmp/project-aurora",
         },
         AUTHENTICATED_CTX,
       );
@@ -5196,6 +5197,7 @@ describe("methodology router", () => {
           methodologyId: draft.version.methodologyId,
           versionId: draft.version.id,
           name: "Agent Fallback Project",
+          projectRootPath: "/tmp/project-agent-fallback",
         },
         AUTHENTICATED_CTX,
       );
@@ -5246,6 +5248,7 @@ describe("methodology router", () => {
         {
           methodologyId: draft.version.methodologyId,
           versionId: "missing-version-id",
+          projectRootPath: "/tmp/project-invalid-version",
         },
         AUTHENTICATED_CTX,
       );
@@ -5309,6 +5312,7 @@ describe("methodology router", () => {
           methodologyId: draft.version.methodologyId,
           versionId: draft.version.id,
           name: "Preview Project",
+          projectRootPath: "/tmp/project-preview",
         },
         AUTHENTICATED_CTX,
       );
@@ -5447,6 +5451,7 @@ describe("methodology router", () => {
           methodologyId: draft.version.methodologyId,
           versionId: draft.version.id,
           name: "Preview Context Select Project",
+          projectRootPath: "/tmp/project-preview-context",
         },
         AUTHENTICATED_CTX,
       );
@@ -5608,6 +5613,7 @@ describe("methodology router", () => {
           methodologyId: draft.version.methodologyId,
           versionId: draft.version.id,
           name: "Runtime Condition Project",
+          projectRootPath: "/tmp/project-runtime-condition",
         },
         AUTHENTICATED_CTX,
       );
@@ -5769,6 +5775,7 @@ describe("methodology router", () => {
           methodologyId: firstDraft.version.methodologyId,
           versionId: firstDraft.version.id,
           name: "Preview Contract Project",
+          projectRootPath: "/tmp/project-preview-contract",
         },
         AUTHENTICATED_CTX,
       );
