@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 
+import type {
+  RuntimeCondition,
+  RuntimeConditionEvaluation,
+  RuntimeConditionEvaluationTree,
+} from "@chiron/contracts/runtime/conditions";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
@@ -104,6 +109,211 @@ function renderTransitionPath(detail: {
 }): string {
   const from = detail.fromStateLabel ?? detail.fromStateKey ?? "Activation";
   return `${from} → ${detail.toStateLabel}`;
+}
+
+function hasConditionEvaluationNodes(tree: RuntimeConditionEvaluationTree | undefined): boolean {
+  return Boolean(
+    tree &&
+    (tree.conditions.length > 0 ||
+      tree.groups.some((group: RuntimeConditionEvaluationTree) =>
+        hasConditionEvaluationNodes(group),
+      )),
+  );
+}
+
+function describeRuntimeCondition(condition: RuntimeCondition): {
+  kindLabel: string;
+  summary: string;
+  detail: string;
+} {
+  switch (condition.kind) {
+    case "fact":
+      return {
+        kindLabel: "Project fact",
+        summary: condition.factKey,
+        detail: "A project-level fact value must exist before the transition can complete.",
+      };
+    case "work_unit_fact":
+      return {
+        kindLabel: "Work-unit fact",
+        summary: condition.factKey,
+        detail: "This work unit must have the required fact recorded before completion.",
+      };
+    case "artifact":
+      return {
+        kindLabel: "Artifact",
+        summary: condition.slotKey,
+        detail:
+          condition.operator === "fresh"
+            ? "A fresh artifact snapshot is required."
+            : condition.operator === "stale"
+              ? "A stale artifact snapshot is required."
+              : "A current artifact snapshot must exist.",
+      };
+  }
+}
+
+function getEvaluationCounts(tree: RuntimeConditionEvaluationTree): {
+  total: number;
+  met: number;
+  unmet: number;
+} {
+  const directMet = tree.conditions.filter(
+    (condition: RuntimeConditionEvaluation) => condition.met,
+  ).length;
+  const directUnmet = tree.conditions.length - directMet;
+  const nested = tree.groups.map((group: RuntimeConditionEvaluationTree) =>
+    getEvaluationCounts(group),
+  );
+  const nestedTotal = nested.reduce((sum: number, group) => sum + group.total, 0);
+  const nestedMet = nested.reduce((sum: number, group) => sum + group.met, 0);
+  const nestedUnmet = nested.reduce((sum: number, group) => sum + group.unmet, 0);
+
+  return {
+    total: tree.conditions.length + nestedTotal,
+    met: directMet + nestedMet,
+    unmet: directUnmet + nestedUnmet,
+  };
+}
+
+function renderEvaluationBadgeTone(met: boolean): "emerald" | "rose" {
+  return met ? "emerald" : "rose";
+}
+
+function renderEvaluationLabel(met: boolean): string {
+  return met ? "fulfilled" : "unfulfilled";
+}
+
+function renderSatisfiedCopy(condition: RuntimeCondition): string {
+  switch (condition.kind) {
+    case "fact":
+      return "This project fact is currently present.";
+    case "work_unit_fact":
+      return "This work-unit fact is currently present.";
+    case "artifact":
+      return condition.operator === "fresh"
+        ? "A fresh artifact snapshot is currently available."
+        : condition.operator === "stale"
+          ? "A stale artifact snapshot is currently available."
+          : "A current artifact snapshot is currently available.";
+  }
+}
+
+function renderCompletionGateHeadline(panelState: string): string {
+  switch (panelState) {
+    case "workflow_running":
+      return "Waiting on the active workflow";
+    case "passing":
+      return "Transition is ready to complete";
+    case "failing":
+      return "Completion is blocked";
+    case "completed_read_only":
+      return "Transition already completed";
+    case "superseded_read_only":
+      return "Transition was superseded";
+    default:
+      return "Completion status";
+  }
+}
+
+function renderCompletionGateGuidance(panelState: string): string {
+  switch (panelState) {
+    case "workflow_running":
+      return "Finish the current primary workflow before the runtime can close this transition.";
+    case "passing":
+      return "All completion requirements are currently satisfied. The primary action can promote the work unit to its target state.";
+    case "failing":
+      return "The transition cannot close yet. Fix the blocking requirement below or swap to another primary workflow if this attempt is no longer the right path.";
+    case "completed_read_only":
+      return "This transition already applied its state change. The gate is now read-only evidence.";
+    case "superseded_read_only":
+      return "A newer transition execution took over, so this gate is historical context only.";
+    default:
+      return "Review the runtime gate status and act on the current blocker.";
+  }
+}
+
+function ConditionEvaluationTreePanel({
+  tree,
+  depth = 0,
+}: {
+  tree: RuntimeConditionEvaluationTree;
+  depth?: number;
+}) {
+  const modeTone = tree.mode === "all" ? "amber" : "sky";
+  const modeCopy =
+    tree.mode === "all"
+      ? "Every requirement in this group must pass."
+      : "Any one branch in this group can pass.";
+  const counts = getEvaluationCounts(tree);
+
+  return (
+    <div className={cn("space-y-3", depth > 0 ? "border-l border-border/60 pl-4" : undefined)}>
+      <div className="space-y-2 border border-border/70 bg-background/40 p-3">
+        <div className="flex flex-wrap gap-2">
+          <ExecutionBadge label={`${tree.mode} gate`} tone={modeTone} />
+          <ExecutionBadge label={`${counts.total} checks`} tone="slate" />
+          <ExecutionBadge
+            label={`${counts.met} fulfilled / ${counts.unmet} unfulfilled`}
+            tone={tree.met ? "emerald" : "rose"}
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">{modeCopy}</p>
+        {tree.reason ? <p className="text-xs text-rose-100/90">{tree.reason}</p> : null}
+      </div>
+
+      {tree.conditions.length > 0 ? (
+        <div className="space-y-2">
+          {tree.conditions.map((evaluation: RuntimeConditionEvaluation, index: number) => {
+            const detail = describeRuntimeCondition(evaluation.condition);
+            return (
+              <div
+                key={`${evaluation.condition.kind}-${detail.summary}-${index}`}
+                className={cn(
+                  "space-y-2 border bg-background/40 p-3",
+                  evaluation.met ? "border-emerald-500/30" : "border-rose-500/30",
+                )}
+              >
+                <div className="flex flex-wrap gap-2">
+                  <ExecutionBadge label={detail.kindLabel} tone="violet" />
+                  <ExecutionBadge
+                    label={
+                      evaluation.condition.kind === "artifact"
+                        ? evaluation.condition.operator
+                        : "exists"
+                    }
+                    tone="slate"
+                  />
+                  <ExecutionBadge
+                    label={renderEvaluationLabel(evaluation.met)}
+                    tone={renderEvaluationBadgeTone(evaluation.met)}
+                  />
+                </div>
+                <DetailPrimary>{detail.summary}</DetailPrimary>
+                <p className="text-sm text-muted-foreground">
+                  {evaluation.met
+                    ? renderSatisfiedCopy(evaluation.condition)
+                    : (evaluation.reason ?? detail.detail)}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {tree.groups.length > 0 ? (
+        <div className="space-y-3">
+          {tree.groups.map((group: RuntimeConditionEvaluationTree, index: number) => (
+            <ConditionEvaluationTreePanel
+              key={`${group.mode}-${index}`}
+              tree={group}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export const Route = createFileRoute(
@@ -212,6 +422,8 @@ export function TransitionExecutionDetailRoute() {
   const isLoading = Boolean(projectWorkUnitId) && transitionDetailQuery.isLoading;
   const hasError = Boolean(transitionDetailQuery.error);
   const isBusy = choosePrimaryMutation.isPending || completeTransitionMutation.isPending;
+  const completionEvaluationTree = detail?.completionGate.evaluationTree;
+  const hasCompletionEvidence = hasConditionEvaluationNodes(completionEvaluationTree);
 
   const chooseAnotherPrimaryAvailable =
     detail?.completionGate.actions?.chooseAnotherPrimaryWorkflow !== undefined;
@@ -289,6 +501,270 @@ export function TransitionExecutionDetailRoute() {
 
       {detail ? (
         <>
+          <section className="space-y-4 border border-border/80 bg-background p-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div className="space-y-1">
+                <DetailEyebrow className="text-[0.72rem]">Completion gate</DetailEyebrow>
+                <h2 className="text-lg font-semibold text-foreground">
+                  {renderCompletionGateHeadline(detail.completionGate.panelState)}
+                </h2>
+                <p className="max-w-3xl text-sm text-muted-foreground">
+                  {renderCompletionGateGuidance(detail.completionGate.panelState)}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <ExecutionBadge
+                  label={detail.completionGate.panelState.replaceAll("_", " ")}
+                  tone={getGateStateTone(detail.completionGate.panelState)}
+                />
+                <ExecutionBadge
+                  label={renderTransitionStatus(detail.transitionExecution.status)}
+                  tone={getExecutionStatusTone(detail.transitionExecution.status)}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.85fr)]">
+              <div className="space-y-3 border border-border/70 bg-background/40 p-4">
+                <div className="space-y-2">
+                  <DetailLabel>Gate status</DetailLabel>
+                  <DetailPrimary className="text-base">
+                    {renderCompletionGateHeadline(detail.completionGate.panelState)}
+                  </DetailPrimary>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <DetailLabel>Last evaluated</DetailLabel>
+                    <DetailPrimary>
+                      {formatTimestamp(detail.completionGate.lastEvaluatedAt)}
+                    </DetailPrimary>
+                  </div>
+                  <div className="space-y-1">
+                    <DetailLabel>Completed at</DetailLabel>
+                    <DetailPrimary>
+                      {formatTimestamp(detail.completionGate.completedAt)}
+                    </DetailPrimary>
+                  </div>
+                </div>
+
+                {detail.completionGate.firstBlockingReason ? (
+                  <div className="space-y-2 border border-rose-500/40 bg-rose-500/10 p-4">
+                    <div className="flex flex-wrap gap-2">
+                      <ExecutionBadge label="current blocker" tone="rose" />
+                    </div>
+                    <DetailPrimary>Why completion is blocked</DetailPrimary>
+                    <p className="text-sm text-rose-100/90">
+                      {detail.completionGate.firstBlockingReason}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="space-y-3 border border-border/70 bg-background/40 p-4">
+                <div className="space-y-1">
+                  <DetailLabel>
+                    {completeTransitionAvailable
+                      ? "Primary action"
+                      : chooseAnotherPrimaryAvailable
+                        ? "Recovery action"
+                        : "Operator action"}
+                  </DetailLabel>
+                  <DetailPrimary>
+                    {completeTransitionAvailable
+                      ? "Close this transition now"
+                      : chooseAnotherPrimaryAvailable
+                        ? "Switch to a different primary workflow"
+                        : detail.currentPrimaryWorkflow?.status === "active"
+                          ? "Monitor the running workflow"
+                          : "No transition action available"}
+                  </DetailPrimary>
+                </div>
+
+                {completeTransitionAvailable ? (
+                  <>
+                    <p className="text-sm text-muted-foreground">
+                      The completion gate is passing. This is the primary state-changing action.
+                    </p>
+                    <button
+                      type="button"
+                      className={cn(
+                        buttonVariants({ variant: "default", size: "sm" }),
+                        "rounded-none text-[0.68rem] uppercase tracking-[0.12em]",
+                      )}
+                      disabled={isBusy}
+                      onClick={async () => {
+                        if (!projectWorkUnitId) {
+                          return;
+                        }
+
+                        await completeTransitionMutation.mutateAsync({
+                          projectId,
+                          projectWorkUnitId,
+                          transitionExecutionId,
+                        });
+                      }}
+                    >
+                      Complete transition
+                    </button>
+                  </>
+                ) : null}
+
+                {chooseAnotherPrimaryAvailable ? (
+                  <div className="space-y-3 border border-border/70 bg-background/60 p-3">
+                    <p className="text-sm text-muted-foreground">
+                      If this workflow path is not satisfying the gate, choose another bound
+                      workflow attempt.
+                    </p>
+                    <div className="space-y-2">
+                      <label
+                        className="text-xs uppercase tracking-[0.12em] text-muted-foreground"
+                        htmlFor="next-primary-workflow"
+                      >
+                        Next primary workflow
+                      </label>
+                      <Select
+                        value={selectedWorkflowId}
+                        onValueChange={(value) => setSelectedWorkflowId(value ?? "")}
+                      >
+                        <SelectTrigger
+                          id="next-primary-workflow"
+                          className="w-full bg-background/80 text-foreground"
+                        >
+                          <SelectValue placeholder="Choose a workflow" />
+                        </SelectTrigger>
+                        <SelectContent className="border border-border/80 bg-[#0b0f12] text-foreground">
+                          {boundWorkflows.map((workflow) => (
+                            <SelectItem key={workflow.workflowId} value={workflow.workflowId}>
+                              {workflow.workflowName} ({workflow.workflowKey})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isBusy || !selectedWorkflowId || !projectWorkUnitId}
+                      onClick={async () => {
+                        if (!projectWorkUnitId || !selectedWorkflowId) {
+                          return;
+                        }
+
+                        await choosePrimaryMutation.mutateAsync({
+                          projectId,
+                          projectWorkUnitId,
+                          transitionExecutionId,
+                          workflowId: selectedWorkflowId,
+                          ...(selectedWorkflow?.workflowKey
+                            ? { workflowKey: selectedWorkflow.workflowKey }
+                            : {}),
+                        });
+                      }}
+                    >
+                      Choose another primary workflow
+                    </Button>
+                  </div>
+                ) : null}
+
+                {!completeTransitionAvailable &&
+                !chooseAnotherPrimaryAvailable &&
+                detail.currentPrimaryWorkflow ? (
+                  <Link
+                    to="/projects/$projectId/workflow-executions/$workflowExecutionId"
+                    params={{
+                      projectId,
+                      workflowExecutionId: detail.currentPrimaryWorkflow.workflowExecutionId,
+                    }}
+                    className={cn(
+                      buttonVariants({ variant: "outline", size: "sm" }),
+                      "w-fit rounded-none text-[0.68rem] uppercase tracking-[0.12em]",
+                    )}
+                  >
+                    Open workflow detail
+                  </Link>
+                ) : null}
+              </div>
+            </div>
+
+            {hasCompletionEvidence && completionEvaluationTree ? (
+              <div className="space-y-3 border border-border/70 bg-background/40 p-4">
+                <div className="space-y-1">
+                  <DetailLabel>Completion requirements</DetailLabel>
+                  <DetailPrimary>What the runtime evaluated</DetailPrimary>
+                  <p className="text-sm text-muted-foreground">
+                    These are the live completion-gate results for this transition. Each requirement
+                    shows whether it is currently fulfilled or unfulfilled and why.
+                  </p>
+                </div>
+
+                <ConditionEvaluationTreePanel tree={completionEvaluationTree} />
+              </div>
+            ) : detail.completionGate.panelState === "failing" ? (
+              <div className="border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-100/90">
+                Completion is blocked, but no structured completion requirements were resolved for
+                this transition.
+              </div>
+            ) : null}
+          </section>
+
+          <section className="space-y-3 border border-border/80 bg-background p-4">
+            <div className="space-y-1">
+              <DetailEyebrow className="text-[0.72rem]">Current primary workflow</DetailEyebrow>
+              <p className="text-sm text-muted-foreground">
+                This is the workflow attempt currently responsible for driving the transition
+                forward.
+              </p>
+            </div>
+
+            {detail.currentPrimaryWorkflow ? (
+              <div className="space-y-3 border border-border/70 bg-background/40 p-4 text-sm">
+                <div className="flex flex-wrap gap-2">
+                  <ExecutionBadge
+                    label={renderWorkflowStatus(detail.currentPrimaryWorkflow.status)}
+                    tone={getExecutionStatusTone(detail.currentPrimaryWorkflow.status)}
+                  />
+                  <ExecutionBadge label="primary workflow" tone="violet" />
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div>
+                    <DetailLabel>Workflow</DetailLabel>
+                    <DetailPrimary>{detail.currentPrimaryWorkflow.workflowName}</DetailPrimary>
+                    <DetailCode>{detail.currentPrimaryWorkflow.workflowKey}</DetailCode>
+                  </div>
+                  <div>
+                    <DetailLabel>Started</DetailLabel>
+                    <DetailPrimary>
+                      {formatTimestamp(detail.currentPrimaryWorkflow.startedAt)}
+                    </DetailPrimary>
+                  </div>
+                </div>
+
+                <Link
+                  to="/projects/$projectId/workflow-executions/$workflowExecutionId"
+                  params={{
+                    projectId,
+                    workflowExecutionId: detail.currentPrimaryWorkflow.workflowExecutionId,
+                  }}
+                  className={cn(
+                    buttonVariants({ variant: "outline", size: "sm" }),
+                    "mt-1 w-fit rounded-none text-[0.68rem] uppercase tracking-[0.12em]",
+                  )}
+                >
+                  Open workflow detail
+                </Link>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No primary workflow is currently selected.
+              </p>
+            )}
+          </section>
+
           <Card frame="cut-heavy" tone="runtime" corner="white">
             <CardHeader>
               <div className="space-y-1">
@@ -312,6 +788,16 @@ export function TransitionExecutionDetailRoute() {
                     <DetailPrimary>
                       {renderTransitionPath(detail.transitionDefinition)}
                     </DetailPrimary>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <ExecutionBadge
+                      label={`${detail.transitionDefinition.completionConditionSets.length} completion sets`}
+                      tone="amber"
+                    />
+                    <ExecutionBadge
+                      label={`${detail.transitionDefinition.boundWorkflows.length} bound workflows`}
+                      tone="slate"
+                    />
                   </div>
                 </div>
 
@@ -349,165 +835,6 @@ export function TransitionExecutionDetailRoute() {
               </div>
             </CardContent>
           </Card>
-
-          <section className="space-y-3 border border-border/80 bg-background p-4">
-            <h2 className="text-[0.72rem] uppercase tracking-[0.16em] text-muted-foreground">
-              Current primary workflow
-            </h2>
-
-            {detail.currentPrimaryWorkflow ? (
-              <div className="space-y-2 border border-border/70 bg-background/40 p-3 text-sm">
-                <p>
-                  <span className="text-muted-foreground">Workflow:</span>{" "}
-                  {detail.currentPrimaryWorkflow.workflowName}
-                </p>
-                <p>
-                  <span className="text-muted-foreground">Key:</span>{" "}
-                  {detail.currentPrimaryWorkflow.workflowKey}
-                </p>
-                <p>
-                  <span className="text-muted-foreground">Status:</span>{" "}
-                  {renderWorkflowStatus(detail.currentPrimaryWorkflow.status)}
-                </p>
-                <p>
-                  <span className="text-muted-foreground">Started:</span>{" "}
-                  {formatTimestamp(detail.currentPrimaryWorkflow.startedAt)}
-                </p>
-                <Link
-                  to="/projects/$projectId/workflow-executions/$workflowExecutionId"
-                  params={{
-                    projectId,
-                    workflowExecutionId: detail.currentPrimaryWorkflow.workflowExecutionId,
-                  }}
-                  className={cn(
-                    buttonVariants({ variant: "outline", size: "sm" }),
-                    "mt-1 rounded-none text-[0.68rem] uppercase tracking-[0.12em]",
-                  )}
-                >
-                  Open workflow detail
-                </Link>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No primary workflow is currently selected.
-              </p>
-            )}
-          </section>
-
-          <section className="space-y-3 border border-border/80 bg-background p-4">
-            <DetailEyebrow className="text-[0.72rem]">Completion gate</DetailEyebrow>
-
-            <div className="space-y-1 text-sm">
-              <div className="flex flex-wrap gap-2">
-                <ExecutionBadge
-                  label={detail.completionGate.panelState.replaceAll("_", " ")}
-                  tone={getGateStateTone(detail.completionGate.panelState)}
-                />
-                <ExecutionBadge
-                  label={renderTransitionStatus(detail.transitionExecution.status)}
-                  tone={getExecutionStatusTone(detail.transitionExecution.status)}
-                />
-              </div>
-              {detail.completionGate.lastEvaluatedAt ? (
-                <p>
-                  <span className="text-muted-foreground">Last evaluated:</span>{" "}
-                  {formatTimestamp(detail.completionGate.lastEvaluatedAt)}
-                </p>
-              ) : null}
-              {detail.completionGate.completedAt ? (
-                <p>
-                  <span className="text-muted-foreground">Completed at:</span>{" "}
-                  {formatTimestamp(detail.completionGate.completedAt)}
-                </p>
-              ) : null}
-              {detail.completionGate.firstBlockingReason ? (
-                <p className="text-destructive">{detail.completionGate.firstBlockingReason}</p>
-              ) : null}
-            </div>
-
-            {detail.completionGate.conditionTree !== undefined ? (
-              <pre className="overflow-x-auto border border-border/70 bg-background/40 p-3 text-xs text-muted-foreground">
-                {JSON.stringify(detail.completionGate.conditionTree, null, 2)}
-              </pre>
-            ) : null}
-
-            {completeTransitionAvailable ? (
-              <button
-                type="button"
-                className={cn(
-                  buttonVariants({ variant: "default", size: "sm" }),
-                  "rounded-none text-[0.68rem] uppercase tracking-[0.12em]",
-                )}
-                disabled={isBusy}
-                onClick={async () => {
-                  if (!projectWorkUnitId) {
-                    return;
-                  }
-
-                  await completeTransitionMutation.mutateAsync({
-                    projectId,
-                    projectWorkUnitId,
-                    transitionExecutionId,
-                  });
-                }}
-              >
-                Complete transition
-              </button>
-            ) : null}
-
-            {chooseAnotherPrimaryAvailable ? (
-              <div className="space-y-2">
-                <label
-                  className="text-xs uppercase tracking-[0.12em] text-muted-foreground"
-                  htmlFor="next-primary-workflow"
-                >
-                  Next primary workflow
-                </label>
-                <Select
-                  value={selectedWorkflowId}
-                  onValueChange={(value) => setSelectedWorkflowId(value ?? "")}
-                >
-                  <SelectTrigger
-                    id="next-primary-workflow"
-                    className="w-full bg-background/80 text-foreground"
-                  >
-                    <SelectValue placeholder="Choose a workflow" />
-                  </SelectTrigger>
-                  <SelectContent className="border border-border/80 bg-[#0b0f12] text-foreground">
-                    {boundWorkflows.map((workflow) => (
-                      <SelectItem key={workflow.workflowId} value={workflow.workflowId}>
-                        {workflow.workflowName} ({workflow.workflowKey})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={isBusy || !selectedWorkflowId || !projectWorkUnitId}
-                  onClick={async () => {
-                    if (!projectWorkUnitId || !selectedWorkflowId) {
-                      return;
-                    }
-
-                    await choosePrimaryMutation.mutateAsync({
-                      projectId,
-                      projectWorkUnitId,
-                      transitionExecutionId,
-                      workflowId: selectedWorkflowId,
-                      ...(selectedWorkflow?.workflowKey
-                        ? { workflowKey: selectedWorkflow.workflowKey }
-                        : {}),
-                    });
-                  }}
-                >
-                  Choose another primary workflow
-                </Button>
-              </div>
-            ) : null}
-          </section>
 
           <section className="space-y-3 border border-border/80 bg-background p-4">
             <h2 className="text-[0.72rem] uppercase tracking-[0.16em] text-muted-foreground">

@@ -125,6 +125,8 @@ type TransitionDetail = {
         transitionExecutionId: string;
       };
     };
+    conditionTree?: unknown;
+    evaluationTree?: unknown;
   };
 };
 
@@ -312,6 +314,37 @@ describe("runtime transition execution detail route", () => {
           panelState: "failing",
           firstBlockingReason: "Completion condition blocked.",
           lastEvaluatedAt: "2026-03-28T12:06:00.000Z",
+          evaluationTree: {
+            mode: "all",
+            met: false,
+            conditions: [],
+            groups: [
+              {
+                mode: "all",
+                met: false,
+                conditions: [
+                  {
+                    condition: {
+                      kind: "artifact",
+                      slotKey: "approved_prd",
+                      operator: "exists",
+                    },
+                    met: false,
+                    reason: "Artifact slot 'approved_prd' has no current snapshot",
+                  },
+                  {
+                    condition: {
+                      kind: "fact",
+                      factKey: "initiative_name",
+                      operator: "exists",
+                    },
+                    met: true,
+                  },
+                ],
+                groups: [],
+              },
+            ],
+          },
           actions: {
             chooseAnotherPrimaryWorkflow: {
               kind: "choose_primary_workflow_for_transition_execution",
@@ -322,9 +355,9 @@ describe("runtime transition execution detail route", () => {
       );
 
     const sectionOrder = [
-      "Transition definition",
-      "Current primary workflow",
       "Completion gate",
+      "Current primary workflow",
+      "Transition definition",
       "Primary attempt history",
       "Supporting workflows",
     ];
@@ -337,7 +370,13 @@ describe("runtime transition execution detail route", () => {
     }
 
     expect(markup).toContain("Choose another primary workflow");
+    expect(markup).toContain("Why completion is blocked");
     expect(markup).toContain("Completion condition blocked.");
+    expect(markup).toContain("What the runtime evaluated");
+    expect(markup).toContain("approved_prd");
+    expect(markup).toContain("fulfilled");
+    expect(markup).toContain("unfulfilled");
+    expect(markup).toContain("has no current snapshot");
     expect(markup).toContain(
       'href="/projects/$projectId/workflow-executions/$workflowExecutionId"',
     );
