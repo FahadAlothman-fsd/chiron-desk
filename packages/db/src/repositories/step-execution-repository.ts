@@ -15,7 +15,7 @@ export interface CreateStepExecutionParams {
   stepDefinitionId: string;
   stepType: string;
   status: string;
-  progressionData: unknown;
+  previousStepExecutionId: string | null;
 }
 
 export interface UpsertFormStepExecutionStateParams {
@@ -41,7 +41,7 @@ export interface StepExecutionRow {
   status: string;
   activatedAt: Date;
   completedAt: Date | null;
-  progressionData: unknown;
+  previousStepExecutionId: string | null;
 }
 
 export interface FormStepExecutionStateRow {
@@ -91,7 +91,7 @@ function toStepExecutionRow(row: typeof stepExecutions.$inferSelect): StepExecut
     status: row.status,
     activatedAt: row.activatedAt,
     completedAt: row.completedAt,
-    progressionData: row.progressionData,
+    previousStepExecutionId: row.previousStepExecutionId,
   };
 }
 
@@ -118,7 +118,7 @@ export function createStepExecutionRepoLayer(db: DB): Layer.Layer<StepExecutionR
             stepDefinitionId: params.stepDefinitionId,
             stepType: params.stepType,
             status: params.status,
-            progressionData: params.progressionData,
+            previousStepExecutionId: params.previousStepExecutionId,
           })
           .returning();
         const row = rows[0];

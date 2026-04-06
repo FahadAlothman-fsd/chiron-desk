@@ -32,6 +32,18 @@ const SCHEMA_SQL = [
     edge_key TEXT,
     description_json TEXT,
     created_at INTEGER NOT NULL,
+     updated_at INTEGER NOT NULL
+   )`,
+  `CREATE TABLE methodology_workflow_context_fact_definitions (
+    id TEXT PRIMARY KEY,
+    workflow_definition_id TEXT NOT NULL,
+    fact_key TEXT NOT NULL,
+    fact_kind TEXT NOT NULL,
+    label TEXT,
+    description_json TEXT,
+    cardinality TEXT NOT NULL,
+    guidance_json TEXT,
+    created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   )`,
   `CREATE TABLE transition_executions (
@@ -47,6 +59,7 @@ const SCHEMA_SQL = [
     workflow_id TEXT NOT NULL,
     workflow_role TEXT NOT NULL,
     status TEXT NOT NULL,
+    current_step_execution_id TEXT,
     started_at INTEGER NOT NULL
   )`,
   `CREATE TABLE step_executions (
@@ -57,22 +70,25 @@ const SCHEMA_SQL = [
     status TEXT NOT NULL,
     activated_at INTEGER NOT NULL,
     completed_at INTEGER,
-    progression_data TEXT
+    previous_step_execution_id TEXT
   )`,
   `CREATE TABLE form_step_execution_state (
     id TEXT PRIMARY KEY,
     step_execution_id TEXT NOT NULL,
-    draft_values_json TEXT,
-    submitted_snapshot_json TEXT,
+    draft_payload_json TEXT,
+    submitted_payload_json TEXT,
+    last_draft_saved_at INTEGER,
     submitted_at INTEGER
   )`,
   `CREATE TABLE workflow_execution_context_facts (
     id TEXT PRIMARY KEY,
     workflow_execution_id TEXT NOT NULL,
-    fact_key TEXT NOT NULL,
-    fact_kind TEXT NOT NULL,
+    context_fact_definition_id TEXT NOT NULL,
+    instance_order INTEGER NOT NULL,
     value_json TEXT,
-    source_step_execution_id TEXT
+    source_step_execution_id TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
   )`,
 ];
 
@@ -107,6 +123,13 @@ describe("l3 slice-1 runtime repositories", () => {
         ('edge-1', 'version-1', 'workflow-1', 'step-1', 'step-2', 'capture->confirm', NULL, strftime('%s','now') * 1000, strftime('%s','now') * 1000)
     `);
     await client.execute(`
+      INSERT INTO methodology_workflow_context_fact_definitions (
+        id, workflow_definition_id, fact_key, fact_kind, label, description_json, cardinality, guidance_json, created_at, updated_at
+      ) VALUES
+        ('ctx-initiative-name', 'workflow-1', 'initiative_name', 'plain_value_fact', 'Initiative Name', NULL, 'one', NULL, strftime('%s','now') * 1000, strftime('%s','now') * 1000),
+        ('ctx-objectives', 'workflow-1', 'objectives', 'plain_value_fact', 'Objectives', NULL, 'many', NULL, strftime('%s','now') * 1000, strftime('%s','now') * 1000)
+    `);
+    await client.execute(`
       INSERT INTO transition_executions (id, project_work_unit_id, transition_id, status, started_at)
       VALUES ('tx-1', 'wu-1', 'transition-1', 'active', strftime('%s','now') * 1000)
     `);
@@ -124,7 +147,7 @@ describe("l3 slice-1 runtime repositories", () => {
   const run = <A>(program: Effect.Effect<A, unknown, StepExecutionRepository>): Promise<A> =>
     Effect.runPromise(program.pipe(Effect.provide(createStepExecutionRepoLayer(db))));
 
-  it("persists lifecycle rows, form state, context facts, and topology reads", async () => {
+  it("persists lifecycle rows, latest-only form state, current context facts, and topology reads", async () => {
     const result = await run(
       Effect.gen(function* () {
         const repo = yield* StepExecutionRepository;
@@ -134,7 +157,7 @@ describe("l3 slice-1 runtime repositories", () => {
           stepDefinitionId: "step-1",
           stepType: "form",
           status: "active",
-          progressionData: { activation: "first_step" },
+          previousStepExecutionId: null,
         });
 
         const lookup = yield* repo.findStepExecutionByWorkflowAndDefinition({
@@ -144,37 +167,97 @@ describe("l3 slice-1 runtime repositories", () => {
 
         const completed = yield* repo.completeStepExecution({
           stepExecutionId: stepExecution.id,
-          progressionData: { progressedTo: "step-2" },
         });
 
         const state = yield* repo.upsertFormStepExecutionState({
           stepExecutionId: stepExecution.id,
-          draftValuesJson: { initiativeName: "Chiron" },
-          submittedSnapshotJson: { initiativeName: "Chiron" },
+          draftPayloadJson: { initiativeName: "Chiron v2" },
+          submittedPayloadJson: { initiativeName: "Chiron" },
+          lastDraftSavedAt: new Date("2026-04-06T12:00:00.000Z"),
           submittedAt: new Date(),
         });
 
-        const contextFact = yield* repo.writeWorkflowExecutionContextFact({
+        const replacedFacts = yield* repo.replaceWorkflowExecutionContextFacts({
           workflowExecutionId: "wfexec-1",
-          factKey: "initiative_name",
-          factKind: "plain_value",
-          valueJson: "Chiron",
           sourceStepExecutionId: stepExecution.id,
+          affectedContextFactDefinitionIds: ["ctx-initiative-name", "ctx-objectives"],
+          currentValues: [
+            {
+              contextFactDefinitionId: "ctx-initiative-name",
+              instanceOrder: 0,
+              valueJson: "Chiron",
+            },
+            {
+              contextFactDefinitionId: "ctx-objectives",
+              instanceOrder: 0,
+              valueJson: "Ship runtime form",
+            },
+            {
+              contextFactDefinitionId: "ctx-objectives",
+              instanceOrder: 1,
+              valueJson: "Keep canonical ids",
+            },
+          ],
+        });
+
+        const updatedFacts = yield* repo.replaceWorkflowExecutionContextFacts({
+          workflowExecutionId: "wfexec-1",
+          sourceStepExecutionId: stepExecution.id,
+          affectedContextFactDefinitionIds: ["ctx-objectives"],
+          currentValues: [
+            {
+              contextFactDefinitionId: "ctx-objectives",
+              instanceOrder: 0,
+              valueJson: "Replace stale rows atomically",
+            },
+          ],
         });
 
         const listedFacts = yield* repo.listWorkflowExecutionContextFacts("wfexec-1");
         const stepDefs = yield* repo.listWorkflowStepDefinitions("workflow-1");
         const edges = yield* repo.listWorkflowEdges("workflow-1");
 
-        return { lookup, completed, state, contextFact, listedFacts, stepDefs, edges };
+        return {
+          lookup,
+          completed,
+          state,
+          replacedFacts,
+          updatedFacts,
+          listedFacts,
+          stepDefs,
+          edges,
+        };
       }),
     );
 
     expect(result.lookup?.id).toBeDefined();
+    expect(result.lookup?.previousStepExecutionId).toBeNull();
     expect(result.completed?.status).toBe("completed");
-    expect(result.state.submittedSnapshotJson).toMatchObject({ initiativeName: "Chiron" });
-    expect(result.contextFact.factKey).toBe("initiative_name");
-    expect(result.listedFacts).toHaveLength(1);
+    expect(result.state.draftPayloadJson).toMatchObject({ initiativeName: "Chiron v2" });
+    expect(result.state.submittedPayloadJson).toMatchObject({ initiativeName: "Chiron" });
+    expect(result.state.lastDraftSavedAt?.toISOString()).toBe("2026-04-06T12:00:00.000Z");
+    expect(result.replacedFacts).toHaveLength(3);
+    expect(result.updatedFacts).toHaveLength(1);
+    expect(result.updatedFacts[0]).toMatchObject({
+      contextFactDefinitionId: "ctx-objectives",
+      instanceOrder: 0,
+      valueJson: "Replace stale rows atomically",
+    });
+    expect(result.updatedFacts[0]?.createdAt).toBeInstanceOf(Date);
+    expect(result.updatedFacts[0]?.updatedAt).toBeInstanceOf(Date);
+    expect(result.listedFacts).toHaveLength(2);
+    expect(result.listedFacts).toEqual([
+      expect.objectContaining({
+        contextFactDefinitionId: "ctx-initiative-name",
+        instanceOrder: 0,
+        valueJson: "Chiron",
+      }),
+      expect.objectContaining({
+        contextFactDefinitionId: "ctx-objectives",
+        instanceOrder: 0,
+        valueJson: "Replace stale rows atomically",
+      }),
+    ]);
     expect(result.stepDefs.map((row) => row.id)).toEqual(["step-1", "step-2"]);
     expect(result.edges.map((row) => row.id)).toEqual(["edge-1"]);
   });

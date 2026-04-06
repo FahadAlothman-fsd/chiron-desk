@@ -47,6 +47,7 @@ function toWorkflowExecutionRow(row: typeof workflowExecutions.$inferSelect): Wo
     workflowId: row.workflowId,
     workflowRole: row.workflowRole,
     status: row.status,
+    currentStepExecutionId: row.currentStepExecutionId,
     supersededByWorkflowExecutionId: row.supersededByWorkflowExecutionId,
     startedAt: row.startedAt,
     completedAt: row.completedAt,

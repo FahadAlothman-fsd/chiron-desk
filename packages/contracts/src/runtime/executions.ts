@@ -1,6 +1,12 @@
 import * as Schema from "effect/Schema";
 
-import { DeferredWorkflowStepType, FormStepPayload } from "../methodology/workflow.js";
+import { FactCardinality, FactType, PathValidationConfig } from "../methodology/fact.js";
+import {
+  DeferredWorkflowStepType,
+  FormFieldUiMultiplicityMode,
+  FormStepPayload,
+  WorkflowContextFactKind,
+} from "../methodology/workflow.js";
 import { RuntimeProjectFactDetailDefinition } from "./facts.js";
 import { TransitionExecutionStatus, WorkflowExecutionStatus } from "./status.js";
 import { RuntimeWorkUnitFactDetailDefinition, RuntimeWorkUnitIdentity } from "./work-units.js";
@@ -14,6 +20,87 @@ export type ProjectExecutionsLegacyCompatibilityMode =
 
 export const RuntimeExcludedL3Entity = Schema.Literal("step_executions");
 export type RuntimeExcludedL3Entity = typeof RuntimeExcludedL3Entity.Type;
+
+export const RuntimeWorkflowStepType = Schema.Literal(
+  "form",
+  "agent",
+  "action",
+  "invoke",
+  "branch",
+  "display",
+);
+export type RuntimeWorkflowStepType = typeof RuntimeWorkflowStepType.Type;
+
+export const RuntimeWorkflowStepDefinitionSummary = Schema.Struct({
+  stepDefinitionId: Schema.NonEmptyString,
+  stepType: RuntimeWorkflowStepType,
+  stepKey: Schema.optional(Schema.String),
+  stepLabel: Schema.optional(Schema.String),
+});
+export type RuntimeWorkflowStepDefinitionSummary = typeof RuntimeWorkflowStepDefinitionSummary.Type;
+
+export const RuntimeWorkflowStepExecutionSummary = Schema.Struct({
+  stepExecutionId: Schema.NonEmptyString,
+  stepDefinitionId: Schema.NonEmptyString,
+  stepType: RuntimeWorkflowStepType,
+  status: Schema.Literal("active", "completed"),
+  activatedAt: Schema.String,
+  completedAt: Schema.optional(Schema.String),
+  target: Schema.Struct({
+    page: Schema.Literal("step-execution-detail"),
+    stepExecutionId: Schema.NonEmptyString,
+  }),
+});
+export type RuntimeWorkflowStepExecutionSummary = typeof RuntimeWorkflowStepExecutionSummary.Type;
+
+export const RuntimeWorkflowStepSurface = Schema.Union(
+  Schema.Struct({
+    state: Schema.Literal("entry_pending"),
+    entryStep: RuntimeWorkflowStepDefinitionSummary,
+  }),
+  Schema.Struct({
+    state: Schema.Literal("active_step"),
+    activeStep: RuntimeWorkflowStepExecutionSummary,
+  }),
+  Schema.Struct({
+    state: Schema.Literal("next_pending"),
+    afterStep: RuntimeWorkflowStepExecutionSummary,
+    nextStep: RuntimeWorkflowStepDefinitionSummary,
+  }),
+  Schema.Struct({
+    state: Schema.Literal("terminal_no_next_step"),
+    terminalStep: Schema.optional(RuntimeWorkflowStepExecutionSummary),
+  }),
+  Schema.Struct({
+    state: Schema.Literal("invalid_definition"),
+    reason: Schema.Literal("missing_entry_step", "ambiguous_entry_step"),
+  }),
+);
+export type RuntimeWorkflowStepSurface = typeof RuntimeWorkflowStepSurface.Type;
+
+export const RuntimeWorkflowContextFactInstance = Schema.Struct({
+  contextFactInstanceId: Schema.optional(Schema.NonEmptyString),
+  instanceOrder: Schema.Number,
+  valueJson: Schema.Unknown,
+  sourceStepExecutionId: Schema.optional(Schema.NonEmptyString),
+  recordedAt: Schema.optional(Schema.String),
+});
+export type RuntimeWorkflowContextFactInstance = typeof RuntimeWorkflowContextFactInstance.Type;
+
+export const RuntimeWorkflowContextFactGroup = Schema.Struct({
+  contextFactDefinitionId: Schema.NonEmptyString,
+  definitionKey: Schema.optional(Schema.String),
+  definitionLabel: Schema.optional(Schema.String),
+  definitionDescriptionJson: Schema.optional(Schema.Unknown),
+  instances: Schema.Array(RuntimeWorkflowContextFactInstance),
+});
+export type RuntimeWorkflowContextFactGroup = typeof RuntimeWorkflowContextFactGroup.Type;
+
+export const RuntimeWorkflowContextFactsSection = Schema.Struct({
+  mode: Schema.Literal("read_only_by_definition"),
+  groups: Schema.Array(RuntimeWorkflowContextFactGroup),
+});
+export type RuntimeWorkflowContextFactsSection = typeof RuntimeWorkflowContextFactsSection.Type;
 
 export const RuntimeStepExecutionDto = Schema.Union(
   Schema.Struct({
@@ -217,12 +304,143 @@ export const GetWorkflowExecutionDetailOutput = Schema.Struct({
       }),
     }),
   ),
-  stepsSurface: Schema.Struct({
-    mode: Schema.Literal("deferred"),
-    message: Schema.String,
-  }),
+  stepSurface: RuntimeWorkflowStepSurface,
+  workflowContextFacts: RuntimeWorkflowContextFactsSection,
 });
 export type GetWorkflowExecutionDetailOutput = typeof GetWorkflowExecutionDetailOutput.Type;
+
+export const GetRuntimeStepExecutionDetailInput = Schema.Struct({
+  projectId: Schema.String,
+  stepExecutionId: Schema.String,
+});
+export type GetRuntimeStepExecutionDetailInput = typeof GetRuntimeStepExecutionDetailInput.Type;
+
+export const RuntimeStepExecutionDetailShell = Schema.Struct({
+  stepExecutionId: Schema.NonEmptyString,
+  workflowExecutionId: Schema.NonEmptyString,
+  stepDefinitionId: Schema.NonEmptyString,
+  stepType: RuntimeWorkflowStepType,
+  status: Schema.Literal("active", "completed"),
+  activatedAt: Schema.String,
+  completedAt: Schema.optional(Schema.String),
+  completionAction: Schema.Struct({
+    kind: Schema.Literal("complete_step_execution"),
+    visible: Schema.Boolean,
+    enabled: Schema.Boolean,
+    reasonIfDisabled: Schema.optional(Schema.String),
+  }),
+});
+export type RuntimeStepExecutionDetailShell = typeof RuntimeStepExecutionDetailShell.Type;
+
+export const RuntimeFormFieldWidgetControl = Schema.Literal(
+  "text",
+  "select",
+  "path",
+  "checkbox",
+  "number",
+  "json",
+  "reference",
+  "workflow-reference",
+  "artifact-reference",
+  "draft-spec",
+);
+export type RuntimeFormFieldWidgetControl = typeof RuntimeFormFieldWidgetControl.Type;
+
+export const RuntimeFormFieldOption = Schema.Struct({
+  value: Schema.Unknown,
+  label: Schema.String,
+  description: Schema.optional(Schema.String),
+});
+export type RuntimeFormFieldOption = typeof RuntimeFormFieldOption.Type;
+
+export const RuntimeFormNestedField = Schema.Struct({
+  key: Schema.NonEmptyString,
+  label: Schema.String,
+  factType: FactType,
+  cardinality: FactCardinality,
+  required: Schema.Boolean,
+  description: Schema.optional(Schema.String),
+});
+export type RuntimeFormNestedField = typeof RuntimeFormNestedField.Type;
+
+export const RuntimeFormResolvedFieldWidget = Schema.Struct({
+  control: RuntimeFormFieldWidgetControl,
+  valueType: Schema.optional(FactType),
+  cardinality: FactCardinality,
+  renderedMultiplicity: FormFieldUiMultiplicityMode,
+  options: Schema.optional(Schema.Array(RuntimeFormFieldOption)),
+  pathConfig: Schema.optional(PathValidationConfig),
+  nestedFields: Schema.optional(Schema.Array(RuntimeFormNestedField)),
+  emptyState: Schema.optional(Schema.String),
+  externalBindingKey: Schema.optional(Schema.NonEmptyString),
+  artifactSlotDefinitionId: Schema.optional(Schema.NonEmptyString),
+});
+export type RuntimeFormResolvedFieldWidget = typeof RuntimeFormResolvedFieldWidget.Type;
+
+export const RuntimeFormResolvedField = Schema.Struct({
+  fieldKey: Schema.NonEmptyString,
+  fieldLabel: Schema.NonEmptyString,
+  helpText: Schema.optional(Schema.String),
+  required: Schema.Boolean,
+  contextFactDefinitionId: Schema.NonEmptyString,
+  contextFactKey: Schema.NonEmptyString,
+  contextFactKind: WorkflowContextFactKind,
+  widget: RuntimeFormResolvedFieldWidget,
+});
+export type RuntimeFormResolvedField = typeof RuntimeFormResolvedField.Type;
+
+export const RuntimeFormPageModel = Schema.Struct({
+  formKey: Schema.NonEmptyString,
+  formLabel: Schema.optional(Schema.String),
+  descriptionMarkdown: Schema.optional(Schema.String),
+  projectRootPath: Schema.optional(Schema.String),
+  fields: Schema.Array(RuntimeFormResolvedField),
+});
+export type RuntimeFormPageModel = typeof RuntimeFormPageModel.Type;
+
+export const RuntimeFormStepExecutionDetailBody = Schema.Struct({
+  stepType: Schema.Literal("form"),
+  page: RuntimeFormPageModel,
+  draft: Schema.Struct({
+    payloadMode: Schema.Literal("latest_only"),
+    payload: Schema.Unknown,
+    lastSavedAt: Schema.optional(Schema.String),
+  }),
+  saveDraftAction: Schema.Struct({
+    kind: Schema.Literal("save_form_step_draft"),
+    enabled: Schema.Boolean,
+    reasonIfDisabled: Schema.optional(Schema.String),
+  }),
+  submission: Schema.Struct({
+    payloadMode: Schema.Literal("latest_only"),
+    payload: Schema.Unknown,
+    submittedAt: Schema.optional(Schema.String),
+  }),
+  submitAction: Schema.Struct({
+    kind: Schema.Literal("submit_form_step"),
+    enabled: Schema.Boolean,
+    reasonIfDisabled: Schema.optional(Schema.String),
+  }),
+  lineage: Schema.Struct({
+    previousStepExecutionId: Schema.optional(Schema.NonEmptyString),
+    nextStepExecutionId: Schema.optional(Schema.NonEmptyString),
+  }),
+});
+export type RuntimeFormStepExecutionDetailBody = typeof RuntimeFormStepExecutionDetailBody.Type;
+
+export const RuntimeDeferredStepExecutionDetailBody = Schema.Struct({
+  stepType: DeferredWorkflowStepType,
+  mode: Schema.Literal("deferred"),
+  defaultMessage: Schema.String,
+});
+export type RuntimeDeferredStepExecutionDetailBody =
+  typeof RuntimeDeferredStepExecutionDetailBody.Type;
+
+export const GetRuntimeStepExecutionDetailOutput = Schema.Struct({
+  shell: RuntimeStepExecutionDetailShell,
+  body: Schema.Union(RuntimeFormStepExecutionDetailBody, RuntimeDeferredStepExecutionDetailBody),
+});
+export type GetRuntimeStepExecutionDetailOutput = typeof GetRuntimeStepExecutionDetailOutput.Type;
 
 export const StartTransitionExecutionInput = Schema.Struct({
   projectId: Schema.String,

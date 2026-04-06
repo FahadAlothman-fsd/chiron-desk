@@ -29,6 +29,7 @@ function toWorkflowExecutionRow(row: typeof workflowExecutions.$inferSelect): Wo
     workflowId: row.workflowId,
     workflowRole: row.workflowRole,
     status: row.status,
+    currentStepExecutionId: row.currentStepExecutionId,
     supersededByWorkflowExecutionId: row.supersededByWorkflowExecutionId,
     startedAt: row.startedAt,
     completedAt: row.completedAt,
@@ -47,6 +48,7 @@ export function createWorkflowExecutionRepoLayer(db: DB): Layer.Layer<WorkflowEx
             workflowId: params.workflowId,
             workflowRole: params.workflowRole,
             status: params.status ?? "active",
+            currentStepExecutionId: params.currentStepExecutionId ?? null,
             supersededByWorkflowExecutionId: params.supersededByWorkflowExecutionId ?? null,
             completedAt: params.completedAt ?? null,
             supersededAt: params.supersededAt ?? null,
@@ -68,6 +70,17 @@ export function createWorkflowExecutionRepoLayer(db: DB): Layer.Layer<WorkflowEx
           .from(workflowExecutions)
           .where(eq(workflowExecutions.id, workflowExecutionId))
           .limit(1);
+
+        return rows[0] ? toWorkflowExecutionRow(rows[0]) : null;
+      }),
+
+    setCurrentStepExecutionId: ({ workflowExecutionId, currentStepExecutionId }) =>
+      dbEffect("workflow-execution.setCurrentStepExecutionId", async () => {
+        const rows = await db
+          .update(workflowExecutions)
+          .set({ currentStepExecutionId })
+          .where(eq(workflowExecutions.id, workflowExecutionId))
+          .returning();
 
         return rows[0] ? toWorkflowExecutionRow(rows[0]) : null;
       }),
@@ -130,6 +143,7 @@ export function createWorkflowExecutionRepoLayer(db: DB): Layer.Layer<WorkflowEx
               workflowId: previous.workflowId,
               workflowRole: previous.workflowRole,
               status: "active",
+              currentStepExecutionId: null,
             })
             .returning();
 

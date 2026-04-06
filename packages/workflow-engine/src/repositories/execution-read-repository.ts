@@ -7,7 +7,7 @@ export interface TransitionExecutionDetailReadModel {
   transitionExecution: TransitionExecutionRow;
   projectId: string;
   workUnitTypeId: string;
-  currentStateId: string;
+  currentStateId: string | null;
   activeTransitionExecutionId: string | null;
   primaryWorkflowExecution: WorkflowExecutionRow | null;
 }
@@ -18,7 +18,7 @@ export interface WorkflowExecutionDetailReadModel {
   projectId: string;
   projectWorkUnitId: string;
   workUnitTypeId: string;
-  currentStateId: string;
+  currentStateId: string | null;
 }
 
 export interface ActiveWorkflowExecutionReadModel {

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { Effect, Layer } from "effect";
 import {
@@ -8,17 +8,22 @@ import {
   type RuntimeFormStepExecutionStateRow,
   type RuntimeStepExecutionRow,
   type RuntimeWorkflowEdgeRow,
+  type RuntimeWorkflowContextFactDefinitionRow,
   type RuntimeWorkflowExecutionContextFactRow,
   type RuntimeWorkflowStepDefinitionRow,
+  type ReplaceRuntimeWorkflowExecutionContextFactsParams,
   type UpsertRuntimeFormStepExecutionStateParams,
-  type WriteRuntimeWorkflowExecutionContextFactParams,
 } from "@chiron/workflow-engine";
 import {
   formStepExecutionState,
   stepExecutions,
   workflowExecutionContextFacts,
 } from "../schema/runtime";
-import { methodologyWorkflowEdges, methodologyWorkflowSteps } from "../schema/methodology";
+import {
+  methodologyWorkflowContextFactDefinitions,
+  methodologyWorkflowEdges,
+  methodologyWorkflowSteps,
+} from "../schema/methodology";
 
 type DB = LibSQLDatabase<Record<string, unknown>>;
 
@@ -38,10 +43,10 @@ function toStepExecutionRow(row: typeof stepExecutions.$inferSelect): RuntimeSte
     workflowExecutionId: row.workflowExecutionId,
     stepDefinitionId: row.stepDefinitionId,
     stepType: row.stepType,
-    status: row.status,
+    status: row.status as RuntimeStepExecutionRow["status"],
     activatedAt: row.activatedAt,
     completedAt: row.completedAt,
-    progressionData: row.progressionData,
+    previousStepExecutionId: row.previousStepExecutionId,
   };
 }
 
@@ -51,8 +56,9 @@ function toFormStateRow(
   return {
     id: row.id,
     stepExecutionId: row.stepExecutionId,
-    draftValuesJson: row.draftValuesJson,
-    submittedSnapshotJson: row.submittedSnapshotJson,
+    draftPayloadJson: row.draftPayloadJson,
+    submittedPayloadJson: row.submittedPayloadJson,
+    lastDraftSavedAt: row.lastDraftSavedAt,
     submittedAt: row.submittedAt,
   };
 }
@@ -63,10 +69,27 @@ function toContextFactRow(
   return {
     id: row.id,
     workflowExecutionId: row.workflowExecutionId,
-    factKey: row.factKey,
-    factKind: row.factKind,
+    contextFactDefinitionId: row.contextFactDefinitionId,
+    instanceOrder: row.instanceOrder,
     valueJson: row.valueJson,
     sourceStepExecutionId: row.sourceStepExecutionId,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+function toContextFactDefinitionRow(
+  row: typeof methodologyWorkflowContextFactDefinitions.$inferSelect,
+): RuntimeWorkflowContextFactDefinitionRow {
+  return {
+    id: row.id,
+    workflowId: row.workflowId,
+    factKey: row.factKey,
+    label: row.label,
+    descriptionJson: row.descriptionJson,
+    factKind: row.factKind,
+    cardinality: row.cardinality,
+    createdAt: row.createdAt,
   };
 }
 
@@ -105,7 +128,7 @@ export function createStepExecutionRepoLayer(db: DB): Layer.Layer<StepExecutionR
             stepDefinitionId: params.stepDefinitionId,
             stepType: params.stepType,
             status: params.status,
-            progressionData: params.progressionData,
+            previousStepExecutionId: params.previousStepExecutionId,
           })
           .returning();
         const row = rows[0];
@@ -151,14 +174,40 @@ export function createStepExecutionRepoLayer(db: DB): Layer.Layer<StepExecutionR
         return rows.map(toStepExecutionRow);
       }),
 
-    completeStepExecution: ({ stepExecutionId, progressionData }) =>
+    completeStepExecution: ({ stepExecutionId }) =>
       dbEffect("step-execution.complete", async () => {
         const rows = await db
           .update(stepExecutions)
-          .set({ status: "completed", completedAt: new Date(), progressionData })
+          .set({ status: "completed", completedAt: new Date() })
           .where(eq(stepExecutions.id, stepExecutionId))
           .returning();
         return rows[0] ? toStepExecutionRow(rows[0]) : null;
+      }),
+
+    createFormStepExecutionState: ({ stepExecutionId }) =>
+      dbEffect("step-execution.form-state.create", async () => {
+        const existing = await db
+          .select()
+          .from(formStepExecutionState)
+          .where(eq(formStepExecutionState.stepExecutionId, stepExecutionId))
+          .limit(1);
+
+        if (existing[0]) {
+          return toFormStateRow(existing[0]);
+        }
+
+        const inserted = await db
+          .insert(formStepExecutionState)
+          .values({
+            stepExecutionId,
+            draftPayloadJson: null,
+            submittedPayloadJson: null,
+            lastDraftSavedAt: null,
+            submittedAt: null,
+          })
+          .returning();
+
+        return toFormStateRow(inserted[0]!);
       }),
 
     upsertFormStepExecutionState: (params: UpsertRuntimeFormStepExecutionStateParams) =>
@@ -175,8 +224,9 @@ export function createStepExecutionRepoLayer(db: DB): Layer.Layer<StepExecutionR
             const updated = await tx
               .update(formStepExecutionState)
               .set({
-                draftValuesJson: params.draftValuesJson,
-                submittedSnapshotJson: params.submittedSnapshotJson,
+                draftPayloadJson: params.draftPayloadJson,
+                submittedPayloadJson: params.submittedPayloadJson,
+                lastDraftSavedAt: params.lastDraftSavedAt,
                 submittedAt: params.submittedAt,
               })
               .where(eq(formStepExecutionState.id, existing[0].id))
@@ -188,8 +238,9 @@ export function createStepExecutionRepoLayer(db: DB): Layer.Layer<StepExecutionR
             .insert(formStepExecutionState)
             .values({
               stepExecutionId: params.stepExecutionId,
-              draftValuesJson: params.draftValuesJson,
-              submittedSnapshotJson: params.submittedSnapshotJson,
+              draftPayloadJson: params.draftPayloadJson,
+              submittedPayloadJson: params.submittedPayloadJson,
+              lastDraftSavedAt: params.lastDraftSavedAt,
               submittedAt: params.submittedAt,
             })
             .returning();
@@ -207,25 +258,53 @@ export function createStepExecutionRepoLayer(db: DB): Layer.Layer<StepExecutionR
         return rows[0] ? toFormStateRow(rows[0]) : null;
       }),
 
-    writeWorkflowExecutionContextFact: (params: WriteRuntimeWorkflowExecutionContextFactParams) =>
-      dbEffect("step-execution.context-fact.write", async () => {
-        const rows = await db
-          .insert(workflowExecutionContextFacts)
-          .values({
-            workflowExecutionId: params.workflowExecutionId,
-            factKey: params.factKey,
-            factKind: params.factKind,
-            valueJson: params.valueJson,
-            sourceStepExecutionId: params.sourceStepExecutionId,
-          })
-          .returning();
+    replaceWorkflowExecutionContextFacts: (
+      params: ReplaceRuntimeWorkflowExecutionContextFactsParams,
+    ) =>
+      dbEffect("step-execution.context-fact.replace", async () => {
+        return db.transaction(async (tx) => {
+          const affectedDefinitionIds = [...new Set(params.affectedContextFactDefinitionIds)];
 
-        const row = rows[0];
-        if (!row) {
-          throw new Error("Failed to write workflow execution context fact");
-        }
+          if (affectedDefinitionIds.length > 0) {
+            await tx
+              .delete(workflowExecutionContextFacts)
+              .where(
+                and(
+                  eq(workflowExecutionContextFacts.workflowExecutionId, params.workflowExecutionId),
+                  inArray(
+                    workflowExecutionContextFacts.contextFactDefinitionId,
+                    affectedDefinitionIds,
+                  ),
+                ),
+              );
+          }
 
-        return toContextFactRow(row);
+          if (params.currentValues.length === 0) {
+            return [];
+          }
+
+          const inserted = await tx
+            .insert(workflowExecutionContextFacts)
+            .values(
+              params.currentValues.map((value) => ({
+                workflowExecutionId: params.workflowExecutionId,
+                contextFactDefinitionId: value.contextFactDefinitionId,
+                instanceOrder: value.instanceOrder,
+                valueJson: value.valueJson,
+                sourceStepExecutionId: params.sourceStepExecutionId,
+              })),
+            )
+            .returning();
+
+          return inserted
+            .sort(
+              (left, right) =>
+                left.contextFactDefinitionId.localeCompare(right.contextFactDefinitionId) ||
+                left.instanceOrder - right.instanceOrder ||
+                left.id.localeCompare(right.id),
+            )
+            .map(toContextFactRow);
+        });
       }),
 
     listWorkflowExecutionContextFacts: (workflowExecutionId: string) =>
@@ -234,8 +313,26 @@ export function createStepExecutionRepoLayer(db: DB): Layer.Layer<StepExecutionR
           .select()
           .from(workflowExecutionContextFacts)
           .where(eq(workflowExecutionContextFacts.workflowExecutionId, workflowExecutionId))
-          .orderBy(asc(workflowExecutionContextFacts.id));
+          .orderBy(
+            asc(workflowExecutionContextFacts.contextFactDefinitionId),
+            asc(workflowExecutionContextFacts.instanceOrder),
+            asc(workflowExecutionContextFacts.createdAt),
+            asc(workflowExecutionContextFacts.id),
+          );
         return rows.map(toContextFactRow);
+      }),
+
+    listWorkflowContextFactDefinitions: (workflowId: string) =>
+      dbEffect("step-execution.context-fact-definition.list", async () => {
+        const rows = await db
+          .select()
+          .from(methodologyWorkflowContextFactDefinitions)
+          .where(eq(methodologyWorkflowContextFactDefinitions.workflowId, workflowId))
+          .orderBy(
+            asc(methodologyWorkflowContextFactDefinitions.createdAt),
+            asc(methodologyWorkflowContextFactDefinitions.id),
+          );
+        return rows.map(toContextFactDefinitionRow);
       }),
 
     listWorkflowStepDefinitions: (workflowId: string) =>

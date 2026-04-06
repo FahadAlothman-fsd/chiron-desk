@@ -11,24 +11,38 @@ export interface RuntimeStepExecutionRow {
   status: RuntimeStepExecutionStatus;
   activatedAt: Date;
   completedAt: Date | null;
-  progressionData: unknown;
+  previousStepExecutionId: string | null;
 }
 
 export interface RuntimeFormStepExecutionStateRow {
   id: string;
   stepExecutionId: string;
-  draftValuesJson: unknown;
-  submittedSnapshotJson: unknown;
+  draftPayloadJson: unknown;
+  submittedPayloadJson: unknown;
+  lastDraftSavedAt: Date | null;
   submittedAt: Date | null;
 }
 
 export interface RuntimeWorkflowExecutionContextFactRow {
   id: string;
   workflowExecutionId: string;
-  factKey: string;
-  factKind: string;
+  contextFactDefinitionId: string;
+  instanceOrder: number;
   valueJson: unknown;
   sourceStepExecutionId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface RuntimeWorkflowContextFactDefinitionRow {
+  id: string;
+  workflowId: string;
+  factKey: string;
+  label: string | null;
+  descriptionJson: unknown;
+  factKind: string;
+  cardinality: string;
+  createdAt: Date;
 }
 
 export interface RuntimeWorkflowStepDefinitionRow {
@@ -52,27 +66,36 @@ export interface CreateRuntimeStepExecutionParams {
   stepDefinitionId: string;
   stepType: string;
   status: RuntimeStepExecutionStatus;
-  progressionData: unknown;
+  previousStepExecutionId: string | null;
+}
+
+export interface CreateRuntimeFormStepExecutionStateParams {
+  stepExecutionId: string;
 }
 
 export interface UpsertRuntimeFormStepExecutionStateParams {
   stepExecutionId: string;
-  draftValuesJson: unknown;
-  submittedSnapshotJson: unknown;
+  draftPayloadJson: unknown;
+  submittedPayloadJson: unknown;
+  lastDraftSavedAt: Date | null;
   submittedAt: Date | null;
 }
 
-export interface WriteRuntimeWorkflowExecutionContextFactParams {
-  workflowExecutionId: string;
-  factKey: string;
-  factKind: string;
+export interface ReplaceRuntimeWorkflowExecutionContextFactValue {
+  contextFactDefinitionId: string;
+  instanceOrder: number;
   valueJson: unknown;
+}
+
+export interface ReplaceRuntimeWorkflowExecutionContextFactsParams {
+  workflowExecutionId: string;
   sourceStepExecutionId: string | null;
+  affectedContextFactDefinitionIds: readonly string[];
+  currentValues: readonly ReplaceRuntimeWorkflowExecutionContextFactValue[];
 }
 
 export interface CompleteRuntimeStepExecutionParams {
   stepExecutionId: string;
-  progressionData: unknown;
 }
 
 export class StepExecutionRepository extends Context.Tag(
@@ -96,18 +119,24 @@ export class StepExecutionRepository extends Context.Tag(
     readonly completeStepExecution: (
       params: CompleteRuntimeStepExecutionParams,
     ) => Effect.Effect<RuntimeStepExecutionRow | null, RepositoryError>;
+    readonly createFormStepExecutionState: (
+      params: CreateRuntimeFormStepExecutionStateParams,
+    ) => Effect.Effect<RuntimeFormStepExecutionStateRow, RepositoryError>;
     readonly upsertFormStepExecutionState: (
       params: UpsertRuntimeFormStepExecutionStateParams,
     ) => Effect.Effect<RuntimeFormStepExecutionStateRow, RepositoryError>;
     readonly getFormStepExecutionState: (
       stepExecutionId: string,
     ) => Effect.Effect<RuntimeFormStepExecutionStateRow | null, RepositoryError>;
-    readonly writeWorkflowExecutionContextFact: (
-      params: WriteRuntimeWorkflowExecutionContextFactParams,
-    ) => Effect.Effect<RuntimeWorkflowExecutionContextFactRow, RepositoryError>;
+    readonly replaceWorkflowExecutionContextFacts: (
+      params: ReplaceRuntimeWorkflowExecutionContextFactsParams,
+    ) => Effect.Effect<readonly RuntimeWorkflowExecutionContextFactRow[], RepositoryError>;
     readonly listWorkflowExecutionContextFacts: (
       workflowExecutionId: string,
     ) => Effect.Effect<readonly RuntimeWorkflowExecutionContextFactRow[], RepositoryError>;
+    readonly listWorkflowContextFactDefinitions: (
+      workflowId: string,
+    ) => Effect.Effect<readonly RuntimeWorkflowContextFactDefinitionRow[], RepositoryError>;
     readonly listWorkflowStepDefinitions: (
       workflowId: string,
     ) => Effect.Effect<readonly RuntimeWorkflowStepDefinitionRow[], RepositoryError>;

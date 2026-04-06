@@ -10,6 +10,7 @@ export interface WorkflowExecutionRow {
   workflowId: string;
   workflowRole: WorkflowExecutionRole;
   status: WorkflowExecutionStatus;
+  currentStepExecutionId?: string | null;
   supersededByWorkflowExecutionId: string | null;
   startedAt: Date;
   completedAt: Date | null;
@@ -21,6 +22,7 @@ export interface CreateWorkflowExecutionParams {
   workflowId: string;
   workflowRole: WorkflowExecutionRole;
   status?: WorkflowExecutionStatus;
+  currentStepExecutionId?: string | null;
   supersededByWorkflowExecutionId?: string | null;
   completedAt?: Date | null;
   supersededAt?: Date | null;
@@ -42,6 +44,10 @@ export class WorkflowExecutionRepository extends Context.Tag(
     readonly getWorkflowExecutionById: (
       workflowExecutionId: string,
     ) => Effect.Effect<WorkflowExecutionRow | null, RepositoryError>;
+    readonly setCurrentStepExecutionId: (params: {
+      workflowExecutionId: string;
+      currentStepExecutionId: string | null;
+    }) => Effect.Effect<WorkflowExecutionRow | null, RepositoryError>;
     readonly markWorkflowExecutionCompleted: (
       workflowExecutionId: string,
     ) => Effect.Effect<WorkflowExecutionRow | null, RepositoryError>;

@@ -1,9 +1,10 @@
 import { sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 
 import {
   methodologyArtifactSlotDefinitions,
+  methodologyWorkflowContextFactDefinitions,
   methodologyFactDefinitions,
   methodologyWorkflowSteps,
   methodologyWorkUnitTypes,
@@ -93,6 +94,10 @@ export const workflowExecutions = sqliteTable(
     status: text("status", {
       enum: ["active", "completed", "superseded", "parent_superseded"],
     }).notNull(),
+    currentStepExecutionId: text("current_step_execution_id").references(
+      (): AnySQLiteColumn => stepExecutions.id,
+      { onDelete: "set null" },
+    ),
     supersededByWorkflowExecutionId: text("superseded_by_workflow_execution_id").references(
       (): AnySQLiteColumn => workflowExecutions.id,
       { onDelete: "set null" },
@@ -110,6 +115,7 @@ export const workflowExecutions = sqliteTable(
     index("workflow_execs_workflow_idx").on(table.workflowId),
     index("workflow_execs_role_idx").on(table.workflowRole),
     index("workflow_execs_status_idx").on(table.status),
+    index("workflow_execs_current_step_idx").on(table.currentStepExecutionId),
     index("workflow_execs_superseded_by_idx").on(table.supersededByWorkflowExecutionId),
   ],
 );
@@ -281,7 +287,10 @@ export const stepExecutions = sqliteTable(
       .notNull()
       .default(timestampDefault),
     completedAt: integer("completed_at", { mode: "timestamp_ms" }),
-    progressionData: text("progression_data", { mode: "json" }),
+    previousStepExecutionId: text("previous_step_execution_id").references(
+      (): AnySQLiteColumn => stepExecutions.id,
+      { onDelete: "set null" },
+    ),
   },
   (table) => [
     index("step_executions_workflow_idx").on(
@@ -290,6 +299,7 @@ export const stepExecutions = sqliteTable(
       table.id,
     ),
     index("step_executions_step_definition_idx").on(table.stepDefinitionId),
+    index("step_executions_previous_step_idx").on(table.previousStepExecutionId),
     index("step_executions_status_idx").on(table.status),
   ],
 );
@@ -303,11 +313,12 @@ export const formStepExecutionState = sqliteTable(
     stepExecutionId: text("step_execution_id")
       .notNull()
       .references(() => stepExecutions.id, { onDelete: "cascade" }),
-    draftValuesJson: text("draft_values_json", { mode: "json" }),
-    submittedSnapshotJson: text("submitted_snapshot_json", { mode: "json" }),
+    draftPayloadJson: text("draft_payload_json", { mode: "json" }),
+    submittedPayloadJson: text("submitted_payload_json", { mode: "json" }),
+    lastDraftSavedAt: integer("last_draft_saved_at", { mode: "timestamp_ms" }),
     submittedAt: integer("submitted_at", { mode: "timestamp_ms" }),
   },
-  (table) => [index("form_step_execution_state_step_idx").on(table.stepExecutionId)],
+  (table) => [uniqueIndex("form_step_execution_state_step_idx").on(table.stepExecutionId)],
 );
 
 export const workflowExecutionContextFacts = sqliteTable(
@@ -319,19 +330,26 @@ export const workflowExecutionContextFacts = sqliteTable(
     workflowExecutionId: text("workflow_execution_id")
       .notNull()
       .references(() => workflowExecutions.id, { onDelete: "cascade" }),
-    factKey: text("fact_key").notNull(),
-    factKind: text("fact_kind").notNull(),
+    contextFactDefinitionId: text("context_fact_definition_id")
+      .notNull()
+      .references(() => methodologyWorkflowContextFactDefinitions.id, { onDelete: "restrict" }),
+    instanceOrder: integer("instance_order").notNull(),
     valueJson: text("value_json", { mode: "json" }),
     sourceStepExecutionId: text("source_step_execution_id").references(() => stepExecutions.id, {
       onDelete: "set null",
     }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(timestampDefault),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(timestampDefault)
+      .$onUpdate(() => new Date()),
   },
   (table) => [
     index("workflow_execution_context_facts_workflow_idx").on(table.workflowExecutionId),
-    index("workflow_execution_context_facts_key_kind_idx").on(
+    uniqueIndex("workflow_execution_context_facts_definition_instance_idx").on(
       table.workflowExecutionId,
-      table.factKey,
-      table.factKind,
+      table.contextFactDefinitionId,
+      table.instanceOrder,
     ),
     index("workflow_execution_context_facts_source_step_idx").on(table.sourceStepExecutionId),
   ],

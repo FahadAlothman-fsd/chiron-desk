@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { WORKFLOW_CONTEXT_FACT_KINDS } from "../../../../contracts/src/methodology/workflow";
 import * as methodologySchema from "../../schema/methodology";
+import * as runtimeSchema from "../../schema/runtime";
 
 const drizzleNameSymbol = Symbol.for("drizzle:Name");
 const drizzleInlineForeignKeysSymbol = Symbol.for("drizzle:SQLiteInlineForeignKeys");
@@ -87,5 +88,50 @@ describe("l3 slice-1 schema", () => {
     ).toBe(false);
     expect("methodologyWorkflowContextFactWorkUnitReferences" in methodologySchema).toBe(false);
     expect(WORKFLOW_CONTEXT_FACT_KINDS).not.toContain("work_unit_reference_fact");
+  });
+
+  it("stores latest-only form payload state per step execution", () => {
+    expect(runtimeSchema.formStepExecutionState.stepExecutionId).toBeDefined();
+    expect(runtimeSchema.formStepExecutionState.draftPayloadJson).toBeDefined();
+    expect(runtimeSchema.formStepExecutionState.submittedPayloadJson).toBeDefined();
+    expect(runtimeSchema.formStepExecutionState.lastDraftSavedAt).toBeDefined();
+    expect(runtimeSchema.formStepExecutionState.submittedAt).toBeDefined();
+
+    expect("draftValuesJson" in runtimeSchema.formStepExecutionState).toBe(false);
+    expect("submittedSnapshotJson" in runtimeSchema.formStepExecutionState).toBe(false);
+
+    const stepExecutionForeignKey = getInlineForeignKey(runtimeSchema.formStepExecutionState);
+    expect(stepExecutionForeignKey).toBeDefined();
+    if (!stepExecutionForeignKey) {
+      throw new Error("Expected formStepExecutionState.stepExecutionId foreign key");
+    }
+
+    expect(getTableName(stepExecutionForeignKey.reference().foreignTable)).toBe("step_executions");
+  });
+
+  it("stores workflow context facts by definition with ordered current instances", () => {
+    expect(runtimeSchema.workflowExecutionContextFacts.workflowExecutionId).toBeDefined();
+    expect(runtimeSchema.workflowExecutionContextFacts.contextFactDefinitionId).toBeDefined();
+    expect(runtimeSchema.workflowExecutionContextFacts.instanceOrder).toBeDefined();
+    expect(runtimeSchema.workflowExecutionContextFacts.valueJson).toBeDefined();
+    expect(runtimeSchema.workflowExecutionContextFacts.sourceStepExecutionId).toBeDefined();
+    expect(runtimeSchema.workflowExecutionContextFacts.createdAt).toBeDefined();
+    expect(runtimeSchema.workflowExecutionContextFacts.updatedAt).toBeDefined();
+
+    expect("factKey" in runtimeSchema.workflowExecutionContextFacts).toBe(false);
+    expect("factKind" in runtimeSchema.workflowExecutionContextFacts).toBe(false);
+
+    const contextFactDefinitionForeignKey = getInlineForeignKey(
+      runtimeSchema.workflowExecutionContextFacts,
+      1,
+    );
+    expect(contextFactDefinitionForeignKey).toBeDefined();
+    if (!contextFactDefinitionForeignKey) {
+      throw new Error("Expected workflowExecutionContextFacts.contextFactDefinitionId foreign key");
+    }
+
+    expect(getTableName(contextFactDefinitionForeignKey.reference().foreignTable)).toBe(
+      "methodology_workflow_context_fact_definitions",
+    );
   });
 });
