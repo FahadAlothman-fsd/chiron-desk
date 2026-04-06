@@ -2530,6 +2530,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
       dbEffect("methodology.findFactDefinitionsByVersionId", async () => {
         const rows = await db
           .select({
+            id: methodologyFactDefinitions.id,
             name: methodologyFactDefinitions.name,
             key: methodologyFactDefinitions.key,
             valueType: methodologyFactDefinitions.valueType,

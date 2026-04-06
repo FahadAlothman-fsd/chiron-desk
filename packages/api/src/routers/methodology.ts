@@ -309,6 +309,33 @@ const guidanceSchema = z
   })
   .optional();
 
+const markdownContentSchema = z.object({ markdown: z.string() });
+const factValueTypeSchema = z.enum(["string", "number", "boolean", "json", "work_unit"]);
+const factCardinalitySchema = z.enum(["one", "many"]);
+const jsonSubSchemaFieldSchema = z.union([
+  z.object({
+    key: z.string().min(1),
+    type: factValueTypeSchema,
+    cardinality: factCardinalitySchema,
+    description: markdownContentSchema.optional(),
+    guidance: factGuidanceSchema,
+    validation: z.unknown().optional(),
+  }),
+  z.object({
+    key: z.string().min(1),
+    type: factValueTypeSchema,
+    cardinality: z.literal("one"),
+    defaultValue: z.unknown().optional(),
+    description: markdownContentSchema.optional(),
+    guidance: factGuidanceSchema,
+    validation: z.unknown().optional(),
+  }),
+]);
+const jsonSubSchemaSchema = z.object({
+  type: z.literal("object"),
+  fields: z.array(jsonSubSchemaFieldSchema),
+});
+
 const factValidationSchema = z
   .union([
     z.object({
@@ -342,16 +369,16 @@ const factValidationSchema = z
       kind: z.literal("json-schema"),
       schemaDialect: z.string().min(1),
       schema: z.unknown(),
+      subSchema: jsonSubSchemaSchema.optional(),
     }),
   ])
   .default({ kind: "none" });
 
-const markdownContentSchema = z.object({ markdown: z.string() });
 const variableDefinitionSchema = z.object({
   name: z.string().optional(),
   key: z.string().min(1),
-  factType: z.enum(["string", "number", "boolean", "json", "work_unit"]),
-  cardinality: z.enum(["one", "many"]).optional(),
+  factType: factValueTypeSchema,
+  cardinality: factCardinalitySchema.optional(),
   defaultValue: z.unknown().optional(),
   description: markdownContentSchema.optional(),
   guidance: factGuidanceSchema,

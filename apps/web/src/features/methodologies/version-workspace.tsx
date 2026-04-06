@@ -145,6 +145,7 @@ export type FactEditorValue = {
         kind: "json-schema";
         schemaDialect: string;
         schema: unknown;
+        subSchema?: unknown;
       };
 };
 
@@ -256,6 +257,7 @@ function toFactEditorValue(input: unknown, fallbackId?: string): FactEditorValue
           ? value.validation.schemaDialect
           : "draft-2020-12",
       schema: value.validation.schema ?? {},
+      ...("subSchema" in value.validation ? { subSchema: value.validation.subSchema } : {}),
     };
   }
 

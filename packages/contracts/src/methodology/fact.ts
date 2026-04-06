@@ -59,6 +59,7 @@ export const FactValidation = Schema.Union(
               cardinality: FactCardinality,
               description: Schema.optional(GuidanceMarkdownContent),
               guidance: Schema.optional(FactGuidance),
+              validation: Schema.optional(Schema.Unknown),
             }),
             Schema.Struct({
               key: Schema.NonEmptyString,
@@ -67,6 +68,7 @@ export const FactValidation = Schema.Union(
               defaultValue: Schema.optional(Schema.Unknown),
               description: Schema.optional(GuidanceMarkdownContent),
               guidance: Schema.optional(FactGuidance),
+              validation: Schema.optional(Schema.Unknown),
             }),
           ),
         ),

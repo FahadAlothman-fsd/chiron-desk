@@ -299,6 +299,7 @@ export interface PublishFactSchemaRow {
 }
 
 export interface MethodologyFactDefinitionRow {
+  id: string;
   name: string | null;
   key: string;
   valueType: string;
