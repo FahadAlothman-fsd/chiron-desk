@@ -2039,9 +2039,53 @@ const canonicalMethodologyFactDefinitions = [
         required: ["part_id", "root_path", "project_type_id"],
         properties: {
           part_id: { type: "string", cardinality: "one" },
-          root_path: { type: "string", cardinality: "one" },
+          root_path: {
+            type: "string",
+            cardinality: "one",
+            title: "Root Path",
+            "x-validation": {
+              kind: "path",
+              path: {
+                pathKind: "directory",
+                normalization: {
+                  mode: "posix",
+                  trimWhitespace: true,
+                },
+                safety: {
+                  disallowAbsolute: true,
+                  preventTraversal: true,
+                },
+              },
+            },
+          },
           project_type_id: { type: "string", cardinality: "one" },
         },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "part_id", type: "string", cardinality: "one" },
+          {
+            key: "root_path",
+            type: "string",
+            cardinality: "one",
+            validation: {
+              kind: "path",
+              path: {
+                pathKind: "directory",
+                normalization: {
+                  mode: "posix",
+                  trimWhitespace: true,
+                },
+                safety: {
+                  disallowAbsolute: true,
+                  preventTraversal: true,
+                },
+              },
+            },
+          },
+          { key: "project_type_id", type: "string", cardinality: "one" },
+        ],
       },
     },
   },
