@@ -337,8 +337,8 @@ describe("l3 slice-1 step core services", () => {
           workflowExecutionId: "wfexec-1",
           stepExecutionId: activated.stepExecutionId,
           submittedValues: {
-            "ctx-initiative-name": "Draft initiative",
-            "ctx-objectives": ["one", "two"],
+            initiativeName: "Draft initiative",
+            objectives: ["one", "two"],
           },
           contextReplace: {
             workflowExecutionId: "wfexec-1",
@@ -368,8 +368,8 @@ describe("l3 slice-1 step core services", () => {
           workflowExecutionId: "wfexec-1",
           stepExecutionId: activated.stepExecutionId,
           submittedValues: {
-            "ctx-initiative-name": "Final initiative",
-            "ctx-objectives": [],
+            initiativeName: "Final initiative",
+            objectives: [],
           },
           contextReplace: {
             workflowExecutionId: "wfexec-1",
@@ -400,12 +400,12 @@ describe("l3 slice-1 step core services", () => {
 
     expect(runtime.state.formState[0]).toMatchObject({
       draftPayloadJson: {
-        "ctx-initiative-name": "Final initiative",
-        "ctx-objectives": [],
+        initiativeName: "Final initiative",
+        objectives: [],
       },
       submittedPayloadJson: {
-        "ctx-initiative-name": "Final initiative",
-        "ctx-objectives": [],
+        initiativeName: "Final initiative",
+        objectives: [],
       },
     });
     expect(runtime.state.formState[0]?.submittedAt).toBeInstanceOf(Date);

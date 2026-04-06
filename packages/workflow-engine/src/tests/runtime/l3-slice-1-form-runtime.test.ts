@@ -4,6 +4,7 @@ import { LifecycleRepository, MethodologyRepository } from "@chiron/methodology-
 import { ProjectContextRepository } from "@chiron/project-context";
 
 import { ExecutionReadRepository } from "../../repositories/execution-read-repository";
+import { ProjectWorkUnitRepository } from "../../repositories/project-work-unit-repository";
 import {
   StepExecutionRepository,
   type CompleteRuntimeStepExecutionParams,
@@ -506,6 +507,24 @@ function makeRuntimeLayer(options?: { secondStepType?: RuntimeWorkflowStepDefini
       }),
   } as unknown as Context.Tag.Service<typeof ProjectContextRepository>);
 
+  const projectWorkUnitRepoLayer = Layer.succeed(ProjectWorkUnitRepository, {
+    createProjectWorkUnit: () => Effect.die("unused"),
+    listProjectWorkUnitsByProject: () =>
+      Effect.succeed([
+        {
+          id: "wu-setup-1",
+          projectId: "project-1",
+          workUnitTypeId: "setup",
+          currentStateId: null,
+          activeTransitionExecutionId: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]),
+    getProjectWorkUnitById: () => Effect.succeed(null),
+    updateActiveTransitionExecutionPointer: () => Effect.die("unused"),
+  } as unknown as Context.Tag.Service<typeof ProjectWorkUnitRepository>);
+
   const base = Layer.mergeAll(
     executionReadLayer,
     stepRepoLayer,
@@ -514,6 +533,7 @@ function makeRuntimeLayer(options?: { secondStepType?: RuntimeWorkflowStepDefini
     methodologyRepoLayer,
     lifecycleRepoLayer,
     projectContextRepoLayer,
+    projectWorkUnitRepoLayer,
   );
 
   const progression = Layer.provide(StepProgressionServiceLive, base);
@@ -599,7 +619,7 @@ describe("l3 slice-1 form runtime services", () => {
           workflowExecutionId: "wfexec-1",
           stepExecutionId: activated.stepExecutionId,
           values: {
-            "ctx-initiative-name": "Draft Chiron",
+            initiativeName: "Draft Chiron",
           },
         });
 
@@ -613,8 +633,8 @@ describe("l3 slice-1 form runtime services", () => {
           workflowExecutionId: "wfexec-1",
           stepExecutionId: activated.stepExecutionId,
           values: {
-            "ctx-initiative-name": "Final Chiron",
-            "ctx-objectives": ["stability", "clarity"],
+            initiativeName: "Final Chiron",
+            objectives: ["stability", "clarity"],
           },
         });
 
@@ -649,12 +669,12 @@ describe("l3 slice-1 form runtime services", () => {
     expect(result.completed.status).toBe("completed");
 
     expect(runtime.state.formState[0]?.draftPayloadJson).toMatchObject({
-      "ctx-initiative-name": "Final Chiron",
-      "ctx-objectives": ["stability", "clarity"],
+      initiativeName: "Final Chiron",
+      objectives: ["stability", "clarity"],
     });
     expect(runtime.state.formState[0]?.submittedPayloadJson).toMatchObject({
-      "ctx-initiative-name": "Final Chiron",
-      "ctx-objectives": ["stability", "clarity"],
+      initiativeName: "Final Chiron",
+      objectives: ["stability", "clarity"],
     });
     expect(runtime.state.formState[0]?.lastDraftSavedAt).toBeInstanceOf(Date);
     expect(runtime.state.formState[0]?.submittedAt).toBeInstanceOf(Date);
@@ -720,8 +740,8 @@ describe("l3 slice-1 form runtime services", () => {
           workflowExecutionId: "wfexec-1",
           stepExecutionId: activated.stepExecutionId,
           values: {
-            "ctx-initiative-name": "Initial",
-            "ctx-objectives": ["one", "two"],
+            initiativeName: "Initial",
+            objectives: ["one", "two"],
           },
         });
 
@@ -730,8 +750,8 @@ describe("l3 slice-1 form runtime services", () => {
           workflowExecutionId: "wfexec-1",
           stepExecutionId: activated.stepExecutionId,
           values: {
-            "ctx-initiative-name": "Replacement",
-            "ctx-objectives": [],
+            initiativeName: "Replacement",
+            objectives: [],
           },
         });
       }).pipe(Effect.provide(runtime.layer)),
@@ -762,7 +782,7 @@ describe("l3 slice-1 form runtime services", () => {
           workflowExecutionId: "wfexec-1",
           stepExecutionId: activated.stepExecutionId,
           values: {
-            "ctx-initiative-name": "Chiron",
+            initiativeName: "Chiron",
           },
         });
       }).pipe(Effect.provide(runtime.layer)),

@@ -360,6 +360,10 @@ export const RuntimeFormNestedField = Schema.Struct({
   cardinality: FactCardinality,
   required: Schema.Boolean,
   description: Schema.optional(Schema.String),
+  validation: Schema.optional(Schema.Unknown),
+  options: Schema.optional(Schema.Array(RuntimeFormFieldOption)),
+  emptyState: Schema.optional(Schema.String),
+  workUnitTypeKey: Schema.optional(Schema.NonEmptyString),
 });
 export type RuntimeFormNestedField = typeof RuntimeFormNestedField.Type;
 

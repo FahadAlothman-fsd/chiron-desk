@@ -2,6 +2,9 @@ import type {
   SubmitFormStepExecutionInput,
   SubmitFormStepExecutionOutput,
 } from "@chiron/contracts/runtime/executions";
+import type { FormStepFieldPayload } from "@chiron/contracts/methodology/workflow";
+import { LifecycleRepository, MethodologyRepository } from "@chiron/methodology-engine";
+import { ProjectContextRepository } from "@chiron/project-context";
 import { Context, Effect, Layer } from "effect";
 
 import { RepositoryError } from "../errors";
@@ -59,23 +62,93 @@ const validateStructuralPayload = (values: Record<string, unknown>) =>
 const validateReadyToSubmitPayload = (values: Record<string, unknown>) =>
   validateStructuralPayload(values);
 
-const buildContextReplacement = (values: Record<string, unknown>) => {
-  const affectedContextFactDefinitionIds = Object.keys(values);
-  const currentValues = Object.entries(values).flatMap(([contextFactDefinitionId, valueJson]) =>
-    Array.isArray(valueJson)
-      ? valueJson.map((entry, instanceOrder) => ({
-          contextFactDefinitionId,
-          instanceOrder,
-          valueJson: entry,
-        }))
-      : [
-          {
-            contextFactDefinitionId,
-            instanceOrder: 0,
-            valueJson,
-          },
-        ],
+const isPresentSubmittedValue = (value: unknown): boolean => {
+  if (value === null || value === undefined) {
+    return false;
+  }
+
+  if (typeof value === "string") {
+    return value.trim().length > 0;
+  }
+
+  if (Array.isArray(value)) {
+    return value.some(isPresentSubmittedValue);
+  }
+
+  if (isPlainRecord(value)) {
+    return Object.keys(value).length > 0;
+  }
+
+  return true;
+};
+
+const validateSubmissionAgainstFields = ({
+  values,
+  fields,
+}: {
+  values: Record<string, unknown>;
+  fields: readonly FormStepFieldPayload[];
+}) => {
+  if (!validateReadyToSubmitPayload(values)) {
+    return "submitted payload must be a JSON-compatible object ready for submit";
+  }
+
+  const knownFieldKeys = new Set(fields.map((field) => field.fieldKey));
+  const unknownKeys = Object.keys(values).filter((key) => !knownFieldKeys.has(key));
+  if (unknownKeys.length > 0) {
+    return `submitted payload contains unknown field keys: ${unknownKeys.join(", ")}`;
+  }
+
+  const missingRequired = fields.filter(
+    (field) => field.required && !isPresentSubmittedValue(values[field.fieldKey]),
   );
+
+  if (missingRequired.length > 0) {
+    return `required form fields are missing: ${missingRequired
+      .map((field) => field.fieldKey)
+      .join(", ")}`;
+  }
+
+  return null;
+};
+
+const buildContextReplacement = ({
+  values,
+  fields,
+}: {
+  values: Record<string, unknown>;
+  fields: readonly FormStepFieldPayload[];
+}) => {
+  const affectedContextFactDefinitionIds = fields.map((field) => field.contextFactDefinitionId);
+  const currentValues = fields.flatMap((field) => {
+    const valueJson = values[field.fieldKey];
+
+    if (valueJson === null || valueJson === undefined || valueJson === "") {
+      return [];
+    }
+
+    if (Array.isArray(valueJson)) {
+      return valueJson.flatMap((entry, instanceOrder) =>
+        entry === null || entry === undefined || entry === ""
+          ? []
+          : [
+              {
+                contextFactDefinitionId: field.contextFactDefinitionId,
+                instanceOrder,
+                valueJson: entry,
+              },
+            ],
+      );
+    }
+
+    return [
+      {
+        contextFactDefinitionId: field.contextFactDefinitionId,
+        instanceOrder: 0,
+        valueJson,
+      },
+    ];
+  });
 
   return {
     affectedContextFactDefinitionIds,
@@ -103,6 +176,9 @@ export const FormStepExecutionServiceLive = Layer.effect(
     const readRepo = yield* ExecutionReadRepository;
     const stepRepo = yield* StepExecutionRepository;
     const tx = yield* StepExecutionTransactionService;
+    const lifecycleRepo = yield* LifecycleRepository;
+    const methodologyRepo = yield* MethodologyRepository;
+    const projectContextRepo = yield* ProjectContextRepository;
 
     const assertStepOwnership = (params: {
       projectId: string;
@@ -158,17 +234,65 @@ export const FormStepExecutionServiceLive = Layer.effect(
         } satisfies SaveFormStepDraftOutput;
       });
 
+    const loadFormFields = (params: {
+      projectId: string;
+      workflowExecutionId: string;
+      stepExecutionId: string;
+    }) =>
+      Effect.gen(function* () {
+        const { workflowDetail, step } = yield* assertStepOwnership(params);
+
+        const projectPin = yield* projectContextRepo.findProjectPin(workflowDetail.projectId);
+        if (!projectPin) {
+          return yield* makeFormExecutionError("project methodology pin missing for form submit");
+        }
+
+        const workUnitTypes = yield* lifecycleRepo.findWorkUnitTypes(
+          projectPin.methodologyVersionId,
+        );
+        const workUnitType = workUnitTypes.find(
+          (candidate) => candidate.id === workflowDetail.workUnitTypeId,
+        );
+
+        if (!workUnitType) {
+          return yield* makeFormExecutionError("work unit type missing for form submit");
+        }
+
+        const workflowEditor = yield* methodologyRepo.getWorkflowEditorDefinition({
+          versionId: projectPin.methodologyVersionId,
+          workUnitTypeKey: workUnitType.key,
+          workflowDefinitionId: workflowDetail.workflowExecution.workflowId,
+        });
+
+        const formDefinition = workflowEditor.formDefinitions.find(
+          (definition) => definition.stepId === step.stepDefinitionId,
+        );
+
+        if (!formDefinition) {
+          return yield* makeFormExecutionError("form definition missing for step execution");
+        }
+
+        return formDefinition.payload.fields;
+      });
+
     const submitFormStep = (input: SubmitFormStepExecutionInput) =>
       Effect.gen(function* () {
         yield* assertStepOwnership(input);
 
-        if (!validateReadyToSubmitPayload(input.values)) {
-          return yield* makeFormExecutionError(
-            "submitted payload must be a JSON-compatible object ready for submit",
-          );
+        const fields = yield* loadFormFields(input);
+
+        const submissionValidationError = validateSubmissionAgainstFields({
+          values: input.values,
+          fields,
+        });
+        if (submissionValidationError) {
+          return yield* makeFormExecutionError(submissionValidationError);
         }
 
-        const contextReplace = buildContextReplacement(input.values);
+        const contextReplace = buildContextReplacement({
+          values: input.values,
+          fields,
+        });
 
         const submitted = yield* tx.submitFormStepExecution({
           workflowExecutionId: input.workflowExecutionId,

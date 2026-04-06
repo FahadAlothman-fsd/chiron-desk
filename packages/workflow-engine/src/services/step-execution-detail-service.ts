@@ -23,6 +23,7 @@ import { Context, Effect, Layer } from "effect";
 
 import { RepositoryError } from "../errors";
 import { ExecutionReadRepository } from "../repositories/execution-read-repository";
+import { ProjectWorkUnitRepository } from "../repositories/project-work-unit-repository";
 import { StepExecutionRepository } from "../repositories/step-execution-repository";
 
 const makeDetailError = (cause: string): RepositoryError =>
@@ -71,14 +72,20 @@ type FormFieldBinding = {
   fieldKey: string;
   helpText?: string | null;
   required?: boolean;
-  uiMultiplicityMode?: "one" | "many";
+  uiMultiplicityMode?: "one" | "many" | undefined;
 };
 
 type WorkflowListItem = {
-  workflowDefinitionId?: string;
+  workflowDefinitionId?: string | undefined;
   key: string;
-  displayName?: string;
+  displayName?: string | undefined;
 };
+
+function isJsonSubSchema(
+  value: unknown,
+): value is NonNullable<Extract<FactValidation, { kind: "json-schema" }>["subSchema"]> {
+  return isRecord(value) && value.type === "object" && Array.isArray(value.fields);
+}
 
 function parseValidation(value: unknown): FactValidation | null {
   if (!isRecord(value) || typeof value.kind !== "string") {
@@ -97,6 +104,18 @@ function parseValidation(value: unknown): FactValidation | null {
         ? ({ kind: "allowed-values", values: value.values } satisfies FactValidation)
         : null;
     case "json-schema":
+      if (isJsonSubSchema(value.subSchema)) {
+        return {
+          kind: "json-schema",
+          schemaDialect:
+            typeof value.schemaDialect === "string" && value.schemaDialect.length > 0
+              ? value.schemaDialect
+              : "draft-2020-12",
+          schema: "schema" in value ? value.schema : undefined,
+          subSchema: value.subSchema,
+        };
+      }
+
       return {
         kind: "json-schema",
         schemaDialect:
@@ -104,8 +123,7 @@ function parseValidation(value: unknown): FactValidation | null {
             ? value.schemaDialect
             : "draft-2020-12",
         schema: "schema" in value ? value.schema : undefined,
-        ...(isRecord(value.subSchema) ? { subSchema: value.subSchema } : {}),
-      } satisfies FactValidation;
+      };
     default:
       return null;
   }
@@ -152,6 +170,7 @@ function nestedFieldsFromValidation(
       cardinality: field.cardinality,
       required: "defaultValue" in field ? true : false,
       description: extractMarkdown(field.description),
+      validation,
     }));
   }
 
@@ -195,9 +214,84 @@ function nestedFieldsFromValidation(
             ? (property.cardinality as FactCardinality)
             : ("one" as const),
         required: required.has(key),
+        validation,
       } satisfies RuntimeFormNestedField,
     ];
   });
+}
+
+function workUnitOptionsFromValidation(params: {
+  validationJson: unknown;
+  workUnitTypes: readonly { id: string; key: string; displayName: string | null }[];
+  projectWorkUnits: readonly { id: string; workUnitTypeId: string }[];
+}): {
+  options?: RuntimeFormFieldOption[];
+  workUnitTypeKey?: string;
+  emptyState?: string;
+} {
+  if (!isRecord(params.validationJson) || typeof params.validationJson.workUnitKey !== "string") {
+    return {};
+  }
+
+  const workUnitTypeKey = params.validationJson.workUnitKey;
+  const workUnitType = params.workUnitTypes.find(
+    (entry) =>
+      entry.key === workUnitTypeKey || entry.key.toLowerCase() === workUnitTypeKey.toLowerCase(),
+  );
+
+  if (!workUnitType) {
+    return { workUnitTypeKey };
+  }
+
+  const options = params.projectWorkUnits
+    .filter((workUnit) => workUnit.workUnitTypeId === workUnitType.id)
+    .map((workUnit) => ({
+      value: { projectWorkUnitId: workUnit.id },
+      label: `${workUnitType.displayName ?? workUnitType.key}:${workUnit.id.slice(0, 8)}`,
+    }));
+
+  return {
+    workUnitTypeKey: workUnitType.key,
+    ...(options.length > 0 ? { options } : {}),
+    ...(options.length === 0
+      ? {
+          emptyState: `No ${workUnitType.displayName ?? workUnitType.key} work units are available yet.`,
+        }
+      : {}),
+  };
+}
+
+function buildDraftSpecNestedField(params: {
+  fact: FactSchemaRow;
+  workUnitTypes: readonly { id: string; key: string; displayName: string | null }[];
+  projectWorkUnits: readonly { id: string; workUnitTypeId: string }[];
+}): RuntimeFormNestedField {
+  const validation = parseValidation(params.fact.validationJson);
+  const nestedFields = nestedFieldsFromValidation(validation);
+  const workUnitOptions =
+    params.fact.factType === "work_unit"
+      ? workUnitOptionsFromValidation({
+          validationJson: params.fact.validationJson,
+          workUnitTypes: params.workUnitTypes,
+          projectWorkUnits: params.projectWorkUnits,
+        })
+      : {};
+
+  return {
+    key: params.fact.key,
+    label: params.fact.name ?? humanizeKey(params.fact.key),
+    factType: params.fact.factType as FactType,
+    cardinality: (params.fact.cardinality ?? "one") as FactCardinality,
+    required: false,
+    description: params.fact.description ?? undefined,
+    validation: params.fact.validationJson,
+    ...(nestedFields && nestedFields.length > 0 ? { nestedFields } : {}),
+    ...(workUnitOptions.options ? { options: workUnitOptions.options } : {}),
+    ...(workUnitOptions.emptyState ? { emptyState: workUnitOptions.emptyState } : {}),
+    ...(workUnitOptions.workUnitTypeKey
+      ? { workUnitTypeKey: workUnitOptions.workUnitTypeKey }
+      : {}),
+  } satisfies RuntimeFormNestedField;
 }
 
 function buildPrimitiveWidget(params: {
@@ -317,6 +411,8 @@ function buildResolvedField(params: {
   contextFact: WorkflowContextFactDto;
   factSchemas: ReturnType<typeof buildFactSchemaLookup>;
   workflowOptions: readonly WorkflowListItem[];
+  workUnitTypes: readonly { id: string; key: string; displayName: string | null }[];
+  projectWorkUnits: readonly { id: string; workUnitTypeId: string }[];
 }): RuntimeFormResolvedField {
   const renderedMultiplicity = params.field.uiMultiplicityMode ?? params.contextFact.cardinality;
 
@@ -410,14 +506,11 @@ function buildResolvedField(params: {
             }
 
             return [
-              {
-                key: fact.key,
-                label: fact.name ?? humanizeKey(fact.key),
-                factType: fact.factType as FactType,
-                cardinality: (fact.cardinality ?? "one") as FactCardinality,
-                required: false,
-                description: fact.description ?? undefined,
-              } satisfies RuntimeFormNestedField,
+              buildDraftSpecNestedField({
+                fact,
+                workUnitTypes: params.workUnitTypes,
+                projectWorkUnits: params.projectWorkUnits,
+              }),
             ];
           }),
         },
@@ -444,6 +537,7 @@ export const StepExecutionDetailServiceLive = Layer.effect(
     const lifecycleRepo = yield* LifecycleRepository;
     const methodologyRepo = yield* MethodologyRepository;
     const projectContextRepo = yield* ProjectContextRepository;
+    const projectWorkUnitRepo = yield* ProjectWorkUnitRepository;
 
     const getRuntimeStepExecutionDetail = (input: GetRuntimeStepExecutionDetailInput) =>
       Effect.gen(function* () {
@@ -491,10 +585,11 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                   );
                 }
 
-                const [project, workUnitTypes, factSchemas] = yield* Effect.all([
+                const [project, workUnitTypes, factSchemas, projectWorkUnits] = yield* Effect.all([
                   projectContextRepo.getProjectById({ projectId: workflowDetail.projectId }),
                   lifecycleRepo.findWorkUnitTypes(projectPin.methodologyVersionId),
                   lifecycleRepo.findFactSchemas(projectPin.methodologyVersionId),
+                  projectWorkUnitRepo.listProjectWorkUnitsByProject(workflowDetail.projectId),
                 ]);
 
                 const workUnitType = workUnitTypes.find(
@@ -512,12 +607,19 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                   workflowDefinitionId: workflowDetail.workflowExecution.workflowId,
                 });
 
-                const workflowOptions = methodologyRepo.listWorkflowsByWorkUnitType
-                  ? yield* methodologyRepo.listWorkflowsByWorkUnitType({
-                      versionId: projectPin.methodologyVersionId,
-                      workUnitTypeKey: workUnitType.key,
-                    })
-                  : [];
+                const workflowOptions: readonly WorkflowListItem[] =
+                  methodologyRepo.listWorkflowsByWorkUnitType
+                    ? (yield* methodologyRepo.listWorkflowsByWorkUnitType({
+                        versionId: projectPin.methodologyVersionId,
+                        workUnitTypeKey: workUnitType.key,
+                      })).map((workflow) => ({
+                        key: workflow.key,
+                        ...(workflow.workflowDefinitionId
+                          ? { workflowDefinitionId: workflow.workflowDefinitionId }
+                          : {}),
+                        ...(workflow.displayName ? { displayName: workflow.displayName } : {}),
+                      }))
+                    : [];
 
                 const formDefinition = workflowEditor.formDefinitions.find(
                   (definition) => definition.stepId === stepExecution.stepDefinitionId,
@@ -554,11 +656,15 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                         fieldKey: field.fieldKey,
                         helpText: field.helpText,
                         required: field.required,
-                        uiMultiplicityMode: field.uiMultiplicityMode,
+                        ...(field.uiMultiplicityMode
+                          ? { uiMultiplicityMode: field.uiMultiplicityMode }
+                          : {}),
                       },
                       contextFact,
                       factSchemas: factSchemasLookup,
                       workflowOptions,
+                      workUnitTypes,
+                      projectWorkUnits,
                     }),
                   ];
                 });
