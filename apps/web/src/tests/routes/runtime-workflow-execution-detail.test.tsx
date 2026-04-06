@@ -1,4 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -125,6 +127,11 @@ type WorkflowDetail = {
     enabled: boolean;
     reasonIfDisabled?: string;
     parentTransitionExecutionId?: string;
+  };
+  completeAction?: {
+    kind: "complete_workflow_execution";
+    enabled: boolean;
+    reasonIfDisabled?: string;
   };
   impactDialog?: {
     requiredForRetry: boolean;
@@ -286,6 +293,11 @@ function buildWorkflowDetail(stepSurface: WorkflowDetail["stepSurface"]): Workfl
       enabled: true,
       parentTransitionExecutionId: "te_story_start_001",
     },
+    completeAction: {
+      kind: "complete_workflow_execution",
+      enabled: false,
+      reasonIfDisabled: "Workflow execution is already finalized.",
+    },
     impactDialog: {
       requiredForRetry: true,
       affectedEntitiesSummary: {
@@ -329,6 +341,13 @@ async function renderWorkflowDetailRoute(detail: WorkflowDetail) {
     }),
   }));
 
+  const completeWorkflowExecutionMutationOptionsMock = vi.fn(() => ({
+    mutationFn: async () => ({
+      workflowExecutionId: detail.workflowExecution.workflowExecutionId,
+      status: "completed" as const,
+    }),
+  }));
+
   const orpc = {
     project: {
       getRuntimeWorkflowExecutionDetail: {
@@ -336,6 +355,9 @@ async function renderWorkflowDetailRoute(detail: WorkflowDetail) {
       },
       retrySameWorkflowExecution: {
         mutationOptions: retrySameWorkflowMutationOptionsMock,
+      },
+      completeWorkflowExecution: {
+        mutationOptions: completeWorkflowExecutionMutationOptionsMock,
       },
       activateWorkflowStepExecution: {
         mutationOptions: activateWorkflowStepExecutionMutationOptionsMock,
@@ -376,6 +398,7 @@ async function renderWorkflowDetailRoute(detail: WorkflowDetail) {
     markup,
     getRuntimeWorkflowExecutionDetailQueryOptionsMock,
     activateWorkflowStepExecutionMutationOptionsMock,
+    completeWorkflowExecutionMutationOptionsMock,
   };
 }
 
@@ -476,24 +499,131 @@ describe("runtime workflow execution detail route", () => {
   });
 
   it("renders terminal state summary card", async () => {
-    const { markup } = await renderWorkflowDetailRoute(
-      buildWorkflowDetail({
-        state: "terminal_no_next_step",
-        terminalStep: {
-          stepExecutionId: "step-terminal",
-          stepDefinitionId: "step-finish",
-          stepType: "display",
-          status: "completed",
-          activatedAt: "2026-03-28T12:03:00.000Z",
-          completedAt: "2026-03-28T12:04:00.000Z",
-          target: { page: "step-execution-detail", stepExecutionId: "step-terminal" },
-        },
-      }),
-    );
+    const detail = buildWorkflowDetail({
+      state: "terminal_no_next_step",
+      terminalStep: {
+        stepExecutionId: "step-terminal",
+        stepDefinitionId: "step-finish",
+        stepType: "display",
+        status: "completed",
+        activatedAt: "2026-03-28T12:03:00.000Z",
+        completedAt: "2026-03-28T12:04:00.000Z",
+        target: { page: "step-execution-detail", stepExecutionId: "step-terminal" },
+      },
+    });
+    detail.workflowExecution.status = "active";
+    delete detail.workflowExecution.completedAt;
+    detail.completeAction = {
+      kind: "complete_workflow_execution",
+      enabled: true,
+    };
+
+    const { markup } = await renderWorkflowDetailRoute(detail);
 
     expect(markup).toContain("Workflow is terminal");
+    expect(markup).toContain("Complete workflow");
     expect(markup).toContain("Open terminal step");
     expect(markup).not.toContain("Activate next step");
+  });
+
+  it("opens a confirmation dialog before completing a terminal workflow", async () => {
+    const user = userEvent.setup();
+    const detail = buildWorkflowDetail({
+      state: "terminal_no_next_step",
+      terminalStep: {
+        stepExecutionId: "step-terminal",
+        stepDefinitionId: "step-finish",
+        stepType: "display",
+        status: "completed",
+        activatedAt: "2026-03-28T12:03:00.000Z",
+        completedAt: "2026-03-28T12:04:00.000Z",
+        target: { page: "step-execution-detail", stepExecutionId: "step-terminal" },
+      },
+    });
+    detail.workflowExecution.status = "active";
+    delete detail.workflowExecution.completedAt;
+    detail.completeAction = {
+      kind: "complete_workflow_execution",
+      enabled: true,
+    };
+
+    const { completeWorkflowExecutionMutationOptionsMock } = await (async () => {
+      const getRuntimeWorkflowExecutionDetailQueryOptionsMock = vi.fn(
+        (_input: { input: { projectId: string; workflowExecutionId: string } }) => ({
+          queryKey: [
+            "runtime-workflow-execution-detail",
+            "project-1",
+            "we_story_start_primary_003",
+          ],
+          queryFn: async () => detail,
+        }),
+      );
+
+      const retrySameWorkflowMutationOptionsMock = vi.fn(() => ({ mutationFn: async () => ({}) }));
+      const activateWorkflowStepExecutionMutationOptionsMock = vi.fn(() => ({
+        mutationFn: async () => ({}),
+      }));
+      const completeWorkflowExecutionMutationOptionsMock = vi.fn(() => ({
+        mutationFn: async () => ({
+          workflowExecutionId: detail.workflowExecution.workflowExecutionId,
+          status: "completed" as const,
+        }),
+      }));
+
+      const orpc = {
+        project: {
+          getRuntimeWorkflowExecutionDetail: {
+            queryOptions: getRuntimeWorkflowExecutionDetailQueryOptionsMock,
+          },
+          retrySameWorkflowExecution: {
+            mutationOptions: retrySameWorkflowMutationOptionsMock,
+          },
+          completeWorkflowExecution: {
+            mutationOptions: completeWorkflowExecutionMutationOptionsMock,
+          },
+          activateWorkflowStepExecution: {
+            mutationOptions: activateWorkflowStepExecutionMutationOptionsMock,
+          },
+        },
+      };
+
+      const queryClient = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, gcTime: 0 },
+          mutations: { retry: false },
+        },
+      });
+
+      useParamsMock.mockReturnValue({
+        projectId: "project-1",
+        workflowExecutionId: "we_story_start_primary_003",
+      });
+      useRouteContextMock.mockReturnValue({ orpc, queryClient });
+
+      await queryClient.prefetchQuery({
+        ...orpc.project.getRuntimeWorkflowExecutionDetail.queryOptions({
+          input: {
+            projectId: "project-1",
+            workflowExecutionId: "we_story_start_primary_003",
+          },
+        }),
+        queryKey: runtimeWorkflowExecutionDetailQueryKey("project-1", "we_story_start_primary_003"),
+      });
+
+      render(
+        <QueryClientProvider client={queryClient}>
+          <WorkflowExecutionDetailRoute />
+        </QueryClientProvider>,
+      );
+
+      return { completeWorkflowExecutionMutationOptionsMock };
+    })();
+
+    await user.click(screen.getByRole("button", { name: "Complete workflow" }));
+
+    expect(screen.getByText("Complete workflow execution?")).toBeTruthy();
+    expect(screen.getByText(/mark the workflow execution as finished/i)).toBeTruthy();
+    expect(completeWorkflowExecutionMutationOptionsMock).toHaveBeenCalled();
   });
 
   it("renders invalid-definition blocking summary card", async () => {

@@ -447,11 +447,15 @@ function WorkflowStepSurfaceCard({
   stepSurface,
   activateWorkflowStep,
   isActivating,
+  completeWorkflow,
+  isCompleting,
 }: {
   projectId: string;
   stepSurface: WorkflowStepSurface;
   activateWorkflowStep: () => Promise<void>;
   isActivating: boolean;
+  completeWorkflow?: () => void;
+  isCompleting: boolean;
 }) {
   const badgeClassName =
     stepSurface.state === "invalid_definition"
@@ -607,7 +611,12 @@ function WorkflowStepSurfaceCard({
             )}
           </CardContent>
           {stepSurface.terminalStep ? (
-            <CardFooter className="justify-end">
+            <CardFooter className="justify-end gap-2">
+              {completeWorkflow ? (
+                <Button size="sm" onClick={completeWorkflow} disabled={isCompleting}>
+                  Complete workflow
+                </Button>
+              ) : null}
               <Link
                 to="/projects/$projectId/step-executions/$stepExecutionId"
                 params={{ projectId, stepExecutionId: stepSurface.terminalStep.stepExecutionId }}
@@ -676,6 +685,7 @@ export function WorkflowExecutionDetailRoute() {
   const navigate = Route.useNavigate();
   const { orpc, queryClient } = Route.useRouteContext();
   const [openContextFactId, setOpenContextFactId] = useState<string | null>(null);
+  const [openCompleteDialog, setOpenCompleteDialog] = useState(false);
 
   const workflowExecutionDetailQuery = useQuery({
     ...orpc.project.getRuntimeWorkflowExecutionDetail.queryOptions({
@@ -732,6 +742,21 @@ export function WorkflowExecutionDetailRoute() {
             },
           });
         }
+      },
+    }),
+  );
+
+  const completeWorkflowMutation = useMutation(
+    orpc.project.completeWorkflowExecution.mutationOptions({
+      onSuccess: async () => {
+        setOpenCompleteDialog(false);
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: runtimeWorkflowExecutionDetailQueryKey(projectId, workflowExecutionId),
+          }),
+          queryClient.invalidateQueries({ queryKey: runtimeActiveWorkflowsQueryKey(projectId) }),
+          queryClient.invalidateQueries({ queryKey: runtimeGuidanceActiveQueryKey(projectId) }),
+        ]);
       },
     }),
   );
@@ -980,7 +1005,39 @@ export function WorkflowExecutionDetailRoute() {
                 await activateWorkflowStepMutation.mutateAsync({ projectId, workflowExecutionId });
               }}
               isActivating={activateWorkflowStepMutation.isPending}
+              completeWorkflow={
+                detail.completeAction?.enabled ? () => setOpenCompleteDialog(true) : undefined
+              }
+              isCompleting={completeWorkflowMutation.isPending}
             />
+
+            <Dialog open={openCompleteDialog} onOpenChange={setOpenCompleteDialog}>
+              <DialogContent className="max-w-md rounded-none border border-border/80 bg-background">
+                <DialogHeader>
+                  <DialogTitle>Complete workflow execution?</DialogTitle>
+                  <DialogDescription>
+                    This workflow is terminal. Completing it will mark the workflow execution as
+                    finished.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setOpenCompleteDialog(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={async () => {
+                      await completeWorkflowMutation.mutateAsync({
+                        projectId,
+                        workflowExecutionId,
+                      });
+                    }}
+                    disabled={completeWorkflowMutation.isPending}
+                  >
+                    Complete workflow
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </section>
 
           <section className="max-w-5xl space-y-3 border border-border/80 bg-background p-4">
