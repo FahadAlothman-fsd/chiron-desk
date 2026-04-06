@@ -7,7 +7,7 @@ import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { CheckIcon, ChevronsUpDownIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -236,6 +236,18 @@ function getReferencePlaceholder(field: RuntimeFormResolvedField): string {
   return field.widget.valueType === "work_unit" ? "Select a work unit" : "Select an existing fact";
 }
 
+function NestedFieldHeader({ nestedField }: { nestedField: RuntimeFormNestedField }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="text-xs leading-none">{nestedField.label}</div>
+      <ExecutionBadge
+        label={nestedField.required ? "required" : "optional"}
+        tone={nestedField.required ? "rose" : "slate"}
+      />
+    </div>
+  );
+}
+
 function getUnavailableReferenceLabel(value: unknown, field: RuntimeFormResolvedField): string {
   const formatted = primitiveToInput(value, field);
   return formatted.length > 0 ? formatted : getReferencePlaceholder(field);
@@ -243,6 +255,31 @@ function getUnavailableReferenceLabel(value: unknown, field: RuntimeFormResolved
 
 function renderContextFactKindLabel(kind: RuntimeFormResolvedField["contextFactKind"]): string {
   return kind.replaceAll("_", " ");
+}
+
+type StepTypeFrameStyle = CSSProperties & {
+  "--frame-border": string;
+  "--frame-corner": string;
+};
+
+function getStepTypeFrameStyle(stepType: string): StepTypeFrameStyle {
+  switch (stepType) {
+    case "form":
+      return {
+        "--frame-border": "color-mix(in oklab, rgb(56 189 248) 24%, var(--border))",
+        "--frame-corner": "color-mix(in oklab, rgb(125 211 252) 82%, var(--foreground))",
+      };
+    case "agent":
+      return {
+        "--frame-border": "color-mix(in oklab, rgb(167 139 250) 24%, var(--border))",
+        "--frame-corner": "color-mix(in oklab, rgb(196 181 253) 82%, var(--foreground))",
+      };
+    default:
+      return {
+        "--frame-border": "color-mix(in oklab, var(--foreground) 18%, var(--border))",
+        "--frame-corner": "color-mix(in oklab, var(--foreground) 56%, var(--border))",
+      };
+  }
 }
 
 function ReferenceOptionCombobox(props: {
@@ -381,8 +418,9 @@ function NestedFieldEditor(props: {
   nestedField: RuntimeFormNestedField;
   value: unknown;
   onChange: (value: unknown) => void;
+  disabled: boolean;
 }) {
-  const { nestedField, value, onChange } = props;
+  const { nestedField, value, onChange, disabled } = props;
   const nestedJsonFields = (() => {
     if (!isPlainRecord(nestedField.validation) || nestedField.validation.kind !== "json-schema") {
       return [];
@@ -466,8 +504,9 @@ function NestedFieldEditor(props: {
   if (nestedField.factType === "work_unit" && (nestedField.options?.length ?? 0) > 0) {
     return (
       <Field>
-        <div className="text-xs leading-none">{nestedField.label}</div>
+        <NestedFieldHeader nestedField={nestedField} />
         <Select
+          disabled={disabled}
           value={value == null ? "" : encodeOptionValue(value)}
           onValueChange={(nextValue) =>
             onChange(nextValue && nextValue.length > 0 ? decodeOptionValue(nextValue) : null)
@@ -503,8 +542,9 @@ function NestedFieldEditor(props: {
         orientation="horizontal"
         className="items-center justify-between border border-border/70 px-3 py-2"
       >
-        <div className="text-xs leading-none">{nestedField.label}</div>
+        <NestedFieldHeader nestedField={nestedField} />
         <Checkbox
+          disabled={disabled}
           checked={value === true}
           aria-label={nestedField.label}
           onCheckedChange={(checked) => onChange(Boolean(checked))}
@@ -516,8 +556,9 @@ function NestedFieldEditor(props: {
   if (nestedField.factType === "number") {
     return (
       <Field>
-        <div className="text-xs leading-none">{nestedField.label}</div>
+        <NestedFieldHeader nestedField={nestedField} />
         <Input
+          disabled={disabled}
           aria-label={nestedField.label}
           type="number"
           value={typeof value === "number" ? String(value) : ""}
@@ -536,7 +577,7 @@ function NestedFieldEditor(props: {
       return (
         <Field className="space-y-3 border border-border/70 bg-background/40 p-3">
           <div className="space-y-1">
-            <div className="text-xs leading-none">{nestedField.label}</div>
+            <NestedFieldHeader nestedField={nestedField} />
             {nestedField.description ? (
               <FieldDescription>{nestedField.description}</FieldDescription>
             ) : null}
@@ -549,6 +590,7 @@ function NestedFieldEditor(props: {
                 nestedField={field}
                 value={current[field.key]}
                 onChange={(nextValue) => onChange({ ...current, [field.key]: nextValue })}
+                disabled={disabled}
               />
             ))}
           </div>
@@ -558,8 +600,9 @@ function NestedFieldEditor(props: {
 
     return (
       <Field>
-        <div className="text-xs leading-none">{nestedField.label}</div>
+        <NestedFieldHeader nestedField={nestedField} />
         <Textarea
+          disabled={disabled}
           aria-label={nestedField.label}
           value={value == null ? "" : JSON.stringify(value, null, 2)}
           onChange={(event) => {
@@ -591,8 +634,9 @@ function NestedFieldEditor(props: {
 
   return (
     <Field>
-      <div className="text-xs leading-none">{nestedField.label}</div>
+      <NestedFieldHeader nestedField={nestedField} />
       <Input
+        disabled={disabled}
         aria-label={nestedField.label}
         value={inputValue}
         onChange={(event) => {
@@ -614,13 +658,15 @@ function JsonStructuredEditor(props: {
   field: RuntimeFormResolvedField;
   value: unknown;
   onChange: (value: unknown) => void;
+  disabled: boolean;
 }) {
-  const { field, value, onChange } = props;
+  const { field, value, onChange, disabled } = props;
   const nestedFields = field.widget.nestedFields ?? [];
 
   if (nestedFields.length === 0) {
     return (
       <Textarea
+        disabled={disabled}
         aria-label={field.fieldLabel}
         value={value == null ? "" : JSON.stringify(value, null, 2)}
         onChange={(event) => {
@@ -650,6 +696,7 @@ function JsonStructuredEditor(props: {
           nestedField={nestedField}
           value={current[nestedField.key]}
           onChange={(nextValue) => onChange({ ...current, [nestedField.key]: nextValue })}
+          disabled={disabled}
         />
       ))}
     </div>
@@ -660,8 +707,9 @@ function DraftSpecEditor(props: {
   field: RuntimeFormResolvedField;
   value: unknown;
   onChange: (value: unknown) => void;
+  disabled: boolean;
 }) {
-  const { field, value, onChange } = props;
+  const { field, value, onChange, disabled } = props;
   const nestedFields = field.widget.nestedFields ?? [];
 
   const renderBlock = (blockValue: unknown, onBlockChange: (nextValue: unknown) => void) => {
@@ -675,6 +723,7 @@ function DraftSpecEditor(props: {
             nestedField={nestedField}
             value={current[nestedField.key]}
             onChange={(nextValue) => onBlockChange({ ...current, [nestedField.key]: nextValue })}
+            disabled={disabled}
           />
         ))}
       </div>
@@ -694,13 +743,19 @@ function DraftSpecEditor(props: {
             <Button
               type="button"
               variant="outline"
+              disabled={disabled}
               onClick={() => onChange(removeArrayValue(blocks, index))}
             >
               Remove block
             </Button>
           </div>
         ))}
-        <Button type="button" variant="outline" onClick={() => onChange(addArrayValue(blocks, {}))}>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={disabled}
+          onClick={() => onChange(addArrayValue(blocks, {}))}
+        >
           Add block
         </Button>
       </div>
@@ -714,8 +769,9 @@ function SelectField(props: {
   field: RuntimeFormResolvedField;
   value: unknown;
   onChange: (value: unknown) => void;
+  disabled: boolean;
 }) {
-  const { field, value, onChange } = props;
+  const { field, value, onChange, disabled } = props;
   const options = field.widget.options ?? [];
 
   if (field.widget.renderedMultiplicity === "many") {
@@ -735,6 +791,7 @@ function SelectField(props: {
             >
               <span>{option.label}</span>
               <Checkbox
+                disabled={disabled}
                 checked={checked}
                 onCheckedChange={(nextChecked) =>
                   onChange(
@@ -751,6 +808,7 @@ function SelectField(props: {
 
   return (
     <Select
+      disabled={disabled}
       value={value == null ? "" : encodeOptionValue(value)}
       onValueChange={(nextValue) =>
         onChange(nextValue && nextValue.length > 0 ? decodeOptionValue(nextValue) : null)
@@ -780,8 +838,9 @@ function RepeatedPrimitiveField(props: {
   field: RuntimeFormResolvedField;
   value: unknown;
   onChange: (value: unknown) => void;
+  disabled: boolean;
 }) {
-  const { field, value, onChange } = props;
+  const { field, value, onChange, disabled } = props;
   const items = Array.isArray(value) ? value : [];
 
   return (
@@ -789,6 +848,7 @@ function RepeatedPrimitiveField(props: {
       {items.map((entry, index) => (
         <div key={`${field.fieldKey}-${index}`} className="flex items-center gap-2">
           <Input
+            disabled={disabled}
             aria-label={`${field.fieldLabel} ${index + 1}`}
             value={primitiveToInput(entry, field)}
             onChange={(event) =>
@@ -800,6 +860,7 @@ function RepeatedPrimitiveField(props: {
           <Button
             type="button"
             variant="outline"
+            disabled={disabled}
             onClick={() => onChange(removeArrayValue(items, index))}
           >
             Remove
@@ -809,6 +870,7 @@ function RepeatedPrimitiveField(props: {
       <Button
         type="button"
         variant="outline"
+        disabled={disabled}
         onClick={() => onChange(addArrayValue(items, primitiveFromInput("", field)))}
       >
         Add value
@@ -821,8 +883,9 @@ function ReferenceField(props: {
   field: RuntimeFormResolvedField;
   value: unknown;
   onChange: (value: unknown) => void;
+  disabled: boolean;
 }) {
-  const { field, value, onChange } = props;
+  const { field, value, onChange, disabled } = props;
   const options = field.widget.options ?? [];
   const hasOptions = options.length > 0;
   const shouldUseCombobox = hasOptions || field.contextFactKind === "bound_external_fact";
@@ -845,10 +908,11 @@ function ReferenceField(props: {
                   value={entry}
                   onChange={(nextValue) => onChange(updateArrayValue(items, index, nextValue))}
                   disabledOptionValues={selectedValues}
-                  disabled={!hasOptions}
+                  disabled={disabled || !hasOptions}
                 />
               ) : (
                 <Input
+                  disabled={disabled}
                   aria-label={`${field.fieldLabel} ${index + 1}`}
                   value={primitiveToInput(entry, field)}
                   onChange={(event) =>
@@ -867,6 +931,7 @@ function ReferenceField(props: {
             <Button
               type="button"
               variant="outline"
+              disabled={disabled}
               onClick={() => onChange(removeArrayValue(items, index))}
             >
               Remove
@@ -876,7 +941,7 @@ function ReferenceField(props: {
         <Button
           type="button"
           variant="outline"
-          disabled={!canAddReference}
+          disabled={disabled || !canAddReference}
           onClick={() => onChange(addArrayValue(items, null))}
         >
           Add reference
@@ -895,10 +960,11 @@ function ReferenceField(props: {
           field={field}
           value={value}
           onChange={onChange}
-          disabled={!hasOptions}
+          disabled={disabled || !hasOptions}
         />
       ) : (
         <Input
+          disabled={disabled}
           aria-label={field.fieldLabel}
           value={primitiveToInput(value, field)}
           onChange={(event) => onChange(primitiveFromInput(event.target.value, field))}
@@ -912,7 +978,13 @@ function ReferenceField(props: {
       ) : null}
       {shouldUseCombobox && !hasOptions && value != null ? (
         <div className="flex justify-end">
-          <Button type="button" variant="outline" size="sm" onClick={() => onChange(null)}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={disabled}
+            onClick={() => onChange(null)}
+          >
             Clear unavailable selection
           </Button>
         </div>
@@ -925,28 +997,30 @@ function FormFieldEditor(props: {
   field: RuntimeFormResolvedField;
   value: unknown;
   onChange: (value: unknown) => void;
+  disabled: boolean;
 }) {
-  const { field, value, onChange } = props;
+  const { field, value, onChange, disabled } = props;
 
   if (field.contextFactKind === "work_unit_draft_spec_fact") {
-    return <DraftSpecEditor field={field} value={value} onChange={onChange} />;
+    return <DraftSpecEditor field={field} value={value} onChange={onChange} disabled={disabled} />;
   }
 
   if (
     field.contextFactKind === "workflow_reference_fact" ||
     (field.widget.control === "select" && (field.widget.options?.length ?? 0) > 0)
   ) {
-    return <SelectField field={field} value={value} onChange={onChange} />;
+    return <SelectField field={field} value={value} onChange={onChange} disabled={disabled} />;
   }
 
   if (field.widget.control === "reference") {
-    return <ReferenceField field={field} value={value} onChange={onChange} />;
+    return <ReferenceField field={field} value={value} onChange={onChange} disabled={disabled} />;
   }
 
   if (field.contextFactKind === "artifact_reference_fact") {
     return (
       <div className="space-y-2">
         <Input
+          disabled={disabled}
           aria-label={field.fieldLabel}
           value={primitiveToInput(value, field)}
           onChange={(event) => onChange(primitiveFromInput(event.target.value, field))}
@@ -969,6 +1043,7 @@ function FormFieldEditor(props: {
           {items.map((entry, index) => (
             <div key={`${field.fieldKey}-${index}`} className="flex items-center gap-3 text-xs">
               <Checkbox
+                disabled={disabled}
                 checked={entry === true}
                 aria-label={`${field.fieldLabel} ${index + 1}`}
                 onCheckedChange={(checked) =>
@@ -981,6 +1056,7 @@ function FormFieldEditor(props: {
           <Button
             type="button"
             variant="outline"
+            disabled={disabled}
             onClick={() => onChange(addArrayValue(items, false))}
           >
             Add toggle
@@ -992,6 +1068,7 @@ function FormFieldEditor(props: {
     return (
       <div className="flex items-center gap-3 border border-border/70 bg-background/40 px-3 py-2 text-xs">
         <Checkbox
+          disabled={disabled}
           checked={value === true}
           aria-label={field.fieldLabel}
           onCheckedChange={(checked) => onChange(Boolean(checked))}
@@ -1012,10 +1089,12 @@ function FormFieldEditor(props: {
                 field={field}
                 value={entry}
                 onChange={(nextValue) => onChange(updateArrayValue(items, index, nextValue))}
+                disabled={disabled}
               />
               <Button
                 type="button"
                 variant="outline"
+                disabled={disabled}
                 onClick={() => onChange(removeArrayValue(items, index))}
               >
                 Remove row
@@ -1025,6 +1104,7 @@ function FormFieldEditor(props: {
           <Button
             type="button"
             variant="outline"
+            disabled={disabled}
             onClick={() => onChange(addArrayValue(items, {}))}
           >
             Add row
@@ -1033,15 +1113,20 @@ function FormFieldEditor(props: {
       );
     }
 
-    return <JsonStructuredEditor field={field} value={value} onChange={onChange} />;
+    return (
+      <JsonStructuredEditor field={field} value={value} onChange={onChange} disabled={disabled} />
+    );
   }
 
   if (field.widget.renderedMultiplicity === "many") {
-    return <RepeatedPrimitiveField field={field} value={value} onChange={onChange} />;
+    return (
+      <RepeatedPrimitiveField field={field} value={value} onChange={onChange} disabled={disabled} />
+    );
   }
 
   return (
     <Input
+      disabled={disabled}
       aria-label={field.fieldLabel}
       type={field.widget.control === "number" ? "number" : "text"}
       value={primitiveToInput(value, field)}
@@ -1098,6 +1183,7 @@ function FormInteractionSurface(props: {
 
   const isBusy =
     saveDraftMutation.isPending || submitMutation.isPending || completeStepMutation.isPending;
+  const isReadOnly = detail.shell.status === "completed";
 
   const form = useForm({
     defaultValues: getInitialFormValues(body),
@@ -1212,7 +1298,7 @@ function FormInteractionSurface(props: {
         frame="cut-heavy"
         tone="runtime"
         corner="white"
-        className="relative border-sky-500/30 before:absolute before:left-0 before:top-0 before:h-4 before:w-4 before:border-l before:border-t before:border-sky-400 before:content-[''] after:absolute after:right-0 after:top-0 after:h-4 after:w-4 after:border-r after:border-t after:border-sky-400 after:content-['']"
+        style={getStepTypeFrameStyle(detail.shell.stepType)}
       >
         <CardHeader>
           <div className="space-y-1">
@@ -1288,9 +1374,10 @@ function FormInteractionSurface(props: {
                           {resolvedField.widget.bindingLabel ? (
                             <ExecutionBadge label={resolvedField.widget.bindingLabel} tone="lime" />
                           ) : null}
-                          {resolvedField.required ? (
-                            <ExecutionBadge label="required" tone="rose" />
-                          ) : null}
+                          <ExecutionBadge
+                            label={resolvedField.required ? "required" : "optional"}
+                            tone={resolvedField.required ? "rose" : "slate"}
+                          />
                         </div>
                       </div>
 
@@ -1302,6 +1389,7 @@ function FormInteractionSurface(props: {
                         field={resolvedField}
                         value={field.state.value}
                         onChange={field.handleChange}
+                        disabled={isReadOnly}
                       />
 
                       {field.state.meta.errors.length > 0 ? (

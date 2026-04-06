@@ -543,6 +543,9 @@ describe("runtime form step detail route", () => {
     expect(screen.getAllByText("Project Parts").length).toBeGreaterThan(0);
     expect(screen.getByText("Setup Readme")).toBeTruthy();
     expect(screen.getByText("Setup")).toBeTruthy();
+    expect(screen.getAllByText("required").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("optional").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Setup work unit").length).toBeGreaterThan(0);
     expect(screen.getByRole("combobox", { name: "Existing repository type" })).toBeTruthy();
     expect(screen.getByRole("textbox", { name: "Must Have" })).toBeTruthy();
     expect(screen.getByRole("textbox", { name: "Must Avoid" })).toBeTruthy();
@@ -673,5 +676,40 @@ describe("runtime form step detail route", () => {
     });
     await waitFor(() => expect(screen.queryByRole("button", { name: "Complete Step" })).toBeNull());
     expect(screen.getAllByText("Completed").length).toBeGreaterThan(0);
+  });
+
+  it("makes form fields read-only after the step is completed", async () => {
+    const detail = buildDetail();
+    if (detail.body.stepType !== "form") {
+      throw new Error("expected form detail");
+    }
+
+    detail.shell.status = "completed";
+    detail.shell.completedAt = "2026-04-01T12:49:08.000Z";
+    detail.shell.completionAction = {
+      kind: "complete_step_execution",
+      visible: false,
+      enabled: false,
+      reasonIfDisabled: "Step execution is already completed.",
+    };
+    detail.body.submitAction.enabled = false;
+
+    await renderHarness({ currentDetail: detail });
+
+    const initiativeInput = screen.getByRole("textbox", {
+      name: "Initiative name",
+    }) as HTMLInputElement;
+    expect(initiativeInput.disabled).toBe(true);
+
+    const workflowMode = screen.getByRole("combobox", { name: "Workflow mode" });
+    expect(workflowMode.getAttribute("disabled")).toBe("");
+
+    const brainstormingToggle = screen.getByRole("checkbox", {
+      name: "Requires brainstorming",
+    }) as HTMLButtonElement;
+    expect(brainstormingToggle.getAttribute("disabled")).toBe("");
+
+    const addReferenceButton = screen.getByRole("button", { name: "Add reference" });
+    expect(addReferenceButton.getAttribute("disabled")).toBe("");
   });
 });
