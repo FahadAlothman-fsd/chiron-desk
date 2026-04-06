@@ -3,6 +3,7 @@ import type {
   GetTransitionExecutionDetailOutput,
   RuntimeWorkflowExecutionSummary,
 } from "@chiron/contracts/runtime/executions";
+import type { RuntimeConditionEvaluationTree } from "@chiron/contracts/runtime/conditions";
 import { Context, Effect, Layer } from "effect";
 
 import { RepositoryError } from "../errors";
@@ -13,8 +14,35 @@ import {
 import { ProjectContextRepository } from "@chiron/project-context";
 import { LifecycleRepository } from "@chiron/methodology-engine";
 import { RuntimeGateService } from "./runtime-gate-service";
+import { toRuntimeConditionTree } from "./transition-gate-conditions";
 
 const toIso = (value: Date | null): string | undefined => (value ? value.toISOString() : undefined);
+
+const mapGateError =
+  (operation: string) =>
+  (error: unknown): RepositoryError =>
+    error instanceof RepositoryError
+      ? error
+      : new RepositoryError({
+          operation,
+          cause: error instanceof Error ? error : new Error(String(error)),
+        });
+
+const toGateSummarySet = (conditionSet: {
+  id: string;
+  key: string;
+  phase: string;
+  mode: string;
+  groupsJson: unknown;
+  guidanceJson: unknown;
+}) => ({
+  id: conditionSet.id,
+  key: conditionSet.key,
+  phase: conditionSet.phase,
+  mode: conditionSet.mode,
+  groupsJson: conditionSet.groupsJson,
+  guidanceJson: conditionSet.guidanceJson,
+});
 
 const toWorkflowSummary = (
   workflow: NonNullable<TransitionExecutionDetailReadModel["primaryWorkflowExecution"]>,
@@ -35,7 +63,6 @@ const makeCompletionPanel = (params: {
   transitionExecutionId: string;
   transitionStatus: TransitionExecutionDetailReadModel["transitionExecution"]["status"];
   transitionCompletedAt: Date | null;
-  transitionSupersededAt: Date | null;
   primaryWorkflowStatus: TransitionExecutionDetailReadModel["primaryWorkflowExecution"] extends null
     ? never
     : NonNullable<TransitionExecutionDetailReadModel["primaryWorkflowExecution"]>["status"];
@@ -44,6 +71,7 @@ const makeCompletionPanel = (params: {
     evaluatedAt: string;
     firstBlockingReason?: string;
     conditionTree?: unknown;
+    evaluationTree?: RuntimeConditionEvaluationTree;
   };
 }): GetTransitionExecutionDetailOutput["completionGate"] => {
   if (params.transitionStatus === "completed") {
@@ -70,6 +98,7 @@ const makeCompletionPanel = (params: {
       panelState: "passing",
       lastEvaluatedAt: params.completion.evaluatedAt,
       conditionTree: params.completion.conditionTree,
+      evaluationTree: params.completion.evaluationTree,
       actions: {
         completeTransition: {
           kind: "complete_transition_execution",
@@ -84,6 +113,7 @@ const makeCompletionPanel = (params: {
     lastEvaluatedAt: params.completion.evaluatedAt,
     firstBlockingReason: params.completion.firstBlockingReason,
     conditionTree: params.completion.conditionTree,
+    evaluationTree: params.completion.evaluationTree,
     actions: {
       chooseAnotherPrimaryWorkflow: {
         kind: "choose_primary_workflow_for_transition_execution",
@@ -95,12 +125,10 @@ const makeCompletionPanel = (params: {
 
 const toResolvedTransitionDefinition = (params: {
   detail: TransitionExecutionDetailReadModel;
-  completion: {
-    targetState?: {
-      stateId: string;
-      stateKey: string;
-      stateLabel: string;
-    };
+  targetState?: {
+    stateId: string;
+    stateKey: string;
+    stateLabel: string;
   };
   lifecycleTransition?: {
     id: string;
@@ -108,6 +136,22 @@ const toResolvedTransitionDefinition = (params: {
     fromStateId: string | null;
     toStateId: string | null;
   };
+  startConditionSets: readonly {
+    id: string;
+    key: string;
+    phase: string;
+    mode: string;
+    groupsJson: unknown;
+    guidanceJson: unknown;
+  }[];
+  completionConditionSets: readonly {
+    id: string;
+    key: string;
+    phase: string;
+    mode: string;
+    groupsJson: unknown;
+    guidanceJson: unknown;
+  }[];
   statesById: ReadonlyMap<string, { key: string; displayName: string | null }>;
   boundWorkflows?: readonly {
     workflowId: string;
@@ -127,12 +171,10 @@ const toResolvedTransitionDefinition = (params: {
     ...(transition?.fromStateId ? { fromStateId: transition.fromStateId } : {}),
     ...(fromState ? { fromStateKey: fromState.key } : {}),
     ...(fromState?.displayName ? { fromStateLabel: fromState.displayName } : {}),
-    toStateId:
-      params.completion.targetState?.stateId ?? transition?.toStateId ?? "unresolved-target-state",
-    toStateKey:
-      params.completion.targetState?.stateKey ?? toState?.key ?? "unresolved-target-state",
+    toStateId: params.targetState?.stateId ?? transition?.toStateId ?? "unresolved-target-state",
+    toStateKey: params.targetState?.stateKey ?? toState?.key ?? "unresolved-target-state",
     toStateLabel:
-      params.completion.targetState?.stateLabel ??
+      params.targetState?.stateLabel ??
       toState?.displayName ??
       toState?.key ??
       "Pending activation target",
@@ -141,8 +183,8 @@ const toResolvedTransitionDefinition = (params: {
       workflowKey: workflow.workflowKey ?? workflow.workflowId,
       workflowName: workflow.workflowKey ?? workflow.workflowId,
     })),
-    startConditionSets: [],
-    completionConditionSets: [],
+    startConditionSets: params.startConditionSets.map(toGateSummarySet),
+    completionConditionSets: params.completionConditionSets.map(toGateSummarySet),
   };
 };
 
@@ -163,26 +205,7 @@ export const TransitionExecutionDetailServiceLive = Layer.effect(
     const readRepo = yield* ExecutionReadRepository;
     const lifecycleRepository = yield* LifecycleRepository;
     const projectContextRepository = yield* ProjectContextRepository;
-    const runtimeGate = (yield* RuntimeGateService) as unknown as {
-      readonly evaluateCompletionGate: (input: {
-        projectId: string;
-        projectWorkUnitId: string;
-        transitionExecutionId: string;
-      }) => Effect.Effect<
-        {
-          passed: boolean;
-          evaluatedAt: string;
-          firstBlockingReason?: string;
-          conditionTree?: unknown;
-          targetState?: {
-            stateId: string;
-            stateKey: string;
-            stateLabel: string;
-          };
-        },
-        RepositoryError
-      >;
-    };
+    const runtimeGate = yield* RuntimeGateService;
 
     const getTransitionExecutionDetail = (input: GetTransitionExecutionDetailInput) =>
       Effect.gen(function* () {
@@ -207,12 +230,6 @@ export const TransitionExecutionDetailServiceLive = Layer.effect(
           ? toWorkflowSummary(detail.primaryWorkflowExecution)
           : undefined;
 
-        const completion = yield* runtimeGate.evaluateCompletionGate({
-          projectId: input.projectId,
-          projectWorkUnitId: input.projectWorkUnitId,
-          transitionExecutionId: input.transitionExecutionId,
-        });
-
         const projectPin = yield* projectContextRepository.findProjectPin(input.projectId);
         const lifecycleContext = projectPin
           ? yield* Effect.all({
@@ -228,6 +245,10 @@ export const TransitionExecutionDetailServiceLive = Layer.effect(
                 projectPin.methodologyVersionId,
                 detail.transitionExecution.transitionId,
               ),
+              conditionSets: lifecycleRepository.findTransitionConditionSets(
+                projectPin.methodologyVersionId,
+                detail.transitionExecution.transitionId,
+              ),
             })
           : null;
 
@@ -239,6 +260,56 @@ export const TransitionExecutionDetailServiceLive = Layer.effect(
         const lifecycleTransition = lifecycleContext?.transitions.find(
           (transition) => transition.id === detail.transitionExecution.transitionId,
         );
+        const startConditionSets = (lifecycleContext?.conditionSets ?? [])
+          .filter((conditionSet) => conditionSet.phase !== "completion")
+          .sort((a, b) => a.key.localeCompare(b.key));
+        const completionConditionSets = (lifecycleContext?.conditionSets ?? [])
+          .filter((conditionSet) => conditionSet.phase === "completion")
+          .sort((a, b) => a.key.localeCompare(b.key));
+        const completionConditionTree = toRuntimeConditionTree(completionConditionSets);
+        const targetState = lifecycleTransition?.toStateId
+          ? statesById.get(lifecycleTransition.toStateId)
+          : undefined;
+        const completionEvaluation = yield* runtimeGate
+          .evaluateCompletionGateExhaustive({
+            projectId: input.projectId,
+            projectWorkUnitId: input.projectWorkUnitId,
+            conditionTree: completionConditionTree,
+          })
+          .pipe(
+            Effect.mapError(
+              mapGateError("transition-execution-detail.getTransitionExecutionDetail"),
+            ),
+          );
+        const resolvedTargetState = lifecycleTransition?.toStateId
+          ? {
+              stateId: lifecycleTransition.toStateId,
+              stateKey: targetState?.key ?? "unresolved-target-state",
+              stateLabel:
+                targetState?.displayName ?? targetState?.key ?? "Pending activation target",
+            }
+          : undefined;
+        const completionGateState = {
+          passed: completionEvaluation.result === "available",
+          evaluatedAt: completionEvaluation.evaluatedAt,
+          conditionTree: completionConditionTree,
+          evaluationTree: completionEvaluation.evaluationTree,
+          ...(completionEvaluation.firstReason
+            ? { firstBlockingReason: completionEvaluation.firstReason }
+            : {}),
+        };
+        const currentStateIdentity = detail.currentStateId
+          ? {
+              stateId: detail.currentStateId,
+              stateKey: statesById.get(detail.currentStateId)?.key ?? detail.currentStateId,
+              stateLabel:
+                statesById.get(detail.currentStateId)?.displayName ?? detail.currentStateId,
+            }
+          : {
+              stateId: "activation",
+              stateKey: "activation",
+              stateLabel: "Activation",
+            };
 
         return {
           workUnit: {
@@ -246,9 +317,9 @@ export const TransitionExecutionDetailServiceLive = Layer.effect(
             workUnitTypeId: detail.workUnitTypeId,
             workUnitTypeKey: detail.workUnitTypeId,
             workUnitTypeName: detail.workUnitTypeId,
-            currentStateId: detail.currentStateId,
-            currentStateKey: detail.currentStateId,
-            currentStateLabel: detail.currentStateId,
+            currentStateId: currentStateIdentity.stateId,
+            currentStateKey: currentStateIdentity.stateKey,
+            currentStateLabel: currentStateIdentity.stateLabel,
           },
           transitionExecution: {
             transitionExecutionId: detail.transitionExecution.id,
@@ -262,10 +333,12 @@ export const TransitionExecutionDetailServiceLive = Layer.effect(
           transitionDefinition: {
             ...toResolvedTransitionDefinition({
               detail,
-              completion,
-              lifecycleTransition,
+              ...(resolvedTargetState ? { targetState: resolvedTargetState } : {}),
+              ...(lifecycleTransition ? { lifecycleTransition } : {}),
+              startConditionSets,
+              completionConditionSets,
               statesById,
-              boundWorkflows: lifecycleContext?.bindings,
+              ...(lifecycleContext?.bindings ? { boundWorkflows: lifecycleContext.bindings } : {}),
             }),
           },
           startGate: {
@@ -306,9 +379,8 @@ export const TransitionExecutionDetailServiceLive = Layer.effect(
             transitionExecutionId: detail.transitionExecution.id,
             transitionStatus: detail.transitionExecution.status,
             transitionCompletedAt: detail.transitionExecution.completedAt,
-            transitionSupersededAt: detail.transitionExecution.supersededAt,
             primaryWorkflowStatus: detail.primaryWorkflowExecution?.status ?? "active",
-            completion,
+            completion: completionGateState,
           }),
         } satisfies GetTransitionExecutionDetailOutput;
       });

@@ -15,6 +15,10 @@ import {
   TransitionExecutionCommandService,
   TransitionExecutionCommandServiceLive,
 } from "../../services/transition-execution-command-service";
+import {
+  TransitionExecutionDetailService,
+  TransitionExecutionDetailServiceLive,
+} from "../../services/transition-execution-detail-service";
 import { RuntimeGateService } from "../../services/runtime-gate-service";
 
 const ACTIVE_TRANSITION_DETAIL: TransitionExecutionDetailReadModel = {
@@ -54,6 +58,72 @@ function makeReadRepositoryLayer(detail: TransitionExecutionDetailReadModel) {
     listWorkflowExecutionsForTransition: () => Effect.succeed([]),
     listActiveWorkflowExecutionsByProject: () => Effect.succeed([]),
   } as unknown as Context.Tag.Service<typeof ExecutionReadRepository>);
+}
+
+function makeProjectContextRepositoryLayer() {
+  return Layer.succeed(ProjectContextRepository, {
+    findProjectPin: () =>
+      Effect.succeed({
+        projectId: "proj-1",
+        methodologyVersionId: "version-1",
+        methodologyId: "methodology-1",
+        methodologyKey: "core",
+        publishedVersion: "1.0.0",
+        actorId: null,
+        createdAt: new Date("2026-03-28T10:00:00.000Z"),
+        updatedAt: new Date("2026-03-28T10:00:00.000Z"),
+      }),
+  } as unknown as Context.Tag.Service<typeof ProjectContextRepository>);
+}
+
+function makeLifecycleRepositoryLayer(options?: {
+  fromStateId?: string | null;
+  toStateId?: string | null;
+  transitionKey?: string;
+  conditionSets?: readonly unknown[];
+}) {
+  return Layer.succeed(LifecycleRepository, {
+    findLifecycleTransitions: () =>
+      Effect.succeed([
+        {
+          id: "transition-1",
+          methodologyVersionId: "version-1",
+          workUnitTypeId: "wut-1",
+          fromStateId: options?.fromStateId ?? "state-a",
+          toStateId: options?.toStateId ?? "state-b",
+          transitionKey: options?.transitionKey ?? "draft_to_ready",
+          createdAt: new Date("2026-03-28T10:00:00.000Z"),
+          updatedAt: new Date("2026-03-28T10:00:00.000Z"),
+        },
+      ]),
+    findLifecycleStates: () =>
+      Effect.succeed([
+        {
+          id: "state-a",
+          methodologyVersionId: "version-1",
+          workUnitTypeId: "wut-1",
+          key: "draft",
+          displayName: "Draft",
+          descriptionJson: null,
+          guidanceJson: null,
+          createdAt: new Date("2026-03-28T10:00:00.000Z"),
+          updatedAt: new Date("2026-03-28T10:00:00.000Z"),
+        },
+        {
+          id: "state-b",
+          methodologyVersionId: "version-1",
+          workUnitTypeId: "wut-1",
+          key: "ready",
+          displayName: "Ready",
+          descriptionJson: null,
+          guidanceJson: null,
+          createdAt: new Date("2026-03-28T10:00:00.000Z"),
+          updatedAt: new Date("2026-03-28T10:00:00.000Z"),
+        },
+      ]),
+    findTransitionConditionSets: () => Effect.succeed(options?.conditionSets ?? []),
+    findTransitionWorkflowBindings: () => Effect.succeed([]),
+  } as unknown as Context.Tag.Service<typeof LifecycleRepository>);
 }
 
 describe("TransitionExecutionCommandService", () => {
@@ -102,6 +172,8 @@ describe("TransitionExecutionCommandService", () => {
     const layer = Layer.provide(
       TransitionExecutionCommandServiceLive,
       Layer.mergeAll(
+        Layer.succeed(ProjectContextRepository, projectContextRepository),
+        Layer.succeed(LifecycleRepository, lifecycleRepository),
         makeReadRepositoryLayer(ACTIVE_TRANSITION_DETAIL),
         Layer.succeed(RuntimeGateService, {
           evaluateStartGate: () =>
@@ -193,18 +265,14 @@ describe("TransitionExecutionCommandService", () => {
             workUnitTypeId: "wut-1",
           },
         });
-      }).pipe(
-        Effect.provideService(ProjectContextRepository, projectContextRepository),
-        Effect.provideService(LifecycleRepository, lifecycleRepository),
-        Effect.provide(layer),
-      ),
+      }).pipe(Effect.provide(layer)),
     );
 
     expect(calls.createProjectWorkUnit).toEqual([
       {
         projectId: "proj-1",
         workUnitTypeId: "wut-1",
-        currentStateId: "state-a",
+        currentStateId: null,
       },
     ]);
     expect(calls.startTransitionExecution).toEqual([
@@ -226,24 +294,35 @@ describe("TransitionExecutionCommandService", () => {
     const layer = Layer.provide(
       TransitionExecutionCommandServiceLive,
       Layer.mergeAll(
+        makeProjectContextRepositoryLayer(),
+        makeLifecycleRepositoryLayer(),
         makeReadRepositoryLayer(ACTIVE_TRANSITION_DETAIL),
         Layer.succeed(RuntimeGateService, {
           evaluateStartGate: () =>
             Effect.succeed({
-              passed: true,
+              result: "available",
               evaluatedAt: "2026-03-28T10:03:00.000Z",
             }),
           evaluateCompletionGate: () =>
             Effect.succeed({
-              passed: false,
+              result: "blocked",
               evaluatedAt: "2026-03-28T10:03:30.000Z",
-              firstBlockingReason: "missing-required-artifact",
+              firstReason: "missing-required-artifact",
             }),
         } as unknown as Context.Tag.Service<typeof RuntimeGateService>),
         Layer.succeed(ProjectWorkUnitRepository, {
           createProjectWorkUnit: () => Effect.die("unused"),
           listProjectWorkUnitsByProject: () => Effect.succeed([]),
-          getProjectWorkUnitById: () => Effect.succeed(null),
+          getProjectWorkUnitById: () =>
+            Effect.succeed({
+              id: "wu-1",
+              projectId: "proj-1",
+              workUnitTypeId: "wut-1",
+              currentStateId: "state-a",
+              activeTransitionExecutionId: "tx-1",
+              createdAt: new Date("2026-03-28T10:00:00.000Z"),
+              updatedAt: new Date("2026-03-28T10:00:00.000Z"),
+            }),
           updateActiveTransitionExecutionPointer: () => Effect.succeed(null),
         } as unknown as Context.Tag.Service<typeof ProjectWorkUnitRepository>),
         Layer.succeed(TransitionExecutionRepository, {
@@ -291,28 +370,34 @@ describe("TransitionExecutionCommandService", () => {
     const layer = Layer.provide(
       TransitionExecutionCommandServiceLive,
       Layer.mergeAll(
+        makeProjectContextRepositoryLayer(),
+        makeLifecycleRepositoryLayer(),
         makeReadRepositoryLayer(ACTIVE_TRANSITION_DETAIL),
         Layer.succeed(RuntimeGateService, {
           evaluateStartGate: () =>
             Effect.succeed({
-              passed: true,
+              result: "available",
               evaluatedAt: "2026-03-28T10:03:00.000Z",
             }),
           evaluateCompletionGate: () =>
             Effect.succeed({
-              passed: true,
+              result: "available",
               evaluatedAt: "2026-03-28T10:03:30.000Z",
-              targetState: {
-                stateId: "state-b",
-                stateKey: "ready",
-                stateLabel: "Ready",
-              },
             }),
         } as unknown as Context.Tag.Service<typeof RuntimeGateService>),
         Layer.succeed(ProjectWorkUnitRepository, {
           createProjectWorkUnit: () => Effect.die("unused"),
           listProjectWorkUnitsByProject: () => Effect.succeed([]),
-          getProjectWorkUnitById: () => Effect.succeed(null),
+          getProjectWorkUnitById: () =>
+            Effect.succeed({
+              id: "wu-1",
+              projectId: "proj-1",
+              workUnitTypeId: "wut-1",
+              currentStateId: "state-a",
+              activeTransitionExecutionId: "tx-1",
+              createdAt: new Date("2026-03-28T10:00:00.000Z"),
+              updatedAt: new Date("2026-03-28T10:00:00.000Z"),
+            }),
           updateActiveTransitionExecutionPointer: () => Effect.succeed(null),
         } as unknown as Context.Tag.Service<typeof ProjectWorkUnitRepository>),
         Layer.succeed(TransitionExecutionRepository, {
@@ -376,24 +461,35 @@ describe("TransitionExecutionCommandService", () => {
     const layer = Layer.provide(
       TransitionExecutionCommandServiceLive,
       Layer.mergeAll(
+        makeProjectContextRepositoryLayer(),
+        makeLifecycleRepositoryLayer(),
         makeReadRepositoryLayer(ACTIVE_TRANSITION_DETAIL),
         Layer.succeed(RuntimeGateService, {
           evaluateStartGate: () =>
             Effect.succeed({
-              passed: true,
+              result: "available",
               evaluatedAt: "2026-03-28T10:03:00.000Z",
             }),
           evaluateCompletionGate: () =>
             Effect.succeed({
-              passed: false,
+              result: "blocked",
               evaluatedAt: "2026-03-28T10:03:30.000Z",
-              firstBlockingReason: "choose-another-primary",
+              firstReason: "choose-another-primary",
             }),
         } as unknown as Context.Tag.Service<typeof RuntimeGateService>),
         Layer.succeed(ProjectWorkUnitRepository, {
           createProjectWorkUnit: () => Effect.die("unused"),
           listProjectWorkUnitsByProject: () => Effect.succeed([]),
-          getProjectWorkUnitById: () => Effect.succeed(null),
+          getProjectWorkUnitById: () =>
+            Effect.succeed({
+              id: "wu-1",
+              projectId: "proj-1",
+              workUnitTypeId: "wut-1",
+              currentStateId: "state-a",
+              activeTransitionExecutionId: "tx-1",
+              createdAt: new Date("2026-03-28T10:00:00.000Z"),
+              updatedAt: new Date("2026-03-28T10:00:00.000Z"),
+            }),
           updateActiveTransitionExecutionPointer: () => Effect.succeed(null),
         } as unknown as Context.Tag.Service<typeof ProjectWorkUnitRepository>),
         Layer.succeed(TransitionExecutionRepository, {
@@ -448,5 +544,295 @@ describe("TransitionExecutionCommandService", () => {
       workflowExecutionId: "wf-new-primary",
       supersededWorkflowExecutionId: "wf-1",
     });
+  });
+
+  it("refuses choose-primary when completion gate is already passing", async () => {
+    let chooseAttempted = false;
+
+    const layer = Layer.provide(
+      TransitionExecutionCommandServiceLive,
+      Layer.mergeAll(
+        makeProjectContextRepositoryLayer(),
+        makeLifecycleRepositoryLayer(),
+        makeReadRepositoryLayer(ACTIVE_TRANSITION_DETAIL),
+        Layer.succeed(RuntimeGateService, {
+          evaluateStartGate: () =>
+            Effect.succeed({
+              result: "available",
+              evaluatedAt: "2026-03-28T10:03:00.000Z",
+            }),
+          evaluateCompletionGate: () =>
+            Effect.succeed({
+              result: "available",
+              evaluatedAt: "2026-03-28T10:03:30.000Z",
+            }),
+        } as unknown as Context.Tag.Service<typeof RuntimeGateService>),
+        Layer.succeed(ProjectWorkUnitRepository, {
+          createProjectWorkUnit: () => Effect.die("unused"),
+          listProjectWorkUnitsByProject: () => Effect.succeed([]),
+          getProjectWorkUnitById: () =>
+            Effect.succeed({
+              id: "wu-1",
+              projectId: "proj-1",
+              workUnitTypeId: "wut-1",
+              currentStateId: "state-a",
+              activeTransitionExecutionId: "tx-1",
+              createdAt: new Date("2026-03-28T10:00:00.000Z"),
+              updatedAt: new Date("2026-03-28T10:00:00.000Z"),
+            }),
+          updateActiveTransitionExecutionPointer: () => Effect.succeed(null),
+        } as unknown as Context.Tag.Service<typeof ProjectWorkUnitRepository>),
+        Layer.succeed(TransitionExecutionRepository, {
+          createTransitionExecution: () => Effect.die("unused"),
+          startTransitionExecution: () => Effect.die("unused"),
+          switchActiveTransitionExecution: () => Effect.die("unused"),
+          getActiveTransitionExecutionForWorkUnit: () => Effect.succeed(null),
+          getTransitionExecutionById: () => Effect.succeed(null),
+        } as unknown as Context.Tag.Service<typeof TransitionExecutionRepository>),
+        Layer.succeed(WorkflowExecutionRepository, {
+          createWorkflowExecution: () => Effect.die("unused"),
+          getWorkflowExecutionById: () => Effect.succeed(null),
+          markWorkflowExecutionCompleted: () => Effect.succeed(null),
+          markWorkflowExecutionSuperseded: () => Effect.succeed(null),
+          updateTransitionPrimaryWorkflowExecutionPointer: () => Effect.void,
+          retryWorkflowExecution: () => Effect.succeed(null),
+          choosePrimaryWorkflowForTransitionExecutionAtomically: () => {
+            chooseAttempted = true;
+            return Effect.die("must-not-run");
+          },
+        } as unknown as Context.Tag.Service<typeof WorkflowExecutionRepository>),
+      ),
+    );
+
+    const exit = await Effect.runPromiseExit(
+      Effect.gen(function* () {
+        const service = yield* TransitionExecutionCommandService;
+        yield* service.choosePrimaryWorkflowForTransitionExecution({
+          projectId: "proj-1",
+          projectWorkUnitId: "wu-1",
+          transitionExecutionId: "tx-1",
+          workflowId: "workflow-2",
+        });
+      }).pipe(Effect.provide(layer)),
+    );
+
+    expect(exit._tag).toBe("Failure");
+    expect(chooseAttempted).toBe(false);
+  });
+});
+
+describe("TransitionExecutionDetailService", () => {
+  it("surfaces completion gate conditions and blocking reason for transition detail", async () => {
+    const lifecycleRepository = {
+      findLifecycleTransitions: () =>
+        Effect.succeed([
+          {
+            id: "transition-1",
+            methodologyVersionId: "version-1",
+            workUnitTypeId: "wut-1",
+            fromStateId: null,
+            toStateId: "state-b",
+            transitionKey: "activation_to_ready",
+            createdAt: new Date("2026-03-28T10:00:00.000Z"),
+            updatedAt: new Date("2026-03-28T10:00:00.000Z"),
+          },
+        ]),
+      findLifecycleStates: () =>
+        Effect.succeed([
+          {
+            id: "state-b",
+            methodologyVersionId: "version-1",
+            workUnitTypeId: "wut-1",
+            key: "ready",
+            displayName: "Ready",
+            descriptionJson: null,
+            guidanceJson: null,
+            createdAt: new Date("2026-03-28T10:00:00.000Z"),
+            updatedAt: new Date("2026-03-28T10:00:00.000Z"),
+          },
+        ]),
+      findTransitionConditionSets: () =>
+        Effect.succeed([
+          {
+            id: "cond-1",
+            methodologyVersionId: "version-1",
+            transitionId: "transition-1",
+            key: "completion_requires_prd",
+            phase: "completion",
+            mode: "all",
+            groupsJson: [
+              {
+                conditions: [
+                  {
+                    kind: "artifact",
+                    required: true,
+                    config: {
+                      slotKey: "approved_prd",
+                    },
+                  },
+                ],
+              },
+            ],
+            guidanceJson: null,
+            createdAt: new Date("2026-03-28T10:00:00.000Z"),
+            updatedAt: new Date("2026-03-28T10:00:00.000Z"),
+          },
+        ]),
+      findTransitionWorkflowBindings: () =>
+        Effect.succeed([
+          {
+            id: "binding-1",
+            methodologyVersionId: "version-1",
+            transitionId: "transition-1",
+            transitionKey: "activation_to_ready",
+            workflowId: "workflow-1",
+            workflowKey: "WF.READY.PRIMARY",
+            createdAt: new Date("2026-03-28T10:00:00.000Z"),
+            updatedAt: new Date("2026-03-28T10:00:00.000Z"),
+          },
+        ]),
+    } as unknown as Context.Tag.Service<typeof LifecycleRepository>;
+
+    const projectContextRepository = {
+      findProjectPin: () =>
+        Effect.succeed({
+          projectId: "proj-1",
+          methodologyVersionId: "version-1",
+          methodologyId: "methodology-1",
+          methodologyKey: "core",
+          publishedVersion: "1.0.0",
+          actorId: null,
+          createdAt: new Date("2026-03-28T10:00:00.000Z"),
+          updatedAt: new Date("2026-03-28T10:00:00.000Z"),
+        }),
+    } as unknown as Context.Tag.Service<typeof ProjectContextRepository>;
+
+    const layer = Layer.provide(
+      TransitionExecutionDetailServiceLive,
+      Layer.mergeAll(
+        Layer.succeed(ProjectContextRepository, projectContextRepository),
+        Layer.succeed(LifecycleRepository, lifecycleRepository),
+        makeReadRepositoryLayer(ACTIVE_TRANSITION_DETAIL),
+        Layer.succeed(RuntimeGateService, {
+          evaluateStartGate: () =>
+            Effect.succeed({
+              result: "available",
+              evaluatedAt: "2026-03-28T10:03:00.000Z",
+            }),
+          evaluateCompletionGate: () =>
+            Effect.succeed({
+              result: "blocked",
+              evaluatedAt: "2026-03-28T10:03:30.000Z",
+              firstReason: "Artifact slot 'approved_prd' has no current snapshot",
+            }),
+          evaluateCompletionGateExhaustive: () =>
+            Effect.succeed({
+              result: "blocked",
+              evaluatedAt: "2026-03-28T10:03:30.000Z",
+              firstReason: "Artifact slot 'approved_prd' has no current snapshot",
+              evaluationTree: {
+                mode: "all",
+                met: false,
+                conditions: [],
+                groups: [
+                  {
+                    mode: "all",
+                    met: false,
+                    conditions: [],
+                    groups: [
+                      {
+                        mode: "all",
+                        met: false,
+                        conditions: [
+                          {
+                            condition: {
+                              kind: "artifact",
+                              slotKey: "approved_prd",
+                              operator: "exists",
+                            },
+                            met: false,
+                            reason: "Artifact slot 'approved_prd' has no current snapshot",
+                          },
+                        ],
+                        groups: [],
+                      },
+                    ],
+                  },
+                ],
+              },
+            }),
+        } as unknown as Context.Tag.Service<typeof RuntimeGateService>),
+      ),
+    );
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* TransitionExecutionDetailService;
+        return yield* service.getTransitionExecutionDetail({
+          projectId: "proj-1",
+          projectWorkUnitId: "wu-1",
+          transitionExecutionId: "tx-1",
+        });
+      }).pipe(Effect.provide(layer)),
+    );
+
+    expect(result?.completionGate.panelState).toBe("failing");
+    expect(result?.completionGate.firstBlockingReason).toBe(
+      "Artifact slot 'approved_prd' has no current snapshot",
+    );
+    expect(result?.completionGate.conditionTree).toEqual({
+      mode: "all",
+      conditions: [],
+      groups: [
+        {
+          mode: "all",
+          conditions: [],
+          groups: [
+            {
+              mode: "all",
+              conditions: [
+                {
+                  kind: "artifact",
+                  slotKey: "approved_prd",
+                  operator: "exists",
+                },
+              ],
+              groups: [],
+            },
+          ],
+        },
+      ],
+    });
+    expect(result?.completionGate.evaluationTree).toEqual({
+      mode: "all",
+      met: false,
+      conditions: [],
+      groups: [
+        {
+          mode: "all",
+          met: false,
+          conditions: [],
+          groups: [
+            {
+              mode: "all",
+              met: false,
+              conditions: [
+                {
+                  condition: {
+                    kind: "artifact",
+                    slotKey: "approved_prd",
+                    operator: "exists",
+                  },
+                  met: false,
+                  reason: "Artifact slot 'approved_prd' has no current snapshot",
+                },
+              ],
+              groups: [],
+            },
+          ],
+        },
+      ],
+    });
+    expect(result?.transitionDefinition.completionConditionSets).toHaveLength(1);
   });
 });
