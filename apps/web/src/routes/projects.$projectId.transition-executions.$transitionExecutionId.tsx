@@ -4,9 +4,26 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MethodologyWorkspaceShell } from "@/features/methodologies/workspace-shell";
+import {
+  DetailCode,
+  DetailEyebrow,
+  DetailLabel,
+  DetailPrimary,
+  ExecutionBadge,
+  getExecutionStatusTone,
+  getGateStateTone,
+} from "@/features/projects/execution-detail-visuals";
 import { cn } from "@/lib/utils";
 
 const transitionExecutionSearchSchema = z.object({
@@ -78,6 +95,15 @@ function renderWorkflowStatus(
     default:
       return "Superseded";
   }
+}
+
+function renderTransitionPath(detail: {
+  fromStateLabel?: string | undefined;
+  fromStateKey?: string | undefined;
+  toStateLabel: string;
+}): string {
+  const from = detail.fromStateLabel ?? detail.fromStateKey ?? "Activation";
+  return `${from} → ${detail.toStateLabel}`;
 }
 
 export const Route = createFileRoute(
@@ -215,9 +241,7 @@ export function TransitionExecutionDetailRoute() {
         data-testid="runtime-transition-execution-shell-boundary"
         className="space-y-3 border border-border/80 bg-background p-4"
       >
-        <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
-          Runtime context
-        </p>
+        <DetailEyebrow>Runtime context</DetailEyebrow>
 
         {isLoading ? (
           <>
@@ -233,83 +257,98 @@ export function TransitionExecutionDetailRoute() {
             Missing work-unit context. Open this page from Guidance active cards.
           </p>
         ) : (
-          <div className="grid gap-2 text-sm md:grid-cols-3">
-            <p>
-              <span className="text-muted-foreground">Transition execution:</span>{" "}
-              {detail?.transitionExecution.transitionExecutionId ?? transitionExecutionId}
-            </p>
-            <p>
-              <span className="text-muted-foreground">Work unit:</span>{" "}
-              {detail?.workUnit.workUnitTypeKey ?? "pending context"}
-            </p>
-            <p>
-              <span className="text-muted-foreground">Status:</span>{" "}
-              {detail ? renderTransitionStatus(detail.transitionExecution.status) : "pending"}
-            </p>
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1.2fr)_minmax(16rem,0.8fr)]">
+            <div className="space-y-2 border border-border/70 bg-background/40 p-3">
+              <DetailLabel>Transition execution</DetailLabel>
+              <DetailCode>
+                {detail?.transitionExecution.transitionExecutionId ?? transitionExecutionId}
+              </DetailCode>
+              <DetailPrimary>
+                {detail?.transitionDefinition.transitionName ?? "Pending context"}
+              </DetailPrimary>
+            </div>
+            <div className="space-y-2 border border-border/70 bg-background/40 p-3">
+              <DetailLabel>Execution state</DetailLabel>
+              <div className="flex flex-wrap gap-2">
+                <ExecutionBadge
+                  label={
+                    detail ? renderTransitionStatus(detail.transitionExecution.status) : "Pending"
+                  }
+                  tone={
+                    detail ? getExecutionStatusTone(detail.transitionExecution.status) : "amber"
+                  }
+                />
+                {detail?.workUnit.workUnitTypeKey ? (
+                  <ExecutionBadge label={detail.workUnit.workUnitTypeKey} tone="violet" />
+                ) : null}
+              </div>
+            </div>
           </div>
         )}
       </section>
 
       {detail ? (
         <>
-          <section className="space-y-3 border border-border/80 bg-background p-4">
-            <h2 className="text-[0.72rem] uppercase tracking-[0.16em] text-muted-foreground">
-              Transition definition
-            </h2>
+          <Card frame="cut-heavy" tone="runtime" corner="white">
+            <CardHeader>
+              <div className="space-y-1">
+                <DetailEyebrow className="text-[0.72rem]">Transition definition</DetailEyebrow>
+                <CardTitle>{detail.transitionDefinition.transitionName}</CardTitle>
+                <CardDescription>
+                  {renderTransitionPath(detail.transitionDefinition)}
+                </CardDescription>
+              </div>
+            </CardHeader>
 
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="space-y-1 text-sm">
-                <p>
-                  <span className="text-muted-foreground">Name:</span>{" "}
-                  {detail.transitionDefinition.transitionName}
-                </p>
-                <p>
-                  <span className="text-muted-foreground">Key:</span>{" "}
-                  {detail.transitionDefinition.transitionKey}
-                </p>
-                <p>
-                  <span className="text-muted-foreground">Flow:</span>{" "}
-                  {detail.transitionDefinition.fromStateLabel ??
-                    detail.transitionDefinition.fromStateKey ??
-                    "Any"}{" "}
-                  → {detail.transitionDefinition.toStateLabel}
-                </p>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-[minmax(0,1.2fr)_minmax(16rem,0.8fr)]">
+                <div className="space-y-3 border border-border/70 bg-background/40 p-3">
+                  <div>
+                    <DetailLabel>Transition key</DetailLabel>
+                    <DetailCode>{detail.transitionDefinition.transitionKey}</DetailCode>
+                  </div>
+                  <div>
+                    <DetailLabel>State path</DetailLabel>
+                    <DetailPrimary>
+                      {renderTransitionPath(detail.transitionDefinition)}
+                    </DetailPrimary>
+                  </div>
+                </div>
+
+                <div className="space-y-3 border border-border/70 bg-background/40 p-3">
+                  <div className="flex flex-wrap gap-2">
+                    <ExecutionBadge label="start gate" tone="amber" />
+                    <ExecutionBadge label="active" tone="sky" />
+                  </div>
+                  <div>
+                    <DetailLabel>Started</DetailLabel>
+                    <DetailPrimary>{formatTimestamp(detail.startGate.startedAt)}</DetailPrimary>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{detail.startGate.note}</p>
+                </div>
               </div>
 
-              <div className="space-y-1 text-sm">
-                <p>
-                  <span className="text-muted-foreground">Start gate:</span> informational
-                </p>
-                <p>
-                  <span className="text-muted-foreground">Started:</span>{" "}
-                  {formatTimestamp(detail.startGate.startedAt)}
-                </p>
-                <p className="text-muted-foreground">{detail.startGate.note}</p>
+              <div className="space-y-2">
+                <DetailEyebrow className="text-[0.68rem]">Bound workflows</DetailEyebrow>
+
+                {detail.transitionDefinition.boundWorkflows.length > 0 ? (
+                  <ul className="space-y-2">
+                    {detail.transitionDefinition.boundWorkflows.map((workflow) => (
+                      <li
+                        key={workflow.workflowId}
+                        className="border border-border/70 bg-background/40 px-3 py-2 text-xs"
+                      >
+                        <p className="font-medium text-foreground">{workflow.workflowName}</p>
+                        <p className="text-muted-foreground">{workflow.workflowKey}</p>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No bound workflows configured.</p>
+                )}
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
-                Bound workflows
-              </p>
-
-              {detail.transitionDefinition.boundWorkflows.length > 0 ? (
-                <ul className="space-y-2">
-                  {detail.transitionDefinition.boundWorkflows.map((workflow) => (
-                    <li
-                      key={workflow.workflowId}
-                      className="border border-border/70 bg-background/40 px-3 py-2 text-xs"
-                    >
-                      <p className="font-medium text-foreground">{workflow.workflowName}</p>
-                      <p className="text-muted-foreground">{workflow.workflowKey}</p>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-muted-foreground">No bound workflows configured.</p>
-              )}
-            </div>
-          </section>
+            </CardContent>
+          </Card>
 
           <section className="space-y-3 border border-border/80 bg-background p-4">
             <h2 className="text-[0.72rem] uppercase tracking-[0.16em] text-muted-foreground">
@@ -356,15 +395,19 @@ export function TransitionExecutionDetailRoute() {
           </section>
 
           <section className="space-y-3 border border-border/80 bg-background p-4">
-            <h2 className="text-[0.72rem] uppercase tracking-[0.16em] text-muted-foreground">
-              Completion gate
-            </h2>
+            <DetailEyebrow className="text-[0.72rem]">Completion gate</DetailEyebrow>
 
             <div className="space-y-1 text-sm">
-              <p>
-                <span className="text-muted-foreground">Panel state:</span>{" "}
-                {detail.completionGate.panelState}
-              </p>
+              <div className="flex flex-wrap gap-2">
+                <ExecutionBadge
+                  label={detail.completionGate.panelState.replaceAll("_", " ")}
+                  tone={getGateStateTone(detail.completionGate.panelState)}
+                />
+                <ExecutionBadge
+                  label={renderTransitionStatus(detail.transitionExecution.status)}
+                  tone={getExecutionStatusTone(detail.transitionExecution.status)}
+                />
+              </div>
               {detail.completionGate.lastEvaluatedAt ? (
                 <p>
                   <span className="text-muted-foreground">Last evaluated:</span>{" "}
@@ -420,25 +463,29 @@ export function TransitionExecutionDetailRoute() {
                 >
                   Next primary workflow
                 </label>
-                <select
-                  id="next-primary-workflow"
+                <Select
                   value={selectedWorkflowId}
-                  onChange={(event) => setSelectedWorkflowId(event.target.value)}
-                  className="h-8 w-full border border-border/80 bg-background px-2 text-xs"
+                  onValueChange={(value) => setSelectedWorkflowId(value ?? "")}
                 >
-                  {boundWorkflows.map((workflow) => (
-                    <option key={workflow.workflowId} value={workflow.workflowId}>
-                      {workflow.workflowName} ({workflow.workflowKey})
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger
+                    id="next-primary-workflow"
+                    className="w-full bg-background/80 text-foreground"
+                  >
+                    <SelectValue placeholder="Choose a workflow" />
+                  </SelectTrigger>
+                  <SelectContent className="border border-border/80 bg-[#0b0f12] text-foreground">
+                    {boundWorkflows.map((workflow) => (
+                      <SelectItem key={workflow.workflowId} value={workflow.workflowId}>
+                        {workflow.workflowName} ({workflow.workflowKey})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-                <button
+                <Button
                   type="button"
-                  className={cn(
-                    buttonVariants({ variant: "outline", size: "sm" }),
-                    "rounded-none text-[0.68rem] uppercase tracking-[0.12em]",
-                  )}
+                  variant="outline"
+                  size="sm"
                   disabled={isBusy || !selectedWorkflowId || !projectWorkUnitId}
                   onClick={async () => {
                     if (!projectWorkUnitId || !selectedWorkflowId) {
@@ -457,7 +504,7 @@ export function TransitionExecutionDetailRoute() {
                   }}
                 >
                   Choose another primary workflow
-                </button>
+                </Button>
               </div>
             ) : null}
           </section>

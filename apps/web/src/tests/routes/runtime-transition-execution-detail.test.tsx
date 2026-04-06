@@ -376,4 +376,34 @@ describe("runtime transition execution detail route", () => {
     expect(markup).not.toContain("Choose another primary workflow");
     expect(markup).not.toContain("Choose different workflow");
   });
+
+  it("renders activation semantics when the transition has no from-state", async () => {
+    const detail = buildTransitionDetail({
+      panelState: "passing",
+      lastEvaluatedAt: "2026-03-28T12:07:00.000Z",
+      actions: {
+        completeTransition: {
+          kind: "complete_transition_execution",
+          transitionExecutionId: "te_story_start_001",
+        },
+      },
+    });
+
+    detail.transitionDefinition = {
+      transitionId: detail.transitionDefinition.transitionId,
+      transitionKey: detail.transitionDefinition.transitionKey,
+      transitionName: detail.transitionDefinition.transitionName,
+      toStateKey: "backlog",
+      toStateLabel: "Backlog",
+      boundWorkflows: detail.transitionDefinition.boundWorkflows,
+      startConditionSets: detail.transitionDefinition.startConditionSets,
+      completionConditionSets: detail.transitionDefinition.completionConditionSets,
+    };
+
+    const { markup } = await renderTransitionDetailRoute(detail);
+
+    expect(markup).toContain("Activation → Backlog");
+    expect(markup).not.toContain("Any state → Backlog");
+    expect(markup).not.toContain("Activation → null");
+  });
 });

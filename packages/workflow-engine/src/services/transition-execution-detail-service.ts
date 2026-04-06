@@ -10,6 +10,8 @@ import {
   ExecutionReadRepository,
   type TransitionExecutionDetailReadModel,
 } from "../repositories/execution-read-repository";
+import { ProjectContextRepository } from "@chiron/project-context";
+import { LifecycleRepository } from "@chiron/methodology-engine";
 import { RuntimeGateService } from "./runtime-gate-service";
 
 const toIso = (value: Date | null): string | undefined => (value ? value.toISOString() : undefined);
@@ -91,6 +93,59 @@ const makeCompletionPanel = (params: {
   };
 };
 
+const toResolvedTransitionDefinition = (params: {
+  detail: TransitionExecutionDetailReadModel;
+  completion: {
+    targetState?: {
+      stateId: string;
+      stateKey: string;
+      stateLabel: string;
+    };
+  };
+  lifecycleTransition?: {
+    id: string;
+    transitionKey: string;
+    fromStateId: string | null;
+    toStateId: string | null;
+  };
+  statesById: ReadonlyMap<string, { key: string; displayName: string | null }>;
+  boundWorkflows?: readonly {
+    workflowId: string;
+    workflowKey: string | null;
+  }[];
+}): GetTransitionExecutionDetailOutput["transitionDefinition"] => {
+  const transition = params.lifecycleTransition;
+  const toState = transition?.toStateId ? params.statesById.get(transition.toStateId) : undefined;
+  const fromState = transition?.fromStateId
+    ? params.statesById.get(transition.fromStateId)
+    : undefined;
+
+  return {
+    transitionId: params.detail.transitionExecution.transitionId,
+    transitionKey: transition?.transitionKey ?? params.detail.transitionExecution.transitionId,
+    transitionName: transition?.transitionKey ?? params.detail.transitionExecution.transitionId,
+    ...(transition?.fromStateId ? { fromStateId: transition.fromStateId } : {}),
+    ...(fromState ? { fromStateKey: fromState.key } : {}),
+    ...(fromState?.displayName ? { fromStateLabel: fromState.displayName } : {}),
+    toStateId:
+      params.completion.targetState?.stateId ?? transition?.toStateId ?? "unresolved-target-state",
+    toStateKey:
+      params.completion.targetState?.stateKey ?? toState?.key ?? "unresolved-target-state",
+    toStateLabel:
+      params.completion.targetState?.stateLabel ??
+      toState?.displayName ??
+      toState?.key ??
+      "Pending activation target",
+    boundWorkflows: (params.boundWorkflows ?? []).map((workflow) => ({
+      workflowId: workflow.workflowId,
+      workflowKey: workflow.workflowKey ?? workflow.workflowId,
+      workflowName: workflow.workflowKey ?? workflow.workflowId,
+    })),
+    startConditionSets: [],
+    completionConditionSets: [],
+  };
+};
+
 export class TransitionExecutionDetailService extends Context.Tag(
   "@chiron/workflow-engine/services/TransitionExecutionDetailService",
 )<
@@ -106,6 +161,8 @@ export const TransitionExecutionDetailServiceLive = Layer.effect(
   TransitionExecutionDetailService,
   Effect.gen(function* () {
     const readRepo = yield* ExecutionReadRepository;
+    const lifecycleRepository = yield* LifecycleRepository;
+    const projectContextRepository = yield* ProjectContextRepository;
     const runtimeGate = (yield* RuntimeGateService) as unknown as {
       readonly evaluateCompletionGate: (input: {
         projectId: string;
@@ -156,6 +213,33 @@ export const TransitionExecutionDetailServiceLive = Layer.effect(
           transitionExecutionId: input.transitionExecutionId,
         });
 
+        const projectPin = yield* projectContextRepository.findProjectPin(input.projectId);
+        const lifecycleContext = projectPin
+          ? yield* Effect.all({
+              states: lifecycleRepository.findLifecycleStates(
+                projectPin.methodologyVersionId,
+                detail.workUnitTypeId,
+              ),
+              transitions: lifecycleRepository.findLifecycleTransitions(
+                projectPin.methodologyVersionId,
+                { workUnitTypeId: detail.workUnitTypeId },
+              ),
+              bindings: lifecycleRepository.findTransitionWorkflowBindings(
+                projectPin.methodologyVersionId,
+                detail.transitionExecution.transitionId,
+              ),
+            })
+          : null;
+
+        const statesById = new Map(
+          (lifecycleContext?.states ?? []).map(
+            (state) => [state.id, { key: state.key, displayName: state.displayName }] as const,
+          ),
+        );
+        const lifecycleTransition = lifecycleContext?.transitions.find(
+          (transition) => transition.id === detail.transitionExecution.transitionId,
+        );
+
         return {
           workUnit: {
             projectWorkUnitId: detail.transitionExecution.projectWorkUnitId,
@@ -176,15 +260,13 @@ export const TransitionExecutionDetailServiceLive = Layer.effect(
               detail.transitionExecution.supersededByTransitionExecutionId ?? undefined,
           },
           transitionDefinition: {
-            transitionId: detail.transitionExecution.transitionId,
-            transitionKey: detail.transitionExecution.transitionId,
-            transitionName: detail.transitionExecution.transitionId,
-            toStateId: completion.targetState?.stateId ?? detail.currentStateId,
-            toStateKey: completion.targetState?.stateKey ?? detail.currentStateId,
-            toStateLabel: completion.targetState?.stateLabel ?? detail.currentStateId,
-            boundWorkflows: [],
-            startConditionSets: [],
-            completionConditionSets: [],
+            ...toResolvedTransitionDefinition({
+              detail,
+              completion,
+              lifecycleTransition,
+              statesById,
+              boundWorkflows: lifecycleContext?.bindings,
+            }),
           },
           startGate: {
             mode: "informational",
