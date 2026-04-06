@@ -294,6 +294,13 @@ export const GetWorkflowExecutionDetailOutput = Schema.Struct({
       parentTransitionExecutionId: Schema.optional(Schema.String),
     }),
   ),
+  completeAction: Schema.optional(
+    Schema.Struct({
+      kind: Schema.Literal("complete_workflow_execution"),
+      enabled: Schema.Boolean,
+      reasonIfDisabled: Schema.optional(Schema.String),
+    }),
+  ),
   impactDialog: Schema.optional(
     Schema.Struct({
       requiredForRetry: Schema.Boolean,
@@ -514,12 +521,24 @@ export const RetrySameWorkflowExecutionInput = Schema.Struct({
 });
 export type RetrySameWorkflowExecutionInput = typeof RetrySameWorkflowExecutionInput.Type;
 
+export const CompleteWorkflowExecutionInput = Schema.Struct({
+  projectId: Schema.String,
+  workflowExecutionId: Schema.String,
+});
+export type CompleteWorkflowExecutionInput = typeof CompleteWorkflowExecutionInput.Type;
+
 export const RetrySameWorkflowExecutionOutput = Schema.Struct({
   transitionExecutionId: Schema.String,
   workflowExecutionId: Schema.String,
   workflowRole: Schema.Literal("primary", "supporting"),
 });
 export type RetrySameWorkflowExecutionOutput = typeof RetrySameWorkflowExecutionOutput.Type;
+
+export const CompleteWorkflowExecutionOutput = Schema.Struct({
+  workflowExecutionId: Schema.String,
+  status: Schema.Literal("completed"),
+});
+export type CompleteWorkflowExecutionOutput = typeof CompleteWorkflowExecutionOutput.Type;
 
 export const CompleteTransitionExecutionInput = Schema.Struct({
   projectId: Schema.String,

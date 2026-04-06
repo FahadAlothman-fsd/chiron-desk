@@ -3,6 +3,7 @@ import { Cause, Effect, Layer, Option } from "effect";
 import { z } from "zod";
 import type {
   ChoosePrimaryWorkflowForTransitionExecutionInput,
+  CompleteWorkflowExecutionInput,
   CompleteTransitionExecutionInput,
   GetTransitionExecutionDetailInput,
   GetWorkflowExecutionDetailInput,
@@ -176,6 +177,11 @@ const getRuntimeWorkflowExecutionDetailInput: z.ZodType<GetWorkflowExecutionDeta
 );
 
 const retrySameWorkflowExecutionInput: z.ZodType<RetrySameWorkflowExecutionInput> = z.object({
+  projectId: z.string().min(1),
+  workflowExecutionId: z.string().min(1),
+});
+
+const completeWorkflowExecutionInput: z.ZodType<CompleteWorkflowExecutionInput> = z.object({
   projectId: z.string().min(1),
   workflowExecutionId: z.string().min(1),
 });
@@ -578,6 +584,18 @@ export function createProjectRuntimeRouter(serviceLayer: Layer.Layer<any>) {
           Effect.gen(function* () {
             const workflowExecutionCommandService = yield* WorkflowExecutionCommandService;
             return yield* workflowExecutionCommandService.retrySameWorkflowExecution(input);
+          }),
+        ),
+      ),
+
+    completeWorkflowExecution: protectedProcedure
+      .input(completeWorkflowExecutionInput)
+      .handler(async ({ input }) =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const workflowExecutionCommandService = yield* WorkflowExecutionCommandService;
+            return yield* workflowExecutionCommandService.completeWorkflowExecution(input);
           }),
         ),
       ),

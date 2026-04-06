@@ -86,7 +86,8 @@ const toWorkflowContextFactGroups = (params: {
     definitionLabel: definition.label ?? undefined,
     definitionDescriptionJson: definition.descriptionJson ?? undefined,
     instances: (instancesByDefinitionId.get(definition.id) ?? [])
-      .toSorted((left, right) => left.instanceOrder - right.instanceOrder)
+      .slice()
+      .sort((left, right) => left.instanceOrder - right.instanceOrder)
       .map((instance) => ({
         contextFactInstanceId: instance.id,
         instanceOrder: instance.instanceOrder,
@@ -218,7 +219,8 @@ export const WorkflowExecutionDetailServiceLive = Layer.effect(
           : null;
         const completedSteps = stepExecutions
           .filter((stepExecution) => stepExecution.status === "completed")
-          .toSorted((left, right) => {
+          .slice()
+          .sort((left, right) => {
             const leftTime = left.completedAt?.getTime() ?? left.activatedAt.getTime();
             const rightTime = right.completedAt?.getTime() ?? right.activatedAt.getTime();
             return rightTime - leftTime;
@@ -240,7 +242,7 @@ export const WorkflowExecutionDetailServiceLive = Layer.effect(
               : stepExecutions.length === 0
                 ? {
                     state: "entry_pending",
-                    entryStep: toStepDefinitionSummary(entrySteps[0]),
+                    entryStep: toStepDefinitionSummary(entrySteps[0]!),
                   }
                 : latestCompletedStep
                   ? (() => {
@@ -275,6 +277,12 @@ export const WorkflowExecutionDetailServiceLive = Layer.effect(
                       terminalStep: undefined,
                     };
 
+        const completeEnabled =
+          detail.workflowExecution.status === "active" &&
+          stepSurface.state === "terminal_no_next_step" &&
+          !!stepSurface.terminalStep &&
+          stepSurface.terminalStep.status === "completed";
+
         return {
           workflowExecution: {
             workflowExecutionId: detail.workflowExecution.id,
@@ -294,9 +302,9 @@ export const WorkflowExecutionDetailServiceLive = Layer.effect(
             workUnitTypeId: detail.workUnitTypeId,
             workUnitTypeKey: detail.workUnitTypeId,
             workUnitTypeName: detail.workUnitTypeId,
-            currentStateId: detail.currentStateId,
-            currentStateKey: detail.currentStateId,
-            currentStateLabel: detail.currentStateId,
+            currentStateId: detail.currentStateId ?? "not_started",
+            currentStateKey: detail.currentStateId ?? "not_started",
+            currentStateLabel: detail.currentStateId ?? "Not started",
             target: {
               page: "work-unit-overview",
               projectWorkUnitId: detail.projectWorkUnitId,
@@ -326,6 +334,23 @@ export const WorkflowExecutionDetailServiceLive = Layer.effect(
               ? undefined
               : "Retry is allowed only while parent transition execution remains active.",
             parentTransitionExecutionId: detail.transitionExecution.id,
+          },
+          completeAction: {
+            kind: "complete_workflow_execution",
+            enabled: completeEnabled,
+            reasonIfDisabled: completeEnabled
+              ? undefined
+              : detail.workflowExecution.status !== "active"
+                ? "Workflow execution is already finalized."
+                : stepSurface.state === "active_step"
+                  ? "Complete the active step before finishing the workflow."
+                  : stepSurface.state === "next_pending"
+                    ? "Activate and finish the next step before completing the workflow."
+                    : stepSurface.state === "entry_pending"
+                      ? "Activate the entry step before completing the workflow."
+                      : stepSurface.state === "invalid_definition"
+                        ? "Workflow definition is invalid."
+                        : "Workflow has no completed terminal step to finalize.",
           },
           impactDialog: {
             requiredForRetry: true,

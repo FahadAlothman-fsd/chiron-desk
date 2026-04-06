@@ -63,6 +63,20 @@ describe("WorkflowExecutionCommandService", () => {
           getActiveTransitionExecutionForWorkUnit: () => Effect.succeed(null),
           getTransitionExecutionById: () => Effect.succeed(null),
         } as unknown as Context.Tag.Service<typeof TransitionExecutionRepository>),
+        Layer.succeed(StepExecutionRepository, {
+          createStepExecution: () => Effect.die("unused"),
+          getStepExecutionById: () => Effect.die("unused"),
+          findStepExecutionByWorkflowAndDefinition: () => Effect.die("unused"),
+          listStepExecutionsForWorkflow: () => Effect.succeed([]),
+          completeStepExecution: () => Effect.die("unused"),
+          upsertFormStepExecutionState: () => Effect.die("unused"),
+          getFormStepExecutionState: () => Effect.die("unused"),
+          writeWorkflowExecutionContextFact: () => Effect.die("unused"),
+          listWorkflowExecutionContextFacts: () => Effect.succeed([]),
+          listWorkflowContextFactDefinitions: () => Effect.succeed([]),
+          listWorkflowStepDefinitions: () => Effect.succeed([]),
+          listWorkflowEdges: () => Effect.succeed([]),
+        } as unknown as Context.Tag.Service<typeof StepExecutionRepository>),
         Layer.succeed(WorkflowExecutionRepository, {
           createWorkflowExecution: () =>
             Effect.succeed({
@@ -79,7 +93,11 @@ describe("WorkflowExecutionCommandService", () => {
           getWorkflowExecutionById: () => Effect.succeed(null),
           markWorkflowExecutionCompleted: () => Effect.succeed(null),
           markWorkflowExecutionSuperseded: () => Effect.succeed(null),
-          updateTransitionPrimaryWorkflowExecutionPointer: ({ primaryWorkflowExecutionId }) => {
+          updateTransitionPrimaryWorkflowExecutionPointer: ({
+            primaryWorkflowExecutionId,
+          }: {
+            primaryWorkflowExecutionId: string | null;
+          }) => {
             pointerUpdates.push(primaryWorkflowExecutionId ?? "null");
             return Effect.void;
           },
@@ -154,6 +172,20 @@ describe("WorkflowExecutionCommandService", () => {
           getActiveTransitionExecutionForWorkUnit: () => Effect.succeed(null),
           getTransitionExecutionById: () => Effect.succeed(null),
         } as unknown as Context.Tag.Service<typeof TransitionExecutionRepository>),
+        Layer.succeed(StepExecutionRepository, {
+          createStepExecution: () => Effect.die("unused"),
+          getStepExecutionById: () => Effect.die("unused"),
+          findStepExecutionByWorkflowAndDefinition: () => Effect.die("unused"),
+          listStepExecutionsForWorkflow: () => Effect.succeed([]),
+          completeStepExecution: () => Effect.die("unused"),
+          upsertFormStepExecutionState: () => Effect.die("unused"),
+          getFormStepExecutionState: () => Effect.die("unused"),
+          writeWorkflowExecutionContextFact: () => Effect.die("unused"),
+          listWorkflowExecutionContextFacts: () => Effect.succeed([]),
+          listWorkflowContextFactDefinitions: () => Effect.succeed([]),
+          listWorkflowStepDefinitions: () => Effect.succeed([]),
+          listWorkflowEdges: () => Effect.succeed([]),
+        } as unknown as Context.Tag.Service<typeof StepExecutionRepository>),
         Layer.succeed(WorkflowExecutionRepository, {
           createWorkflowExecution: () =>
             Effect.succeed({
@@ -195,6 +227,141 @@ describe("WorkflowExecutionCommandService", () => {
       workflowRole: "supporting",
     });
     expect(pointerUpdated).toBe(false);
+  });
+
+  it("completeWorkflowExecution marks an active terminal workflow as completed", async () => {
+    let completedWorkflowId: string | null = null;
+
+    const layer = Layer.provide(
+      WorkflowExecutionCommandServiceLive,
+      Layer.mergeAll(
+        Layer.succeed(ExecutionReadRepository, {
+          getTransitionExecutionDetail: () => Effect.succeed(null),
+          listTransitionExecutionsForWorkUnit: () => Effect.succeed([]),
+          getWorkflowExecutionDetail: () =>
+            Effect.succeed({
+              workflowExecution: {
+                id: "wf-1",
+                transitionExecutionId: "tx-1",
+                workflowId: "workflow-1",
+                workflowRole: "primary",
+                status: "active",
+                currentStepExecutionId: null,
+                supersededByWorkflowExecutionId: null,
+                startedAt: new Date("2026-03-28T10:00:00.000Z"),
+                completedAt: null,
+                supersededAt: null,
+              },
+              transitionExecution: {
+                id: "tx-1",
+                projectWorkUnitId: "wu-1",
+                transitionId: "transition-1",
+                status: "active",
+                primaryWorkflowExecutionId: "wf-1",
+                supersededByTransitionExecutionId: null,
+                startedAt: new Date("2026-03-28T09:59:00.000Z"),
+                completedAt: null,
+                supersededAt: null,
+              },
+              projectId: "proj-1",
+              projectWorkUnitId: "wu-1",
+              workUnitTypeId: "wut-1",
+              currentStateId: "state-terminal",
+            }),
+          listWorkflowExecutionsForTransition: () => Effect.succeed([]),
+          listActiveWorkflowExecutionsByProject: () => Effect.succeed([]),
+        } as unknown as Context.Tag.Service<typeof ExecutionReadRepository>),
+        Layer.succeed(StepExecutionRepository, {
+          createStepExecution: () => Effect.die("unused"),
+          getStepExecutionById: () => Effect.die("unused"),
+          findStepExecutionByWorkflowAndDefinition: () => Effect.die("unused"),
+          listStepExecutionsForWorkflow: () =>
+            Effect.succeed([
+              {
+                id: "step-terminal",
+                workflowExecutionId: "wf-1",
+                stepDefinitionId: "step-finish",
+                stepType: "display",
+                status: "completed" as const,
+                previousStepExecutionId: null,
+                activatedAt: new Date("2026-03-28T10:02:00.000Z"),
+                completedAt: new Date("2026-03-28T10:03:00.000Z"),
+              },
+            ]),
+          completeStepExecution: () => Effect.die("unused"),
+          upsertFormStepExecutionState: () => Effect.die("unused"),
+          getFormStepExecutionState: () => Effect.die("unused"),
+          writeWorkflowExecutionContextFact: () => Effect.die("unused"),
+          listWorkflowExecutionContextFacts: () => Effect.succeed([]),
+          listWorkflowContextFactDefinitions: () => Effect.succeed([]),
+          listWorkflowStepDefinitions: () =>
+            Effect.succeed([
+              {
+                id: "step-entry",
+                workflowId: "workflow-1",
+                key: "capture_setup",
+                type: "form",
+                ordinal: 0,
+              },
+              {
+                id: "step-finish",
+                workflowId: "workflow-1",
+                key: "show_summary",
+                type: "display",
+                ordinal: 1,
+              },
+            ]),
+          listWorkflowEdges: () =>
+            Effect.succeed([
+              {
+                id: "edge-1",
+                workflowId: "workflow-1",
+                fromStepId: "step-entry",
+                toStepId: "step-finish",
+              },
+            ]),
+        } as unknown as Context.Tag.Service<typeof StepExecutionRepository>),
+        Layer.succeed(WorkflowExecutionRepository, {
+          createWorkflowExecution: () => Effect.die("unused"),
+          getWorkflowExecutionById: () => Effect.succeed(null),
+          setCurrentStepExecutionId: () => Effect.succeed(null),
+          markWorkflowExecutionCompleted: (workflowExecutionId: string) => {
+            completedWorkflowId = workflowExecutionId;
+            return Effect.succeed({
+              id: workflowExecutionId,
+              transitionExecutionId: "tx-1",
+              workflowId: "workflow-1",
+              workflowRole: "primary",
+              status: "completed" as const,
+              currentStepExecutionId: null,
+              supersededByWorkflowExecutionId: null,
+              startedAt: new Date("2026-03-28T10:00:00.000Z"),
+              completedAt: new Date("2026-03-28T10:05:00.000Z"),
+              supersededAt: null,
+            });
+          },
+          markWorkflowExecutionSuperseded: () => Effect.succeed(null),
+          updateTransitionPrimaryWorkflowExecutionPointer: () => Effect.void,
+          retryWorkflowExecution: () => Effect.succeed(null),
+        } as unknown as Context.Tag.Service<typeof WorkflowExecutionRepository>),
+      ),
+    );
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* WorkflowExecutionCommandService;
+        return yield* service.completeWorkflowExecution({
+          projectId: "proj-1",
+          workflowExecutionId: "wf-1",
+        });
+      }).pipe(Effect.provide(layer)),
+    );
+
+    expect(result).toEqual({
+      workflowExecutionId: "wf-1",
+      status: "completed",
+    });
+    expect(completedWorkflowId).toBe("wf-1");
   });
 });
 
@@ -271,7 +438,8 @@ describe("WorkflowExecutionDetailService", () => {
           upsertFormStepExecutionState: () => Effect.die("unused"),
           getFormStepExecutionState: () => Effect.die("unused"),
           writeWorkflowExecutionContextFact: () => Effect.die("unused"),
-          listWorkflowExecutionContextFacts: () => Effect.die("unused"),
+          listWorkflowExecutionContextFacts: () => Effect.succeed([]),
+          listWorkflowContextFactDefinitions: () => Effect.succeed([]),
           listWorkflowStepDefinitions: () => Effect.succeed([]),
           listWorkflowEdges: () => Effect.succeed([]),
         } as unknown as Context.Tag.Service<typeof StepExecutionRepository>),
