@@ -1,0 +1,133 @@
+import type { RuntimeCondition, RuntimeConditionTree } from "@chiron/contracts/runtime/conditions";
+
+const emptyGate: RuntimeConditionTree = {
+  mode: "all",
+  conditions: [],
+  groups: [],
+};
+
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+
+const toRuntimeCondition = (value: unknown): RuntimeCondition | null => {
+  const condition = asRecord(value);
+  if (!condition || condition.required === false) {
+    return null;
+  }
+
+  const kind = typeof condition.kind === "string" ? condition.kind : null;
+  const config = asRecord(condition.config) ?? {};
+
+  if (kind === "fact") {
+    const factKey = typeof config.factKey === "string" ? config.factKey : null;
+    if (!factKey) {
+      return null;
+    }
+
+    const factDefinitionId =
+      typeof config.factDefinitionId === "string" ? config.factDefinitionId : undefined;
+
+    return {
+      kind: "fact",
+      factKey,
+      operator: "exists",
+      ...(factDefinitionId ? { factDefinitionId } : {}),
+    };
+  }
+
+  if (kind === "work_unit_fact") {
+    const factKey = typeof config.factKey === "string" ? config.factKey : null;
+    if (!factKey) {
+      return null;
+    }
+
+    const factDefinitionId =
+      typeof config.factDefinitionId === "string" ? config.factDefinitionId : undefined;
+
+    return {
+      kind: "work_unit_fact",
+      factKey,
+      operator: "exists",
+      ...(factDefinitionId ? { factDefinitionId } : {}),
+    };
+  }
+
+  if (kind === "artifact") {
+    const slotKey = typeof config.slotKey === "string" ? config.slotKey : null;
+    if (!slotKey) {
+      return null;
+    }
+
+    const slotDefinitionId =
+      typeof config.slotDefinitionId === "string" ? config.slotDefinitionId : undefined;
+    const operator =
+      config.operator === "fresh" || config.operator === "stale" ? config.operator : "exists";
+
+    return {
+      kind: "artifact",
+      slotKey,
+      operator,
+      ...(slotDefinitionId ? { slotDefinitionId } : {}),
+    };
+  }
+
+  return null;
+};
+
+const toRuntimeConditionGroup = (value: unknown): RuntimeConditionTree | null => {
+  const group = asRecord(value);
+  if (!group) {
+    return null;
+  }
+
+  const conditions = Array.isArray(group.conditions)
+    ? group.conditions
+        .map((condition) => toRuntimeCondition(condition))
+        .filter((condition): condition is RuntimeCondition => condition !== null)
+    : [];
+
+  if (conditions.length === 0) {
+    return null;
+  }
+
+  return {
+    mode: group.mode === "any" ? "any" : "all",
+    conditions,
+    groups: [],
+  } satisfies RuntimeConditionTree;
+};
+
+export const toRuntimeConditionTree = (
+  conditionSets: readonly { readonly mode: string; readonly groupsJson: unknown }[],
+): RuntimeConditionTree => {
+  if (conditionSets.length === 0) {
+    return emptyGate;
+  }
+
+  const groups = conditionSets
+    .map((conditionSet) => {
+      const groupsJson = Array.isArray(conditionSet.groupsJson) ? conditionSet.groupsJson : [];
+      const conditionGroups = groupsJson
+        .map((group) => toRuntimeConditionGroup(group))
+        .filter((group): group is RuntimeConditionTree => group !== null);
+
+      return {
+        mode: conditionSet.mode === "any" ? "any" : "all",
+        conditions: [],
+        groups: conditionGroups,
+      } satisfies RuntimeConditionTree;
+    })
+    .filter((group) => group.conditions.length > 0 || group.groups.length > 0);
+
+  if (groups.length === 0) {
+    return emptyGate;
+  }
+
+  return {
+    mode: "all",
+    conditions: [],
+    groups,
+  } satisfies RuntimeConditionTree;
+};

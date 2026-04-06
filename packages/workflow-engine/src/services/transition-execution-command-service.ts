@@ -8,7 +8,6 @@ import type {
   SwitchActiveTransitionExecutionInput,
   SwitchActiveTransitionExecutionOutput,
 } from "@chiron/contracts/runtime/executions";
-import type { RuntimeCondition, RuntimeConditionTree } from "@chiron/contracts/runtime/conditions";
 import { LifecycleRepository } from "@chiron/methodology-engine";
 import { ProjectContextRepository } from "@chiron/project-context";
 import { Context, Effect, Layer } from "effect";
@@ -19,6 +18,7 @@ import { ProjectWorkUnitRepository } from "../repositories/project-work-unit-rep
 import { TransitionExecutionRepository } from "../repositories/transition-execution-repository";
 import { WorkflowExecutionRepository } from "../repositories/workflow-execution-repository";
 import { RuntimeGateService } from "./runtime-gate-service";
+import { toRuntimeConditionTree } from "./transition-gate-conditions";
 
 type TransitionExecutionAtomicOps = Context.Tag.Service<typeof TransitionExecutionRepository> & {
   readonly completeTransitionExecutionAtomically?: (params: {
@@ -41,117 +41,15 @@ type WorkflowExecutionAtomicOps = Context.Tag.Service<typeof WorkflowExecutionRe
 const makeCommandError = (operation: string, cause: string): RepositoryError =>
   new RepositoryError({ operation, cause: new Error(cause) });
 
-const emptyGate: RuntimeConditionTree = {
-  mode: "all",
-  conditions: [],
-  groups: [],
-};
-
-const asRecord = (value: unknown): Record<string, unknown> | null =>
-  value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-
-const toRuntimeCondition = (value: unknown): RuntimeCondition | null => {
-  const condition = asRecord(value);
-  if (!condition || condition.required === false) {
-    return null;
-  }
-
-  const kind = typeof condition.kind === "string" ? condition.kind : null;
-  const config = asRecord(condition.config) ?? {};
-
-  if (kind === "fact") {
-    const factKey = typeof config.factKey === "string" ? config.factKey : null;
-    if (!factKey) {
-      return null;
-    }
-    const factDefinitionId =
-      typeof config.factDefinitionId === "string" ? config.factDefinitionId : undefined;
-
-    return {
-      kind: "fact",
-      factKey,
-      operator: "exists",
-      ...(factDefinitionId ? { factDefinitionId } : {}),
-    };
-  }
-
-  if (kind === "work_unit_fact") {
-    const factKey = typeof config.factKey === "string" ? config.factKey : null;
-    if (!factKey) {
-      return null;
-    }
-    const factDefinitionId =
-      typeof config.factDefinitionId === "string" ? config.factDefinitionId : undefined;
-
-    return {
-      kind: "work_unit_fact",
-      factKey,
-      operator: "exists",
-      ...(factDefinitionId ? { factDefinitionId } : {}),
-    };
-  }
-
-  if (kind === "artifact") {
-    const slotKey = typeof config.slotKey === "string" ? config.slotKey : null;
-    if (!slotKey) {
-      return null;
-    }
-    const slotDefinitionId =
-      typeof config.slotDefinitionId === "string" ? config.slotDefinitionId : undefined;
-    const operator =
-      config.operator === "fresh" || config.operator === "stale" ? config.operator : "exists";
-
-    return {
-      kind: "artifact",
-      slotKey,
-      operator,
-      ...(slotDefinitionId ? { slotDefinitionId } : {}),
-    };
-  }
-
-  return null;
-};
-
-const toRuntimeConditionTree = (
-  conditionSets: readonly { readonly mode: string; readonly groupsJson: unknown }[],
-): RuntimeConditionTree => {
-  if (conditionSets.length === 0) {
-    return emptyGate;
-  }
-
-  const groups = conditionSets
-    .map((conditionSet) => {
-      const groupsJson = Array.isArray(conditionSet.groupsJson) ? conditionSet.groupsJson : [];
-      const conditions = groupsJson.flatMap((group) => {
-        const groupRecord = asRecord(group);
-        const groupConditions = Array.isArray(groupRecord?.conditions)
-          ? groupRecord.conditions
-          : [];
-        return groupConditions
-          .map((condition) => toRuntimeCondition(condition))
-          .filter((condition): condition is RuntimeCondition => condition !== null);
-      });
-
-      return {
-        mode: conditionSet.mode === "any" ? "any" : "all",
-        conditions,
-        groups: [],
-      } satisfies RuntimeConditionTree;
-    })
-    .filter((group) => group.conditions.length > 0 || group.groups.length > 0);
-
-  if (groups.length === 0) {
-    return emptyGate;
-  }
-
-  return {
-    mode: "all",
-    conditions: [],
-    groups,
-  } satisfies RuntimeConditionTree;
-};
+const mapGateError =
+  (operation: string) =>
+  (error: unknown): RepositoryError =>
+    error instanceof RepositoryError
+      ? error
+      : new RepositoryError({
+          operation,
+          cause: error instanceof Error ? error : new Error(String(error)),
+        });
 
 export class TransitionExecutionCommandService extends Context.Tag(
   "@chiron/workflow-engine/services/TransitionExecutionCommandService",
@@ -181,6 +79,8 @@ export const TransitionExecutionCommandServiceLive = Layer.effect(
     const projectWorkUnitRepo = yield* ProjectWorkUnitRepository;
     const readRepo = yield* ExecutionReadRepository;
     const runtimeGate = yield* RuntimeGateService;
+    const projectContextRepository = yield* ProjectContextRepository;
+    const lifecycleRepository = yield* LifecycleRepository;
 
     const resolveTransitionGateContext = (input: {
       projectId: string;
@@ -190,9 +90,6 @@ export const TransitionExecutionCommandServiceLive = Layer.effect(
       operation: string;
     }) =>
       Effect.gen(function* () {
-        const projectContextRepository = yield* ProjectContextRepository;
-        const lifecycleRepository = yield* LifecycleRepository;
-
         const projectPin = yield* projectContextRepository.findProjectPin(input.projectId);
         if (!projectPin) {
           return yield* makeCommandError(
@@ -328,11 +225,15 @@ export const TransitionExecutionCommandServiceLive = Layer.effect(
           };
         });
 
-        const gate = yield* runtimeGate.evaluateStartGate({
-          projectId: input.projectId,
-          projectWorkUnitId: resolvedStart.projectWorkUnitId,
-          conditionTree: resolvedStart.transitionContext.startGateConditionTree,
-        });
+        const gate = yield* runtimeGate
+          .evaluateStartGate({
+            projectId: input.projectId,
+            projectWorkUnitId: resolvedStart.projectWorkUnitId,
+            conditionTree: resolvedStart.transitionContext.startGateConditionTree,
+          })
+          .pipe(
+            Effect.mapError(mapGateError("transition-execution-command.startTransitionExecution")),
+          );
 
         if (gate.result !== "available") {
           return yield* makeCommandError(
@@ -373,11 +274,17 @@ export const TransitionExecutionCommandServiceLive = Layer.effect(
           operation: "transition-execution-command.switchActiveTransitionExecution",
         });
 
-        const gate = yield* runtimeGate.evaluateStartGate({
-          projectId: input.projectId,
-          projectWorkUnitId: input.projectWorkUnitId,
-          conditionTree: transitionContext.startGateConditionTree,
-        });
+        const gate = yield* runtimeGate
+          .evaluateStartGate({
+            projectId: input.projectId,
+            projectWorkUnitId: input.projectWorkUnitId,
+            conditionTree: transitionContext.startGateConditionTree,
+          })
+          .pipe(
+            Effect.mapError(
+              mapGateError("transition-execution-command.switchActiveTransitionExecution"),
+            ),
+          );
 
         if (gate.result !== "available") {
           return yield* makeCommandError(
@@ -449,37 +356,33 @@ export const TransitionExecutionCommandServiceLive = Layer.effect(
           );
         }
 
-        const completion = yield* runtimeGate.evaluateCompletionGate({
+        const transitionContext = yield* resolveTransitionGateContext({
           projectId: input.projectId,
           projectWorkUnitId: input.projectWorkUnitId,
-          conditionTree: emptyGate,
+          transitionId: detail.transitionExecution.transitionId,
+          operation: "transition-execution-command.completeTransitionExecution",
         });
 
-        const completionRecord = asRecord(completion);
-        const completionPassed =
-          completion.result === "available" || completionRecord?.passed === true;
+        const completion = yield* runtimeGate
+          .evaluateCompletionGate({
+            projectId: input.projectId,
+            projectWorkUnitId: input.projectWorkUnitId,
+            conditionTree: transitionContext.completionGateConditionTree,
+          })
+          .pipe(
+            Effect.mapError(
+              mapGateError("transition-execution-command.completeTransitionExecution"),
+            ),
+          );
 
-        if (!completionPassed) {
+        if (completion.result !== "available") {
           return yield* makeCommandError(
             "transition-execution-command.completeTransitionExecution",
-            (typeof completionRecord?.firstBlockingReason === "string"
-              ? completionRecord.firstBlockingReason
-              : completion.firstReason) ?? "completion gate failed",
+            completion.firstReason ?? "completion gate failed",
           );
         }
 
-        const targetStateRecord = asRecord(completionRecord?.targetState);
-        const targetState =
-          targetStateRecord &&
-          typeof targetStateRecord.stateId === "string" &&
-          typeof targetStateRecord.stateKey === "string" &&
-          typeof targetStateRecord.stateLabel === "string"
-            ? {
-                stateId: targetStateRecord.stateId,
-                stateKey: targetStateRecord.stateKey,
-                stateLabel: targetStateRecord.stateLabel,
-              }
-            : undefined;
+        const targetState = transitionContext.targetState;
 
         if (!targetState) {
           return yield* makeCommandError(
@@ -531,12 +434,41 @@ export const TransitionExecutionCommandServiceLive = Layer.effect(
             "transition execution must be active",
           );
         }
+        if (detail.primaryWorkflowExecution?.status === "active") {
+          return yield* makeCommandError(
+            "transition-execution-command.choosePrimaryWorkflowForTransitionExecution",
+            "primary workflow must finish before choosing another primary workflow",
+          );
+        }
 
-        yield* runtimeGate.evaluateCompletionGate({
+        const transitionContext = yield* resolveTransitionGateContext({
           projectId: input.projectId,
           projectWorkUnitId: input.projectWorkUnitId,
-          conditionTree: emptyGate,
+          transitionId: detail.transitionExecution.transitionId,
+          operation: "transition-execution-command.choosePrimaryWorkflowForTransitionExecution",
         });
+
+        yield* runtimeGate
+          .evaluateCompletionGate({
+            projectId: input.projectId,
+            projectWorkUnitId: input.projectWorkUnitId,
+            conditionTree: transitionContext.completionGateConditionTree,
+          })
+          .pipe(
+            Effect.mapError(
+              mapGateError(
+                "transition-execution-command.choosePrimaryWorkflowForTransitionExecution",
+              ),
+            ),
+            Effect.flatMap((completion) =>
+              completion.result === "blocked"
+                ? Effect.void
+                : makeCommandError(
+                    "transition-execution-command.choosePrimaryWorkflowForTransitionExecution",
+                    "choose another primary workflow is only available while the completion gate is blocked",
+                  ),
+            ),
+          );
 
         const workflowAtomicOps = workflowRepo as WorkflowExecutionAtomicOps;
         if (!workflowAtomicOps.choosePrimaryWorkflowForTransitionExecutionAtomically) {
