@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -77,10 +77,8 @@ import {
   runtimeStepExecutionDetailQueryKey,
 } from "../../routes/projects.$projectId.step-executions.$stepExecutionId";
 
-type Detail = any;
-
 function buildDetail(): any {
-  return {
+  const detail: any = {
     shell: {
       stepExecutionId: "step-1",
       workflowExecutionId: "workflow-1",
@@ -168,8 +166,48 @@ function buildDetail(): any {
               cardinality: "one" as const,
               renderedMultiplicity: "one" as const,
               externalBindingKey: "repository_type",
-              emptyState:
-                "No eligible existing instances are available yet. Create the required fact first.",
+              bindingLabel: "Repository Type",
+              options: [
+                {
+                  value: { factInstanceId: "fact-1" },
+                  label: "monorepo",
+                  description: "Repository type",
+                },
+                {
+                  value: { factInstanceId: "fact-2" },
+                  label: "multi_part",
+                  description: "Repository type",
+                },
+              ],
+            },
+          },
+          {
+            fieldKey: "existingProjectParts",
+            fieldLabel: "Existing project parts",
+            helpText: "Repeated bound external fact selector.",
+            required: false,
+            contextFactDefinitionId: "ctx-project-parts",
+            contextFactKey: "project_parts",
+            contextFactKind: "bound_external_fact" as const,
+            widget: {
+              control: "reference" as const,
+              valueType: "json" as const,
+              cardinality: "many" as const,
+              renderedMultiplicity: "many" as const,
+              externalBindingKey: "project_parts",
+              bindingLabel: "Project Parts",
+              options: [
+                {
+                  value: { factInstanceId: "fact-part-1" },
+                  label: "apps/web",
+                  description: "Project parts",
+                },
+                {
+                  value: { factInstanceId: "fact-part-2" },
+                  label: "packages/api",
+                  description: "Project parts",
+                },
+              ],
             },
           },
           {
@@ -202,6 +240,7 @@ function buildDetail(): any {
               cardinality: "one" as const,
               renderedMultiplicity: "one" as const,
               artifactSlotDefinitionId: "setup_readme",
+              bindingLabel: "Setup Readme",
             },
           },
           {
@@ -217,6 +256,7 @@ function buildDetail(): any {
               valueType: "json" as const,
               cardinality: "one" as const,
               renderedMultiplicity: "one" as const,
+              bindingLabel: "Setup",
               nestedFields: [
                 {
                   key: "constraints",
@@ -275,6 +315,7 @@ function buildDetail(): any {
           workflowMode: "initial_scan",
           requiresBrainstorming: true,
           existingRepositoryType: { factInstanceId: "fact-1" },
+          existingProjectParts: [{ factInstanceId: "fact-part-1" }],
           referenceWorkflow: { workflowDefinitionId: "wf-setup" },
           referenceArtifact: { relativePath: "docs/setup.md" },
           draftSpecTarget: {
@@ -310,6 +351,8 @@ function buildDetail(): any {
       },
     },
   };
+
+  return detail;
 }
 
 function toFieldPayload(detail: any, values: Record<string, unknown>) {
@@ -318,7 +361,7 @@ function toFieldPayload(detail: any, values: Record<string, unknown>) {
   }
 
   return Object.fromEntries(
-    detail.body.page.fields.map((field) => [field.fieldKey, values[field.fieldKey]]),
+    detail.body.page.fields.map((field: any) => [field.fieldKey, values[field.fieldKey]]),
   );
 }
 
@@ -356,7 +399,7 @@ async function renderHarness(params?: { currentDetail?: any }) {
         currentDetail = {
           ...currentDetail,
           body: nextBody,
-        };
+        } as any;
         await options?.onSuccess?.();
         return { stepExecutionId: "step-1", status: "draft_saved" as const };
       },
@@ -387,7 +430,7 @@ async function renderHarness(params?: { currentDetail?: any }) {
         currentDetail = {
           ...currentDetail,
           body: nextBody,
-        };
+        } as any;
         await options?.onSuccess?.();
         return { stepExecutionId: "step-1", status: "captured" as const };
       },
@@ -411,7 +454,7 @@ async function renderHarness(params?: { currentDetail?: any }) {
         currentDetail = {
           ...currentDetail,
           shell: nextShell,
-        };
+        } as any;
         await options?.onSuccess?.();
         return { stepExecutionId: "step-1", status: "completed" as const };
       },
@@ -474,6 +517,7 @@ describe("runtime form step detail route", () => {
   beforeEach(() => {
     cleanup();
     vi.clearAllMocks();
+    Element.prototype.scrollIntoView = vi.fn();
   });
 
   it("renders the shared header shell plus resolved form widgets and actions", async () => {
@@ -491,19 +535,76 @@ describe("runtime form step detail route", () => {
     expect(screen.getByText("Initiative name")).toBeTruthy();
     expect(screen.getByText("Workflow mode")).toBeTruthy();
     expect(screen.getByText("Existing repository type")).toBeTruthy();
+    expect(screen.getByText("Existing project parts")).toBeTruthy();
     expect(screen.getByText("Reference workflow")).toBeTruthy();
     expect(screen.getByText("Reference artifact")).toBeTruthy();
     expect(screen.getByText("Draft spec target")).toBeTruthy();
+    expect(screen.getByText("Repository Type")).toBeTruthy();
+    expect(screen.getAllByText("Project Parts").length).toBeGreaterThan(0);
+    expect(screen.getByText("Setup Readme")).toBeTruthy();
+    expect(screen.getByText("Setup")).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Existing repository type" })).toBeTruthy();
     expect(screen.getByRole("textbox", { name: "Must Have" })).toBeTruthy();
     expect(screen.getByRole("textbox", { name: "Must Avoid" })).toBeTruthy();
     expect(screen.getByRole("textbox", { name: "Timebox Notes" })).toBeTruthy();
     expect(screen.getByRole("combobox", { name: "Setup work unit" })).toBeTruthy();
-    expect(
-      screen.getByText(
-        "No eligible existing instances are available yet. Create the required fact first.",
-      ),
-    ).toBeTruthy();
     expect(screen.queryByText(/workflow-context-facts/i)).toBeNull();
+  });
+
+  it("renders bound external references as searchable comboboxes and disables duplicates across repeated rows", async () => {
+    const user = userEvent.setup();
+    await renderHarness();
+
+    await user.click(screen.getByRole("button", { name: "Add reference" }));
+    await user.click(screen.getByRole("combobox", { name: "Existing project parts 2" }));
+
+    const disabledOption = screen.getByRole("option", { name: /apps\/web/i });
+    const enabledOption = screen.getByRole("option", { name: /packages\/api/i });
+
+    expect(disabledOption.getAttribute("data-disabled")).toBe("true");
+    expect(enabledOption.getAttribute("data-disabled")).toBe("false");
+  });
+
+  it("shows and clears unavailable bound external selections instead of hiding them behind placeholder text", async () => {
+    const user = userEvent.setup();
+    const detail = buildDetail();
+
+    if (detail.body.stepType !== "form") {
+      throw new Error("expected form detail");
+    }
+
+    detail.body.page.fields = detail.body.page.fields.map((field: any) => {
+      if (field.fieldKey === "existingRepositoryType") {
+        return {
+          ...field,
+          widget: {
+            ...field.widget,
+            options: [],
+            emptyState:
+              "No eligible existing instances are available yet. Create the required fact first.",
+          },
+        };
+      }
+
+      return field;
+    });
+
+    const { saveDraftCalls } = await renderHarness({ currentDetail: detail });
+
+    expect(
+      screen.getByRole("combobox", { name: "Existing repository type" }).textContent,
+    ).toContain("fact-1");
+    expect(screen.getByText("Current selection is unavailable")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Clear unavailable selection" }));
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+
+    await waitFor(() => expect(saveDraftCalls).toHaveLength(1));
+    expect(saveDraftCalls[0]).toMatchObject({
+      values: {
+        existingRepositoryType: null,
+      },
+    });
   });
 
   it("renders required validation messages only once", async () => {
@@ -526,9 +627,8 @@ describe("runtime form step detail route", () => {
     await user.clear(initiativeInput);
     await user.type(initiativeInput, "Updated initiative");
 
-    fireEvent.change(screen.getByRole("combobox", { name: "Workflow mode" }), {
-      target: { value: JSON.stringify("deep_dive") },
-    });
+    await user.click(screen.getByRole("combobox", { name: "Workflow mode" }));
+    await user.click(screen.getByRole("option", { name: "deep_dive" }));
 
     await user.click(screen.getByRole("button", { name: "Save draft" }));
 

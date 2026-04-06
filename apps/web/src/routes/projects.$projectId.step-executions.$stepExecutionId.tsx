@@ -6,7 +6,8 @@ import type {
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { CheckIcon, ChevronsUpDownIcon } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -18,11 +19,38 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Field, FieldContent, FieldDescription, FieldGroup } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { MethodologyWorkspaceShell } from "@/features/methodologies/workspace-shell";
+import {
+  DetailCode,
+  DetailEyebrow,
+  DetailLabel,
+  DetailPrimary,
+  ExecutionBadge,
+  getExecutionStatusTone,
+  getGateStateTone,
+  getStepTypeTone,
+} from "@/features/projects/execution-detail-visuals";
+import { cn } from "@/lib/utils";
 
 export const runtimeStepExecutionDetailQueryKey = (projectId: string, stepExecutionId: string) =>
   ["runtime-step-execution-detail", projectId, stepExecutionId] as const;
@@ -204,6 +232,151 @@ function toggleMultiSelectValue(
   return checked ? [...withoutCurrent, optionValue] : withoutCurrent;
 }
 
+function getReferencePlaceholder(field: RuntimeFormResolvedField): string {
+  return field.widget.valueType === "work_unit" ? "Select a work unit" : "Select an existing fact";
+}
+
+function getUnavailableReferenceLabel(value: unknown, field: RuntimeFormResolvedField): string {
+  const formatted = primitiveToInput(value, field);
+  return formatted.length > 0 ? formatted : getReferencePlaceholder(field);
+}
+
+function renderContextFactKindLabel(kind: RuntimeFormResolvedField["contextFactKind"]): string {
+  return kind.replaceAll("_", " ");
+}
+
+function ReferenceOptionCombobox(props: {
+  field: RuntimeFormResolvedField;
+  value: unknown;
+  onChange: (value: unknown) => void;
+  disabledOptionValues?: ReadonlySet<string>;
+  disabled?: boolean;
+}) {
+  const { field, value, onChange, disabledOptionValues, disabled = false } = props;
+  const [open, setOpen] = useState(false);
+  const options = field.widget.options ?? [];
+  const selectedValue = value == null ? "" : encodeOptionValue(value);
+  const selectedOption =
+    options.find((option) => encodeOptionValue(option.value) === selectedValue) ??
+    (value != null
+      ? {
+          value,
+          label: getUnavailableReferenceLabel(value, field),
+          description: "Current selection is unavailable",
+        }
+      : null);
+
+  return (
+    <div className="space-y-2">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger
+          render={
+            <Button
+              type="button"
+              variant="outline"
+              role="combobox"
+              aria-label={field.fieldLabel}
+              aria-expanded={open}
+              disabled={disabled}
+              className="h-8 w-full justify-between rounded-none border-border/80 bg-background/80 px-2.5 py-1 font-normal text-foreground hover:bg-background/90"
+            />
+          }
+        >
+          <span className="truncate text-xs">
+            {selectedOption?.label ??
+              (disabled
+                ? (field.widget.emptyState ?? getReferencePlaceholder(field))
+                : getReferencePlaceholder(field))}
+          </span>
+          <ChevronsUpDownIcon className="size-3.5 shrink-0 opacity-70" />
+        </PopoverTrigger>
+
+        <PopoverContent
+          className="w-[var(--anchor-width)] p-0"
+          align="start"
+          frame="cut-thin"
+          tone="context"
+          sideOffset={4}
+        >
+          <Command density="compact" frame="default" className="bg-[#0b0f12] text-foreground">
+            <CommandInput
+              density="compact"
+              placeholder={
+                field.widget.valueType === "work_unit"
+                  ? "Search work units..."
+                  : "Search fact instances..."
+              }
+            />
+            <CommandList>
+              <CommandEmpty>No matching options found.</CommandEmpty>
+              <CommandGroup heading="Available options">
+                {selectedOption ? (
+                  <CommandItem
+                    density="compact"
+                    value={`clear ${field.fieldLabel}`}
+                    onSelect={() => {
+                      onChange(null);
+                      setOpen(false);
+                    }}
+                  >
+                    <span className="font-medium">Clear selection</span>
+                  </CommandItem>
+                ) : null}
+                {options.map((option) => {
+                  const encodedValue = encodeOptionValue(option.value);
+                  const disabled =
+                    disabledOptionValues?.has(encodedValue) === true &&
+                    encodedValue !== selectedValue;
+
+                  return (
+                    <CommandItem
+                      key={`${field.fieldKey}-${encodedValue}`}
+                      density="compact"
+                      value={
+                        option.description ? `${option.label} ${option.description}` : option.label
+                      }
+                      disabled={disabled}
+                      onSelect={() => {
+                        if (disabled) {
+                          return;
+                        }
+
+                        onChange(option.value);
+                        setOpen(false);
+                      }}
+                    >
+                      <div className="flex min-w-0 flex-1 items-start gap-2">
+                        <div className="grid min-w-0 flex-1 gap-0.5">
+                          <span className="truncate font-medium">{option.label}</span>
+                          {option.description ? (
+                            <span className="truncate text-[0.68rem] uppercase tracking-[0.08em] text-muted-foreground">
+                              {option.description}
+                            </span>
+                          ) : null}
+                        </div>
+                        <CheckIcon
+                          className={cn(
+                            "mt-0.5 size-3.5 shrink-0",
+                            selectedValue === encodedValue ? "opacity-100" : "opacity-0",
+                          )}
+                        />
+                      </div>
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+
+      {selectedOption?.description ? (
+        <p className="text-xs text-muted-foreground">{selectedOption.description}</p>
+      ) : null}
+    </div>
+  );
+}
+
 function NestedFieldEditor(props: {
   nestedField: RuntimeFormNestedField;
   value: unknown;
@@ -294,24 +467,29 @@ function NestedFieldEditor(props: {
     return (
       <Field>
         <div className="text-xs leading-none">{nestedField.label}</div>
-        <select
-          aria-label={nestedField.label}
-          className="dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/50 h-8 w-full rounded-none border bg-transparent px-2.5 py-1 text-xs outline-none focus-visible:ring-1"
+        <Select
           value={value == null ? "" : encodeOptionValue(value)}
-          onChange={(event) =>
-            onChange(event.target.value.length > 0 ? decodeOptionValue(event.target.value) : null)
+          onValueChange={(nextValue) =>
+            onChange(nextValue && nextValue.length > 0 ? decodeOptionValue(nextValue) : null)
           }
         >
-          <option value="">Select a work unit</option>
-          {nestedField.options?.map((option) => (
-            <option
-              key={`${nestedField.key}-${encodeOptionValue(option.value)}`}
-              value={encodeOptionValue(option.value)}
-            >
-              {option.label}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger
+            aria-label={nestedField.label}
+            className="w-full bg-background/80 text-foreground"
+          >
+            <SelectValue placeholder="Select a work unit" />
+          </SelectTrigger>
+          <SelectContent className="border border-border/80 bg-[#0b0f12] text-foreground">
+            {nestedField.options?.map((option) => (
+              <SelectItem
+                key={`${nestedField.key}-${encodeOptionValue(option.value)}`}
+                value={encodeOptionValue(option.value)}
+              >
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         {nestedField.emptyState ? (
           <p className="text-xs text-muted-foreground">{nestedField.emptyState}</p>
         ) : null}
@@ -572,24 +750,29 @@ function SelectField(props: {
   }
 
   return (
-    <select
-      aria-label={field.fieldLabel}
-      className="dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/50 h-8 w-full rounded-none border bg-transparent px-2.5 py-1 text-xs outline-none focus-visible:ring-1"
+    <Select
       value={value == null ? "" : encodeOptionValue(value)}
-      onChange={(event) =>
-        onChange(event.target.value.length > 0 ? decodeOptionValue(event.target.value) : null)
+      onValueChange={(nextValue) =>
+        onChange(nextValue && nextValue.length > 0 ? decodeOptionValue(nextValue) : null)
       }
     >
-      <option value="">Select an option</option>
-      {options.map((option) => (
-        <option
-          key={`${field.fieldKey}-${encodeOptionValue(option.value)}`}
-          value={encodeOptionValue(option.value)}
-        >
-          {option.label}
-        </option>
-      ))}
-    </select>
+      <SelectTrigger
+        aria-label={field.fieldLabel}
+        className="w-full bg-background/80 text-foreground"
+      >
+        <SelectValue placeholder="Select an option" />
+      </SelectTrigger>
+      <SelectContent className="border border-border/80 bg-[#0b0f12] text-foreground">
+        {options.map((option) => (
+          <SelectItem
+            key={`${field.fieldKey}-${encodeOptionValue(option.value)}`}
+            value={encodeOptionValue(option.value)}
+          >
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -640,26 +823,47 @@ function ReferenceField(props: {
   onChange: (value: unknown) => void;
 }) {
   const { field, value, onChange } = props;
+  const options = field.widget.options ?? [];
+  const hasOptions = options.length > 0;
+  const shouldUseCombobox = hasOptions || field.contextFactKind === "bound_external_fact";
 
   if (field.widget.renderedMultiplicity === "many") {
     const items = Array.isArray(value) ? value : [];
+    const selectedValues = new Set(
+      items.filter((entry) => entry != null).map((entry) => encodeOptionValue(entry)),
+    );
+    const canAddReference = hasOptions && items.length < options.length;
 
     return (
       <div className="space-y-3">
         {items.map((entry, index) => (
           <div key={`${field.fieldKey}-${index}`} className="flex items-center gap-2">
-            <Input
-              aria-label={`${field.fieldLabel} ${index + 1}`}
-              value={primitiveToInput(entry, field)}
-              onChange={(event) =>
-                onChange(
-                  updateArrayValue(items, index, primitiveFromInput(event.target.value, field)),
-                )
-              }
-              placeholder={
-                field.widget.valueType === "work_unit" ? "project work unit id" : "fact instance id"
-              }
-            />
+            <div className="flex-1">
+              {shouldUseCombobox ? (
+                <ReferenceOptionCombobox
+                  field={{ ...field, fieldLabel: `${field.fieldLabel} ${index + 1}` }}
+                  value={entry}
+                  onChange={(nextValue) => onChange(updateArrayValue(items, index, nextValue))}
+                  disabledOptionValues={selectedValues}
+                  disabled={!hasOptions}
+                />
+              ) : (
+                <Input
+                  aria-label={`${field.fieldLabel} ${index + 1}`}
+                  value={primitiveToInput(entry, field)}
+                  onChange={(event) =>
+                    onChange(
+                      updateArrayValue(items, index, primitiveFromInput(event.target.value, field)),
+                    )
+                  }
+                  placeholder={
+                    field.widget.valueType === "work_unit"
+                      ? "project work unit id"
+                      : "fact instance id"
+                  }
+                />
+              )}
+            </div>
             <Button
               type="button"
               variant="outline"
@@ -672,6 +876,7 @@ function ReferenceField(props: {
         <Button
           type="button"
           variant="outline"
+          disabled={!canAddReference}
           onClick={() => onChange(addArrayValue(items, null))}
         >
           Add reference
@@ -685,16 +890,32 @@ function ReferenceField(props: {
 
   return (
     <div className="space-y-2">
-      <Input
-        aria-label={field.fieldLabel}
-        value={primitiveToInput(value, field)}
-        onChange={(event) => onChange(primitiveFromInput(event.target.value, field))}
-        placeholder={
-          field.widget.valueType === "work_unit" ? "project work unit id" : "fact instance id"
-        }
-      />
+      {shouldUseCombobox ? (
+        <ReferenceOptionCombobox
+          field={field}
+          value={value}
+          onChange={onChange}
+          disabled={!hasOptions}
+        />
+      ) : (
+        <Input
+          aria-label={field.fieldLabel}
+          value={primitiveToInput(value, field)}
+          onChange={(event) => onChange(primitiveFromInput(event.target.value, field))}
+          placeholder={
+            field.widget.valueType === "work_unit" ? "project work unit id" : "fact instance id"
+          }
+        />
+      )}
       {field.widget.emptyState ? (
         <p className="text-xs text-muted-foreground">{field.widget.emptyState}</p>
+      ) : null}
+      {shouldUseCombobox && !hasOptions && value != null ? (
+        <div className="flex justify-end">
+          <Button type="button" variant="outline" size="sm" onClick={() => onChange(null)}>
+            Clear unavailable selection
+          </Button>
+        </div>
       ) : null}
     </div>
   );
@@ -899,9 +1120,7 @@ function FormInteractionSurface(props: {
       <Card frame="cut-heavy" tone="runtime" corner="white">
         <CardHeader>
           <div className="space-y-1">
-            <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
-              Shared step shell
-            </p>
+            <DetailEyebrow>Shared step shell</DetailEyebrow>
             <CardTitle>Step execution identity & status</CardTitle>
             <CardDescription>
               Common metadata stays in the header shell; Form-only interaction lives below.
@@ -910,48 +1129,62 @@ function FormInteractionSurface(props: {
         </CardHeader>
 
         <CardContent>
-          <div className="grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-3">
-            <div>
-              <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
-                Step execution
-              </p>
-              <p>{detail.shell.stepExecutionId}</p>
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1.3fr)_minmax(16rem,0.7fr)]">
+            <div className="space-y-3 border border-border/70 bg-background/40 p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <ExecutionBadge
+                  label={detail.shell.status}
+                  tone={getExecutionStatusTone(detail.shell.status)}
+                />
+                <ExecutionBadge
+                  label={detail.shell.stepType}
+                  tone={getStepTypeTone(detail.shell.stepType)}
+                />
+                <ExecutionBadge
+                  label={completionOutcome}
+                  tone={getGateStateTone(
+                    detail.shell.completionAction.enabled ? "ready" : detail.shell.status,
+                  )}
+                />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <DetailLabel>Step execution</DetailLabel>
+                  <DetailCode>{detail.shell.stepExecutionId}</DetailCode>
+                </div>
+                <div>
+                  <DetailLabel>Workflow execution</DetailLabel>
+                  <DetailCode>{detail.shell.workflowExecutionId}</DetailCode>
+                </div>
+                <div className="sm:col-span-2">
+                  <DetailLabel>Step definition</DetailLabel>
+                  <DetailPrimary>{detail.shell.stepType} step</DetailPrimary>
+                  <DetailCode>{detail.shell.stepDefinitionId}</DetailCode>
+                </div>
+              </div>
             </div>
-            <div>
-              <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
-                Workflow execution
-              </p>
-              <p>{detail.shell.workflowExecutionId}</p>
-            </div>
-            <div>
-              <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
-                Step definition
-              </p>
-              <p>{detail.shell.stepDefinitionId}</p>
-            </div>
-            <div>
-              <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
-                State
-              </p>
-              <p>{detail.shell.status}</p>
-            </div>
-            <div>
-              <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
-                Activated
-              </p>
-              <p>{formatTimestamp(detail.shell.activatedAt)}</p>
-            </div>
-            <div>
-              <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
-                Completed
-              </p>
-              <p>{formatTimestamp(detail.shell.completedAt)}</p>
-            </div>
-            <div className="md:col-span-2 xl:col-span-3">
-              <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
-                Completion outcome
-              </p>
-              <p>{completionOutcome}</p>
+
+            <div className="space-y-3 border border-sky-500/30 bg-sky-500/5 p-3 before:pointer-events-none before:absolute">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <DetailLabel>Activated</DetailLabel>
+                  <DetailPrimary>{formatTimestamp(detail.shell.activatedAt)}</DetailPrimary>
+                </div>
+                <div>
+                  <DetailLabel>Completed</DetailLabel>
+                  <DetailPrimary>{formatTimestamp(detail.shell.completedAt)}</DetailPrimary>
+                </div>
+                <div className="sm:col-span-2">
+                  <DetailLabel>Completion gate</DetailLabel>
+                  <DetailPrimary>{completionOutcome}</DetailPrimary>
+                  {!detail.shell.completionAction.enabled &&
+                  detail.shell.completionAction.reasonIfDisabled ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {detail.shell.completionAction.reasonIfDisabled}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -975,10 +1208,15 @@ function FormInteractionSurface(props: {
         ) : null}
       </Card>
 
-      <Card frame="cut-heavy" tone="runtime" corner="white">
+      <Card
+        frame="cut-heavy"
+        tone="runtime"
+        corner="white"
+        className="relative border-sky-500/30 before:absolute before:left-0 before:top-0 before:h-4 before:w-4 before:border-l before:border-t before:border-sky-400 before:content-[''] after:absolute after:right-0 after:top-0 after:h-4 after:w-4 after:border-r after:border-t after:border-sky-400 after:content-['']"
+      >
         <CardHeader>
           <div className="space-y-1">
-            <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">Form</p>
+            <DetailEyebrow>Form</DetailEyebrow>
             <CardTitle>{body.page.formLabel ?? body.page.formKey}</CardTitle>
             {body.page.descriptionMarkdown ? (
               <CardDescription>{body.page.descriptionMarkdown}</CardDescription>
@@ -1022,14 +1260,37 @@ function FormInteractionSurface(props: {
                   <Field className="border border-border/70 bg-background/40 p-3">
                     <FieldContent className="space-y-3">
                       <div className="space-y-1">
-                        <div className="text-xs leading-none">{resolvedField.fieldLabel}</div>
-                        <div className="flex flex-wrap gap-2 text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
-                          <span>{resolvedField.contextFactKind.replaceAll("_", " ")}</span>
-                          <span>{resolvedField.widget.renderedMultiplicity}</span>
+                        <div className="text-sm leading-none text-foreground">
+                          {resolvedField.fieldLabel}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <ExecutionBadge
+                            label={renderContextFactKindLabel(resolvedField.contextFactKind)}
+                            tone={
+                              resolvedField.contextFactKind === "bound_external_fact"
+                                ? "amber"
+                                : resolvedField.contextFactKind === "workflow_reference_fact"
+                                  ? "violet"
+                                  : resolvedField.contextFactKind === "artifact_reference_fact"
+                                    ? "emerald"
+                                    : resolvedField.contextFactKind === "work_unit_draft_spec_fact"
+                                      ? "sky"
+                                      : "slate"
+                            }
+                          />
+                          <ExecutionBadge
+                            label={resolvedField.widget.renderedMultiplicity}
+                            tone="slate"
+                          />
                           {resolvedField.widget.valueType ? (
-                            <span>{resolvedField.widget.valueType}</span>
+                            <ExecutionBadge label={resolvedField.widget.valueType} tone="sky" />
                           ) : null}
-                          {resolvedField.required ? <span>required</span> : null}
+                          {resolvedField.widget.bindingLabel ? (
+                            <ExecutionBadge label={resolvedField.widget.bindingLabel} tone="lime" />
+                          ) : null}
+                          {resolvedField.required ? (
+                            <ExecutionBadge label="required" tone="rose" />
+                          ) : null}
                         </div>
                       </div>
 
