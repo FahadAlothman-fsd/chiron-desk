@@ -122,7 +122,15 @@ function makeServiceLayer() {
           target: { page: "transition-execution-detail", transitionExecutionId: "te-1" },
         },
         lineage: {},
-        stepsSurface: { mode: "deferred", message: "later" },
+        stepSurface: {
+          state: "entry_pending",
+          entryStep: {
+            stepDefinitionId: "step-1",
+            stepType: "form",
+            stepKey: "capture",
+          },
+        },
+        workflowContextFacts: { mode: "read_only_by_definition", groups: [] },
       });
     },
   };

@@ -26,11 +26,10 @@ export class StepExecutionLifecycleService extends Context.Tag(
       workflowExecutionId: string;
       stepDefinitionId: string;
       stepType: string;
-      progressionData?: unknown;
+      previousStepExecutionId: string | null;
     }) => Effect.Effect<RuntimeStepExecutionRow, RepositoryError>;
     readonly completeStepExecution: (params: {
       stepExecutionId: string;
-      progressionData?: unknown;
     }) => Effect.Effect<RuntimeStepExecutionRow, RepositoryError>;
     readonly getStepExecutionStatus: (
       stepExecutionId: string,
@@ -49,29 +48,77 @@ export const StepExecutionLifecycleServiceLive = Layer.effect(
       workflowExecutionId,
       stepDefinitionId,
       stepType,
-      progressionData,
+      previousStepExecutionId,
     }: {
       workflowExecutionId: string;
       stepDefinitionId: string;
       stepType: string;
-      progressionData?: unknown;
+      previousStepExecutionId: string | null;
     }) =>
       Effect.gen(function* () {
+        const workflowExecution = yield* workflowRepo.getWorkflowExecutionById(workflowExecutionId);
+        if (!workflowExecution) {
+          return yield* makeLifecycleError("workflow execution not found");
+        }
+
         const existing = yield* stepRepo.findStepExecutionByWorkflowAndDefinition({
           workflowExecutionId,
           stepDefinitionId,
         });
+
         if (existing) {
-          return existing;
+          if (existing.status === "active") {
+            return existing;
+          }
+
+          return yield* makeLifecycleError(
+            "step definition already has a completed execution in this workflow",
+          );
         }
 
-        return yield* stepRepo.createStepExecution({
+        const conflictingActive = workflowExecution.currentStepExecutionId
+          ? yield* Effect.gen(function* () {
+              const currentStepExecutionId = workflowExecution.currentStepExecutionId;
+              if (!currentStepExecutionId) {
+                return null;
+              }
+
+              const currentStep = yield* stepRepo.getStepExecutionById(currentStepExecutionId);
+
+              if (!currentStep || currentStep.status !== "active") {
+                return null;
+              }
+
+              return currentStep.stepDefinitionId !== stepDefinitionId ? currentStep : null;
+            })
+          : null;
+
+        if (conflictingActive) {
+          return yield* makeLifecycleError(
+            `workflow already has an active step execution for '${conflictingActive.stepDefinitionId}'`,
+          );
+        }
+
+        const createdStepExecution = yield* stepRepo.createStepExecution({
           workflowExecutionId,
           stepDefinitionId,
           stepType,
           status: "active",
-          progressionData: progressionData ?? null,
+          previousStepExecutionId,
         });
+
+        if (stepType === "form") {
+          yield* stepRepo.createFormStepExecutionState({
+            stepExecutionId: createdStepExecution.id,
+          });
+        }
+
+        yield* workflowRepo.setCurrentStepExecutionId({
+          workflowExecutionId,
+          currentStepExecutionId: createdStepExecution.id,
+        });
+
+        return createdStepExecution;
       });
 
     const activateFirstStepExecution = (workflowExecutionId: string) =>
@@ -81,30 +128,34 @@ export const StepExecutionLifecycleServiceLive = Layer.effect(
           return yield* makeLifecycleError("workflow execution not found");
         }
 
-        const firstStep = yield* progression.getFirstStepDefinition(workflowExecution.workflowId);
-        if (!firstStep) {
-          return yield* makeLifecycleError("workflow has no step definitions");
+        const entryStep = yield* progression.resolveEntryStepDefinition(
+          workflowExecution.workflowId,
+        );
+        if (entryStep.state === "invalid_definition") {
+          return yield* makeLifecycleError(`workflow definition is invalid: ${entryStep.reason}`);
         }
 
         return yield* activateStepExecution({
           workflowExecutionId,
-          stepDefinitionId: firstStep.id,
-          stepType: firstStep.type,
-          progressionData: { activation: "first_step" },
+          stepDefinitionId: entryStep.entryStep.id,
+          stepType: entryStep.entryStep.type,
+          previousStepExecutionId: null,
         });
       });
 
-    const completeStepExecution = ({
-      stepExecutionId,
-      progressionData,
-    }: {
-      stepExecutionId: string;
-      progressionData?: unknown;
-    }) =>
+    const completeStepExecution = ({ stepExecutionId }: { stepExecutionId: string }) =>
       Effect.gen(function* () {
+        const existing = yield* stepRepo.getStepExecutionById(stepExecutionId);
+        if (!existing) {
+          return yield* makeLifecycleError("step execution not found");
+        }
+
+        if (existing.status === "completed") {
+          return existing;
+        }
+
         const completed = yield* stepRepo.completeStepExecution({
           stepExecutionId,
-          progressionData: progressionData ?? null,
         });
         if (!completed) {
           return yield* makeLifecycleError("step execution not found");

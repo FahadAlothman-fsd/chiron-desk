@@ -1,14 +1,18 @@
 import { Context, Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 
-import { ProjectFactRepository } from "../../repositories/project-fact-repository";
 import {
   StepExecutionRepository,
+  type CompleteRuntimeStepExecutionParams,
+  type CreateRuntimeFormStepExecutionStateParams,
+  type CreateRuntimeStepExecutionParams,
+  type ReplaceRuntimeWorkflowExecutionContextFactsParams,
   type RuntimeFormStepExecutionStateRow,
   type RuntimeStepExecutionRow,
   type RuntimeWorkflowEdgeRow,
   type RuntimeWorkflowExecutionContextFactRow,
   type RuntimeWorkflowStepDefinitionRow,
+  type UpsertRuntimeFormStepExecutionStateParams,
 } from "../../repositories/step-execution-repository";
 import { WorkflowExecutionRepository } from "../../repositories/workflow-execution-repository";
 import {
@@ -19,10 +23,10 @@ import {
   StepExecutionTransactionService,
   StepExecutionTransactionServiceLive,
 } from "../../services/step-execution-transaction-service";
-import { StepProgressionServiceLive } from "../../services/step-progression-service";
 import { StepContextMutationServiceLive } from "../../services/step-context-mutation-service";
+import { StepProgressionServiceLive } from "../../services/step-progression-service";
 
-const buildRuntimeTestLayer = () => {
+const buildRuntimeTestLayer = (options?: { entryMode?: "valid" | "missing" | "ambiguous" }) => {
   const steps: RuntimeStepExecutionRow[] = [];
   const formState: RuntimeFormStepExecutionStateRow[] = [];
   const contextFacts: RuntimeWorkflowExecutionContextFactRow[] = [];
@@ -42,15 +46,39 @@ const buildRuntimeTestLayer = () => {
       createdAt: new Date("2026-04-01T10:01:00.000Z"),
     },
   ];
-  const edges: RuntimeWorkflowEdgeRow[] = [
-    {
-      id: "edge-1",
-      workflowId: "workflow-1",
-      fromStepId: "step-1",
-      toStepId: "step-2",
-      createdAt: new Date("2026-04-01T10:02:00.000Z"),
-    },
-  ];
+
+  const entryMode = options?.entryMode ?? "valid";
+
+  const edgesByMode: Record<"valid" | "missing" | "ambiguous", RuntimeWorkflowEdgeRow[]> = {
+    valid: [
+      {
+        id: "edge-1",
+        workflowId: "workflow-1",
+        fromStepId: "step-1",
+        toStepId: "step-2",
+        createdAt: new Date("2026-04-01T10:02:00.000Z"),
+      },
+    ],
+    missing: [
+      {
+        id: "edge-1",
+        workflowId: "workflow-1",
+        fromStepId: "step-1",
+        toStepId: "step-2",
+        createdAt: new Date("2026-04-01T10:02:00.000Z"),
+      },
+      {
+        id: "edge-2",
+        workflowId: "workflow-1",
+        fromStepId: "step-2",
+        toStepId: "step-1",
+        createdAt: new Date("2026-04-01T10:03:00.000Z"),
+      },
+    ],
+    ambiguous: [],
+  };
+
+  const edges = edgesByMode[entryMode];
 
   const stepRepoLayer = Layer.succeed(StepExecutionRepository, {
     createStepExecution: ({
@@ -58,8 +86,8 @@ const buildRuntimeTestLayer = () => {
       stepDefinitionId,
       stepType,
       status,
-      progressionData,
-    }) =>
+      previousStepExecutionId,
+    }: CreateRuntimeStepExecutionParams) =>
       Effect.sync(() => {
         const row: RuntimeStepExecutionRow = {
           id: `exec-${steps.length + 1}`,
@@ -69,14 +97,20 @@ const buildRuntimeTestLayer = () => {
           status,
           activatedAt: new Date(),
           completedAt: null,
-          progressionData,
+          previousStepExecutionId,
         };
         steps.push(row);
         return row;
       }),
-    getStepExecutionById: (stepExecutionId) =>
+    getStepExecutionById: (stepExecutionId: string) =>
       Effect.succeed(steps.find((step) => step.id === stepExecutionId) ?? null),
-    findStepExecutionByWorkflowAndDefinition: ({ workflowExecutionId, stepDefinitionId }) =>
+    findStepExecutionByWorkflowAndDefinition: ({
+      workflowExecutionId,
+      stepDefinitionId,
+    }: {
+      workflowExecutionId: string;
+      stepDefinitionId: string;
+    }) =>
       Effect.succeed(
         steps.find(
           (step) =>
@@ -84,9 +118,9 @@ const buildRuntimeTestLayer = () => {
             step.stepDefinitionId === stepDefinitionId,
         ) ?? null,
       ),
-    listStepExecutionsForWorkflow: (workflowExecutionId) =>
+    listStepExecutionsForWorkflow: (workflowExecutionId: string) =>
       Effect.succeed(steps.filter((step) => step.workflowExecutionId === workflowExecutionId)),
-    completeStepExecution: ({ stepExecutionId, progressionData }) =>
+    completeStepExecution: ({ stepExecutionId }: CompleteRuntimeStepExecutionParams) =>
       Effect.sync(() => {
         const row = steps.find((step) => step.id === stepExecutionId);
         if (!row) {
@@ -94,61 +128,101 @@ const buildRuntimeTestLayer = () => {
         }
         row.status = "completed";
         row.completedAt = new Date();
-        row.progressionData = progressionData;
+        return row;
+      }),
+    createFormStepExecutionState: ({
+      stepExecutionId,
+    }: CreateRuntimeFormStepExecutionStateParams) =>
+      Effect.sync(() => {
+        const existing = formState.find((row) => row.stepExecutionId === stepExecutionId);
+        if (existing) {
+          return existing;
+        }
+
+        const row: RuntimeFormStepExecutionStateRow = {
+          id: `state-${formState.length + 1}`,
+          stepExecutionId,
+          draftPayloadJson: null,
+          submittedPayloadJson: null,
+          lastDraftSavedAt: null,
+          submittedAt: null,
+        };
+        formState.push(row);
         return row;
       }),
     upsertFormStepExecutionState: ({
       stepExecutionId,
-      draftValuesJson,
-      submittedSnapshotJson,
+      draftPayloadJson,
+      submittedPayloadJson,
+      lastDraftSavedAt,
       submittedAt,
-    }) =>
+    }: UpsertRuntimeFormStepExecutionStateParams) =>
       Effect.sync(() => {
         const existing = formState.find((row) => row.stepExecutionId === stepExecutionId);
         if (existing) {
-          existing.draftValuesJson = draftValuesJson;
-          existing.submittedSnapshotJson = submittedSnapshotJson;
+          existing.draftPayloadJson = draftPayloadJson;
+          existing.submittedPayloadJson = submittedPayloadJson;
+          existing.lastDraftSavedAt = lastDraftSavedAt;
           existing.submittedAt = submittedAt;
           return existing;
         }
+
         const row: RuntimeFormStepExecutionStateRow = {
           id: `state-${formState.length + 1}`,
           stepExecutionId,
-          draftValuesJson,
-          submittedSnapshotJson,
+          draftPayloadJson,
+          submittedPayloadJson,
+          lastDraftSavedAt,
           submittedAt,
         };
         formState.push(row);
         return row;
       }),
-    getFormStepExecutionState: (stepExecutionId) =>
+    getFormStepExecutionState: (stepExecutionId: string) =>
       Effect.succeed(formState.find((row) => row.stepExecutionId === stepExecutionId) ?? null),
-    writeWorkflowExecutionContextFact: ({
+    replaceWorkflowExecutionContextFacts: ({
       workflowExecutionId,
-      factKey,
-      factKind,
-      valueJson,
       sourceStepExecutionId,
-    }) =>
+      affectedContextFactDefinitionIds,
+      currentValues,
+    }: ReplaceRuntimeWorkflowExecutionContextFactsParams) =>
       Effect.sync(() => {
-        const row: RuntimeWorkflowExecutionContextFactRow = {
-          id: `ctx-${contextFacts.length + 1}`,
-          workflowExecutionId,
-          factKey,
-          factKind,
-          valueJson,
-          sourceStepExecutionId,
-        };
-        contextFacts.push(row);
-        return row;
+        for (let index = contextFacts.length - 1; index >= 0; index -= 1) {
+          const row = contextFacts[index];
+          if (
+            row &&
+            row.workflowExecutionId === workflowExecutionId &&
+            affectedContextFactDefinitionIds.includes(row.contextFactDefinitionId)
+          ) {
+            contextFacts.splice(index, 1);
+          }
+        }
+
+        const now = new Date();
+        const inserted = currentValues.map((value, index) => {
+          const row: RuntimeWorkflowExecutionContextFactRow = {
+            id: `ctx-${index + 1}-${value.contextFactDefinitionId}`,
+            workflowExecutionId,
+            contextFactDefinitionId: value.contextFactDefinitionId,
+            instanceOrder: value.instanceOrder,
+            valueJson: value.valueJson,
+            sourceStepExecutionId,
+            createdAt: now,
+            updatedAt: now,
+          };
+          contextFacts.push(row);
+          return row;
+        });
+
+        return inserted;
       }),
-    listWorkflowExecutionContextFacts: (workflowExecutionId) =>
+    listWorkflowExecutionContextFacts: (workflowExecutionId: string) =>
       Effect.succeed(
         contextFacts.filter((fact) => fact.workflowExecutionId === workflowExecutionId),
       ),
-    listWorkflowStepDefinitions: (workflowId) =>
+    listWorkflowStepDefinitions: (workflowId: string) =>
       Effect.succeed(stepDefinitions.filter((step) => step.workflowId === workflowId)),
-    listWorkflowEdges: (workflowId) =>
+    listWorkflowEdges: (workflowId: string) =>
       Effect.succeed(edges.filter((edge) => edge.workflowId === workflowId)),
   } as unknown as Context.Tag.Service<typeof StepExecutionRepository>);
 
@@ -161,10 +235,36 @@ const buildRuntimeTestLayer = () => {
         workflowId: "workflow-1",
         workflowRole: "primary",
         status: "active",
+        currentStepExecutionId: steps.at(-1)?.id ?? null,
         supersededByWorkflowExecutionId: null,
         startedAt: new Date("2026-04-01T09:59:00.000Z"),
         completedAt: null,
         supersededAt: null,
+      }),
+    setCurrentStepExecutionId: ({
+      workflowExecutionId,
+      currentStepExecutionId,
+    }: {
+      workflowExecutionId: string;
+      currentStepExecutionId: string | null;
+    }) =>
+      Effect.sync(() => {
+        if (workflowExecutionId !== "wfexec-1") {
+          return null;
+        }
+
+        return {
+          id: workflowExecutionId,
+          transitionExecutionId: "tx-1",
+          workflowId: "workflow-1",
+          workflowRole: "primary",
+          status: "active",
+          currentStepExecutionId,
+          supersededByWorkflowExecutionId: null,
+          startedAt: new Date("2026-04-01T09:59:00.000Z"),
+          completedAt: null,
+          supersededAt: null,
+        };
       }),
     markWorkflowExecutionCompleted: () => Effect.succeed(null),
     markWorkflowExecutionSuperseded: () => Effect.succeed(null),
@@ -172,26 +272,7 @@ const buildRuntimeTestLayer = () => {
     retryWorkflowExecution: () => Effect.succeed(null),
   } as unknown as Context.Tag.Service<typeof WorkflowExecutionRepository>);
 
-  const projectFactRepoLayer = Layer.succeed(ProjectFactRepository, {
-    createFactInstance: ({ projectId, factDefinitionId, valueJson }) =>
-      Effect.succeed({
-        id: `pf-${projectId}-${factDefinitionId}`,
-        projectId,
-        factDefinitionId,
-        valueJson,
-        status: "active",
-        supersededByFactInstanceId: null,
-        producedByTransitionExecutionId: null,
-        producedByWorkflowExecutionId: null,
-        authoredByUserId: null,
-        createdAt: new Date(),
-      }),
-    getCurrentValuesByDefinition: () => Effect.succeed([]),
-    listFactsByProject: () => Effect.succeed([]),
-    supersedeFactInstance: () => Effect.void,
-  } as unknown as Context.Tag.Service<typeof ProjectFactRepository>);
-
-  const base = Layer.mergeAll(stepRepoLayer, workflowRepoLayer, projectFactRepoLayer);
+  const base = Layer.mergeAll(stepRepoLayer, workflowRepoLayer);
   const progression = Layer.provide(StepProgressionServiceLive, base);
   const lifecycle = Layer.provide(
     StepExecutionLifecycleServiceLive,
@@ -200,7 +281,7 @@ const buildRuntimeTestLayer = () => {
   const contextMutation = Layer.provide(StepContextMutationServiceLive, base);
   const transaction = Layer.provide(
     StepExecutionTransactionServiceLive,
-    Layer.mergeAll(base, progression, lifecycle, contextMutation),
+    Layer.mergeAll(base, lifecycle, contextMutation),
   );
 
   return {
@@ -210,7 +291,7 @@ const buildRuntimeTestLayer = () => {
 };
 
 describe("l3 slice-1 step core services", () => {
-  it("activates first step idempotently", async () => {
+  it("activates the entry step idempotently while it is still pending", async () => {
     const runtime = buildRuntimeTestLayer();
 
     const result = await Effect.runPromise(
@@ -225,48 +306,143 @@ describe("l3 slice-1 step core services", () => {
     expect(result.first.id).toBe(result.second.id);
     expect(runtime.state.steps).toHaveLength(1);
     expect(runtime.state.steps[0]?.stepDefinitionId).toBe("step-1");
+    expect(runtime.state.steps[0]?.previousStepExecutionId).toBeNull();
+    expect(runtime.state.formState[0]?.stepExecutionId).toBe(result.first.id);
   });
 
-  it("submits form step with snapshot, context writes, and deterministic progression", async () => {
+  it("surfaces invalid entry-step derivation explicitly", async () => {
+    const runtime = buildRuntimeTestLayer({ entryMode: "missing" });
+
+    const exit = await Effect.runPromiseExit(
+      Effect.gen(function* () {
+        const service = yield* StepExecutionLifecycleService;
+        return yield* service.activateFirstStepExecution("wfexec-1");
+      }).pipe(Effect.provide(runtime.layer)),
+    );
+
+    expect(exit._tag).toBe("Failure");
+
+    expect(runtime.state.steps).toHaveLength(0);
+  });
+
+  it("keeps submit separate from completion and replaces current context facts", async () => {
     const runtime = buildRuntimeTestLayer();
 
     const result = await Effect.runPromise(
       Effect.gen(function* () {
         const tx = yield* StepExecutionTransactionService;
         const activated = yield* tx.activateFirstStepExecution("wfexec-1");
-        return yield* tx.submitFormStepExecution({
+
+        const firstSubmit = yield* tx.submitFormStepExecution({
           workflowExecutionId: "wfexec-1",
           stepExecutionId: activated.stepExecutionId,
-          submittedValues: { initiativeName: "Chiron" },
-          contextWrites: [
-            {
-              workflowExecutionId: "wfexec-1",
-              sourceStepExecutionId: activated.stepExecutionId,
-              factKey: "initiative_name",
-              factKind: "plain_value",
-              valueJson: "Chiron",
-            },
-          ],
+          submittedValues: {
+            "ctx-initiative-name": "Draft initiative",
+            "ctx-objectives": ["one", "two"],
+          },
+          contextReplace: {
+            workflowExecutionId: "wfexec-1",
+            sourceStepExecutionId: activated.stepExecutionId,
+            affectedContextFactDefinitionIds: ["ctx-initiative-name", "ctx-objectives"],
+            currentValues: [
+              {
+                contextFactDefinitionId: "ctx-initiative-name",
+                instanceOrder: 0,
+                valueJson: "Draft initiative",
+              },
+              {
+                contextFactDefinitionId: "ctx-objectives",
+                instanceOrder: 0,
+                valueJson: "one",
+              },
+              {
+                contextFactDefinitionId: "ctx-objectives",
+                instanceOrder: 1,
+                valueJson: "two",
+              },
+            ],
+          },
         });
+
+        const secondSubmit = yield* tx.submitFormStepExecution({
+          workflowExecutionId: "wfexec-1",
+          stepExecutionId: activated.stepExecutionId,
+          submittedValues: {
+            "ctx-initiative-name": "Final initiative",
+            "ctx-objectives": [],
+          },
+          contextReplace: {
+            workflowExecutionId: "wfexec-1",
+            sourceStepExecutionId: activated.stepExecutionId,
+            affectedContextFactDefinitionIds: ["ctx-initiative-name", "ctx-objectives"],
+            currentValues: [
+              {
+                contextFactDefinitionId: "ctx-initiative-name",
+                instanceOrder: 0,
+                valueJson: "Final initiative",
+              },
+            ],
+          },
+        });
+
+        const completed = yield* tx.completeStepExecution({
+          workflowExecutionId: "wfexec-1",
+          stepExecutionId: activated.stepExecutionId,
+        });
+
+        return { activated, firstSubmit, secondSubmit, completed };
       }).pipe(Effect.provide(runtime.layer)),
     );
 
-    expect(result.status).toBe("captured");
-    expect(result.nextStepExecutionId).toBeDefined();
+    expect(result.firstSubmit.status).toBe("captured");
+    expect(result.secondSubmit.status).toBe("captured");
+    expect(result.completed.status).toBe("completed");
 
-    expect(runtime.state.formState[0]?.submittedSnapshotJson).toMatchObject({
-      initiativeName: "Chiron",
+    expect(runtime.state.formState[0]).toMatchObject({
+      draftPayloadJson: {
+        "ctx-initiative-name": "Final initiative",
+        "ctx-objectives": [],
+      },
+      submittedPayloadJson: {
+        "ctx-initiative-name": "Final initiative",
+        "ctx-objectives": [],
+      },
     });
+    expect(runtime.state.formState[0]?.submittedAt).toBeInstanceOf(Date);
+
     expect(runtime.state.contextFacts).toHaveLength(1);
-    expect(runtime.state.contextFacts[0]?.factKey).toBe("initiative_name");
+    expect(runtime.state.contextFacts[0]).toMatchObject({
+      contextFactDefinitionId: "ctx-initiative-name",
+      instanceOrder: 0,
+      valueJson: "Final initiative",
+    });
 
     const firstStep = runtime.state.steps.find((step) => step.stepDefinitionId === "step-1");
     const secondStep = runtime.state.steps.find((step) => step.stepDefinitionId === "step-2");
 
     expect(firstStep?.status).toBe("completed");
-    expect(secondStep?.status).toBe("active");
-    expect(secondStep?.progressionData).toMatchObject({
-      activatedFromStepExecutionId: firstStep?.id,
-    });
+    expect(secondStep).toBeUndefined();
+  });
+
+  it("fails explicit duplicate activation after the step has already completed", async () => {
+    const runtime = buildRuntimeTestLayer();
+
+    const exit = await Effect.runPromiseExit(
+      Effect.gen(function* () {
+        const lifecycle = yield* StepExecutionLifecycleService;
+        const activated = yield* lifecycle.activateFirstStepExecution("wfexec-1");
+        yield* lifecycle.completeStepExecution({ stepExecutionId: activated.id });
+        return yield* lifecycle.activateStepExecution({
+          workflowExecutionId: "wfexec-1",
+          stepDefinitionId: "step-1",
+          stepType: "form",
+          previousStepExecutionId: null,
+        });
+      }).pipe(Effect.provide(runtime.layer)),
+    );
+
+    expect(exit._tag).toBe("Failure");
+    expect(runtime.state.steps).toHaveLength(1);
+    expect(runtime.state.steps[0]?.status).toBe("completed");
   });
 });

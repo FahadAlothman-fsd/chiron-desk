@@ -1,22 +1,29 @@
 import { Context, Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
+import { LifecycleRepository, MethodologyRepository } from "@chiron/methodology-engine";
+import { ProjectContextRepository } from "@chiron/project-context";
 
 import { ExecutionReadRepository } from "../../repositories/execution-read-repository";
-import { ProjectFactRepository } from "../../repositories/project-fact-repository";
 import {
   StepExecutionRepository,
+  type CompleteRuntimeStepExecutionParams,
+  type CreateRuntimeFormStepExecutionStateParams,
+  type CreateRuntimeStepExecutionParams,
+  type ReplaceRuntimeWorkflowExecutionContextFactsParams,
   type RuntimeFormStepExecutionStateRow,
   type RuntimeStepExecutionRow,
   type RuntimeWorkflowEdgeRow,
   type RuntimeWorkflowExecutionContextFactRow,
   type RuntimeWorkflowStepDefinitionRow,
+  type UpsertRuntimeFormStepExecutionStateParams,
 } from "../../repositories/step-execution-repository";
 import { TransitionExecutionRepository } from "../../repositories/transition-execution-repository";
 import { WorkflowExecutionRepository } from "../../repositories/workflow-execution-repository";
-import {
-  FormStepExecutionService,
-  FormStepExecutionServiceLive,
-} from "../../services/form-step-execution-service";
+import type {
+  CreateWorkflowExecutionParams,
+  WorkflowExecutionRow,
+} from "../../repositories/workflow-execution-repository";
+import { FormStepExecutionServiceLive } from "../../services/form-step-execution-service";
 import {
   StepExecutionDetailService,
   StepExecutionDetailServiceLive,
@@ -43,13 +50,6 @@ function makeRuntimeLayer(options?: { secondStepType?: RuntimeWorkflowStepDefini
   const steps: RuntimeStepExecutionRow[] = [];
   const formState: RuntimeFormStepExecutionStateRow[] = [];
   const contextFacts: RuntimeWorkflowExecutionContextFactRow[] = [];
-  const projectFacts: Context.Tag.Service<
-    typeof ProjectFactRepository
-  >["listFactsByProject"] extends (...args: any[]) => Effect.Effect<infer T, any>
-    ? T extends readonly (infer Item)[]
-      ? Item[]
-      : never
-    : never = [];
 
   const stepDefinitions: RuntimeWorkflowStepDefinitionRow[] = [
     {
@@ -78,7 +78,7 @@ function makeRuntimeLayer(options?: { secondStepType?: RuntimeWorkflowStepDefini
     },
   ];
 
-  const workflowExecutions = new Map([
+  const workflowExecutions = new Map<string, WorkflowExecutionRow>([
     [
       "wfexec-1",
       {
@@ -87,6 +87,7 @@ function makeRuntimeLayer(options?: { secondStepType?: RuntimeWorkflowStepDefini
         workflowId: "workflow-1",
         workflowRole: "primary" as const,
         status: "active" as const,
+        currentStepExecutionId: null,
         supersededByWorkflowExecutionId: null,
         startedAt: new Date("2026-04-03T09:59:00.000Z"),
         completedAt: null,
@@ -134,8 +135,8 @@ function makeRuntimeLayer(options?: { secondStepType?: RuntimeWorkflowStepDefini
       stepDefinitionId,
       stepType,
       status,
-      progressionData,
-    }) =>
+      previousStepExecutionId,
+    }: CreateRuntimeStepExecutionParams) =>
       Effect.sync(() => {
         const row: RuntimeStepExecutionRow = {
           id: `step-exec-${steps.length + 1}`,
@@ -145,14 +146,20 @@ function makeRuntimeLayer(options?: { secondStepType?: RuntimeWorkflowStepDefini
           status,
           activatedAt: new Date(),
           completedAt: null,
-          progressionData,
+          previousStepExecutionId,
         };
         steps.push(row);
         return row;
       }),
-    getStepExecutionById: (stepExecutionId) =>
+    getStepExecutionById: (stepExecutionId: string) =>
       Effect.succeed(steps.find((row) => row.id === stepExecutionId) ?? null),
-    findStepExecutionByWorkflowAndDefinition: ({ workflowExecutionId, stepDefinitionId }) =>
+    findStepExecutionByWorkflowAndDefinition: ({
+      workflowExecutionId,
+      stepDefinitionId,
+    }: {
+      workflowExecutionId: string;
+      stepDefinitionId: string;
+    }) =>
       Effect.succeed(
         steps.find(
           (row) =>
@@ -160,9 +167,9 @@ function makeRuntimeLayer(options?: { secondStepType?: RuntimeWorkflowStepDefini
             row.stepDefinitionId === stepDefinitionId,
         ) ?? null,
       ),
-    listStepExecutionsForWorkflow: (workflowExecutionId) =>
+    listStepExecutionsForWorkflow: (workflowExecutionId: string) =>
       Effect.succeed(steps.filter((row) => row.workflowExecutionId === workflowExecutionId)),
-    completeStepExecution: ({ stepExecutionId, progressionData }) =>
+    completeStepExecution: ({ stepExecutionId }: CompleteRuntimeStepExecutionParams) =>
       Effect.sync(() => {
         const row = steps.find((item) => item.id === stepExecutionId);
         if (!row) {
@@ -170,64 +177,109 @@ function makeRuntimeLayer(options?: { secondStepType?: RuntimeWorkflowStepDefini
         }
         row.status = "completed";
         row.completedAt = new Date();
-        row.progressionData = progressionData;
+        return row;
+      }),
+    createFormStepExecutionState: ({
+      stepExecutionId,
+    }: CreateRuntimeFormStepExecutionStateParams) =>
+      Effect.sync(() => {
+        const existing = formState.find((row) => row.stepExecutionId === stepExecutionId);
+        if (existing) {
+          return existing;
+        }
+
+        const row: RuntimeFormStepExecutionStateRow = {
+          id: `state-${formState.length + 1}`,
+          stepExecutionId,
+          draftPayloadJson: null,
+          submittedPayloadJson: null,
+          lastDraftSavedAt: null,
+          submittedAt: null,
+        };
+        formState.push(row);
         return row;
       }),
     upsertFormStepExecutionState: ({
       stepExecutionId,
-      draftValuesJson,
-      submittedSnapshotJson,
+      draftPayloadJson,
+      submittedPayloadJson,
+      lastDraftSavedAt,
       submittedAt,
-    }) =>
+    }: UpsertRuntimeFormStepExecutionStateParams) =>
       Effect.sync(() => {
         const existing = formState.find((row) => row.stepExecutionId === stepExecutionId);
         if (existing) {
-          existing.draftValuesJson = draftValuesJson;
-          existing.submittedSnapshotJson = submittedSnapshotJson;
+          existing.draftPayloadJson = draftPayloadJson;
+          existing.submittedPayloadJson = submittedPayloadJson;
+          existing.lastDraftSavedAt = lastDraftSavedAt;
           existing.submittedAt = submittedAt;
           return existing;
         }
+
         const row: RuntimeFormStepExecutionStateRow = {
           id: `state-${formState.length + 1}`,
           stepExecutionId,
-          draftValuesJson,
-          submittedSnapshotJson,
+          draftPayloadJson,
+          submittedPayloadJson,
+          lastDraftSavedAt,
           submittedAt,
         };
         formState.push(row);
         return row;
       }),
-    getFormStepExecutionState: (stepExecutionId) =>
+    getFormStepExecutionState: (stepExecutionId: string) =>
       Effect.succeed(formState.find((row) => row.stepExecutionId === stepExecutionId) ?? null),
-    writeWorkflowExecutionContextFact: ({
+    replaceWorkflowExecutionContextFacts: ({
       workflowExecutionId,
-      factKey,
-      factKind,
-      valueJson,
       sourceStepExecutionId,
-    }) =>
+      affectedContextFactDefinitionIds,
+      currentValues,
+    }: ReplaceRuntimeWorkflowExecutionContextFactsParams) =>
       Effect.sync(() => {
-        const row: RuntimeWorkflowExecutionContextFactRow = {
-          id: `ctx-${contextFacts.length + 1}`,
-          workflowExecutionId,
-          factKey,
-          factKind,
-          valueJson,
-          sourceStepExecutionId,
-        };
-        contextFacts.push(row);
-        return row;
+        for (let index = contextFacts.length - 1; index >= 0; index -= 1) {
+          const row = contextFacts[index];
+          if (
+            row &&
+            row.workflowExecutionId === workflowExecutionId &&
+            affectedContextFactDefinitionIds.includes(row.contextFactDefinitionId)
+          ) {
+            contextFacts.splice(index, 1);
+          }
+        }
+
+        const now = new Date();
+        const inserted = currentValues.map((value, index) => {
+          const row: RuntimeWorkflowExecutionContextFactRow = {
+            id: `ctx-${contextFacts.length + index + 1}`,
+            workflowExecutionId,
+            contextFactDefinitionId: value.contextFactDefinitionId,
+            instanceOrder: value.instanceOrder,
+            valueJson: value.valueJson,
+            sourceStepExecutionId,
+            createdAt: now,
+            updatedAt: now,
+          };
+          contextFacts.push(row);
+          return row;
+        });
+
+        return inserted;
       }),
-    listWorkflowExecutionContextFacts: (workflowExecutionId) =>
+    listWorkflowExecutionContextFacts: (workflowExecutionId: string) =>
       Effect.succeed(contextFacts.filter((row) => row.workflowExecutionId === workflowExecutionId)),
-    listWorkflowStepDefinitions: (workflowId) =>
+    listWorkflowStepDefinitions: (workflowId: string) =>
       Effect.succeed(stepDefinitions.filter((row) => row.workflowId === workflowId)),
-    listWorkflowEdges: (workflowId) =>
+    listWorkflowEdges: (workflowId: string) =>
       Effect.succeed(edges.filter((row) => row.workflowId === workflowId)),
   } as unknown as Context.Tag.Service<typeof StepExecutionRepository>);
 
   const workflowRepoLayer = Layer.succeed(WorkflowExecutionRepository, {
-    createWorkflowExecution: ({ transitionExecutionId, workflowId, workflowRole, status }) =>
+    createWorkflowExecution: ({
+      transitionExecutionId,
+      workflowId,
+      workflowRole,
+      status,
+    }: CreateWorkflowExecutionParams) =>
       Effect.sync(() => {
         const created = {
           id: `wfexec-${workflowExecutions.size + 1}`,
@@ -235,6 +287,7 @@ function makeRuntimeLayer(options?: { secondStepType?: RuntimeWorkflowStepDefini
           workflowId,
           workflowRole,
           status: status ?? "active",
+          currentStepExecutionId: null,
           supersededByWorkflowExecutionId: null,
           startedAt: new Date(),
           completedAt: null,
@@ -243,57 +296,30 @@ function makeRuntimeLayer(options?: { secondStepType?: RuntimeWorkflowStepDefini
         workflowExecutions.set(created.id, created);
         return created;
       }),
-    getWorkflowExecutionById: (workflowExecutionId) =>
+    getWorkflowExecutionById: (workflowExecutionId: string) =>
       Effect.succeed(workflowExecutions.get(workflowExecutionId) ?? null),
+    setCurrentStepExecutionId: ({
+      workflowExecutionId,
+      currentStepExecutionId,
+    }: {
+      workflowExecutionId: string;
+      currentStepExecutionId: string | null;
+    }) =>
+      Effect.sync(() => {
+        const existing = workflowExecutions.get(workflowExecutionId);
+        if (!existing) {
+          return null;
+        }
+
+        const updated = { ...existing, currentStepExecutionId };
+        workflowExecutions.set(workflowExecutionId, updated);
+        return updated;
+      }),
     markWorkflowExecutionCompleted: () => Effect.succeed(null),
     markWorkflowExecutionSuperseded: () => Effect.succeed(null),
     updateTransitionPrimaryWorkflowExecutionPointer: () => Effect.void,
     retryWorkflowExecution: () => Effect.succeed(null),
   } as unknown as Context.Tag.Service<typeof WorkflowExecutionRepository>);
-
-  const projectFactRepoLayer = Layer.succeed(ProjectFactRepository, {
-    createFactInstance: ({
-      projectId,
-      factDefinitionId,
-      valueJson,
-      producedByWorkflowExecutionId,
-    }) =>
-      Effect.sync(() => {
-        const row = {
-          id: `pf-${projectFacts.length + 1}`,
-          projectId,
-          factDefinitionId,
-          valueJson,
-          status: "active" as const,
-          supersededByFactInstanceId: null,
-          producedByTransitionExecutionId: null,
-          producedByWorkflowExecutionId: producedByWorkflowExecutionId ?? null,
-          authoredByUserId: null,
-          createdAt: new Date(),
-        };
-        projectFacts.push(row);
-        return row;
-      }),
-    getCurrentValuesByDefinition: ({ projectId, factDefinitionId }) =>
-      Effect.succeed(
-        projectFacts.filter(
-          (row) =>
-            row.projectId === projectId &&
-            row.factDefinitionId === factDefinitionId &&
-            row.status === "active",
-        ),
-      ),
-    listFactsByProject: ({ projectId }) =>
-      Effect.succeed(projectFacts.filter((row) => row.projectId === projectId)),
-    supersedeFactInstance: ({ projectFactInstanceId, supersededByProjectFactInstanceId }) =>
-      Effect.sync(() => {
-        const row = projectFacts.find((item) => item.id === projectFactInstanceId);
-        if (row) {
-          row.status = "superseded";
-          row.supersededByFactInstanceId = supersededByProjectFactInstanceId;
-        }
-      }),
-  } as unknown as Context.Tag.Service<typeof ProjectFactRepository>);
 
   const transitionRepoLayer = Layer.succeed(TransitionExecutionRepository, {
     createTransitionExecution: () => Effect.die("unused"),
@@ -303,12 +329,191 @@ function makeRuntimeLayer(options?: { secondStepType?: RuntimeWorkflowStepDefini
     getTransitionExecutionById: () => Effect.succeed(null),
   } as unknown as Context.Tag.Service<typeof TransitionExecutionRepository>);
 
+  const methodologyRepoLayer = Layer.succeed(MethodologyRepository, {
+    getWorkflowEditorDefinition: () =>
+      Effect.succeed({
+        workflow: {
+          workflowDefinitionId: "workflow-1",
+          key: "workflow-1",
+          displayName: "Workflow 1",
+          descriptionJson: null,
+        },
+        steps: [
+          {
+            stepId: "step-1",
+            stepType: "form",
+            payload: {
+              key: "collect_setup_context",
+              label: "Collect setup context",
+              fields: [
+                {
+                  contextFactDefinitionId: "ctx-initiative-name",
+                  fieldLabel: "Initiative name",
+                  fieldKey: "initiativeName",
+                  helpText: "Reusable name",
+                  required: true,
+                },
+                {
+                  contextFactDefinitionId: "ctx-objectives",
+                  fieldLabel: "Objectives",
+                  fieldKey: "objectives",
+                  helpText: "Key objectives",
+                  required: false,
+                  uiMultiplicityMode: "many",
+                },
+              ],
+            },
+          },
+        ],
+        edges: [],
+        contextFacts: [
+          {
+            kind: "plain_value_fact",
+            contextFactDefinitionId: "ctx-initiative-name",
+            key: "initiative_name",
+            label: "Initiative name",
+            cardinality: "one",
+            valueType: "string",
+          },
+          {
+            kind: "plain_value_fact",
+            contextFactDefinitionId: "ctx-objectives",
+            key: "objectives",
+            label: "Objectives",
+            cardinality: "many",
+            valueType: "string",
+          },
+        ],
+        formDefinitions: [
+          {
+            stepId: "step-1",
+            payload: {
+              key: "collect_setup_context",
+              label: "Collect setup context",
+              fields: [
+                {
+                  contextFactDefinitionId: "ctx-initiative-name",
+                  fieldLabel: "Initiative name",
+                  fieldKey: "initiativeName",
+                  helpText: "Reusable name",
+                  required: true,
+                },
+                {
+                  contextFactDefinitionId: "ctx-objectives",
+                  fieldLabel: "Objectives",
+                  fieldKey: "objectives",
+                  helpText: "Key objectives",
+                  required: false,
+                  uiMultiplicityMode: "many",
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    listWorkflowContextFactsByDefinitionId: () => Effect.succeed([]),
+    createWorkflowContextFactByDefinitionId: () => Effect.die("unused"),
+    updateWorkflowContextFactByDefinitionId: () => Effect.die("unused"),
+    deleteWorkflowContextFactByDefinitionId: () => Effect.die("unused"),
+    createFormStepDefinition: () => Effect.die("unused"),
+    updateFormStepDefinition: () => Effect.die("unused"),
+    deleteFormStepDefinition: () => Effect.die("unused"),
+    updateWorkflowMetadataByDefinitionId: () => Effect.die("unused"),
+  } as unknown as Context.Tag.Service<typeof MethodologyRepository>);
+
+  const lifecycleRepoLayer = Layer.succeed(LifecycleRepository, {
+    findWorkUnitTypes: () =>
+      Effect.succeed([
+        {
+          id: "setup",
+          methodologyVersionId: "version-1",
+          key: "WU.SETUP",
+          displayName: "Setup",
+          descriptionJson: null,
+          guidanceJson: null,
+          cardinality: "one",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]),
+    findLifecycleStates: () => Effect.succeed([]),
+    findLifecycleTransitions: () => Effect.succeed([]),
+    findFactSchemas: () =>
+      Effect.succeed([
+        {
+          id: "ctx-initiative-name",
+          methodologyVersionId: "version-1",
+          workUnitTypeId: "setup",
+          name: "Initiative name",
+          key: "initiative_name",
+          factType: "string",
+          cardinality: "one",
+          description: null,
+          defaultValueJson: null,
+          guidanceJson: null,
+          validationJson: { kind: "none" },
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        {
+          id: "ctx-objectives",
+          methodologyVersionId: "version-1",
+          workUnitTypeId: "setup",
+          name: "Objectives",
+          key: "objectives",
+          factType: "string",
+          cardinality: "many",
+          description: null,
+          defaultValueJson: null,
+          guidanceJson: null,
+          validationJson: { kind: "none" },
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]),
+    findTransitionConditionSets: () => Effect.succeed([]),
+    findAgentTypes: () => Effect.succeed([]),
+    findTransitionWorkflowBindings: () => Effect.succeed([]),
+    saveLifecycleDefinition: () => Effect.die("unused"),
+    recordLifecycleEvent: () => Effect.die("unused"),
+  } as unknown as Context.Tag.Service<typeof LifecycleRepository>);
+
+  const projectContextRepoLayer = Layer.succeed(ProjectContextRepository, {
+    findProjectPin: () =>
+      Effect.succeed({
+        projectId: "project-1",
+        methodologyVersionId: "version-1",
+        methodologyId: "methodology-1",
+        methodologyKey: "methodology",
+        publishedVersion: "v1",
+        actorId: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }),
+    hasExecutionHistoryForRepin: () => Effect.succeed(false),
+    pinProjectMethodologyVersion: () => Effect.die("unused"),
+    repinProjectMethodologyVersion: () => Effect.die("unused"),
+    getProjectPinLineage: () => Effect.succeed([]),
+    createProject: () => Effect.die("unused"),
+    listProjects: () => Effect.succeed([]),
+    getProjectById: () =>
+      Effect.succeed({
+        id: "project-1",
+        name: "Project 1",
+        projectRootPath: "/tmp/chiron",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }),
+  } as unknown as Context.Tag.Service<typeof ProjectContextRepository>);
+
   const base = Layer.mergeAll(
     executionReadLayer,
     stepRepoLayer,
     workflowRepoLayer,
-    projectFactRepoLayer,
     transitionRepoLayer,
+    methodologyRepoLayer,
+    lifecycleRepoLayer,
+    projectContextRepoLayer,
   );
 
   const progression = Layer.provide(StepProgressionServiceLive, base);
@@ -320,7 +525,7 @@ function makeRuntimeLayer(options?: { secondStepType?: RuntimeWorkflowStepDefini
   const contextQuery = Layer.provide(StepContextQueryServiceLive, base);
   const transaction = Layer.provide(
     StepExecutionTransactionServiceLive,
-    Layer.mergeAll(base, progression, lifecycle, contextMutation),
+    Layer.mergeAll(base, lifecycle, contextMutation),
   );
   const formExecution = Layer.provide(
     FormStepExecutionServiceLive,
@@ -328,7 +533,7 @@ function makeRuntimeLayer(options?: { secondStepType?: RuntimeWorkflowStepDefini
   );
   const stepCommand = Layer.provide(
     WorkflowExecutionStepCommandServiceLive,
-    Layer.mergeAll(base, progression, lifecycle, formExecution),
+    Layer.mergeAll(base, progression, formExecution, transaction, lifecycle),
   );
   const stepDetail = Layer.provide(
     StepExecutionDetailServiceLive,
@@ -337,7 +542,7 @@ function makeRuntimeLayer(options?: { secondStepType?: RuntimeWorkflowStepDefini
   const workflowCommand = Layer.provide(WorkflowExecutionCommandServiceLive, base);
 
   return {
-    state: { steps, formState, contextFacts, projectFacts, workflowExecutions },
+    state: { steps, formState, contextFacts, workflowExecutions },
     layer: Layer.mergeAll(
       base,
       progression,
@@ -376,7 +581,7 @@ describe("l3 slice-1 form runtime services", () => {
     expect(runtime.state.steps).toHaveLength(1);
   });
 
-  it("submits Form step with immutable snapshot, context writes, mapped project writes, and progression", async () => {
+  it("separates draft save, submit, and complete while keeping latest-only Form state", async () => {
     const runtime = makeRuntimeLayer();
 
     const result = await Effect.runPromise(
@@ -394,9 +599,13 @@ describe("l3 slice-1 form runtime services", () => {
           workflowExecutionId: "wfexec-1",
           stepExecutionId: activated.stepExecutionId,
           values: {
-            initiative_name: "Chiron",
-            "project.setup_tags": { env: "dev" },
+            "ctx-initiative-name": "Draft Chiron",
           },
+        });
+
+        const detailAfterDraft = yield* detailService.getRuntimeStepExecutionDetail({
+          projectId: "project-1",
+          stepExecutionId: activated.stepExecutionId,
         });
 
         const submitted = yield* stepCommands.submitFormStep({
@@ -404,44 +613,139 @@ describe("l3 slice-1 form runtime services", () => {
           workflowExecutionId: "wfexec-1",
           stepExecutionId: activated.stepExecutionId,
           values: {
-            initiative_name: "Chiron",
-            "project.setup_tags": { env: "dev" },
+            "ctx-initiative-name": "Final Chiron",
+            "ctx-objectives": ["stability", "clarity"],
           },
         });
 
-        const detail = yield* detailService.getRuntimeStepExecutionDetail({
+        const detailAfterSubmit = yield* detailService.getRuntimeStepExecutionDetail({
           projectId: "project-1",
           stepExecutionId: activated.stepExecutionId,
         });
 
-        return { submitted, detail };
+        const completed = yield* stepCommands.completeStepExecution({
+          projectId: "project-1",
+          workflowExecutionId: "wfexec-1",
+          stepExecutionId: activated.stepExecutionId,
+        });
+
+        const detailAfterComplete = yield* detailService.getRuntimeStepExecutionDetail({
+          projectId: "project-1",
+          stepExecutionId: activated.stepExecutionId,
+        });
+
+        return {
+          activated,
+          submitted,
+          completed,
+          detailAfterDraft,
+          detailAfterSubmit,
+          detailAfterComplete,
+        };
       }).pipe(Effect.provide(runtime.layer)),
     );
 
     expect(result.submitted.status).toBe("captured");
-    expect(runtime.state.formState[0]?.submittedSnapshotJson).toMatchObject({
-      initiative_name: "Chiron",
-      "project.setup_tags": { env: "dev" },
-    });
-    expect(runtime.state.contextFacts).toHaveLength(1);
-    expect(runtime.state.contextFacts[0]?.factKey).toBe("initiative_name");
+    expect(result.completed.status).toBe("completed");
 
-    expect(runtime.state.projectFacts).toHaveLength(1);
-    expect(runtime.state.projectFacts[0]?.factDefinitionId).toBe("setup_tags");
-
-    expect(result.detail?.tabs.submissionAndProgression.submittedSnapshot).toMatchObject({
-      initiative_name: "Chiron",
+    expect(runtime.state.formState[0]?.draftPayloadJson).toMatchObject({
+      "ctx-initiative-name": "Final Chiron",
+      "ctx-objectives": ["stability", "clarity"],
     });
-    expect(result.detail?.tabs.writes.workflowContextWrites).toHaveLength(1);
-    expect(result.detail?.tabs.writes.authoritativeProjectFactWrites).toHaveLength(1);
-    expect(
-      result.detail?.tabs.contextFactSemantics.notes.some((note) =>
-        note.includes("Submission snapshot is immutable"),
-      ),
-    ).toBe(true);
+    expect(runtime.state.formState[0]?.submittedPayloadJson).toMatchObject({
+      "ctx-initiative-name": "Final Chiron",
+      "ctx-objectives": ["stability", "clarity"],
+    });
+    expect(runtime.state.formState[0]?.lastDraftSavedAt).toBeInstanceOf(Date);
+    expect(runtime.state.formState[0]?.submittedAt).toBeInstanceOf(Date);
+
+    expect(runtime.state.contextFacts).toHaveLength(3);
+    expect(runtime.state.contextFacts.map((row) => row.contextFactDefinitionId)).toEqual([
+      "ctx-initiative-name",
+      "ctx-objectives",
+      "ctx-objectives",
+    ]);
+
+    expect(result.detailAfterDraft?.shell.completionAction.enabled).toBe(false);
+    expect(result.detailAfterDraft?.body.stepType).toBe("form");
+    if (result.detailAfterDraft?.body.stepType === "form") {
+      expect(result.detailAfterDraft.body.page.fields.map((field) => field.fieldKey)).toEqual([
+        "initiativeName",
+        "objectives",
+      ]);
+      expect(result.detailAfterDraft.body.draft.payload).toMatchObject({
+        initiativeName: "Draft Chiron",
+      });
+      expect(result.detailAfterDraft.body.draft.lastSavedAt).toBeDefined();
+      expect(result.detailAfterDraft.body.submission.payload).toMatchObject({
+        initiativeName: null,
+        objectives: [],
+      });
+    }
+
+    expect(result.detailAfterSubmit?.shell.status).toBe("active");
+    expect(result.detailAfterSubmit?.shell.completionAction.enabled).toBe(true);
+    expect(result.detailAfterSubmit?.body.stepType).toBe("form");
+    if (result.detailAfterSubmit?.body.stepType === "form") {
+      expect(result.detailAfterSubmit.body.submitAction.enabled).toBe(true);
+      expect(result.detailAfterSubmit.body.submission.payload).toMatchObject({
+        initiativeName: "Final Chiron",
+        objectives: ["stability", "clarity"],
+      });
+      expect(result.detailAfterSubmit.body.lineage.nextStepExecutionId).toBeUndefined();
+    }
+
+    expect(result.detailAfterComplete?.shell.status).toBe("completed");
+    expect(result.detailAfterComplete?.shell.completionAction.visible).toBe(false);
+    expect(result.detailAfterComplete?.body.stepType).toBe("form");
+    if (result.detailAfterComplete?.body.stepType === "form") {
+      expect(result.detailAfterComplete.body.submitAction.enabled).toBe(false);
+    }
   });
 
-  it("keeps lifecycle seams reusable when the next step type is deferred for a later slice", async () => {
+  it("submit replaces only the affected current context-fact rows and can clear many-values", async () => {
+    const runtime = makeRuntimeLayer();
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const stepCommands = yield* WorkflowExecutionStepCommandService;
+
+        const activated = yield* stepCommands.activateFirstWorkflowStepExecution({
+          projectId: "project-1",
+          workflowExecutionId: "wfexec-1",
+        });
+
+        yield* stepCommands.submitFormStep({
+          projectId: "project-1",
+          workflowExecutionId: "wfexec-1",
+          stepExecutionId: activated.stepExecutionId,
+          values: {
+            "ctx-initiative-name": "Initial",
+            "ctx-objectives": ["one", "two"],
+          },
+        });
+
+        yield* stepCommands.submitFormStep({
+          projectId: "project-1",
+          workflowExecutionId: "wfexec-1",
+          stepExecutionId: activated.stepExecutionId,
+          values: {
+            "ctx-initiative-name": "Replacement",
+            "ctx-objectives": [],
+          },
+        });
+      }).pipe(Effect.provide(runtime.layer)),
+    );
+
+    expect(runtime.state.contextFacts).toHaveLength(1);
+    expect(runtime.state.contextFacts[0]).toMatchObject({
+      contextFactDefinitionId: "ctx-initiative-name",
+      instanceOrder: 0,
+      valueJson: "Replacement",
+    });
+  });
+
+  it("does not auto-activate the next step even when later step types exist", async () => {
     const runtime = makeRuntimeLayer({ secondStepType: "agent" });
 
     await Effect.runPromise(
@@ -458,7 +762,7 @@ describe("l3 slice-1 form runtime services", () => {
           workflowExecutionId: "wfexec-1",
           stepExecutionId: activated.stepExecutionId,
           values: {
-            initiative_name: "Chiron",
+            "ctx-initiative-name": "Chiron",
           },
         });
       }).pipe(Effect.provide(runtime.layer)),
@@ -467,15 +771,12 @@ describe("l3 slice-1 form runtime services", () => {
     const firstStep = runtime.state.steps.find((step) => step.stepDefinitionId === "step-1");
     const nextStep = runtime.state.steps.find((step) => step.stepDefinitionId === "step-2");
 
-    expect(firstStep?.status).toBe("completed");
-    expect(nextStep).toMatchObject({
-      stepDefinitionId: "step-2",
-      stepType: "agent",
+    expect(firstStep).toMatchObject({
+      stepDefinitionId: "step-1",
+      stepType: "form",
       status: "active",
     });
-    expect(nextStep?.progressionData).toMatchObject({
-      activatedFromStepExecutionId: firstStep?.id,
-    });
+    expect(nextStep).toBeUndefined();
   });
 
   it("workflow retry path does not auto-create step executions", async () => {
@@ -502,8 +803,7 @@ describe("l3 slice-1 form runtime services", () => {
     await Effect.runPromise(
       Effect.gen(function* () {
         const lifecycleService = yield* StepExecutionLifecycleService;
-        const status = yield* lifecycleService.getStepExecutionStatus("missing");
-        return status;
+        return yield* lifecycleService.getStepExecutionStatus("missing");
       }).pipe(Effect.provide(runtime.layer)),
     );
 

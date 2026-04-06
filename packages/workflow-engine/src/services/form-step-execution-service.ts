@@ -27,25 +27,60 @@ const makeFormExecutionError = (cause: string): RepositoryError =>
     cause: new Error(cause),
   });
 
-const splitWrites = (values: Record<string, unknown>) => {
-  const contextWrites = Object.entries(values)
-    .filter(([key]) => !key.startsWith("project."))
-    .map(([factKey, valueJson]) => ({
-      factKey,
-      factKind: "plain_value",
-      valueJson,
-    }));
+const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
 
-  const authoritativeProjectFactWrites = Object.entries(values)
-    .filter(([key]) => key.startsWith("project."))
-    .map(([key, valueJson]) => ({
-      factDefinitionId: key.slice("project.".length),
-      valueJson,
-      mode: "set" as const,
-    }))
-    .filter((write) => write.factDefinitionId.length > 0);
+const isJsonCompatible = (value: unknown): boolean => {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "boolean" ||
+    (typeof value === "number" && Number.isFinite(value))
+  ) {
+    return true;
+  }
 
-  return { contextWrites, authoritativeProjectFactWrites };
+  if (Array.isArray(value)) {
+    return value.every(isJsonCompatible);
+  }
+
+  if (isPlainRecord(value)) {
+    return Object.values(value).every(isJsonCompatible);
+  }
+
+  return false;
+};
+
+const validateStructuralPayload = (values: Record<string, unknown>) =>
+  isPlainRecord(values) &&
+  Object.keys(values).every((key) => key.length > 0) &&
+  isJsonCompatible(values);
+
+const validateReadyToSubmitPayload = (values: Record<string, unknown>) =>
+  validateStructuralPayload(values);
+
+const buildContextReplacement = (values: Record<string, unknown>) => {
+  const affectedContextFactDefinitionIds = Object.keys(values);
+  const currentValues = Object.entries(values).flatMap(([contextFactDefinitionId, valueJson]) =>
+    Array.isArray(valueJson)
+      ? valueJson.map((entry, instanceOrder) => ({
+          contextFactDefinitionId,
+          instanceOrder,
+          valueJson: entry,
+        }))
+      : [
+          {
+            contextFactDefinitionId,
+            instanceOrder: 0,
+            valueJson,
+          },
+        ],
+  );
+
+  return {
+    affectedContextFactDefinitionIds,
+    currentValues,
+  };
 };
 
 export class FormStepExecutionService extends Context.Tag(
@@ -101,12 +136,19 @@ export const FormStepExecutionServiceLive = Layer.effect(
       Effect.gen(function* () {
         yield* assertStepOwnership(input);
 
+        if (!validateStructuralPayload(input.values)) {
+          return yield* makeFormExecutionError("draft payload must be a JSON-compatible object");
+        }
+
         const existingState = yield* stepRepo.getFormStepExecutionState(input.stepExecutionId);
+
+        const now = new Date();
 
         yield* stepRepo.upsertFormStepExecutionState({
           stepExecutionId: input.stepExecutionId,
-          draftValuesJson: input.values,
-          submittedSnapshotJson: existingState?.submittedSnapshotJson ?? null,
+          draftPayloadJson: input.values,
+          submittedPayloadJson: existingState?.submittedPayloadJson ?? null,
+          lastDraftSavedAt: now,
           submittedAt: existingState?.submittedAt ?? null,
         });
 
@@ -118,32 +160,26 @@ export const FormStepExecutionServiceLive = Layer.effect(
 
     const submitFormStep = (input: SubmitFormStepExecutionInput) =>
       Effect.gen(function* () {
-        const { workflowDetail } = yield* assertStepOwnership(input);
+        yield* assertStepOwnership(input);
 
-        const existingState = yield* stepRepo.getFormStepExecutionState(input.stepExecutionId);
-        if (existingState?.submittedAt) {
-          return yield* makeFormExecutionError("form step is already submitted");
+        if (!validateReadyToSubmitPayload(input.values)) {
+          return yield* makeFormExecutionError(
+            "submitted payload must be a JSON-compatible object ready for submit",
+          );
         }
 
-        const writes = splitWrites(input.values);
+        const contextReplace = buildContextReplacement(input.values);
 
         const submitted = yield* tx.submitFormStepExecution({
           workflowExecutionId: input.workflowExecutionId,
           stepExecutionId: input.stepExecutionId,
           submittedValues: input.values,
-          contextWrites: writes.contextWrites.map((write) => ({
+          contextReplace: {
             workflowExecutionId: input.workflowExecutionId,
             sourceStepExecutionId: input.stepExecutionId,
-            factKey: write.factKey,
-            factKind: write.factKind,
-            valueJson: write.valueJson,
-          })),
-          authoritativeProjectFactWrites: writes.authoritativeProjectFactWrites.map((write) => ({
-            projectId: workflowDetail.projectId,
-            factDefinitionId: write.factDefinitionId,
-            valueJson: write.valueJson,
-            mode: write.mode,
-          })),
+            affectedContextFactDefinitionIds: contextReplace.affectedContextFactDefinitionIds,
+            currentValues: contextReplace.currentValues,
+          },
         });
 
         return {

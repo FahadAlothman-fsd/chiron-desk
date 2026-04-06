@@ -3,26 +3,39 @@ import { Context, Effect, Layer } from "effect";
 import { RepositoryError } from "../errors";
 import { ExecutionReadRepository } from "../repositories/execution-read-repository";
 import { StepExecutionRepository } from "../repositories/step-execution-repository";
-import { WorkflowExecutionRepository } from "../repositories/workflow-execution-repository";
 import {
   FormStepExecutionService,
   type SaveFormStepDraftInput,
   type SaveFormStepDraftOutput,
 } from "./form-step-execution-service";
-import { StepExecutionLifecycleService } from "./step-execution-lifecycle-service";
 import { StepProgressionService } from "./step-progression-service";
+import { StepExecutionTransactionService } from "./step-execution-transaction-service";
 import type {
   SubmitFormStepExecutionInput,
   SubmitFormStepExecutionOutput,
 } from "@chiron/contracts/runtime/executions";
 
-export interface ActivateFirstWorkflowStepExecutionInput {
+export interface ActivateWorkflowStepExecutionInput {
   projectId: string;
   workflowExecutionId: string;
 }
 
-export interface ActivateFirstWorkflowStepExecutionOutput {
+export interface ActivateWorkflowStepExecutionOutput {
   stepExecutionId: string;
+}
+
+export type ActivateFirstWorkflowStepExecutionInput = ActivateWorkflowStepExecutionInput;
+export type ActivateFirstWorkflowStepExecutionOutput = ActivateWorkflowStepExecutionOutput;
+
+export interface CompleteStepExecutionInput {
+  projectId: string;
+  workflowExecutionId: string;
+  stepExecutionId: string;
+}
+
+export interface CompleteStepExecutionOutput {
+  stepExecutionId: string;
+  status: "completed";
 }
 
 const makeCommandError = (cause: string): RepositoryError =>
@@ -36,6 +49,9 @@ export class WorkflowExecutionStepCommandService extends Context.Tag(
 )<
   WorkflowExecutionStepCommandService,
   {
+    readonly activateWorkflowStepExecution: (
+      input: ActivateWorkflowStepExecutionInput,
+    ) => Effect.Effect<ActivateWorkflowStepExecutionOutput, RepositoryError>;
     readonly activateFirstWorkflowStepExecution: (
       input: ActivateFirstWorkflowStepExecutionInput,
     ) => Effect.Effect<ActivateFirstWorkflowStepExecutionOutput, RepositoryError>;
@@ -45,6 +61,9 @@ export class WorkflowExecutionStepCommandService extends Context.Tag(
     readonly submitFormStep: (
       input: SubmitFormStepExecutionInput,
     ) => Effect.Effect<SubmitFormStepExecutionOutput, RepositoryError>;
+    readonly completeStepExecution: (
+      input: CompleteStepExecutionInput,
+    ) => Effect.Effect<CompleteStepExecutionOutput, RepositoryError>;
   }
 >() {}
 
@@ -52,11 +71,10 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
   WorkflowExecutionStepCommandService,
   Effect.gen(function* () {
     const readRepo = yield* ExecutionReadRepository;
-    const workflowRepo = yield* WorkflowExecutionRepository;
     const stepRepo = yield* StepExecutionRepository;
-    const progression = yield* StepProgressionService;
-    const lifecycle = yield* StepExecutionLifecycleService;
     const formExecution = yield* FormStepExecutionService;
+    const progression = yield* StepProgressionService;
+    const tx = yield* StepExecutionTransactionService;
 
     const assertWorkflowOwnership = (input: { projectId: string; workflowExecutionId: string }) =>
       Effect.gen(function* () {
@@ -67,39 +85,48 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
         return detail;
       });
 
-    const activateFirstWorkflowStepExecution = (input: ActivateFirstWorkflowStepExecutionInput) =>
+    const activateWorkflowStepExecution = (input: ActivateWorkflowStepExecutionInput) =>
       Effect.gen(function* () {
-        yield* assertWorkflowOwnership(input);
+        const detail = yield* assertWorkflowOwnership(input);
 
         const existing = yield* stepRepo.listStepExecutionsForWorkflow(input.workflowExecutionId);
-        if (existing.length > 0) {
-          return { stepExecutionId: existing[0]!.id };
+        if (existing.length === 0) {
+          return yield* tx.activateFirstStepExecution(input.workflowExecutionId);
         }
 
-        const workflowExecution = yield* workflowRepo.getWorkflowExecutionById(
-          input.workflowExecutionId,
-        );
-        if (!workflowExecution) {
-          return yield* makeCommandError("workflow execution not found");
+        const currentStepExecutionId = detail.workflowExecution.currentStepExecutionId;
+        if (!currentStepExecutionId) {
+          return yield* makeCommandError("workflow current step pointer is missing for activation");
         }
 
-        const firstStep = yield* progression.getFirstStepDefinition(workflowExecution.workflowId);
-        if (!firstStep) {
-          return yield* makeCommandError("workflow has no executable first step");
+        const currentStepExecution = yield* stepRepo.getStepExecutionById(currentStepExecutionId);
+        if (!currentStepExecution) {
+          return yield* makeCommandError("workflow current step execution was not found");
         }
 
-        const activated = yield* lifecycle.activateStepExecution({
-          workflowExecutionId: input.workflowExecutionId,
-          stepDefinitionId: firstStep.id,
-          stepType: firstStep.type,
-          progressionData: {
-            activation: "first_step",
-            source: "execution_detail_ui",
-          },
+        if (currentStepExecution.status === "active") {
+          return { stepExecutionId: currentStepExecution.id };
+        }
+
+        const nextStep = yield* progression.getNextStepDefinition({
+          workflowId: detail.workflowExecution.workflowId,
+          fromStepDefinitionId: currentStepExecution.stepDefinitionId,
         });
 
-        return { stepExecutionId: activated.id };
+        if (!nextStep) {
+          return yield* makeCommandError("workflow has no next step ready for activation");
+        }
+
+        return yield* tx.activateStepExecution({
+          workflowExecutionId: input.workflowExecutionId,
+          stepDefinitionId: nextStep.id,
+          stepType: nextStep.type,
+          previousStepExecutionId: currentStepExecution.id,
+        });
       });
+
+    const activateFirstWorkflowStepExecution = (input: ActivateFirstWorkflowStepExecutionInput) =>
+      activateWorkflowStepExecution(input);
 
     const saveFormStepDraft = (input: SaveFormStepDraftInput) =>
       Effect.gen(function* () {
@@ -113,10 +140,21 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
         return yield* formExecution.submitFormStep(input);
       });
 
+    const completeStepExecution = (input: CompleteStepExecutionInput) =>
+      Effect.gen(function* () {
+        yield* assertWorkflowOwnership(input);
+        return yield* tx.completeStepExecution({
+          workflowExecutionId: input.workflowExecutionId,
+          stepExecutionId: input.stepExecutionId,
+        });
+      });
+
     return WorkflowExecutionStepCommandService.of({
+      activateWorkflowStepExecution,
       activateFirstWorkflowStepExecution,
       saveFormStepDraft,
       submitFormStep,
+      completeStepExecution,
     });
   }),
 );

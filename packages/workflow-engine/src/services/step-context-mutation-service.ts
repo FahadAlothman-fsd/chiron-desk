@@ -2,16 +2,16 @@ import { Context, Effect, Layer } from "effect";
 
 import type { RepositoryError } from "../errors";
 import {
+  type ReplaceRuntimeWorkflowExecutionContextFactValue,
   StepExecutionRepository,
   type RuntimeWorkflowExecutionContextFactRow,
 } from "../repositories/step-execution-repository";
 
-export interface StepContextWriteInput {
+export interface StepContextReplaceInput {
   workflowExecutionId: string;
   sourceStepExecutionId: string | null;
-  factKey: string;
-  factKind: string;
-  valueJson: unknown;
+  affectedContextFactDefinitionIds: readonly string[];
+  currentValues: readonly ReplaceRuntimeWorkflowExecutionContextFactValue[];
 }
 
 export class StepContextMutationService extends Context.Tag(
@@ -19,11 +19,8 @@ export class StepContextMutationService extends Context.Tag(
 )<
   StepContextMutationService,
   {
-    readonly writeContextFact: (
-      input: StepContextWriteInput,
-    ) => Effect.Effect<RuntimeWorkflowExecutionContextFactRow, RepositoryError>;
-    readonly writeContextFacts: (
-      inputs: readonly StepContextWriteInput[],
+    readonly replaceContextFacts: (
+      input: StepContextReplaceInput,
     ) => Effect.Effect<readonly RuntimeWorkflowExecutionContextFactRow[], RepositoryError>;
   }
 >() {}
@@ -33,21 +30,16 @@ export const StepContextMutationServiceLive = Layer.effect(
   Effect.gen(function* () {
     const repo = yield* StepExecutionRepository;
 
-    const writeContextFact = (input: StepContextWriteInput) =>
-      repo.writeWorkflowExecutionContextFact({
+    const replaceContextFacts = (input: StepContextReplaceInput) =>
+      repo.replaceWorkflowExecutionContextFacts({
         workflowExecutionId: input.workflowExecutionId,
         sourceStepExecutionId: input.sourceStepExecutionId,
-        factKey: input.factKey,
-        factKind: input.factKind,
-        valueJson: input.valueJson,
+        affectedContextFactDefinitionIds: input.affectedContextFactDefinitionIds,
+        currentValues: input.currentValues,
       });
 
-    const writeContextFacts = (inputs: readonly StepContextWriteInput[]) =>
-      Effect.forEach(inputs, writeContextFact, { concurrency: 1 });
-
     return StepContextMutationService.of({
-      writeContextFact,
-      writeContextFacts,
+      replaceContextFacts,
     });
   }),
 );

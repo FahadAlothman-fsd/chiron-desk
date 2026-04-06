@@ -212,7 +212,12 @@ describe("project runtime router mutations", () => {
     await expect(
       call(
         router.startTransitionExecution,
-        { projectId: "p", transitionId: "t", workflowId: "wf", projectWorkUnitId: "wu" },
+        {
+          projectId: "p",
+          transitionId: "t",
+          workflowId: "wf",
+          workUnit: { mode: "existing", projectWorkUnitId: "wu" },
+        },
         PUBLIC_CTX,
       ),
     ).rejects.toThrow();
@@ -225,7 +230,12 @@ describe("project runtime router mutations", () => {
 
     await call(
       router.startTransitionExecution,
-      { projectId: "p", transitionId: "t", workflowId: "wf", projectWorkUnitId: "wu" },
+      {
+        projectId: "p",
+        transitionId: "t",
+        workflowId: "wf",
+        workUnit: { mode: "existing", projectWorkUnitId: "wu" },
+      },
       AUTHENTICATED_CTX,
     );
     await call(

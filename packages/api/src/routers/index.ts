@@ -69,7 +69,10 @@ export function createAppRouter(
       WorkflowEngineRuntimeLive,
       Layer.mergeAll(runtimeRepoLayer, lifecycleRepoLayer, projectContextRepoLayer),
     ),
-    Layer.provide(WorkflowEngineRuntimeStepServicesLive, runtimeRepoLayer),
+    Layer.provide(
+      WorkflowEngineRuntimeStepServicesLive,
+      Layer.mergeAll(runtimeRepoLayer, repoLayer, lifecycleRepoLayer, projectContextRepoLayer),
+    ),
   ) as Layer.Layer<any>;
   const projectServiceLayer = Layer.mergeAll(
     methodologyServiceLayer,

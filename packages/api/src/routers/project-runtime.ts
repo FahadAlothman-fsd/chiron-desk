@@ -180,7 +180,7 @@ const retrySameWorkflowExecutionInput: z.ZodType<RetrySameWorkflowExecutionInput
   workflowExecutionId: z.string().min(1),
 });
 
-const activateFirstWorkflowStepExecutionInput = z.object({
+const activateWorkflowStepExecutionInput = z.object({
   projectId: z.string().min(1),
   workflowExecutionId: z.string().min(1),
 });
@@ -202,6 +202,12 @@ const submitFormStepInput: z.ZodType<SubmitFormStepExecutionInput> = z.object({
   workflowExecutionId: z.string().min(1),
   stepExecutionId: z.string().min(1),
   values: z.record(z.string(), z.unknown()),
+});
+
+const completeStepExecutionInput = z.object({
+  projectId: z.string().min(1),
+  workflowExecutionId: z.string().min(1),
+  stepExecutionId: z.string().min(1),
 });
 
 const checkArtifactSlotCurrentStateInput = z.object({
@@ -576,8 +582,20 @@ export function createProjectRuntimeRouter(serviceLayer: Layer.Layer<any>) {
         ),
       ),
 
+    activateWorkflowStepExecution: protectedProcedure
+      .input(activateWorkflowStepExecutionInput)
+      .handler(async ({ input }) =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const workflowExecutionStepCommandService = yield* WorkflowExecutionStepCommandService;
+            return yield* workflowExecutionStepCommandService.activateWorkflowStepExecution(input);
+          }),
+        ),
+      ),
+
     activateFirstWorkflowStepExecution: protectedProcedure
-      .input(activateFirstWorkflowStepExecutionInput)
+      .input(activateWorkflowStepExecutionInput)
       .handler(async ({ input }) =>
         runEffect(
           serviceLayer,
@@ -629,6 +647,18 @@ export function createProjectRuntimeRouter(serviceLayer: Layer.Layer<any>) {
         }),
       ),
     ),
+
+    completeStepExecution: protectedProcedure
+      .input(completeStepExecutionInput)
+      .handler(async ({ input }) =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const workflowExecutionStepCommandService = yield* WorkflowExecutionStepCommandService;
+            return yield* workflowExecutionStepCommandService.completeStepExecution(input);
+          }),
+        ),
+      ),
 
     checkArtifactSlotCurrentState: publicProcedure
       .input(checkArtifactSlotCurrentStateInput)

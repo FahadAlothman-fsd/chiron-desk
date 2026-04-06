@@ -6,14 +6,24 @@ import {
   type RuntimeWorkflowStepDefinitionRow,
 } from "../repositories/step-execution-repository";
 
+export type EntryStepResolution =
+  | {
+      state: "entry_step_ready";
+      entryStep: RuntimeWorkflowStepDefinitionRow;
+    }
+  | {
+      state: "invalid_definition";
+      reason: "missing_entry_step" | "ambiguous_entry_step";
+    };
+
 export class StepProgressionService extends Context.Tag(
   "@chiron/workflow-engine/services/StepProgressionService",
 )<
   StepProgressionService,
   {
-    readonly getFirstStepDefinition: (
+    readonly resolveEntryStepDefinition: (
       workflowId: string,
-    ) => Effect.Effect<RuntimeWorkflowStepDefinitionRow | null, RepositoryError>;
+    ) => Effect.Effect<EntryStepResolution, RepositoryError>;
     readonly getNextStepDefinition: (params: {
       workflowId: string;
       fromStepDefinitionId: string;
@@ -26,7 +36,7 @@ export const StepProgressionServiceLive = Layer.effect(
   Effect.gen(function* () {
     const repo = yield* StepExecutionRepository;
 
-    const getFirstStepDefinition = (workflowId: string) =>
+    const resolveEntryStepDefinition = (workflowId: string) =>
       Effect.gen(function* () {
         const [steps, edges] = yield* Effect.all([
           repo.listWorkflowStepDefinitions(workflowId),
@@ -34,14 +44,29 @@ export const StepProgressionServiceLive = Layer.effect(
         ]);
 
         if (steps.length === 0) {
-          return null;
+          return {
+            state: "invalid_definition",
+            reason: "missing_entry_step",
+          } satisfies EntryStepResolution;
         }
 
         const incoming = new Set(
           edges.map((edge) => edge.toStepId).filter((id): id is string => !!id),
         );
 
-        return steps.find((step) => !incoming.has(step.id)) ?? steps[0] ?? null;
+        const entrySteps = steps.filter((step) => !incoming.has(step.id));
+
+        if (entrySteps.length !== 1) {
+          return {
+            state: "invalid_definition",
+            reason: entrySteps.length === 0 ? "missing_entry_step" : "ambiguous_entry_step",
+          } satisfies EntryStepResolution;
+        }
+
+        return {
+          state: "entry_step_ready",
+          entryStep: entrySteps[0]!,
+        } satisfies EntryStepResolution;
       });
 
     const getNextStepDefinition = ({
@@ -66,7 +91,7 @@ export const StepProgressionServiceLive = Layer.effect(
       });
 
     return StepProgressionService.of({
-      getFirstStepDefinition,
+      resolveEntryStepDefinition,
       getNextStepDefinition,
     });
   }),
