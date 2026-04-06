@@ -23,8 +23,10 @@ import { Context, Effect, Layer } from "effect";
 
 import { RepositoryError } from "../errors";
 import { ExecutionReadRepository } from "../repositories/execution-read-repository";
+import { ProjectFactRepository } from "../repositories/project-fact-repository";
 import { ProjectWorkUnitRepository } from "../repositories/project-work-unit-repository";
 import { StepExecutionRepository } from "../repositories/step-execution-repository";
+import { WorkUnitFactRepository } from "../repositories/work-unit-fact-repository";
 
 const makeDetailError = (cause: string): RepositoryError =>
   new RepositoryError({
@@ -81,6 +83,12 @@ type WorkflowListItem = {
   displayName?: string | undefined;
 };
 
+type RuntimeFactInstanceOptionSource = {
+  id: string;
+  valueJson: unknown;
+  referencedProjectWorkUnitId?: string | null;
+};
+
 function isJsonSubSchema(
   value: unknown,
 ): value is NonNullable<Extract<FactValidation, { kind: "json-schema" }>["subSchema"]> {
@@ -104,18 +112,6 @@ function parseValidation(value: unknown): FactValidation | null {
         ? ({ kind: "allowed-values", values: value.values } satisfies FactValidation)
         : null;
     case "json-schema":
-      if (isJsonSubSchema(value.subSchema)) {
-        return {
-          kind: "json-schema",
-          schemaDialect:
-            typeof value.schemaDialect === "string" && value.schemaDialect.length > 0
-              ? value.schemaDialect
-              : "draft-2020-12",
-          schema: "schema" in value ? value.schema : undefined,
-          subSchema: value.subSchema,
-        };
-      }
-
       return {
         kind: "json-schema",
         schemaDialect:
@@ -123,6 +119,7 @@ function parseValidation(value: unknown): FactValidation | null {
             ? value.schemaDialect
             : "draft-2020-12",
         schema: "schema" in value ? value.schema : undefined,
+        ...(isJsonSubSchema(value.subSchema) ? { subSchema: value.subSchema } : {}),
       };
     default:
       return null;
@@ -170,7 +167,7 @@ function nestedFieldsFromValidation(
       cardinality: field.cardinality,
       required: "defaultValue" in field ? true : false,
       description: extractMarkdown(field.description),
-      validation,
+      ...(field.validation ? { validation: field.validation } : {}),
     }));
   }
 
@@ -259,6 +256,95 @@ function workUnitOptionsFromValidation(params: {
         }
       : {}),
   };
+}
+
+function buildRuntimeFactInstanceOption(params: {
+  instance: RuntimeFactInstanceOptionSource;
+  factLabel: string;
+  projectWorkUnitsById: ReadonlyMap<string, { id: string; workUnitTypeId: string }>;
+}): RuntimeFormFieldOption {
+  if (typeof params.instance.referencedProjectWorkUnitId === "string") {
+    const projectWorkUnit = params.projectWorkUnitsById.get(
+      params.instance.referencedProjectWorkUnitId,
+    );
+    const label = projectWorkUnit
+      ? `${projectWorkUnit.workUnitTypeId}:${projectWorkUnit.id.slice(0, 8)}`
+      : params.instance.referencedProjectWorkUnitId;
+
+    return {
+      value: { factInstanceId: params.instance.id },
+      label,
+      description: `${params.factLabel} reference`,
+    };
+  }
+
+  return {
+    value: { factInstanceId: params.instance.id },
+    label: stringifyOptionLabel(params.instance.valueJson),
+    description: params.factLabel,
+  };
+}
+
+function resolveBoundExternalFactOptions(params: {
+  bindingKey: string;
+  methodologyFactDefinitions: readonly {
+    id: string;
+    key: string;
+    name: string | null;
+  }[];
+  workUnitFactSchemas: readonly FactSchemaRow[];
+  projectFactInstances: readonly {
+    id: string;
+    factDefinitionId: string;
+    valueJson: unknown;
+  }[];
+  currentWorkUnitFactInstances: readonly {
+    id: string;
+    factDefinitionId: string;
+    valueJson: unknown;
+    referencedProjectWorkUnitId: string | null;
+  }[];
+  projectWorkUnits: readonly { id: string; workUnitTypeId: string }[];
+}): RuntimeFormFieldOption[] | undefined {
+  const workUnitFact = params.workUnitFactSchemas.find(
+    (fact) => fact.key === params.bindingKey || fact.id === params.bindingKey,
+  );
+  const projectWorkUnitsById = new Map(
+    params.projectWorkUnits.map((workUnit) => [workUnit.id, workUnit]),
+  );
+
+  if (workUnitFact) {
+    const options = params.currentWorkUnitFactInstances
+      .filter((instance) => instance.factDefinitionId === workUnitFact.id)
+      .map((instance) =>
+        buildRuntimeFactInstanceOption({
+          instance,
+          factLabel: workUnitFact.name ?? humanizeKey(workUnitFact.key),
+          projectWorkUnitsById,
+        }),
+      );
+
+    return options.length > 0 ? options : undefined;
+  }
+
+  const methodologyFact = params.methodologyFactDefinitions.find(
+    (fact) => fact.key === params.bindingKey || fact.id === params.bindingKey,
+  );
+  if (!methodologyFact) {
+    return undefined;
+  }
+
+  const options = params.projectFactInstances
+    .filter((instance) => instance.factDefinitionId === methodologyFact.id)
+    .map((instance) =>
+      buildRuntimeFactInstanceOption({
+        instance,
+        factLabel: methodologyFact.name ?? humanizeKey(methodologyFact.key),
+        projectWorkUnitsById,
+      }),
+    );
+
+  return options.length > 0 ? options : undefined;
 }
 
 function buildDraftSpecNestedField(params: {
@@ -385,7 +471,7 @@ function resolveWorkflowOptions(
   );
 
   return allowedWorkflowDefinitionIds.map((workflowDefinitionId) => ({
-    value: workflowDefinitionId,
+    value: { workflowDefinitionId },
     label: labelsById.get(workflowDefinitionId) ?? workflowDefinitionId,
   }));
 }
@@ -410,6 +496,15 @@ function buildResolvedField(params: {
   field: FormFieldBinding;
   contextFact: WorkflowContextFactDto;
   factSchemas: ReturnType<typeof buildFactSchemaLookup>;
+  methodologyFactDefinitions: readonly { id: string; key: string; name: string | null }[];
+  artifactSlotDefinitions: readonly { id: string; key: string; displayName: string | null }[];
+  projectFactInstances: readonly { id: string; factDefinitionId: string; valueJson: unknown }[];
+  currentWorkUnitFactInstances: readonly {
+    id: string;
+    factDefinitionId: string;
+    valueJson: unknown;
+    referencedProjectWorkUnitId: string | null;
+  }[];
   workflowOptions: readonly WorkflowListItem[];
   workUnitTypes: readonly { id: string; key: string; displayName: string | null }[];
   projectWorkUnits: readonly { id: string; workUnitTypeId: string }[];
@@ -437,21 +532,50 @@ function buildResolvedField(params: {
         }),
       };
     case "definition_backed_external_fact": {
-      const external = params.factSchemas.byKey.get(params.contextFact.externalFactDefinitionId);
+      const externalBindingId = params.contextFact.externalFactDefinitionId;
+      const external =
+        params.factSchemas.byKey.get(externalBindingId) ??
+        params.factSchemas.byId.get(externalBindingId);
+      const bindingLabel =
+        external?.name ??
+        params.methodologyFactDefinitions.find(
+          (fact) => fact.key === externalBindingId || fact.id === externalBindingId,
+        )?.name ??
+        humanizeKey(externalBindingId);
 
       return {
         ...base,
-        widget: buildPrimitiveWidget({
-          valueType: (external?.factType ?? "json") as FactType,
-          cardinality: params.contextFact.cardinality,
-          renderedMultiplicity,
-          validation: external?.validationJson,
-          externalBindingKey: params.contextFact.externalFactDefinitionId,
-        }),
+        widget: {
+          ...buildPrimitiveWidget({
+            valueType: (external?.factType ?? "json") as FactType,
+            cardinality: params.contextFact.cardinality,
+            renderedMultiplicity,
+            validation: external?.validationJson,
+            externalBindingKey: externalBindingId,
+          }),
+          bindingLabel,
+        },
       };
     }
     case "bound_external_fact": {
-      const external = params.factSchemas.byKey.get(params.contextFact.externalFactDefinitionId);
+      const externalBindingId = params.contextFact.externalFactDefinitionId;
+      const external =
+        params.factSchemas.byKey.get(externalBindingId) ??
+        params.factSchemas.byId.get(externalBindingId);
+      const bindingLabel =
+        external?.name ??
+        params.methodologyFactDefinitions.find(
+          (fact) => fact.key === externalBindingId || fact.id === externalBindingId,
+        )?.name ??
+        humanizeKey(externalBindingId);
+      const options = resolveBoundExternalFactOptions({
+        bindingKey: externalBindingId,
+        methodologyFactDefinitions: params.methodologyFactDefinitions,
+        workUnitFactSchemas: [...params.factSchemas.byId.values()],
+        projectFactInstances: params.projectFactInstances,
+        currentWorkUnitFactInstances: params.currentWorkUnitFactInstances,
+        projectWorkUnits: params.projectWorkUnits,
+      });
 
       return {
         ...base,
@@ -460,9 +584,15 @@ function buildResolvedField(params: {
           valueType: (external?.factType ?? "json") as FactType,
           cardinality: params.contextFact.cardinality,
           renderedMultiplicity,
-          externalBindingKey: params.contextFact.externalFactDefinitionId,
-          emptyState:
-            "No eligible existing instances are available yet. Create the required fact first.",
+          externalBindingKey: externalBindingId,
+          bindingLabel,
+          ...(options ? { options } : {}),
+          ...(!options
+            ? {
+                emptyState:
+                  "No eligible existing instances are available yet. Create the required fact first.",
+              }
+            : {}),
         },
       };
     }
@@ -480,7 +610,12 @@ function buildResolvedField(params: {
           ),
         },
       };
-    case "artifact_reference_fact":
+    case "artifact_reference_fact": {
+      const artifactSlotDefinitionId = params.contextFact.artifactSlotDefinitionId;
+      const artifactSlot = params.artifactSlotDefinitions.find(
+        (slot) => slot.id === artifactSlotDefinitionId || slot.key === artifactSlotDefinitionId,
+      );
+
       return {
         ...base,
         widget: {
@@ -488,10 +623,24 @@ function buildResolvedField(params: {
           valueType: "json",
           cardinality: params.contextFact.cardinality,
           renderedMultiplicity,
-          artifactSlotDefinitionId: params.contextFact.artifactSlotDefinitionId,
+          artifactSlotDefinitionId,
+          bindingLabel:
+            artifactSlot?.displayName ?? artifactSlot?.key ?? humanizeKey(artifactSlotDefinitionId),
         },
       };
-    case "work_unit_draft_spec_fact":
+    }
+    case "work_unit_draft_spec_fact": {
+      const includedFacts = params.contextFact.includedFactDefinitionIds.flatMap(
+        (factDefinitionId) => {
+          const fact = params.factSchemas.byId.get(factDefinitionId);
+          return fact ? [fact] : [];
+        },
+      );
+      const boundWorkUnitTypeId = includedFacts[0]?.workUnitTypeId;
+      const boundWorkUnitType = params.workUnitTypes.find(
+        (workUnitType) => workUnitType.id === boundWorkUnitTypeId,
+      );
+
       return {
         ...base,
         widget: {
@@ -499,22 +648,19 @@ function buildResolvedField(params: {
           valueType: "json",
           cardinality: params.contextFact.cardinality,
           renderedMultiplicity,
-          nestedFields: params.contextFact.includedFactDefinitionIds.flatMap((factDefinitionId) => {
-            const fact = params.factSchemas.byId.get(factDefinitionId);
-            if (!fact) {
-              return [];
-            }
-
-            return [
-              buildDraftSpecNestedField({
-                fact,
-                workUnitTypes: params.workUnitTypes,
-                projectWorkUnits: params.projectWorkUnits,
-              }),
-            ];
-          }),
+          ...(boundWorkUnitType
+            ? { bindingLabel: boundWorkUnitType.displayName ?? humanizeKey(boundWorkUnitType.key) }
+            : {}),
+          nestedFields: includedFacts.map((fact) =>
+            buildDraftSpecNestedField({
+              fact,
+              workUnitTypes: params.workUnitTypes,
+              projectWorkUnits: params.projectWorkUnits,
+            }),
+          ),
         },
       };
+    }
   }
 }
 
@@ -537,7 +683,9 @@ export const StepExecutionDetailServiceLive = Layer.effect(
     const lifecycleRepo = yield* LifecycleRepository;
     const methodologyRepo = yield* MethodologyRepository;
     const projectContextRepo = yield* ProjectContextRepository;
+    const projectFactRepo = yield* ProjectFactRepository;
     const projectWorkUnitRepo = yield* ProjectWorkUnitRepository;
+    const workUnitFactRepo = yield* WorkUnitFactRepository;
 
     const getRuntimeStepExecutionDetail = (input: GetRuntimeStepExecutionDetailInput) =>
       Effect.gen(function* () {
@@ -585,11 +733,24 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                   );
                 }
 
-                const [project, workUnitTypes, factSchemas, projectWorkUnits] = yield* Effect.all([
+                const [
+                  project,
+                  workUnitTypes,
+                  factSchemas,
+                  methodologyFactDefinitions,
+                  projectWorkUnits,
+                  projectFactInstances,
+                  currentWorkUnitFactInstances,
+                ] = yield* Effect.all([
                   projectContextRepo.getProjectById({ projectId: workflowDetail.projectId }),
                   lifecycleRepo.findWorkUnitTypes(projectPin.methodologyVersionId),
                   lifecycleRepo.findFactSchemas(projectPin.methodologyVersionId),
+                  methodologyRepo.findFactDefinitionsByVersionId(projectPin.methodologyVersionId),
                   projectWorkUnitRepo.listProjectWorkUnitsByProject(workflowDetail.projectId),
+                  projectFactRepo.listFactsByProject({ projectId: workflowDetail.projectId }),
+                  workUnitFactRepo.listFactsByWorkUnit({
+                    projectWorkUnitId: workflowDetail.projectWorkUnitId,
+                  }),
                 ]);
 
                 const workUnitType = workUnitTypes.find(
@@ -600,6 +761,12 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                     makeDetailError("work unit type missing for runtime step detail"),
                   );
                 }
+
+                const artifactSlotDefinitions =
+                  yield* methodologyRepo.findArtifactSlotsByWorkUnitType({
+                    versionId: projectPin.methodologyVersionId,
+                    workUnitTypeKey: workUnitType.key,
+                  });
 
                 const workflowEditor = yield* methodologyRepo.getWorkflowEditorDefinition({
                   versionId: projectPin.methodologyVersionId,
@@ -612,13 +779,17 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                     ? (yield* methodologyRepo.listWorkflowsByWorkUnitType({
                         versionId: projectPin.methodologyVersionId,
                         workUnitTypeKey: workUnitType.key,
-                      })).map((workflow) => ({
-                        key: workflow.key,
-                        ...(workflow.workflowDefinitionId
-                          ? { workflowDefinitionId: workflow.workflowDefinitionId }
-                          : {}),
-                        ...(workflow.displayName ? { displayName: workflow.displayName } : {}),
-                      }))
+                      })).map(
+                        (workflow): WorkflowListItem => ({
+                          key: workflow.key,
+                          ...(typeof workflow.workflowDefinitionId === "string"
+                            ? { workflowDefinitionId: workflow.workflowDefinitionId }
+                            : {}),
+                          ...(typeof workflow.displayName === "string"
+                            ? { displayName: workflow.displayName }
+                            : {}),
+                        }),
+                      )
                     : [];
 
                 const formDefinition = workflowEditor.formDefinitions.find(
@@ -654,7 +825,7 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                         contextFactDefinitionId: field.contextFactDefinitionId,
                         fieldLabel: field.fieldLabel,
                         fieldKey: field.fieldKey,
-                        helpText: field.helpText,
+                        ...(typeof field.helpText === "string" ? { helpText: field.helpText } : {}),
                         required: field.required,
                         ...(field.uiMultiplicityMode
                           ? { uiMultiplicityMode: field.uiMultiplicityMode }
@@ -662,6 +833,10 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                       },
                       contextFact,
                       factSchemas: factSchemasLookup,
+                      methodologyFactDefinitions,
+                      artifactSlotDefinitions,
+                      projectFactInstances,
+                      currentWorkUnitFactInstances,
                       workflowOptions,
                       workUnitTypes,
                       projectWorkUnits,

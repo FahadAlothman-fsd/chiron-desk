@@ -4,6 +4,7 @@ import { LifecycleRepository, MethodologyRepository } from "@chiron/methodology-
 import { ProjectContextRepository } from "@chiron/project-context";
 
 import { ExecutionReadRepository } from "../../repositories/execution-read-repository";
+import { ProjectFactRepository } from "../../repositories/project-fact-repository";
 import { ProjectWorkUnitRepository } from "../../repositories/project-work-unit-repository";
 import {
   StepExecutionRepository,
@@ -19,6 +20,7 @@ import {
   type UpsertRuntimeFormStepExecutionStateParams,
 } from "../../repositories/step-execution-repository";
 import { TransitionExecutionRepository } from "../../repositories/transition-execution-repository";
+import { WorkUnitFactRepository } from "../../repositories/work-unit-fact-repository";
 import { WorkflowExecutionRepository } from "../../repositories/workflow-execution-repository";
 import type {
   CreateWorkflowExecutionParams,
@@ -362,6 +364,13 @@ function makeRuntimeLayer(options?: { secondStepType?: RuntimeWorkflowStepDefini
                   required: false,
                   uiMultiplicityMode: "many",
                 },
+                {
+                  contextFactDefinitionId: "ctx-repository-type",
+                  fieldLabel: "Existing repository type",
+                  fieldKey: "existingRepositoryType",
+                  helpText: "Reuse an existing repository type fact instance",
+                  required: false,
+                },
               ],
             },
           },
@@ -383,6 +392,14 @@ function makeRuntimeLayer(options?: { secondStepType?: RuntimeWorkflowStepDefini
             label: "Objectives",
             cardinality: "many",
             valueType: "string",
+          },
+          {
+            kind: "bound_external_fact",
+            contextFactDefinitionId: "ctx-repository-type",
+            key: "existing_repository_type",
+            label: "Existing repository type",
+            cardinality: "one",
+            externalFactDefinitionId: "repository_type",
           },
         ],
         formDefinitions: [
@@ -407,11 +424,49 @@ function makeRuntimeLayer(options?: { secondStepType?: RuntimeWorkflowStepDefini
                   required: false,
                   uiMultiplicityMode: "many",
                 },
+                {
+                  contextFactDefinitionId: "ctx-repository-type",
+                  fieldLabel: "Existing repository type",
+                  fieldKey: "existingRepositoryType",
+                  helpText: "Reuse an existing repository type fact instance",
+                  required: false,
+                },
               ],
             },
           },
         ],
       }),
+    findFactDefinitionsByVersionId: () =>
+      Effect.succeed([
+        {
+          id: "fact-def-repository-type",
+          name: "Repository Type",
+          key: "repository_type",
+          valueType: "string",
+          cardinality: "one",
+          descriptionJson: null,
+          guidanceJson: null,
+          defaultValueJson: null,
+          validationJson: {
+            kind: "json-schema",
+            schemaDialect: "draft-2020-12",
+            schema: { type: "string", enum: ["monorepo", "multi_part"] },
+          },
+        },
+      ]),
+    findArtifactSlotsByWorkUnitType: () =>
+      Effect.succeed([
+        {
+          id: "setup_readme",
+          key: "setup_readme",
+          displayName: "Setup Readme",
+          descriptionJson: null,
+          guidanceJson: null,
+          cardinality: "single" as const,
+          rulesJson: null,
+          templates: [],
+        },
+      ]),
     listWorkflowContextFactsByDefinitionId: () => Effect.succeed([]),
     createWorkflowContextFactByDefinitionId: () => Effect.die("unused"),
     updateWorkflowContextFactByDefinitionId: () => Effect.die("unused"),
@@ -525,6 +580,46 @@ function makeRuntimeLayer(options?: { secondStepType?: RuntimeWorkflowStepDefini
     updateActiveTransitionExecutionPointer: () => Effect.die("unused"),
   } as unknown as Context.Tag.Service<typeof ProjectWorkUnitRepository>);
 
+  const projectFactRepoLayer = Layer.succeed(ProjectFactRepository, {
+    createFactInstance: () => Effect.die("unused"),
+    getCurrentValuesByDefinition: () => Effect.succeed([]),
+    listFactsByProject: () =>
+      Effect.succeed([
+        {
+          id: "fact-1",
+          projectId: "project-1",
+          factDefinitionId: "fact-def-repository-type",
+          valueJson: "monorepo",
+          status: "active" as const,
+          supersededByFactInstanceId: null,
+          producedByTransitionExecutionId: null,
+          producedByWorkflowExecutionId: null,
+          authoredByUserId: null,
+          createdAt: new Date(),
+        },
+        {
+          id: "fact-2",
+          projectId: "project-1",
+          factDefinitionId: "fact-def-repository-type",
+          valueJson: "multi_part",
+          status: "active" as const,
+          supersededByFactInstanceId: null,
+          producedByTransitionExecutionId: null,
+          producedByWorkflowExecutionId: null,
+          authoredByUserId: null,
+          createdAt: new Date(),
+        },
+      ]),
+    supersedeFactInstance: () => Effect.die("unused"),
+  } as unknown as Context.Tag.Service<typeof ProjectFactRepository>);
+
+  const workUnitFactRepoLayer = Layer.succeed(WorkUnitFactRepository, {
+    createFactInstance: () => Effect.die("unused"),
+    getCurrentValuesByDefinition: () => Effect.succeed([]),
+    listFactsByWorkUnit: () => Effect.succeed([]),
+    supersedeFactInstance: () => Effect.die("unused"),
+  } as unknown as Context.Tag.Service<typeof WorkUnitFactRepository>);
+
   const base = Layer.mergeAll(
     executionReadLayer,
     stepRepoLayer,
@@ -534,6 +629,8 @@ function makeRuntimeLayer(options?: { secondStepType?: RuntimeWorkflowStepDefini
     lifecycleRepoLayer,
     projectContextRepoLayer,
     projectWorkUnitRepoLayer,
+    projectFactRepoLayer,
+    workUnitFactRepoLayer,
   );
 
   const progression = Layer.provide(StepProgressionServiceLive, base);
@@ -692,6 +789,7 @@ describe("l3 slice-1 form runtime services", () => {
       expect(result.detailAfterDraft.body.page.fields.map((field) => field.fieldKey)).toEqual([
         "initiativeName",
         "objectives",
+        "existingRepositoryType",
       ]);
       expect(result.detailAfterDraft.body.draft.payload).toMatchObject({
         initiativeName: "Draft Chiron",
@@ -700,7 +798,25 @@ describe("l3 slice-1 form runtime services", () => {
       expect(result.detailAfterDraft.body.submission.payload).toMatchObject({
         initiativeName: null,
         objectives: [],
+        existingRepositoryType: null,
       });
+
+      const existingRepositoryTypeField = result.detailAfterDraft.body.page.fields.find(
+        (field) => field.fieldKey === "existingRepositoryType",
+      );
+      expect(existingRepositoryTypeField?.widget.options).toEqual([
+        {
+          value: { factInstanceId: "fact-1" },
+          label: "monorepo",
+          description: "Repository Type",
+        },
+        {
+          value: { factInstanceId: "fact-2" },
+          label: "multi_part",
+          description: "Repository Type",
+        },
+      ]);
+      expect(existingRepositoryTypeField?.widget.bindingLabel).toBe("Repository Type");
     }
 
     expect(result.detailAfterSubmit?.shell.status).toBe("active");

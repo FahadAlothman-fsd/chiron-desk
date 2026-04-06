@@ -378,6 +378,7 @@ export const RuntimeFormResolvedFieldWidget = Schema.Struct({
   emptyState: Schema.optional(Schema.String),
   externalBindingKey: Schema.optional(Schema.NonEmptyString),
   artifactSlotDefinitionId: Schema.optional(Schema.NonEmptyString),
+  bindingLabel: Schema.optional(Schema.String),
 });
 export type RuntimeFormResolvedFieldWidget = typeof RuntimeFormResolvedFieldWidget.Type;
 
