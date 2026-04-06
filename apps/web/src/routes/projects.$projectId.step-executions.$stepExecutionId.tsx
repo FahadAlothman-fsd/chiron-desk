@@ -3,9 +3,10 @@ import type {
   RuntimeFormNestedField,
   RuntimeFormResolvedField,
 } from "@chiron/contracts/runtime/executions";
+import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -155,13 +156,40 @@ function primitiveToInput(value: unknown, field: RuntimeFormResolvedField): stri
   return String(value);
 }
 
-function buildMutationValues(
-  values: Record<string, unknown>,
-  fields: readonly RuntimeFormResolvedField[],
-): Record<string, unknown> {
-  return Object.fromEntries(
-    fields.map((field) => [field.contextFactDefinitionId, values[field.fieldKey]]),
-  );
+function buildMutationValues(values: Record<string, unknown>): Record<string, unknown> {
+  return values;
+}
+
+function hasPresentFieldValue(value: unknown): boolean {
+  if (value === null || value === undefined) {
+    return false;
+  }
+
+  if (typeof value === "string") {
+    return value.trim().length > 0;
+  }
+
+  if (Array.isArray(value)) {
+    return value.some(hasPresentFieldValue);
+  }
+
+  if (isPlainRecord(value)) {
+    return Object.keys(value).length > 0;
+  }
+
+  return true;
+}
+
+function validateFieldValue(field: RuntimeFormResolvedField, value: unknown): string | undefined {
+  if (!field.required) {
+    return undefined;
+  }
+
+  return hasPresentFieldValue(value) ? undefined : `${field.fieldLabel} is required`;
+}
+
+function uniqueErrorMessages(errors: readonly unknown[]): string[] {
+  return [...new Set(errors.map((error) => String(error)).filter((error) => error.length > 0))];
 }
 
 function toggleMultiSelectValue(
@@ -182,6 +210,114 @@ function NestedFieldEditor(props: {
   onChange: (value: unknown) => void;
 }) {
   const { nestedField, value, onChange } = props;
+  const nestedJsonFields = (() => {
+    if (!isPlainRecord(nestedField.validation) || nestedField.validation.kind !== "json-schema") {
+      return [];
+    }
+
+    const subSchema = nestedField.validation.subSchema;
+    if (
+      isPlainRecord(subSchema) &&
+      subSchema.type === "object" &&
+      Array.isArray(subSchema.fields)
+    ) {
+      return subSchema.fields.flatMap((field) => {
+        if (
+          !isPlainRecord(field) ||
+          typeof field.key !== "string" ||
+          typeof field.type !== "string"
+        ) {
+          return [];
+        }
+
+        return [
+          {
+            key: field.key,
+            label: typeof field.key === "string" ? field.key.replaceAll(/[_-]+/g, " ") : field.key,
+            factType: field.type,
+            cardinality: field.cardinality === "many" ? "many" : "one",
+            required: "defaultValue" in field,
+            validation: isPlainRecord(field) ? field.validation : undefined,
+          } as RuntimeFormNestedField,
+        ];
+      });
+    }
+
+    const schema = isPlainRecord(nestedField.validation.schema)
+      ? nestedField.validation.schema
+      : null;
+    const properties = schema && isPlainRecord(schema.properties) ? schema.properties : null;
+    const required = Array.isArray(schema?.required)
+      ? new Set(schema.required.filter((entry): entry is string => typeof entry === "string"))
+      : new Set<string>();
+
+    if (!properties) {
+      return [];
+    }
+
+    return Object.entries(properties).flatMap(([key, property]) => {
+      if (!isPlainRecord(property) || typeof property.type !== "string") {
+        return [];
+      }
+
+      const factType =
+        property.type === "string" ||
+        property.type === "number" ||
+        property.type === "boolean" ||
+        property.type === "json" ||
+        property.type === "work_unit"
+          ? property.type
+          : property.type === "object"
+            ? "json"
+            : null;
+
+      if (!factType) {
+        return [];
+      }
+
+      return [
+        {
+          key,
+          label:
+            typeof property.title === "string" && property.title.length > 0
+              ? property.title
+              : key.replaceAll(/[_-]+/g, " "),
+          factType,
+          cardinality: property.cardinality === "many" ? "many" : "one",
+          required: required.has(key),
+        } as RuntimeFormNestedField,
+      ];
+    });
+  })();
+
+  if (nestedField.factType === "work_unit" && (nestedField.options?.length ?? 0) > 0) {
+    return (
+      <Field>
+        <div className="text-xs leading-none">{nestedField.label}</div>
+        <select
+          aria-label={nestedField.label}
+          className="dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/50 h-8 w-full rounded-none border bg-transparent px-2.5 py-1 text-xs outline-none focus-visible:ring-1"
+          value={value == null ? "" : encodeOptionValue(value)}
+          onChange={(event) =>
+            onChange(event.target.value.length > 0 ? decodeOptionValue(event.target.value) : null)
+          }
+        >
+          <option value="">Select a work unit</option>
+          {nestedField.options?.map((option) => (
+            <option
+              key={`${nestedField.key}-${encodeOptionValue(option.value)}`}
+              value={encodeOptionValue(option.value)}
+            >
+              {option.label}
+            </option>
+          ))}
+        </select>
+        {nestedField.emptyState ? (
+          <p className="text-xs text-muted-foreground">{nestedField.emptyState}</p>
+        ) : null}
+      </Field>
+    );
+  }
 
   if (nestedField.factType === "boolean") {
     return (
@@ -216,6 +352,32 @@ function NestedFieldEditor(props: {
   }
 
   if (nestedField.factType === "json") {
+    if (nestedJsonFields.length > 0) {
+      const current = isPlainRecord(value) ? value : {};
+
+      return (
+        <Field className="space-y-3 border border-border/70 bg-background/40 p-3">
+          <div className="space-y-1">
+            <div className="text-xs leading-none">{nestedField.label}</div>
+            {nestedField.description ? (
+              <FieldDescription>{nestedField.description}</FieldDescription>
+            ) : null}
+          </div>
+
+          <div className="space-y-3 border border-border/70 bg-background/40 p-3">
+            {nestedJsonFields.map((field) => (
+              <NestedFieldEditor
+                key={field.key}
+                nestedField={field}
+                value={current[field.key]}
+                onChange={(nextValue) => onChange({ ...current, [field.key]: nextValue })}
+              />
+            ))}
+          </div>
+        </Field>
+      );
+    }
+
     return (
       <Field>
         <div className="text-xs leading-none">{nestedField.label}</div>
@@ -676,14 +838,6 @@ function FormInteractionSurface(props: {
   const body = detail.body;
   const { orpc, queryClient } = Route.useRouteContext();
 
-  const [formValues, setFormValues] = useState<Record<string, unknown>>(() =>
-    getInitialFormValues(body),
-  );
-
-  useEffect(() => {
-    setFormValues(getInitialFormValues(body));
-  }, [body]);
-
   const saveDraftMutation = useMutation(
     orpc.project.saveFormStepDraft.mutationOptions({
       onSuccess: async () => {
@@ -723,6 +877,22 @@ function FormInteractionSurface(props: {
 
   const isBusy =
     saveDraftMutation.isPending || submitMutation.isPending || completeStepMutation.isPending;
+
+  const form = useForm({
+    defaultValues: getInitialFormValues(body),
+    onSubmit: async ({ value }) => {
+      await submitMutation.mutateAsync({
+        projectId,
+        workflowExecutionId: detail.shell.workflowExecutionId,
+        stepExecutionId: detail.shell.stepExecutionId,
+        values: buildMutationValues(value),
+      });
+    },
+  });
+
+  useEffect(() => {
+    form.reset(getInitialFormValues(body));
+  }, [body, form]);
 
   return (
     <div className="space-y-4">
@@ -839,32 +1009,51 @@ function FormInteractionSurface(props: {
           ) : null}
 
           <FieldGroup>
-            {body.page.fields.map((field) => (
-              <Field key={field.fieldKey} className="border border-border/70 bg-background/40 p-3">
-                <FieldContent className="space-y-3">
-                  <div className="space-y-1">
-                    <div className="text-xs leading-none">{field.fieldLabel}</div>
-                    <div className="flex flex-wrap gap-2 text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
-                      <span>{field.contextFactKind.replaceAll("_", " ")}</span>
-                      <span>{field.widget.renderedMultiplicity}</span>
-                      {field.widget.valueType ? <span>{field.widget.valueType}</span> : null}
-                    </div>
-                  </div>
+            {body.page.fields.map((resolvedField) => (
+              <form.Field
+                key={resolvedField.fieldKey}
+                name={resolvedField.fieldKey}
+                validators={{
+                  onChange: ({ value }) => validateFieldValue(resolvedField, value),
+                  onSubmit: ({ value }) => validateFieldValue(resolvedField, value),
+                }}
+              >
+                {(field) => (
+                  <Field className="border border-border/70 bg-background/40 p-3">
+                    <FieldContent className="space-y-3">
+                      <div className="space-y-1">
+                        <div className="text-xs leading-none">{resolvedField.fieldLabel}</div>
+                        <div className="flex flex-wrap gap-2 text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
+                          <span>{resolvedField.contextFactKind.replaceAll("_", " ")}</span>
+                          <span>{resolvedField.widget.renderedMultiplicity}</span>
+                          {resolvedField.widget.valueType ? (
+                            <span>{resolvedField.widget.valueType}</span>
+                          ) : null}
+                          {resolvedField.required ? <span>required</span> : null}
+                        </div>
+                      </div>
 
-                  {field.helpText ? <FieldDescription>{field.helpText}</FieldDescription> : null}
+                      {resolvedField.helpText ? (
+                        <FieldDescription>{resolvedField.helpText}</FieldDescription>
+                      ) : null}
 
-                  <FormFieldEditor
-                    field={field}
-                    value={formValues[field.fieldKey]}
-                    onChange={(nextValue) =>
-                      setFormValues((current) => ({
-                        ...current,
-                        [field.fieldKey]: nextValue,
-                      }))
-                    }
-                  />
-                </FieldContent>
-              </Field>
+                      <FormFieldEditor
+                        field={resolvedField}
+                        value={field.state.value}
+                        onChange={field.handleChange}
+                      />
+
+                      {field.state.meta.errors.length > 0 ? (
+                        <div className="space-y-1 text-xs text-destructive">
+                          {uniqueErrorMessages(field.state.meta.errors).map((error, index) => (
+                            <p key={`${resolvedField.fieldKey}-error-${index}`}>{error}</p>
+                          ))}
+                        </div>
+                      ) : null}
+                    </FieldContent>
+                  </Field>
+                )}
+              </form.Field>
             ))}
           </FieldGroup>
 
@@ -887,7 +1076,7 @@ function FormInteractionSurface(props: {
                 projectId,
                 workflowExecutionId: detail.shell.workflowExecutionId,
                 stepExecutionId: detail.shell.stepExecutionId,
-                values: buildMutationValues(formValues, body.page.fields),
+                values: buildMutationValues(form.state.values),
               })
             }
           >
@@ -896,14 +1085,7 @@ function FormInteractionSurface(props: {
           <Button
             type="button"
             disabled={!body.submitAction.enabled || isBusy}
-            onClick={() =>
-              submitMutation.mutate({
-                projectId,
-                workflowExecutionId: detail.shell.workflowExecutionId,
-                stepExecutionId: detail.shell.stepExecutionId,
-                values: buildMutationValues(formValues, body.page.fields),
-              })
-            }
+            onClick={() => void form.handleSubmit()}
           >
             Submit
           </Button>

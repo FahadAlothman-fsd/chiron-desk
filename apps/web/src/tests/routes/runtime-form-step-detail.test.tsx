@@ -77,9 +77,9 @@ import {
   runtimeStepExecutionDetailQueryKey,
 } from "../../routes/projects.$projectId.step-executions.$stepExecutionId";
 
-type Detail = ReturnType<typeof buildDetail>;
+type Detail = any;
 
-function buildDetail() {
+function buildDetail(): any {
   return {
     shell: {
       stepExecutionId: "step-1",
@@ -221,9 +221,32 @@ function buildDetail() {
                 {
                   key: "constraints",
                   label: "Constraints",
-                  factType: "string" as const,
+                  factType: "json" as const,
                   cardinality: "one" as const,
                   required: false,
+                  validation: {
+                    kind: "json-schema" as const,
+                    schema: {
+                      type: "object" as const,
+                      properties: {
+                        must_have: {
+                          type: "string" as const,
+                          cardinality: "one" as const,
+                          title: "Must Have",
+                        },
+                        must_avoid: {
+                          type: "string" as const,
+                          cardinality: "one" as const,
+                          title: "Must Avoid",
+                        },
+                        timebox_notes: {
+                          type: "string" as const,
+                          cardinality: "one" as const,
+                          title: "Timebox Notes",
+                        },
+                      },
+                    },
+                  },
                 },
                 {
                   key: "setupWorkUnit",
@@ -231,6 +254,14 @@ function buildDetail() {
                   factType: "work_unit" as const,
                   cardinality: "one" as const,
                   required: false,
+                  options: [
+                    {
+                      value: { projectWorkUnitId: "wu-setup-1" },
+                      label: "Setup:wu-setup",
+                    },
+                  ],
+                  emptyState: "No Setup work units are available yet.",
+                  workUnitTypeKey: "setup",
                 },
               ],
             },
@@ -247,10 +278,14 @@ function buildDetail() {
           referenceWorkflow: { workflowDefinitionId: "wf-setup" },
           referenceArtifact: { relativePath: "docs/setup.md" },
           draftSpecTarget: {
-            constraints: "be concise",
+            constraints: {
+              must_have: "be concise",
+              must_avoid: "scope creep",
+              timebox_notes: "30 minutes max",
+            },
             setupWorkUnit: { projectWorkUnitId: "wu-2" },
           },
-        },
+        } as Record<string, unknown>,
         lastSavedAt: "2026-04-01T12:03:00.000Z",
       },
       saveDraftAction: {
@@ -262,32 +297,33 @@ function buildDetail() {
         payload: {
           initiativeName: "Submitted initiative",
           workflowMode: "full_rescan",
-        },
+        } as Record<string, unknown>,
         submittedAt: "2026-04-01T12:04:00.000Z",
       },
       submitAction: {
         kind: "submit_form_step" as const,
         enabled: true,
       },
-      progression: {
-        latest: { submittedAt: "2026-04-01T12:04:00.000Z" },
+      lineage: {
+        previousStepExecutionId: undefined,
+        nextStepExecutionId: undefined,
       },
     },
   };
 }
 
-function toFieldPayload(detail: Detail, values: Record<string, unknown>) {
+function toFieldPayload(detail: any, values: Record<string, unknown>) {
   if (detail.body.stepType !== "form") {
     return values;
   }
 
   return Object.fromEntries(
-    detail.body.page.fields.map((field) => [field.fieldKey, values[field.contextFactDefinitionId]]),
+    detail.body.page.fields.map((field) => [field.fieldKey, values[field.fieldKey]]),
   );
 }
 
-async function renderHarness(params?: { currentDetail?: Detail }) {
-  let currentDetail = params?.currentDetail ?? buildDetail();
+async function renderHarness(params?: { currentDetail?: any }) {
+  let currentDetail: any = params?.currentDetail ?? buildDetail();
   const saveDraftCalls: Array<Record<string, unknown>> = [];
   const submitCalls: Array<Record<string, unknown>> = [];
   const completeCalls: Array<Record<string, unknown>> = [];
@@ -306,19 +342,20 @@ async function renderHarness(params?: { currentDetail?: Detail }) {
       mutationFn: async (input: Record<string, any>) => {
         saveCounter += 1;
         saveDraftCalls.push(input);
+        const nextBody: any =
+          currentDetail.body.stepType === "form"
+            ? {
+                ...currentDetail.body,
+                draft: {
+                  ...currentDetail.body.draft,
+                  payload: toFieldPayload(currentDetail, input.values),
+                  lastSavedAt: `2026-04-01T12:0${saveCounter + 4}:00.000Z`,
+                },
+              }
+            : currentDetail.body;
         currentDetail = {
           ...currentDetail,
-          body:
-            currentDetail.body.stepType === "form"
-              ? {
-                  ...currentDetail.body,
-                  draft: {
-                    ...currentDetail.body.draft,
-                    payload: toFieldPayload(currentDetail, input.values),
-                    lastSavedAt: `2026-04-01T12:0${saveCounter + 4}:00.000Z`,
-                  },
-                }
-              : currentDetail.body,
+          body: nextBody,
         };
         await options?.onSuccess?.();
         return { stepExecutionId: "step-1", status: "draft_saved" as const };
@@ -331,24 +368,25 @@ async function renderHarness(params?: { currentDetail?: Detail }) {
       mutationFn: async (input: Record<string, any>) => {
         submitCounter += 1;
         submitCalls.push(input);
+        const nextBody: any =
+          currentDetail.body.stepType === "form"
+            ? {
+                ...currentDetail.body,
+                draft: {
+                  ...currentDetail.body.draft,
+                  payload: toFieldPayload(currentDetail, input.values),
+                  lastSavedAt: `2026-04-01T12:1${submitCounter}:00.000Z`,
+                },
+                submission: {
+                  ...currentDetail.body.submission,
+                  payload: toFieldPayload(currentDetail, input.values),
+                  submittedAt: `2026-04-01T12:2${submitCounter}:00.000Z`,
+                },
+              }
+            : currentDetail.body;
         currentDetail = {
           ...currentDetail,
-          body:
-            currentDetail.body.stepType === "form"
-              ? {
-                  ...currentDetail.body,
-                  draft: {
-                    ...currentDetail.body.draft,
-                    payload: toFieldPayload(currentDetail, input.values),
-                    lastSavedAt: `2026-04-01T12:1${submitCounter}:00.000Z`,
-                  },
-                  submission: {
-                    ...currentDetail.body.submission,
-                    payload: toFieldPayload(currentDetail, input.values),
-                    submittedAt: `2026-04-01T12:2${submitCounter}:00.000Z`,
-                  },
-                }
-              : currentDetail.body,
+          body: nextBody,
         };
         await options?.onSuccess?.();
         return { stepExecutionId: "step-1", status: "captured" as const };
@@ -360,18 +398,19 @@ async function renderHarness(params?: { currentDetail?: Detail }) {
     (options?: { onSuccess?: () => Promise<void> | void }) => ({
       mutationFn: async (input: Record<string, any>) => {
         completeCalls.push(input);
+        const nextShell: any = {
+          ...currentDetail.shell,
+          status: "completed",
+          completedAt: "2026-04-01T12:30:00.000Z",
+          completionAction: {
+            kind: "complete_step_execution",
+            visible: false,
+            enabled: false,
+          },
+        };
         currentDetail = {
           ...currentDetail,
-          shell: {
-            ...currentDetail.shell,
-            status: "completed",
-            completedAt: "2026-04-01T12:30:00.000Z",
-            completionAction: {
-              kind: "complete_step_execution",
-              visible: false,
-              enabled: false,
-            },
-          },
+          shell: nextShell,
         };
         await options?.onSuccess?.();
         return { stepExecutionId: "step-1", status: "completed" as const };
@@ -455,12 +494,28 @@ describe("runtime form step detail route", () => {
     expect(screen.getByText("Reference workflow")).toBeTruthy();
     expect(screen.getByText("Reference artifact")).toBeTruthy();
     expect(screen.getByText("Draft spec target")).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: "Must Have" })).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: "Must Avoid" })).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: "Timebox Notes" })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Setup work unit" })).toBeTruthy();
     expect(
       screen.getByText(
         "No eligible existing instances are available yet. Create the required fact first.",
       ),
     ).toBeTruthy();
     expect(screen.queryByText(/workflow-context-facts/i)).toBeNull();
+  });
+
+  it("renders required validation messages only once", async () => {
+    const user = userEvent.setup();
+    await renderHarness();
+
+    await user.clear(screen.getByRole("textbox", { name: "Initiative name" }));
+    await user.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Initiative name is required")).toHaveLength(1);
+    });
   });
 
   it("maps Save draft, Submit, and Complete Step to exact mutations with latest-only semantics", async () => {
@@ -483,8 +538,8 @@ describe("runtime form step detail route", () => {
       workflowExecutionId: "workflow-1",
       stepExecutionId: "step-1",
       values: {
-        "ctx-initiative-name": "Updated initiative",
-        "ctx-workflow-mode": "deep_dive",
+        initiativeName: "Updated initiative",
+        workflowMode: "deep_dive",
       },
     });
 
@@ -494,8 +549,8 @@ describe("runtime form step detail route", () => {
 
     await waitFor(() => expect(submitCalls).toHaveLength(1));
     expect(submitCalls[0]?.values).toMatchObject({
-      "ctx-initiative-name": "Final initiative",
-      "ctx-workflow-mode": "deep_dive",
+      initiativeName: "Final initiative",
+      workflowMode: "deep_dive",
     });
 
     await user.clear(initiativeInput);
@@ -504,8 +559,8 @@ describe("runtime form step detail route", () => {
 
     await waitFor(() => expect(submitCalls).toHaveLength(2));
     expect(submitCalls[1]?.values).toMatchObject({
-      "ctx-initiative-name": "Final initiative v2",
-      "ctx-workflow-mode": "deep_dive",
+      initiativeName: "Final initiative v2",
+      workflowMode: "deep_dive",
     });
 
     await user.click(screen.getByRole("button", { name: "Complete Step" }));
