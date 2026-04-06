@@ -23,6 +23,15 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MethodologyWorkspaceShell } from "@/features/methodologies/workspace-shell";
+import {
+  DetailCode,
+  DetailEyebrow,
+  DetailLabel,
+  DetailPrimary,
+  ExecutionBadge,
+  getExecutionStatusTone,
+  getStepTypeTone,
+} from "@/features/projects/execution-detail-visuals";
 import { cn } from "@/lib/utils";
 
 const runtimeGuidanceActiveQueryKey = (projectId: string) =>
@@ -41,19 +50,19 @@ export const runtimeWorkflowExecutionShellQueryKey = (
 ) => runtimeWorkflowExecutionDetailQueryKey(projectId, workflowExecutionId);
 
 type WorkflowContextFactInstance = {
-  contextFactInstanceId?: string;
+  contextFactInstanceId?: string | undefined;
   instanceOrder: number;
   valueJson: unknown;
-  sourceStepExecutionId?: string;
-  recordedAt?: string;
+  sourceStepExecutionId?: string | undefined;
+  recordedAt?: string | undefined;
 };
 
 type WorkflowContextFactGroup = {
   contextFactDefinitionId: string;
-  definitionKey?: string;
-  definitionLabel?: string;
+  definitionKey?: string | undefined;
+  definitionLabel?: string | undefined;
   definitionDescriptionJson?: unknown;
-  instances: WorkflowContextFactInstance[];
+  instances: readonly WorkflowContextFactInstance[];
 };
 
 type WorkflowStepSurface =
@@ -219,6 +228,10 @@ function renderStepSurfaceLabel(state: WorkflowStepSurface["state"]): string {
 
 function renderStepLabel(step: { stepKey?: string; stepLabel?: string; stepType: string }): string {
   return step.stepLabel ?? step.stepKey ?? `${step.stepType} step`;
+}
+
+function renderWorkflowRoleLabel(role: string): string {
+  return role.replaceAll("_", " ");
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -487,20 +500,33 @@ function WorkflowStepSurfaceCard({
             <CardDescription>Workflow orchestration state</CardDescription>
             <CardTitle>Active step in progress</CardTitle>
             <CardAction>
-              <span
-                className={cn(
-                  "border px-2 py-1 text-[0.65rem] uppercase tracking-[0.12em]",
-                  badgeClassName,
-                )}
-              >
-                {renderStepSurfaceLabel(stepSurface.state)}
-              </span>
+              <div className="flex flex-wrap gap-2">
+                <span
+                  className={cn(
+                    "border px-2 py-1 text-[0.65rem] uppercase tracking-[0.12em]",
+                    badgeClassName,
+                  )}
+                >
+                  {renderStepSurfaceLabel(stepSurface.state)}
+                </span>
+                <ExecutionBadge
+                  label={stepSurface.activeStep.stepType}
+                  tone={getStepTypeTone(stepSurface.activeStep.stepType)}
+                />
+              </div>
             </CardAction>
           </CardHeader>
           <CardContent className="space-y-2 text-xs text-muted-foreground">
-            <p>Step type: {stepSurface.activeStep.stepType}</p>
-            <p>Status: {stepSurface.activeStep.status}</p>
-            <p>Activated: {formatTimestamp(stepSurface.activeStep.activatedAt)}</p>
+            <p>
+              <span className="text-muted-foreground/70">Step status:</span>{" "}
+              <span className="text-foreground">{stepSurface.activeStep.status}</span>
+            </p>
+            <p>
+              <span className="text-muted-foreground/70">Activated:</span>{" "}
+              <span className="text-foreground">
+                {formatTimestamp(stepSurface.activeStep.activatedAt)}
+              </span>
+            </p>
             <p>While an active step exists, next-step activation stays hidden on this page.</p>
           </CardContent>
           <CardFooter className="justify-end">
@@ -737,9 +763,7 @@ export function WorkflowExecutionDetailRoute() {
         data-testid="runtime-workflow-execution-shell-boundary"
         className="space-y-3 border border-border/80 bg-background p-4"
       >
-        <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
-          Runtime context
-        </p>
+        <DetailEyebrow>Runtime context</DetailEyebrow>
 
         {isLoading ? (
           <>
@@ -751,19 +775,31 @@ export function WorkflowExecutionDetailRoute() {
             {toErrorMessage(workflowExecutionDetailQuery.error)}
           </p>
         ) : (
-          <div className="grid gap-2 text-sm md:grid-cols-3">
-            <p>
-              <span className="text-muted-foreground">Workflow execution:</span>{" "}
-              {detail?.workflowExecution.workflowExecutionId ?? workflowExecutionId}
-            </p>
-            <p>
-              <span className="text-muted-foreground">Workflow:</span>{" "}
-              {detail?.workflowExecution.workflowName ?? "pending context"}
-            </p>
-            <p>
-              <span className="text-muted-foreground">Status:</span>{" "}
-              {detail ? renderWorkflowStatus(detail.workflowExecution.status) : "pending"}
-            </p>
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1.2fr)_minmax(16rem,0.8fr)]">
+            <div className="space-y-2 border border-border/70 bg-background/40 p-3">
+              <DetailLabel>Workflow execution</DetailLabel>
+              <DetailCode>
+                {detail?.workflowExecution.workflowExecutionId ?? workflowExecutionId}
+              </DetailCode>
+              <DetailPrimary>
+                {detail?.workflowExecution.workflowName ?? "pending context"}
+              </DetailPrimary>
+            </div>
+            <div className="space-y-2 border border-border/70 bg-background/40 p-3">
+              <DetailLabel>Execution state</DetailLabel>
+              <div className="flex flex-wrap gap-2">
+                <ExecutionBadge
+                  label={detail ? renderWorkflowStatus(detail.workflowExecution.status) : "Pending"}
+                  tone={detail ? getExecutionStatusTone(detail.workflowExecution.status) : "amber"}
+                />
+                {detail ? (
+                  <ExecutionBadge
+                    label={renderWorkflowRoleLabel(detail.workflowExecution.workflowRole)}
+                    tone={detail.workflowExecution.workflowRole === "primary" ? "violet" : "slate"}
+                  />
+                ) : null}
+              </div>
+            </div>
           </div>
         )}
       </section>
@@ -771,43 +807,46 @@ export function WorkflowExecutionDetailRoute() {
       {detail ? (
         <>
           <section className="space-y-3 border border-border/80 bg-background p-4">
-            <h2 className="text-[0.72rem] uppercase tracking-[0.16em] text-muted-foreground">
-              Workflow runtime summary
-            </h2>
+            <DetailEyebrow className="text-[0.72rem]">Workflow runtime summary</DetailEyebrow>
 
-            <div className="grid gap-3 text-sm md:grid-cols-2">
-              <div className="space-y-1">
-                <p>
-                  <span className="text-muted-foreground">Name:</span>{" "}
-                  {detail.workflowExecution.workflowName}
-                </p>
-                <p>
-                  <span className="text-muted-foreground">Key:</span>{" "}
-                  {detail.workflowExecution.workflowKey}
-                </p>
-                <p>
-                  <span className="text-muted-foreground">Role:</span>{" "}
-                  {detail.workflowExecution.workflowRole}
-                </p>
-                <p>
-                  <span className="text-muted-foreground">Status:</span>{" "}
-                  {renderWorkflowStatus(detail.workflowExecution.status)}
-                </p>
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1.25fr)_minmax(18rem,0.75fr)]">
+              <div className="space-y-3 border border-border/70 bg-background/40 p-3">
+                <div>
+                  <DetailLabel>Name</DetailLabel>
+                  <DetailPrimary>{detail.workflowExecution.workflowName}</DetailPrimary>
+                  <DetailCode>{detail.workflowExecution.workflowKey}</DetailCode>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <ExecutionBadge
+                    label={renderWorkflowStatus(detail.workflowExecution.status)}
+                    tone={getExecutionStatusTone(detail.workflowExecution.status)}
+                  />
+                  <ExecutionBadge
+                    label={renderWorkflowRoleLabel(detail.workflowExecution.workflowRole)}
+                    tone={detail.workflowExecution.workflowRole === "primary" ? "violet" : "slate"}
+                  />
+                </div>
               </div>
 
-              <div className="space-y-1">
-                <p>
-                  <span className="text-muted-foreground">Started:</span>{" "}
-                  {formatTimestamp(detail.workflowExecution.startedAt)}
-                </p>
-                <p>
-                  <span className="text-muted-foreground">Completed:</span>{" "}
-                  {formatTimestamp(detail.workflowExecution.completedAt)}
-                </p>
-                <p>
-                  <span className="text-muted-foreground">Superseded:</span>{" "}
-                  {formatTimestamp(detail.workflowExecution.supersededAt)}
-                </p>
+              <div className="space-y-3 border border-border/70 bg-background/40 p-3">
+                <div>
+                  <DetailLabel>Started</DetailLabel>
+                  <DetailPrimary>
+                    {formatTimestamp(detail.workflowExecution.startedAt)}
+                  </DetailPrimary>
+                </div>
+                <div>
+                  <DetailLabel>Completed</DetailLabel>
+                  <DetailPrimary>
+                    {formatTimestamp(detail.workflowExecution.completedAt)}
+                  </DetailPrimary>
+                </div>
+                <div>
+                  <DetailLabel>Superseded</DetailLabel>
+                  <DetailPrimary>
+                    {formatTimestamp(detail.workflowExecution.supersededAt)}
+                  </DetailPrimary>
+                </div>
               </div>
             </div>
 
@@ -848,9 +887,7 @@ export function WorkflowExecutionDetailRoute() {
           </section>
 
           <section className="space-y-3 border border-border/80 bg-background p-4">
-            <h2 className="text-[0.72rem] uppercase tracking-[0.16em] text-muted-foreground">
-              Retry and supersession lineage
-            </h2>
+            <DetailEyebrow className="text-[0.72rem]">Retry and supersession lineage</DetailEyebrow>
 
             <div className="space-y-1 text-sm">
               <p>
@@ -935,9 +972,7 @@ export function WorkflowExecutionDetailRoute() {
           </section>
 
           <section className="space-y-3 border border-border/80 bg-background p-4">
-            <h2 className="text-[0.72rem] uppercase tracking-[0.16em] text-muted-foreground">
-              Workflow step surface
-            </h2>
+            <DetailEyebrow className="text-[0.72rem]">Workflow step surface</DetailEyebrow>
             <WorkflowStepSurfaceCard
               projectId={projectId}
               stepSurface={detail.stepSurface as WorkflowStepSurface}
@@ -948,11 +983,9 @@ export function WorkflowExecutionDetailRoute() {
             />
           </section>
 
-          <section className="space-y-3 border border-border/80 bg-background p-4">
+          <section className="max-w-5xl space-y-3 border border-border/80 bg-background p-4">
             <div className="space-y-1">
-              <h2 className="text-[0.72rem] uppercase tracking-[0.16em] text-muted-foreground">
-                Workflow context facts
-              </h2>
+              <DetailEyebrow className="text-[0.72rem]">Workflow context facts</DetailEyebrow>
               <p className="text-sm text-muted-foreground">
                 Read-only current-state context facts grouped by definition order.
               </p>
@@ -963,8 +996,8 @@ export function WorkflowExecutionDetailRoute() {
                 This workflow does not define any context facts.
               </p>
             ) : (
-              <div className="grid gap-3 md:grid-cols-2">
-                {detail.workflowContextFacts.groups.map((group: WorkflowContextFactGroup) => {
+              <div className="grid gap-3 lg:grid-cols-2">
+                {detail.workflowContextFacts.groups.map((group) => {
                   const description = formatDescription(group.definitionDescriptionJson);
                   const title =
                     group.definitionLabel ?? group.definitionKey ?? group.contextFactDefinitionId;
