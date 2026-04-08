@@ -23,6 +23,7 @@
   "registries": {
     "@cult-ui": "https://cult-ui.com/r/{name}.json",
     "@elements": "https://www.tryelements.dev/r/{name}.json",
-    "@kokonutui": "https://kokonutui.com/r/{name}.json"
+    "@kokonutui": "https://kokonutui.com/r/{name}.json",
+    "@ai-elements": "https://ai-sdk.dev/elements/api/registry/{name}.json"
   }
 }
