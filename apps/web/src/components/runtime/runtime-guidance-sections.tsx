@@ -4,7 +4,7 @@ import type {
 } from "@chiron/contracts/runtime/guidance";
 import { Link } from "@tanstack/react-router";
 
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -38,6 +38,71 @@ type RuntimeGuidanceSectionsProps = {
   ) => void;
 };
 
+function normalizeStateLabel(value: string | null | undefined): string {
+  if (!value || value === "unknown-state" || value.toLowerCase() === "null") {
+    return "Activation";
+  }
+
+  return value;
+}
+
+function humanizeKey(value: string): string {
+  const normalized = value
+    .trim()
+    .replace(/^seed:[^:]+:/, "")
+    .replace(/^WU[._:-]/i, "")
+    .replace(/^TR[._:-]/i, "")
+    .replace(/^WF[._:-]/i, "")
+    .replace(/[._:-]+/g, " ");
+
+  return normalized
+    .split(" ")
+    .filter((part) => part.length > 0)
+    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
+    .join(" ");
+}
+
+function compactKey(value: string): string {
+  return value
+    .trim()
+    .replace(/^seed:wut:/i, "")
+    .replace(/^seed:transition:/i, "")
+    .replace(/^seed:workflow:/i, "")
+    .replace(/:mver_.+$/i, "")
+    .replace(/[._:-]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toLowerCase();
+}
+
+function workUnitTitleFromKey(value: string): string {
+  const compact = compactKey(value);
+  if (compact.length === 0) {
+    return "WORK UNIT";
+  }
+
+  return compact.toUpperCase();
+}
+
+function looksOpaqueIdentifier(value: string): boolean {
+  return value.startsWith("seed:") || value.includes(":mver_") || value.includes(":transition:");
+}
+
+function toReadableLabel(
+  primary: string | null | undefined,
+  key: string,
+  fallback: string,
+): string {
+  if (primary && primary.trim().length > 0 && !looksOpaqueIdentifier(primary)) {
+    return primary;
+  }
+
+  if (key.trim().length > 0) {
+    return humanizeKey(key);
+  }
+
+  return fallback;
+}
+
 function renderStreamStatus(status: RuntimeGuidanceStreamStatus): string {
   switch (status) {
     case "connecting":
@@ -60,20 +125,20 @@ function renderResultLabel(result: RuntimeGuidanceTransitionResult | undefined):
   if (!result) {
     return {
       label: "Evaluating",
-      className: "border-border/70 bg-muted/30 text-muted-foreground",
+      className: "border-amber-500/40 bg-amber-500/10 text-amber-200",
     };
   }
 
   if (result.result === "available") {
     return {
       label: "Available",
-      className: "border-primary/50 bg-primary/20 text-primary",
+      className: "border-emerald-500/40 bg-emerald-500/12 text-emerald-200",
     };
   }
 
   return {
     label: "Blocked",
-    className: "border-destructive/50 bg-destructive/15 text-destructive",
+    className: "border-rose-500/40 bg-rose-500/12 text-rose-200",
   };
 }
 
@@ -126,34 +191,58 @@ export function RuntimeGuidanceSections({
               key={card.projectWorkUnitId}
               frame="cut-thick"
               tone="runtime"
-              className="gap-0"
+              className="gap-0 border-primary/45 bg-primary/8"
               data-testid={`runtime-guidance-active-card-${card.projectWorkUnitId}`}
             >
               <CardHeader className="border-b border-border/70">
-                <CardTitle>{card.workUnitTypeName}</CardTitle>
+                <CardTitle className="uppercase tracking-[0.12em] text-primary">
+                  {workUnitTitleFromKey(card.workUnitTypeKey)}
+                </CardTitle>
                 <CardDescription>
-                  {card.workUnitTypeKey} · state {card.currentStateLabel}
+                  {compactKey(card.workUnitTypeKey)} · current state{" "}
+                  {normalizeStateLabel(card.currentStateLabel)}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 py-3">
                 <div className="space-y-1 text-xs">
-                  <p className="font-medium">Active transition</p>
+                  <p className="font-medium text-primary">Active transition</p>
                   <p className="text-muted-foreground">
-                    {card.activeTransition.transitionName} ({card.activeTransition.transitionKey})
+                    {toReadableLabel(
+                      card.activeTransition.transitionName,
+                      card.activeTransition.transitionKey,
+                      "Transition",
+                    )}
                   </p>
-                  <p className="text-muted-foreground">
-                    target state: {card.activeTransition.toStateLabel}
+                  <p className="text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
+                    {card.activeTransition.transitionKey}
                   </p>
+                  <div className="flex flex-wrap items-center gap-2 text-[0.68rem] uppercase tracking-[0.12em]">
+                    <span className="border border-border/80 bg-background/80 px-2 py-1">
+                      {normalizeStateLabel(card.currentStateLabel)}
+                    </span>
+                    <span className="text-muted-foreground">→</span>
+                    <span className="border border-primary/60 bg-primary/12 px-2 py-1 text-primary">
+                      {normalizeStateLabel(card.activeTransition.toStateLabel)}
+                    </span>
+                  </div>
                 </div>
                 <div className="space-y-1 text-xs">
-                  <p className="font-medium">Primary workflow</p>
+                  <p className="font-medium text-primary">Primary workflow</p>
                   <p className="text-muted-foreground">
-                    {card.activePrimaryWorkflow.workflowName} (
-                    {card.activePrimaryWorkflow.workflowKey})
+                    {toReadableLabel(
+                      card.activePrimaryWorkflow.workflowName,
+                      card.activePrimaryWorkflow.workflowKey,
+                      "Workflow",
+                    )}
                   </p>
-                  <p className="text-muted-foreground">
-                    status: {card.activePrimaryWorkflow.status}
-                  </p>
+                  <div className="flex flex-wrap items-center gap-2 text-[0.68rem] uppercase tracking-[0.12em]">
+                    <span className="border border-border/70 bg-background/60 px-2 py-1 text-muted-foreground">
+                      {card.activePrimaryWorkflow.workflowKey}
+                    </span>
+                    <span className="border border-sky-500/40 bg-sky-500/12 px-2 py-1 text-sky-200">
+                      status {card.activePrimaryWorkflow.status}
+                    </span>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <p className="border border-border/70 bg-background/40 px-2 py-1 text-muted-foreground">
@@ -166,37 +255,38 @@ export function RuntimeGuidanceSections({
               </CardContent>
               <CardFooter className="flex-wrap justify-between gap-2 text-[0.68rem] uppercase tracking-[0.12em]">
                 <div className="flex flex-wrap gap-2">
-                  <Link
-                    to="/projects/$projectId/transition-executions/$transitionExecutionId"
-                    params={{
-                      projectId,
-                      transitionExecutionId:
-                        card.actions.openTransitionTarget.transitionExecutionId,
-                    }}
-                    search={{ projectWorkUnitId: card.projectWorkUnitId }}
-                    data-testid="open-transition-detail"
-                    className={cn(
-                      buttonVariants({ variant: "outline", size: "xs" }),
-                      "rounded-none",
-                    )}
-                  >
-                    Open transition detail
-                  </Link>
+                  <Button asChild size="xs" className="rounded-none uppercase tracking-[0.12em]">
+                    <Link
+                      to="/projects/$projectId/transition-executions/$transitionExecutionId"
+                      params={{
+                        projectId,
+                        transitionExecutionId:
+                          card.actions.openTransitionTarget.transitionExecutionId,
+                      }}
+                      search={{ projectWorkUnitId: card.projectWorkUnitId }}
+                      data-testid="open-transition-detail"
+                    >
+                      Open transition detail
+                    </Link>
+                  </Button>
 
-                  <Link
-                    to="/projects/$projectId/workflow-executions/$workflowExecutionId"
-                    params={{
-                      projectId,
-                      workflowExecutionId: card.actions.openWorkflowTarget.workflowExecutionId,
-                    }}
-                    data-testid="open-workflow-detail"
-                    className={cn(
-                      buttonVariants({ variant: "outline", size: "xs" }),
-                      "rounded-none",
-                    )}
+                  <Button
+                    asChild
+                    size="xs"
+                    variant="secondary"
+                    className="rounded-none uppercase tracking-[0.12em]"
                   >
-                    Open workflow detail
-                  </Link>
+                    <Link
+                      to="/projects/$projectId/workflow-executions/$workflowExecutionId"
+                      params={{
+                        projectId,
+                        workflowExecutionId: card.actions.openWorkflowTarget.workflowExecutionId,
+                      }}
+                      data-testid="open-workflow-detail"
+                    >
+                      Open workflow detail
+                    </Link>
+                  </Button>
                 </div>
 
                 {card.activeTransition.readyForCompletion ? (
@@ -241,10 +331,16 @@ export function RuntimeGuidanceSections({
           {candidateCards.map((card) => (
             <Card key={card.candidateCardId} frame="cut-thick" tone="runtime" className="gap-0">
               <CardHeader className="border-b border-border/70">
-                <CardTitle>{card.workUnitContext.workUnitTypeName}</CardTitle>
+                <CardTitle>
+                  {toReadableLabel(
+                    card.workUnitContext.workUnitTypeName,
+                    card.workUnitContext.workUnitTypeKey,
+                    "Work Unit",
+                  )}
+                </CardTitle>
                 <CardDescription>
                   {card.workUnitContext.workUnitTypeKey} · current{" "}
-                  {card.workUnitContext.currentStateLabel}
+                  {normalizeStateLabel(card.workUnitContext.currentStateLabel)}
                 </CardDescription>
               </CardHeader>
 
@@ -261,11 +357,24 @@ export function RuntimeGuidanceSections({
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
                           <p className="font-medium">
-                            {transition.transitionName} ({transition.transitionKey})
+                            {toReadableLabel(
+                              transition.transitionName,
+                              transition.transitionKey,
+                              "Transition",
+                            )}
                           </p>
-                          <p className="text-muted-foreground">
-                            target state: {transition.toStateLabel}
+                          <p className="text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
+                            {transition.transitionKey}
                           </p>
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-[0.68rem] uppercase tracking-[0.12em]">
+                            <span className="border border-border/80 bg-background/80 px-2 py-1">
+                              {normalizeStateLabel(card.workUnitContext.currentStateLabel)}
+                            </span>
+                            <span className="text-muted-foreground">→</span>
+                            <span className="border border-primary/60 bg-primary/12 px-2 py-1 text-primary">
+                              {normalizeStateLabel(transition.toStateLabel)}
+                            </span>
+                          </div>
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="border border-border/70 bg-muted/30 px-2 py-1 uppercase tracking-[0.1em] text-muted-foreground">
@@ -285,9 +394,14 @@ export function RuntimeGuidanceSections({
 
                       <div className="flex justify-end">
                         <Button
-                          variant="outline"
+                          variant={result?.result === "blocked" ? "secondary" : "default"}
                           size="sm"
-                          className="rounded-none uppercase tracking-[0.12em]"
+                          className={cn(
+                            "rounded-none uppercase tracking-[0.12em]",
+                            result?.result === "blocked"
+                              ? "border border-rose-500/40 bg-rose-500/15 text-rose-100 hover:bg-rose-500/25"
+                              : "",
+                          )}
                           onClick={() => onOpenStartGate(card, transition)}
                         >
                           Start-gate drill-in
