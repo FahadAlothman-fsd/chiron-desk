@@ -6,6 +6,8 @@ import type {
   GetWorkUnitsInput,
   GetWorkUnitsOutput,
 } from "@chiron/contracts/runtime/work-units";
+import { LifecycleRepository } from "@chiron/methodology-engine";
+import { ProjectContextRepository } from "@chiron/project-context";
 import { Context, Effect, Layer } from "effect";
 
 import type { RepositoryError } from "../errors";
@@ -52,28 +54,150 @@ const isHistoricTransitionStatus = (
   status: "active" | "completed" | "superseded",
 ): status is "completed" | "superseded" => status === "completed" || status === "superseded";
 
-const toWorkUnitIdentity = (workUnit: {
-  readonly id: string;
+type LifecycleLookups = {
+  readonly workUnitTypesById: ReadonlyMap<
+    string,
+    {
+      key: string;
+      displayName: string | null;
+      cardinality: "one_per_project" | "many_per_project";
+    }
+  >;
+  readonly statesById: ReadonlyMap<string, { key: string; displayName: string | null }>;
+  readonly transitionsById: ReadonlyMap<
+    string,
+    { transitionKey: string; fromStateId: string | null; toStateId: string | null }
+  >;
+  readonly workflowKeyByTransitionAndWorkflow: ReadonlyMap<string, string>;
+};
+
+type ResolvedStateIdentity = {
+  readonly stateId: string;
+  readonly stateKey: string;
+  readonly stateLabel: string;
+};
+
+const resolveStateIdentity = (
+  stateId: string | null,
+  lookups: LifecycleLookups | null,
+): ResolvedStateIdentity => {
+  if (!stateId) {
+    return {
+      stateId: "activation",
+      stateKey: "activation",
+      stateLabel: "Activation",
+    };
+  }
+
+  const state = lookups?.statesById.get(stateId);
+  if (!state) {
+    return {
+      stateId,
+      stateKey: stateId,
+      stateLabel: stateId,
+    };
+  }
+
+  return {
+    stateId,
+    stateKey: state.key,
+    stateLabel: state.displayName ?? state.key,
+  };
+};
+
+const resolveWorkUnitTypeIdentity = (
+  workUnitTypeId: string,
+  lookups: LifecycleLookups | null,
+): {
   readonly workUnitTypeId: string;
-  readonly currentStateId: string;
-  readonly createdAt: Date;
-  readonly updatedAt: Date;
-}) => ({
-  projectWorkUnitId: workUnit.id,
-  workUnitTypeId: workUnit.workUnitTypeId,
-  workUnitTypeKey: workUnit.workUnitTypeId,
-  workUnitTypeName: workUnit.workUnitTypeId,
-  currentStateId: workUnit.currentStateId,
-  currentStateKey: workUnit.currentStateId,
-  currentStateLabel: workUnit.currentStateId,
-  createdAt: workUnit.createdAt.toISOString(),
-  updatedAt: workUnit.updatedAt.toISOString(),
-});
+  readonly workUnitTypeKey: string;
+  readonly workUnitTypeName: string;
+  readonly cardinality: "one_per_project" | "many_per_project";
+} => {
+  const workUnitType = lookups?.workUnitTypesById.get(workUnitTypeId);
+  if (!workUnitType) {
+    return {
+      workUnitTypeId,
+      workUnitTypeKey: workUnitTypeId,
+      workUnitTypeName: workUnitTypeId,
+      cardinality: "many_per_project",
+    };
+  }
+
+  return {
+    workUnitTypeId,
+    workUnitTypeKey: workUnitType.key,
+    workUnitTypeName: workUnitType.displayName ?? workUnitType.key,
+    cardinality: workUnitType.cardinality,
+  };
+};
+
+const resolveTransitionIdentity = (
+  transitionId: string,
+  workUnitCurrentStateId: string | null,
+  lookups: LifecycleLookups | null,
+) => {
+  const humanizeTransitionKey = (value: string): string =>
+    value
+      .replaceAll("_", " ")
+      .split(" ")
+      .filter((part) => part.length > 0)
+      .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
+      .join(" ");
+
+  const transition = lookups?.transitionsById.get(transitionId);
+  const transitionKey = transition?.transitionKey ?? transitionId;
+  const transitionName = humanizeTransitionKey(transition?.transitionKey ?? transitionId);
+  const fromState = resolveStateIdentity(
+    transition?.fromStateId ?? workUnitCurrentStateId,
+    lookups ?? null,
+  );
+  const toState = resolveStateIdentity(
+    transition?.toStateId ?? workUnitCurrentStateId,
+    lookups ?? null,
+  );
+
+  return {
+    transitionId,
+    transitionKey,
+    transitionName,
+    fromState,
+    toState,
+  };
+};
+
+const toWorkUnitIdentity = (
+  workUnit: {
+    readonly id: string;
+    readonly workUnitTypeId: string;
+    readonly currentStateId: string | null;
+    readonly createdAt: Date;
+    readonly updatedAt: Date;
+  },
+  lookups: LifecycleLookups | null,
+) => {
+  const workUnitType = resolveWorkUnitTypeIdentity(workUnit.workUnitTypeId, lookups);
+  const currentState = resolveStateIdentity(workUnit.currentStateId, lookups);
+
+  return {
+    projectWorkUnitId: workUnit.id,
+    workUnitTypeId: workUnitType.workUnitTypeId,
+    workUnitTypeKey: workUnitType.workUnitTypeKey,
+    workUnitTypeName: workUnitType.workUnitTypeName,
+    cardinality: workUnitType.cardinality,
+    currentStateId: currentState.stateId,
+    currentStateKey: currentState.stateKey,
+    currentStateLabel: currentState.stateLabel,
+    createdAt: workUnit.createdAt.toISOString(),
+    updatedAt: workUnit.updatedAt.toISOString(),
+  };
+};
 
 const toOptionalActiveTransition = (args: {
   readonly transitionExecutionId: string;
   readonly transitionId: string;
-  readonly toStateId: string;
+  readonly workUnitCurrentStateId: string | null;
+  readonly lookups: LifecycleLookups | null;
   readonly primaryWorkflowExecution?: {
     readonly id: string;
     readonly workflowId: string;
@@ -81,23 +205,33 @@ const toOptionalActiveTransition = (args: {
   } | null;
 }): GetWorkUnitOverviewOutput["activeTransition"] => {
   const primary = args.primaryWorkflowExecution;
+  const transition = resolveTransitionIdentity(
+    args.transitionId,
+    args.workUnitCurrentStateId,
+    args.lookups,
+  );
+  const workflowLookupKey = `${args.transitionId}:${primary?.workflowId ?? ""}`;
+  const workflowKey =
+    primary && args.lookups?.workflowKeyByTransitionAndWorkflow.get(workflowLookupKey)
+      ? args.lookups.workflowKeyByTransitionAndWorkflow.get(workflowLookupKey)
+      : primary?.workflowId;
 
   return {
     transitionExecutionId: args.transitionExecutionId,
-    transitionId: args.transitionId,
-    transitionKey: args.transitionId,
-    transitionName: args.transitionId,
-    toStateId: args.toStateId,
-    toStateKey: args.toStateId,
-    toStateLabel: args.toStateId,
+    transitionId: transition.transitionId,
+    transitionKey: transition.transitionKey,
+    transitionName: transition.transitionName,
+    toStateId: transition.toState.stateId,
+    toStateKey: transition.toState.stateKey,
+    toStateLabel: transition.toState.stateLabel,
     status: "active",
     ...(primary && (primary.status === "active" || primary.status === "completed")
       ? {
           primaryWorkflow: {
             workflowExecutionId: primary.id,
             workflowId: primary.workflowId,
-            workflowKey: primary.workflowId,
-            workflowName: primary.workflowId,
+            workflowKey: workflowKey ?? primary.workflowId,
+            workflowName: workflowKey ?? primary.workflowId,
             status: primary.status,
           },
         }
@@ -138,11 +272,75 @@ export const RuntimeWorkUnitServiceLive = Layer.effect(
     const executionReadRepository = yield* ExecutionReadRepository;
     const workUnitFactRepository = yield* WorkUnitFactRepository;
     const artifactRepository = yield* ArtifactRepository;
+    const projectContextRepository = yield* ProjectContextRepository;
+    const lifecycleRepository = yield* LifecycleRepository;
+
+    const getLifecycleLookups = (
+      projectId: string,
+    ): Effect.Effect<LifecycleLookups | null, RepositoryError> =>
+      Effect.gen(function* () {
+        const pin = yield* projectContextRepository.findProjectPin(projectId);
+        if (!pin) {
+          return null;
+        }
+
+        const [workUnitTypes, states, transitions, workflowBindings] = yield* Effect.all([
+          lifecycleRepository.findWorkUnitTypes(pin.methodologyVersionId),
+          lifecycleRepository.findLifecycleStates(pin.methodologyVersionId),
+          lifecycleRepository.findLifecycleTransitions(pin.methodologyVersionId),
+          lifecycleRepository.findTransitionWorkflowBindings(pin.methodologyVersionId),
+        ]);
+
+        return {
+          workUnitTypesById: new Map(
+            workUnitTypes.map(
+              (row) =>
+                [
+                  row.id,
+                  {
+                    key: row.key,
+                    displayName: row.displayName,
+                    cardinality:
+                      row.cardinality === "one_per_project"
+                        ? "one_per_project"
+                        : "many_per_project",
+                  },
+                ] as const,
+            ),
+          ),
+          statesById: new Map(
+            states.map((row) => [row.id, { key: row.key, displayName: row.displayName }] as const),
+          ),
+          transitionsById: new Map(
+            transitions.map(
+              (row) =>
+                [
+                  row.id,
+                  {
+                    transitionKey: row.transitionKey,
+                    fromStateId: row.fromStateId,
+                    toStateId: row.toStateId,
+                  },
+                ] as const,
+            ),
+          ),
+          workflowKeyByTransitionAndWorkflow: new Map(
+            workflowBindings.map(
+              (row) =>
+                [
+                  `${row.transitionId}:${row.workflowId}`,
+                  row.workflowKey ?? row.workflowId,
+                ] as const,
+            ),
+          ),
+        };
+      });
 
     const getWorkUnits = (
       input: GetWorkUnitsInput,
     ): Effect.Effect<GetWorkUnitsOutput, RepositoryError> =>
       Effect.gen(function* () {
+        const lookups = yield* getLifecycleLookups(input.projectId);
         const projectWorkUnits = yield* projectWorkUnitRepository.listProjectWorkUnitsByProject(
           input.projectId,
         );
@@ -163,47 +361,37 @@ export const RuntimeWorkUnitServiceLive = Layer.effect(
               const outboundDependencies = workUnitFacts.filter(
                 (fact) => fact.referencedProjectWorkUnitId !== null,
               ).length;
+              const identity = toWorkUnitIdentity(workUnit, lookups);
 
               return {
                 projectWorkUnitId: workUnit.id,
                 displayIdentity: {
-                  primaryLabel: workUnit.workUnitTypeId,
-                  secondaryLabel: workUnit.currentStateId,
+                  primaryLabel: identity.workUnitTypeName,
+                  secondaryLabel: identity.currentStateLabel,
                   fullInstanceId: workUnit.id,
                 },
                 workUnitType: {
-                  workUnitTypeId: workUnit.workUnitTypeId,
-                  workUnitTypeKey: workUnit.workUnitTypeId,
-                  workUnitTypeName: workUnit.workUnitTypeId,
-                  cardinality: "many_per_project" as const,
+                  workUnitTypeId: identity.workUnitTypeId,
+                  workUnitTypeKey: identity.workUnitTypeKey,
+                  workUnitTypeName: identity.workUnitTypeName,
+                  cardinality: identity.cardinality,
                 },
                 currentState: {
-                  stateId: workUnit.currentStateId,
-                  stateKey: workUnit.currentStateId,
-                  stateLabel: workUnit.currentStateId,
+                  stateId: identity.currentStateId,
+                  stateKey: identity.currentStateKey,
+                  stateLabel: identity.currentStateLabel,
                 },
                 ...(transitionDetail
                   ? {
-                      activeTransition: {
+                      activeTransition: toOptionalActiveTransition({
                         transitionExecutionId: transitionDetail.transitionExecution.id,
                         transitionId: transitionDetail.transitionExecution.transitionId,
-                        transitionKey: transitionDetail.transitionExecution.transitionId,
-                        transitionName: transitionDetail.transitionExecution.transitionId,
-                        toStateId: transitionDetail.currentStateId,
-                        toStateKey: transitionDetail.currentStateId,
-                        toStateLabel: transitionDetail.currentStateId,
+                        workUnitCurrentStateId: workUnit.currentStateId,
+                        lookups,
                         ...(transitionDetail.primaryWorkflowExecution
-                          ? {
-                              primaryWorkflow: {
-                                workflowExecutionId: transitionDetail.primaryWorkflowExecution.id,
-                                workflowId: transitionDetail.primaryWorkflowExecution.workflowId,
-                                workflowKey: transitionDetail.primaryWorkflowExecution.workflowId,
-                                workflowName: transitionDetail.primaryWorkflowExecution.workflowId,
-                                status: transitionDetail.primaryWorkflowExecution.status,
-                              },
-                            }
+                          ? { primaryWorkflowExecution: transitionDetail.primaryWorkflowExecution }
                           : {}),
-                      },
+                      }),
                     }
                   : {}),
                 summaries: {
@@ -335,18 +523,21 @@ export const RuntimeWorkUnitServiceLive = Layer.effect(
         const outboundDependencies = workUnitFacts.filter(
           (fact) => fact.referencedProjectWorkUnitId !== null,
         ).length;
+        const lookups = yield* getLifecycleLookups(input.projectId);
+        const identity = toWorkUnitIdentity(workUnit, lookups);
 
         const activeTransition = transitionDetail
           ? toOptionalActiveTransition({
               transitionExecutionId: transitionDetail.transitionExecution.id,
               transitionId: transitionDetail.transitionExecution.transitionId,
-              toStateId: transitionDetail.currentStateId,
+              workUnitCurrentStateId: workUnit.currentStateId,
+              lookups,
               primaryWorkflowExecution: transitionDetail.primaryWorkflowExecution,
             })
           : undefined;
 
         return {
-          workUnit: toWorkUnitIdentity(workUnit),
+          workUnit: identity,
           ...(activeTransition ? { activeTransition } : {}),
           summaries: {
             factsDependencies: {
@@ -361,8 +552,8 @@ export const RuntimeWorkUnitServiceLive = Layer.effect(
               },
             },
             stateMachine: {
-              currentStateKey: workUnit.currentStateId,
-              currentStateLabel: workUnit.currentStateId,
+              currentStateKey: identity.currentStateKey,
+              currentStateLabel: identity.currentStateLabel,
               hasActiveTransition: workUnit.activeTransitionExecutionId !== null,
               target: {
                 page: "work-unit-state-machine",
@@ -393,24 +584,28 @@ export const RuntimeWorkUnitServiceLive = Layer.effect(
           }),
           executionReadRepository.listTransitionExecutionsForWorkUnit(input.projectWorkUnitId),
         ]);
+        const lookups = yield* getLifecycleLookups(input.projectId);
 
         const history = transitionHistory
           .filter((row) => isHistoricTransitionStatus(row.status))
           .map((row) => {
             const status: "completed" | "superseded" =
               row.status === "superseded" ? "superseded" : "completed";
+            const transition = resolveTransitionIdentity(
+              row.transitionId,
+              overview.workUnit.currentStateId,
+              lookups,
+            );
 
             return {
               transitionExecutionId: row.id,
-              transitionId: row.transitionId,
-              transitionKey: row.transitionId,
-              transitionName: row.transitionId,
-              ...(status === "superseded" ? { fromStateId: overview.workUnit.currentStateId } : {}),
-              ...(status === "superseded"
-                ? { fromStateKey: overview.workUnit.currentStateKey }
-                : {}),
-              toStateId: overview.workUnit.currentStateId,
-              toStateKey: overview.workUnit.currentStateKey,
+              transitionId: transition.transitionId,
+              transitionKey: transition.transitionKey,
+              transitionName: transition.transitionName,
+              ...(status === "superseded" ? { fromStateId: transition.fromState.stateId } : {}),
+              ...(status === "superseded" ? { fromStateKey: transition.fromState.stateKey } : {}),
+              toStateId: transition.toState.stateId,
+              toStateKey: transition.toState.stateKey,
               status,
               startedAt: row.startedAt.toISOString(),
               ...(row.completedAt ? { completedAt: row.completedAt.toISOString() } : {}),
