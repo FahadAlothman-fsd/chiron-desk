@@ -1,0 +1,41 @@
+packages/workflow-engine/src/services/runtime/agent-step-session-command-service.ts
+  5bcefd2e09c0df96 37-49,132,136,169-180,183
+packages/agent-runtime/src/fake-harness-service.ts
+  5bcefd2e09c0df96 248
+packages/agent-runtime/src/opencode-harness-service.ts
+  5bcefd2e09c0df96 887,1102-1103,1113,1220-1221
+packages/agent-runtime/src/tests/harness/harness-service-contract.test.ts
+  5bcefd2e09c0df96 61,132
+packages/workflow-engine/src/services/runtime/agent-step-runtime-support.ts
+  5bcefd2e09c0df96 223-224,233-240
+packages/workflow-engine/src/tests/runtime/agent-step-runtime-services.test.ts
+  5bcefd2e09c0df96 68,182-218
+apps/web/src/routes/projects.$projectId.step-executions.$stepExecutionId.tsx
+  5bcefd2e09c0df96 199-201,211-219,1828-1831,2287,2290,2296-2300,2317,2323,2395,2431
+packages/workflow-engine/src/services/runtime/agent-step-execution-detail-service.ts
+  5bcefd2e09c0df96 64,110-113
+packages/agent-runtime/src/tests/opencode/opencode-harness-service.test.ts
+  5bcefd2e09c0df96 264,266,281,304,309,379,398,403,413
+apps/web/src/tests/routes/runtime-agent-step-detail.test.tsx
+  5bcefd2e09c0df96 385,387,395-396,490-496,506,601-624,669-711
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.6",
+  "base_commit_sha": "065e2a2279acb012ef49e3f34dfe70540b70e112",
+  "prompts": {
+    "5bcefd2e09c0df96": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_290ca60e8ffeOFobgL3ZePtRb4",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 333,
+      "total_deletions": 167,
+      "accepted_lines": 209,
+      "overriden_lines": 2
+    }
+  }
+}
