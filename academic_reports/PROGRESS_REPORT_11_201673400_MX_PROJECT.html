@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Progress Report 11</title>
+  <style>
+@page { size: A4; margin: 16mm 14mm 16mm 14mm; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  line-height: 1.6;
+  color: #141414;
+  margin: 0;
+  background: #ffffff;
+}
+
+.cover-page {
+  min-height: 94vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 22px 20px;
+  page-break-after: always;
+}
+
+.cover-logo {
+  width: 180px;
+  max-width: 44%;
+  margin-bottom: 14px;
+}
+
+.cover-title {
+  font-size: 50px;
+  font-weight: 800;
+  line-height: 1.1;
+  max-width: 980px;
+  color: #6b6150;
+  margin: 0 0 10px;
+}
+
+.cover-subtitle {
+  font-size: 22px;
+  line-height: 1.28;
+  max-width: 900px;
+  color: #6b6150;
+  margin: 0 0 10px;
+  font-weight: 700;
+}
+
+.cover-meta {
+  font-size: 15px;
+  color: #6b6150;
+  max-width: 880px;
+  margin: 4px auto;
+}
+
+.cover-student {
+  margin-top: 22px;
+  font-size: 18px;
+  color: #00796b;
+  font-weight: 500;
+}
+
+.report-body {
+  background: #ffffff;
+  max-width: 980px;
+  margin: 8px auto;
+  padding: 14px 24px 28px;
+}
+
+h1, h2, h3 { line-height: 1.25; }
+h1 { font-size: 2rem; margin-bottom: 0.6rem; }
+h2 { font-size: 1.35rem; margin-top: 2rem; }
+h3 { font-size: 1.1rem; margin-top: 1.25rem; }
+hr { border: none; border-top: 1px solid #ddd; margin: 1.5rem 0; }
+code { background: #f6f8fa; padding: 0.1em 0.3em; border-radius: 4px; }
+pre { background: #f6f8fa; padding: 12px; overflow-x: auto; border-radius: 8px; }
+a { color: #0b57d0; text-decoration: underline; word-break: break-word; }
+ul, ol { padding-left: 1.2rem; }
+
+@media print {
+  body { background: #fff; }
+  .report-body { margin: 0; max-width: none; padding: 0; }
+  .cover-page { min-height: 94vh; }
+}
+</style>
+</head>
+<body>
+  
+<section class="cover-page">
+  <img class="cover-logo" src="kfupm-logo-green.png" alt="KFUPM Logo" />
+  <div class="cover-title">Chiron</div>
+  <div class="cover-subtitle">Foundation Hardening for Methodology Contracts</div>
+  <div class="cover-meta">Progress Report 11 • 15 Feb 2026 — 28 Feb 2026</div>
+  <div class="cover-meta">Master’s Research Progress Update</div>
+  <div class="cover-student">Fahad Alothman</div>
+</section>
+
+  <main class="report-body">
+    <h1>Progress Report 11</h1>
+<p><strong>Title:</strong> Foundation Hardening for Methodology Contracts<br />
+<strong>Reporting Window:</strong> 15 Feb 2026 — 28 Feb 2026<br />
+<strong>Submission Context:</strong> Master’s Research Progress Update</p>
+<hr />
+<h2>Abstract</h2>
+<p>This reporting window marks the transition from architectural clarification into architectural enforcement. If the previous period made Chiron easier to describe, this one made it harder to violate. The project moved from explaining the layered model to hardening it across contracts, persistence, lifecycle semantics, and runtime ownership boundaries.</p>
+<p>The main achievement of this period was not merely higher delivery volume. It was a stronger coupling between methodology authority and runtime behavior. L1 remained the methodology-wide authority layer, L2 became more operational as the work-unit contract layer, and L3 was formalized further as workflow grammar without overstating full end-to-end completion. By the end of the window, Chiron’s architecture was no longer just a good theory. It had started to become a more enforceable system.</p>
+<hr />
+<h2>From Checkpoint to Hardening</h2>
+<p>PR10 solved a descriptive problem: the project needed a coherent way to explain itself. PR11 addressed the harder problem that follows immediately after that: once the model is clarified, how does the system stop drifting away from it?</p>
+<p>That question shaped the entire period. Repository evidence in this window shows broad landing across contracts, persistence, transition logic, publish and pinning behavior, and selected UI adaptation. At the same time, advisory and exploration work remained active in parallel. This dual-track pattern matters. The project was not improvising blindly. It was shipping under architectural pressure while continuing to validate where the boundaries should harden first.</p>
+<hr />
+<h2>What Actually Hardened in This Period</h2>
+<p>The major movement in this window was the conversion of architecture into ownership boundaries.</p>
+<p>L1 stayed responsible for methodology topology and version-owned registries. That includes the methodology-wide definitions that should remain stable and reusable across projects. L2 became much more clearly the work-unit contract layer, where work-unit facts, lifecycle states, transitions, gates, workflow bindings, and artifact-slot policy belong. L3 was pushed further toward an explicit workflow grammar with typed step taxonomy, edges, and context-fact modeling, even while some of its runtime realization remained staged for later work.</p>
+<p>This mattered because it reduced cross-layer leakage. Work-unit policy no longer needed to be smuggled through workflow-only concepts. Methodology-wide meaning no longer needed to be recreated inside each work unit. Runtime behavior became easier to reason about because there was a stronger answer to the question, “where does this piece of authority belong?”</p>
+<hr />
+<h2>Facts, Dependencies, and Contract Authority</h2>
+<p>One of the most important design consequences of this period was the sharpening of fact semantics. Methodology facts, work-unit facts, and runtime fact instances became harder to confuse. The project increasingly treated methodology facts as methodology-wide or project-wide durable inputs, while work-unit facts remained the place where work-unit-specific meaning and references could live.</p>
+<p>This also reinforced a deeper architectural decision: dependency semantics belong to methodology data rather than engine enums. A work-unit reference is not merely a pointer. It gains meaning through methodology-defined link or dependency types. That decision keeps runtime generic while preserving expressiveness in the authored method. It also makes dependency interpretation part of the methodology contract rather than hardcoded logic spread across execution surfaces.</p>
+<p>This is one of the most important reasons PR11 matters. It continued the move away from a workflow-first worldview and toward a methodology-driven one, where contracts govern how work relates, how it progresses, and how that meaning survives at runtime.</p>
+<hr />
+<h2>Lifecycle, Gates, and Runtime Determinism</h2>
+<p>The hardening work in this period also strengthened lifecycle authority. States and transitions were treated less like descriptive labels and more like binding policy. Gates became more explicit as condition-set based readiness and completion checks. Transition execution behavior, workflow attachment, and completion semantics moved closer to a model where runtime must justify progression rather than simply allow it.</p>
+<p>That had a direct impact on determinism. Publish and pinning behavior became more important because project runtime now depended more clearly on a stable methodology version. This also increased the value of treating runtime records as auditable outcomes of policy, not merely ephemeral events inside a workflow engine.</p>
+<hr />
+<h2>Artifact Evidence Becomes More Serious</h2>
+<p>Another important shift in this window was the strengthening of artifact thinking. Artifact slots became easier to understand as contract-owned definitions rather than loose attachment points. The key distinction was not the optional rules payload, but the simpler and more durable contract between <code>single</code> and <code>fileset</code> outputs.</p>
+<p>On the runtime side, artifact behavior increasingly pointed toward immutable snapshots, file-member rows, and lineage rather than a mutable artifact row. That gave Chiron a more serious evidence model. When artifact members carry commit/blob references and can later be checked against project state, the result is not just storage. It is runtime evidence that can support readiness checks, auditability, and downstream consumption by other workflows.</p>
+<p>This was a meaningful design choice because it aligned artifacts with the same larger principle that governed facts and lifecycle policy: durable project state should be explicit, attributable, and interpretable, not hidden inside ad hoc workflow IO.</p>
+<hr />
+<h2>Harness-First Practicality Begins to Dominate</h2>
+<p>PR11 also clarified an important product decision, even if it was not yet the final statement of it. The project increasingly favored a harness-oriented execution model for individual local users. This was not a rejection of richer AI-runtime ideas in principle. It was a judgment about maturity and utility.</p>
+<p>The practical reasoning was straightforward. Harness-first execution already offered immediate value for local usage and simpler integration paths, while deeper AI-SDK and AX-centric infrastructure remained only partially scaffolded. Building the core system around those incomplete pieces would have increased conceptual ambition while weakening delivery reliability. This period therefore strengthened the case for a more pragmatic baseline: get the durable execution model right first, then expand the AI-runtime stack when the underlying contracts and runtime evidence model are ready to support it. In that sense, OpenCode already had a real narrative role here as the practical harness boundary under active concretization [2].</p>
+<hr />
+<h2>Why This Window Matters</h2>
+<p>PR11 matters because it moved the project across a threshold. After this period, Chiron could no longer be described honestly as only an evolving design concept. Its contract model was becoming harder to bypass, its ownership boundaries were clearer, and its runtime behavior was increasingly tied to methodology authority instead of convenience logic.</p>
+<p>That is the deeper contribution of this window. It made the project more structurally reliable. It also prepared the next period to do something more ambitious: summarize the current design of Chiron not as an aspirational architecture, but as a more concrete product direction with clear decisions about what to keep, what to defer, and what to reject.</p>
+<hr />
+<h2>Stack Direction at the End of the Window</h2>
+<p>The technical stack direction stayed stable even as implementation depth increased:</p>
+<ul>
+<li><strong>Desktop host:</strong> Tauri [3]</li>
+<li><strong>Frontend:</strong> React + TanStack Router + shadcn/ui</li>
+<li><strong>Backend/API:</strong> TypeScript services with Hono + oRPC-aligned surfaces, while MCP transport direction becomes clearer through Hono-based MCP middleware, Hono itself, and the Model Context Protocol SDK [4]–[6]</li>
+<li><strong>Execution/control plane:</strong> Effect-first with harness-oriented runtime direction, plus an increasingly concrete OpenCode SDK-backed harness boundary in <code>packages/agent-runtime</code> [1], [2]</li>
+<li><strong>Data layer:</strong> Drizzle ORM with methodology-first persistence on a SQLite-first, libSQL/Turso-compatible baseline [7]</li>
+<li><strong>Git/workspace seam:</strong> sandbox-oriented git truth direction, with simple-git still part of the intended git/workspace operations story even as the seam itself is being clarified [9]</li>
+<li><strong>Authentication:</strong> Better Auth</li>
+<li><strong>Runtime/tooling:</strong> Bun + Turborepo [8]</li>
+</ul>
+<p>The signal here is not churn. It is hardening within an increasingly coherent architecture. Persistence choices followed the same logic. The project leaned into SQLite-first execution for the current horizon because it fit the local-first and desktop-friendly operating model, reduced setup friction during high-velocity architecture work, and kept the team focused on contract correctness instead of distributed database overhead. At the same time, libSQL/Turso compatibility kept a future deployment path open without forcing an immediate second database track.</p>
+<hr />
+<h2>Conclusion</h2>
+<p>Progress Report 11 is the hardening phase in which Chiron’s methodology-first design began to behave more like a system and less like a draft. L1 remained the authority layer for methodology topology, L2 became more enforceable as the work-unit contract layer, and L3 moved further toward explicit workflow grammar. Facts, dependencies, lifecycle policy, and artifact evidence all became more structurally grounded.</p>
+<p>The result was stronger contract authority, stronger runtime determinism, and better readiness for the next step: explaining Chiron’s current design as a deliberate product shape rather than an open-ended architecture experiment.</p>
+<hr />
+<h2>References</h2>
+<p>[1] Effect Authors, “Effect Documentation,” 2026. [Online]. Available: <a href="https://effect.website/">https://effect.website/</a><br />
+[2] OpenCode, “OpenCode Documentation,” 2026. [Online]. Available: <a href="https://opencode.ai/">https://opencode.ai/</a><br />
+[3] Tauri Programme, “Tauri,” Documentation, 2026. [Online]. Available: <a href="https://tauri.app/">https://tauri.app/</a><br />
+[4] Hono Authors, “Hono,” Documentation, 2026. [Online]. Available: <a href="https://hono.dev/">https://hono.dev/</a><br />
+[5] Hono, “@hono/mcp,” npm, 2026. [Online]. Available: <a href="https://www.npmjs.com/package/@hono/mcp">https://www.npmjs.com/package/@hono/mcp</a><br />
+[6] Model Context Protocol, “Introduction,” 2026. [Online]. Available: <a href="https://modelcontextprotocol.io/docs/getting-started/intro">https://modelcontextprotocol.io/docs/getting-started/intro</a><br />
+[7] Drizzle Team, “Drizzle ORM Documentation,” 2026. [Online]. Available: <a href="https://orm.drizzle.team/">https://orm.drizzle.team/</a><br />
+[8] Turborepo Authors, “Turborepo Documentation,” 2026. [Online]. Available: <a href="https://turbo.build/repo/docs">https://turbo.build/repo/docs</a><br />
+[9] simple-git, “simple-git,” GitHub repository, 2026. [Online]. Available: <a href="https://github.com/simple-git-js/simple-git/">https://github.com/simple-git-js/simple-git/</a></p>
+  </main>
+</body>
+</html>
