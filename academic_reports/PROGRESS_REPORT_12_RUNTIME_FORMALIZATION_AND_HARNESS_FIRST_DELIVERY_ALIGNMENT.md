@@ -82,6 +82,8 @@ PR12 matters because it converts the previous two windows into a more stable des
 
 This is also the point where the feature set becomes more understandable as a deliberate cut. What remains is not everything the project could eventually include. It is the subset that best reinforces determinism, inspectability, auditability, and practical local execution.
 
+That deliberate cut should not be misread as indifference to isolation or orchestration. Broader git-worktree control, deeper sandboxing, and richer agent coordination remain part of the longer-horizon Chiron direction. They simply no longer define the master’s-project core. In the current shape, git is used chiefly where it sharpens durable project evidence — especially around artifact truth, lineage, and staleness — while the thesis-critical implementation priority is the guidance and shared project model that both users and agents execute against.
+
 ---
 
 ## Stack Direction at the End of the Window
