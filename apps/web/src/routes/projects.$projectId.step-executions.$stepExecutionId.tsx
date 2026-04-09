@@ -196,7 +196,9 @@ function upsertTimelineItem(
   });
 }
 
-function getAgentComposerUiState(state: AgentStepRuntimeState) {
+function getAgentComposerUiState(params: { state: AgentStepRuntimeState; sessionId?: string }) {
+  const { state, sessionId } = params;
+
   switch (state) {
     case "not_started":
       return {
@@ -206,6 +208,15 @@ function getAgentComposerUiState(state: AgentStepRuntimeState) {
         reason: "Start the session to enable the composer.",
       } as const;
     case "starting_session":
+      if (!sessionId) {
+        return {
+          enabled: false,
+          startSessionVisible: true,
+          startSessionLabel: "Retry Session",
+          reason: "Session startup is stale or disconnected. Retry to recover.",
+        } as const;
+      }
+
       return {
         enabled: false,
         startSessionVisible: false,
@@ -335,27 +346,6 @@ function getAgentLabel(
   }
 
   return `${discovered.label} · ${formatAgentDefaultModel(discovered)}`;
-}
-
-function parseDescriptionMarkdown(value: unknown): string | null {
-  if (!value) {
-    return null;
-  }
-
-  if (typeof value === "string") {
-    return value;
-  }
-
-  if (
-    typeof value === "object" &&
-    value !== null &&
-    "markdown" in value &&
-    typeof (value as { markdown?: unknown }).markdown === "string"
-  ) {
-    return (value as { markdown: string }).markdown;
-  }
-
-  return null;
 }
 
 function encodeOptionValue(value: unknown): string {
@@ -1835,7 +1825,10 @@ function AgentInteractionSurface(props: {
     };
   }, [copiedAttachCommand]);
 
-  const composerUiState = getAgentComposerUiState(runtimeState);
+  const composerUiState = getAgentComposerUiState({
+    state: runtimeState,
+    sessionId: detail.body.harnessBinding.sessionId,
+  });
   const shouldStreamSessionEvents =
     Boolean(detail.body.harnessBinding.sessionId) &&
     runtimeState !== "disconnected_or_error" &&
@@ -2291,16 +2284,20 @@ function AgentInteractionSurface(props: {
             </Card>
 
             <div
-              className="grid gap-4 transition-[grid-template-columns] duration-200 ease-out xl:[grid-template-columns:var(--agent-runtime-panels-columns)]"
+              className="grid items-stretch gap-4 transition-[grid-template-columns] duration-200 ease-out"
               style={
                 {
-                  "--agent-runtime-panels-columns": sidePanelOpen
+                  gridTemplateColumns: sidePanelOpen
                     ? "minmax(0,1fr) minmax(20rem,0.9fr)"
                     : "minmax(0,1fr) 2.75rem",
                 } as CSSProperties
               }
             >
-              <Card frame="flat" tone="runtime" className="border-border/70 bg-background/40">
+              <Card
+                frame="flat"
+                tone="runtime"
+                className="flex h-[calc(100vh-16rem)] min-h-[26rem] min-w-0 flex-col border-border/70 bg-background/40"
+              >
                 <CardHeader className="border-b border-border/70">
                   <div className="flex items-center justify-between gap-3">
                     <div className="space-y-1">
@@ -2317,13 +2314,13 @@ function AgentInteractionSurface(props: {
                     ) : null}
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-3 py-4">
+                <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto py-4">
                   {timelineItems.length === 0 ? (
                     <div className="border border-dashed border-border/70 bg-background/50 px-3 py-6 text-center text-sm text-muted-foreground">
                       No timeline activity yet. Start the session to begin the runtime trace.
                     </div>
                   ) : (
-                    <div className="space-y-3" data-testid="agent-step-timeline-list">
+                    <div className="space-y-3 pr-1" data-testid="agent-step-timeline-list">
                       {timelineItems.map((item) =>
                         item.itemType === "message" ? (
                           <article
@@ -2395,7 +2392,7 @@ function AgentInteractionSurface(props: {
 
               <aside
                 className={cn(
-                  "min-w-0 overflow-hidden border border-border/70 bg-background/40",
+                  "flex h-[calc(100vh-16rem)] min-h-[26rem] min-w-0 flex-col overflow-hidden border border-border/70 bg-background/40",
                   !sidePanelOpen && "justify-self-end",
                 )}
               >
@@ -2431,7 +2428,7 @@ function AgentInteractionSurface(props: {
 
                 <div
                   className={cn(
-                    "space-y-3 p-3 transition-opacity duration-150",
+                    "min-h-0 flex-1 space-y-3 overflow-y-auto p-3 transition-opacity duration-150",
                     sidePanelOpen ? "opacity-100" : "pointer-events-none select-none opacity-0",
                   )}
                 >

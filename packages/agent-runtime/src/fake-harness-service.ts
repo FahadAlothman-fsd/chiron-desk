@@ -245,7 +245,7 @@ export function makeFakeHarnessService(options: FakeHarnessOptions = {}) {
           itemType: "message",
           timelineItemId: idFactory("timeline"),
           createdAt: startedAt,
-          role: "system",
+          role: "user",
           content: [config.objective, config.instructionsMarkdown].join("\n\n"),
         };
 

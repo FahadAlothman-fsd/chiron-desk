@@ -58,7 +58,7 @@ describe("HarnessService contract", () => {
         itemType: "message",
         timelineItemId: "timeline-2",
         createdAt: "2026-04-09T12:00:00.000Z",
-        role: "system",
+        role: "user",
         content: "Draft a setup handoff.\n\nUse the fake harness contract.",
       },
     ]);
@@ -129,7 +129,7 @@ describe("HarnessService contract", () => {
         timelineItems: [
           expect.objectContaining({
             itemType: "message",
-            role: "system",
+            role: "user",
           }),
         ],
       },

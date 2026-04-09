@@ -219,7 +219,9 @@ export function isAllowedAgentStepStateTransition(
   return AGENT_STEP_ALLOWED_STATE_TRANSITIONS[from].includes(to as never);
 }
 
-export function buildComposerState(state: AgentStepRuntimeState) {
+export function buildComposerState(params: { state: AgentStepRuntimeState; sessionId?: string }) {
+  const { state, sessionId } = params;
+
   switch (state) {
     case "not_started":
       return {
@@ -228,6 +230,14 @@ export function buildComposerState(state: AgentStepRuntimeState) {
         reasonIfDisabled: "Start the session first.",
       } as const;
     case "starting_session":
+      if (!sessionId) {
+        return {
+          enabled: false,
+          startSessionVisible: true,
+          reasonIfDisabled: "Session startup is stale or disconnected. Retry to recover.",
+        } as const;
+      }
+
       return {
         enabled: false,
         startSessionVisible: false,

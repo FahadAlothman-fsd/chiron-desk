@@ -261,9 +261,9 @@ describe("OpencodeHarnessService runtime", () => {
     expect(started.timeline).toEqual([
       {
         itemType: "message",
-        timelineItemId: "bootstrap:session-1",
+        timelineItemId: "message:bootstrap-msg",
         createdAt: "2025-04-09T10:06:40.000Z",
-        role: "system",
+        role: "user",
         content: "Draft a setup handoff.\n\nUse the managed runtime.",
       },
     ]);
@@ -278,7 +278,7 @@ describe("OpencodeHarnessService runtime", () => {
 
     const page = await Effect.runPromise(service.getTimelinePage("session-1"));
     expect(page.items).toEqual([
-      expect.objectContaining({ itemType: "message", role: "system" }),
+      expect.objectContaining({ itemType: "message", role: "user" }),
       expect.objectContaining({ itemType: "message", role: "user", content: "please continue" }),
       expect.objectContaining({
         itemType: "tool_activity",
@@ -301,11 +301,12 @@ describe("OpencodeHarnessService runtime", () => {
 
     const streamEvents = Array.from(
       await Effect.runPromise(
-        Stream.runCollect(service.streamSessionEvents("session-1").pipe(Stream.take(8))),
+        Stream.runCollect(service.streamSessionEvents("session-1").pipe(Stream.take(9))),
       ),
     );
     expect(streamEvents.map((event) => event.eventType)).toEqual([
       "bootstrap",
+      "timeline",
       "session_state",
       "timeline",
       "tool_activity",
@@ -375,7 +376,7 @@ describe("OpencodeHarnessService runtime", () => {
     );
 
     const streamPromise = Effect.runPromise(
-      Stream.runCollect(service.streamSessionEvents("session-error").pipe(Stream.take(4))),
+      Stream.runCollect(service.streamSessionEvents("session-error").pipe(Stream.take(5))),
     );
 
     setTimeout(() => {
@@ -394,11 +395,12 @@ describe("OpencodeHarnessService runtime", () => {
     const streamEvents = Array.from(await streamPromise);
     expect(streamEvents.map((event) => event.eventType)).toEqual([
       "bootstrap",
+      "timeline",
       "session_state",
       "error",
       "done",
     ]);
-    expect(streamEvents[2]).toMatchObject({
+    expect(streamEvents[3]).toMatchObject({
       eventType: "error",
       data: {
         error: expect.objectContaining({
@@ -408,7 +410,7 @@ describe("OpencodeHarnessService runtime", () => {
         }),
       },
     });
-    expect(streamEvents[3]).toMatchObject({
+    expect(streamEvents[4]).toMatchObject({
       eventType: "done",
       data: { finalState: "disconnected_or_error" },
     });

@@ -73,7 +73,6 @@ type SessionRecord = {
   readonly timelineIds: Set<string>;
   readonly eventLog: AgentStepSseEnvelope[];
   readonly subscribers: Set<Queue.Queue<AgentStepSseEnvelope>>;
-  readonly ignoredMessageIds: Set<string>;
 };
 
 type OpencodeClientFactoryServiceShape = {
@@ -885,7 +884,7 @@ function syncSessionMessages(record: SessionRecord, messages: readonly OpencodeM
   for (const messageRecord of messages) {
     const info = asRecord(messageRecord.info) ?? {};
     const messageId = readString(info.id);
-    if (!messageId || record.ignoredMessageIds.has(messageId)) {
+    if (!messageId) {
       continue;
     }
 
@@ -942,12 +941,6 @@ function syncSessionMessages(record: SessionRecord, messages: readonly OpencodeM
   }
 
   return appended;
-}
-
-function readMessageIds(messages: readonly OpencodeMessageRecord[]): string[] {
-  return messages
-    .map((message) => readString(asRecord(message.info)?.id))
-    .filter((messageId): messageId is string => messageId.length > 0);
 }
 
 function extractSessionId(rawEvent: unknown): string | undefined {
@@ -1100,21 +1093,14 @@ export function makeOpencodeHarnessService(
     };
 
     const bootstrapContent = buildBootstrapContent(config);
-    const bootstrapItem: AgentStepTimelineItem = {
-      itemType: "message",
-      timelineItemId: `bootstrap:${session.sessionId}`,
-      createdAt: session.startedAt,
-      role: "system",
-      content: bootstrapContent,
-    };
 
     return {
       session,
       client: server.client,
       server,
       bootstrapContent,
-      timeline: [bootstrapItem],
-      timelineIds: new Set([bootstrapItem.timelineItemId]),
+      timeline: [],
+      timelineIds: new Set(),
       eventLog: [
         {
           version: "v1",
@@ -1124,12 +1110,11 @@ export function makeOpencodeHarnessService(
           data: {
             state: session.state,
             streamContract: SESSION_STREAM_CONTRACT,
-            timelineItems: [bootstrapItem],
+            timelineItems: [],
           },
         },
       ],
       subscribers: new Set(),
-      ignoredMessageIds: new Set(),
     };
   };
 
@@ -1232,14 +1217,8 @@ export function makeOpencodeHarnessService(
               ),
           });
 
-          const bootstrapMessages = yield* Effect.tryPromise({
-            try: () => createdRecord.client.listMessages(createdRecord.session.sessionId),
-            catch: (error) =>
-              opencodeError("start_session", "Failed to load bootstrap OpenCode messages.", error),
-          });
-          for (const messageId of readMessageIds(bootstrapMessages)) {
-            createdRecord.ignoredMessageIds.add(messageId);
-          }
+          const bootstrapTimelineItems = yield* synchronizeTimeline(createdRecord, "start_session");
+          yield* pushTimelineEvents(createdRecord, bootstrapTimelineItems);
 
           sessionsById.set(createdRecord.session.sessionId, createdRecord);
           sessionIdByStepExecutionId.set(

@@ -34,6 +34,19 @@ type AgentStepSessionCommandServiceError =
 const isMissingHarnessSessionError = (message: string) =>
   message.includes("Harness session") && message.includes("was not found");
 
+const isUnavailableHarnessSessionError = (message: string) => {
+  const normalized = message.toLowerCase();
+
+  return (
+    isMissingHarnessSessionError(message) ||
+    normalized.includes("econnrefused") ||
+    normalized.includes("fetch failed") ||
+    normalized.includes("network") ||
+    normalized.includes("connect") ||
+    normalized.includes("timed out")
+  );
+};
+
 export class AgentStepSessionCommandService extends Context.Tag(
   "@chiron/workflow-engine/services/runtime/AgentStepSessionCommandService",
 )<
@@ -116,11 +129,11 @@ export const AgentStepSessionCommandServiceLive = Layer.effect(
             Effect.map(() => true),
             Effect.catchTags({
               OpenCodeExecutionError: (error) =>
-                isMissingHarnessSessionError(error.message)
+                isUnavailableHarnessSessionError(error.message)
                   ? Effect.succeed(false)
                   : Effect.fail(error),
               HarnessExecutionError: (error) =>
-                isMissingHarnessSessionError(error.message)
+                isUnavailableHarnessSessionError(error.message)
                   ? Effect.succeed(false)
                   : Effect.fail(error),
             }),
@@ -153,14 +166,21 @@ export const AgentStepSessionCommandServiceLive = Layer.effect(
           }
 
           if (hasLiveSession && context.runtimeState !== "disconnected_or_error") {
+            const resolvedState =
+              context.runtimeState === "active_streaming" ? "active_streaming" : "active_idle";
+
+            if (context.runtimeState === "starting_session") {
+              yield* transitionAgentStepState({
+                stepExecutionId: context.stepExecution.id,
+                from: "starting_session",
+                to: resolvedState,
+                stateRepo,
+              });
+            }
+
             return {
               stepExecutionId: context.stepExecution.id,
-              state:
-                context.runtimeState === "starting_session"
-                  ? "starting_session"
-                  : context.runtimeState === "active_streaming"
-                    ? "active_streaming"
-                    : "active_idle",
+              state: resolvedState,
               bindingState: "bound",
             } satisfies StartAgentStepSessionOutput;
           }

@@ -382,6 +382,9 @@ function buildHarnessMetadata() {
 
 function buildOrpc(overrides?: {
   state?: AgentState;
+  agentDetailTransform?: (
+    detail: ReturnType<typeof buildAgentDetail>,
+  ) => ReturnType<typeof buildAgentDetail>;
   startSession?: ReturnType<typeof vi.fn>;
   sendMessage?: ReturnType<typeof vi.fn>;
   updateTurnSelection?: ReturnType<typeof vi.fn>;
@@ -389,7 +392,8 @@ function buildOrpc(overrides?: {
 }) {
   const state = overrides?.state ?? "not_started";
   const stepDetail = buildStepDetail();
-  const agentDetail = buildAgentDetail(state);
+  const agentDetail =
+    overrides?.agentDetailTransform?.(buildAgentDetail(state)) ?? buildAgentDetail(state);
   const workflowDetail = buildWorkflowDetail();
   const harnessMetadata = buildHarnessMetadata();
 
@@ -483,7 +487,13 @@ function buildOrpc(overrides?: {
 
 async function renderRoute(
   state: AgentState,
-  options?: { sseEvents?: unknown[]; queryClient?: QueryClient },
+  options?: {
+    sseEvents?: unknown[];
+    queryClient?: QueryClient;
+    agentDetailTransform?: (
+      detail: ReturnType<typeof buildAgentDetail>,
+    ) => ReturnType<typeof buildAgentDetail>;
+  },
 ) {
   const queryClient =
     options?.queryClient ??
@@ -493,7 +503,7 @@ async function renderRoute(
         mutations: { retry: false },
       },
     });
-  const setup = buildOrpc({ state });
+  const setup = buildOrpc({ state, agentDetailTransform: options?.agentDetailTransform });
 
   useParamsMock.mockReturnValue({ projectId: "project-1", stepExecutionId: "step-agent-1" });
   useRouteContextMock.mockReturnValue({ orpc: setup.orpc, queryClient });
@@ -588,6 +598,32 @@ describe("runtime agent step detail route", () => {
     assert();
   });
 
+  it("shows retry action when state is starting_session without a bound session id", async () => {
+    await renderRoute("starting_session", {
+      agentDetailTransform: (detail) => ({
+        ...(() => {
+          const { sessionId: _sessionId, ...harnessBindingWithoutSession } =
+            detail.body.harnessBinding;
+
+          return {
+            ...detail,
+            body: {
+              ...detail.body,
+              harnessBinding: {
+                ...harnessBindingWithoutSession,
+                bindingState: "binding",
+              },
+            },
+          };
+        })(),
+      }),
+    });
+
+    expect(screen.getByRole("button", { name: /Retry Session/i })).toBeTruthy();
+    expect(screen.getByText(/stale or disconnected/i)).toBeTruthy();
+    expect(composerTextbox().disabled).toBe(true);
+  });
+
   it("invalidates side-panel queries after a successful write tool event", async () => {
     const queryClient = new QueryClient({
       defaultOptions: {
@@ -628,6 +664,49 @@ describe("runtime agent step detail route", () => {
         queryKey: runtimeAgentStepExecutionDetailQueryKey("project-1", "step-agent-1"),
       });
     });
+  });
+
+  it("shows bootstrap prompt from session history as a normal user message", async () => {
+    const bootstrapPromptContent = [
+      "Synthesize the setup handoff.",
+      "## Instructions\nUse the readable facts and emit structured writes.",
+    ].join("\n\n");
+
+    await renderRoute("active_idle", {
+      sseEvents: [
+        {
+          version: "v1",
+          stream: "agent_step_session_events",
+          eventType: "bootstrap",
+          stepExecutionId: "step-agent-1",
+          data: {
+            state: "active_idle",
+            streamContract: {
+              streamName: "agent_step_session_events",
+              streamCount: 1,
+              transport: "sse",
+              source: "step_execution_scoped",
+              purpose: "timeline_and_tool_activity",
+            },
+            timelineItems: [
+              {
+                itemType: "message",
+                timelineItemId: "bootstrap:session-1",
+                createdAt: "2026-04-09T12:00:00.000Z",
+                role: "user",
+                content: bootstrapPromptContent,
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    const bootstrapMessage = screen.getByTestId("agent-step-timeline-message-bootstrap:session-1");
+    expect(bootstrapMessage).toBeTruthy();
+    const bootstrapText = bootstrapMessage.textContent ?? "";
+    expect(bootstrapText).toContain("Synthesize the setup handoff.");
+    expect(bootstrapText).toContain("Use the readable facts and emit structured writes.");
   });
 
   it("updates the next-turn model selection", async () => {

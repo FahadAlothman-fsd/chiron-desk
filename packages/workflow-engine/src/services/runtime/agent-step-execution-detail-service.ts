@@ -61,7 +61,7 @@ export const AgentStepExecutionDetailServiceLive = Layer.effect(
           return null;
         }
 
-        const context = yield* ensureAgentStepRuntimeContext(
+        const _context = yield* ensureAgentStepRuntimeContext(
           {
             stepRepo,
             readRepo,
@@ -107,7 +107,10 @@ export const AgentStepExecutionDetailServiceLive = Layer.effect(
               payload: refreshedContext.agentPayload,
               bindingRow: refreshedContext.bindingRow,
             }),
-            composer: buildComposerState(refreshedContext.runtimeState),
+            composer: buildComposerState({
+              state: refreshedContext.runtimeState,
+              sessionId: refreshedContext.bindingRow?.sessionId ?? undefined,
+            }),
             objective: refreshedContext.agentPayload.objective,
             instructionsMarkdown: refreshedContext.agentPayload.instructionsMarkdown,
             readableContextFacts: refreshedContext.readableContextFacts,

@@ -65,7 +65,7 @@ describe("AgentStep runtime services", () => {
     );
     expect(afterStart?.body.timelinePreview[0]).toMatchObject({
       itemType: "message",
-      role: "system",
+      role: "user",
     });
   });
 
@@ -177,6 +177,43 @@ describe("AgentStep runtime services", () => {
     });
     expect(ctx.steps[0]?.status).toBe("completed");
     expect(ctx.states.at(-1)?.state).toBe("completed");
+  });
+
+  it("recovers stale starting_session to active_idle when bound session is still live", async () => {
+    const ctx = makeAgentStepRuntimeTestContext();
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* AgentStepSessionCommandService;
+        return yield* service.startAgentStepSession({
+          projectId: "project-1",
+          stepExecutionId: "step-exec-1",
+        });
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    ctx.states[0] = {
+      ...ctx.states[0],
+      state: "starting_session",
+      updatedAt: new Date("2026-04-09T12:01:00.000Z"),
+    };
+
+    const recovered = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* AgentStepSessionCommandService;
+        return yield* service.startAgentStepSession({
+          projectId: "project-1",
+          stepExecutionId: "step-exec-1",
+        });
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    expect(recovered).toMatchObject({
+      stepExecutionId: "step-exec-1",
+      state: "active_idle",
+      bindingState: "bound",
+    });
+    expect(ctx.states[0]?.state).toBe("active_idle");
   });
 
   it("loads timeline pages and enforces the single live stream rule", async () => {
