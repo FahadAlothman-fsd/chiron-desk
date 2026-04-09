@@ -1,0 +1,38 @@
+.sisyphus/boulder.json
+  5bcefd2e09c0df96 1-4,19-20,51
+.sisyphus/plans/l3-agent-step-design-runtime.md
+  5bcefd2e09c0df96 171,212,251,290
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.6",
+  "base_commit_sha": "602d0d35c6f38d060297667d13237d1fbf0d78d5",
+  "prompts": {
+    "5bcefd2e09c0df96": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_290ca60e8ffeOFobgL3ZePtRb4",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 11,
+      "total_deletions": 4,
+      "accepted_lines": 11,
+      "overriden_lines": 2
+    },
+    "b49b68eb695edf89": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2b6a37222ffeL5k3UQUISSA73o",
+        "model": "openai/gpt-5.3-codex"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 129,
+      "total_deletions": 153,
+      "accepted_lines": 122,
+      "overriden_lines": 0
+    }
+  }
+}
