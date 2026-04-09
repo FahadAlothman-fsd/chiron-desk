@@ -1,0 +1,40 @@
+apps/web/src/routes/projects.$projectId.step-executions.$stepExecutionId.tsx
+  5bcefd2e09c0df96 36-43,137-146,150-157,214-220,227,231,235,258,260-288,297-302,304-309,318-324,337-345,349-352,369-373,2290-2291,2293,2499,2505-2506,2508,2510,2515,2517,2519,2525,2530,2534-2538,2540-2541,2543-2544,2546-2547,2550-2565
+  2adda23b90026ec0 147-149,209-213,221-226,228-230,232-234,236-237,289-291,293-296,303,310-312,314-317,325-336,346-348,353-368
+apps/web/src/tests/routes/runtime-agent-step-detail.test.tsx
+  5bcefd2e09c0df96 669-685,687-702,704-714,717,763-764
+  2adda23b90026ec0 686,703,715,718-762
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.6",
+  "base_commit_sha": "1a42a1b004d7c605317004a98a5e72efaf40359f",
+  "prompts": {
+    "2adda23b90026ec0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_28b8b8abbffe3xukLCO2PQhD9I",
+        "model": "openai/gpt-5.3-codex-spark"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 116,
+      "overriden_lines": 1
+    },
+    "5bcefd2e09c0df96": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_290ca60e8ffeOFobgL3ZePtRb4",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 193,
+      "overriden_lines": 2
+    }
+  }
+}
