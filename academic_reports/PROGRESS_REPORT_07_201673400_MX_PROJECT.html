@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Progress Report 7</title>
+  <style>
+@page { size: A4; margin: 16mm 14mm 16mm 14mm; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  line-height: 1.6;
+  color: #141414;
+  margin: 0;
+  background: #ffffff;
+}
+
+.cover-page {
+  min-height: 94vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 22px 20px;
+  page-break-after: always;
+}
+
+.cover-logo {
+  width: 180px;
+  max-width: 44%;
+  margin-bottom: 14px;
+}
+
+.cover-title {
+  font-size: 50px;
+  font-weight: 800;
+  line-height: 1.1;
+  max-width: 980px;
+  color: #6b6150;
+  margin: 0 0 10px;
+}
+
+.cover-subtitle {
+  font-size: 22px;
+  line-height: 1.28;
+  max-width: 900px;
+  color: #6b6150;
+  margin: 0 0 10px;
+  font-weight: 700;
+}
+
+.cover-meta {
+  font-size: 15px;
+  color: #6b6150;
+  max-width: 880px;
+  margin: 4px auto;
+}
+
+.cover-student {
+  margin-top: 22px;
+  font-size: 18px;
+  color: #00796b;
+  font-weight: 500;
+}
+
+.report-body {
+  background: #ffffff;
+  max-width: 980px;
+  margin: 8px auto;
+  padding: 14px 24px 28px;
+}
+
+h1, h2, h3 { line-height: 1.25; }
+h1 { font-size: 2rem; margin-bottom: 0.6rem; }
+h2 { font-size: 1.35rem; margin-top: 2rem; }
+h3 { font-size: 1.1rem; margin-top: 1.25rem; }
+hr { border: none; border-top: 1px solid #ddd; margin: 1.5rem 0; }
+code { background: #f6f8fa; padding: 0.1em 0.3em; border-radius: 4px; }
+pre { background: #f6f8fa; padding: 12px; overflow-x: auto; border-radius: 8px; }
+a { color: #0b57d0; text-decoration: underline; word-break: break-word; }
+ul, ol { padding-left: 1.2rem; }
+
+@media print {
+  body { background: #fff; }
+  .report-body { margin: 0; max-width: none; padding: 0; }
+  .cover-page { min-height: 94vh; }
+}
+</style>
+</head>
+<body>
+  
+<section class="cover-page">
+  <img class="cover-logo" src="kfupm-logo-green.png" alt="KFUPM Logo" />
+  <div class="cover-title">Chiron</div>
+  <div class="cover-subtitle">Repository Simplification and Strategic Runtime Reframing Before Migration Execution</div>
+  <div class="cover-meta">Progress Report 7 • 22 Dec 2025 — 4 Jan 2026</div>
+  <div class="cover-meta">Master’s Research Progress Update</div>
+  <div class="cover-student">Fahad Alothman</div>
+</section>
+
+  <main class="report-body">
+    <h1>Progress Report 7</h1>
+<p><strong>Title:</strong> Repository Simplification and Strategic Runtime Reframing Before Migration Execution<br />
+<strong>Reporting Window:</strong> 22 Dec 2025 — 4 Jan 2026<br />
+<strong>Submission Context:</strong> Master’s Research Progress Update</p>
+<hr />
+<h2>Abstract</h2>
+<p>Progress Report 7 was a low-throughput but strategically decisive period. At the implementation surface, the period was dominated by repository cleanup and structural simplification rather than broad feature expansion. At the architecture-decision surface, this same window surfaced a clearer concern: the active orchestration path was carrying more framework weight than the project needed for its actual execution goals.</p>
+<p>The period is therefore best interpreted as an inflection point. It did not execute the full runtime transition, but it established the practical and conceptual conditions that made the next transition phase both necessary and actionable.</p>
+<hr />
+<h2>1. Period Character: Controlled Scope, High Leverage</h2>
+<p>This reporting window combined compact development activity with high strategic impact. Delivery focus shifted away from visible capability growth and toward three tightly scoped outcomes:</p>
+<ul>
+<li>reduce structural overhead,</li>
+<li>sharpen migration readiness,</li>
+<li>and clarify which orchestration responsibilities should remain first-class inside Chiron.</li>
+</ul>
+<p>This mode was deliberate. It preserved implementation stability while creating decision clarity for the next phase.</p>
+<hr />
+<h2>2. Repository Simplification as Pre-Migration Work</h2>
+<p>The largest technical movement in the period was repository reshaping through external subtree burden reduction and related cleanup. The practical effect was a leaner baseline with fewer inherited maintenance surfaces and less coordination noise.</p>
+<p>This work is significant because it changed migration economics. By reducing structural drag first, subsequent runtime decisions could be evaluated against Chiron’s own constraints rather than against accumulated repository complexity.</p>
+<hr />
+<h2>3. Emergent Runtime Mismatch: Mastra Scope vs Chiron Needs</h2>
+<p>During this period, implementation and planning discussions converged on a recurring mismatch: the active Mastra-centered path appeared increasingly heavy relative to the project’s required primitives. The issue was not framework quality in isolation; it was fit-for-purpose alignment within Chiron’s workflow-engine trajectory.</p>
+<p>The practical insight that emerged was that Chiron required tighter ownership over execution semantics, approval behavior, and scoping boundaries than a generalized orchestration layer was conveniently providing in this context.</p>
+<p>This report should therefore document the period as the point where that mismatch became explicit and decision-relevant.</p>
+<hr />
+<h2>4. Early Directional Shift Toward Leaner Runtime Primitives</h2>
+<p>A full migration was not completed in this window. However, the direction of travel became clearer: a leaner, more controlled runtime approach was emerging as the better fit, with Effect and AI-SDK beginning to stand out as promising directions for service boundaries and LLM interaction [2], [3].</p>
+<p>Historically, this matters because later migration work should be read not as a sudden reaction, but as follow-through on a direction that became clearer in this period.</p>
+<hr />
+<h2>5. Scoping Pressure Becomes the Core Architectural Question</h2>
+<p>A second major signal in this period was a persistent scoping problem that had been building across the previous cycle: how to bound and reason about work at project, workflow, and step levels without ambiguity.</p>
+<p>In this report window, that pressure intensified and became central to architecture thinking. The final formal answer did not fully materialize yet, but the problem definition became sharper:</p>
+<ul>
+<li>execution context needed explicit boundaries,</li>
+<li>transition behavior needed stronger control semantics,</li>
+<li>and work-state progression needed clearer authority ownership.</li>
+</ul>
+<p>This period is better understood as the pressure point that later fed into layered lifecycle/state formalization.</p>
+<hr />
+<h2>6. Optimizer Direction Narrows Before Migration</h2>
+<p>This period also matters because the optimizer question became more disciplined. Earlier DSPy-style exploration had surfaced several optimizer families, but by this stage the project was no longer treating them as equally ready for Chiron’s next implementation phase.</p>
+<p>The most plausible near-term optimizer became <strong>MiPRO</strong>. Because it is built around improving instructions and demonstrations for structured tasks with explicit evaluation metrics, it remained the most realistic candidate for the AX-oriented layer Chiron was considering adding later [8], [9]. In practical terms, that made it a better fit for things like structured classification, constrained selection, and workflow-path recommendation than more open-ended optimizer strategies.</p>
+<p><strong>GEPA</strong> remained intellectually attractive, especially because reflective evolution and Pareto-style candidate selection suggest strong potential for multi-objective outputs [10], [11]. However, that same richness also made it more complicated, and in this period it should be understood as a deferred direction rather than the optimizer the project was preparing to operationalize next.</p>
+<p><strong>ACE</strong> was even more future-facing. Its generator-reflector-curator playbook model matched the idea of agents gradually learning preferred rules and reusable practices over repeated workflows and multiple projects [12], [13]. But that same agent-loop orientation meant ACE belonged to a later stage of Chiron’s evolution, once the runtime and methodology boundaries were stronger and long-lived agent memory could be introduced coherently.</p>
+<p>Historically, this is the important distinction: by the end of this window, the optimizer conversation had stopped being “which advanced technique sounds interesting?” and had become “which optimizer is realistic for the next execution phase?” In that narrower frame, MiPRO remained viable, while GEPA and ACE were still deferred.</p>
+<hr />
+<h2>7. Product-Surface Changes During This Window</h2>
+<p>User-facing behavior changes were intentionally narrow. The period did not attempt broad workflow-surface expansion. Instead, it prioritized structural readiness and architecture clarity under controlled delivery scope.</p>
+<p>This distinction is important for chronology: Progress Report 7 should be read as preparation and reframing, not as migration completion.</p>
+<hr />
+<h2>8. Stack Status at End of Progress Report 7</h2>
+<p>At the end of this period, the active stack in implementation practice remained:</p>
+<ul>
+<li><strong>Desktop host:</strong> Tauri [5]</li>
+<li><strong>Frontend:</strong> React + TanStack Router + shadcn/ui</li>
+<li><strong>Backend/API:</strong> TypeScript services with Hono + tRPC [6], [7]</li>
+<li><strong>AI orchestration/runtime path:</strong> Mastra + AX (under active reassessment) [1], [4]</li>
+<li><strong>Data layer:</strong> Drizzle ORM with PostgreSQL</li>
+<li><strong>Authentication:</strong> Better Auth</li>
+<li><strong>Runtime/tooling:</strong> Bun + Turborepo</li>
+</ul>
+<p>The key update was directional rather than completed replacement: runtime reassessment became explicit and began shaping the next execution window.</p>
+<hr />
+<h2>9. Why This Period Matters</h2>
+<p>Progress Report 7 matters because it marks the transition from implicit discomfort to explicit architecture reframing. The period reduced repository complexity and, in parallel, clarified two strategic realities:</p>
+<ol>
+<li>orchestration fit had to be re-evaluated against Chiron’s concrete needs,</li>
+<li>scoping and execution-boundary control had become first-order design constraints.</li>
+</ol>
+<p>This made the next report’s migration activity interpretable as planned follow-through rather than abrupt redirection.</p>
+<hr />
+<h2>10. Open Questions Entering Progress Report 8</h2>
+<ul>
+<li>Which runtime responsibilities should be owned directly by Chiron versus delegated to external orchestration abstractions?</li>
+<li>How should migration sequencing preserve workflow reliability while replacing core execution dependencies?</li>
+<li>What boundary model should govern project-, workflow-, and step-level scope to prevent context drift?</li>
+<li>How should approval, transition, and execution semantics be represented so later lifecycle/state formalization remains consistent?</li>
+</ul>
+<p>These questions define the handoff from preparation/reframing to migration execution.</p>
+<hr />
+<h2>Conclusion</h2>
+<p>Progress Report 7 is best understood as a strategic inflection period. It delivered structural simplification work, exposed an orchestration fit mismatch, and elevated scoping control from background concern to central architecture driver.</p>
+<p>The period did not finalize the later layered lifecycle/state solution, but it established the conditions under which that solution became necessary. In the historical sequence, this report is the bridge between cleanup and the migration work that follows.</p>
+<hr />
+<h2>References</h2>
+<p>[1] Mastra, “Mastra Documentation,” 2025. [Online]. Available: <a href="https://mastra.ai/docs">https://mastra.ai/docs</a><br />
+[2] Effect Authors, “Effect Documentation,” 2025. [Online]. Available: <a href="https://effect.website/">https://effect.website/</a><br />
+[3] Vercel, “AI SDK Documentation,” 2025. [Online]. Available: <a href="https://ai-sdk.dev/docs">https://ai-sdk.dev/docs</a><br />
+[4] axllm, “ax,” GitHub repository (<code>@ax-llm/ax</code>), 2025. [Online]. Available: <a href="https://github.com/axllm/ax">https://github.com/axllm/ax</a><br />
+[5] Tauri Programme, “Tauri,” Documentation, 2025. [Online]. Available: <a href="https://tauri.app/">https://tauri.app/</a><br />
+[6] Hono Authors, “Hono,” Documentation, 2025. [Online]. Available: <a href="https://hono.dev/">https://hono.dev/</a><br />
+[7] tRPC Authors, “tRPC,” Documentation, 2025. [Online]. Available: <a href="https://trpc.io/docs">https://trpc.io/docs</a><br />
+[8] DSPy, “MIPROv2,” Documentation, 2025. [Online]. Available: <a href="https://dspy.ai/api/optimizers/MIPROv2/">https://dspy.ai/api/optimizers/MIPROv2/</a><br />
+[9] S. Opsahl-Ong et al., “Optimizing Instructions and Demonstrations for Multi-Stage Language Model Programs,” 2024. [Online]. Available: <a href="https://arxiv.org/abs/2406.11695">https://arxiv.org/abs/2406.11695</a><br />
+[10] DSPy, “GEPA Overview,” Documentation, 2025. [Online]. Available: <a href="https://dspy.ai/api/optimizers/GEPA/overview/">https://dspy.ai/api/optimizers/GEPA/overview/</a><br />
+[11] L. A. Agrawal et al., “GEPA: Reflective Prompt Evolution Can Outperform Reinforcement Learning,” 2025. [Online]. Available: <a href="https://arxiv.org/abs/2507.19457">https://arxiv.org/abs/2507.19457</a><br />
+[12] Q. Zhang et al., “Agentic Context Engineering: Evolving Contexts for Self-Improving Language Models,” 2025. [Online]. Available: <a href="https://arxiv.org/abs/2510.04618">https://arxiv.org/abs/2510.04618</a><br />
+[13] Ax LLM, “Agentic Context Engineering (ACE),” Documentation, 2025. [Online]. Available: <a href="https://axllm.dev/ace/">https://axllm.dev/ace/</a></p>
+  </main>
+</body>
+</html>
