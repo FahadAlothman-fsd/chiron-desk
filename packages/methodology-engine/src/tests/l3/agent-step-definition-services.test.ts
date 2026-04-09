@@ -95,7 +95,8 @@ const basePayload: AgentStepDesignTimePayload = {
   },
 };
 
-function makeRepo() {
+function makeRepo(options?: { readonly includeSingularAgentGetter?: boolean }) {
+  const includeSingularAgentGetter = options?.includeSingularAgentGetter ?? true;
   const agentSteps = new Map<string, { stepId: string; payload: AgentStepDesignTimePayload }>([
     ["step-agent", { stepId: "step-agent", payload: basePayload }],
   ]);
@@ -139,14 +140,14 @@ function makeRepo() {
         contextFacts: [...contextFacts],
         formDefinitions: [],
       }),
-    getAgentStepDefinition: (input: { stepId: string }) =>
-      Effect.sync(() => {
-        const step = agentSteps.get(input.stepId);
-        if (!step) {
-          throw new Error(`Missing agent step ${input.stepId}`);
-        }
-        return step;
-      }),
+    listAgentStepDefinitions: () =>
+      Effect.sync(() =>
+        agentStepOrder
+          .map((stepId) => agentSteps.get(stepId))
+          .filter((step): step is { stepId: string; payload: AgentStepDesignTimePayload } =>
+            Boolean(step),
+          ),
+      ),
     createAgentStepDefinition: (input: {
       afterStepKey: string | null;
       payload: AgentStepDesignTimePayload;
@@ -177,8 +178,8 @@ function makeRepo() {
           agentStepOrder.splice(index, 1);
         }
       }),
-  } as unknown as Context.Tag.Service<typeof MethodologyRepository> & {
-    readonly getAgentStepDefinition: (params: {
+  } as Context.Tag.Service<typeof MethodologyRepository> & {
+    readonly getAgentStepDefinition?: (params: {
       readonly versionId: string;
       readonly workflowDefinitionId: string;
       readonly stepId: string;
@@ -202,11 +203,23 @@ function makeRepo() {
     }) => Effect.Effect<void, never>;
   };
 
+  if (includeSingularAgentGetter) {
+    repo.getAgentStepDefinition = (input: { stepId: string }) =>
+      Effect.sync(() => {
+        const step = agentSteps.get(input.stepId);
+        if (!step) {
+          throw new Error(`Missing agent step ${input.stepId}`);
+        }
+
+        return step;
+      });
+  }
+
   return { repo, recordedOperations, agentSteps };
 }
 
-function makeLayer() {
-  const { repo, recordedOperations, agentSteps } = makeRepo();
+function makeLayer(options?: { readonly includeSingularAgentGetter?: boolean }) {
+  const { repo, recordedOperations, agentSteps } = makeRepo(options);
   const repoLayer = Layer.succeed(MethodologyRepository, repo);
   const layer = Layer.mergeAll(
     Layer.provide(WorkflowEditorDefinitionServiceLive, repoLayer),
@@ -337,6 +350,25 @@ describe("agent-step definition services", () => {
         exposureModePreview: "requirements_only",
       },
     ]);
+  });
+
+  it("falls back to listAgentStepDefinitions when singular getter is unavailable", async () => {
+    const { layer } = makeLayer({ includeSingularAgentGetter: false });
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* AgentStepEditorDefinitionService;
+        return yield* service.getAgentStepDefinition({
+          methodologyId: "meth-1",
+          versionId: "ver-1",
+          workUnitTypeKey: "WU.STORY",
+          workflowDefinitionId: "wf-1",
+          stepId: "step-agent",
+        });
+      }).pipe(Effect.provide(layer)),
+    );
+
+    expect(result.step.stepId).toBe("step-agent");
+    expect(result.payload.key).toBe("draft-prd");
   });
 
   it("validates invariants and records create/update/delete mutations", async () => {

@@ -465,6 +465,11 @@ export class MethodologyRepository extends Context.Tag("MethodologyRepository")<
       readonly versionId: string;
       readonly workflowDefinitionId: string;
     }) => Effect.Effect<readonly WorkflowAgentStepDefinitionReadModel[], RepositoryError>;
+    readonly getAgentStepDefinition?: (params: {
+      readonly versionId: string;
+      readonly workflowDefinitionId: string;
+      readonly stepId: string;
+    }) => Effect.Effect<WorkflowAgentStepDefinitionReadModel, RepositoryError>;
     readonly createAgentStepDefinition: (
       params: CreateAgentStepDefinitionParams,
     ) => Effect.Effect<WorkflowAgentStepDefinitionReadModel, RepositoryError>;

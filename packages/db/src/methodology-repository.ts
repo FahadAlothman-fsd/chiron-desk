@@ -3934,6 +3934,26 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
         return readWorkflowAgentDefinitions(db, versionId, workflowDefinitionId);
       }),
 
+    getAgentStepDefinition: ({ versionId, workflowDefinitionId, stepId }) =>
+      dbEffect("methodology.getAgentStepDefinition", async () => {
+        const workflow = await findWorkflowRow(db, { versionId, workflowDefinitionId });
+        if (!workflow) {
+          throw new Error(
+            `Workflow not found for versionId=${versionId}, workflowDefinitionId=${workflowDefinitionId}`,
+          );
+        }
+
+        const definitions = await readWorkflowAgentDefinitions(db, versionId, workflowDefinitionId);
+        const definition = definitions.find((entry) => entry.stepId === stepId);
+        if (!definition) {
+          throw new Error(
+            `Agent step '${stepId}' not found for workflowDefinitionId=${workflowDefinitionId}`,
+          );
+        }
+
+        return definition;
+      }),
+
     createAgentStepDefinition: ({ versionId, workflowDefinitionId, afterStepKey, payload }) =>
       dbEffect("methodology.createAgentStepDefinition", () =>
         db.transaction(async (tx) => {

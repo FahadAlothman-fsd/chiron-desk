@@ -64,7 +64,11 @@ export interface AgentStepEditorDefinition {
 }
 
 interface AgentStepEditorDefinitionRepository {
-  readonly getAgentStepDefinition: (params: {
+  readonly listAgentStepDefinitions: (params: {
+    readonly versionId: string;
+    readonly workflowDefinitionId: string;
+  }) => Effect.Effect<readonly AgentStepDefinitionReadModel[], RepositoryError>;
+  readonly getAgentStepDefinition?: (params: {
     readonly versionId: string;
     readonly workflowDefinitionId: string;
     readonly stepId: string;
@@ -222,13 +226,39 @@ export const AgentStepEditorDefinitionServiceLive = Layer.effect(
     const agentStepRepo = repo as Context.Tag.Service<typeof MethodologyRepository> &
       AgentStepEditorDefinitionRepository;
 
+    const fetchAgentStepDefinition = (input: {
+      readonly versionId: string;
+      readonly workflowDefinitionId: string;
+      readonly stepId: string;
+    }) => {
+      if (typeof agentStepRepo.getAgentStepDefinition === "function") {
+        return agentStepRepo.getAgentStepDefinition(input);
+      }
+
+      return Effect.gen(function* () {
+        const definitions = yield* agentStepRepo.listAgentStepDefinitions({
+          versionId: input.versionId,
+          workflowDefinitionId: input.workflowDefinitionId,
+        });
+        const definition = definitions.find((entry) => entry.stepId === input.stepId);
+        if (!definition) {
+          return yield* new RepositoryError({
+            operation: "methodology.getAgentStepDefinition",
+            cause: `Agent step '${input.stepId}' not found for workflowDefinitionId='${input.workflowDefinitionId}'`,
+          });
+        }
+
+        return definition;
+      });
+    };
+
     const getAgentStepDefinition = (
       input: WorkflowEditorRouteIdentity & { readonly stepId: string },
     ) =>
       Effect.gen(function* () {
         const baseDefinition = yield* baseEditor.getEditorDefinition(input);
         const step = yield* findAgentStepShell(baseDefinition, input.stepId);
-        const agentStepDefinition = yield* agentStepRepo.getAgentStepDefinition({
+        const agentStepDefinition = yield* fetchAgentStepDefinition({
           versionId: input.versionId,
           workflowDefinitionId: input.workflowDefinitionId,
           stepId: input.stepId,
