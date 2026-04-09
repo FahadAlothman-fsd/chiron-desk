@@ -1183,42 +1183,85 @@ export function makeOpencodeHarnessService(
             "start_session",
           );
           const promptModel = toPromptModel(promptSelections.model);
-          const rawSession = yield* Effect.tryPromise({
-            try: () =>
-              server.client.createSession({ title: `Agent step ${config.stepExecutionId}` }),
-            catch: (error) =>
-              opencodeError("start_session", "Failed to create OpenCode session.", error),
-          }).pipe(Effect.map(unwrapResponse));
-          const createdRecord = createRecord(
-            config,
-            server,
-            rawSession,
-            promptSelections.agent,
-            promptSelections.model,
-          );
-          record = createdRecord;
+          const resumedRecord = yield* Effect.gen(function* () {
+            if (!config.resumeSessionId) {
+              return undefined;
+            }
 
-          yield* Effect.tryPromise({
-            try: () =>
-              createdRecord.client.prompt(
-                buildPromptInput({
-                  sessionId: createdRecord.session.sessionId,
-                  text: createdRecord.bootstrapContent,
-                  ...(promptSelections.agent ? { agent: promptSelections.agent } : {}),
-                  ...(promptModel ? { model: promptModel } : {}),
-                  noReply: true,
-                }),
-              ),
-            catch: (error) =>
-              opencodeError(
-                "start_session",
-                "Failed to bootstrap OpenCode session context.",
-                error,
-              ),
+            const resumeMessages = yield* Effect.tryPromise({
+              try: () => server.client.listMessages(config.resumeSessionId as string),
+              catch: () => undefined,
+            });
+
+            if (!resumeMessages) {
+              return undefined;
+            }
+
+            const resumed = createRecord(
+              config,
+              server,
+              {
+                id: config.resumeSessionId,
+                time: { created: new Date().toISOString() },
+              },
+              promptSelections.agent,
+              promptSelections.model,
+            );
+
+            const appended = syncSessionMessages(resumed, resumeMessages);
+            resumed.session = {
+              ...resumed.session,
+              state: "active_idle",
+            };
+            if (appended.length > 0) {
+              yield* pushTimelineEvents(resumed, appended);
+            }
+
+            return resumed;
           });
 
-          const bootstrapTimelineItems = yield* synchronizeTimeline(createdRecord, "start_session");
-          yield* pushTimelineEvents(createdRecord, bootstrapTimelineItems);
+          const createdRecord =
+            resumedRecord ??
+            createRecord(
+              config,
+              server,
+              yield* Effect.tryPromise({
+                try: () =>
+                  server.client.createSession({ title: `Agent step ${config.stepExecutionId}` }),
+                catch: (error) =>
+                  opencodeError("start_session", "Failed to create OpenCode session.", error),
+              }).pipe(Effect.map(unwrapResponse)),
+              promptSelections.agent,
+              promptSelections.model,
+            );
+          record = createdRecord;
+
+          if (!resumedRecord) {
+            yield* Effect.tryPromise({
+              try: () =>
+                createdRecord.client.prompt(
+                  buildPromptInput({
+                    sessionId: createdRecord.session.sessionId,
+                    text: createdRecord.bootstrapContent,
+                    ...(promptSelections.agent ? { agent: promptSelections.agent } : {}),
+                    ...(promptModel ? { model: promptModel } : {}),
+                    noReply: true,
+                  }),
+                ),
+              catch: (error) =>
+                opencodeError(
+                  "start_session",
+                  "Failed to bootstrap OpenCode session context.",
+                  error,
+                ),
+            });
+
+            const bootstrapTimelineItems = yield* synchronizeTimeline(
+              createdRecord,
+              "start_session",
+            );
+            yield* pushTimelineEvents(createdRecord, bootstrapTimelineItems);
+          }
 
           sessionsById.set(createdRecord.session.sessionId, createdRecord);
           sessionIdByStepExecutionId.set(

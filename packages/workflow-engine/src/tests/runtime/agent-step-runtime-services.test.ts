@@ -299,4 +299,86 @@ describe("AgentStep runtime services", () => {
     }
     expect(duplicateStream.left).toBeInstanceOf(SingleLiveStreamContractError);
   });
+
+  it("preserves session id when timeline read marks stale binding as errored", async () => {
+    const ctx = makeAgentStepRuntimeTestContext();
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* AgentStepSessionCommandService;
+        return yield* service.startAgentStepSession({
+          projectId: "project-1",
+          stepExecutionId: "step-exec-1",
+        });
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    const staleSessionId = "stale-session-id";
+    if (!ctx.bindings[0]) {
+      throw new Error("expected binding row to exist");
+    }
+    ctx.bindings[0].sessionId = staleSessionId;
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const timeline = yield* AgentStepTimelineService;
+        return yield* timeline.getTimelinePage({
+          projectId: "project-1",
+          stepExecutionId: "step-exec-1",
+        });
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    expect(ctx.bindings[0]).toMatchObject({
+      bindingState: "errored",
+      sessionId: staleSessionId,
+      serverInstanceId: null,
+      serverBaseUrl: null,
+    });
+    expect(ctx.states.at(-1)?.state).toBe("disconnected_or_error");
+  });
+
+  it("reuses preserved session id on retry after errored binding", async () => {
+    const ctx = makeAgentStepRuntimeTestContext();
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* AgentStepSessionCommandService;
+        return yield* service.startAgentStepSession({
+          projectId: "project-1",
+          stepExecutionId: "step-exec-1",
+        });
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    if (!ctx.bindings[0]) {
+      throw new Error("expected binding row to exist");
+    }
+    const originalSessionId = ctx.bindings[0].sessionId;
+    ctx.bindings[0].bindingState = "errored";
+    ctx.bindings[0].serverInstanceId = null;
+    ctx.bindings[0].serverBaseUrl = null;
+
+    if (!ctx.states[0]) {
+      throw new Error("expected runtime state row to exist");
+    }
+    ctx.states[0].state = "disconnected_or_error";
+
+    const retried = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* AgentStepSessionCommandService;
+        return yield* service.startAgentStepSession({
+          projectId: "project-1",
+          stepExecutionId: "step-exec-1",
+        });
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    expect(retried).toMatchObject({
+      stepExecutionId: "step-exec-1",
+      state: "active_idle",
+      bindingState: "bound",
+    });
+    expect(ctx.bindings[0]?.sessionId).toBe(originalSessionId);
+  });
 });

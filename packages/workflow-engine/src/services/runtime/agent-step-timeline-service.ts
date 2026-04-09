@@ -86,7 +86,7 @@ export const AgentStepTimelineServiceLive = Layer.effect(
                         stepExecutionId: context.stepExecution.id,
                         harnessId: context.bindingRow?.harnessId ?? "opencode",
                         bindingState: "errored",
-                        sessionId: null,
+                        sessionId: context.bindingRow?.sessionId ?? null,
                         serverInstanceId: null,
                         serverBaseUrl: null,
                       });
@@ -119,7 +119,7 @@ export const AgentStepTimelineServiceLive = Layer.effect(
                         stepExecutionId: context.stepExecution.id,
                         harnessId: context.bindingRow?.harnessId ?? "opencode",
                         bindingState: "errored",
-                        sessionId: null,
+                        sessionId: context.bindingRow?.sessionId ?? null,
                         serverInstanceId: null,
                         serverBaseUrl: null,
                       });

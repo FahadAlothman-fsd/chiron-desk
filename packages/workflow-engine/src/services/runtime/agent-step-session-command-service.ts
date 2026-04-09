@@ -107,7 +107,7 @@ export const AgentStepSessionCommandServiceLive = Layer.effect(
             stepExecutionId: context.stepExecution.id,
             harnessId: context.bindingRow.harnessId,
             bindingState: "errored",
-            sessionId: null,
+            sessionId: context.bindingRow.sessionId,
             serverInstanceId: null,
             serverBaseUrl: null,
           });
@@ -144,7 +144,7 @@ export const AgentStepSessionCommandServiceLive = Layer.effect(
               stepExecutionId: context.stepExecution.id,
               harnessId: context.bindingRow.harnessId,
               bindingState: "errored",
-              sessionId: null,
+              sessionId: context.bindingRow.sessionId,
               serverInstanceId: null,
               serverBaseUrl: null,
             });
@@ -224,6 +224,9 @@ export const AgentStepSessionCommandServiceLive = Layer.effect(
         const started = yield* harness.startSession({
           stepExecutionId: context.stepExecution.id,
           ...(project?.projectRootPath ? { projectRootPath: project.projectRootPath } : {}),
+          ...(context.bindingRow?.sessionId
+            ? { resumeSessionId: context.bindingRow.sessionId }
+            : {}),
           agent: binding.selectedAgentKey ?? context.agentPayload.harnessSelection.agent,
           model: binding.selectedModelJson ?? context.agentPayload.harnessSelection.model,
           objective: context.agentPayload.objective,
@@ -308,7 +311,7 @@ export const AgentStepSessionCommandServiceLive = Layer.effect(
                       stepExecutionId: context.stepExecution.id,
                       harnessId: context.bindingRow?.harnessId ?? "opencode",
                       bindingState: "errored",
-                      sessionId: null,
+                      sessionId: context.bindingRow?.sessionId ?? null,
                       serverInstanceId: null,
                       serverBaseUrl: null,
                     });
@@ -334,7 +337,7 @@ export const AgentStepSessionCommandServiceLive = Layer.effect(
                       stepExecutionId: context.stepExecution.id,
                       harnessId: context.bindingRow?.harnessId ?? "opencode",
                       bindingState: "errored",
-                      sessionId: null,
+                      sessionId: context.bindingRow?.sessionId ?? null,
                       serverInstanceId: null,
                       serverBaseUrl: null,
                     });

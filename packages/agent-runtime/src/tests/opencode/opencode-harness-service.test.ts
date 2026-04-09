@@ -329,6 +329,75 @@ describe("OpencodeHarnessService runtime", () => {
     );
   });
 
+  it("reuses an existing OpenCode session id when resumeSessionId is provided", async () => {
+    const resumeMessages: unknown[] = [
+      {
+        info: {
+          id: "resume-user-msg",
+          role: "user",
+          time: { created: 1_744_193_210_000 },
+        },
+        parts: [{ type: "text", text: "existing conversation" }],
+      },
+    ];
+
+    const createSessionSpy = vi.fn(async () => ({
+      id: "new-session-should-not-be-used",
+      time: { created: 1_744_193_220_000 },
+    }));
+
+    const managedClient = {
+      app: {
+        agents: vi.fn(async () => []),
+      },
+      config: {
+        providers: vi.fn(async () => ({ providers: [], default: {} })),
+      },
+      session: {
+        create: createSessionSpy,
+        prompt: vi.fn(async () => ({ ok: true })),
+        messages: vi.fn(async ({ path }: { path: { id: string } }) => {
+          expect(path.id).toBe("resume-session-1");
+          return resumeMessages;
+        }),
+      },
+      event: {
+        subscribe: vi.fn(async () => ({ [Symbol.asyncIterator]: async function* () {} })),
+      },
+    };
+
+    const spawnSpy = vi.fn(async () => ({
+      server: { kill: vi.fn() },
+      baseUrl: "http://127.0.0.1:4010",
+      client: managedClient,
+      close: vi.fn(),
+    }));
+
+    const service = makeOpencodeHarnessService(
+      spawnSpy as never,
+      vi.fn(() => managedClient) as never,
+    );
+
+    const started = await Effect.runPromise(
+      service.startSession({
+        stepExecutionId: "step-1",
+        resumeSessionId: "resume-session-1",
+        objective: "Reuse the existing session.",
+        instructionsMarkdown: "Do not fork history.",
+      }),
+    );
+
+    expect(started.session.sessionId).toBe("resume-session-1");
+    expect(createSessionSpy).not.toHaveBeenCalled();
+    expect(started.timeline).toEqual([
+      expect.objectContaining({
+        itemType: "message",
+        role: "user",
+        content: "existing conversation",
+      }),
+    ]);
+  });
+
   it("normalizes raw OpenCode session errors at the adapter boundary", async () => {
     const eventFeed = makeEventFeed();
 
