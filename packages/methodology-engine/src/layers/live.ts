@@ -9,8 +9,9 @@ import { WorkflowTopologyMutationServiceLive } from "../services/workflow-topolo
 import { FormStepDefinitionServiceLive } from "../services/form-step-definition-service";
 import { WorkflowContextFactDefinitionServiceLive } from "../services/workflow-context-fact-definition-service";
 import { WorkflowAuthoringTransactionServiceLive } from "../services/workflow-authoring-transaction-service";
+import { AgentStepDefinitionServiceLive } from "../services/agent-step-definition-service";
 
-const MethodologyEngineL1CoreServicesLive = Layer.mergeAll(
+export const MethodologyEngineL1CoreServicesLive = Layer.mergeAll(
   MethodologyVersionServiceLive,
   MethodologyValidationServiceLive,
   PublishedMethodologyServiceLive,
@@ -21,14 +22,21 @@ const MethodologyEngineL1CoreServicesLive = Layer.mergeAll(
   WorkflowContextFactDefinitionServiceLive,
 );
 
-const WorkflowAuthoringTransactionServiceWiredLive = Layer.provide(
-  WorkflowAuthoringTransactionServiceLive,
+const WorkflowAuthoringTransactionServiceDependenciesLive = Layer.mergeAll(
   MethodologyEngineL1CoreServicesLive,
+  AgentStepDefinitionServiceLive,
 );
 
-export const MethodologyEngineL1ServicesLive = Layer.mergeAll(
+const WorkflowAuthoringTransactionServiceWiredLive = Layer.provide(
+  WorkflowAuthoringTransactionServiceLive,
+  WorkflowAuthoringTransactionServiceDependenciesLive,
+);
+
+export const MethodologyWorkflowAuthoringServicesLive = Layer.mergeAll(
   MethodologyEngineL1CoreServicesLive,
   WorkflowAuthoringTransactionServiceWiredLive,
 );
+
+export const MethodologyEngineL1ServicesLive = MethodologyEngineL1CoreServicesLive;
 
 export const MethodologyEngineL1Live = MethodologyEngineL1ServicesLive;

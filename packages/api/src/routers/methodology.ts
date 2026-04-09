@@ -66,8 +66,17 @@ import type {
   UpdateWorkUnitWorkflowInput,
 } from "@chiron/contracts/methodology/workflow";
 import type { UpdateDraftWorkflowsInputDto } from "@chiron/contracts/methodology/dto";
-import { Effect, type Layer } from "effect";
+import { Effect, Layer } from "effect";
 import { z } from "zod";
+import {
+  AgentStepDefinitionService,
+  AgentStepDefinitionServiceLive,
+} from "../../../methodology-engine/src/services/agent-step-definition-service";
+import {
+  AgentStepEditorDefinitionService,
+  AgentStepEditorDefinitionServiceLive,
+} from "../../../methodology-engine/src/services/agent-step-editor-definition-service";
+import { HarnessService } from "../../../agent-runtime/src/index";
 import { protectedProcedure, publicProcedure } from "../index";
 
 const workflowStepSchema = z.object({
@@ -189,6 +198,15 @@ const workflowContextFactSchema: z.ZodType<WorkflowContextFactDtoContract> = z.d
   ],
 );
 
+const workflowContextFactKindValueSchema = z.enum([
+  "plain_value_fact",
+  "definition_backed_external_fact",
+  "bound_external_fact",
+  "workflow_reference_fact",
+  "artifact_reference_fact",
+  "work_unit_draft_spec_fact",
+]);
+
 const formStepPayloadSchema: z.ZodType<FormStepPayloadContract> = z.object({
   key: z.string().min(1),
   label: z.string().optional(),
@@ -206,6 +224,122 @@ const formStepPayloadSchema: z.ZodType<FormStepPayloadContract> = z.object({
       })
       .strict(),
   ),
+});
+
+const agentStepModelReferenceSchema = z.object({
+  provider: z.string().min(1),
+  model: z.string().min(1),
+});
+
+const agentStepRuntimePolicySchema = z.object({
+  sessionStart: z.literal("explicit").default("explicit"),
+  continuationMode: z.literal("bootstrap_only").default("bootstrap_only"),
+  liveStreamCount: z.literal(1).default(1),
+  nativeMessageLog: z.literal(false).default(false),
+  persistedWritePolicy: z.literal("applied_only").default("applied_only"),
+});
+
+const agentStepPayloadSchema = z.object({
+  key: z.string().min(1),
+  label: z.string().optional(),
+  descriptionJson: z.object({ markdown: z.string() }).optional(),
+  objective: z.string().min(1),
+  instructionsMarkdown: z.string().min(1),
+  harnessSelection: z
+    .object({
+      harness: z.literal("opencode").default("opencode"),
+      agent: z.string().min(1).optional(),
+      model: agentStepModelReferenceSchema.optional(),
+    })
+    .default({ harness: "opencode" }),
+  explicitReadGrants: z.array(
+    z.object({
+      contextFactDefinitionId: z.string().min(1),
+    }),
+  ),
+  writeItems: z.array(
+    z.object({
+      writeItemId: z.string().min(1),
+      contextFactDefinitionId: z.string().min(1),
+      contextFactKind: workflowContextFactKindValueSchema,
+      label: z.string().optional(),
+      order: z.number(),
+      requirementContextFactDefinitionIds: z.array(z.string().min(1)),
+    }),
+  ),
+  completionRequirements: z.array(
+    z.object({
+      contextFactDefinitionId: z.string().min(1),
+    }),
+  ),
+  runtimePolicy: agentStepRuntimePolicySchema.default({
+    sessionStart: "explicit",
+    continuationMode: "bootstrap_only",
+    liveStreamCount: 1,
+    nativeMessageLog: false,
+    persistedWritePolicy: "applied_only",
+  }),
+  guidance: workflowMetadataSchema.shape.guidance,
+});
+
+const createAgentStepSchema = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  workflowDefinitionId: z.string().min(1),
+  afterStepKey: z.string().min(1).nullable().optional().default(null),
+  payload: agentStepPayloadSchema,
+});
+
+const updateAgentStepSchema = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  workflowDefinitionId: z.string().min(1),
+  stepId: z.string().min(1),
+  payload: agentStepPayloadSchema,
+});
+
+const deleteAgentStepSchema = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  workflowDefinitionId: z.string().min(1),
+  stepId: z.string().min(1),
+});
+
+const getAgentStepDefinitionSchema = workflowEditorRouteIdentitySchema.extend({
+  stepId: z.string().min(1),
+});
+
+const harnessDiscoveredModelSchema = z.object({
+  provider: z.string().min(1),
+  model: z.string().min(1),
+  label: z.string().min(1),
+  isDefault: z.boolean(),
+  supportsReasoning: z.boolean(),
+  supportsTools: z.boolean(),
+  supportsAttachments: z.boolean(),
+});
+
+const harnessDiscoveredProviderSchema = z.object({
+  provider: z.string().min(1),
+  label: z.string().min(1),
+  defaultModel: z.string().min(1).optional(),
+  models: z.array(harnessDiscoveredModelSchema),
+});
+
+const harnessDiscoveredAgentSchema = z.object({
+  key: z.string().min(1),
+  label: z.string().min(1),
+  description: z.string().optional(),
+  mode: z.enum(["subagent", "primary", "all"]),
+  defaultModel: agentStepModelReferenceSchema.optional(),
+});
+
+const harnessDiscoveryMetadataSchema = z.object({
+  harness: z.literal("opencode"),
+  discoveredAt: z.string().min(1),
+  agents: z.array(harnessDiscoveredAgentSchema),
+  providers: z.array(harnessDiscoveredProviderSchema),
+  models: z.array(harnessDiscoveredModelSchema),
 });
 
 const createFormStepSchema = z.object({
@@ -1796,16 +1930,69 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
       .input(workflowEditorRouteIdentitySchema)
       .handler(async ({ input }) =>
         runEffect(
-          serviceLayer,
+          Layer.mergeAll(
+            serviceLayer,
+            Layer.provide(AgentStepEditorDefinitionServiceLive, serviceLayer),
+          ),
           Effect.gen(function* () {
             const svc = yield* WorkflowEditorDefinitionService;
+            const agentStepSvc = yield* AgentStepEditorDefinitionService;
             const identity: WorkflowEditorRouteIdentityContract = {
               methodologyId: input.methodologyId,
               versionId: input.versionId,
               workUnitTypeKey: input.workUnitTypeKey,
               workflowDefinitionId: input.workflowDefinitionId,
             };
-            return yield* svc.getEditorDefinition(identity);
+            const definition = yield* svc.getEditorDefinition(identity);
+            const agentStepDefinitions = yield* Effect.all(
+              definition.steps
+                .filter((step) => step.stepType === "agent")
+                .map((step) =>
+                  agentStepSvc.getAgentStepDefinition({
+                    ...identity,
+                    stepId: step.stepId,
+                  }),
+                ),
+            );
+
+            return {
+              ...definition,
+              agentStepDefinitions,
+            };
+          }),
+        ),
+      ),
+
+    getAgentStepDefinition: publicProcedure
+      .input(getAgentStepDefinitionSchema)
+      .handler(async ({ input }) =>
+        runEffect(
+          Layer.mergeAll(
+            serviceLayer,
+            Layer.provide(AgentStepEditorDefinitionServiceLive, serviceLayer),
+          ),
+          Effect.gen(function* () {
+            const svc = yield* AgentStepEditorDefinitionService;
+            return yield* svc.getAgentStepDefinition({
+              methodologyId: input.methodologyId,
+              versionId: input.versionId,
+              workUnitTypeKey: input.workUnitTypeKey,
+              workflowDefinitionId: input.workflowDefinitionId,
+              stepId: input.stepId,
+            });
+          }),
+        ),
+      ),
+
+    discoverAgentStepHarnessMetadata: publicProcedure
+      .input(z.object({}).default({}))
+      .handler(async () =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const svc = yield* HarnessService;
+            const metadata = yield* svc.discoverMetadata();
+            return harnessDiscoveryMetadataSchema.parse(metadata);
           }),
         ),
       ),
@@ -1900,6 +2087,71 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
           Effect.gen(function* () {
             const svc = yield* FormStepDefinitionService;
             return yield* svc.deleteFormStep(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+                workflowDefinitionId: input.workflowDefinitionId,
+                stepId: input.stepId,
+              },
+              actorId,
+            );
+          }),
+        );
+      }),
+
+    createAgentStep: protectedProcedure
+      .input(createAgentStepSchema)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        return runEffect(
+          Layer.mergeAll(serviceLayer, Layer.provide(AgentStepDefinitionServiceLive, serviceLayer)),
+          Effect.gen(function* () {
+            const svc = yield* AgentStepDefinitionService;
+            return yield* svc.createAgentStep(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+                workflowDefinitionId: input.workflowDefinitionId,
+                afterStepKey: input.afterStepKey,
+                payload: input.payload,
+              },
+              actorId,
+            );
+          }),
+        );
+      }),
+
+    updateAgentStep: protectedProcedure
+      .input(updateAgentStepSchema)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        return runEffect(
+          Layer.mergeAll(serviceLayer, Layer.provide(AgentStepDefinitionServiceLive, serviceLayer)),
+          Effect.gen(function* () {
+            const svc = yield* AgentStepDefinitionService;
+            return yield* svc.updateAgentStep(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+                workflowDefinitionId: input.workflowDefinitionId,
+                stepId: input.stepId,
+                payload: input.payload,
+              },
+              actorId,
+            );
+          }),
+        );
+      }),
+
+    deleteAgentStep: protectedProcedure
+      .input(deleteAgentStepSchema)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        return runEffect(
+          Layer.mergeAll(serviceLayer, Layer.provide(AgentStepDefinitionServiceLive, serviceLayer)),
+          Effect.gen(function* () {
+            const svc = yield* AgentStepDefinitionService;
+            return yield* svc.deleteAgentStep(
               {
                 versionId: input.versionId,
                 workUnitTypeKey: input.workUnitTypeKey,
@@ -3222,10 +3474,15 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
           update: router.updateWorkUnitWorkflow,
           delete: router.deleteWorkUnitWorkflow,
           getEditorDefinition: router.getEditorDefinition,
+          getAgentStepDefinition: router.getAgentStepDefinition,
+          discoverAgentStepHarnessMetadata: router.discoverAgentStepHarnessMetadata,
           updateWorkflowMetadata: router.updateWorkflowMetadata,
           createFormStep: router.createFormStep,
           updateFormStep: router.updateFormStep,
           deleteFormStep: router.deleteFormStep,
+          createAgentStep: router.createAgentStep,
+          updateAgentStep: router.updateAgentStep,
+          deleteAgentStep: router.deleteAgentStep,
           createEdge: router.createEdge,
           updateEdge: router.updateEdge,
           deleteEdge: router.deleteEdge,

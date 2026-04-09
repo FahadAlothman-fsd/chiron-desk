@@ -3,10 +3,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "@/components/ui/sonner";
 
 import type {
+  WorkflowAgentStepPayload,
   WorkflowContextFactDefinitionItem,
   WorkflowContextFactDraft,
   WorkflowEditorEdge,
   WorkflowEditorGuidance,
+  WorkflowHarnessDiscoveryMetadata,
   WorkflowEditorPickerBadge,
   WorkflowEditorMetadata,
   WorkflowEditorPickerOption,
@@ -27,6 +29,7 @@ type RawEditorDefinition = {
   edges?: unknown;
   contextFacts?: unknown;
   formDefinitions?: unknown;
+  agentStepDefinitions?: unknown;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -260,8 +263,106 @@ function toWorkflowFormPayload(rawPayload: unknown): WorkflowFormStepPayload | n
   };
 }
 
-function toWorkflowSteps(rawSteps: unknown, rawFormDefinitions: unknown): WorkflowEditorStep[] {
+function toWorkflowAgentPayload(rawPayload: unknown): WorkflowAgentStepPayload | null {
+  const payload = asRecord(rawPayload);
+  if (!payload || typeof payload.key !== "string") {
+    return null;
+  }
+
+  const writeItems = Array.isArray(payload.writeItems)
+    ? payload.writeItems.flatMap((entry) => {
+        const writeItem = asRecord(entry);
+        if (!writeItem || typeof writeItem.writeItemId !== "string") {
+          return [];
+        }
+
+        const contextFactKind = normalizeContextFactKind(writeItem.contextFactKind);
+        if (!contextFactKind || typeof writeItem.contextFactDefinitionId !== "string") {
+          return [];
+        }
+
+        return [
+          {
+            writeItemId: writeItem.writeItemId,
+            contextFactDefinitionId: writeItem.contextFactDefinitionId,
+            contextFactKind,
+            ...(typeof writeItem.label === "string" ? { label: writeItem.label } : {}),
+            order: typeof writeItem.order === "number" ? writeItem.order : 0,
+            requirementContextFactDefinitionIds: Array.isArray(
+              writeItem.requirementContextFactDefinitionIds,
+            )
+              ? writeItem.requirementContextFactDefinitionIds.filter(
+                  (value): value is string => typeof value === "string",
+                )
+              : [],
+          },
+        ];
+      })
+    : [];
+
+  return {
+    key: payload.key,
+    ...(typeof payload.label === "string" ? { label: payload.label } : {}),
+    ...(readMarkdown(payload.descriptionJson)
+      ? { descriptionJson: { markdown: readMarkdown(payload.descriptionJson) } }
+      : {}),
+    objective: typeof payload.objective === "string" ? payload.objective : "",
+    instructionsMarkdown:
+      typeof payload.instructionsMarkdown === "string" ? payload.instructionsMarkdown : "",
+    harnessSelection: {
+      harness: asRecord(payload.harnessSelection)?.harness === "opencode" ? "opencode" : "opencode",
+      ...(typeof asRecord(payload.harnessSelection)?.agent === "string"
+        ? { agent: asRecord(payload.harnessSelection)?.agent as string }
+        : {}),
+      ...(asRecord(payload.harnessSelection?.model) &&
+      typeof asRecord(payload.harnessSelection?.model)?.provider === "string" &&
+      typeof asRecord(payload.harnessSelection?.model)?.model === "string"
+        ? {
+            model: {
+              provider: asRecord(payload.harnessSelection?.model)?.provider as string,
+              model: asRecord(payload.harnessSelection?.model)?.model as string,
+            },
+          }
+        : {}),
+    },
+    explicitReadGrants: Array.isArray(payload.explicitReadGrants)
+      ? payload.explicitReadGrants
+          .map((entry) => asRecord(entry)?.contextFactDefinitionId)
+          .filter((value): value is string => typeof value === "string")
+          .map((contextFactDefinitionId) => ({ contextFactDefinitionId }))
+      : [],
+    writeItems,
+    completionRequirements: Array.isArray(payload.completionRequirements)
+      ? payload.completionRequirements
+          .map((entry) => asRecord(entry)?.contextFactDefinitionId)
+          .filter((value): value is string => typeof value === "string")
+          .map((contextFactDefinitionId) => ({ contextFactDefinitionId }))
+      : [],
+    runtimePolicy: {
+      sessionStart:
+        asRecord(payload.runtimePolicy)?.sessionStart === "explicit" ? "explicit" : "explicit",
+      continuationMode:
+        asRecord(payload.runtimePolicy)?.continuationMode === "bootstrap_only"
+          ? "bootstrap_only"
+          : "bootstrap_only",
+      liveStreamCount: asRecord(payload.runtimePolicy)?.liveStreamCount === 1 ? 1 : 1,
+      nativeMessageLog: false,
+      persistedWritePolicy: "applied_only",
+    },
+    guidance: {
+      human: { markdown: readMarkdown(asRecord(payload.guidance)?.human) },
+      agent: { markdown: readMarkdown(asRecord(payload.guidance)?.agent) },
+    },
+  };
+}
+
+function toWorkflowSteps(
+  rawSteps: unknown,
+  rawFormDefinitions: unknown,
+  rawAgentStepDefinitions: unknown,
+): WorkflowEditorStep[] {
   const definitionsByStepId = new Map<string, WorkflowFormStepPayload>();
+  const agentDefinitionsByStepId = new Map<string, WorkflowAgentStepPayload>();
 
   if (Array.isArray(rawFormDefinitions)) {
     rawFormDefinitions.forEach((entry) => {
@@ -277,6 +378,20 @@ function toWorkflowSteps(rawSteps: unknown, rawFormDefinitions: unknown): Workfl
     });
   }
 
+  if (Array.isArray(rawAgentStepDefinitions)) {
+    rawAgentStepDefinitions.forEach((entry) => {
+      const definition = asRecord(entry);
+      if (!definition || typeof definition.step?.stepId !== "string") {
+        return;
+      }
+
+      const payload = toWorkflowAgentPayload(definition.payload);
+      if (payload) {
+        agentDefinitionsByStepId.set(definition.step.stepId, payload);
+      }
+    });
+  }
+
   const stepsFromWorkflow = Array.isArray(rawSteps)
     ? rawSteps
         .map((rawStep, index): WorkflowEditorStep | null => {
@@ -285,22 +400,63 @@ function toWorkflowSteps(rawSteps: unknown, rawFormDefinitions: unknown): Workfl
             return null;
           }
 
-          if (step.stepType !== "form" && step.type !== "form") {
-            return null;
-          }
-
           const stepId = typeof step.stepId === "string" ? step.stepId : `step-${index}`;
-          const payload = toWorkflowFormPayload(step.payload) ?? definitionsByStepId.get(stepId);
 
-          if (!payload) {
-            return null;
+          if (step.stepType === "form" || step.type === "form") {
+            const payload = toWorkflowFormPayload(step.payload) ?? definitionsByStepId.get(stepId);
+            if (!payload) {
+              return null;
+            }
+
+            return {
+              stepId,
+              stepType: "form",
+              payload,
+            };
           }
 
-          return {
-            stepId,
-            stepType: "form",
-            payload,
-          };
+          if (step.stepType === "agent" || step.type === "agent") {
+            const payload = agentDefinitionsByStepId.get(stepId);
+            if (!payload) {
+              return {
+                stepId,
+                stepType: "agent",
+                payload: {
+                  key: `agent-${index + 1}`,
+                  label: "Agent Step",
+                  descriptionJson:
+                    typeof step.defaultMessage === "string"
+                      ? { markdown: step.defaultMessage }
+                      : undefined,
+                  objective: "",
+                  instructionsMarkdown: "",
+                  harnessSelection: { harness: "opencode" },
+                  explicitReadGrants: [],
+                  writeItems: [],
+                  completionRequirements: [],
+                  runtimePolicy: {
+                    sessionStart: "explicit",
+                    continuationMode: "bootstrap_only",
+                    liveStreamCount: 1,
+                    nativeMessageLog: false,
+                    persistedWritePolicy: "applied_only",
+                  },
+                  guidance: {
+                    human: { markdown: "" },
+                    agent: { markdown: "" },
+                  },
+                },
+              };
+            }
+
+            return {
+              stepId,
+              stepType: "agent",
+              payload,
+            };
+          }
+
+          return null;
         })
         .filter((step): step is WorkflowEditorStep => step !== null)
     : [];
@@ -501,6 +657,26 @@ function toFormStepMutationPayload(payload: WorkflowFormStepPayload) {
       agent: { markdown: payload.guidance.agentMarkdown },
     },
     fields: payload.fields,
+  };
+}
+
+function toAgentStepMutationPayload(payload: WorkflowAgentStepPayload) {
+  const descriptionMarkdown = readMarkdown(payload.descriptionJson);
+
+  return {
+    key: payload.key,
+    ...(typeof payload.label === "string" && payload.label.trim().length > 0
+      ? { label: payload.label }
+      : {}),
+    ...(descriptionMarkdown ? { descriptionJson: { markdown: descriptionMarkdown } } : {}),
+    objective: payload.objective,
+    instructionsMarkdown: payload.instructionsMarkdown,
+    harnessSelection: payload.harnessSelection,
+    explicitReadGrants: payload.explicitReadGrants,
+    writeItems: payload.writeItems,
+    completionRequirements: payload.completionRequirements,
+    runtimePolicy: payload.runtimePolicy,
+    guidance: payload.guidance,
   };
 }
 
@@ -841,10 +1017,27 @@ export function MethodologyWorkflowEditorRoute() {
         };
       }) => unknown;
     };
+    getAgentStepDefinition?: {
+      queryOptions: (args: {
+        input: {
+          methodologyId: string;
+          versionId: string;
+          workUnitTypeKey: string;
+          workflowDefinitionId: string;
+          stepId: string;
+        };
+      }) => unknown;
+    };
+    discoverAgentStepHarnessMetadata?: {
+      queryOptions: (args: { input: Record<string, never> }) => unknown;
+    };
     updateWorkflowMetadata?: { mutationOptions: () => unknown };
     createFormStep?: { mutationOptions: () => unknown };
     updateFormStep?: { mutationOptions: () => unknown };
     deleteFormStep?: { mutationOptions: () => unknown };
+    createAgentStep?: { mutationOptions: () => unknown };
+    updateAgentStep?: { mutationOptions: () => unknown };
+    deleteAgentStep?: { mutationOptions: () => unknown };
     createEdge?: { mutationOptions: () => unknown };
     updateEdge?: { mutationOptions: () => unknown };
     deleteEdge?: { mutationOptions: () => unknown };
@@ -923,6 +1116,16 @@ export function MethodologyWorkflowEditorRoute() {
       queryFn: () => Promise<unknown>;
     };
   const availableWorkflowsQuery = useQuery(availableWorkflowsQueryOptions);
+  const harnessMetadataQueryOptions =
+    (workflowProcedures.discoverAgentStepHarnessMetadata?.queryOptions?.({
+      input: {},
+    }) ?? {
+      queryKey: ["agent-step-harness-metadata"],
+      queryFn: async () => null,
+    }) as unknown as {
+      queryKey: unknown[];
+      queryFn: () => Promise<unknown>;
+    };
 
   const updateWorkflowMutation = useMutation(
     (workflowProcedures.updateWorkflowMetadata?.mutationOptions?.() ?? {
@@ -934,13 +1137,28 @@ export function MethodologyWorkflowEditorRoute() {
       mutationFn: async () => null,
     }) as { mutationFn: (input: unknown) => Promise<unknown> },
   );
+  const createAgentStepMutation = useMutation(
+    (workflowProcedures.createAgentStep?.mutationOptions?.() ?? {
+      mutationFn: async () => null,
+    }) as { mutationFn: (input: unknown) => Promise<unknown> },
+  );
   const updateFormStepMutation = useMutation(
     (workflowProcedures.updateFormStep?.mutationOptions?.() ?? {
       mutationFn: async () => null,
     }) as { mutationFn: (input: unknown) => Promise<unknown> },
   );
+  const updateAgentStepMutation = useMutation(
+    (workflowProcedures.updateAgentStep?.mutationOptions?.() ?? {
+      mutationFn: async () => null,
+    }) as { mutationFn: (input: unknown) => Promise<unknown> },
+  );
   const deleteFormStepMutation = useMutation(
     (workflowProcedures.deleteFormStep?.mutationOptions?.() ?? {
+      mutationFn: async () => null,
+    }) as { mutationFn: (input: unknown) => Promise<unknown> },
+  );
+  const deleteAgentStepMutation = useMutation(
+    (workflowProcedures.deleteAgentStep?.mutationOptions?.() ?? {
       mutationFn: async () => null,
     }) as { mutationFn: (input: unknown) => Promise<unknown> },
   );
@@ -1007,7 +1225,11 @@ export function MethodologyWorkflowEditorRoute() {
     typeof workflow.workflowDefinitionId === "string" && workflow.workflowDefinitionId.length > 0
       ? workflow.workflowDefinitionId
       : workflowDefinitionId;
-  const initialSteps = toWorkflowSteps(editorDefinition?.steps, editorDefinition?.formDefinitions);
+  const initialSteps = toWorkflowSteps(
+    editorDefinition?.steps,
+    editorDefinition?.formDefinitions,
+    editorDefinition?.agentStepDefinitions,
+  );
 
   return (
     <WorkflowEditorShell
@@ -1061,6 +1283,17 @@ export function MethodologyWorkflowEditorRoute() {
 
         await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
       }}
+      onCreateAgentStep={async (payload) => {
+        await createAgentStepMutation.mutateAsync({
+          versionId,
+          workUnitTypeKey: workUnitKey,
+          workflowDefinitionId: resolvedWorkflowDefinitionId,
+          afterStepKey: null,
+          payload: toAgentStepMutationPayload(payload),
+        });
+
+        await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
+      }}
       onUpdateFormStep={async (stepId, payload) => {
         await updateFormStepMutation.mutateAsync({
           versionId,
@@ -1068,6 +1301,17 @@ export function MethodologyWorkflowEditorRoute() {
           workflowDefinitionId: resolvedWorkflowDefinitionId,
           stepId,
           payload: toFormStepMutationPayload(payload),
+        });
+
+        await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
+      }}
+      onUpdateAgentStep={async (stepId, payload) => {
+        await updateAgentStepMutation.mutateAsync({
+          versionId,
+          workUnitTypeKey: workUnitKey,
+          workflowDefinitionId: resolvedWorkflowDefinitionId,
+          stepId,
+          payload: toAgentStepMutationPayload(payload),
         });
 
         await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
@@ -1081,6 +1325,20 @@ export function MethodologyWorkflowEditorRoute() {
         });
 
         await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
+      }}
+      onDeleteAgentStep={async (stepId) => {
+        await deleteAgentStepMutation.mutateAsync({
+          versionId,
+          workUnitTypeKey: workUnitKey,
+          workflowDefinitionId: resolvedWorkflowDefinitionId,
+          stepId,
+        });
+
+        await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
+      }}
+      discoverHarnessMetadata={async () => {
+        const data = await queryClient.fetchQuery(harnessMetadataQueryOptions);
+        return data as WorkflowHarnessDiscoveryMetadata;
       }}
       onCreateContextFact={async (draft) => {
         try {

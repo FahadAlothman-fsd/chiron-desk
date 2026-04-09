@@ -42,6 +42,19 @@ function makeMethodologyRepoLayer() {
   return Layer.succeed(MethodologyRepository, {
     listDefinitions: () => Effect.succeed(methodologyRows),
     listVersionsByMethodologyId: () => Effect.succeed([]),
+    getWorkflowEditorDefinition: () =>
+      Effect.succeed({
+        workflow: {
+          workflowDefinitionId: "wf-1",
+          key: "wu.story.setup",
+          displayName: "Setup",
+          descriptionJson: { markdown: "Setup" },
+        },
+        steps: [],
+        edges: [],
+        contextFacts: [],
+        formDefinitions: [],
+      }),
   } as unknown as Context.Tag.Service<typeof MethodologyRepository>);
 }
 
@@ -98,5 +111,39 @@ describe("app router layer wiring regression", () => {
 
     expect(Array.isArray(methodologies)).toBe(true);
     expect(Array.isArray(projects)).toBe(true);
+  });
+
+  it("keeps repository access available for workflow editor reads", async () => {
+    const allRepos = Layer.mergeAll(
+      makeMethodologyRepoLayer(),
+      makeLifecycleRepoLayer(),
+      makeProjectContextRepoLayer(),
+    );
+
+    const methodologyCoreLayer = Layer.provide(MethodologyEngineL1Live, allRepos);
+
+    const methodologyServiceLayer = Layer.mergeAll(
+      allRepos,
+      methodologyCoreLayer,
+      Layer.provide(WorkflowServiceLive, allRepos),
+      Layer.provide(WorkUnitStateMachineServiceLive, allRepos),
+      Layer.provide(Layer.effect(EligibilityService, EligibilityServiceLive), allRepos),
+      Layer.provide(ProjectContextServiceLive, allRepos),
+    ) as Layer.Layer<any>;
+
+    const methodologyRouter = createMethodologyRouter(methodologyServiceLayer);
+
+    const editor = await call(
+      methodologyRouter.version.workUnit.workflow.getEditorDefinition,
+      {
+        methodologyId: "methodology-1",
+        versionId: "ver-1",
+        workUnitTypeKey: "WU.STORY",
+        workflowDefinitionId: "wf-1",
+      },
+      PUBLIC_CTX,
+    );
+
+    expect(editor.workflow.workflowDefinitionId).toBe("wf-1");
   });
 });

@@ -168,7 +168,7 @@ Wave 5: runtime web UX + end-to-end verification + cleanup
 > Implementation + Test = ONE task. Never separate.
 > Every task must encode the already-locked design/runtime architecture and reuse existing repo seams where required.
 
-- [ ] 1. Freeze Agent-step contracts, MCP envelopes, runtime state machine, and deferred scope
+- [x] 1. Freeze Agent-step contracts, MCP envelopes, runtime state machine, and deferred scope
 
   **What to do**: Add/lock typed contracts for the Agent-step design-time payloads, runtime detail payloads, runtime procedure inputs/outputs, normalized SSE event envelope, MCP read/write/snapshot inputs/outputs, and typed error contracts. Encode the locked runtime state machine (`not_started | starting_session | active_streaming | active_idle | disconnected_or_error | completed`), three-tool MCP v1 scope, single-SSE-stream rule, and “applied writes only” semantics. Make the provider/model errors normalized harness/OpenCode execution errors rather than speculative provider-specific families.
   **Must NOT do**: Do not implement storage, services, or UI in this task. Do not reintroduce `request_context_access` into v1 contracts. Do not invent a second live stream or a Chiron-native message log contract.
@@ -209,7 +209,7 @@ Wave 5: runtime web UX + end-to-end verification + cleanup
 
   **Commit**: YES | Message: `feat(agent): lock contracts and runtime states` | Files: `packages/contracts/src/**`, `packages/contracts/src/tests/**`
 
-- [ ] 2. Add Agent-step design-time schema and repositories
+- [x] 2. Add Agent-step design-time schema and repositories
 
   **What to do**: Add the four locked design-time tables: `methodology_workflow_agent_steps`, `methodology_workflow_agent_step_explicit_read_grants`, `methodology_workflow_agent_step_write_items`, and `methodology_workflow_agent_step_write_item_requirements`. Implement repository support for loading/saving the Agent-step child row, explicit reads, write cards, and required-context dependencies. Enforce uniqueness and self-dependency guardrails. Keep inferred reads and read-mode derivation out of persistence.
   **Must NOT do**: Do not persist inferred reads. Do not store read-mode flags. Do not store write-item dependencies as write-item ids.
@@ -248,7 +248,7 @@ Wave 5: runtime web UX + end-to-end verification + cleanup
 
   **Commit**: YES | Message: `feat(agent): add design-time schema and repos` | Files: `packages/db/src/schema/**`, `packages/methodology-engine/src/repository.ts`, `packages/db/src/tests/**`
 
-- [ ] 3. Implement Agent-step design-time services and extend workflow authoring transactions
+- [x] 3. Implement Agent-step design-time services and extend workflow authoring transactions
 
   **What to do**: Add `AgentStepEditorDefinitionService` and `AgentStepDefinitionService` in repo-consistent `Context.Tag` style. Reuse `WorkflowEditorDefinitionService` as the base read surface and extend `WorkflowAuthoringTransactionService.applyMutation(...)` with Agent-step create/update/delete slots so step shell changes and Agent-step child-table writes occur transactionally. Implement pure helpers for inferred-read derivation, read-mode derivation, write-order normalization, and requirement validation.
   **Must NOT do**: Do not bypass `WorkflowAuthoringTransactionService`. Do not reimplement generic workflow metadata or editor-read seams already present. Do not leak OpenCode concerns into methodology-engine.
@@ -287,7 +287,7 @@ Wave 5: runtime web UX + end-to-end verification + cleanup
 
   **Commit**: YES | Message: `feat(agent): add design-time services and tx wiring` | Files: `packages/methodology-engine/src/services/**`, `packages/methodology-engine/src/tests/**`
 
-- [ ] 4. Wire design-time procedures and implement the Agent-step dialog UX
+- [x] 4. Wire design-time procedures and implement the Agent-step dialog UX
 
   **What to do**: Add/extend methodology API procedures for `getAgentStepDefinition`, `discoverAgentStepHarnessMetadata`, `createAgentStep`, `updateAgentStep`, and `deleteAgentStep`. In the same wave, add the minimal `HarnessService.discoverMetadata` + `OpencodeHarnessService.discoverMetadata` path needed to make real design-time harness discovery work. Implement the 7-tab Agent-step dialog in the workflow editor with TanStack Form, dirty indicators, discard confirmation, AI Elements `ModelSelector` in the Harness & Model tab, toggle-driven Read Scope table, inline Write Scope cards, drag-and-drop ordering, and Guidance tab. Keep the save path as one full payload mutation.
   **Must NOT do**: Do not add design-time streams. Do not split save into per-tab mutations. Do not reintroduce stacked write-item dialogs. Do not implement runtime session/send/history/stream behavior in this task; discovery-only OpenCode integration is the maximum scope here.

@@ -17,9 +17,12 @@ import {
   WorkflowContextFactDialog,
   WorkflowMetadataDialog,
 } from "./dialogs";
+import { AgentStepDialog } from "./agent-step-dialog";
 import { StepListInspector } from "./step-list-inspector";
 import { StepTypesGrid } from "./step-types-grid";
 import type {
+  WorkflowAgentStepMutationHandlers,
+  WorkflowAgentStepPayload,
   WorkflowContextFactDefinitionItem,
   WorkflowContextFactDraft,
   WorkflowContextFactMutationHandlers,
@@ -50,6 +53,7 @@ type WorkflowEditorShellProps = {
   onUpdateEdge?: (edgeId: string, descriptionMarkdown: string) => Promise<void>;
   onDeleteEdge?: (edgeId: string) => Promise<void>;
 } & WorkflowFormStepMutationHandlers &
+  WorkflowAgentStepMutationHandlers &
   WorkflowContextFactMutationHandlers;
 
 function createLocalId(prefix: string) {
@@ -249,6 +253,10 @@ export function WorkflowEditorShell({
   onCreateFormStep,
   onUpdateFormStep,
   onDeleteFormStep,
+  onCreateAgentStep,
+  onUpdateAgentStep,
+  onDeleteAgentStep,
+  discoverHarnessMetadata,
   onCreateContextFact,
   onUpdateContextFact,
   onDeleteContextFact,
@@ -266,6 +274,8 @@ export function WorkflowEditorShell({
 
   const [isFormDialogOpen, setFormDialogOpen] = useState(false);
   const [formDialogMode, setFormDialogMode] = useState<"create" | "edit">("create");
+  const [isAgentDialogOpen, setAgentDialogOpen] = useState(false);
+  const [agentDialogMode, setAgentDialogMode] = useState<"create" | "edit">("create");
   const [isContextFactDialogOpen, setContextFactDialogOpen] = useState(false);
   const [contextFactDialogMode, setContextFactDialogMode] = useState<"create" | "edit">("create");
   const [editingContextFactId, setEditingContextFactId] = useState<string | null>(null);
@@ -350,6 +360,12 @@ export function WorkflowEditorShell({
     setFormDialogOpen(true);
   };
 
+  const openCreateAgentDialog = () => {
+    setStatusMessage(null);
+    setAgentDialogMode("create");
+    setAgentDialogOpen(true);
+  };
+
   const openEditFormDialog = () => {
     if (!selectedStep) {
       return;
@@ -357,6 +373,28 @@ export function WorkflowEditorShell({
     setStatusMessage(null);
     setFormDialogMode("edit");
     setFormDialogOpen(true);
+  };
+
+  const openEditAgentDialog = () => {
+    if (!selectedStep) {
+      return;
+    }
+    setStatusMessage(null);
+    setAgentDialogMode("edit");
+    setAgentDialogOpen(true);
+  };
+
+  const openSelectedStepDialog = () => {
+    if (!selectedStep) {
+      return;
+    }
+
+    if (selectedStep.stepType === "agent") {
+      openEditAgentDialog();
+      return;
+    }
+
+    openEditFormDialog();
   };
 
   const openCreateContextFactDialog = () => {
@@ -431,7 +469,10 @@ export function WorkflowEditorShell({
 
       <div className="grid gap-3 xl:grid-cols-[23rem_minmax(0,1fr)]">
         <aside className="chiron-frame-flat chiron-tone-canvas grid auto-rows-max gap-2 p-2">
-          <StepTypesGrid onCreateFormStep={openCreateFormDialog} />
+          <StepTypesGrid
+            onCreateFormStep={openCreateFormDialog}
+            onCreateAgentStep={openCreateAgentDialog}
+          />
 
           <StepListInspector
             metadata={metadata}
@@ -450,7 +491,7 @@ export function WorkflowEditorShell({
               setStatusMessage(null);
               setSelection(null);
             }}
-            onEditSelectedStep={openEditFormDialog}
+            onEditSelectedStep={openSelectedStepDialog}
             onEditSelectedEdge={() => setEdgeDialogOpen(true)}
             onConnectSteps={(sourceStepKey, targetStepKey) =>
               tryCreateEdge({ sourceStepKey, targetStepKey })
@@ -556,7 +597,9 @@ export function WorkflowEditorShell({
       <FormStepDialog
         open={isFormDialogOpen}
         mode={formDialogMode}
-        step={formDialogMode === "edit" ? selectedStep : undefined}
+        step={
+          formDialogMode === "edit" && selectedStep?.stepType === "form" ? selectedStep : undefined
+        }
         contextFactDefinitions={localContextFacts}
         onOpenChange={setFormDialogOpen}
         onSave={async (payload) => {
@@ -597,7 +640,7 @@ export function WorkflowEditorShell({
           setFormDialogOpen(false);
         }}
         onDelete={
-          formDialogMode === "edit" && selectedStep
+          formDialogMode === "edit" && selectedStep?.stepType === "form"
             ? async () => {
                 setSteps((previous) =>
                   previous.filter((entry) => entry.stepId !== selectedStep.stepId),
@@ -612,6 +655,75 @@ export function WorkflowEditorShell({
                 setSelection(null);
                 setFormDialogOpen(false);
                 await onDeleteFormStep?.(selectedStep.stepId);
+              }
+            : undefined
+        }
+      />
+
+      <AgentStepDialog
+        open={isAgentDialogOpen}
+        mode={agentDialogMode}
+        step={
+          agentDialogMode === "edit" && selectedStep?.stepType === "agent"
+            ? selectedStep
+            : undefined
+        }
+        contextFactDefinitions={localContextFacts}
+        discoverHarnessMetadata={discoverHarnessMetadata}
+        onOpenChange={setAgentDialogOpen}
+        onSave={async (payload) => {
+          setStatusMessage(null);
+          if (agentDialogMode === "edit" && selectedStep?.stepType === "agent") {
+            const previousStepKey = selectedStep.payload.key;
+            setSteps((previous) =>
+              previous.map((entry) =>
+                entry.stepId === selectedStep.stepId
+                  ? {
+                      ...entry,
+                      payload,
+                    }
+                  : entry,
+              ),
+            );
+            if (previousStepKey !== payload.key) {
+              setEdges((previous) =>
+                previous.map((edge) => ({
+                  ...edge,
+                  fromStepKey:
+                    edge.fromStepKey === previousStepKey ? payload.key : edge.fromStepKey,
+                  toStepKey: edge.toStepKey === previousStepKey ? payload.key : edge.toStepKey,
+                })),
+              );
+            }
+            await onUpdateAgentStep?.(selectedStep.stepId, payload as WorkflowAgentStepPayload);
+          } else {
+            const nextStep: WorkflowEditorStep = {
+              stepId: createLocalId("step"),
+              stepType: "agent",
+              payload,
+            };
+            setSteps((previous) => [...previous, nextStep]);
+            setSelection({ kind: "step", stepId: nextStep.stepId });
+            await onCreateAgentStep?.(payload as WorkflowAgentStepPayload);
+          }
+          setAgentDialogOpen(false);
+        }}
+        onDelete={
+          agentDialogMode === "edit" && selectedStep?.stepType === "agent"
+            ? async () => {
+                setSteps((previous) =>
+                  previous.filter((entry) => entry.stepId !== selectedStep.stepId),
+                );
+                setEdges((previous) =>
+                  previous.filter(
+                    (edge) =>
+                      edge.fromStepKey !== selectedStep.payload.key &&
+                      edge.toStepKey !== selectedStep.payload.key,
+                  ),
+                );
+                setSelection(null);
+                setAgentDialogOpen(false);
+                await onDeleteAgentStep?.(selectedStep.stepId);
               }
             : undefined
         }
@@ -646,14 +758,46 @@ export function WorkflowEditorShell({
               setSteps((previous) =>
                 previous.map((step) => ({
                   ...step,
-                  payload: {
-                    ...step.payload,
-                    fields: step.payload.fields.map((field) =>
-                      field.contextFactDefinitionId === previousBindingId
-                        ? { ...field, contextFactDefinitionId: nextFact.contextFactDefinitionId }
-                        : field,
-                    ),
-                  },
+                  payload:
+                    step.stepType === "form"
+                      ? {
+                          ...step.payload,
+                          fields: step.payload.fields.map((field) =>
+                            field.contextFactDefinitionId === previousBindingId
+                              ? {
+                                  ...field,
+                                  contextFactDefinitionId: nextFact.contextFactDefinitionId,
+                                }
+                              : field,
+                          ),
+                        }
+                      : {
+                          ...step.payload,
+                          explicitReadGrants: step.payload.explicitReadGrants.map((grant) =>
+                            grant.contextFactDefinitionId === previousBindingId
+                              ? { contextFactDefinitionId: nextFact.contextFactDefinitionId }
+                              : grant,
+                          ),
+                          writeItems: step.payload.writeItems.map((writeItem) => ({
+                            ...writeItem,
+                            contextFactDefinitionId:
+                              writeItem.contextFactDefinitionId === previousBindingId
+                                ? nextFact.contextFactDefinitionId
+                                : writeItem.contextFactDefinitionId,
+                            requirementContextFactDefinitionIds:
+                              writeItem.requirementContextFactDefinitionIds.map((requirementId) =>
+                                requirementId === previousBindingId
+                                  ? nextFact.contextFactDefinitionId
+                                  : requirementId,
+                              ),
+                          })),
+                          completionRequirements: step.payload.completionRequirements.map(
+                            (requirement) =>
+                              requirement.contextFactDefinitionId === previousBindingId
+                                ? { contextFactDefinitionId: nextFact.contextFactDefinitionId }
+                                : requirement,
+                          ),
+                        },
                 })),
               );
             }
@@ -703,15 +847,35 @@ export function WorkflowEditorShell({
                 }
 
                 const isBound = steps.some((step) =>
-                  step.payload.fields.some(
-                    (field) =>
-                      field.contextFactDefinitionId === deletingContextFact.contextFactDefinitionId,
-                  ),
+                  step.stepType === "form"
+                    ? step.payload.fields.some(
+                        (field) =>
+                          field.contextFactDefinitionId ===
+                          deletingContextFact.contextFactDefinitionId,
+                      )
+                    : step.payload.explicitReadGrants.some(
+                        (grant) =>
+                          grant.contextFactDefinitionId ===
+                          deletingContextFact.contextFactDefinitionId,
+                      ) ||
+                      step.payload.writeItems.some(
+                        (writeItem) =>
+                          writeItem.contextFactDefinitionId ===
+                            deletingContextFact.contextFactDefinitionId ||
+                          writeItem.requirementContextFactDefinitionIds.includes(
+                            deletingContextFact.contextFactDefinitionId,
+                          ),
+                      ) ||
+                      step.payload.completionRequirements.some(
+                        (requirement) =>
+                          requirement.contextFactDefinitionId ===
+                          deletingContextFact.contextFactDefinitionId,
+                      ),
                 );
 
                 if (isBound) {
                   setStatusMessage(
-                    `Cannot delete ${deletingContextFact.key} while a Form field binding still references it.`,
+                    `Cannot delete ${deletingContextFact.key} while a workflow step still references it.`,
                   );
                   setDeletingContextFactId(null);
                   return;

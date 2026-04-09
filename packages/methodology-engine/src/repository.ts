@@ -14,6 +14,7 @@ import type {
   WorkflowEdgeDto,
   WorkflowStepReadModel,
 } from "@chiron/contracts/methodology/workflow";
+import type { AgentStepDesignTimePayload } from "@chiron/contracts/agent-step/design-time";
 import type {
   LifecycleState,
   TransitionConditionSet,
@@ -121,6 +122,11 @@ export interface WorkflowFormDefinitionReadModel {
   readonly payload: FormStepPayload;
 }
 
+export interface WorkflowAgentStepDefinitionReadModel {
+  readonly stepId: string;
+  readonly payload: AgentStepDesignTimePayload;
+}
+
 export interface WorkflowEditorDefinitionReadModel {
   readonly workflow: {
     readonly workflowDefinitionId: string;
@@ -150,6 +156,26 @@ export interface UpdateFormStepDefinitionParams {
 }
 
 export interface DeleteFormStepDefinitionParams {
+  readonly versionId: string;
+  readonly workflowDefinitionId: string;
+  readonly stepId: string;
+}
+
+export interface CreateAgentStepDefinitionParams {
+  readonly versionId: string;
+  readonly workflowDefinitionId: string;
+  readonly afterStepKey: string | null;
+  readonly payload: AgentStepDesignTimePayload;
+}
+
+export interface UpdateAgentStepDefinitionParams {
+  readonly versionId: string;
+  readonly workflowDefinitionId: string;
+  readonly stepId: string;
+  readonly payload: AgentStepDesignTimePayload;
+}
+
+export interface DeleteAgentStepDefinitionParams {
   readonly versionId: string;
   readonly workflowDefinitionId: string;
   readonly stepId: string;
@@ -434,6 +460,19 @@ export class MethodologyRepository extends Context.Tag("MethodologyRepository")<
     ) => Effect.Effect<WorkflowFormDefinitionReadModel, RepositoryError>;
     readonly deleteFormStepDefinition: (
       params: DeleteFormStepDefinitionParams,
+    ) => Effect.Effect<void, RepositoryError>;
+    readonly listAgentStepDefinitions: (params: {
+      readonly versionId: string;
+      readonly workflowDefinitionId: string;
+    }) => Effect.Effect<readonly WorkflowAgentStepDefinitionReadModel[], RepositoryError>;
+    readonly createAgentStepDefinition: (
+      params: CreateAgentStepDefinitionParams,
+    ) => Effect.Effect<WorkflowAgentStepDefinitionReadModel, RepositoryError>;
+    readonly updateAgentStepDefinition: (
+      params: UpdateAgentStepDefinitionParams,
+    ) => Effect.Effect<WorkflowAgentStepDefinitionReadModel, RepositoryError>;
+    readonly deleteAgentStepDefinition: (
+      params: DeleteAgentStepDefinitionParams,
     ) => Effect.Effect<void, RepositoryError>;
     readonly listWorkflowEdgesByDefinitionId?: (
       params: ListWorkflowEdgesByDefinitionIdParams,

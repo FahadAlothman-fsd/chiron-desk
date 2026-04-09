@@ -1,4 +1,8 @@
 import type {
+  AgentStepDesignTimePayload,
+  AgentStepRuntimePolicy,
+} from "@chiron/contracts/agent-step";
+import type {
   FormFieldValueType,
   FormStepFieldPayload,
   WorkflowContextFactCardinality,
@@ -24,6 +28,55 @@ export type WorkflowFormStepPayload = {
   descriptionJson?: { markdown: string };
   fields: FormStepFieldPayload[];
   guidance: WorkflowEditorGuidance;
+};
+
+export type WorkflowAgentStepPayload = Omit<AgentStepDesignTimePayload, "guidance"> & {
+  descriptionJson?: { markdown: string };
+  guidance?: {
+    human: { markdown: string };
+    agent: { markdown: string };
+  };
+};
+
+export type WorkflowHarnessDiscoveryModel = {
+  provider: string;
+  model: string;
+  label: string;
+  isDefault: boolean;
+  supportsReasoning: boolean;
+  supportsTools: boolean;
+  supportsAttachments: boolean;
+};
+
+export type WorkflowHarnessDiscoveryProvider = {
+  provider: string;
+  label: string;
+  defaultModel?: string;
+  models: readonly WorkflowHarnessDiscoveryModel[];
+};
+
+export type WorkflowHarnessDiscoveryAgent = {
+  key: string;
+  label: string;
+  description?: string;
+  mode: "subagent" | "primary" | "all";
+  defaultModel?: { provider: string; model: string };
+};
+
+export type WorkflowHarnessDiscoveryMetadata = {
+  harness: "opencode";
+  discoveredAt: string;
+  agents: readonly WorkflowHarnessDiscoveryAgent[];
+  providers: readonly WorkflowHarnessDiscoveryProvider[];
+  models: readonly WorkflowHarnessDiscoveryModel[];
+};
+
+export const DEFAULT_AGENT_STEP_RUNTIME_POLICY: AgentStepRuntimePolicy = {
+  sessionStart: "explicit",
+  continuationMode: "bootstrap_only",
+  liveStreamCount: 1,
+  nativeMessageLog: false,
+  persistedWritePolicy: "applied_only",
 };
 
 export type WorkflowEditorStepType = "form" | "agent" | "action" | "invoke" | "branch" | "display";
@@ -61,11 +114,22 @@ export const STEP_TYPE_COLORS: Record<
   display: "slate",
 };
 
-export type WorkflowEditorStep = {
-  stepId: string;
-  stepType: WorkflowEditorStepType;
-  payload: WorkflowFormStepPayload;
-};
+export type WorkflowEditorStep =
+  | {
+      stepId: string;
+      stepType: "form";
+      payload: WorkflowFormStepPayload;
+    }
+  | {
+      stepId: string;
+      stepType: "agent";
+      payload: WorkflowAgentStepPayload;
+    }
+  | {
+      stepId: string;
+      stepType: Exclude<WorkflowEditorStepType, "form" | "agent">;
+      payload: WorkflowFormStepPayload;
+    };
 
 export type WorkflowEditorEdge = {
   edgeId: string;
@@ -157,6 +221,13 @@ export type WorkflowFormStepMutationHandlers = {
   onCreateFormStep?: (payload: WorkflowFormStepPayload) => Promise<void>;
   onUpdateFormStep?: (stepId: string, payload: WorkflowFormStepPayload) => Promise<void>;
   onDeleteFormStep?: (stepId: string) => Promise<void>;
+};
+
+export type WorkflowAgentStepMutationHandlers = {
+  onCreateAgentStep?: (payload: WorkflowAgentStepPayload) => Promise<void>;
+  onUpdateAgentStep?: (stepId: string, payload: WorkflowAgentStepPayload) => Promise<void>;
+  onDeleteAgentStep?: (stepId: string) => Promise<void>;
+  discoverHarnessMetadata?: () => Promise<WorkflowHarnessDiscoveryMetadata>;
 };
 
 export type WorkflowEditorSelection =

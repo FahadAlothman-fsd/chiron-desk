@@ -26,6 +26,7 @@ import {
   type DeleteWorkUnitLifecycleTransitionParams,
   type WorkflowEditorDefinitionReadModel,
   type WorkflowFormDefinitionReadModel,
+  type WorkflowAgentStepDefinitionReadModel,
 } from "@chiron/methodology-engine";
 import type {
   PublicationEvidence,
@@ -39,6 +40,7 @@ import type {
   WorkflowEdgeDto,
   WorkflowStepReadModel,
 } from "@chiron/contracts/methodology/workflow";
+import type { AgentStepDesignTimePayload } from "@chiron/contracts/agent-step/design-time";
 import {
   methodologyDefinitions,
   methodologyVersions,
@@ -54,6 +56,10 @@ import {
   methodologyWorkflowSteps,
   methodologyWorkflowEdges,
   methodologyWorkflowFormFields,
+  methodologyWorkflowAgentSteps,
+  methodologyWorkflowAgentStepExplicitReadGrants,
+  methodologyWorkflowAgentStepWriteItems,
+  methodologyWorkflowAgentStepWriteItemRequirements,
   methodologyTransitionWorkflowBindings,
   workUnitFactDefinitions,
   methodologyArtifactSlotDefinitions,
@@ -238,6 +244,333 @@ function buildFormPayload(
       };
     }),
   };
+}
+
+function getAgentCompletionRequirements(
+  value: unknown,
+): AgentStepDesignTimePayload["completionRequirements"] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item) =>
+    isRecord(item) && typeof item.contextFactDefinitionId === "string"
+      ? [{ contextFactDefinitionId: item.contextFactDefinitionId }]
+      : [],
+  );
+}
+
+function resolveWorkflowContextFactDefinitionId(
+  factByIdentifier: ReadonlyMap<string, WorkflowContextFactDto>,
+  identifier: string,
+): string {
+  const fact = factByIdentifier.get(identifier);
+  if (!fact || typeof fact.contextFactDefinitionId !== "string") {
+    throw new RepositoryError({
+      operation: "methodology.agentStep.resolveWorkflowContextFactDefinitionId",
+      cause: new Error(`Unknown workflow context fact '${identifier}'`),
+    });
+  }
+
+  return fact.contextFactDefinitionId;
+}
+
+function normalizeAgentStepPayload(
+  workflowDefinitionId: string,
+  factByIdentifier: ReadonlyMap<string, WorkflowContextFactDto>,
+  payload: AgentStepDesignTimePayload,
+): {
+  readonly payload: AgentStepDesignTimePayload;
+  readonly explicitReadGrantDefinitionIds: readonly string[];
+  readonly writeItems: readonly {
+    readonly writeItemId: string;
+    readonly contextFactDefinitionId: string;
+    readonly contextFactKind: AgentStepDesignTimePayload["writeItems"][number]["contextFactKind"];
+    readonly label?: string;
+    readonly order: number;
+    readonly requirementContextFactDefinitionIds: readonly string[];
+  }[];
+} {
+  const explicitReadGrantDefinitionIds: string[] = [];
+  const seenExplicitReadGrantIds = new Set<string>();
+
+  for (const grant of payload.explicitReadGrants) {
+    const contextFactDefinitionId = resolveWorkflowContextFactDefinitionId(
+      factByIdentifier,
+      grant.contextFactDefinitionId,
+    );
+
+    if (seenExplicitReadGrantIds.has(contextFactDefinitionId)) {
+      throw new RepositoryError({
+        operation: "methodology.agentStep.normalizeAgentStepPayload",
+        cause: new Error(
+          `Agent step '${payload.key}' cannot grant explicit read access to context fact '${contextFactDefinitionId}' more than once`,
+        ),
+      });
+    }
+
+    seenExplicitReadGrantIds.add(contextFactDefinitionId);
+    explicitReadGrantDefinitionIds.push(contextFactDefinitionId);
+  }
+
+  const writeItems: Array<{
+    readonly writeItemId: string;
+    readonly contextFactDefinitionId: string;
+    readonly contextFactKind: AgentStepDesignTimePayload["writeItems"][number]["contextFactKind"];
+    readonly label?: string;
+    readonly order: number;
+    readonly requirementContextFactDefinitionIds: readonly string[];
+  }> = [];
+  const seenWriteItemIds = new Set<string>();
+  const seenWriteItemContextFactIds = new Set<string>();
+
+  for (const item of payload.writeItems) {
+    const contextFactDefinitionId = resolveWorkflowContextFactDefinitionId(
+      factByIdentifier,
+      item.contextFactDefinitionId,
+    );
+    const fact = factByIdentifier.get(contextFactDefinitionId);
+
+    if (!fact) {
+      throw new RepositoryError({
+        operation: "methodology.agentStep.normalizeAgentStepPayload",
+        cause: new Error(
+          `Workflow '${workflowDefinitionId}' is missing context fact '${contextFactDefinitionId}' for agent step '${payload.key}'`,
+        ),
+      });
+    }
+
+    if (seenWriteItemIds.has(item.writeItemId)) {
+      throw new RepositoryError({
+        operation: "methodology.agentStep.normalizeAgentStepPayload",
+        cause: new Error(
+          `Agent step '${payload.key}' cannot define write card '${item.writeItemId}' more than once`,
+        ),
+      });
+    }
+
+    if (seenWriteItemContextFactIds.has(contextFactDefinitionId)) {
+      throw new RepositoryError({
+        operation: "methodology.agentStep.normalizeAgentStepPayload",
+        cause: new Error(
+          `Agent step '${payload.key}' cannot define more than one write card for context fact '${contextFactDefinitionId}'`,
+        ),
+      });
+    }
+
+    if (fact.kind !== item.contextFactKind) {
+      throw new RepositoryError({
+        operation: "methodology.agentStep.normalizeAgentStepPayload",
+        cause: new Error(
+          `Agent step '${payload.key}' write card '${item.writeItemId}' expected context fact kind '${fact.kind}' for '${contextFactDefinitionId}', received '${item.contextFactKind}'`,
+        ),
+      });
+    }
+
+    seenWriteItemIds.add(item.writeItemId);
+    seenWriteItemContextFactIds.add(contextFactDefinitionId);
+
+    const requirementContextFactDefinitionIds: string[] = [];
+    const seenRequirementIds = new Set<string>();
+
+    for (const requirementContextFactDefinitionId of item.requirementContextFactDefinitionIds) {
+      const resolvedRequirementId = resolveWorkflowContextFactDefinitionId(
+        factByIdentifier,
+        requirementContextFactDefinitionId,
+      );
+
+      if (resolvedRequirementId === contextFactDefinitionId) {
+        throw new RepositoryError({
+          operation: "methodology.agentStep.normalizeAgentStepPayload",
+          cause: new Error(
+            `Agent step '${payload.key}' write card '${item.writeItemId}' cannot depend on its own context fact '${contextFactDefinitionId}'`,
+          ),
+        });
+      }
+
+      if (seenRequirementIds.has(resolvedRequirementId)) {
+        throw new RepositoryError({
+          operation: "methodology.agentStep.normalizeAgentStepPayload",
+          cause: new Error(
+            `Agent step '${payload.key}' write card '${item.writeItemId}' cannot depend on context fact '${resolvedRequirementId}' more than once`,
+          ),
+        });
+      }
+
+      seenRequirementIds.add(resolvedRequirementId);
+      requirementContextFactDefinitionIds.push(resolvedRequirementId);
+    }
+
+    writeItems.push({
+      writeItemId: item.writeItemId,
+      contextFactDefinitionId,
+      contextFactKind: item.contextFactKind,
+      ...(item.label ? { label: item.label } : {}),
+      order: item.order,
+      requirementContextFactDefinitionIds,
+    });
+  }
+
+  const completionRequirementIds = payload.completionRequirements.map((requirement) => ({
+    contextFactDefinitionId: resolveWorkflowContextFactDefinitionId(
+      factByIdentifier,
+      requirement.contextFactDefinitionId,
+    ),
+  }));
+
+  const harnessSelection = {
+    harness: payload.harnessSelection?.harness ?? "opencode",
+    ...(payload.harnessSelection?.agent ? { agent: payload.harnessSelection.agent } : {}),
+    ...(payload.harnessSelection?.model ? { model: payload.harnessSelection.model } : {}),
+  };
+
+  const runtimePolicy = {
+    sessionStart: payload.runtimePolicy?.sessionStart ?? "explicit",
+    continuationMode: payload.runtimePolicy?.continuationMode ?? "bootstrap_only",
+    liveStreamCount: payload.runtimePolicy?.liveStreamCount ?? 1,
+    nativeMessageLog: payload.runtimePolicy?.nativeMessageLog ?? false,
+    persistedWritePolicy: payload.runtimePolicy?.persistedWritePolicy ?? "applied_only",
+  };
+
+  return {
+    payload: {
+      ...payload,
+      harnessSelection,
+      explicitReadGrants: explicitReadGrantDefinitionIds.map((contextFactDefinitionId) => ({
+        contextFactDefinitionId,
+      })),
+      writeItems: writeItems.map((item) => ({
+        writeItemId: item.writeItemId,
+        contextFactDefinitionId: item.contextFactDefinitionId,
+        contextFactKind: item.contextFactKind,
+        ...(item.label ? { label: item.label } : {}),
+        order: item.order,
+        requirementContextFactDefinitionIds: [...item.requirementContextFactDefinitionIds],
+      })),
+      completionRequirements: completionRequirementIds,
+      runtimePolicy,
+    },
+    explicitReadGrantDefinitionIds,
+    writeItems,
+  };
+}
+
+async function syncAgentStepDefinition(
+  tx: TransactionClient,
+  versionId: string,
+  workflowDefinitionId: string,
+  stepId: string,
+  payload: AgentStepDesignTimePayload,
+): Promise<AgentStepDesignTimePayload> {
+  const facts = await readWorkflowContextFacts(tx, versionId, workflowDefinitionId);
+  const factByIdentifier = buildFactIdentifierMap(facts);
+  const normalized = normalizeAgentStepPayload(workflowDefinitionId, factByIdentifier, payload);
+
+  await tx
+    .delete(methodologyWorkflowAgentStepExplicitReadGrants)
+    .where(eq(methodologyWorkflowAgentStepExplicitReadGrants.agentStepId, stepId));
+
+  const existingWriteItemRows = await tx
+    .select({ id: methodologyWorkflowAgentStepWriteItems.id })
+    .from(methodologyWorkflowAgentStepWriteItems)
+    .where(eq(methodologyWorkflowAgentStepWriteItems.agentStepId, stepId));
+
+  if (existingWriteItemRows.length > 0) {
+    await tx.delete(methodologyWorkflowAgentStepWriteItemRequirements).where(
+      inArray(
+        methodologyWorkflowAgentStepWriteItemRequirements.writeItemRowId,
+        existingWriteItemRows.map((row) => row.id),
+      ),
+    );
+  }
+
+  await tx
+    .delete(methodologyWorkflowAgentStepWriteItems)
+    .where(eq(methodologyWorkflowAgentStepWriteItems.agentStepId, stepId));
+
+  await tx
+    .insert(methodologyWorkflowAgentSteps)
+    .values({
+      stepId,
+      objective: normalized.payload.objective,
+      instructionsMarkdown: normalized.payload.instructionsMarkdown,
+      harness: normalized.payload.harnessSelection.harness,
+      agentKey: normalized.payload.harnessSelection.agent ?? null,
+      modelJson: normalized.payload.harnessSelection.model ?? null,
+      completionRequirementsJson: normalized.payload.completionRequirements,
+      sessionStart: normalized.payload.runtimePolicy.sessionStart,
+      continuationMode: normalized.payload.runtimePolicy.continuationMode,
+      liveStreamCount: normalized.payload.runtimePolicy.liveStreamCount,
+      nativeMessageLog: normalized.payload.runtimePolicy.nativeMessageLog,
+      persistedWritePolicy: normalized.payload.runtimePolicy.persistedWritePolicy,
+    })
+    .onConflictDoUpdate({
+      target: methodologyWorkflowAgentSteps.stepId,
+      set: {
+        objective: normalized.payload.objective,
+        instructionsMarkdown: normalized.payload.instructionsMarkdown,
+        harness: normalized.payload.harnessSelection.harness,
+        agentKey: normalized.payload.harnessSelection.agent ?? null,
+        modelJson: normalized.payload.harnessSelection.model ?? null,
+        completionRequirementsJson: normalized.payload.completionRequirements,
+        sessionStart: normalized.payload.runtimePolicy.sessionStart,
+        continuationMode: normalized.payload.runtimePolicy.continuationMode,
+        liveStreamCount: normalized.payload.runtimePolicy.liveStreamCount,
+        nativeMessageLog: normalized.payload.runtimePolicy.nativeMessageLog,
+        persistedWritePolicy: normalized.payload.runtimePolicy.persistedWritePolicy,
+      },
+    });
+
+  if (normalized.explicitReadGrantDefinitionIds.length > 0) {
+    await tx.insert(methodologyWorkflowAgentStepExplicitReadGrants).values(
+      normalized.explicitReadGrantDefinitionIds.map((contextFactDefinitionId) => ({
+        agentStepId: stepId,
+        contextFactDefinitionId,
+      })),
+    );
+  }
+
+  if (normalized.writeItems.length > 0) {
+    const insertedWriteItems = await tx
+      .insert(methodologyWorkflowAgentStepWriteItems)
+      .values(
+        normalized.writeItems.map((item) => ({
+          agentStepId: stepId,
+          writeItemId: item.writeItemId,
+          contextFactDefinitionId: item.contextFactDefinitionId,
+          contextFactKind: item.contextFactKind,
+          label: item.label ?? null,
+          sortOrder: item.order,
+        })),
+      )
+      .returning({
+        id: methodologyWorkflowAgentStepWriteItems.id,
+        writeItemId: methodologyWorkflowAgentStepWriteItems.writeItemId,
+      });
+
+    const writeItemRowIdByWriteItemId = new Map(
+      insertedWriteItems.map((item) => [item.writeItemId, item.id]),
+    );
+    const requirementRows = normalized.writeItems.flatMap((item) => {
+      const writeItemRowId = writeItemRowIdByWriteItemId.get(item.writeItemId);
+      if (!writeItemRowId) {
+        throw new Error(
+          `Missing persisted write item '${item.writeItemId}' for agent step '${stepId}'`,
+        );
+      }
+
+      return item.requirementContextFactDefinitionIds.map((contextFactDefinitionId) => ({
+        writeItemRowId,
+        contextFactDefinitionId,
+      }));
+    });
+
+    if (requirementRows.length > 0) {
+      await tx.insert(methodologyWorkflowAgentStepWriteItemRequirements).values(requirementRows);
+    }
+  }
+
+  return normalized.payload;
 }
 
 function toDefinitionRow(
@@ -761,6 +1094,179 @@ async function readWorkflowFormDefinitions(
   }));
 }
 
+async function readWorkflowAgentDefinitions(
+  db: DB | TransactionClient,
+  versionId: string,
+  workflowDefinitionId: string,
+): Promise<readonly WorkflowAgentStepDefinitionReadModel[]> {
+  const stepRows = await db
+    .select({
+      id: methodologyWorkflowSteps.id,
+      key: methodologyWorkflowSteps.key,
+      displayName: methodologyWorkflowSteps.displayName,
+      configJson: methodologyWorkflowSteps.configJson,
+      guidanceJson: methodologyWorkflowSteps.guidanceJson,
+      objective: methodologyWorkflowAgentSteps.objective,
+      instructionsMarkdown: methodologyWorkflowAgentSteps.instructionsMarkdown,
+      harness: methodologyWorkflowAgentSteps.harness,
+      agentKey: methodologyWorkflowAgentSteps.agentKey,
+      modelJson: methodologyWorkflowAgentSteps.modelJson,
+      completionRequirementsJson: methodologyWorkflowAgentSteps.completionRequirementsJson,
+      sessionStart: methodologyWorkflowAgentSteps.sessionStart,
+      continuationMode: methodologyWorkflowAgentSteps.continuationMode,
+      liveStreamCount: methodologyWorkflowAgentSteps.liveStreamCount,
+      nativeMessageLog: methodologyWorkflowAgentSteps.nativeMessageLog,
+      persistedWritePolicy: methodologyWorkflowAgentSteps.persistedWritePolicy,
+    })
+    .from(methodologyWorkflowSteps)
+    .innerJoin(
+      methodologyWorkflowAgentSteps,
+      eq(methodologyWorkflowAgentSteps.stepId, methodologyWorkflowSteps.id),
+    )
+    .where(
+      and(
+        eq(methodologyWorkflowSteps.workflowId, workflowDefinitionId),
+        eq(methodologyWorkflowSteps.type, "agent"),
+      ),
+    )
+    .orderBy(asc(methodologyWorkflowSteps.createdAt), asc(methodologyWorkflowSteps.id));
+
+  if (stepRows.length === 0) {
+    return [];
+  }
+
+  const stepIds = stepRows.map((row) => row.id);
+  const [explicitReadGrantRows, writeItemRows] = await Promise.all([
+    db
+      .select()
+      .from(methodologyWorkflowAgentStepExplicitReadGrants)
+      .where(inArray(methodologyWorkflowAgentStepExplicitReadGrants.agentStepId, stepIds))
+      .orderBy(
+        asc(methodologyWorkflowAgentStepExplicitReadGrants.agentStepId),
+        asc(methodologyWorkflowAgentStepExplicitReadGrants.contextFactDefinitionId),
+      ),
+    db
+      .select()
+      .from(methodologyWorkflowAgentStepWriteItems)
+      .where(inArray(methodologyWorkflowAgentStepWriteItems.agentStepId, stepIds))
+      .orderBy(
+        asc(methodologyWorkflowAgentStepWriteItems.agentStepId),
+        asc(methodologyWorkflowAgentStepWriteItems.sortOrder),
+        asc(methodologyWorkflowAgentStepWriteItems.id),
+      ),
+  ]);
+
+  const writeItemRowIds = writeItemRows.map((row) => row.id);
+  const writeItemRequirementRows =
+    writeItemRowIds.length === 0
+      ? []
+      : await db
+          .select()
+          .from(methodologyWorkflowAgentStepWriteItemRequirements)
+          .where(
+            inArray(
+              methodologyWorkflowAgentStepWriteItemRequirements.writeItemRowId,
+              writeItemRowIds,
+            ),
+          )
+          .orderBy(
+            asc(methodologyWorkflowAgentStepWriteItemRequirements.writeItemRowId),
+            asc(methodologyWorkflowAgentStepWriteItemRequirements.contextFactDefinitionId),
+          );
+
+  const facts = await readWorkflowContextFacts(db, versionId, workflowDefinitionId);
+  const factByDefinitionId = new Map(
+    facts
+      .filter(
+        (fact): fact is WorkflowContextFactDto & { readonly contextFactDefinitionId: string } =>
+          typeof fact.contextFactDefinitionId === "string",
+      )
+      .map((fact) => [fact.contextFactDefinitionId, fact]),
+  );
+
+  const explicitReadGrantsByStepId = new Map<string, typeof explicitReadGrantRows>();
+  for (const row of explicitReadGrantRows) {
+    const entries = explicitReadGrantsByStepId.get(row.agentStepId) ?? [];
+    entries.push(row);
+    explicitReadGrantsByStepId.set(row.agentStepId, entries);
+  }
+
+  const writeItemsByStepId = new Map<string, typeof writeItemRows>();
+  for (const row of writeItemRows) {
+    const entries = writeItemsByStepId.get(row.agentStepId) ?? [];
+    entries.push(row);
+    writeItemsByStepId.set(row.agentStepId, entries);
+  }
+
+  const requirementsByWriteItemRowId = new Map<string, typeof writeItemRequirementRows>();
+  for (const row of writeItemRequirementRows) {
+    const entries = requirementsByWriteItemRowId.get(row.writeItemRowId) ?? [];
+    entries.push(row);
+    requirementsByWriteItemRowId.set(row.writeItemRowId, entries);
+  }
+
+  return stepRows.map((step) => {
+    const configJson = isRecord(step.configJson) ? step.configJson : {};
+    const descriptionJson =
+      isRecord(configJson.descriptionJson) &&
+      typeof configJson.descriptionJson.markdown === "string"
+        ? (configJson.descriptionJson as { readonly markdown: string })
+        : undefined;
+
+    return {
+      stepId: step.id,
+      payload: {
+        key: step.key,
+        ...(step.displayName ? { label: step.displayName } : {}),
+        ...(descriptionJson ? { descriptionJson } : {}),
+        objective: step.objective,
+        instructionsMarkdown: step.instructionsMarkdown,
+        harnessSelection: {
+          harness: step.harness as AgentStepDesignTimePayload["harnessSelection"]["harness"],
+          ...(step.agentKey ? { agent: step.agentKey } : {}),
+          ...(step.modelJson
+            ? {
+                model: step.modelJson as NonNullable<
+                  AgentStepDesignTimePayload["harnessSelection"]["model"]
+                >,
+              }
+            : {}),
+        },
+        explicitReadGrants: (explicitReadGrantsByStepId.get(step.id) ?? []).map((row) => ({
+          contextFactDefinitionId: row.contextFactDefinitionId,
+        })),
+        writeItems: (writeItemsByStepId.get(step.id) ?? []).map((row) => ({
+          writeItemId: row.writeItemId,
+          contextFactDefinitionId: row.contextFactDefinitionId,
+          contextFactKind: (factByDefinitionId.get(row.contextFactDefinitionId)?.kind ??
+            row.contextFactKind) as AgentStepDesignTimePayload["writeItems"][number]["contextFactKind"],
+          ...(row.label ? { label: row.label } : {}),
+          order: row.sortOrder,
+          requirementContextFactDefinitionIds: (requirementsByWriteItemRowId.get(row.id) ?? []).map(
+            (requirement) => requirement.contextFactDefinitionId,
+          ),
+        })),
+        completionRequirements: getAgentCompletionRequirements(step.completionRequirementsJson),
+        runtimePolicy: {
+          sessionStart:
+            step.sessionStart as AgentStepDesignTimePayload["runtimePolicy"]["sessionStart"],
+          continuationMode:
+            step.continuationMode as AgentStepDesignTimePayload["runtimePolicy"]["continuationMode"],
+          liveStreamCount:
+            step.liveStreamCount as AgentStepDesignTimePayload["runtimePolicy"]["liveStreamCount"],
+          nativeMessageLog:
+            step.nativeMessageLog as AgentStepDesignTimePayload["runtimePolicy"]["nativeMessageLog"],
+          persistedWritePolicy:
+            step.persistedWritePolicy as AgentStepDesignTimePayload["runtimePolicy"]["persistedWritePolicy"],
+        },
+        ...(getAudienceGuidance(step.guidanceJson)
+          ? { guidance: getAudienceGuidance(step.guidanceJson) }
+          : {}),
+      },
+    } satisfies WorkflowAgentStepDefinitionReadModel;
+  });
+}
+
 async function syncWorkflowGraph(
   tx: TransactionClient,
   versionId: string,
@@ -918,7 +1424,10 @@ async function syncWorkflowGraph(
         fromStepId,
         toStepId,
         edgeKey: edge.edgeKey ?? null,
-        descriptionJson: edge.descriptionJson ?? null,
+        descriptionJson:
+          "descriptionJson" in edge && edge.descriptionJson !== undefined
+            ? edge.descriptionJson
+            : null,
       });
     }
   }
@@ -1757,7 +2266,10 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               fromStepId,
               toStepId,
               edgeKey: edge.edgeKey ?? null,
-              descriptionJson: edge.descriptionJson ?? null,
+              descriptionJson:
+                "descriptionJson" in edge && edge.descriptionJson !== undefined
+                  ? edge.descriptionJson
+                  : null,
             });
           }
         }),
@@ -1847,7 +2359,10 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               fromStepId,
               toStepId,
               edgeKey: edge.edgeKey ?? null,
-              descriptionJson: edge.descriptionJson ?? null,
+              descriptionJson:
+                "descriptionJson" in edge && edge.descriptionJson !== undefined
+                  ? edge.descriptionJson
+                  : null,
             });
           }
         }),
@@ -3322,6 +3837,246 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
 
     deleteFormStepDefinition: ({ versionId, workflowDefinitionId, stepId }) =>
       dbEffect("methodology.deleteFormStepDefinition", () =>
+        db.transaction(async (tx) => {
+          const workflow = await findWorkflowRow(tx, { versionId, workflowDefinitionId });
+          if (!workflow) {
+            throw new Error(
+              `Workflow not found for versionId=${versionId}, workflowDefinitionId=${workflowDefinitionId}`,
+            );
+          }
+
+          const outgoingEdges = await tx
+            .select({
+              id: methodologyWorkflowEdges.id,
+              toStepId: methodologyWorkflowEdges.toStepId,
+            })
+            .from(methodologyWorkflowEdges)
+            .where(
+              and(
+                eq(methodologyWorkflowEdges.workflowId, workflowDefinitionId),
+                eq(methodologyWorkflowEdges.fromStepId, stepId),
+              ),
+            );
+          const incomingEdges = await tx
+            .select({ id: methodologyWorkflowEdges.id })
+            .from(methodologyWorkflowEdges)
+            .where(
+              and(
+                eq(methodologyWorkflowEdges.workflowId, workflowDefinitionId),
+                eq(methodologyWorkflowEdges.toStepId, stepId),
+              ),
+            );
+
+          const successorId =
+            outgoingEdges.length === 1 ? (outgoingEdges[0]?.toStepId ?? null) : null;
+          if (successorId) {
+            for (const edge of incomingEdges) {
+              await tx
+                .update(methodologyWorkflowEdges)
+                .set({ toStepId: successorId })
+                .where(eq(methodologyWorkflowEdges.id, edge.id));
+            }
+          }
+
+          await tx
+            .delete(methodologyWorkflowEdges)
+            .where(
+              and(
+                eq(methodologyWorkflowEdges.workflowId, workflowDefinitionId),
+                or(
+                  eq(methodologyWorkflowEdges.fromStepId, stepId),
+                  eq(methodologyWorkflowEdges.toStepId, stepId),
+                ),
+              ),
+            );
+
+          const workflowMetadata =
+            workflow.metadataJson &&
+            typeof workflow.metadataJson === "object" &&
+            workflow.metadataJson !== null &&
+            !Array.isArray(workflow.metadataJson)
+              ? { ...(workflow.metadataJson as Record<string, unknown>) }
+              : null;
+
+          if (workflowMetadata?.entryStepId === stepId) {
+            delete workflowMetadata.entryStepId;
+            await tx
+              .update(methodologyWorkflows)
+              .set({
+                metadataJson:
+                  workflowMetadata && Object.keys(workflowMetadata).length > 0
+                    ? workflowMetadata
+                    : null,
+              })
+              .where(eq(methodologyWorkflows.id, workflowDefinitionId));
+          }
+
+          await tx
+            .delete(methodologyWorkflowSteps)
+            .where(
+              and(
+                eq(methodologyWorkflowSteps.id, stepId),
+                eq(methodologyWorkflowSteps.workflowId, workflowDefinitionId),
+              ),
+            );
+        }),
+      ),
+
+    listAgentStepDefinitions: ({ versionId, workflowDefinitionId }) =>
+      dbEffect("methodology.listAgentStepDefinitions", async () => {
+        const workflow = await findWorkflowRow(db, { versionId, workflowDefinitionId });
+        if (!workflow) {
+          throw new Error(
+            `Workflow not found for versionId=${versionId}, workflowDefinitionId=${workflowDefinitionId}`,
+          );
+        }
+
+        return readWorkflowAgentDefinitions(db, versionId, workflowDefinitionId);
+      }),
+
+    createAgentStepDefinition: ({ versionId, workflowDefinitionId, afterStepKey, payload }) =>
+      dbEffect("methodology.createAgentStepDefinition", () =>
+        db.transaction(async (tx) => {
+          const workflow = await findWorkflowRow(tx, { versionId, workflowDefinitionId });
+          if (!workflow) {
+            throw new Error(
+              `Workflow not found for versionId=${versionId}, workflowDefinitionId=${workflowDefinitionId}`,
+            );
+          }
+
+          const rows = await tx
+            .insert(methodologyWorkflowSteps)
+            .values({
+              methodologyVersionId: versionId,
+              workflowId: workflowDefinitionId,
+              key: payload.key,
+              type: "agent",
+              displayName: payload.label ?? null,
+              configJson: { descriptionJson: payload.descriptionJson ?? null },
+              guidanceJson: payload.guidance ?? null,
+            })
+            .returning();
+          const step = rows[0];
+          if (!step) {
+            throw new Error(`Failed to create agent step '${payload.key}'`);
+          }
+
+          const normalizedPayload = await syncAgentStepDefinition(
+            tx,
+            versionId,
+            workflowDefinitionId,
+            step.id,
+            payload,
+          );
+
+          if (afterStepKey) {
+            const predecessorRows = await tx
+              .select({ id: methodologyWorkflowSteps.id })
+              .from(methodologyWorkflowSteps)
+              .where(
+                and(
+                  eq(methodologyWorkflowSteps.workflowId, workflowDefinitionId),
+                  eq(methodologyWorkflowSteps.key, afterStepKey),
+                ),
+              )
+              .limit(1);
+
+            const predecessorId = predecessorRows[0]?.id;
+            if (predecessorId) {
+              const outgoingEdges = await tx
+                .select({
+                  id: methodologyWorkflowEdges.id,
+                  toStepId: methodologyWorkflowEdges.toStepId,
+                })
+                .from(methodologyWorkflowEdges)
+                .where(
+                  and(
+                    eq(methodologyWorkflowEdges.workflowId, workflowDefinitionId),
+                    eq(methodologyWorkflowEdges.fromStepId, predecessorId),
+                  ),
+                );
+
+              await tx
+                .delete(methodologyWorkflowEdges)
+                .where(
+                  and(
+                    eq(methodologyWorkflowEdges.workflowId, workflowDefinitionId),
+                    eq(methodologyWorkflowEdges.fromStepId, predecessorId),
+                  ),
+                );
+
+              await tx.insert(methodologyWorkflowEdges).values({
+                methodologyVersionId: versionId,
+                workflowId: workflowDefinitionId,
+                fromStepId: predecessorId,
+                toStepId: step.id,
+                edgeKey: null,
+                descriptionJson: null,
+              });
+
+              const successorId = outgoingEdges[0]?.toStepId ?? null;
+              if (successorId) {
+                await tx.insert(methodologyWorkflowEdges).values({
+                  methodologyVersionId: versionId,
+                  workflowId: workflowDefinitionId,
+                  fromStepId: step.id,
+                  toStepId: successorId,
+                  edgeKey: null,
+                  descriptionJson: null,
+                });
+              }
+            }
+          }
+
+          return { stepId: step.id, payload: normalizedPayload };
+        }),
+      ),
+
+    updateAgentStepDefinition: ({ versionId, workflowDefinitionId, stepId, payload }) =>
+      dbEffect("methodology.updateAgentStepDefinition", () =>
+        db.transaction(async (tx) => {
+          const workflow = await findWorkflowRow(tx, { versionId, workflowDefinitionId });
+          if (!workflow) {
+            throw new Error(
+              `Workflow not found for versionId=${versionId}, workflowDefinitionId=${workflowDefinitionId}`,
+            );
+          }
+
+          const rows = await tx
+            .update(methodologyWorkflowSteps)
+            .set({
+              key: payload.key,
+              type: "agent",
+              displayName: payload.label ?? null,
+              configJson: { descriptionJson: payload.descriptionJson ?? null },
+              guidanceJson: payload.guidance ?? null,
+            })
+            .where(
+              and(
+                eq(methodologyWorkflowSteps.id, stepId),
+                eq(methodologyWorkflowSteps.workflowId, workflowDefinitionId),
+              ),
+            )
+            .returning({ id: methodologyWorkflowSteps.id });
+
+          if (rows.length === 0) {
+            throw new Error(`Agent step '${stepId}' not found`);
+          }
+
+          const normalizedPayload = await syncAgentStepDefinition(
+            tx,
+            versionId,
+            workflowDefinitionId,
+            stepId,
+            payload,
+          );
+
+          return { stepId, payload: normalizedPayload };
+        }),
+      ),
+
+    deleteAgentStepDefinition: ({ versionId, workflowDefinitionId, stepId }) =>
+      dbEffect("methodology.deleteAgentStepDefinition", () =>
         db.transaction(async (tx) => {
           const workflow = await findWorkflowRow(tx, { versionId, workflowDefinitionId });
           if (!workflow) {

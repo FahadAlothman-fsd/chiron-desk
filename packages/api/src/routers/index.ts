@@ -33,6 +33,7 @@ import {
   ProjectContextService,
   ProjectContextServiceLive,
 } from "@chiron/project-context";
+import { OpencodeHarnessServiceLive } from "../../../agent-runtime/src/index";
 
 export function createAppRouter(
   repoLayer: Layer.Layer<MethodologyRepository>,
@@ -52,11 +53,13 @@ export function createAppRouter(
   const allRepos = Layer.mergeAll(repoLayer, lifecycleRepoLayer, projectContextRepoLayer);
   const methodologyCoreLayer = Layer.provide(MethodologyEngineL1Live, allRepos);
   const methodologyServiceLayer = Layer.mergeAll(
+    allRepos,
     methodologyCoreLayer,
     Layer.provide(WorkflowServiceLive, allRepos),
     Layer.provide(WorkUnitStateMachineServiceLive, allRepos),
     Layer.provide(Layer.effect(EligibilityService, EligibilityServiceLive), allRepos),
     Layer.provide(ProjectContextServiceLive, allRepos),
+    OpencodeHarnessServiceLive,
   ) as Layer.Layer<
     | MethodologyVersionBoundaryService
     | WorkflowService

@@ -1,3 +1,4 @@
+import type { AgentStepDesignTimePayload } from "@chiron/contracts/agent-step";
 import type {
   FormStepPayload,
   WorkflowContextFactDto,
@@ -5,6 +6,7 @@ import type {
 } from "@chiron/contracts/methodology/workflow";
 import { Context, Effect, Layer } from "effect";
 
+import { AgentStepDefinitionService } from "./agent-step-definition-service";
 import {
   RepositoryError,
   ValidationDecodeError,
@@ -27,6 +29,15 @@ export class WorkflowAuthoringTransactionService extends Context.Tag(
         readonly workUnitTypeKey: string;
         readonly workflowDefinitionId: string;
         readonly metadata?: WorkflowMetadataDialogInput;
+        readonly createAgentStep?: {
+          readonly afterStepKey: string | null;
+          readonly payload: AgentStepDesignTimePayload;
+        };
+        readonly updateAgentStep?: {
+          readonly stepId: string;
+          readonly payload: AgentStepDesignTimePayload;
+        };
+        readonly deleteAgentStepId?: string;
         readonly createFormStep?: {
           readonly afterStepKey: string | null;
           readonly payload: FormStepPayload;
@@ -70,6 +81,7 @@ export const WorkflowAuthoringTransactionServiceLive = Layer.effect(
   Effect.gen(function* () {
     const workflowService = yield* WorkflowService;
     const formSteps = yield* FormStepDefinitionService;
+    const agentSteps = yield* AgentStepDefinitionService;
     const topology = yield* WorkflowTopologyMutationService;
     const contextFacts = yield* WorkflowContextFactDefinitionService;
 
@@ -79,6 +91,15 @@ export const WorkflowAuthoringTransactionServiceLive = Layer.effect(
         readonly workUnitTypeKey: string;
         readonly workflowDefinitionId: string;
         readonly metadata?: WorkflowMetadataDialogInput;
+        readonly createAgentStep?: {
+          readonly afterStepKey: string | null;
+          readonly payload: AgentStepDesignTimePayload;
+        };
+        readonly updateAgentStep?: {
+          readonly stepId: string;
+          readonly payload: AgentStepDesignTimePayload;
+        };
+        readonly deleteAgentStepId?: string;
         readonly createFormStep?: {
           readonly afterStepKey: string | null;
           readonly payload: FormStepPayload;
@@ -160,6 +181,19 @@ export const WorkflowAuthoringTransactionServiceLive = Layer.effect(
           );
         }
 
+        if (input.createAgentStep) {
+          yield* agentSteps.createAgentStep(
+            {
+              versionId: input.versionId,
+              workUnitTypeKey: input.workUnitTypeKey,
+              workflowDefinitionId: input.workflowDefinitionId,
+              afterStepKey: input.createAgentStep.afterStepKey,
+              payload: input.createAgentStep.payload,
+            },
+            actorId,
+          );
+        }
+
         if (input.updateFormStep) {
           yield* formSteps.updateFormStep(
             {
@@ -168,6 +202,19 @@ export const WorkflowAuthoringTransactionServiceLive = Layer.effect(
               workflowDefinitionId: input.workflowDefinitionId,
               stepId: input.updateFormStep.stepId,
               payload: input.updateFormStep.payload,
+            },
+            actorId,
+          );
+        }
+
+        if (input.updateAgentStep) {
+          yield* agentSteps.updateAgentStep(
+            {
+              versionId: input.versionId,
+              workUnitTypeKey: input.workUnitTypeKey,
+              workflowDefinitionId: input.workflowDefinitionId,
+              stepId: input.updateAgentStep.stepId,
+              payload: input.updateAgentStep.payload,
             },
             actorId,
           );
@@ -194,6 +241,18 @@ export const WorkflowAuthoringTransactionServiceLive = Layer.effect(
               workUnitTypeKey: input.workUnitTypeKey,
               workflowDefinitionId: input.workflowDefinitionId,
               stepId: input.deleteFormStepId,
+            },
+            actorId,
+          );
+        }
+
+        if (input.deleteAgentStepId) {
+          yield* agentSteps.deleteAgentStep(
+            {
+              versionId: input.versionId,
+              workUnitTypeKey: input.workUnitTypeKey,
+              workflowDefinitionId: input.workflowDefinitionId,
+              stepId: input.deleteAgentStepId,
             },
             actorId,
           );

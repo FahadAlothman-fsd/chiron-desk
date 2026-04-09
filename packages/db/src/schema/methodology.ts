@@ -492,6 +492,106 @@ export const methodologyWorkflowFormFields = sqliteTable(
   ],
 );
 
+export const methodologyWorkflowAgentSteps = sqliteTable(
+  "methodology_workflow_agent_steps",
+  {
+    stepId: text("step_id")
+      .primaryKey()
+      .references(() => methodologyWorkflowSteps.id, { onDelete: "cascade" }),
+    objective: text("objective").notNull(),
+    instructionsMarkdown: text("instructions_markdown").notNull(),
+    harness: text("harness").notNull().default("opencode"),
+    agentKey: text("agent_key"),
+    modelJson: text("model_json", { mode: "json" }),
+    completionRequirementsJson: text("completion_requirements_json", { mode: "json" })
+      .notNull()
+      .default(sql`'[]'`),
+    sessionStart: text("session_start").notNull().default("explicit"),
+    continuationMode: text("continuation_mode").notNull().default("bootstrap_only"),
+    liveStreamCount: integer("live_stream_count").notNull().default(1),
+    nativeMessageLog: integer("native_message_log", { mode: "boolean" }).notNull().default(false),
+    persistedWritePolicy: text("persisted_write_policy").notNull().default("applied_only"),
+  },
+  (table) => [index("methodology_workflow_agent_steps_harness_idx").on(table.harness)],
+);
+
+export const methodologyWorkflowAgentStepExplicitReadGrants = sqliteTable(
+  "methodology_workflow_agent_step_explicit_read_grants",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    agentStepId: text("agent_step_id")
+      .notNull()
+      .references(() => methodologyWorkflowAgentSteps.stepId, { onDelete: "cascade" }),
+    contextFactDefinitionId: text("context_fact_definition_id")
+      .notNull()
+      .references(() => methodologyWorkflowContextFactDefinitions.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    uniqueIndex("methodology_wf_agent_step_read_grants_step_fact_idx").on(
+      table.agentStepId,
+      table.contextFactDefinitionId,
+    ),
+    index("methodology_wf_agent_step_read_grants_step_idx").on(table.agentStepId),
+  ],
+);
+
+export const methodologyWorkflowAgentStepWriteItems = sqliteTable(
+  "methodology_workflow_agent_step_write_items",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    agentStepId: text("agent_step_id")
+      .notNull()
+      .references(() => methodologyWorkflowAgentSteps.stepId, { onDelete: "cascade" }),
+    writeItemId: text("write_item_id").notNull(),
+    contextFactDefinitionId: text("context_fact_definition_id")
+      .notNull()
+      .references(() => methodologyWorkflowContextFactDefinitions.id, { onDelete: "cascade" }),
+    contextFactKind: text("context_fact_kind").notNull(),
+    label: text("label"),
+    sortOrder: integer("sort_order").notNull(),
+  },
+  (table) => [
+    uniqueIndex("methodology_wf_agent_step_write_items_step_write_item_idx").on(
+      table.agentStepId,
+      table.writeItemId,
+    ),
+    uniqueIndex("methodology_wf_agent_step_write_items_step_fact_idx").on(
+      table.agentStepId,
+      table.contextFactDefinitionId,
+    ),
+    index("methodology_wf_agent_step_write_items_step_order_idx").on(
+      table.agentStepId,
+      table.sortOrder,
+    ),
+  ],
+);
+
+export const methodologyWorkflowAgentStepWriteItemRequirements = sqliteTable(
+  "methodology_workflow_agent_step_write_item_requirements",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    writeItemRowId: text("write_item_row_id")
+      .notNull()
+      .references(() => methodologyWorkflowAgentStepWriteItems.id, { onDelete: "cascade" }),
+    contextFactDefinitionId: text("context_fact_definition_id")
+      .notNull()
+      .references(() => methodologyWorkflowContextFactDefinitions.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    uniqueIndex("methodology_wf_agent_step_write_item_requirements_item_fact_idx").on(
+      table.writeItemRowId,
+      table.contextFactDefinitionId,
+    ),
+    index("methodology_wf_agent_step_write_item_requirements_item_idx").on(table.writeItemRowId),
+  ],
+);
+
 export const methodologyWorkflowContextFactDefinitions = sqliteTable(
   "methodology_workflow_context_fact_definitions",
   {

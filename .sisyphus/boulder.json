@@ -1,0 +1,51 @@
+{
+  "active_plan": "/home/gondilf/Desktop/projects/masters/chiron/.sisyphus/plans/l3-agent-step-design-runtime.md",
+  "started_at": "2026-04-09T00:00:00.000Z",
+  "session_ids": [
+    "ses_290ca60e8ffeOFobgL3ZePtRb4",
+    "ses_290ca1784ffeCYoGEo6L86phHi",
+    "ses_290c099f4ffeOBvZ1sj5EdCXea",
+    "ses_290c0b8bfffeB7AuyIOamDWf4N",
+    "ses_28ef1121affeCCgDaGgQI3vOOt",
+    "ses_28eeaceb1ffeeMd9l5PEx8e7Nb",
+    "ses_28ee897deffeHSdYpbxWrg76jU",
+    "ses_28ee52b29ffekomz7e7x2WeH2U",
+    "ses_28ee0c8e2ffeq0kBDlFeDTrcV7",
+    "ses_28eb5ed7cffedzWAomOd1HzII1",
+    "ses_28eaed428ffeORj26ec8QXO3eJ",
+    "ses_28ea7a2a6ffeIV3XglHQjzWdoy",
+    "ses_28ea7d7c9ffeRidDDSf4qOvqyb",
+    "ses_28e9f650dffeQbOdXYrTEtnvsH"
+  ],
+  "plan_name": "l3-agent-step-design-runtime",
+  "worktree_path": null,
+  "task_sessions": {
+    "todo:1": {
+      "task_key": "todo:1",
+      "task_label": "1",
+      "task_title": "Freeze Agent-step contracts, MCP envelopes, runtime state machine, and deferred scope",
+      "session_id": "ses_290ca1784ffeCYoGEo6L86phHi",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-08T22:37:41.197Z"
+    },
+    "todo:2": {
+      "task_key": "todo:2",
+      "task_label": "2",
+      "task_title": "Add Agent-step design-time schema and repositories",
+      "session_id": "ses_290c0b8bfffeB7AuyIOamDWf4N",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-08T22:51:37.090Z"
+    },
+    "todo:4": {
+      "task_key": "todo:4",
+      "task_label": "4",
+      "task_title": "Wire design-time procedures and implement the Agent-step dialog UX",
+      "session_id": "ses_290b377abffe07Cx96gWClPPpp",
+      "agent": "Sisyphus-Junior",
+      "category": "visual-engineering",
+      "updated_at": "2026-04-08T23:23:00.941Z"
+    }
+  }
+}
