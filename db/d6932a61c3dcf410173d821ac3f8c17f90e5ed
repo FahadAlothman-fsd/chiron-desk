@@ -1,0 +1,33 @@
+packages/agent-runtime/src/harness-service.ts
+  5bcefd2e09c0df96 68
+packages/agent-runtime/src/opencode-harness-service.ts
+  5bcefd2e09c0df96 1186-1209,1211-1220,1222-1236,1239-1257,1259-1260,1262-1264
+packages/workflow-engine/src/services/runtime/agent-step-session-command-service.ts
+  5bcefd2e09c0df96 110,147,227-229,314,340
+packages/agent-runtime/src/tests/opencode/opencode-harness-service.test.ts
+  5bcefd2e09c0df96 332-377,379-400
+packages/workflow-engine/src/services/runtime/agent-step-timeline-service.ts
+  5bcefd2e09c0df96 89,122
+packages/workflow-engine/src/tests/runtime/agent-step-runtime-services.test.ts
+  5bcefd2e09c0df96 302-383
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.6",
+  "base_commit_sha": "dbd6932a61c3dcf410173d821ac3f8c17f90e5ed",
+  "prompts": {
+    "5bcefd2e09c0df96": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_290ca60e8ffeOFobgL3ZePtRb4",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 234,
+      "total_deletions": 44,
+      "accepted_lines": 236,
+      "overriden_lines": 2
+    }
+  }
+}
