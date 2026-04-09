@@ -107,6 +107,7 @@ This period also benefited from a broader awareness of other approaches in the e
 
 - **CrewAI** represented a strong multi-agent orchestration approach, emphasizing agents, tasks, crews, flows, planning, reasoning, memory, and collaboration [4], [5].
 - **Vibe Kanban** represented a more UI-centered planning/review paradigm, especially around planning, prompting, reviewing, and running coding agents in parallel workspaces [6], [7].
+- **Conductor** represented a more directly developer-facing model of parallel coding-agent orchestration with isolated workspaces, git-worktree-backed execution, and human review over resulting diffs [17], [18].
 
 These were useful comparison points because they reinforced two distinct aspects of the problem:
 
@@ -114,6 +115,8 @@ These were useful comparison points because they reinforced two distinct aspects
 - planning/review tools help externalize work and reduce human bottlenecks.
 
 The project’s early direction sat between these poles: it was concerned with both SDLC guidance and agent orchestration, rather than only one of them.
+
+That means this report should not be read as if Chiron had already decided against isolated-workspace or sandbox-oriented execution ideas. At this stage, those ideas were still genuinely attractive and relevant. The more accurate historical point is that Chiron was exploring how to combine that orchestration paradigm with something stronger on the guidance side: a system that would not merely coordinate agents, but would gradually offload the project’s mental model into structures shared between the user and the implementing agents.
 
 ---
 
@@ -290,4 +293,6 @@ The period established that the core problem—guidance for software development
 [13] DSPy, “GEPA Overview,” Documentation, 2025. [Online]. Available: https://dspy.ai/api/optimizers/GEPA/overview/  
 [14] L. A. Agrawal et al., “GEPA: Reflective Prompt Evolution Can Outperform Reinforcement Learning,” 2025. [Online]. Available: https://arxiv.org/abs/2507.19457  
 [15] Q. Zhang et al., “Agentic Context Engineering: Evolving Contexts for Self-Improving Language Models,” 2025. [Online]. Available: https://arxiv.org/abs/2510.04618  
-[16] Ax LLM, “Agentic Context Engineering (ACE),” Documentation, 2025. [Online]. Available: https://axllm.dev/ace/
+[16] Ax LLM, “Agentic Context Engineering (ACE),” Documentation, 2025. [Online]. Available: https://axllm.dev/ace/  
+[17] Conductor, “Run a team of coding agents on your Mac,” 2025. [Online]. Available: https://conductor.build/  
+[18] Conductor, “Run a team of coding agents,” Documentation, 2025. [Online]. Available: https://docs.conductor.build/

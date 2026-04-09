@@ -174,6 +174,7 @@ ul, ol { padding-left: 1.2rem; }
 <ul>
 <li><strong>CrewAI</strong> represented a strong multi-agent orchestration approach, emphasizing agents, tasks, crews, flows, planning, reasoning, memory, and collaboration [4], [5].</li>
 <li><strong>Vibe Kanban</strong> represented a more UI-centered planning/review paradigm, especially around planning, prompting, reviewing, and running coding agents in parallel workspaces [6], [7].</li>
+<li><strong>Conductor</strong> represented a more directly developer-facing model of parallel coding-agent orchestration with isolated workspaces, git-worktree-backed execution, and human review over resulting diffs [17], [18].</li>
 </ul>
 <p>These were useful comparison points because they reinforced two distinct aspects of the problem:</p>
 <ul>
@@ -181,6 +182,7 @@ ul, ol { padding-left: 1.2rem; }
 <li>planning/review tools help externalize work and reduce human bottlenecks.</li>
 </ul>
 <p>The project’s early direction sat between these poles: it was concerned with both SDLC guidance and agent orchestration, rather than only one of them.</p>
+<p>That means this report should not be read as if Chiron had already decided against isolated-workspace or sandbox-oriented execution ideas. At this stage, those ideas were still genuinely attractive and relevant. The more accurate historical point is that Chiron was exploring how to combine that orchestration paradigm with something stronger on the guidance side: a system that would not merely coordinate agents, but would gradually offload the project’s mental model into structures shared between the user and the implementing agents.</p>
 <hr />
 <h2>6. Early Technical Direction and Initial Stack Thinking</h2>
 <p>By this point, the project was beginning to settle on a first serious technical direction for implementation. This included:</p>
@@ -309,7 +311,9 @@ ul, ol { padding-left: 1.2rem; }
 [13] DSPy, “GEPA Overview,” Documentation, 2025. [Online]. Available: <a href="https://dspy.ai/api/optimizers/GEPA/overview/">https://dspy.ai/api/optimizers/GEPA/overview/</a><br />
 [14] L. A. Agrawal et al., “GEPA: Reflective Prompt Evolution Can Outperform Reinforcement Learning,” 2025. [Online]. Available: <a href="https://arxiv.org/abs/2507.19457">https://arxiv.org/abs/2507.19457</a><br />
 [15] Q. Zhang et al., “Agentic Context Engineering: Evolving Contexts for Self-Improving Language Models,” 2025. [Online]. Available: <a href="https://arxiv.org/abs/2510.04618">https://arxiv.org/abs/2510.04618</a><br />
-[16] Ax LLM, “Agentic Context Engineering (ACE),” Documentation, 2025. [Online]. Available: <a href="https://axllm.dev/ace/">https://axllm.dev/ace/</a></p>
+[16] Ax LLM, “Agentic Context Engineering (ACE),” Documentation, 2025. [Online]. Available: <a href="https://axllm.dev/ace/">https://axllm.dev/ace/</a><br />
+[17] Conductor, “Run a team of coding agents on your Mac,” 2025. [Online]. Available: <a href="https://conductor.build/">https://conductor.build/</a><br />
+[18] Conductor, “Run a team of coding agents,” Documentation, 2025. [Online]. Available: <a href="https://docs.conductor.build/">https://docs.conductor.build/</a></p>
   </main>
 </body>
 </html>
