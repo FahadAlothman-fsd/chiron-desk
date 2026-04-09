@@ -38,7 +38,7 @@ export const StepContextQueryServiceLive = Layer.effect(
     }) =>
       Effect.gen(function* () {
         const facts = yield* repo.listWorkflowExecutionContextFacts(workflowExecutionId);
-        const matches = facts.filter((fact) => fact.factKey === factKey);
+        const matches = facts.filter((fact) => fact.contextFactDefinitionId === factKey);
         return matches.at(-1) ?? null;
       });
 

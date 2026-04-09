@@ -1,14 +1,46 @@
 import type {
+  AgentStepRuntimeState,
+  AgentStepTimelineItem,
+  GetAgentStepExecutionDetailOutput,
+} from "@chiron/contracts/agent-step/runtime";
+import type { WorkflowContextFactKind } from "@chiron/contracts/methodology/workflow";
+import type {
   GetRuntimeStepExecutionDetailOutput,
   RuntimeFormNestedField,
   RuntimeFormResolvedField,
+  RuntimeWorkflowContextFactGroup,
 } from "@chiron/contracts/runtime/executions";
+import type { AgentStepSseEnvelope } from "@chiron/contracts/sse/envelope";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { CheckIcon, ChevronsUpDownIcon } from "lucide-react";
-import { useEffect, useState, type CSSProperties } from "react";
+import { Result } from "better-result";
+import {
+  BotIcon,
+  CheckIcon,
+  ChevronsUpDownIcon,
+  CopyIcon,
+  Loader2Icon,
+  PanelRightCloseIcon,
+  PanelRightOpenIcon,
+  PlayIcon,
+  RadioIcon,
+  RefreshCcwIcon,
+  TriangleAlertIcon,
+} from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
+import {
+  PromptInput,
+  PromptInputBody,
+  PromptInputFooter,
+  PromptInputSubmit,
+  PromptInputTextarea,
+  PromptInputTools,
+  type PromptInputSubmitStatus,
+} from "@/components/ai-elements/prompt-input";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -41,6 +73,21 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { MethodologyWorkspaceShell } from "@/features/methodologies/workspace-shell";
 import {
+  ModelSelector,
+  ModelSelectorContent,
+  ModelSelectorEmpty,
+  ModelSelectorGroup,
+  ModelSelectorInput,
+  ModelSelectorItem,
+  ModelSelectorList,
+  ModelSelectorLogo,
+  ModelSelectorLogoGroup,
+  ModelSelectorName,
+  ModelSelectorSeparator,
+  ModelSelectorTrigger,
+} from "@/features/workflow-editor/agent-step-tabs/model-selector";
+import type { WorkflowHarnessDiscoveryMetadata } from "@/features/workflow-editor/types";
+import {
   DetailCode,
   DetailEyebrow,
   DetailLabel,
@@ -50,12 +97,34 @@ import {
   getGateStateTone,
   getStepTypeTone,
 } from "@/features/projects/execution-detail-visuals";
+import { resolveRuntimeBackendUrl } from "@/lib/runtime-backend";
+import { useSSE } from "@/lib/use-sse";
 import { cn } from "@/lib/utils";
 
 export const runtimeStepExecutionDetailQueryKey = (projectId: string, stepExecutionId: string) =>
   ["runtime-step-execution-detail", projectId, stepExecutionId] as const;
 
+export const runtimeAgentStepExecutionDetailQueryKey = (
+  projectId: string,
+  stepExecutionId: string,
+) => ["runtime-agent-step-execution-detail", projectId, stepExecutionId] as const;
+
+const runtimeWorkflowExecutionDetailQueryKey = (projectId: string, workflowExecutionId: string) =>
+  ["runtime-workflow-execution-detail", projectId, workflowExecutionId] as const;
+
+const agentStepHarnessMetadataQueryKey = ["agent-step-harness-metadata"] as const;
+
+const AGENT_STEP_SSE_EVENT_NAMES = [
+  "bootstrap",
+  "session_state",
+  "timeline",
+  "tool_activity",
+  "error",
+  "done",
+] as const;
+
 type FormBody = Extract<GetRuntimeStepExecutionDetailOutput["body"], { stepType: "form" }>;
+type AgentBody = GetAgentStepExecutionDetailOutput["body"];
 
 function formatTimestamp(value: string | undefined): string {
   if (!value) {
@@ -82,16 +151,224 @@ function toErrorMessage(error: unknown): string {
   return String(error);
 }
 
+function formatUnknown(value: unknown): string {
+  if (value === null) {
+    return "null";
+  }
+
+  if (value === undefined) {
+    return "undefined";
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  const serialized = Result.try({
+    try: () => JSON.stringify(value, null, 2),
+    catch: () => "[unserializable]",
+  });
+
+  return serialized.isOk() ? serialized.value : "[unserializable]";
+}
+
+function buildAgentStepStreamUrl(projectId: string, stepExecutionId: string): string {
+  const url = new URL(`${resolveRuntimeBackendUrl()}/sse/agent-step-session-events`);
+  url.searchParams.set("projectId", projectId);
+  url.searchParams.set("stepExecutionId", stepExecutionId);
+  return url.toString();
+}
+
+function upsertTimelineItem(
+  items: readonly AgentStepTimelineItem[],
+  item: AgentStepTimelineItem,
+): AgentStepTimelineItem[] {
+  const next = new Map(items.map((entry) => [entry.timelineItemId, entry]));
+  next.set(item.timelineItemId, item);
+
+  return [...next.values()].sort((left, right) => {
+    const byTime = left.createdAt.localeCompare(right.createdAt);
+    return byTime !== 0 ? byTime : left.timelineItemId.localeCompare(right.timelineItemId);
+  });
+}
+
+function getAgentComposerUiState(state: AgentStepRuntimeState) {
+  switch (state) {
+    case "not_started":
+      return {
+        enabled: false,
+        startSessionVisible: true,
+        startSessionLabel: "Start Session",
+        reason: "Start the session to enable the composer.",
+      } as const;
+    case "starting_session":
+      return {
+        enabled: false,
+        startSessionVisible: false,
+        startSessionLabel: "Start Session",
+        reason: "Session startup is in progress.",
+      } as const;
+    case "active_streaming":
+      return {
+        enabled: false,
+        startSessionVisible: false,
+        startSessionLabel: "Start Session",
+        reason: "The agent is still streaming the current turn.",
+      } as const;
+    case "active_idle":
+      return {
+        enabled: true,
+        startSessionVisible: false,
+        startSessionLabel: "Start Session",
+      } as const;
+    case "disconnected_or_error":
+      return {
+        enabled: false,
+        startSessionVisible: true,
+        startSessionLabel: "Retry Session",
+        reason: "The session disconnected or errored. Retry to recover.",
+      } as const;
+    case "completed":
+      return {
+        enabled: false,
+        startSessionVisible: false,
+        startSessionLabel: "Start Session",
+        reason: "This Agent step is completed.",
+      } as const;
+  }
+}
+
+function getAgentStateTone(
+  state: AgentStepRuntimeState,
+): Parameters<typeof ExecutionBadge>[0]["tone"] {
+  switch (state) {
+    case "not_started":
+      return "slate";
+    case "starting_session":
+      return "amber";
+    case "active_streaming":
+      return "sky";
+    case "active_idle":
+      return "emerald";
+    case "disconnected_or_error":
+      return "rose";
+    case "completed":
+      return "lime";
+  }
+}
+
+function renderAgentStateLabel(state: AgentStepRuntimeState): string {
+  return state.replaceAll("_", " ");
+}
+
+function renderContextFactLabel(
+  group: RuntimeWorkflowContextFactGroup | undefined,
+  fallback: string,
+) {
+  return group?.definitionLabel ?? group?.definitionKey ?? fallback;
+}
+
+function renderContextFactKindLabel(kind: WorkflowContextFactKind): string {
+  return kind.replaceAll("_", " ");
+}
+
+function getToolActivityTone(
+  toolKind: "harness" | "mcp",
+): Parameters<typeof ExecutionBadge>[0]["tone"] {
+  return toolKind === "mcp" ? "amber" : "violet";
+}
+
+function getPromptInputSubmitStatus(params: {
+  state: AgentStepRuntimeState;
+  hasError: boolean;
+  pendingTurnSubmit: boolean;
+}): PromptInputSubmitStatus {
+  if (params.hasError || params.state === "disconnected_or_error") {
+    return "error";
+  }
+
+  if (params.pendingTurnSubmit) {
+    return "streaming";
+  }
+
+  return params.state === "active_streaming" || params.state === "starting_session"
+    ? "streaming"
+    : "idle";
+}
+
+function getModelLabel(
+  model: AgentBody["harnessBinding"]["selectedModel"] | undefined,
+  metadata: WorkflowHarnessDiscoveryMetadata | undefined,
+): string {
+  if (!model) {
+    return "Select a model";
+  }
+
+  const discovered = metadata?.models.find(
+    (entry) => entry.provider === model.provider && entry.model === model.model,
+  );
+
+  return discovered?.label ?? `${model.provider} / ${model.model}`;
+}
+
+function formatAgentDefaultModel(agent: WorkflowHarnessDiscoveryMetadata["agents"][number]) {
+  return agent.defaultModel
+    ? `${agent.defaultModel.provider} / ${agent.defaultModel.model}`
+    : "No default model";
+}
+
+function getAgentLabel(
+  selectedAgent: string | undefined,
+  metadata: WorkflowHarnessDiscoveryMetadata | undefined,
+): string {
+  if (!selectedAgent) {
+    return "Select an agent";
+  }
+
+  const discovered = metadata?.agents.find((agent) => agent.key === selectedAgent);
+  if (!discovered) {
+    return selectedAgent;
+  }
+
+  return `${discovered.label} · ${formatAgentDefaultModel(discovered)}`;
+}
+
+function parseDescriptionMarkdown(value: unknown): string | null {
+  if (!value) {
+    return null;
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "markdown" in value &&
+    typeof (value as { markdown?: unknown }).markdown === "string"
+  ) {
+    return (value as { markdown: string }).markdown;
+  }
+
+  return null;
+}
+
 function encodeOptionValue(value: unknown): string {
   return JSON.stringify(value);
 }
 
 function decodeOptionValue(value: string): unknown {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return value;
-  }
+  const decoded = Result.try({
+    try: () => JSON.parse(value),
+    catch: () => value,
+  });
+
+  return decoded.isOk() ? decoded.value : value;
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -251,10 +528,6 @@ function NestedFieldHeader({ nestedField }: { nestedField: RuntimeFormNestedFiel
 function getUnavailableReferenceLabel(value: unknown, field: RuntimeFormResolvedField): string {
   const formatted = primitiveToInput(value, field);
   return formatted.length > 0 ? formatted : getReferencePlaceholder(field);
-}
-
-function renderContextFactKindLabel(kind: RuntimeFormResolvedField["contextFactKind"]): string {
-  return kind.replaceAll("_", " ");
 }
 
 type StepTypeFrameStyle = CSSProperties & {
@@ -612,11 +885,11 @@ function NestedFieldEditor(props: {
               return;
             }
 
-            try {
-              onChange(JSON.parse(nextValue));
-            } catch {
-              onChange(nextValue);
-            }
+            const decoded = Result.try({
+              try: () => JSON.parse(nextValue),
+              catch: () => nextValue,
+            });
+            onChange(decoded.isOk() ? decoded.value : nextValue);
           }}
         />
       </Field>
@@ -676,11 +949,11 @@ function JsonStructuredEditor(props: {
             return;
           }
 
-          try {
-            onChange(JSON.parse(nextValue));
-          } catch {
-            onChange(nextValue);
-          }
+          const decoded = Result.try({
+            try: () => JSON.parse(nextValue),
+            catch: () => nextValue,
+          });
+          onChange(decoded.isOk() ? decoded.value : nextValue);
         }}
       />
     );
@@ -1136,6 +1409,90 @@ function FormFieldEditor(props: {
   );
 }
 
+function StepExecutionShellCard(props: {
+  shell: GetRuntimeStepExecutionDetailOutput["shell"];
+  completionOutcome: string;
+  isBusy: boolean;
+  onComplete?: () => void;
+}) {
+  const { shell, completionOutcome, isBusy, onComplete } = props;
+
+  return (
+    <Card frame="cut-heavy" tone="runtime" corner="white">
+      <CardHeader>
+        <div className="space-y-1">
+          <DetailEyebrow>Shared step shell</DetailEyebrow>
+          <CardTitle>Step execution identity &amp; status</CardTitle>
+          <CardDescription>
+            Common runtime metadata stays in the shared shell while step-type specific interaction
+            lives below.
+          </CardDescription>
+        </div>
+      </CardHeader>
+
+      <CardContent>
+        <div className="grid gap-3 md:grid-cols-[minmax(0,1.3fr)_minmax(16rem,0.7fr)]">
+          <div className="space-y-3 border border-border/70 bg-background/40 p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <ExecutionBadge label={shell.status} tone={getExecutionStatusTone(shell.status)} />
+              <ExecutionBadge label={shell.stepType} tone={getStepTypeTone(shell.stepType)} />
+              <ExecutionBadge
+                label={completionOutcome}
+                tone={getGateStateTone(shell.completionAction.enabled ? "ready" : shell.status)}
+              />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <DetailLabel>Step execution</DetailLabel>
+                <DetailCode>{shell.stepExecutionId}</DetailCode>
+              </div>
+              <div>
+                <DetailLabel>Workflow execution</DetailLabel>
+                <DetailCode>{shell.workflowExecutionId}</DetailCode>
+              </div>
+              <div className="sm:col-span-2">
+                <DetailLabel>Step definition</DetailLabel>
+                <DetailPrimary>{shell.stepType} step</DetailPrimary>
+                <DetailCode>{shell.stepDefinitionId}</DetailCode>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3 border border-sky-500/30 bg-sky-500/5 p-3 before:pointer-events-none before:absolute">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <DetailLabel>Activated</DetailLabel>
+                <DetailPrimary>{formatTimestamp(shell.activatedAt)}</DetailPrimary>
+              </div>
+              <div>
+                <DetailLabel>Completed</DetailLabel>
+                <DetailPrimary>{formatTimestamp(shell.completedAt)}</DetailPrimary>
+              </div>
+              <div className="sm:col-span-2">
+                <DetailLabel>Completion gate</DetailLabel>
+                <DetailPrimary>{completionOutcome}</DetailPrimary>
+                {!shell.completionAction.enabled && shell.completionAction.reasonIfDisabled ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {shell.completionAction.reasonIfDisabled}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+
+      {shell.completionAction.visible && shell.completionAction.enabled && onComplete ? (
+        <CardFooter className="justify-end">
+          <Button type="button" disabled={isBusy} onClick={onComplete}>
+            Complete Step
+          </Button>
+        </CardFooter>
+      ) : null}
+    </Card>
+  );
+}
+
 function FormInteractionSurface(props: {
   projectId: string;
   detail: GetRuntimeStepExecutionDetailOutput & { body: FormBody };
@@ -1203,96 +1560,18 @@ function FormInteractionSurface(props: {
 
   return (
     <div className="space-y-4">
-      <Card frame="cut-heavy" tone="runtime" corner="white">
-        <CardHeader>
-          <div className="space-y-1">
-            <DetailEyebrow>Shared step shell</DetailEyebrow>
-            <CardTitle>Step execution identity & status</CardTitle>
-            <CardDescription>
-              Common metadata stays in the header shell; Form-only interaction lives below.
-            </CardDescription>
-          </div>
-        </CardHeader>
-
-        <CardContent>
-          <div className="grid gap-3 md:grid-cols-[minmax(0,1.3fr)_minmax(16rem,0.7fr)]">
-            <div className="space-y-3 border border-border/70 bg-background/40 p-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <ExecutionBadge
-                  label={detail.shell.status}
-                  tone={getExecutionStatusTone(detail.shell.status)}
-                />
-                <ExecutionBadge
-                  label={detail.shell.stepType}
-                  tone={getStepTypeTone(detail.shell.stepType)}
-                />
-                <ExecutionBadge
-                  label={completionOutcome}
-                  tone={getGateStateTone(
-                    detail.shell.completionAction.enabled ? "ready" : detail.shell.status,
-                  )}
-                />
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <DetailLabel>Step execution</DetailLabel>
-                  <DetailCode>{detail.shell.stepExecutionId}</DetailCode>
-                </div>
-                <div>
-                  <DetailLabel>Workflow execution</DetailLabel>
-                  <DetailCode>{detail.shell.workflowExecutionId}</DetailCode>
-                </div>
-                <div className="sm:col-span-2">
-                  <DetailLabel>Step definition</DetailLabel>
-                  <DetailPrimary>{detail.shell.stepType} step</DetailPrimary>
-                  <DetailCode>{detail.shell.stepDefinitionId}</DetailCode>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-3 border border-sky-500/30 bg-sky-500/5 p-3 before:pointer-events-none before:absolute">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <DetailLabel>Activated</DetailLabel>
-                  <DetailPrimary>{formatTimestamp(detail.shell.activatedAt)}</DetailPrimary>
-                </div>
-                <div>
-                  <DetailLabel>Completed</DetailLabel>
-                  <DetailPrimary>{formatTimestamp(detail.shell.completedAt)}</DetailPrimary>
-                </div>
-                <div className="sm:col-span-2">
-                  <DetailLabel>Completion gate</DetailLabel>
-                  <DetailPrimary>{completionOutcome}</DetailPrimary>
-                  {!detail.shell.completionAction.enabled &&
-                  detail.shell.completionAction.reasonIfDisabled ? (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {detail.shell.completionAction.reasonIfDisabled}
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-
-        {detail.shell.completionAction.visible && detail.shell.completionAction.enabled ? (
-          <CardFooter className="justify-end">
-            <Button
-              type="button"
-              disabled={isBusy}
-              onClick={() =>
-                completeStepMutation.mutate({
-                  projectId,
-                  workflowExecutionId: detail.shell.workflowExecutionId,
-                  stepExecutionId: detail.shell.stepExecutionId,
-                })
-              }
-            >
-              Complete Step
-            </Button>
-          </CardFooter>
-        ) : null}
-      </Card>
+      <StepExecutionShellCard
+        shell={detail.shell}
+        completionOutcome={completionOutcome}
+        isBusy={isBusy}
+        onComplete={() =>
+          completeStepMutation.mutate({
+            projectId,
+            workflowExecutionId: detail.shell.workflowExecutionId,
+            stepExecutionId: detail.shell.stepExecutionId,
+          })
+        }
+      />
 
       <Card
         frame="cut-heavy"
@@ -1444,6 +1723,1176 @@ function FormInteractionSurface(props: {
   );
 }
 
+function ContextFactInstances(props: {
+  group: RuntimeWorkflowContextFactGroup | undefined;
+  emptyMessage: string;
+}) {
+  const { group, emptyMessage } = props;
+
+  if (!group || group.instances.length === 0) {
+    return <p className="text-xs text-muted-foreground">{emptyMessage}</p>;
+  }
+
+  return (
+    <ul className="space-y-2">
+      {group.instances.map((instance) => (
+        <li
+          key={`${group.contextFactDefinitionId}-${instance.contextFactInstanceId ?? instance.instanceOrder}`}
+          className="space-y-1 border border-border/70 bg-background/50 p-2"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2 text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
+            <span>Instance {instance.instanceOrder + 1}</span>
+            <span>{formatTimestamp(instance.recordedAt)}</span>
+          </div>
+          <pre className="whitespace-pre-wrap break-words text-xs text-foreground">
+            {formatUnknown(instance.valueJson)}
+          </pre>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function AgentInteractionSurface(props: {
+  projectId: string;
+  shell: GetRuntimeStepExecutionDetailOutput["shell"];
+  detail: GetAgentStepExecutionDetailOutput;
+}) {
+  const { detail, projectId, shell } = props;
+  const { orpc, queryClient } = Route.useRouteContext();
+
+  const workflowDetailQuery = useQuery({
+    ...orpc.project.getRuntimeWorkflowExecutionDetail.queryOptions({
+      input: {
+        projectId,
+        workflowExecutionId: shell.workflowExecutionId,
+      },
+    }),
+    queryKey: runtimeWorkflowExecutionDetailQueryKey(projectId, shell.workflowExecutionId),
+  });
+
+  const workflowProcedures = orpc.methodology.version.workUnit.workflow as unknown as {
+    discoverAgentStepHarnessMetadata?: {
+      queryOptions?: (_args: { input: {} }) => {
+        queryKey: readonly unknown[];
+        queryFn: () => Promise<WorkflowHarnessDiscoveryMetadata>;
+      };
+    };
+  };
+
+  const harnessMetadataQueryOptions =
+    workflowProcedures.discoverAgentStepHarnessMetadata?.queryOptions?.({ input: {} }) ?? {
+      queryKey: agentStepHarnessMetadataQueryKey,
+      queryFn: async () => undefined,
+    };
+
+  const harnessMetadataQuery = useQuery({
+    ...harnessMetadataQueryOptions,
+    queryKey: agentStepHarnessMetadataQueryKey,
+  });
+
+  const [composerText, setComposerText] = useState("");
+  const [agentSelectorOpen, setAgentSelectorOpen] = useState(false);
+  const [modelSelectorOpen, setModelSelectorOpen] = useState(false);
+  const [sidePanelOpen, setSidePanelOpen] = useState(true);
+  const [sidePanelTab, setSidePanelTab] = useState<"read" | "write">("write");
+  const [runtimeState, setRuntimeState] = useState<AgentStepRuntimeState>(detail.body.state);
+  const [timelineItems, setTimelineItems] = useState<readonly AgentStepTimelineItem[]>(
+    detail.body.timelinePreview,
+  );
+  const [liveErrorMessage, setLiveErrorMessage] = useState<string | null>(null);
+  const [copiedAttachCommand, setCopiedAttachCommand] = useState(false);
+  const [pendingTurnSubmit, setPendingTurnSubmit] = useState(false);
+  const processedEventCountRef = useRef(0);
+  const pendingOptimisticUserTimelineIdRef = useRef<string | null>(null);
+  const pendingOptimisticUserMessageRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    setRuntimeState(detail.body.state);
+  }, [detail.body.state]);
+
+  useEffect(() => {
+    processedEventCountRef.current = 0;
+    setLiveErrorMessage(null);
+    setCopiedAttachCommand(false);
+    setPendingTurnSubmit(false);
+    pendingOptimisticUserTimelineIdRef.current = null;
+    pendingOptimisticUserMessageRef.current = null;
+    setTimelineItems(detail.body.timelinePreview);
+  }, [detail.body.timelinePreview]);
+
+  useEffect(() => {
+    if (!copiedAttachCommand) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setCopiedAttachCommand(false);
+    }, 1600);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [copiedAttachCommand]);
+
+  const composerUiState = getAgentComposerUiState(runtimeState);
+  const shouldStreamSessionEvents =
+    Boolean(detail.body.harnessBinding.sessionId) &&
+    runtimeState !== "disconnected_or_error" &&
+    runtimeState !== "completed";
+  const streamUrl = shouldStreamSessionEvents
+    ? buildAgentStepStreamUrl(projectId, shell.stepExecutionId)
+    : null;
+  const stream = useSSE<AgentStepSseEnvelope, AgentStepSseEnvelope>(streamUrl, {
+    eventNames: AGENT_STEP_SSE_EVENT_NAMES,
+  });
+
+  useEffect(() => {
+    const nextEvents = stream.events.slice(processedEventCountRef.current);
+    if (nextEvents.length === 0) {
+      return;
+    }
+
+    processedEventCountRef.current = stream.events.length;
+
+    for (const event of nextEvents) {
+      if (event.eventType === "bootstrap") {
+        setRuntimeState(event.data.state);
+        setTimelineItems((previous) => {
+          let merged = previous;
+          for (const item of event.data.timelineItems) {
+            merged = upsertTimelineItem(merged, item);
+          }
+          return merged;
+        });
+        continue;
+      }
+
+      if (event.eventType === "session_state") {
+        setPendingTurnSubmit(false);
+        setRuntimeState(event.data.state);
+        continue;
+      }
+
+      if (event.eventType === "timeline" || event.eventType === "tool_activity") {
+        setPendingTurnSubmit(false);
+        setTimelineItems((previous) => {
+          if (
+            event.eventType === "timeline" &&
+            event.data.item.itemType === "message" &&
+            event.data.item.role === "user" &&
+            pendingOptimisticUserTimelineIdRef.current &&
+            pendingOptimisticUserMessageRef.current &&
+            event.data.item.content.trim() === pendingOptimisticUserMessageRef.current.trim()
+          ) {
+            const withoutOptimistic = previous.filter(
+              (entry) => entry.timelineItemId !== pendingOptimisticUserTimelineIdRef.current,
+            );
+            pendingOptimisticUserTimelineIdRef.current = null;
+            pendingOptimisticUserMessageRef.current = null;
+            return upsertTimelineItem(withoutOptimistic, event.data.item);
+          }
+
+          return upsertTimelineItem(previous, event.data.item);
+        });
+
+        if (
+          event.eventType === "tool_activity" &&
+          event.data.item.toolKind === "mcp" &&
+          event.data.item.toolName === "write_context_value" &&
+          event.data.item.status === "completed"
+        ) {
+          void Promise.all([
+            queryClient.invalidateQueries({
+              queryKey: runtimeWorkflowExecutionDetailQueryKey(
+                projectId,
+                shell.workflowExecutionId,
+              ),
+            }),
+            queryClient.invalidateQueries({
+              queryKey: runtimeAgentStepExecutionDetailQueryKey(projectId, shell.stepExecutionId),
+            }),
+          ]);
+        }
+
+        continue;
+      }
+
+      if (event.eventType === "error") {
+        setPendingTurnSubmit(false);
+        setRuntimeState("disconnected_or_error");
+        setLiveErrorMessage(event.data.error.message);
+        void Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: runtimeStepExecutionDetailQueryKey(projectId, shell.stepExecutionId),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: runtimeAgentStepExecutionDetailQueryKey(projectId, shell.stepExecutionId),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: runtimeWorkflowExecutionDetailQueryKey(projectId, shell.workflowExecutionId),
+          }),
+        ]);
+        continue;
+      }
+
+      if (event.eventType === "done") {
+        setPendingTurnSubmit(false);
+        setRuntimeState(event.data.finalState);
+      }
+    }
+  }, [projectId, queryClient, shell.stepExecutionId, shell.workflowExecutionId, stream.events]);
+
+  useEffect(() => {
+    if (stream.status !== "error") {
+      return;
+    }
+
+    void Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: runtimeStepExecutionDetailQueryKey(projectId, shell.stepExecutionId),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: runtimeAgentStepExecutionDetailQueryKey(projectId, shell.stepExecutionId),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: runtimeWorkflowExecutionDetailQueryKey(projectId, shell.workflowExecutionId),
+      }),
+    ]);
+  }, [projectId, queryClient, shell.stepExecutionId, shell.workflowExecutionId, stream.status]);
+
+  const startSessionMutation = useMutation(
+    orpc.project.startAgentStepSession.mutationOptions({
+      onSuccess: async (result) => {
+        setRuntimeState(result.state);
+        setLiveErrorMessage(null);
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: runtimeStepExecutionDetailQueryKey(projectId, shell.stepExecutionId),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: runtimeAgentStepExecutionDetailQueryKey(projectId, shell.stepExecutionId),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: runtimeWorkflowExecutionDetailQueryKey(projectId, shell.workflowExecutionId),
+          }),
+        ]);
+      },
+      onError: async () => {
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: runtimeStepExecutionDetailQueryKey(projectId, shell.stepExecutionId),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: runtimeAgentStepExecutionDetailQueryKey(projectId, shell.stepExecutionId),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: runtimeWorkflowExecutionDetailQueryKey(projectId, shell.workflowExecutionId),
+          }),
+        ]);
+      },
+    }),
+  );
+
+  const sendMessageMutation = useMutation(
+    orpc.project.sendAgentStepMessage.mutationOptions({
+      onSuccess: async (result) => {
+        setPendingTurnSubmit(false);
+        setRuntimeState(result.state);
+        await queryClient.invalidateQueries({
+          queryKey: runtimeAgentStepExecutionDetailQueryKey(projectId, shell.stepExecutionId),
+        });
+      },
+      onError: async () => {
+        setPendingTurnSubmit(false);
+        pendingOptimisticUserTimelineIdRef.current = null;
+        pendingOptimisticUserMessageRef.current = null;
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: runtimeStepExecutionDetailQueryKey(projectId, shell.stepExecutionId),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: runtimeAgentStepExecutionDetailQueryKey(projectId, shell.stepExecutionId),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: runtimeWorkflowExecutionDetailQueryKey(projectId, shell.workflowExecutionId),
+          }),
+        ]);
+      },
+    }),
+  );
+
+  const updateTurnSelectionMutation = useMutation(
+    orpc.project.updateAgentStepTurnSelection.mutationOptions({
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({ queryKey: agentStepHarnessMetadataQueryKey });
+        await queryClient.invalidateQueries({
+          queryKey: runtimeAgentStepExecutionDetailQueryKey(projectId, shell.stepExecutionId),
+        });
+      },
+    }),
+  );
+
+  const completeStepMutation = useMutation(
+    orpc.project.completeAgentStepExecution.mutationOptions({
+      onSuccess: async () => {
+        setRuntimeState("completed");
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: runtimeStepExecutionDetailQueryKey(projectId, shell.stepExecutionId),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: runtimeAgentStepExecutionDetailQueryKey(projectId, shell.stepExecutionId),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: runtimeWorkflowExecutionDetailQueryKey(projectId, shell.workflowExecutionId),
+          }),
+        ]);
+      },
+    }),
+  );
+
+  const completionOutcome =
+    shell.status === "completed"
+      ? "Completed"
+      : shell.completionAction.enabled
+        ? "Ready to complete"
+        : (shell.completionAction.reasonIfDisabled ?? "Incomplete");
+  const isBusy =
+    startSessionMutation.isPending ||
+    updateTurnSelectionMutation.isPending ||
+    completeStepMutation.isPending;
+
+  const workflowGroups = workflowDetailQuery.data?.workflowContextFacts.groups ?? [];
+  const workflowGroupById = useMemo(
+    () => new Map(workflowGroups.map((group) => [group.contextFactDefinitionId, group])),
+    [workflowGroups],
+  );
+
+  const readItems = useMemo(
+    () =>
+      detail.body.readableContextFacts.map((fact) => ({
+        ...fact,
+        group: workflowGroupById.get(fact.contextFactDefinitionId),
+      })),
+    [detail.body.readableContextFacts, workflowGroupById],
+  );
+
+  const writeItems = useMemo(
+    () =>
+      detail.body.writeItems.map((item) => {
+        const group = workflowGroupById.get(item.contextFactDefinitionId);
+        const requirements = item.requirementContextFactDefinitionIds.map((requirementId) => ({
+          requirementId,
+          group: workflowGroupById.get(requirementId),
+        }));
+        const requirementCount = requirements.length;
+        const satisfiedCount = requirements.filter(
+          (entry) => (entry.group?.instances.length ?? 0) > 0,
+        ).length;
+        const requirementsSatisfied = satisfiedCount === requirementCount;
+        const appliedCount = group?.instances.length ?? 0;
+
+        return {
+          item,
+          group,
+          requirements,
+          requirementsSatisfied,
+          appliedCount,
+          status: !requirementsSatisfied ? "blocked" : appliedCount > 0 ? "applied" : "ready",
+        } as const;
+      }),
+    [detail.body.writeItems, workflowGroupById],
+  );
+
+  const writeProgress = useMemo(
+    () => ({
+      total: writeItems.length,
+      blocked: writeItems.filter((entry) => entry.status === "blocked").length,
+      ready: writeItems.filter((entry) => entry.status === "ready").length,
+      applied: writeItems.filter((entry) => entry.status === "applied").length,
+    }),
+    [writeItems],
+  );
+
+  const selectedModel = detail.body.harnessBinding.selectedModel;
+  const selectedAgent = detail.body.harnessBinding.selectedAgent;
+  const attachCommand = detail.body.harnessBinding.serverBaseUrl
+    ? `opencode attach ${detail.body.harnessBinding.serverBaseUrl}`
+    : null;
+  const selectedAgentLabel = getAgentLabel(selectedAgent, harnessMetadataQuery.data);
+  const selectedModelLabel = getModelLabel(selectedModel, harnessMetadataQuery.data);
+  const promptSubmitStatus = getPromptInputSubmitStatus({
+    state: runtimeState,
+    hasError:
+      Boolean(liveErrorMessage) ||
+      Boolean(startSessionMutation.error) ||
+      Boolean(sendMessageMutation.error),
+    pendingTurnSubmit,
+  });
+
+  return (
+    <div className="space-y-4">
+      <StepExecutionShellCard
+        shell={shell}
+        completionOutcome={completionOutcome}
+        isBusy={isBusy}
+        onComplete={() =>
+          completeStepMutation.mutate({
+            projectId,
+            stepExecutionId: shell.stepExecutionId,
+          })
+        }
+      />
+
+      <Card
+        frame="cut-heavy"
+        tone="runtime"
+        corner="white"
+        style={getStepTypeFrameStyle(shell.stepType)}
+      >
+        <CardHeader>
+          <div className="space-y-1">
+            <DetailEyebrow>Agent runtime</DetailEyebrow>
+            <CardTitle>Session orchestration &amp; context boundaries</CardTitle>
+            <CardDescription>
+              Explicit session start, one live SSE feed, provider-grouped next-turn model selection,
+              and read/write context boundaries for this Agent step.
+            </CardDescription>
+          </div>
+        </CardHeader>
+
+        <CardContent className="space-y-4">
+          <div className="space-y-4">
+            <Card frame="flat" tone="runtime" className="border-border/70 bg-background/40">
+              <CardHeader className="border-b border-border/70">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <CardDescription className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
+                      Objective
+                    </CardDescription>
+                    <CardTitle className="text-sm uppercase tracking-[0.12em]">
+                      {detail.body.objective}
+                    </CardTitle>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <ExecutionBadge
+                      label={renderAgentStateLabel(runtimeState)}
+                      tone={getAgentStateTone(runtimeState)}
+                    />
+                    <ExecutionBadge
+                      label={stream.status === "open" ? "stream open" : stream.status}
+                      tone={
+                        stream.status === "error"
+                          ? "rose"
+                          : stream.status === "open"
+                            ? "sky"
+                            : "slate"
+                      }
+                    />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="grid gap-4 py-4 xl:grid-cols-[minmax(0,1fr)_minmax(15rem,0.45fr)]">
+                <div className="space-y-2">
+                  <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
+                    Instructions
+                  </p>
+                  <div className="border border-border/70 bg-background/60 p-3 text-sm leading-relaxed text-foreground">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {detail.body.instructionsMarkdown}
+                    </ReactMarkdown>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="border border-border/70 bg-background/60 p-3 text-xs">
+                    <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
+                      Session policy
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <ExecutionBadge label={detail.body.sessionStartPolicy} tone="amber" />
+                      <ExecutionBadge
+                        label={detail.body.contractBoundary.streamContract.streamName}
+                        tone="sky"
+                      />
+                      <ExecutionBadge label={detail.body.contractBoundary.version} tone="slate" />
+                    </div>
+                  </div>
+                  <div className="border border-border/70 bg-background/60 p-3 text-xs">
+                    <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
+                      Harness binding
+                    </p>
+                    <div className="mt-2 space-y-2">
+                      <div className="flex flex-wrap gap-2">
+                        <ExecutionBadge
+                          label={detail.body.harnessBinding.harnessId}
+                          tone="violet"
+                        />
+                        <ExecutionBadge
+                          label={detail.body.harnessBinding.bindingState}
+                          tone={
+                            detail.body.harnessBinding.bindingState === "bound"
+                              ? "emerald"
+                              : "amber"
+                          }
+                        />
+                      </div>
+                      {detail.body.harnessBinding.sessionId ? (
+                        <DetailCode>{detail.body.harnessBinding.sessionId}</DetailCode>
+                      ) : (
+                        <p className="text-muted-foreground">No live harness session yet.</p>
+                      )}
+                      {detail.body.harnessBinding.serverBaseUrl ? (
+                        <DetailCode>{detail.body.harnessBinding.serverBaseUrl}</DetailCode>
+                      ) : null}
+                      {attachCommand ? (
+                        <div className="flex items-center justify-between gap-2 rounded-none border border-border/70 bg-background/50 px-2 py-1.5 text-[0.7rem]">
+                          <span className="truncate text-muted-foreground">{attachCommand}</span>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 shrink-0 px-2"
+                            onClick={async () => {
+                              const copied = await Result.tryPromise({
+                                try: () => navigator.clipboard.writeText(attachCommand),
+                                catch: (error) => error,
+                              });
+
+                              if (copied.isOk()) {
+                                setCopiedAttachCommand(true);
+                                return;
+                              }
+
+                              setLiveErrorMessage(
+                                "Failed to copy attach command. Copy it manually from the line above.",
+                              );
+                            }}
+                          >
+                            {copiedAttachCommand ? (
+                              <>
+                                <CheckIcon className="size-3.5" />
+                                <span>Copied</span>
+                              </>
+                            ) : (
+                              <>
+                                <CopyIcon className="size-3.5" />
+                                <span>Copy attach</span>
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div
+              className="grid gap-4 transition-[grid-template-columns] duration-200 ease-out xl:[grid-template-columns:var(--agent-runtime-panels-columns)]"
+              style={
+                {
+                  "--agent-runtime-panels-columns": sidePanelOpen
+                    ? "minmax(0,1fr) minmax(20rem,0.9fr)"
+                    : "minmax(0,1fr) 2.75rem",
+                } as CSSProperties
+              }
+            >
+              <Card frame="flat" tone="runtime" className="border-border/70 bg-background/40">
+                <CardHeader className="border-b border-border/70">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <CardDescription className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
+                        Timeline
+                      </CardDescription>
+                      <CardTitle className="text-sm">Conversation &amp; tool activity</CardTitle>
+                    </div>
+                    {runtimeState === "active_streaming" ? (
+                      <div className="flex items-center gap-2 text-xs text-sky-200">
+                        <RadioIcon className="size-3.5 animate-pulse" />
+                        <span>Streaming current turn</span>
+                      </div>
+                    ) : null}
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3 py-4">
+                  {timelineItems.length === 0 ? (
+                    <div className="border border-dashed border-border/70 bg-background/50 px-3 py-6 text-center text-sm text-muted-foreground">
+                      No timeline activity yet. Start the session to begin the runtime trace.
+                    </div>
+                  ) : (
+                    <div className="space-y-3" data-testid="agent-step-timeline-list">
+                      {timelineItems.map((item) =>
+                        item.itemType === "message" ? (
+                          <article
+                            key={item.timelineItemId}
+                            className="border border-border/70 bg-background/55 p-3"
+                            data-testid={`agent-step-timeline-message-${item.timelineItemId}`}
+                          >
+                            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <ExecutionBadge
+                                  label={item.role}
+                                  tone={
+                                    item.role === "assistant"
+                                      ? "violet"
+                                      : item.role === "user"
+                                        ? "sky"
+                                        : "slate"
+                                  }
+                                />
+                                <span className="text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
+                                  {formatTimestamp(item.createdAt)}
+                                </span>
+                              </div>
+                            </div>
+                            <pre className="whitespace-pre-wrap break-words text-sm text-foreground">
+                              {item.content}
+                            </pre>
+                          </article>
+                        ) : (
+                          <article
+                            key={item.timelineItemId}
+                            className="border border-border/70 bg-background/55 p-3"
+                            data-testid={`agent-step-timeline-tool-${item.timelineItemId}`}
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <ExecutionBadge
+                                  label={item.toolKind}
+                                  tone={getToolActivityTone(item.toolKind)}
+                                />
+                                <ExecutionBadge
+                                  label={item.status}
+                                  tone={
+                                    item.status === "completed"
+                                      ? "emerald"
+                                      : item.status === "failed"
+                                        ? "rose"
+                                        : "amber"
+                                  }
+                                />
+                                <span className="font-medium uppercase tracking-[0.12em] text-foreground">
+                                  {item.toolName}
+                                </span>
+                              </div>
+                              <span className="text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
+                                {formatTimestamp(item.createdAt)}
+                              </span>
+                            </div>
+                            {item.summary ? (
+                              <p className="mt-2 text-sm text-muted-foreground">{item.summary}</p>
+                            ) : null}
+                          </article>
+                        ),
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <aside
+                className={cn(
+                  "min-w-0 overflow-hidden border border-border/70 bg-background/40",
+                  !sidePanelOpen && "justify-self-end",
+                )}
+              >
+                <div
+                  className={cn(
+                    "flex items-center gap-2 border-b border-border/70 py-2",
+                    sidePanelOpen ? "justify-between px-3" : "justify-center px-1",
+                  )}
+                >
+                  {sidePanelOpen ? (
+                    <div className="space-y-0.5">
+                      <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
+                        Context side panel
+                      </p>
+                      <p className="text-sm font-medium">Read / Write</p>
+                    </div>
+                  ) : null}
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
+                    aria-label="Toggle side panel"
+                    onClick={() => setSidePanelOpen((current) => !current)}
+                  >
+                    {sidePanelOpen ? (
+                      <PanelRightCloseIcon className="size-3.5" />
+                    ) : (
+                      <PanelRightOpenIcon className="size-3.5" />
+                    )}
+                  </Button>
+                </div>
+
+                <div
+                  className={cn(
+                    "space-y-3 p-3 transition-opacity duration-150",
+                    sidePanelOpen ? "opacity-100" : "pointer-events-none select-none opacity-0",
+                  )}
+                >
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={sidePanelTab === "read" ? "default" : "outline"}
+                      className="flex-1"
+                      onClick={() => setSidePanelTab("read")}
+                    >
+                      Read
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={sidePanelTab === "write" ? "default" : "outline"}
+                      className="flex-1"
+                      onClick={() => setSidePanelTab("write")}
+                    >
+                      Write
+                    </Button>
+                  </div>
+
+                  {workflowDetailQuery.isLoading ? (
+                    <Skeleton className="h-48 w-full rounded-none" />
+                  ) : workflowDetailQuery.error ? (
+                    <div className="border border-destructive/60 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                      {toErrorMessage(workflowDetailQuery.error)}
+                    </div>
+                  ) : sidePanelTab === "read" ? (
+                    <div className="space-y-3" data-testid="agent-step-side-panel-read">
+                      {readItems.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                          No readable context facts are exposed.
+                        </p>
+                      ) : (
+                        readItems.map((entry) => (
+                          <article
+                            key={entry.contextFactDefinitionId}
+                            className="space-y-3 border border-border/70 bg-background/55 p-3"
+                          >
+                            <div className="space-y-2">
+                              <div className="flex flex-wrap gap-2">
+                                <ExecutionBadge label={entry.source} tone="slate" />
+                                <ExecutionBadge
+                                  label={renderContextFactKindLabel(entry.contextFactKind)}
+                                  tone="sky"
+                                />
+                              </div>
+                              <h3 className="text-sm font-medium text-foreground">
+                                {renderContextFactLabel(entry.group, entry.contextFactDefinitionId)}
+                              </h3>
+                            </div>
+                            <ContextFactInstances
+                              group={entry.group}
+                              emptyMessage="No runtime values are currently available."
+                            />
+                          </article>
+                        ))
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-3" data-testid="agent-step-side-panel-write">
+                      <article className="space-y-3 border border-border/70 bg-background/55 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
+                              Progression
+                            </p>
+                            <h3 className="text-sm font-medium text-foreground">
+                              Requirement-gated write exposure
+                            </h3>
+                          </div>
+                          <ExecutionBadge
+                            label={`${writeProgress.applied}/${writeProgress.total} applied`}
+                            tone="emerald"
+                          />
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-xs">
+                          <div className="border border-border/70 bg-background/60 p-2 text-center text-muted-foreground">
+                            blocked {writeProgress.blocked}
+                          </div>
+                          <div className="border border-border/70 bg-background/60 p-2 text-center text-muted-foreground">
+                            ready {writeProgress.ready}
+                          </div>
+                          <div className="border border-border/70 bg-background/60 p-2 text-center text-muted-foreground">
+                            applied {writeProgress.applied}
+                          </div>
+                        </div>
+                      </article>
+
+                      {writeItems.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                          No write targets are configured.
+                        </p>
+                      ) : (
+                        writeItems.map((entry) => (
+                          <article
+                            key={entry.item.writeItemId}
+                            className="space-y-3 border border-border/70 bg-background/55 p-3"
+                          >
+                            <div className="space-y-2">
+                              <div className="flex flex-wrap gap-2">
+                                <ExecutionBadge label={`order ${entry.item.order}`} tone="slate" />
+                                <ExecutionBadge
+                                  label={entry.status}
+                                  tone={
+                                    entry.status === "applied"
+                                      ? "emerald"
+                                      : entry.status === "ready"
+                                        ? "amber"
+                                        : "rose"
+                                  }
+                                />
+                              </div>
+                              <h3 className="text-sm font-medium text-foreground">
+                                {renderContextFactLabel(
+                                  entry.group,
+                                  entry.item.contextFactDefinitionId,
+                                )}
+                              </h3>
+                              <p className="text-xs text-muted-foreground">
+                                {renderContextFactKindLabel(entry.item.contextFactKind)}
+                              </p>
+                            </div>
+
+                            <div className="space-y-2">
+                              <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
+                                Requirements
+                              </p>
+                              {entry.requirements.length === 0 ? (
+                                <p className="text-xs text-muted-foreground">
+                                  No prerequisites. Exposed immediately.
+                                </p>
+                              ) : (
+                                <ul className="space-y-2">
+                                  {entry.requirements.map((requirement) => {
+                                    const satisfied =
+                                      (requirement.group?.instances.length ?? 0) > 0;
+                                    return (
+                                      <li
+                                        key={`${entry.item.writeItemId}-${requirement.requirementId}`}
+                                        className="flex items-center justify-between gap-3 border border-border/70 bg-background/60 px-2 py-2 text-xs"
+                                      >
+                                        <span className="min-w-0 truncate text-foreground">
+                                          {renderContextFactLabel(
+                                            requirement.group,
+                                            requirement.requirementId,
+                                          )}
+                                        </span>
+                                        <ExecutionBadge
+                                          label={satisfied ? "satisfied" : "waiting"}
+                                          tone={satisfied ? "emerald" : "amber"}
+                                        />
+                                      </li>
+                                    );
+                                  })}
+                                </ul>
+                              )}
+                            </div>
+
+                            <div className="space-y-2">
+                              <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
+                                Applied values
+                              </p>
+                              <ContextFactInstances
+                                group={entry.group}
+                                emptyMessage="No successful Chiron write-tool application yet."
+                              />
+                            </div>
+                          </article>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              </aside>
+            </div>
+
+            <Card frame="flat" tone="runtime" className="border-border/70 bg-background/40">
+              <CardHeader className="border-b border-border/70">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <CardDescription className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
+                      Composer
+                    </CardDescription>
+                    <CardTitle className="text-sm">
+                      PromptInput baseline + next-turn model selection
+                    </CardTitle>
+                  </div>
+                  {composerUiState.startSessionVisible ? (
+                    <Button
+                      type="button"
+                      disabled={isBusy || runtimeState === "completed"}
+                      onClick={() =>
+                        startSessionMutation.mutate({
+                          projectId,
+                          stepExecutionId: shell.stepExecutionId,
+                        })
+                      }
+                      data-testid="agent-step-start-session"
+                    >
+                      {startSessionMutation.isPending ? (
+                        <Loader2Icon className="size-3.5 animate-spin" />
+                      ) : runtimeState === "disconnected_or_error" ? (
+                        <RefreshCcwIcon className="size-3.5" />
+                      ) : (
+                        <PlayIcon className="size-3.5" />
+                      )}
+                      <span>{composerUiState.startSessionLabel}</span>
+                    </Button>
+                  ) : null}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3 py-4">
+                <PromptInput
+                  className={cn(
+                    "relative transition-opacity",
+                    !composerUiState.enabled && "opacity-70",
+                  )}
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const nextMessage = composerText.trim();
+                    if (!composerUiState.enabled || nextMessage.length === 0) {
+                      return;
+                    }
+
+                    const optimisticMessage: AgentStepTimelineItem = {
+                      itemType: "message",
+                      timelineItemId: `optimistic-user:${crypto.randomUUID()}`,
+                      createdAt: new Date().toISOString(),
+                      role: "user",
+                      content: nextMessage,
+                    };
+
+                    setPendingTurnSubmit(true);
+                    setLiveErrorMessage(null);
+                    setComposerText("");
+                    setRuntimeState("active_streaming");
+                    pendingOptimisticUserTimelineIdRef.current = optimisticMessage.timelineItemId;
+                    pendingOptimisticUserMessageRef.current = nextMessage;
+                    setTimelineItems((previous) => upsertTimelineItem(previous, optimisticMessage));
+
+                    sendMessageMutation.mutate({
+                      projectId,
+                      stepExecutionId: shell.stepExecutionId,
+                      message: nextMessage,
+                    });
+                  }}
+                  data-testid="agent-step-composer"
+                >
+                  <PromptInputBody className="relative">
+                    <PromptInputTextarea
+                      value={composerText}
+                      disabled={!composerUiState.enabled || isBusy}
+                      onChange={(event) => setComposerText(event.target.value)}
+                      placeholder={
+                        composerUiState.enabled
+                          ? "Send the next runtime turn..."
+                          : (composerUiState.reason ?? "Session start is required first.")
+                      }
+                      className={!composerUiState.enabled ? "blur-sm" : undefined}
+                    />
+                    {!composerUiState.enabled ? (
+                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/45 px-4 text-center text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                        {composerUiState.reason}
+                      </div>
+                    ) : null}
+                  </PromptInputBody>
+                  <PromptInputFooter>
+                    <PromptInputTools>
+                      <ModelSelector open={agentSelectorOpen} onOpenChange={setAgentSelectorOpen}>
+                        <ModelSelectorTrigger
+                          render={
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="justify-between text-left"
+                            >
+                              <span className="truncate">{selectedAgentLabel}</span>
+                              <ChevronsUpDownIcon className="size-3.5 opacity-70" />
+                            </Button>
+                          }
+                        />
+                        <ModelSelectorContent title="Next turn agent selector">
+                          <ModelSelectorInput placeholder="Search agents..." />
+                          <ModelSelectorList>
+                            <ModelSelectorEmpty>No matching agents.</ModelSelectorEmpty>
+                            <ModelSelectorGroup heading="Discovered agents">
+                              {(harnessMetadataQuery.data?.agents ?? []).map((agent) => {
+                                const checked = selectedAgent === agent.key;
+
+                                return (
+                                  <ModelSelectorItem
+                                    key={agent.key}
+                                    value={`${agent.key}/${agent.label}/${formatAgentDefaultModel(agent)}`}
+                                    onSelect={() => {
+                                      updateTurnSelectionMutation.mutate({
+                                        projectId,
+                                        stepExecutionId: shell.stepExecutionId,
+                                        agent: agent.key,
+                                      });
+                                      setAgentSelectorOpen(false);
+                                    }}
+                                  >
+                                    <div className="flex min-w-0 items-center gap-2">
+                                      <ModelSelectorName className="flex-none">
+                                        {agent.label}
+                                      </ModelSelectorName>
+                                      <span className="truncate text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
+                                        {formatAgentDefaultModel(agent)}
+                                      </span>
+                                      <span className="border border-border px-1.5 py-0.5 text-[0.6rem] uppercase tracking-[0.14em] text-muted-foreground">
+                                        {agent.mode}
+                                      </span>
+                                      <CheckIcon
+                                        className={cn(
+                                          "ml-auto size-3.5",
+                                          checked ? "opacity-100" : "opacity-0",
+                                        )}
+                                      />
+                                    </div>
+                                  </ModelSelectorItem>
+                                );
+                              })}
+                            </ModelSelectorGroup>
+                          </ModelSelectorList>
+                        </ModelSelectorContent>
+                      </ModelSelector>
+
+                      <ModelSelector open={modelSelectorOpen} onOpenChange={setModelSelectorOpen}>
+                        <ModelSelectorTrigger
+                          render={
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="justify-between text-left"
+                            >
+                              <span className="truncate">{selectedModelLabel}</span>
+                              <ChevronsUpDownIcon className="size-3.5 opacity-70" />
+                            </Button>
+                          }
+                        />
+                        <ModelSelectorContent title="Next turn model selector">
+                          <ModelSelectorInput placeholder="Search providers and models..." />
+                          <ModelSelectorList>
+                            <ModelSelectorEmpty>No matching models.</ModelSelectorEmpty>
+                            {(harnessMetadataQuery.data?.providers ?? []).map((provider, index) => (
+                              <div key={provider.provider}>
+                                {index > 0 ? <ModelSelectorSeparator /> : null}
+                                <ModelSelectorGroup heading={provider.label}>
+                                  {provider.models.map((model) => {
+                                    const checked =
+                                      selectedModel?.provider === model.provider &&
+                                      selectedModel?.model === model.model;
+
+                                    return (
+                                      <ModelSelectorItem
+                                        key={`${model.provider}/${model.model}`}
+                                        value={`${model.provider}/${model.model}/${model.label}`}
+                                        onSelect={() => {
+                                          updateTurnSelectionMutation.mutate({
+                                            projectId,
+                                            stepExecutionId: shell.stepExecutionId,
+                                            model: {
+                                              provider: model.provider,
+                                              model: model.model,
+                                            },
+                                          });
+                                          setModelSelectorOpen(false);
+                                        }}
+                                      >
+                                        <div className="flex min-w-0 items-center gap-2">
+                                          <ModelSelectorLogoGroup>
+                                            <ModelSelectorLogo provider={model.provider} />
+                                          </ModelSelectorLogoGroup>
+                                          <ModelSelectorName>{model.label}</ModelSelectorName>
+                                          <span className="text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
+                                            {model.provider}
+                                          </span>
+                                          {model.isDefault ? (
+                                            <span className="border border-primary/35 bg-primary/10 px-1.5 py-0.5 text-[0.6rem] uppercase tracking-[0.14em] text-primary">
+                                              default
+                                            </span>
+                                          ) : null}
+                                          <CheckIcon
+                                            className={cn(
+                                              "ml-auto size-3.5",
+                                              checked ? "opacity-100" : "opacity-0",
+                                            )}
+                                          />
+                                        </div>
+                                      </ModelSelectorItem>
+                                    );
+                                  })}
+                                </ModelSelectorGroup>
+                              </div>
+                            ))}
+                          </ModelSelectorList>
+                        </ModelSelectorContent>
+                      </ModelSelector>
+                      <ExecutionBadge label="next turn only" tone="amber" />
+                    </PromptInputTools>
+                    <PromptInputSubmit
+                      type="submit"
+                      status={promptSubmitStatus}
+                      disabled={
+                        !composerUiState.enabled || composerText.trim().length === 0 || isBusy
+                      }
+                    >
+                      {runtimeState === "disconnected_or_error" ? "Retry" : "Send"}
+                    </PromptInputSubmit>
+                  </PromptInputFooter>
+                </PromptInput>
+
+                <div className="grid gap-2 text-xs text-muted-foreground md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                  <p>
+                    {runtimeState === "not_started"
+                      ? "Choose a provider/model now to influence the first session turn."
+                      : "Provider/model changes are persisted for the next turn only and do not interrupt the current live session."}
+                  </p>
+                  <div className="grid gap-1">
+                    <div className="flex items-center gap-2">
+                      <BotIcon className="size-3.5" />
+                      <span>{selectedAgentLabel}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="inline-block size-3.5 text-center text-muted-foreground">
+                        ◌
+                      </span>
+                      <span>{selectedModelLabel}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {pendingTurnSubmit && !liveErrorMessage && !sendMessageMutation.error ? (
+                  <div className="flex items-start gap-2 border border-sky-300/40 bg-sky-500/10 px-3 py-2 text-sm text-sky-100">
+                    <RadioIcon className="mt-0.5 size-4 shrink-0 animate-pulse" />
+                    <span>Turn submitted. Waiting for stream updates…</span>
+                  </div>
+                ) : null}
+
+                {liveErrorMessage || startSessionMutation.error || sendMessageMutation.error ? (
+                  <div className="flex items-start gap-2 border border-destructive/60 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                    <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
+                    <span>
+                      {liveErrorMessage ??
+                        toErrorMessage(startSessionMutation.error ?? sendMessageMutation.error)}
+                    </span>
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export const Route = createFileRoute("/projects/$projectId/step-executions/$stepExecutionId")({
   loader: async ({ context, params }) => {
     await context.queryClient.ensureQueryData({
@@ -1473,9 +2922,24 @@ export function RuntimeFormStepDetailRoute() {
     queryKey: runtimeStepExecutionDetailQueryKey(projectId, stepExecutionId),
   });
 
+  const agentDetailQuery = useQuery({
+    ...orpc.project.getAgentStepExecutionDetail.queryOptions({
+      input: {
+        projectId,
+        stepExecutionId,
+      },
+    }),
+    queryKey: runtimeAgentStepExecutionDetailQueryKey(projectId, stepExecutionId),
+    enabled: stepDetailQuery.data?.shell.stepType === "agent",
+  });
+
   const detail = stepDetailQuery.data;
-  const isLoading = stepDetailQuery.isLoading;
-  const hasError = Boolean(stepDetailQuery.error);
+  const isAgentStep = detail?.shell.stepType === "agent";
+  const isLoading =
+    stepDetailQuery.isLoading ||
+    (isAgentStep && agentDetailQuery.isLoading && !agentDetailQuery.data);
+  const combinedError = stepDetailQuery.error ?? (isAgentStep ? agentDetailQuery.error : null);
+  const hasError = Boolean(combinedError);
 
   return (
     <MethodologyWorkspaceShell
@@ -1514,7 +2978,7 @@ export function RuntimeFormStepDetailRoute() {
         <Card frame="cut-heavy" tone="runtime" corner="white">
           <CardContent className="pt-4">
             <p className="border border-destructive/60 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {toErrorMessage(stepDetailQuery.error)}
+              {toErrorMessage(combinedError)}
             </p>
           </CardContent>
         </Card>
@@ -1524,6 +2988,23 @@ export function RuntimeFormStepDetailRoute() {
             projectId={projectId}
             detail={detail as typeof detail & { body: FormBody }}
           />
+        ) : detail.shell.stepType === "agent" ? (
+          agentDetailQuery.data ? (
+            <AgentInteractionSurface
+              projectId={projectId}
+              shell={detail.shell}
+              detail={agentDetailQuery.data}
+            />
+          ) : (
+            <Card frame="cut-heavy" tone="runtime" corner="white">
+              <CardHeader>
+                <CardTitle>Loading Agent step runtime…</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-64 w-full rounded-none" />
+              </CardContent>
+            </Card>
+          )
         ) : (
           <Card frame="cut-heavy" tone="runtime" corner="white">
             <CardHeader>

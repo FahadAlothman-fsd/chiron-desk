@@ -377,7 +377,7 @@ Wave 5: runtime web UX + end-to-end verification + cleanup
   - [x] Agent-step payload row exists in `methodology_workflow_agent_steps` after `db:seed:reset`.
   - [x] Explicit reads/write items/requirements are persisted for the seeded step.
 
-- [ ] 5. Add runtime schema, repositories, and normalized state split
+- [x] 5. Add runtime schema, repositories, and normalized state split
 
   **What to do**: Add the runtime Agent-step persistence set: `agent_step_execution_state`, `agent_step_execution_harness_binding`, and `agent_step_execution_applied_writes`, while reusing existing `step_executions`. Keep Chiron-owned state separate from harness binding, and make `agent_step_execution_applied_writes` persist only successful applied writes. Add repository seams for runtime state, harness binding, and applied writes.
   **Must NOT do**: Do not add a Chiron-native messages table, generic interaction log, or second state stream table. Do not persist rejected writes.
@@ -416,7 +416,7 @@ Wave 5: runtime web UX + end-to-end verification + cleanup
 
   **Commit**: YES | Message: `feat(agent): add runtime state schema and repos` | Files: `packages/db/src/schema/**`, `packages/db/src/runtime-repositories/**`, `packages/db/src/tests/**`
 
-- [ ] 6. Implement sandbox-engine git truth/query seam
+- [x] 6. Implement sandbox-engine git truth/query seam
 
   **What to do**: Add the new git/repo truth seam in `packages/sandbox-engine` for the minimum v1 needs: detect whether the configured root is a git repo, validate/normalize repo-relative paths, resolve commit hashes, resolve blob hashes, and support artifact-backed file membership/identity checks. Return typed not-a-git-repo and path-invalid errors. Use this seam from Agent artifact reads/writes indirectly; do not embed git logic in Agent services.
   **Must NOT do**: Do not put this seam in workflow-engine. Do not expand into worktree/branch orchestration in this slice beyond what is strictly needed for current artifact/git truth.
@@ -449,7 +449,7 @@ Wave 5: runtime web UX + end-to-end verification + cleanup
 
   **Commit**: YES | Message: `feat(sandbox): add git query seam` | Files: `packages/sandbox-engine/src/**`, `packages/sandbox-engine/src/tests/**`
 
-- [ ] 7. Implement workflow-engine runtime domain and MCP services with a fake harness first
+- [x] 7. Implement workflow-engine runtime domain and MCP services with a fake harness first
 
   **What to do**: Add the Agent runtime services in `packages/workflow-engine` using `Context.Tag` and existing shared seams. Implement `AgentStepExecutionDetailService`, `AgentStepTimelineService`, `AgentStepSessionCommandService`, `AgentStepEventStreamService`, `AgentStepSnapshotService`, `AgentStepContextReadService`, `AgentStepContextWriteService`, and optional `AgentStepMcpService` facade. Reuse `StepExecutionDetailService`, `StepExecutionLifecycleService`, `StepProgressionService`, `StepContextQueryService`, `StepContextMutationService`, and `StepExecutionTransactionService`. Build and test first against a fake `HarnessService` implementation before the real OpenCode adapter.
   **Must NOT do**: Do not leak OpenCode SDK types into workflow-engine. Do not bypass shared context/progression/transaction seams. Do not hard-lock speculative OpenCode stream internals into the domain contracts.
@@ -496,7 +496,7 @@ Wave 5: runtime web UX + end-to-end verification + cleanup
 
   **Commit**: YES | Message: `feat(agent): add runtime domain and mcp services` | Files: `packages/workflow-engine/src/services/**`, `packages/workflow-engine/src/tests/runtime/**`
 
-- [ ] 8. Freeze HarnessService contract and add fake harness adapter in agent-runtime
+- [x] 8. Freeze HarnessService contract and add fake harness adapter in agent-runtime
 
   **What to do**: Expand the already-introduced `HarnessService` abstraction in `packages/agent-runtime` from discovery-only into the full v1 method family (`discoverMetadata`, `startSession`, `sendMessage`, `getTimelinePage`, `streamSessionEvents`) and provide a fake test adapter that exercises runtime services without OpenCode. Keep all shapes normalized to Chiron-facing DTOs/errors.
   **Must NOT do**: Do not leak OpenCode SDK types through `HarnessService`. Do not put MCP business logic into agent-runtime.
@@ -569,7 +569,7 @@ Wave 5: runtime web UX + end-to-end verification + cleanup
 
   **Commit**: YES | Message: `feat(agent): add opencode harness adapter` | Files: `packages/agent-runtime/src/**`, `packages/agent-runtime/src/tests/opencode/**`
 
-- [ ] 10. Wire runtime API procedures, MCP transport, and one SSE stream
+- [x] 10. Wire runtime API procedures, MCP transport, and one SSE stream
 
   **What to do**: Add/extend the runtime API/router surface for `getAgentStepExecutionDetail`, `getAgentStepTimelinePage`, `startAgentStepSession`, `sendAgentStepMessage`, `updateAgentStepTurnSelection`, `completeAgentStepExecution`, and `streamAgentStepSessionEvents`. Implement one step-execution-scoped oRPC SSE stream. Keep `apps/server` MCP route thin and delegate to workflow-engine MCP services. Use the latest compatible versions of the MCP/OpenCode dependency set when implementing.
   **Must NOT do**: Do not add a second live stream for read/write/progression. Do not let the server route own MCP business logic. Do not add `request_context_access` in v1.
@@ -609,7 +609,7 @@ Wave 5: runtime web UX + end-to-end verification + cleanup
 
   **Commit**: YES | Message: `feat(agent): wire runtime procedures and mcp transport` | Files: `packages/api/src/routers/**`, `apps/server/src/**`, `packages/api/src/tests/routers/**`
 
-- [ ] 11. Implement runtime web Agent-step UX
+- [x] 11. Implement runtime web Agent-step UX
 
   **What to do**: Implement the Agent-step runtime section inside the existing step execution detail page using AI Elements `PromptInput` as the composer baseline and provider-grouped searchable model-selection behavior aligned with `ModelSelector`. Render the runtime states (`not_started`, `starting_session`, `active_streaming`, `active_idle`, `disconnected_or_error`, `completed`), disabled/blurred composer before session start, Start Session CTA, one collapsible Read/Write side panel, and timeline/tool cards that distinguish harness tools vs MCP tools as far as the OpenCode message/tool parts make possible. Use query invalidation to refresh side-panel state after successful Chiron write-tool completion.
   **Must NOT do**: Do not add a second live stream for side-panel state. Do not auto-start sessions on step activation. Do not invent a separate large completion panel outside the Write tab.

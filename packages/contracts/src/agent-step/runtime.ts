@@ -112,6 +112,8 @@ export const AgentStepHarnessBinding = Schema.Struct({
   bindingState: AgentStepHarnessBindingState,
   sessionId: Schema.optional(Schema.NonEmptyString),
   serverInstanceId: Schema.optional(Schema.NonEmptyString),
+  serverBaseUrl: Schema.optional(Schema.NonEmptyString),
+  selectedAgent: Schema.optional(Schema.NonEmptyString),
   selectedModel: Schema.optional(ModelReference),
 });
 export type AgentStepHarnessBinding = typeof AgentStepHarnessBinding.Type;
@@ -228,14 +230,16 @@ export type SendAgentStepMessageOutput = typeof SendAgentStepMessageOutput.Type;
 export const UpdateAgentStepTurnSelectionInput = Schema.Struct({
   projectId: Schema.NonEmptyString,
   stepExecutionId: Schema.NonEmptyString,
-  model: ModelReference,
+  model: Schema.optional(ModelReference),
+  agent: Schema.optional(Schema.NonEmptyString),
 });
 export type UpdateAgentStepTurnSelectionInput = typeof UpdateAgentStepTurnSelectionInput.Type;
 
 export const UpdateAgentStepTurnSelectionOutput = Schema.Struct({
   stepExecutionId: Schema.NonEmptyString,
   appliesTo: Schema.Literal("next_turn_only"),
-  model: ModelReference,
+  model: Schema.optional(ModelReference),
+  agent: Schema.optional(Schema.NonEmptyString),
 });
 export type UpdateAgentStepTurnSelectionOutput = typeof UpdateAgentStepTurnSelectionOutput.Type;
 

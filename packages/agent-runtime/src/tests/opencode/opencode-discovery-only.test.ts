@@ -43,7 +43,7 @@ describe("opencode harness discovery only", () => {
       },
     }));
 
-    const service = makeOpencodeHarnessService(spawnSpy, clientFactory as never);
+    const service = makeOpencodeHarnessService(spawnSpy as never, clientFactory as never);
 
     const metadata = await Effect.runPromise(service.discoverMetadata());
 
@@ -109,7 +109,7 @@ describe("opencode harness discovery only", () => {
       throw new Error("connect failed");
     });
 
-    const service = makeOpencodeHarnessService(spawnSpy, clientFactory as never);
+    const service = makeOpencodeHarnessService(spawnSpy as never, clientFactory as never);
 
     const metadata = await Effect.runPromise(service.discoverMetadata());
 

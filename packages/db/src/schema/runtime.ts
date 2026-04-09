@@ -2,6 +2,8 @@ import { sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 
+import { AGENT_STEP_RUNTIME_STATES, WORKFLOW_CONTEXT_FACT_KINDS } from "@chiron/contracts";
+
 import {
   methodologyArtifactSlotDefinitions,
   methodologyWorkflowContextFactDefinitions,
@@ -16,6 +18,7 @@ import {
 import { projects } from "./project";
 
 const timestampDefault = sql`(cast(unixepoch('subsec') * 1000 as integer))`;
+const agentStepHarnessBindingStates = ["unbound", "binding", "bound", "errored"] as const;
 
 export const projectWorkUnits = sqliteTable(
   "project_work_units",
@@ -319,6 +322,87 @@ export const formStepExecutionState = sqliteTable(
     submittedAt: integer("submitted_at", { mode: "timestamp_ms" }),
   },
   (table) => [uniqueIndex("form_step_execution_state_step_idx").on(table.stepExecutionId)],
+);
+
+export const agentStepExecutionState = sqliteTable(
+  "agent_step_execution_state",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    stepExecutionId: text("step_execution_id")
+      .notNull()
+      .references(() => stepExecutions.id, { onDelete: "cascade" }),
+    state: text("state", { enum: AGENT_STEP_RUNTIME_STATES }).notNull().default("not_started"),
+    bootstrapAppliedAt: integer("bootstrap_applied_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(timestampDefault),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(timestampDefault)
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("agent_step_execution_state_step_idx").on(table.stepExecutionId),
+    index("agent_step_execution_state_state_idx").on(table.state),
+  ],
+);
+
+export const agentStepExecutionHarnessBinding = sqliteTable(
+  "agent_step_execution_harness_binding",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    stepExecutionId: text("step_execution_id")
+      .notNull()
+      .references(() => stepExecutions.id, { onDelete: "cascade" }),
+    harnessId: text("harness_id").notNull().default("opencode"),
+    bindingState: text("binding_state", { enum: agentStepHarnessBindingStates })
+      .notNull()
+      .default("unbound"),
+    sessionId: text("session_id"),
+    serverInstanceId: text("server_instance_id"),
+    serverBaseUrl: text("server_base_url"),
+    selectedAgentKey: text("selected_agent_key"),
+    selectedModelJson: text("selected_model_json", { mode: "json" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(timestampDefault),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(timestampDefault)
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("agent_step_execution_harness_binding_step_idx").on(table.stepExecutionId),
+    index("agent_step_execution_harness_binding_state_idx").on(table.bindingState),
+    index("agent_step_execution_harness_binding_session_idx").on(table.sessionId),
+  ],
+);
+
+export const agentStepExecutionAppliedWrites = sqliteTable(
+  "agent_step_execution_applied_writes",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    stepExecutionId: text("step_execution_id")
+      .notNull()
+      .references(() => stepExecutions.id, { onDelete: "cascade" }),
+    writeItemId: text("write_item_id").notNull(),
+    contextFactDefinitionId: text("context_fact_definition_id").notNull(),
+    contextFactKind: text("context_fact_kind", { enum: WORKFLOW_CONTEXT_FACT_KINDS }).notNull(),
+    instanceOrder: integer("instance_order").notNull(),
+    appliedValueJson: text("applied_value_json", { mode: "json" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(timestampDefault),
+  },
+  (table) => [
+    index("agent_step_execution_applied_writes_step_idx").on(
+      table.stepExecutionId,
+      table.createdAt,
+      table.id,
+    ),
+    index("agent_step_execution_applied_writes_fact_idx").on(table.contextFactDefinitionId),
+    index("agent_step_execution_applied_writes_write_item_idx").on(table.writeItemId),
+  ],
 );
 
 export const workflowExecutionContextFacts = sqliteTable(

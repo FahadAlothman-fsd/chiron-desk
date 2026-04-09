@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import { Cause, Effect, Layer, Option } from "effect";
+import { Cause, Effect, Layer, Option, Stream } from "effect";
 import { z } from "zod";
 import type {
   ChoosePrimaryWorkflowForTransitionExecutionInput,
@@ -12,8 +12,20 @@ import type {
   StartTransitionExecutionInput,
   SwitchActiveTransitionExecutionInput,
 } from "@chiron/contracts/runtime/executions";
+import type {
+  CompleteAgentStepExecutionInput,
+  GetAgentStepExecutionDetailInput,
+  GetAgentStepTimelinePageInput,
+  SendAgentStepMessageInput,
+  StartAgentStepSessionInput,
+  UpdateAgentStepTurnSelectionInput,
+} from "@chiron/contracts/agent-step/runtime";
 
 import {
+  AgentStepEventStreamService,
+  AgentStepExecutionDetailService,
+  AgentStepSessionCommandService,
+  AgentStepTimelineService,
   RuntimeArtifactService,
   RuntimeFactService,
   RuntimeGuidanceService,
@@ -196,6 +208,55 @@ const getRuntimeStepExecutionDetailInput = z.object({
   stepExecutionId: z.string().min(1),
 });
 
+const getAgentStepExecutionDetailInput: z.ZodType<GetAgentStepExecutionDetailInput> = z.object({
+  projectId: z.string().min(1),
+  stepExecutionId: z.string().min(1),
+});
+
+const getAgentStepTimelinePageInput: z.ZodType<GetAgentStepTimelinePageInput> = z.object({
+  projectId: z.string().min(1),
+  stepExecutionId: z.string().min(1),
+  cursor: z
+    .object({
+      before: z.string().min(1).optional(),
+      after: z.string().min(1).optional(),
+    })
+    .optional(),
+  limit: z.number().int().nonnegative().optional(),
+});
+
+const startAgentStepSessionInput: z.ZodType<StartAgentStepSessionInput> = z.object({
+  projectId: z.string().min(1),
+  stepExecutionId: z.string().min(1),
+});
+
+const sendAgentStepMessageInput: z.ZodType<SendAgentStepMessageInput> = z.object({
+  projectId: z.string().min(1),
+  stepExecutionId: z.string().min(1),
+  message: z.string().trim().min(1),
+});
+
+const modelReferenceInput = z.object({
+  provider: z.string().min(1),
+  model: z.string().min(1),
+});
+
+const updateAgentStepTurnSelectionInput: z.ZodType<UpdateAgentStepTurnSelectionInput> = z
+  .object({
+    projectId: z.string().min(1),
+    stepExecutionId: z.string().min(1),
+    model: modelReferenceInput.optional(),
+    agent: z.string().min(1).optional(),
+  })
+  .refine((value) => value.model !== undefined || value.agent !== undefined, {
+    message: "Provide at least one turn selection override.",
+  });
+
+const completeAgentStepExecutionInput: z.ZodType<CompleteAgentStepExecutionInput> = z.object({
+  projectId: z.string().min(1),
+  stepExecutionId: z.string().min(1),
+});
+
 const saveFormStepDraftInput = z.object({
   projectId: z.string().min(1),
   workflowExecutionId: z.string().min(1),
@@ -273,11 +334,35 @@ function mapEffectError(err: unknown): never {
     throw new ORPCError("NOT_FOUND", { message });
   }
 
+  const isMissingHarnessSession =
+    (tag === "HarnessExecutionError" || tag === "OpenCodeExecutionError") &&
+    message.includes("Harness session") &&
+    message.includes("was not found");
+
+  if (isMissingHarnessSession) {
+    throw new ORPCError("CONFLICT", {
+      message: "Agent session was lost. Start or retry the session to continue.",
+    });
+  }
+
   switch (tag) {
     case "RepositoryError":
       throw new ORPCError("INTERNAL_SERVER_ERROR", {
         message: `Repository operation failed: ${message}`,
       });
+    case "AgentStepStateTransitionError":
+      if (message.includes("session was lost") || message.includes("Start or retry the session")) {
+        throw new ORPCError("CONFLICT", { message });
+      }
+      throw new ORPCError("BAD_REQUEST", { message });
+    case "McpToolValidationError":
+      throw new ORPCError("BAD_REQUEST", { message });
+    case "McpWriteRequirementError":
+    case "SingleLiveStreamContractError":
+      throw new ORPCError("CONFLICT", { message });
+    case "HarnessExecutionError":
+    case "OpenCodeExecutionError":
+      throw new ORPCError("INTERNAL_SERVER_ERROR", { message });
     case "UnsupportedConditionKindError":
       throw new ORPCError("BAD_REQUEST", { message: "Unsupported condition kind" });
     default:
@@ -292,6 +377,25 @@ function runEffect<A>(
   return Effect.runPromiseExit(effect.pipe(Effect.provide(serviceLayer))).then((exit) => {
     if (exit._tag === "Success") {
       return exit.value;
+    }
+
+    const failure = Cause.failureOption(exit.cause);
+
+    if (Option.isSome(failure)) {
+      mapEffectError(failure.value);
+    }
+
+    throw Cause.squash(exit.cause);
+  });
+}
+
+function runStreamEffect<A>(
+  serviceLayer: Layer.Layer<any>,
+  effect: Effect.Effect<Stream.Stream<A, unknown>, unknown, any>,
+): Promise<AsyncIterable<A>> {
+  return Effect.runPromiseExit(effect.pipe(Effect.provide(serviceLayer))).then((exit) => {
+    if (exit._tag === "Success") {
+      return Stream.toAsyncIterable(exit.value);
     }
 
     const failure = Cause.failureOption(exit.cause);
@@ -642,6 +746,99 @@ export function createProjectRuntimeRouter(serviceLayer: Layer.Layer<any>) {
             }
 
             return detail;
+          }),
+        ),
+      ),
+
+    getAgentStepExecutionDetail: publicProcedure
+      .input(getAgentStepExecutionDetailInput)
+      .handler(async ({ input }) =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const agentStepExecutionDetailService = yield* AgentStepExecutionDetailService;
+            const detail =
+              yield* agentStepExecutionDetailService.getAgentStepExecutionDetail(input);
+
+            if (!detail) {
+              throw new ORPCError("NOT_FOUND", {
+                message: `Agent step execution not found: ${input.stepExecutionId}`,
+              });
+            }
+
+            return detail;
+          }),
+        ),
+      ),
+
+    getAgentStepTimelinePage: publicProcedure
+      .input(getAgentStepTimelinePageInput)
+      .handler(async ({ input }) =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const agentStepTimelineService = yield* AgentStepTimelineService;
+            return yield* agentStepTimelineService.getTimelinePage(input);
+          }),
+        ),
+      ),
+
+    startAgentStepSession: protectedProcedure
+      .input(startAgentStepSessionInput)
+      .handler(async ({ input }) =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const agentStepSessionCommandService = yield* AgentStepSessionCommandService;
+            return yield* agentStepSessionCommandService.startAgentStepSession(input);
+          }),
+        ),
+      ),
+
+    sendAgentStepMessage: protectedProcedure
+      .input(sendAgentStepMessageInput)
+      .handler(async ({ input }) =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const agentStepSessionCommandService = yield* AgentStepSessionCommandService;
+            return yield* agentStepSessionCommandService.sendAgentStepMessage(input);
+          }),
+        ),
+      ),
+
+    updateAgentStepTurnSelection: protectedProcedure
+      .input(updateAgentStepTurnSelectionInput)
+      .handler(async ({ input }) =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const agentStepSessionCommandService = yield* AgentStepSessionCommandService;
+            return yield* agentStepSessionCommandService.updateAgentStepTurnSelection(input);
+          }),
+        ),
+      ),
+
+    completeAgentStepExecution: protectedProcedure
+      .input(completeAgentStepExecutionInput)
+      .handler(async ({ input }) =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const agentStepSessionCommandService = yield* AgentStepSessionCommandService;
+            return yield* agentStepSessionCommandService.completeAgentStepExecution(input);
+          }),
+        ),
+      ),
+
+    streamAgentStepSessionEvents: publicProcedure
+      .input(getAgentStepExecutionDetailInput)
+      .handler(async ({ input }) =>
+        runStreamEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const agentStepEventStreamService = yield* AgentStepEventStreamService;
+            return agentStepEventStreamService.streamSessionEvents(input);
           }),
         ),
       ),

@@ -1,12 +1,18 @@
 import { Context, Effect, Layer } from "effect";
+import type { WorkflowContextFactKind } from "@chiron/contracts/methodology/workflow";
 
 import { RepositoryError } from "../errors";
+import {
+  AgentStepExecutionAppliedWriteRepository,
+  type AgentStepExecutionAppliedWriteRow,
+} from "../repositories/agent-step-execution-applied-write-repository";
 import { StepExecutionRepository } from "../repositories/step-execution-repository";
 import { WorkflowExecutionRepository } from "../repositories/workflow-execution-repository";
 import {
   StepContextMutationService,
   type StepContextReplaceInput,
 } from "./step-context-mutation-service";
+import type { ReplaceRuntimeWorkflowExecutionContextFactValue } from "../repositories/step-execution-repository";
 import { StepExecutionLifecycleService } from "./step-execution-lifecycle-service";
 
 export interface SubmitFormStepExecutionParams {
@@ -29,6 +35,21 @@ export interface CompleteStepExecutionParams {
 export interface CompleteStepExecutionResult {
   stepExecutionId: string;
   status: "completed";
+}
+
+export interface ApplyAgentStepWriteParams {
+  workflowExecutionId: string;
+  stepExecutionId: string;
+  writeItemId: string;
+  contextFactDefinitionId: string;
+  contextFactKind: WorkflowContextFactKind;
+  currentValues: readonly ReplaceRuntimeWorkflowExecutionContextFactValue[];
+}
+
+export interface ApplyAgentStepWriteResult {
+  stepExecutionId: string;
+  writeItemId: string;
+  appliedWrites: readonly AgentStepExecutionAppliedWriteRow[];
 }
 
 const makeTransactionError = (cause: string): RepositoryError =>
@@ -57,6 +78,9 @@ export class StepExecutionTransactionService extends Context.Tag(
     readonly completeStepExecution: (
       params: CompleteStepExecutionParams,
     ) => Effect.Effect<CompleteStepExecutionResult, RepositoryError>;
+    readonly applyAgentStepWrite: (
+      params: ApplyAgentStepWriteParams,
+    ) => Effect.Effect<ApplyAgentStepWriteResult, RepositoryError>;
   }
 >() {}
 
@@ -67,6 +91,7 @@ export const StepExecutionTransactionServiceLive = Layer.effect(
     const workflowRepo = yield* WorkflowExecutionRepository;
     const lifecycle = yield* StepExecutionLifecycleService;
     const contextMutation = yield* StepContextMutationService;
+    const appliedWriteRepo = yield* AgentStepExecutionAppliedWriteRepository;
 
     const activateFirstStepExecution = (workflowExecutionId: string) =>
       Effect.gen(function* () {
@@ -169,11 +194,60 @@ export const StepExecutionTransactionServiceLive = Layer.effect(
         } satisfies CompleteStepExecutionResult;
       });
 
+    const applyAgentStepWrite = ({
+      workflowExecutionId,
+      stepExecutionId,
+      writeItemId,
+      contextFactDefinitionId,
+      contextFactKind,
+      currentValues,
+    }: ApplyAgentStepWriteParams) =>
+      Effect.gen(function* () {
+        const [workflowExecution, stepExecution] = yield* Effect.all([
+          workflowRepo.getWorkflowExecutionById(workflowExecutionId),
+          stepRepo.getStepExecutionById(stepExecutionId),
+        ]);
+
+        if (!workflowExecution) {
+          return yield* makeTransactionError("workflow execution not found");
+        }
+        if (!stepExecution || stepExecution.workflowExecutionId !== workflowExecutionId) {
+          return yield* makeTransactionError(
+            "step execution does not belong to workflow execution",
+          );
+        }
+
+        const replaced = yield* contextMutation.replaceContextFacts({
+          workflowExecutionId,
+          sourceStepExecutionId: stepExecutionId,
+          affectedContextFactDefinitionIds: [contextFactDefinitionId],
+          currentValues,
+        });
+
+        const appliedWrites = yield* Effect.forEach(replaced, (row) =>
+          appliedWriteRepo.createAppliedWrite({
+            stepExecutionId,
+            writeItemId,
+            contextFactDefinitionId: row.contextFactDefinitionId,
+            contextFactKind,
+            instanceOrder: row.instanceOrder,
+            appliedValueJson: row.valueJson,
+          }),
+        );
+
+        return {
+          stepExecutionId,
+          writeItemId,
+          appliedWrites,
+        } satisfies ApplyAgentStepWriteResult;
+      });
+
     return StepExecutionTransactionService.of({
       activateFirstStepExecution,
       activateStepExecution,
       submitFormStepExecution,
       completeStepExecution,
+      applyAgentStepWrite,
     });
   }),
 );

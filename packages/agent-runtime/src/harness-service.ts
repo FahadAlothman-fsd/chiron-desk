@@ -1,6 +1,14 @@
 import { Context } from "effect";
 import * as Schema from "effect/Schema";
 
+import { HarnessExecutionError, OpenCodeExecutionError } from "@chiron/contracts/agent-step/errors";
+import {
+  AgentStepTimelineCursor,
+  AgentStepTimelineItem,
+} from "@chiron/contracts/agent-step/runtime";
+import { ModelReference } from "@chiron/contracts/methodology/agent";
+import { AgentStepSseEnvelope } from "@chiron/contracts/sse";
+
 export const HarnessDiscoveredModel = Schema.Struct({
   provider: Schema.NonEmptyString,
   model: Schema.NonEmptyString,
@@ -51,12 +59,80 @@ export class HarnessDiscoveryError extends Schema.TaggedError<HarnessDiscoveryEr
   },
 ) {}
 
-export class HarnessService extends Context.Tag("HarnessService")<
+export const HarnessOperationError = Schema.Union(HarnessExecutionError, OpenCodeExecutionError);
+export type HarnessOperationError = typeof HarnessOperationError.Type;
+
+export const HarnessSessionConfig = Schema.Struct({
+  stepExecutionId: Schema.NonEmptyString,
+  projectRootPath: Schema.optional(Schema.NonEmptyString),
+  agent: Schema.optional(Schema.NonEmptyString),
+  model: Schema.optional(ModelReference),
+  objective: Schema.NonEmptyString,
+  instructionsMarkdown: Schema.NonEmptyString,
+});
+export type HarnessSessionConfig = typeof HarnessSessionConfig.Type;
+
+export const HarnessSession = Schema.Struct({
+  sessionId: Schema.NonEmptyString,
+  stepExecutionId: Schema.NonEmptyString,
+  startedAt: Schema.NonEmptyString,
+  state: Schema.Literal(
+    "starting_session",
+    "active_streaming",
+    "active_idle",
+    "disconnected_or_error",
+    "completed",
+  ),
+  agent: Schema.optional(Schema.NonEmptyString),
+  model: Schema.optional(ModelReference),
+});
+export type HarnessSession = typeof HarnessSession.Type;
+
+export const HarnessSessionStarted = Schema.Struct({
+  session: HarnessSession,
+  serverInstanceId: Schema.optional(Schema.NonEmptyString),
+  serverBaseUrl: Schema.optional(Schema.NonEmptyString),
+  timeline: Schema.Array(AgentStepTimelineItem),
+  cursor: AgentStepTimelineCursor,
+});
+export type HarnessSessionStarted = typeof HarnessSessionStarted.Type;
+
+export const HarnessMessageAccepted = Schema.Struct({
+  sessionId: Schema.NonEmptyString,
+  stepExecutionId: Schema.NonEmptyString,
+  accepted: Schema.Literal(true),
+  state: Schema.Literal("active_streaming", "active_idle"),
+});
+export type HarnessMessageAccepted = typeof HarnessMessageAccepted.Type;
+
+export const HarnessTimelinePage = Schema.Struct({
+  sessionId: Schema.NonEmptyString,
+  stepExecutionId: Schema.NonEmptyString,
+  cursor: AgentStepTimelineCursor,
+  items: Schema.Array(AgentStepTimelineItem),
+});
+export type HarnessTimelinePage = typeof HarnessTimelinePage.Type;
+
+export class HarnessService extends Context.Tag("@chiron/agent-runtime/HarnessService")<
   HarnessService,
   {
     readonly discoverMetadata: () => import("effect").Effect.Effect<
       HarnessDiscoveryMetadata,
       HarnessDiscoveryError
     >;
+    readonly startSession: (
+      config: HarnessSessionConfig,
+    ) => import("effect").Effect.Effect<HarnessSessionStarted, HarnessOperationError>;
+    readonly sendMessage: (
+      sessionId: string,
+      message: string,
+    ) => import("effect").Effect.Effect<HarnessMessageAccepted, HarnessOperationError>;
+    readonly getTimelinePage: (
+      sessionId: string,
+      cursor?: typeof AgentStepTimelineCursor.Type,
+    ) => import("effect").Effect.Effect<HarnessTimelinePage, HarnessOperationError>;
+    readonly streamSessionEvents: (
+      sessionId: string,
+    ) => import("effect").Stream.Stream<AgentStepSseEnvelope, HarnessOperationError>;
   }
 >() {}

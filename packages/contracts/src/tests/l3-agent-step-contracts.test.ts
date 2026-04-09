@@ -126,6 +126,14 @@ describe("l3 agent-step contracts", () => {
         },
       }).model,
     ).toEqual({ provider: "anthropic", model: "claude-sonnet" });
+
+    expect(
+      Schema.decodeUnknownSync(UpdateAgentStepTurnSelectionInput)({
+        projectId: "project-1",
+        stepExecutionId: "step-exec-1",
+        agent: "explore",
+      }).agent,
+    ).toBe("explore");
   });
 
   it("freezes the runtime state machine and disallows extra states", () => {
@@ -182,6 +190,7 @@ describe("l3 agent-step contracts", () => {
         bindingState: "bound",
         sessionId: "session-1",
         serverInstanceId: "server-1",
+        selectedAgent: "explore",
       },
       composer: {
         enabled: true,

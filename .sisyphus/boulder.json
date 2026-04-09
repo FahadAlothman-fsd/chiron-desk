@@ -19,7 +19,31 @@
     "ses_28e88acfdffeDs914fTMhnY8vJ",
     "ses_28e8857a3ffeCTGgvNJeG1r2r4",
     "ses_28e88ae1affePgJKEW4aS6i2Tv",
-    "ses_28e819843ffelfYLqSa0OrHO0E"
+    "ses_28e819843ffelfYLqSa0OrHO0E",
+    "ses_28e45f3deffeKGYGUAwaAFNNxb",
+    "ses_28e4613b4ffeEAFQIkKh8SX1fY",
+    "ses_28e45c79dffet10yanSsy4Vjsm",
+    "ses_28e360629ffewzOA3bdbkrjJjq",
+    "ses_28e191094ffeMLLTxiEaZX61xL",
+    "ses_28dfdcf4affemEUZbE4SJG7mXG",
+    "ses_28defb8dbffeHLE62fWM8ejRsB",
+    "ses_28d98cc4cffej861miJlMfrDt0",
+    "ses_28d98cc40ffeN7w0W8R1DDLoJE",
+    "ses_28d90b5d1ffevkXDp6yJNxM6oA",
+    "ses_28d90b5b0ffe70e09r3gYKpaqf",
+    "ses_28d4b527bffeSngRyEGcy5kYs6",
+    "ses_28d4b5284ffemXKq5z591M4SLd",
+    "ses_28d431bfaffetlOAyy65h5BVyl",
+    "ses_28d2d841affe6CDW3o3zkasZx1",
+    "ses_28d2d89c8ffeb39lm8dKLKmgIw",
+    "ses_28d294472ffejGiHuHzdWfVffs",
+    "ses_28ce50629ffeboyT8izhJaQyoc",
+    "ses_28ce5002cffeHZyQcu46j8zc2Z",
+    "ses_28ce1dcc1ffeZZhy9HlusKD3p5",
+    "ses_28ccebb78ffen9XJF21uj63hQH",
+    "ses_28cc994cdffeNODghGIOW9vQu5",
+    "ses_28cc98edeffel9hMWnhkygM3R0",
+    "ses_28cc0894cffelsD7Eo43mrGk76"
   ],
   "plan_name": "l3-agent-step-design-runtime",
   "worktree_path": null,
@@ -50,6 +74,33 @@
       "agent": "Sisyphus-Junior",
       "category": "visual-engineering",
       "updated_at": "2026-04-08T23:23:00.941Z"
+    },
+    "todo:5": {
+      "task_key": "todo:5",
+      "task_label": "5",
+      "task_title": "Add runtime schema, repositories, and normalized state split",
+      "session_id": "ses_28e4613b4ffeEAFQIkKh8SX1fY",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-09T10:21:59.641Z"
+    },
+    "todo:7": {
+      "task_key": "todo:7",
+      "task_label": "7",
+      "task_title": "Implement workflow-engine runtime domain and MCP services with a fake harness first",
+      "session_id": "ses_28e360629ffewzOA3bdbkrjJjq",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-09T10:56:58.951Z"
+    },
+    "todo:9": {
+      "task_key": "todo:9",
+      "task_label": "9",
+      "task_title": "Implement OpencodeHarnessService and managed server/session lifecycle",
+      "session_id": "ses_28defb8dbffeHLE62fWM8ejRsB",
+      "agent": "Sisyphus-Junior",
+      "category": "visual-engineering",
+      "updated_at": "2026-04-09T12:14:25.250Z"
     }
   }
 }

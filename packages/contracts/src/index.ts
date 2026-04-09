@@ -1,4 +1,4 @@
-export * from "./methodology/version";
+export { WORKFLOW_CONTEXT_FACT_KINDS, WorkflowContextFactKind } from "./methodology/workflow";
 export * from "./desktop-runtime";
 export * from "./runtime";
 export * from "./agent-step";

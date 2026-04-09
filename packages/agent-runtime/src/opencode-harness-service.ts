@@ -4,7 +4,13 @@ import {
   type OpencodeClient,
   type OpencodeClientConfig,
 } from "@opencode-ai/sdk";
-import { Effect, Layer } from "effect";
+import { HarnessExecutionError, OpenCodeExecutionError } from "@chiron/contracts/agent-step/errors";
+import type {
+  AgentStepTimelineCursor,
+  AgentStepTimelineItem,
+} from "@chiron/contracts/agent-step/runtime";
+import type { AgentStepSseEnvelope } from "@chiron/contracts/sse";
+import { Context, Effect, Layer, Queue, Runtime, Stream } from "effect";
 
 import {
   HarnessDiscoveryError,
@@ -13,17 +19,98 @@ import {
   type HarnessDiscoveredModel,
   type HarnessDiscoveredProvider,
   type HarnessDiscoveryMetadata,
+  type HarnessMessageAccepted,
+  type HarnessSession,
+  type HarnessSessionConfig,
+  type HarnessSessionStarted,
+  type HarnessTimelinePage,
 } from "./harness-service";
 
-type OpencodeFactoryResult = Awaited<ReturnType<typeof createOpencode>>;
-type OpencodeFactory = (options?: { port?: number }) => Promise<OpencodeFactoryResult>;
-type OpencodeClientFactory = (
-  config?: OpencodeClientConfig & {
-    directory?: string;
-  },
-) => OpencodeClient;
+type OpencodeFactory = typeof createOpencode;
+
+type PromptModel = {
+  providerID: string;
+  modelID: string;
+};
+
+type PromptInput = {
+  readonly sessionId: string;
+  readonly text: string;
+  readonly agent?: string;
+  readonly model?: PromptModel;
+  readonly noReply?: boolean;
+};
+
+type OpencodeMessageRecord = {
+  readonly info: unknown;
+  readonly parts: readonly unknown[];
+};
+
+type OpencodeClientPort = {
+  readonly discoverAgents: () => Promise<unknown>;
+  readonly discoverProviders: () => Promise<unknown>;
+  readonly createSession: (input: { readonly title: string }) => Promise<unknown>;
+  readonly prompt: (input: PromptInput) => Promise<unknown>;
+  readonly listMessages: (sessionId: string) => Promise<readonly OpencodeMessageRecord[]>;
+  readonly subscribeEvents: (options?: { readonly signal?: AbortSignal }) => Promise<unknown>;
+  readonly healthCheck: () => Promise<void>;
+};
+
+type OpencodeManagedServer = {
+  readonly serverInstanceId: string;
+  readonly stepExecutionId?: string;
+  readonly baseUrl: string;
+  readonly client: OpencodeClientPort;
+  readonly close: () => void;
+};
+
+type SessionRecord = {
+  session: HarnessSession;
+  readonly client: OpencodeClientPort;
+  readonly server: OpencodeManagedServer;
+  readonly bootstrapContent: string;
+  readonly timeline: AgentStepTimelineItem[];
+  readonly timelineIds: Set<string>;
+  readonly eventLog: AgentStepSseEnvelope[];
+  readonly subscribers: Set<Queue.Queue<AgentStepSseEnvelope>>;
+  readonly ignoredMessageIds: Set<string>;
+};
+
+type OpencodeClientFactoryServiceShape = {
+  readonly createClient: (
+    config: OpencodeClientConfig & { readonly directory?: string },
+  ) => Effect.Effect<OpencodeClientPort, OpenCodeExecutionError>;
+};
+
+type OpencodeServerManagerServiceShape = {
+  readonly connectExistingServer: (
+    baseUrl: string,
+  ) => Effect.Effect<OpencodeManagedServer, HarnessDiscoveryError>;
+  readonly startDiscoveryServer: () => Effect.Effect<OpencodeManagedServer, HarnessDiscoveryError>;
+  readonly startManagedServer: (
+    stepExecutionId: string,
+    directory?: string,
+  ) => Effect.Effect<OpencodeManagedServer, OpenCodeExecutionError>;
+  readonly stopServer: (server: OpencodeManagedServer) => Effect.Effect<void, never>;
+};
 
 const DEFAULT_OPENCODE_URL = "http://127.0.0.1:4096";
+const DEFAULT_CHIRON_MCP_URL = "http://127.0.0.1:3000/mcp";
+const SESSION_STREAM_CONTRACT = {
+  streamName: "agent_step_session_events" as const,
+  streamCount: 1 as const,
+  transport: "sse" as const,
+  source: "step_execution_scoped" as const,
+  purpose: "timeline_and_tool_activity" as const,
+};
+
+export class OpencodeClientFactoryService extends Context.Tag(
+  "@chiron/agent-runtime/OpencodeClientFactoryService",
+)<OpencodeClientFactoryService, OpencodeClientFactoryServiceShape>() {}
+
+export class OpencodeServerManagerService extends Context.Tag(
+  "@chiron/agent-runtime/OpencodeServerManagerService",
+)<OpencodeServerManagerService, OpencodeServerManagerServiceShape>() {}
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -35,9 +122,138 @@ function readString(value: unknown, fallback = ""): string {
   return typeof value === "string" && value.trim().length > 0 ? value : fallback;
 }
 
+function readOptionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+}
+
+function readNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
 function unwrapResponse<T>(value: T | { data: T }): T {
   const record = asRecord(value);
   return record && "data" in record ? (record.data as T) : (value as T);
+}
+
+function createId(prefix: string): string {
+  return `${prefix}:${crypto.randomUUID()}`;
+}
+
+function normalizeTimestamp(value: unknown, fallback: string): string {
+  const numeric = readNumber(value);
+  if (numeric === undefined) {
+    return fallback;
+  }
+
+  const millis = numeric < 1_000_000_000_000 ? numeric * 1000 : numeric;
+  return new Date(millis).toISOString();
+}
+
+function resolveOpencodeBaseUrl(): string {
+  const envUrl = process.env.OPENCODE_SERVER_URL?.trim();
+  return envUrl && envUrl.length > 0 ? envUrl : DEFAULT_OPENCODE_URL;
+}
+
+function resolveChironMcpUrl(stepExecutionId: string): string {
+  const base = process.env.CHIRON_MCP_URL?.trim() || DEFAULT_CHIRON_MCP_URL;
+  const url = new URL(base);
+  url.searchParams.set("stepExecutionId", stepExecutionId);
+  return url.toString();
+}
+
+function getTimelineSlice(
+  items: readonly AgentStepTimelineItem[],
+  cursor?: AgentStepTimelineCursor,
+): readonly AgentStepTimelineItem[] {
+  if (!cursor?.before && !cursor?.after) {
+    return items;
+  }
+
+  if (cursor.after) {
+    const afterIndex = items.findIndex((item) => item.timelineItemId === cursor.after);
+    return afterIndex >= 0 ? items.slice(afterIndex + 1) : items;
+  }
+
+  if (cursor.before) {
+    const beforeIndex = items.findIndex((item) => item.timelineItemId === cursor.before);
+    return beforeIndex >= 0 ? items.slice(0, beforeIndex) : items;
+  }
+
+  return items;
+}
+
+function createCursor(items: readonly AgentStepTimelineItem[]): HarnessTimelinePage["cursor"] {
+  if (items.length === 0) {
+    return {};
+  }
+
+  return {
+    before: items[0]?.timelineItemId,
+    after: items[items.length - 1]?.timelineItemId,
+  };
+}
+
+function opencodeError(
+  operation: OpenCodeExecutionError["operation"],
+  message: string,
+  cause?: unknown,
+): OpenCodeExecutionError {
+  return new OpenCodeExecutionError({
+    operation,
+    message,
+    ...(cause === undefined ? {} : { cause }),
+  });
+}
+
+function harnessError(
+  operation: HarnessExecutionError["operation"],
+  message: string,
+  cause?: unknown,
+): HarnessExecutionError {
+  return new HarnessExecutionError({
+    operation,
+    message,
+    ...(cause === undefined ? {} : { cause }),
+  });
+}
+
+function discoveryError(message: string, cause?: unknown): HarnessDiscoveryError {
+  return new HarnessDiscoveryError({
+    harness: "opencode",
+    message:
+      cause instanceof Error && !message.includes(cause.message)
+        ? `${message}: ${cause.message}`
+        : message,
+  });
+}
+
+function toPromptModel(model: HarnessSession["model"] | undefined): PromptModel | undefined {
+  return model
+    ? {
+        providerID: model.provider,
+        modelID: model.model,
+      }
+    : undefined;
+}
+
+function buildPromptInput(input: {
+  readonly sessionId: string;
+  readonly text: string;
+  readonly agent?: string;
+  readonly model?: PromptModel;
+  readonly noReply?: boolean;
+}): PromptInput {
+  return {
+    sessionId: input.sessionId,
+    text: input.text,
+    ...(input.agent ? { agent: input.agent } : {}),
+    ...(input.model ? { model: input.model } : {}),
+    ...(input.noReply ? { noReply: true } : {}),
+  };
+}
+
+function buildBootstrapContent(config: HarnessSessionConfig): string {
+  return [config.objective, config.instructionsMarkdown].join("\n\n");
 }
 
 function normalizeModels(
@@ -62,7 +278,7 @@ function normalizeModels(
         label: readString(model.name, readString(model.id, modelId) || providerLabel),
         isDefault: defaultModelId === modelId || defaultModelId === model.id,
         supportsReasoning: capabilities.reasoning === true,
-        supportsTools: capabilities.toolcall === true,
+        supportsTools: capabilities.toolcall === true || capabilities.tool_call === true,
         supportsAttachments: capabilities.attachment === true,
       } satisfies HarnessDiscoveredModel;
     })
@@ -122,7 +338,11 @@ function normalizeAgents(agentsValue: unknown): readonly HarnessDiscoveredAgent[
 
   for (const agentValue of agents) {
     const agent = asRecord(agentValue) ?? {};
-    const key = readString(agent.name);
+    const key =
+      readOptionalString(agent.key) ??
+      readOptionalString(agent.id) ??
+      readOptionalString(agent.slug) ??
+      readOptionalString(agent.name);
     if (!key) {
       continue;
     }
@@ -130,7 +350,7 @@ function normalizeAgents(agentsValue: unknown): readonly HarnessDiscoveredAgent[
     const defaultModel = asRecord(agent.model);
     normalizedAgents.push({
       key,
-      label: key,
+      label: readString(agent.label, readString(agent.name, key)),
       ...(typeof agent.description === "string" ? { description: agent.description } : {}),
       mode:
         agent.mode === "primary" || agent.mode === "all" || agent.mode === "subagent"
@@ -151,29 +371,303 @@ function normalizeAgents(agentsValue: unknown): readonly HarnessDiscoveredAgent[
   return normalizedAgents;
 }
 
-function resolveOpencodeBaseUrl(): string {
-  const envUrl = process.env.OPENCODE_SERVER_URL?.trim();
-  return envUrl && envUrl.length > 0 ? envUrl : DEFAULT_OPENCODE_URL;
+function normalizeAgentToken(value: string): string {
+  return value
+    .normalize("NFKC")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .trim()
+    .toLowerCase();
 }
 
-function discoverMetadataWithClient(client: Pick<OpencodeClient, "app" | "config">) {
+function resolveDiscoveredAgentKey(
+  selectedAgent: string | undefined,
+  discoveredAgents: readonly HarnessDiscoveredAgent[],
+): string | undefined {
+  if (!selectedAgent) {
+    return undefined;
+  }
+
+  const exact = discoveredAgents.find((agent) => agent.key === selectedAgent);
+  if (exact) {
+    return exact.key;
+  }
+
+  const normalizedSelection = normalizeAgentToken(selectedAgent);
+  const normalizedMatch = discoveredAgents.find(
+    (agent) =>
+      normalizeAgentToken(agent.key) === normalizedSelection ||
+      normalizeAgentToken(agent.label) === normalizedSelection,
+  );
+
+  return normalizedMatch?.key ?? selectedAgent;
+}
+
+function modelExists(
+  discoveredModels: readonly HarnessDiscoveredModel[],
+  model: HarnessSession["model"] | undefined,
+): model is NonNullable<HarnessSession["model"]> {
+  if (!model) {
+    return false;
+  }
+
+  return discoveredModels.some(
+    (entry) => entry.provider === model.provider && entry.model === model.model,
+  );
+}
+
+function resolveDiscoveredModel(
+  selectedModel: HarnessSession["model"] | undefined,
+  selectedAgent: string | undefined,
+  discoveredAgents: readonly HarnessDiscoveredAgent[],
+  discoveredModels: readonly HarnessDiscoveredModel[],
+): HarnessSession["model"] | undefined {
+  if (selectedModel && discoveredModels.length === 0) {
+    return selectedModel;
+  }
+
+  if (modelExists(discoveredModels, selectedModel)) {
+    return selectedModel;
+  }
+
+  const agentDefaultModel = selectedAgent
+    ? discoveredAgents.find((entry) => entry.key === selectedAgent)?.defaultModel
+    : undefined;
+  if (modelExists(discoveredModels, agentDefaultModel)) {
+    return agentDefaultModel;
+  }
+
+  const selectedProvider = selectedModel?.provider;
+  if (selectedProvider) {
+    const selectedProviderDefault = discoveredModels.find(
+      (entry) => entry.provider === selectedProvider && entry.isDefault,
+    );
+    if (selectedProviderDefault) {
+      return {
+        provider: selectedProviderDefault.provider,
+        model: selectedProviderDefault.model,
+      };
+    }
+
+    const selectedProviderAny = discoveredModels.find(
+      (entry) => entry.provider === selectedProvider,
+    );
+    if (selectedProviderAny) {
+      return {
+        provider: selectedProviderAny.provider,
+        model: selectedProviderAny.model,
+      };
+    }
+  }
+
+  const providerDefault = discoveredModels.find((entry) => entry.isDefault);
+  if (providerDefault) {
+    return { provider: providerDefault.provider, model: providerDefault.model };
+  }
+
+  const firstModel = discoveredModels.at(0);
+  return firstModel ? { provider: firstModel.provider, model: firstModel.model } : undefined;
+}
+
+function createPortFromClient(
+  client: Pick<OpencodeClient, "app" | "config" | "session" | "event">,
+): OpencodeClientPort {
+  return {
+    discoverAgents: () => client.app.agents(),
+    discoverProviders: () => client.config.providers(),
+    createSession: ({ title }) => client.session.create({ body: { title } }),
+    prompt: ({ sessionId, text, agent, model, noReply }) =>
+      client.session.prompt({
+        path: { id: sessionId },
+        body: {
+          ...(agent ? { agent } : {}),
+          ...(model ? { model } : {}),
+          ...(noReply ? { noReply: true } : {}),
+          parts: [{ type: "text", text }],
+        },
+      }),
+    listMessages: async (sessionId) => {
+      const response = unwrapResponse(await client.session.messages({ path: { id: sessionId } }));
+      return Array.isArray(response)
+        ? response.map((entry) => {
+            const record = asRecord(entry) ?? {};
+            return {
+              info: record.info,
+              parts: Array.isArray(record.parts) ? record.parts : [],
+            } satisfies OpencodeMessageRecord;
+          })
+        : [];
+    },
+    subscribeEvents: ({ signal } = {}) => client.event.subscribe(signal ? { signal } : undefined),
+    healthCheck: async () => {
+      await client.app.agents();
+    },
+  };
+}
+
+export function makeOpencodeClientFactoryService(
+  clientFactory: (
+    config?: OpencodeClientConfig & { readonly directory?: string },
+  ) => OpencodeClient = createOpencodeClient,
+) {
+  return OpencodeClientFactoryService.of({
+    createClient: (config) =>
+      Effect.try({
+        try: () => createPortFromClient(clientFactory(config)),
+        catch: (error) =>
+          opencodeError(
+            "start_session",
+            error instanceof Error ? error.message : "Failed to create OpenCode client.",
+            error,
+          ),
+      }),
+  });
+}
+
+export function makeOpencodeServerManagerService(
+  factory: OpencodeFactory = createOpencode,
+  clientFactoryService: OpencodeClientFactoryServiceShape = makeOpencodeClientFactoryService(),
+) {
+  const managedServers = new Map<string, OpencodeManagedServer>();
+
+  const stopServer = (server: OpencodeManagedServer) =>
+    Effect.sync(() => {
+      managedServers.delete(server.stepExecutionId ?? server.serverInstanceId);
+      server.close();
+    }).pipe(Effect.orDie);
+
+  const spawnServer = <E>(input: {
+    readonly stepExecutionId?: string;
+    readonly directory?: string;
+    readonly onError: (message: string, cause?: unknown) => E;
+  }) =>
+    Effect.tryPromise({
+      try: async () => {
+        const runtime = await factory({
+          port: 0,
+          ...(input.stepExecutionId
+            ? {
+                config: {
+                  share: "disabled",
+                  mcp: {
+                    chiron: {
+                      type: "remote",
+                      url: resolveChironMcpUrl(input.stepExecutionId),
+                      enabled: true,
+                    },
+                  },
+                },
+              }
+            : {}),
+        });
+
+        const runtimeRecord = asRecord(runtime);
+        const serverRecord = asRecord(runtimeRecord?.server);
+        const baseUrl = readString(serverRecord?.url);
+        const fallbackClient = createPortFromClient(runtime.client);
+        const managed: OpencodeManagedServer = {
+          serverInstanceId: createId("opencode-server"),
+          ...(input.stepExecutionId ? { stepExecutionId: input.stepExecutionId } : {}),
+          baseUrl,
+          client:
+            baseUrl.length > 0
+              ? await Effect.runPromise(
+                  clientFactoryService.createClient({
+                    baseUrl,
+                    directory: input.directory ?? process.cwd(),
+                  }),
+                )
+              : fallbackClient,
+          close: () => {
+            runtime.server.close();
+          },
+        };
+
+        if (input.stepExecutionId) {
+          managedServers.set(input.stepExecutionId, managed);
+        }
+
+        return managed;
+      },
+      catch: (error) => input.onError("Failed to start OpenCode server", error),
+    });
+
+  return OpencodeServerManagerService.of({
+    connectExistingServer: (baseUrl) =>
+      clientFactoryService
+        .createClient({
+          baseUrl,
+          directory: process.cwd(),
+        })
+        .pipe(
+          Effect.flatMap((client) =>
+            Effect.tryPromise({
+              try: () => client.healthCheck(),
+              catch: (error) =>
+                discoveryError(
+                  error instanceof Error
+                    ? error.message
+                    : "Unable to connect to existing OpenCode server.",
+                  error,
+                ),
+            }).pipe(
+              Effect.as({
+                serverInstanceId: createId("opencode-server"),
+                baseUrl,
+                client,
+                close: () => undefined,
+              } satisfies OpencodeManagedServer),
+            ),
+          ),
+          Effect.catchTag("OpenCodeExecutionError", (error) =>
+            Effect.fail(discoveryError(error.message)),
+          ),
+        ),
+    startDiscoveryServer: () => spawnServer({ onError: discoveryError }),
+    startManagedServer: (stepExecutionId, directory) =>
+      Effect.gen(function* () {
+        const existing = managedServers.get(stepExecutionId);
+        if (existing) {
+          const healthy = yield* Effect.either(
+            Effect.tryPromise({
+              try: () => existing.client.healthCheck(),
+              catch: (error) =>
+                opencodeError(
+                  "start_session",
+                  "Managed OpenCode server health check failed.",
+                  error,
+                ),
+            }),
+          );
+
+          if (healthy._tag === "Right") {
+            return existing;
+          }
+
+          yield* stopServer(existing);
+        }
+
+        return yield* spawnServer({
+          stepExecutionId,
+          directory,
+          onError: (message, cause) => opencodeError("start_session", message, cause),
+        });
+      }),
+    stopServer,
+  });
+}
+
+function discoverMetadataWithClient(client: OpencodeClientPort) {
   return Effect.gen(function* () {
     const [agentsResponse, providersResponse] = yield* Effect.all([
       Effect.tryPromise({
-        try: () => client.app.agents(),
+        try: () => client.discoverAgents(),
         catch: (error) =>
-          new HarnessDiscoveryError({
-            harness: "opencode",
-            message: error instanceof Error ? error.message : String(error),
-          }),
+          discoveryError(error instanceof Error ? error.message : String(error), error),
       }),
       Effect.tryPromise({
-        try: () => client.config.providers(),
+        try: () => client.discoverProviders(),
         catch: (error) =>
-          new HarnessDiscoveryError({
-            harness: "opencode",
-            message: error instanceof Error ? error.message : String(error),
-          }),
+          discoveryError(error instanceof Error ? error.message : String(error), error),
       }),
     ]);
 
@@ -193,41 +687,787 @@ function discoverMetadataWithClient(client: Pick<OpencodeClient, "app" | "config
   });
 }
 
+function getMessageText(parts: readonly unknown[]): string {
+  const chunks: string[] = [];
+
+  for (const partValue of parts) {
+    const part = asRecord(partValue) ?? {};
+    const type = readString(part.type);
+    if (type !== "text") {
+      continue;
+    }
+
+    const text = readString(part.text);
+    if (text) {
+      chunks.push(text);
+    }
+  }
+
+  return chunks.join("\n").trim();
+}
+
+function getToolKind(toolName: string): "harness" | "mcp" {
+  return toolName === "read_step_snapshot" ||
+    toolName === "read_context_value" ||
+    toolName === "write_context_value"
+    ? "mcp"
+    : "harness";
+}
+
+function addTimelineItem(record: SessionRecord, item: AgentStepTimelineItem): boolean {
+  if (record.timelineIds.has(item.timelineItemId)) {
+    return false;
+  }
+
+  record.timelineIds.add(item.timelineItemId);
+  record.timeline.push(item);
+  return true;
+}
+
+function emitToSubscribers(record: SessionRecord, event: AgentStepSseEnvelope) {
+  return Effect.forEach(
+    Array.from(record.subscribers),
+    (subscriber) => Queue.offer(subscriber, event),
+    {
+      concurrency: "unbounded",
+      discard: true,
+    },
+  );
+}
+
+function pushEvent(record: SessionRecord, event: AgentStepSseEnvelope) {
+  record.eventLog.push(event);
+  return emitToSubscribers(record, event);
+}
+
+function pushTimelineEvents(record: SessionRecord, items: readonly AgentStepTimelineItem[]) {
+  return Effect.forEach(items, (item) =>
+    pushEvent(
+      record,
+      item.itemType === "tool_activity"
+        ? {
+            version: "v1",
+            stream: "agent_step_session_events",
+            eventType: "tool_activity",
+            stepExecutionId: record.session.stepExecutionId,
+            data: { item },
+          }
+        : {
+            version: "v1",
+            stream: "agent_step_session_events",
+            eventType: "timeline",
+            stepExecutionId: record.session.stepExecutionId,
+            data: { item },
+          },
+    ),
+  );
+}
+
+function setSessionState(record: SessionRecord, state: HarnessSession["state"]) {
+  if (record.session.state === state) {
+    return Effect.void;
+  }
+
+  record.session = { ...record.session, state };
+  return pushEvent(record, {
+    version: "v1",
+    stream: "agent_step_session_events",
+    eventType: "session_state",
+    stepExecutionId: record.session.stepExecutionId,
+    data: { state },
+  });
+}
+
+function emitDone(
+  record: SessionRecord,
+  finalState: "active_idle" | "disconnected_or_error" | "completed",
+) {
+  const last = record.eventLog.at(-1);
+  if (
+    last?.eventType === "done" &&
+    last.stepExecutionId === record.session.stepExecutionId &&
+    last.data.finalState === finalState
+  ) {
+    return Effect.void;
+  }
+
+  return pushEvent(record, {
+    version: "v1",
+    stream: "agent_step_session_events",
+    eventType: "done",
+    stepExecutionId: record.session.stepExecutionId,
+    data: { finalState },
+  });
+}
+
+function emitError(
+  record: SessionRecord,
+  operation: OpenCodeExecutionError["operation"],
+  message: string,
+  cause?: unknown,
+) {
+  const error = opencodeError(operation, message, cause);
+  return pushEvent(record, {
+    version: "v1",
+    stream: "agent_step_session_events",
+    eventType: "error",
+    stepExecutionId: record.session.stepExecutionId,
+    data: { error },
+  });
+}
+
+function buildToolItems(
+  messageId: string,
+  parts: readonly unknown[],
+  fallbackCreatedAt: string,
+): {
+  readonly started: readonly AgentStepTimelineItem[];
+  readonly finished: readonly AgentStepTimelineItem[];
+} {
+  const started: AgentStepTimelineItem[] = [];
+  const finished: AgentStepTimelineItem[] = [];
+
+  for (const partValue of parts) {
+    const part = asRecord(partValue) ?? {};
+    if (readString(part.type) !== "tool") {
+      continue;
+    }
+
+    const state = asRecord(part.state) ?? {};
+    const toolName = readString(part.tool, "unknown_tool");
+    const status = readString(state.status);
+    const partId = readString(part.id, readString(part.callID, createId(`tool:${messageId}`)));
+    const stateTime = asRecord(state.time) ?? {};
+    const title = readString(state.title);
+    const output = readString(state.output);
+    const errorText = readString(state.error);
+
+    const startedItem: AgentStepTimelineItem = {
+      itemType: "tool_activity",
+      timelineItemId: `tool:${partId}:started`,
+      createdAt: normalizeTimestamp(stateTime.start, fallbackCreatedAt),
+      toolKind: getToolKind(toolName),
+      toolName,
+      status: "started",
+      ...(title ? { summary: title } : {}),
+    };
+
+    const completedItem: AgentStepTimelineItem = {
+      itemType: "tool_activity",
+      timelineItemId: `tool:${partId}:${status === "error" ? "failed" : "completed"}`,
+      createdAt: normalizeTimestamp(
+        stateTime.end,
+        normalizeTimestamp(stateTime.start, fallbackCreatedAt),
+      ),
+      toolKind: getToolKind(toolName),
+      toolName,
+      status: status === "error" ? "failed" : "completed",
+      ...(title || output || errorText ? { summary: title || output || errorText } : {}),
+    };
+
+    if (status === "pending" || status === "running") {
+      started.push(startedItem);
+      continue;
+    }
+
+    if (status === "completed" || status === "error") {
+      started.push(startedItem);
+      finished.push(completedItem);
+    }
+  }
+
+  return { started, finished };
+}
+
+function syncSessionMessages(record: SessionRecord, messages: readonly OpencodeMessageRecord[]) {
+  const appended: AgentStepTimelineItem[] = [];
+
+  for (const messageRecord of messages) {
+    const info = asRecord(messageRecord.info) ?? {};
+    const messageId = readString(info.id);
+    if (!messageId || record.ignoredMessageIds.has(messageId)) {
+      continue;
+    }
+
+    const role = readString(info.role) === "assistant" ? "assistant" : "user";
+    const createdAt = normalizeTimestamp(asRecord(info.time)?.created, record.session.startedAt);
+
+    if (role === "user") {
+      const content = getMessageText(messageRecord.parts);
+      if (!content) {
+        continue;
+      }
+
+      const item: AgentStepTimelineItem = {
+        itemType: "message",
+        timelineItemId: `message:${messageId}`,
+        createdAt,
+        role: "user",
+        content,
+      };
+
+      if (addTimelineItem(record, item)) {
+        appended.push(item);
+      }
+      continue;
+    }
+
+    const toolItems = buildToolItems(messageId, messageRecord.parts, createdAt);
+    for (const item of toolItems.started) {
+      if (addTimelineItem(record, item)) {
+        appended.push(item);
+      }
+    }
+
+    const content = getMessageText(messageRecord.parts);
+    if (content) {
+      const item: AgentStepTimelineItem = {
+        itemType: "message",
+        timelineItemId: `message:${messageId}`,
+        createdAt,
+        role: "assistant",
+        content,
+      };
+
+      if (addTimelineItem(record, item)) {
+        appended.push(item);
+      }
+    }
+
+    for (const item of toolItems.finished) {
+      if (addTimelineItem(record, item)) {
+        appended.push(item);
+      }
+    }
+  }
+
+  return appended;
+}
+
+function readMessageIds(messages: readonly OpencodeMessageRecord[]): string[] {
+  return messages
+    .map((message) => readString(asRecord(message.info)?.id))
+    .filter((messageId): messageId is string => messageId.length > 0);
+}
+
+function extractSessionId(rawEvent: unknown): string | undefined {
+  const event = asRecord(rawEvent) ?? {};
+  const payload = asRecord(event.payload) ?? event;
+  const properties = asRecord(payload.properties) ?? {};
+
+  return (
+    readString(properties.sessionID, undefined) ||
+    readString(asRecord(properties.info)?.sessionID, undefined) ||
+    readString(asRecord(properties.part)?.sessionID, undefined) ||
+    readString(asRecord(properties.error)?.sessionID, undefined)
+  );
+}
+
+function extractEventType(rawEvent: unknown): string {
+  const event = asRecord(rawEvent) ?? {};
+  const payload = asRecord(event.payload) ?? event;
+  return readString(payload.type);
+}
+
+function extractEventProperties(rawEvent: unknown): Record<string, unknown> {
+  const event = asRecord(rawEvent) ?? {};
+  const payload = asRecord(event.payload) ?? event;
+  return asRecord(payload.properties) ?? {};
+}
+
+async function* asAsyncIterable(value: unknown): AsyncIterable<unknown> {
+  const record = asRecord(value);
+  const streamCandidate = record?.stream;
+  const stream =
+    streamCandidate &&
+    typeof streamCandidate === "object" &&
+    Symbol.asyncIterator in streamCandidate
+      ? streamCandidate
+      : value;
+  if (!stream || typeof (stream as AsyncIterable<unknown>)[Symbol.asyncIterator] !== "function") {
+    return;
+  }
+
+  for await (const item of stream as AsyncIterable<unknown>) {
+    yield item;
+  }
+}
+
 export function makeOpencodeHarnessService(
   factory: OpencodeFactory = createOpencode,
-  clientFactory: OpencodeClientFactory = createOpencodeClient,
+  clientFactory: (
+    config?: OpencodeClientConfig & { readonly directory?: string },
+  ) => OpencodeClient = createOpencodeClient,
 ) {
+  const clientFactoryService = makeOpencodeClientFactoryService(clientFactory);
+  const serverManager = makeOpencodeServerManagerService(factory, clientFactoryService);
+  const sessionsById = new Map<string, SessionRecord>();
+  const sessionIdByStepExecutionId = new Map<string, string>();
+
+  const requireSession = (sessionId: string, operation: HarnessExecutionError["operation"]) =>
+    Effect.fromNullable(sessionsById.get(sessionId)).pipe(
+      Effect.orElseFail(() =>
+        harnessError(operation, `Harness session '${sessionId}' was not found.`),
+      ),
+    );
+
+  const loadMessages = (record: SessionRecord, operation: OpenCodeExecutionError["operation"]) =>
+    Effect.tryPromise({
+      try: () => record.client.listMessages(record.session.sessionId),
+      catch: (error) =>
+        opencodeError(operation, "Failed to load OpenCode session messages.", error),
+    });
+
+  const synchronizeTimeline = (
+    record: SessionRecord,
+    operation: OpenCodeExecutionError["operation"],
+  ) =>
+    loadMessages(record, operation).pipe(
+      Effect.map((messages) => syncSessionMessages(record, messages)),
+    );
+
+  const resolvePromptSelections = (
+    client: OpencodeClientPort,
+    input: {
+      readonly agent: string | undefined;
+      readonly model: HarnessSession["model"] | undefined;
+    },
+    operation: OpenCodeExecutionError["operation"],
+  ) =>
+    Effect.all([
+      Effect.tryPromise({
+        try: () => client.discoverAgents(),
+        catch: (error) =>
+          opencodeError(operation, "Failed to discover available OpenCode agents.", error),
+      }),
+      Effect.tryPromise({
+        try: () => client.discoverProviders(),
+        catch: (error) =>
+          opencodeError(
+            operation,
+            "Failed to discover available OpenCode providers and models.",
+            error,
+          ),
+      }),
+    ]).pipe(
+      Effect.map(([agentsResponse, providersResponse]) => {
+        const discoveredAgents = normalizeAgents(unwrapResponse(agentsResponse));
+        const providersPayload = asRecord(unwrapResponse(providersResponse)) ?? {};
+        const discoveredModels = normalizeProviders(
+          providersPayload.providers,
+          providersPayload.default,
+        ).models;
+
+        const resolvedAgent = resolveDiscoveredAgentKey(input.agent, discoveredAgents);
+        const resolvedModel = resolveDiscoveredModel(
+          input.model,
+          resolvedAgent,
+          discoveredAgents,
+          discoveredModels,
+        );
+
+        return {
+          agent: resolvedAgent,
+          model: resolvedModel,
+        } as const;
+      }),
+      Effect.catchTag("OpenCodeExecutionError", () =>
+        Effect.succeed({
+          agent: input.agent,
+          model: input.model,
+        } as const),
+      ),
+    );
+
+  const createRecord = (
+    config: HarnessSessionConfig,
+    server: OpencodeManagedServer,
+    rawSession: unknown,
+    resolvedAgent: string | undefined,
+    resolvedModel: HarnessSession["model"] | undefined,
+  ): SessionRecord => {
+    const sessionRecord = asRecord(rawSession) ?? {};
+    const session: HarnessSession = {
+      sessionId: readString(sessionRecord.id, createId("session")),
+      stepExecutionId: config.stepExecutionId,
+      startedAt: normalizeTimestamp(
+        asRecord(sessionRecord.time)?.created,
+        new Date().toISOString(),
+      ),
+      state: "active_idle",
+      ...(resolvedAgent ? { agent: resolvedAgent } : {}),
+      ...(resolvedModel ? { model: resolvedModel } : {}),
+    };
+
+    const bootstrapContent = buildBootstrapContent(config);
+    const bootstrapItem: AgentStepTimelineItem = {
+      itemType: "message",
+      timelineItemId: `bootstrap:${session.sessionId}`,
+      createdAt: session.startedAt,
+      role: "system",
+      content: bootstrapContent,
+    };
+
+    return {
+      session,
+      client: server.client,
+      server,
+      bootstrapContent,
+      timeline: [bootstrapItem],
+      timelineIds: new Set([bootstrapItem.timelineItemId]),
+      eventLog: [
+        {
+          version: "v1",
+          stream: "agent_step_session_events",
+          eventType: "bootstrap",
+          stepExecutionId: config.stepExecutionId,
+          data: {
+            state: session.state,
+            streamContract: SESSION_STREAM_CONTRACT,
+            timelineItems: [bootstrapItem],
+          },
+        },
+      ],
+      subscribers: new Set(),
+      ignoredMessageIds: new Set(),
+    };
+  };
+
+  const cleanupFailedStart = (record: SessionRecord | undefined) =>
+    Effect.gen(function* () {
+      if (!record) {
+        return;
+      }
+
+      sessionsById.delete(record.session.sessionId);
+      sessionIdByStepExecutionId.delete(record.session.stepExecutionId);
+      yield* serverManager.stopServer(record.server);
+    });
+
   return HarnessService.of({
     discoverMetadata: () =>
       Effect.catchAll(
-        Effect.try({
-          try: () =>
-            clientFactory({
-              baseUrl: resolveOpencodeBaseUrl(),
-              directory: process.cwd(),
-            }),
-          catch: (error) =>
-            new HarnessDiscoveryError({
-              harness: "opencode",
-              message: error instanceof Error ? error.message : String(error),
-            }),
-        }).pipe(Effect.flatMap((client) => discoverMetadataWithClient(client))),
+        serverManager
+          .connectExistingServer(resolveOpencodeBaseUrl())
+          .pipe(Effect.flatMap((existing) => discoverMetadataWithClient(existing.client))),
         () =>
           Effect.acquireUseRelease(
-            Effect.tryPromise({
-              try: () => factory({ port: 0 }),
-              catch: (error) =>
-                new HarnessDiscoveryError({
-                  harness: "opencode",
-                  message: error instanceof Error ? error.message : String(error),
-                }),
-            }),
-            (runtime) => discoverMetadataWithClient(runtime.client),
-            (runtime) =>
-              Effect.sync(() => {
-                runtime.server.close();
-              }).pipe(Effect.orDie),
+            serverManager.startDiscoveryServer(),
+            (server) => discoverMetadataWithClient(server.client),
+            (server) => serverManager.stopServer(server),
           ),
+      ),
+    startSession: (config) =>
+      Effect.gen(function* () {
+        const existingSessionId = sessionIdByStepExecutionId.get(config.stepExecutionId);
+        if (existingSessionId) {
+          const existing = yield* requireSession(existingSessionId, "start_session").pipe(
+            Effect.catchTag("HarnessExecutionError", (error) =>
+              Effect.fail(opencodeError("start_session", error.message, error)),
+            ),
+          );
+
+          if (existing.session.state === "disconnected_or_error") {
+            sessionsById.delete(existing.session.sessionId);
+            sessionIdByStepExecutionId.delete(existing.session.stepExecutionId);
+            yield* serverManager.stopServer(existing.server);
+          } else {
+            return {
+              session: existing.session,
+              serverInstanceId: existing.server.serverInstanceId,
+              serverBaseUrl: existing.server.baseUrl,
+              timeline: [...existing.timeline],
+              cursor: createCursor(existing.timeline),
+            } satisfies HarnessSessionStarted;
+          }
+        }
+
+        let record: SessionRecord | undefined;
+
+        return yield* Effect.gen(function* () {
+          const server = yield* serverManager.startManagedServer(
+            config.stepExecutionId,
+            config.projectRootPath,
+          );
+          const promptSelections = yield* resolvePromptSelections(
+            server.client,
+            {
+              agent: config.agent,
+              model: config.model,
+            },
+            "start_session",
+          );
+          const promptModel = toPromptModel(promptSelections.model);
+          const rawSession = yield* Effect.tryPromise({
+            try: () =>
+              server.client.createSession({ title: `Agent step ${config.stepExecutionId}` }),
+            catch: (error) =>
+              opencodeError("start_session", "Failed to create OpenCode session.", error),
+          }).pipe(Effect.map(unwrapResponse));
+          const createdRecord = createRecord(
+            config,
+            server,
+            rawSession,
+            promptSelections.agent,
+            promptSelections.model,
+          );
+          record = createdRecord;
+
+          yield* Effect.tryPromise({
+            try: () =>
+              createdRecord.client.prompt(
+                buildPromptInput({
+                  sessionId: createdRecord.session.sessionId,
+                  text: createdRecord.bootstrapContent,
+                  ...(promptSelections.agent ? { agent: promptSelections.agent } : {}),
+                  ...(promptModel ? { model: promptModel } : {}),
+                  noReply: true,
+                }),
+              ),
+            catch: (error) =>
+              opencodeError(
+                "start_session",
+                "Failed to bootstrap OpenCode session context.",
+                error,
+              ),
+          });
+
+          const bootstrapMessages = yield* Effect.tryPromise({
+            try: () => createdRecord.client.listMessages(createdRecord.session.sessionId),
+            catch: (error) =>
+              opencodeError("start_session", "Failed to load bootstrap OpenCode messages.", error),
+          });
+          for (const messageId of readMessageIds(bootstrapMessages)) {
+            createdRecord.ignoredMessageIds.add(messageId);
+          }
+
+          sessionsById.set(createdRecord.session.sessionId, createdRecord);
+          sessionIdByStepExecutionId.set(
+            createdRecord.session.stepExecutionId,
+            createdRecord.session.sessionId,
+          );
+
+          return {
+            session: createdRecord.session,
+            serverInstanceId: createdRecord.server.serverInstanceId,
+            serverBaseUrl: createdRecord.server.baseUrl,
+            timeline: [...createdRecord.timeline],
+            cursor: createCursor(createdRecord.timeline),
+          } satisfies HarnessSessionStarted;
+        }).pipe(Effect.tapError(() => cleanupFailedStart(record)));
+      }),
+    sendMessage: (sessionId, message) =>
+      Effect.gen(function* () {
+        if (message.trim().length === 0) {
+          return yield* opencodeError("send_message", "Harness message must be non-empty.");
+        }
+
+        const record = yield* requireSession(sessionId, "send_message").pipe(
+          Effect.catchTag("HarnessExecutionError", (error) =>
+            Effect.fail(opencodeError("send_message", error.message, error)),
+          ),
+        );
+
+        if (record.session.state === "completed") {
+          return yield* opencodeError(
+            "send_message",
+            `Harness session '${sessionId}' is already completed.`,
+          );
+        }
+
+        return yield* Effect.gen(function* () {
+          yield* setSessionState(record, "active_streaming");
+          const promptSelections = yield* resolvePromptSelections(
+            record.client,
+            {
+              agent: record.session.agent,
+              model: record.session.model,
+            },
+            "send_message",
+          );
+
+          if (
+            promptSelections.agent !== record.session.agent ||
+            promptSelections.model?.provider !== record.session.model?.provider ||
+            promptSelections.model?.model !== record.session.model?.model
+          ) {
+            record.session = {
+              ...record.session,
+              ...(promptSelections.agent ? { agent: promptSelections.agent } : {}),
+              ...(promptSelections.model ? { model: promptSelections.model } : {}),
+            };
+          }
+
+          yield* Effect.tryPromise({
+            try: () =>
+              record.client.prompt(
+                buildPromptInput({
+                  sessionId,
+                  text: message,
+                  ...(promptSelections.agent ? { agent: promptSelections.agent } : {}),
+                  ...(promptSelections.model
+                    ? {
+                        model: {
+                          providerID: promptSelections.model.provider,
+                          modelID: promptSelections.model.model,
+                        },
+                      }
+                    : {}),
+                }),
+              ),
+            catch: (error) =>
+              opencodeError("send_message", "Failed to send OpenCode message.", error),
+          });
+
+          const appended = yield* synchronizeTimeline(record, "send_message");
+          yield* pushTimelineEvents(record, appended);
+          yield* setSessionState(record, "active_idle");
+          yield* emitDone(record, "active_idle");
+
+          return {
+            sessionId,
+            stepExecutionId: record.session.stepExecutionId,
+            accepted: true,
+            state: "active_idle",
+          } satisfies HarnessMessageAccepted;
+        }).pipe(
+          Effect.catchAll((error: OpenCodeExecutionError) =>
+            setSessionState(record, "disconnected_or_error").pipe(
+              Effect.zipRight(emitError(record, "send_message", error.message, error)),
+              Effect.zipRight(emitDone(record, "disconnected_or_error")),
+              Effect.zipRight(Effect.fail(error)),
+            ),
+          ),
+        );
+      }),
+    getTimelinePage: (sessionId, cursor) =>
+      Effect.gen(function* () {
+        const record = yield* requireSession(sessionId, "stream_events").pipe(
+          Effect.catchTag("HarnessExecutionError", (error) =>
+            Effect.fail(opencodeError("stream_events", error.message, error)),
+          ),
+        );
+
+        const items = [...getTimelineSlice(record.timeline, cursor)];
+        return {
+          sessionId,
+          stepExecutionId: record.session.stepExecutionId,
+          cursor: createCursor(items),
+          items,
+        } satisfies HarnessTimelinePage;
+      }),
+    streamSessionEvents: (sessionId) =>
+      Stream.unwrap(
+        Effect.gen(function* () {
+          const record = yield* requireSession(sessionId, "stream_events").pipe(
+            Effect.catchTag("HarnessExecutionError", (error) =>
+              Effect.fail(opencodeError("stream_events", error.message, error)),
+            ),
+          );
+
+          const subscriber = yield* Queue.unbounded<AgentStepSseEnvelope>();
+          yield* Queue.offerAll(subscriber, record.eventLog);
+          record.subscribers.add(subscriber);
+
+          const controller = new AbortController();
+          const runtime = yield* Effect.runtime<never>();
+          const runPromise = Runtime.runPromise(runtime);
+
+          yield* Effect.forkDaemon(
+            Effect.gen(function* () {
+              const source = yield* Effect.tryPromise({
+                try: () => record.client.subscribeEvents({ signal: controller.signal }),
+                catch: (error) =>
+                  opencodeError("stream_events", "Failed to subscribe to OpenCode events.", error),
+              });
+              yield* Effect.tryPromise({
+                try: async () => {
+                  for await (const rawEvent of asAsyncIterable(source)) {
+                    if (extractSessionId(rawEvent) !== record.session.sessionId) {
+                      continue;
+                    }
+
+                    const rawType = extractEventType(rawEvent);
+                    if (!rawType) {
+                      continue;
+                    }
+
+                    if (
+                      rawType === "message.updated" ||
+                      rawType === "message.part.updated" ||
+                      rawType === "message.part.removed" ||
+                      rawType === "message.removed" ||
+                      rawType === "command.executed"
+                    ) {
+                      const appended = await runPromise(
+                        synchronizeTimeline(record, "stream_events").pipe(
+                          Effect.orElseSucceed(() => []),
+                        ),
+                      );
+                      await runPromise(pushTimelineEvents(record, appended));
+                      continue;
+                    }
+
+                    if (rawType === "session.status") {
+                      const status = readString(
+                        extractEventProperties(rawEvent).status &&
+                          asRecord(extractEventProperties(rawEvent).status)?.type,
+                      );
+                      if (status === "busy") {
+                        await runPromise(setSessionState(record, "active_streaming"));
+                      } else if (status === "idle") {
+                        await runPromise(setSessionState(record, "active_idle"));
+                      }
+                      continue;
+                    }
+
+                    if (rawType === "session.idle") {
+                      const appended = await runPromise(
+                        synchronizeTimeline(record, "stream_events").pipe(
+                          Effect.orElseSucceed(() => []),
+                        ),
+                      );
+                      await runPromise(pushTimelineEvents(record, appended));
+                      await runPromise(setSessionState(record, "active_idle"));
+                      await runPromise(emitDone(record, "active_idle"));
+                      continue;
+                    }
+
+                    if (rawType === "session.error") {
+                      const properties = extractEventProperties(rawEvent);
+                      const errorRecord = asRecord(properties.error) ?? {};
+                      const message = readString(
+                        asRecord(errorRecord.data)?.message,
+                        readString(errorRecord.name, "OpenCode session reported an error."),
+                      );
+                      await runPromise(setSessionState(record, "disconnected_or_error"));
+                      await runPromise(emitError(record, "stream_events", message, errorRecord));
+                      await runPromise(emitDone(record, "disconnected_or_error"));
+                    }
+                  }
+                },
+                catch: (error) =>
+                  opencodeError("stream_events", "Failed while consuming OpenCode events.", error),
+              });
+            }).pipe(
+              Effect.catchAll((error) =>
+                setSessionState(record, "disconnected_or_error").pipe(
+                  Effect.zipRight(emitError(record, "stream_events", error.message, error)),
+                  Effect.zipRight(emitDone(record, "disconnected_or_error")),
+                ),
+              ),
+            ),
+          );
+
+          return Stream.fromQueue(subscriber).pipe(
+            Stream.ensuring(
+              Effect.sync(() => {
+                record.subscribers.delete(subscriber);
+                controller.abort();
+              }),
+            ),
+          );
+        }),
       ),
   });
 }
