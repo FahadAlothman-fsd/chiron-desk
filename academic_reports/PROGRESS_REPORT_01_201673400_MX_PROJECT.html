@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Progress Report 1</title>
+  <style>
+@page { size: A4; margin: 16mm 14mm 16mm 14mm; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  line-height: 1.6;
+  color: #141414;
+  margin: 0;
+  background: #ffffff;
+}
+
+.cover-page {
+  min-height: 94vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 22px 20px;
+  page-break-after: always;
+}
+
+.cover-logo {
+  width: 180px;
+  max-width: 44%;
+  margin-bottom: 14px;
+}
+
+.cover-title {
+  font-size: 50px;
+  font-weight: 800;
+  line-height: 1.1;
+  max-width: 980px;
+  color: #6b6150;
+  margin: 0 0 10px;
+}
+
+.cover-subtitle {
+  font-size: 22px;
+  line-height: 1.28;
+  max-width: 900px;
+  color: #6b6150;
+  margin: 0 0 10px;
+  font-weight: 700;
+}
+
+.cover-meta {
+  font-size: 15px;
+  color: #6b6150;
+  max-width: 880px;
+  margin: 4px auto;
+}
+
+.cover-student {
+  margin-top: 22px;
+  font-size: 18px;
+  color: #00796b;
+  font-weight: 500;
+}
+
+.report-body {
+  background: #ffffff;
+  max-width: 980px;
+  margin: 8px auto;
+  padding: 14px 24px 28px;
+}
+
+h1, h2, h3 { line-height: 1.25; }
+h1 { font-size: 2rem; margin-bottom: 0.6rem; }
+h2 { font-size: 1.35rem; margin-top: 2rem; }
+h3 { font-size: 1.1rem; margin-top: 1.25rem; }
+hr { border: none; border-top: 1px solid #ddd; margin: 1.5rem 0; }
+code { background: #f6f8fa; padding: 0.1em 0.3em; border-radius: 4px; }
+pre { background: #f6f8fa; padding: 12px; overflow-x: auto; border-radius: 8px; }
+a { color: #0b57d0; text-decoration: underline; word-break: break-word; }
+ul, ol { padding-left: 1.2rem; }
+
+@media print {
+  body { background: #fff; }
+  .report-body { margin: 0; max-width: none; padding: 0; }
+  .cover-page { min-height: 94vh; }
+}
+</style>
+</head>
+<body>
+  
+<section class="cover-page">
+  <img class="cover-logo" src="kfupm-logo-green.png" alt="KFUPM Logo" />
+  <div class="cover-title">Chiron</div>
+  <div class="cover-subtitle">Research & Decision Narrative (Ideation Stage)</div>
+  <div class="cover-meta">Progress Report 1 • 29 Sep 2025 — 12 Oct 2025</div>
+  <div class="cover-meta">Master’s Research Progress Update</div>
+  <div class="cover-student">Fahad Alothman</div>
+</section>
+
+  <main class="report-body">
+    <h1>Progress Report 1</h1>
+<p><strong>Title:</strong> Research &amp; Decision Narrative (Ideation Stage)<br />
+<strong>Reporting Window:</strong> 29 Sep 2025 — 12 Oct 2025<br />
+<strong>Submission Context:</strong> Master’s Research Progress Update</p>
+<hr />
+<h2>Abstract</h2>
+<p>This first progress report documents the research and ideation stage of the project, with emphasis on how the initial problem framing evolved under evidence. The report does not present a mature product architecture; instead, it captures the early decision process that shaped the project’s direction. The core issue identified in this period was that common agentic coding workflows were heavily chat-centric and required developers to carry a large implicit mental model of system decisions, constraints, and unfinished assumptions. This made long-horizon software delivery difficult to govern and hard to reproduce.</p>
+<p>The report describes an early landscape analysis of agentic development approaches, including chat-first tooling, emerging spec-driven workflows, and framework-based orchestration methods. It also documents why BMAD was selected as an initial baseline for structured method execution, and why the project narrowed toward software development lifecycle (SDLC) guidance rather than immediately pursuing full computer-use/sandboxing infrastructure as the primary implementation track.</p>
+<p>This report therefore establishes the decision foundation for later reports: first understand and structure guidance for decision quality in software projects, then progressively evaluate how runtime orchestration and optimization techniques can be integrated in later phases.</p>
+<hr />
+<h2>1. Problem Framing at the Start of the Project</h2>
+<p>At the start of this reporting period, the project question was not “how to generate more code with AI.” The guiding question was:</p>
+<blockquote>
+<p>How can developers make better, more reliable implementation decisions when using agentic systems over multi-step software lifecycles?</p>
+</blockquote>
+<p>The practical concern behind this question was cognitive overhead. In many chat-centric workflows, a developer must remember:</p>
+<ul>
+<li>previous architectural decisions,</li>
+<li>pending constraints,</li>
+<li>tradeoffs already accepted,</li>
+<li>artifacts that are still drafts,</li>
+<li>and which assumptions are validated versus speculative.</li>
+</ul>
+<p>In short sessions, this is manageable. Across longer implementation arcs, it becomes brittle. When context is fragmented across chat turns, quality depends on individual memory rather than explicit system structure.</p>
+<p>This early observation shaped the first major thesis direction:</p>
+<ol>
+<li><strong>The issue is not only generation quality.</strong></li>
+<li><strong>The issue is lifecycle guidance quality.</strong></li>
+<li><strong>Decision traceability must be treated as a first-class requirement.</strong></li>
+</ol>
+<hr />
+<h2>2. Research Scan: Agentic Development Evolution</h2>
+<p>During this period, the project examined the broader evolution of agentic development practices and tools.</p>
+<h3>2.1 Dominant Early Pattern: Atomic Chat Sessions</h3>
+<p>The baseline mode in many AI coding experiences was still atomic or short-horizon chat loops: prompt, response, patch, repeat. This pattern has high speed and low setup cost, but weak continuity for long-running software initiatives.</p>
+<p>Key pitfall observed:</p>
+<ul>
+<li>the development process can become “chat-log deep” but “system-model shallow.”</li>
+</ul>
+<h3>2.2 Next Step in the Ecosystem: Spec-Driven Approaches</h3>
+<p>Spec-driven approaches emerged to externalize intent and reduce ambiguity before code generation. This was important because it moved from implicit instructions toward explicit requirements, acceptance conditions, and task decomposition. During this period, the relevant signal was less a single dominant product and more a broader movement toward making intent explicit before implementation [4], [5].</p>
+<h3>2.3 Workflow + Spec Hybridization</h3>
+<p>A second evolution combined specs with execution workflows. Instead of treating specification as static documentation, these approaches used spec artifacts to drive ordered implementation actions.</p>
+<p>This hybrid pattern was particularly relevant to this project because it aligned with the central problem: maintaining a coherent decision model over time.</p>
+<h3>2.4 Structured Method Baseline (BMAD)</h3>
+<p>BMAD was reviewed as an AI-driven development framework that organizes work from ideation through implementation using specialized agents and guided workflows [1]–[3]. This provided a useful baseline for early experimentation because it reduced ad hoc prompting behavior and introduced process structure.</p>
+<hr />
+<h2>3. Why BMAD Was Chosen as the Initial Baseline</h2>
+<p>BMAD was chosen in the ideation stage for methodological reasons, not as an end-state product choice [1]–[3].</p>
+<h3>3.1 What BMAD Provided Early</h3>
+<ul>
+<li>phased workflow structure,</li>
+<li>role-specialized agent responsibilities,</li>
+<li>explicit decomposition from idea to stories/tasks,</li>
+<li>repeatable collaboration pattern between human decisions and agent execution.</li>
+</ul>
+<h3>3.2 What BMAD Is (and Is Not) in This Report</h3>
+<p>For this report, BMAD is treated as:</p>
+<ul>
+<li><strong>a development framework baseline</strong> for structured AI-assisted delivery,</li>
+<li><strong>not</strong> a replacement for programming tools,</li>
+<li><strong>not</strong> a complete runtime governance system by itself,</li>
+<li><strong>not</strong> the final architectural endpoint of this project.</li>
+</ul>
+<p>This distinction is important: the project used BMAD as a disciplined starting methodology to expose where additional guidance layers would eventually be required.</p>
+<hr />
+<h2>4. Parallel Paradigms Considered in Research Stage</h2>
+<p>The early research did not assume a single paradigm. Two major paradigms were considered in parallel:</p>
+<ol>
+<li>
+<p><strong>SDLC Guidance Paradigm</strong><br />
+   Focus: better planning/execution decisions, clearer lifecycle progression, explicit rationale and traceability.</p>
+</li>
+<li>
+<p><strong>Computer-Use / Sandboxing Paradigm</strong><br />
+   Focus: safe autonomy, permission boundaries, execution isolation, and managed operational risk.</p>
+</li>
+</ol>
+<h3>4.1 Why This Distinction Matters</h3>
+<p>Both paradigms are important, but they optimize different failure modes:</p>
+<ul>
+<li>SDLC guidance reduces decision ambiguity and process drift.</li>
+<li>sandboxing/computer-use reduces unsafe autonomy and execution risk.</li>
+</ul>
+<p>During this first reporting period, the project deliberately prioritized the SDLC guidance direction as the primary thesis lane, while retaining computer-use/sandboxing as an adjacent strategic concern for later reports.</p>
+<p>This was a scope discipline decision: tackling both deeply at once would reduce clarity and execution quality in the early stage.</p>
+<hr />
+<h2>5. Assumptions, Validation Attempts, and Corrections</h2>
+<p>This section records the key assumptions in the ideation stage and how they were tested.</p>
+<h3>Assumption A</h3>
+<p><strong>Initial assumption:</strong> Better coding models/tools alone will materially solve long-horizon delivery quality.<br />
+<strong>What challenged it:</strong> Repeated evidence that context continuity and rationale traceability remain fragile in chat-centric workflows.<br />
+<strong>Correction:</strong> Treat guidance structure as a first-class system problem, not a side effect of stronger models.</p>
+<h3>Assumption B</h3>
+<p><strong>Initial assumption:</strong> Spec artifacts are enough if written clearly.<br />
+<strong>What challenged it:</strong> Specs without execution discipline can still drift in practice.<br />
+<strong>Correction:</strong> Couple specification with workflow discipline and explicit decision checkpoints.</p>
+<h3>Assumption C</h3>
+<p><strong>Initial assumption:</strong> One paradigm can be optimized first and reused unchanged for all concerns.<br />
+<strong>What challenged it:</strong> Safety/governance concerns in autonomous execution are distinct from SDLC guidance concerns.<br />
+<strong>Correction:</strong> Keep paradigms explicit: prioritize SDLC guidance first, track sandboxing paradigm evolution in parallel.</p>
+<h3>Assumption D</h3>
+<p><strong>Initial assumption:</strong> A framework baseline is equivalent to a final architecture.<br />
+<strong>What challenged it:</strong> Frameworks provide method scaffolding but do not automatically materialize project-specific guidance semantics.<br />
+<strong>Correction:</strong> Use framework baseline to accelerate learning; progressively introduce project-specific constructs in later stages.</p>
+<hr />
+<h2>6. Timeline (Progress Report 1 Scope)</h2>
+<h3>Week 1 (Research Framing and Landscape Mapping)</h3>
+<ul>
+<li>Defined the project’s research focus as decision quality in AI-assisted software delivery.</li>
+<li>Mapped dominant workflow patterns from chat-centric use toward spec/workflow structured methods.</li>
+<li>Identified key candidate tool/method references for comparative analysis.</li>
+</ul>
+<h3>Week 2 (Baseline Selection and Scope Narrowing)</h3>
+<ul>
+<li>Adopted BMAD as the initial methodological baseline for structured ideation/planning.</li>
+<li>Distinguished SDLC guidance work from computer-use/sandboxing work.</li>
+<li>Established progressive disclosure plan for reports:</li>
+<li>early reports: research + ideation findings,</li>
+<li>later reports: deeper execution/orchestration decisions as they actually occurred.</li>
+</ul>
+<hr />
+<h2>7. Tool and Method Context (Early-Stage Positioning)</h2>
+<p>The early tool and method context reviewed in this period included:</p>
+<ul>
+<li>chat-centric coding agents,</li>
+<li>spec-driven development approaches,</li>
+<li>workflow orchestration patterns,</li>
+<li>structured methodology frameworks (including BMAD),</li>
+<li>and rapidly evolving ecosystem discussions around safety and sandboxed autonomy.</li>
+</ul>
+<p>This context helped establish an important narrative rule for future reports:</p>
+<blockquote>
+<p>Do not overstate maturity too early. Report findings progressively as they were discovered and validated.</p>
+</blockquote>
+<p>That rule is intentionally applied here: this report remains within research/ideation scope and does not attribute later-stage architecture realizations to this first period.</p>
+<hr />
+<h2>8. Decisions Produced by Progress Report 1</h2>
+<p>By the end of this reporting window, the following decisions were established:</p>
+<ol>
+<li>The project will be framed around <strong>guidance for SDLC decision quality</strong> as the primary research objective.</li>
+<li>BMAD will be used as a <strong>structured baseline method</strong> in early stages.</li>
+<li>The computer-use/sandboxing paradigm will be monitored and referenced, but not made the primary implementation target at this stage.</li>
+<li>Future reports will use <strong>progressive disclosure</strong>: each report should represent what was actually known and implemented in that period, not retroactive coherence from later insights.</li>
+</ol>
+<hr />
+<h2>9. Risks and Open Questions Entering Progress Report 2</h2>
+<h3>Risks</h3>
+<ul>
+<li>Overfitting the process to documentation rather than execution reality.</li>
+<li>Conflating framework guidance with project-specific guidance requirements.</li>
+<li>Attempting to solve too many paradigms simultaneously in early-stage development.</li>
+</ul>
+<h3>Open Questions</h3>
+<ul>
+<li>How should guidance quality be measured in practice (consistency, traceability, recoverability)?</li>
+<li>Which aspects of spec-driven process must become executable versus remain advisory?</li>
+<li>What is the minimum structure needed to reduce cognitive load without introducing process overhead?</li>
+</ul>
+<p>These open questions define the handoff into Progress Report 2.</p>
+<hr />
+<h2>10. Conclusion</h2>
+<p>Progress Report 1 documents a research-stage outcome: the project moved from broad exploration to a focused thesis direction. The key result is not a finalized architecture, but a clarified problem model and a justified scope strategy.</p>
+<p>The period established that agentic software development quality depends on more than code generation speed. It depends on how well a system preserves intent, constraints, rationale, and progression across time. This insight motivated selection of a structured baseline method and a deliberate focus on SDLC guidance while acknowledging, but temporarily de-prioritizing, deeper sandboxing/computer-use implementation concerns.</p>
+<p>This creates a rigorous foundation for subsequent progress reports, where assumptions and implementation choices can be introduced in the order they were actually discovered.</p>
+<hr />
+<h2>References</h2>
+<p>[1] bmad-code-org, “BMAD-METHOD,” GitHub repository, 2025. [Online]. Available: <a href="https://github.com/bmad-code-org/BMAD-METHOD">https://github.com/bmad-code-org/BMAD-METHOD</a><br />
+[2] bmad-code-org, “BMAD Method v4.44.1,” GitHub release, Sep. 29, 2025. [Online]. Available: <a href="https://github.com/bmad-code-org/BMAD-METHOD/releases/tag/v4.44.1">https://github.com/bmad-code-org/BMAD-METHOD/releases/tag/v4.44.1</a><br />
+[3] V. Mysore, “What is BMAD-METHOD™? A Simple Guide to the Future of AI-Driven Development,” Medium, Sep. 8, 2025. [Online]. Available: <a href="https://medium.com/@visrow/what-is-bmad-method-a-simple-guide-to-the-future-of-ai-driven-development-412274f91419">https://medium.com/@visrow/what-is-bmad-method-a-simple-guide-to-the-future-of-ai-driven-development-412274f91419</a><br />
+[4] R. Doradla, “Beyond Vibe Coding: Amazon Introduces Kiro, the Spec-Driven Agentic AI IDE,” InfoQ, Aug. 18, 2025. [Online]. Available: <a href="https://www.infoq.com/news/2025/08/aws-kiro-spec-driven-agent/">https://www.infoq.com/news/2025/08/aws-kiro-spec-driven-agent/</a><br />
+[5] Kiro, “From chat to specs: a deep dive into AI-assisted development with Kiro,” Jul. 15, 2025. [Online]. Available: <a href="https://kiro.dev/blog/from-chat-to-specs-deep-dive">https://kiro.dev/blog/from-chat-to-specs-deep-dive</a></p>
+  </main>
+</body>
+</html>
