@@ -165,6 +165,7 @@ The early tool and method context reviewed in this period included:
 
 - chat-centric coding agents,
 - spec-driven development approaches,
+- early parallel coding-agent orchestration products such as Conductor.build [6], [7],
 - workflow orchestration patterns,
 - structured methodology frameworks (including BMAD),
 - and rapidly evolving ecosystem discussions around safety and sandboxed autonomy.
@@ -174,6 +175,8 @@ This context helped establish an important narrative rule for future reports:
 > Do not overstate maturity too early. Report findings progressively as they were discovered and validated.
 
 That rule is intentionally applied here: this report remains within research/ideation scope and does not attribute later-stage architecture realizations to this first period.
+
+Conductor is especially useful to place correctly at this stage. It represented a concrete product expression of the parallel-agent, isolated-workspace, git-worktree-oriented paradigm that Chiron was still seriously evaluating [6], [7]. However, this report should also make clear that the master’s-project thesis lane was not simply to build another conductor for coding agents. The primary lane remained SDLC guidance and reducing the cognitive burden of carrying an implicit project model, even while orchestration and sandboxing stayed active adjacent concerns.
 
 ---
 
@@ -222,4 +225,6 @@ This creates a rigorous foundation for subsequent progress reports, where assump
 [2] bmad-code-org, “BMAD Method v4.44.1,” GitHub release, Sep. 29, 2025. [Online]. Available: https://github.com/bmad-code-org/BMAD-METHOD/releases/tag/v4.44.1  
 [3] V. Mysore, “What is BMAD-METHOD™? A Simple Guide to the Future of AI-Driven Development,” Medium, Sep. 8, 2025. [Online]. Available: https://medium.com/@visrow/what-is-bmad-method-a-simple-guide-to-the-future-of-ai-driven-development-412274f91419  
 [4] R. Doradla, “Beyond Vibe Coding: Amazon Introduces Kiro, the Spec-Driven Agentic AI IDE,” InfoQ, Aug. 18, 2025. [Online]. Available: https://www.infoq.com/news/2025/08/aws-kiro-spec-driven-agent/  
-[5] Kiro, “From chat to specs: a deep dive into AI-assisted development with Kiro,” Jul. 15, 2025. [Online]. Available: https://kiro.dev/blog/from-chat-to-specs-deep-dive
+[5] Kiro, “From chat to specs: a deep dive into AI-assisted development with Kiro,” Jul. 15, 2025. [Online]. Available: https://kiro.dev/blog/from-chat-to-specs-deep-dive  
+[6] Conductor, “Run a team of coding agents on your Mac,” 2025. [Online]. Available: https://conductor.build/  
+[7] Conductor, “Run a team of coding agents,” Documentation, 2025. [Online]. Available: https://docs.conductor.build/
