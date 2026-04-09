@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Progress Report 9</title>
+  <style>
+@page { size: A4; margin: 16mm 14mm 16mm 14mm; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  line-height: 1.6;
+  color: #141414;
+  margin: 0;
+  background: #ffffff;
+}
+
+.cover-page {
+  min-height: 94vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 22px 20px;
+  page-break-after: always;
+}
+
+.cover-logo {
+  width: 180px;
+  max-width: 44%;
+  margin-bottom: 14px;
+}
+
+.cover-title {
+  font-size: 50px;
+  font-weight: 800;
+  line-height: 1.1;
+  max-width: 980px;
+  color: #6b6150;
+  margin: 0 0 10px;
+}
+
+.cover-subtitle {
+  font-size: 22px;
+  line-height: 1.28;
+  max-width: 900px;
+  color: #6b6150;
+  margin: 0 0 10px;
+  font-weight: 700;
+}
+
+.cover-meta {
+  font-size: 15px;
+  color: #6b6150;
+  max-width: 880px;
+  margin: 4px auto;
+}
+
+.cover-student {
+  margin-top: 22px;
+  font-size: 18px;
+  color: #00796b;
+  font-weight: 500;
+}
+
+.report-body {
+  background: #ffffff;
+  max-width: 980px;
+  margin: 8px auto;
+  padding: 14px 24px 28px;
+}
+
+h1, h2, h3 { line-height: 1.25; }
+h1 { font-size: 2rem; margin-bottom: 0.6rem; }
+h2 { font-size: 1.35rem; margin-top: 2rem; }
+h3 { font-size: 1.1rem; margin-top: 1.25rem; }
+hr { border: none; border-top: 1px solid #ddd; margin: 1.5rem 0; }
+code { background: #f6f8fa; padding: 0.1em 0.3em; border-radius: 4px; }
+pre { background: #f6f8fa; padding: 12px; overflow-x: auto; border-radius: 8px; }
+a { color: #0b57d0; text-decoration: underline; word-break: break-word; }
+ul, ol { padding-left: 1.2rem; }
+
+@media print {
+  body { background: #fff; }
+  .report-body { margin: 0; max-width: none; padding: 0; }
+  .cover-page { min-height: 94vh; }
+}
+</style>
+</head>
+<body>
+  
+<section class="cover-page">
+  <img class="cover-logo" src="kfupm-logo-green.png" alt="KFUPM Logo" />
+  <div class="cover-title">Chiron</div>
+  <div class="cover-subtitle">Stabilization and Scope-Boundary Intensification After Runtime Migration</div>
+  <div class="cover-meta">Progress Report 9 • 19 Jan 2026 — 30 Jan 2026</div>
+  <div class="cover-meta">Master’s Research Progress Update</div>
+  <div class="cover-student">Fahad Alothman</div>
+</section>
+
+  <main class="report-body">
+    <h1>Progress Report 9</h1>
+<p><strong>Title:</strong> Stabilization and Scope-Boundary Intensification After Runtime Migration<br />
+<strong>Reporting Window:</strong> 19 Jan 2026 — 30 Jan 2026<br />
+<strong>Submission Context:</strong> Master’s Research Progress Update</p>
+<hr />
+<h2>Abstract</h2>
+<p>Progress Report 9 captures the period immediately after the main runtime migration wave. The central task of this window was not broad feature expansion; it was stabilization, behavioral verification, and architectural clarification under active execution pressure. The project focused on keeping the migrated runtime operational while resolving unresolved boundary questions that became visible during live workflow use.</p>
+<p>A defining characteristic of this period was asymmetry between design intensity and repository change footprint in the exact reporting window. Runtime and UX behavior were exercised repeatedly through implementation sessions and seeded workflow runs, while core effort increasingly shifted toward contract clarification: step execution scope, approval semantics, tool-calling reliability, and model/provider variability handling.</p>
+<hr />
+<h2>1. Period Character: Post-Migration Stabilization Under Real Usage Pressure</h2>
+<p>This window should be interpreted as a stabilization-and-clarification phase after migration execution. The practical objective was to preserve continuity for independent workflows and workflow-path operation while addressing newly exposed reliability and authority-boundary issues.</p>
+<p>The period therefore prioritized:</p>
+<ul>
+<li>runtime parity checks under real interaction flows,</li>
+<li>reliability corrections in streaming and approval behavior,</li>
+<li>and architecture decisions that reduced ambiguity at project, workflow, and step levels.</li>
+</ul>
+<hr />
+<h2>2. Operational Reality in This Window: Independent Workflows Still Driving Execution</h2>
+<p>Chiron was still running on independent workflows connected through workflow paths as the active execution backbone. This continuity mattered: migration work had altered runtime internals, but user-facing orchestration still depended on path-driven progression.</p>
+<p>As a result, stabilization work concentrated on protecting this backbone from regression while hardening the boundaries required for later formal methodology-layer contracts.</p>
+<hr />
+<h2>3. Streaming and Tool-Calling Reliability as the Immediate Failure Surface</h2>
+<p>A major focus in this period was sandboxed-agent streaming behavior and tool-calling reliability across provider/model combinations [1], [2], [5]. In practical terms, this emerged as the most immediate reliability surface because it touched user-visible responsiveness, approval flow timing, and tool-argument fidelity.</p>
+<p>The project’s response in this window emphasized robust operational behavior over idealized assumptions:</p>
+<ul>
+<li>validate streaming/event ordering and completion semantics,</li>
+<li>strengthen fallback behavior when provider/tool-schema behavior diverges,</li>
+<li>and align runtime handling with real model variance instead of static capability assumptions.</li>
+</ul>
+<p>This moved the system toward resilience-oriented orchestration rather than provider-specific optimism.</p>
+<hr />
+<h2>4. Step Execution Scope Becomes a First-Class Architecture Topic</h2>
+<p>A central architectural development in this period was explicit intensification of step-level scoping discussions. The project increasingly treated step execution as the practical unit of interaction, approval, and context mutation, distinct from broader workflow execution state.</p>
+<p>This shift sharpened multiple decisions:</p>
+<ul>
+<li>what belongs to workflow execution versus step execution,</li>
+<li>how approval states should be represented consistently across step types,</li>
+<li>how tool call records, chat records, and step-level coordination data should be separated without losing traceability.</li>
+</ul>
+<p>These concerns were not theoretical. They emerged from active runtime troubleshooting and therefore carried direct implementation consequences.</p>
+<hr />
+<h2>5. Boundary Design Pattern in This Window: Operational Contracts Before Full Formalization</h2>
+<p>As in the previous report, formal methodology-layer contracts were not yet the primary execution abstraction. During this period, the project continued to use operational contracts to enforce control:</p>
+<ul>
+<li>scoped execution context handling,</li>
+<li>explicit transition and approval authority boundaries,</li>
+<li>service-level separation for runtime concerns (execution, chat, approvals, tooling/event flow).</li>
+</ul>
+<p>What changed in this report window is intensity. Boundary questions moved from “emerging concern” to “active architecture workstream,” with implications for later schema and module-shape decisions.</p>
+<hr />
+<h2>6. Methodology Preparation During Stabilization</h2>
+<p>Although this period did not complete the final methodology-layer materialization, it improved readiness for methodology-layer alignment in two practical ways:</p>
+<ol>
+<li>by testing migrated runtime behavior against real seeded workflow paths and execution scenarios,</li>
+<li>by translating observed runtime failure modes into clearer boundary and contract requirements for subsequent architecture iterations.</li>
+</ol>
+<p>In this sense, stabilization served as methodology preparation: it converted operational friction into explicit design constraints.</p>
+<hr />
+<h2>7. Stack Status at End of Progress Report 9</h2>
+<p>At the end of this reporting window, the runtime direction remained aligned with the migration target established in Progress Report 8:</p>
+<ul>
+<li><strong>Desktop host:</strong> Tauri [8]</li>
+<li><strong>Frontend:</strong> React + TanStack Router + shadcn/ui</li>
+<li><strong>Backend/API:</strong> TypeScript services with Hono + tRPC [6], [7]</li>
+<li><strong>AI/runtime orchestration path:</strong> Effect + AI-SDK (+ AX/provider integrations under active refinement) [1]–[5]</li>
+<li><strong>Data layer:</strong> Drizzle ORM with PostgreSQL</li>
+<li><strong>Authentication:</strong> Better Auth</li>
+<li><strong>Runtime/tooling:</strong> Bun + Turborepo</li>
+</ul>
+<p>The key historical signal in this period is not a new stack pivot; it is deeper boundary refinement and reliability hardening inside the new runtime direction.</p>
+<hr />
+<h2>8. Why This Period Matters</h2>
+<p>Progress Report 9 matters because it transformed migration-aftershock issues into architectural signal. Instead of masking instability, the period surfaced where authority, lifecycle, and scope boundaries were still under-defined, then used those observations to shape the next design layer.</p>
+<p>This preserved continuity for current workflows while improving readiness for the later formal methodology-layer and lifecycle/state contract work.</p>
+<hr />
+<h2>9. Open Questions Entering Progress Report 10</h2>
+<ul>
+<li>Which step-execution boundaries should be formalized as durable schema and contract primitives?</li>
+<li>How should approval semantics be unified across step types without coupling UI flow to runtime internals?</li>
+<li>What provider/model variance policy should be standardized so streaming and tool-calling remain reliable across runtime contexts?</li>
+<li>Which operational contracts are now stable enough to promote into explicit methodology-layer constructs?</li>
+</ul>
+<p>These questions define the handoff from stabilization-driven clarification to explicit contract formalization.</p>
+<hr />
+<h2>Conclusion</h2>
+<p>Progress Report 9 is best understood as a boundary-intensification period after migration execution. The project remained operational on independent workflows and workflow paths while confronting the practical limits of newly migrated runtime behavior in streaming, approvals, and step-level authority.</p>
+<p>Its core contribution is architectural sharpening: it converted post-migration reliability friction into clearer scope and lifecycle design requirements, setting up the next phase of formal contract and methodology-layer maturation.</p>
+<hr />
+<h2>References</h2>
+<p>[1] Effect Authors, “Effect Documentation,” 2026. [Online]. Available: <a href="https://effect.website/">https://effect.website/</a><br />
+[2] Vercel, “AI SDK Documentation,” 2026. [Online]. Available: <a href="https://ai-sdk.dev/docs">https://ai-sdk.dev/docs</a><br />
+[3] Vercel, “AI SDK 6,” 2025. [Online]. Available: <a href="https://vercel.com/blog/ai-sdk-6">https://vercel.com/blog/ai-sdk-6</a><br />
+[4] axllm, “ax,” GitHub repository (<code>@ax-llm/ax</code>), 2026. [Online]. Available: <a href="https://github.com/axllm/ax">https://github.com/axllm/ax</a><br />
+[5] OpenCode, “OpenCode,” GitHub repository, 2026. [Online]. Available: <a href="https://github.com/anomalyco/opencode">https://github.com/anomalyco/opencode</a><br />
+[6] Hono Authors, “Hono,” Documentation, 2026. [Online]. Available: <a href="https://hono.dev/">https://hono.dev/</a><br />
+[7] tRPC Authors, “tRPC,” Documentation, 2026. [Online]. Available: <a href="https://trpc.io/docs">https://trpc.io/docs</a><br />
+[8] Tauri Programme, “Tauri,” Documentation, 2026. [Online]. Available: <a href="https://tauri.app/">https://tauri.app/</a></p>
+  </main>
+</body>
+</html>
