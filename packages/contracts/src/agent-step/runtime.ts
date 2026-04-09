@@ -148,6 +148,9 @@ export const AgentStepTimelineToolItem = Schema.Struct({
   toolName: Schema.NonEmptyString,
   status: Schema.Literal("started", "completed", "failed"),
   summary: Schema.optional(Schema.String),
+  input: Schema.optional(Schema.String),
+  output: Schema.optional(Schema.String),
+  error: Schema.optional(Schema.String),
 });
 export type AgentStepTimelineToolItem = typeof AgentStepTimelineToolItem.Type;
 

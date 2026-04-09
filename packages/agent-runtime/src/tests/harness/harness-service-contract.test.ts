@@ -154,6 +154,26 @@ describe("HarnessService contract", () => {
         }),
       },
     });
+    expect(streamEvents[3]).toMatchObject({
+      eventType: "tool_activity",
+      data: {
+        item: expect.objectContaining({
+          itemType: "tool_activity",
+          status: "started",
+          input: JSON.stringify({ message: "please continue" }),
+        }),
+      },
+    });
+    expect(streamEvents[5]).toMatchObject({
+      eventType: "tool_activity",
+      data: {
+        item: expect.objectContaining({
+          itemType: "tool_activity",
+          status: "completed",
+          output: JSON.stringify({ turn: 1, reply: "Fake response 1: PLEASE CONTINUE" }),
+        }),
+      },
+    });
 
     const fullPage = await Effect.runPromise(harness.getTimelinePage(started.session.sessionId));
     expect(fullPage.items).toHaveLength(5);
@@ -164,6 +184,24 @@ describe("HarnessService contract", () => {
       "message",
       "tool_activity",
     ]);
+    expect(fullPage.items[2]).toMatchObject({
+      itemType: "tool_activity",
+      status: "started",
+      input: JSON.stringify({ message: "please continue" }),
+    });
+    expect(fullPage.items[4]).toMatchObject({
+      itemType: "tool_activity",
+      status: "completed",
+      output: JSON.stringify({ turn: 1, reply: "Fake response 1: PLEASE CONTINUE" }),
+    });
+
+    const startedToolId = streamEvents[3]?.data?.item?.timelineItemId;
+    const completedToolId = streamEvents[5]?.data?.item?.timelineItemId;
+    expect(startedToolId).toBeDefined();
+    expect(completedToolId).toBeDefined();
+    expect(startedToolId).toMatch(/^tool:[^:]+:started$/);
+    expect(completedToolId).toMatch(/^tool:[^:]+:completed$/);
+    expect(startedToolId?.replace(":started", "")).toBe(completedToolId?.replace(":completed", ""));
 
     const incrementalPage = await Effect.runPromise(
       harness.getTimelinePage(started.session.sessionId, {

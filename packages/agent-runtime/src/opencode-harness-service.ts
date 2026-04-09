@@ -404,7 +404,7 @@ function resolveDiscoveredAgentKey(
 function modelExists(
   discoveredModels: readonly HarnessDiscoveredModel[],
   model: HarnessSession["model"] | undefined,
-): model is NonNullable<HarnessSession["model"]> {
+): boolean {
   if (!model) {
     return false;
   }
@@ -647,7 +647,7 @@ export function makeOpencodeServerManagerService(
 
         return yield* spawnServer({
           stepExecutionId,
-          directory,
+          ...(directory ? { directory } : {}),
           onError: (message, cause) => opencodeError("start_session", message, cause),
         });
       }),
@@ -711,6 +711,27 @@ function getToolKind(toolName: string): "harness" | "mcp" {
     toolName === "write_context_value"
     ? "mcp"
     : "harness";
+}
+
+function readToolText(value: unknown): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  return Effect.runSync(
+    Effect.try({
+      try: () => JSON.stringify(value, null, 2),
+      catch: () => undefined,
+    }).pipe(Effect.catchAll(() => Effect.succeed(undefined))),
+  );
 }
 
 function addTimelineItem(record: SessionRecord, item: AgentStepTimelineItem): boolean {
@@ -838,8 +859,9 @@ function buildToolItems(
     const partId = readString(part.id, readString(part.callID, createId(`tool:${messageId}`)));
     const stateTime = asRecord(state.time) ?? {};
     const title = readString(state.title);
-    const output = readString(state.output);
-    const errorText = readString(state.error);
+    const inputText = readToolText(state.input ?? part.input);
+    const outputText = readToolText(state.output ?? part.output);
+    const errorText = readToolText(state.error ?? part.error);
 
     const startedItem: AgentStepTimelineItem = {
       itemType: "tool_activity",
@@ -849,6 +871,7 @@ function buildToolItems(
       toolName,
       status: "started",
       ...(title ? { summary: title } : {}),
+      ...(inputText ? { input: inputText } : {}),
     };
 
     const completedItem: AgentStepTimelineItem = {
@@ -861,7 +884,9 @@ function buildToolItems(
       toolKind: getToolKind(toolName),
       toolName,
       status: status === "error" ? "failed" : "completed",
-      ...(title || output || errorText ? { summary: title || output || errorText } : {}),
+      ...(title ? { summary: title } : {}),
+      ...(outputText ? { output: outputText } : {}),
+      ...(errorText ? { error: errorText } : {}),
     };
 
     if (status === "pending" || status === "running") {
@@ -1187,21 +1212,30 @@ export function makeOpencodeHarnessService(
             if (!config.resumeSessionId) {
               return undefined;
             }
+            const resumeSessionId = config.resumeSessionId;
 
-            const resumeMessages = yield* Effect.tryPromise({
-              try: () => server.client.listMessages(config.resumeSessionId as string),
-              catch: () => undefined,
-            });
+            const resumeAttempt = yield* Effect.either(
+              Effect.tryPromise({
+                try: () => server.client.listMessages(resumeSessionId),
+                catch: (error) =>
+                  opencodeError(
+                    "start_session",
+                    "Failed to resume OpenCode session from existing session id.",
+                    error,
+                  ),
+              }),
+            );
 
-            if (!resumeMessages) {
+            if (resumeAttempt._tag === "Left") {
               return undefined;
             }
+            const resumeMessages = resumeAttempt.right;
 
             const resumed = createRecord(
               config,
               server,
               {
-                id: config.resumeSessionId,
+                id: resumeSessionId,
                 time: { created: new Date().toISOString() },
               },
               promptSelections.agent,

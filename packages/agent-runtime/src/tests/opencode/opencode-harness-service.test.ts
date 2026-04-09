@@ -143,6 +143,7 @@ describe("OpencodeHarnessService runtime", () => {
             state: {
               status: "completed",
               title: "Applied summary write",
+              input: { summary: "Current project summary", updated: true },
               output: "Applied summary write",
               time: { start: 1_744_193_202_000, end: 1_744_193_203_000 },
             },
@@ -277,6 +278,9 @@ describe("OpencodeHarnessService runtime", () => {
     });
 
     const page = await Effect.runPromise(service.getTimelinePage("session-1"));
+    const startedToolItem = page.items[2];
+    const completedToolItem = page.items[4];
+
     expect(page.items).toEqual([
       expect.objectContaining({ itemType: "message", role: "user" }),
       expect.objectContaining({ itemType: "message", role: "user", content: "please continue" }),
@@ -285,6 +289,7 @@ describe("OpencodeHarnessService runtime", () => {
         toolKind: "mcp",
         toolName: "write_context_value",
         status: "started",
+        summary: "Applied summary write",
       }),
       expect.objectContaining({
         itemType: "message",
@@ -296,8 +301,16 @@ describe("OpencodeHarnessService runtime", () => {
         toolKind: "mcp",
         toolName: "write_context_value",
         status: "completed",
+        output: "Applied summary write",
       }),
     ]);
+
+    expect(startedToolItem?.summary).toBe("Applied summary write");
+    expect(JSON.parse(String(startedToolItem?.input))).toEqual({
+      summary: "Current project summary",
+      updated: true,
+    });
+    expect(completedToolItem?.output).toBe("Applied summary write");
 
     const streamEvents = Array.from(
       await Effect.runPromise(

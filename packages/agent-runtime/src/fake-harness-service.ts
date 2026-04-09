@@ -318,14 +318,16 @@ export function makeFakeHarnessService(options: FakeHarnessOptions = {}) {
           role: "user",
           content: message,
         };
+        const toolPartId = idFactory("tool");
         const startedToolItem: HarnessTimelinePage["items"][number] = {
           itemType: "tool_activity",
-          timelineItemId: idFactory("timeline"),
+          timelineItemId: `tool:${toolPartId}:started`,
           createdAt: messageTimestamp,
           toolKind: "harness",
           toolName: "send_message",
           status: "started",
           summary: "Fake harness started processing the turn.",
+          input: JSON.stringify({ message }),
         };
         const assistantMessage: HarnessTimelinePage["items"][number] = {
           itemType: "message",
@@ -340,12 +342,16 @@ export function makeFakeHarnessService(options: FakeHarnessOptions = {}) {
         };
         const completedToolItem: HarnessTimelinePage["items"][number] = {
           itemType: "tool_activity",
-          timelineItemId: idFactory("timeline"),
+          timelineItemId: `tool:${toolPartId}:completed`,
           createdAt: assistantTimestamp,
           toolKind: "harness",
           toolName: "send_message",
           status: "completed",
           summary: "Fake harness completed the turn.",
+          output: JSON.stringify({
+            turn: record.turnCount,
+            reply: assistantMessage.content,
+          }),
         };
 
         yield* setSessionState(record, "active_streaming");
