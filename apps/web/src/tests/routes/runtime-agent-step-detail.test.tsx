@@ -666,6 +666,102 @@ describe("runtime agent step detail route", () => {
     });
   });
 
+  it("merges started and completed tool events into one expandable tool-call entry", async () => {
+    await renderRoute("active_idle", {
+      sseEvents: [
+        {
+          version: "v1",
+          stream: "agent_step_session_events",
+          eventType: "tool_activity",
+          stepExecutionId: "step-agent-1",
+          data: {
+            item: {
+              itemType: "tool_activity",
+              timelineItemId: "tool:abc:started",
+              createdAt: "2026-04-09T12:02:00.000Z",
+              toolKind: "harness",
+              toolName: "bash",
+              status: "started",
+              summary: "Check current working directory.",
+              input: JSON.stringify({ command: "pwd" }),
+            },
+          },
+        },
+        {
+          version: "v1",
+          stream: "agent_step_session_events",
+          eventType: "tool_activity",
+          stepExecutionId: "step-agent-1",
+          data: {
+            item: {
+              itemType: "tool_activity",
+              timelineItemId: "tool:abc:completed",
+              createdAt: "2026-04-09T12:02:01.000Z",
+              toolKind: "harness",
+              toolName: "bash",
+              status: "completed",
+              output: JSON.stringify({ output: "home/gondilf/Desktop/projects/masters/chiron" }),
+              summary: "home/gondilf/Desktop/projects/masters/chiron",
+            },
+          },
+        },
+      ],
+    });
+
+    expect(screen.getAllByText("bash")).toHaveLength(1);
+    const timelineList = screen.getByTestId("agent-step-timeline-list");
+    const timelineText = timelineList.textContent ?? "";
+    expect(timelineText).toContain("Completed");
+    expect(timelineText).toContain("command");
+    expect(timelineText).toContain('"command": "pwd"');
+    expect(timelineText).toContain("home/gondilf/Desktop/projects/masters/chiron");
+  });
+
+  it("falls back to summary-only tool activity payloads when structured payload is missing", async () => {
+    await renderRoute("active_idle", {
+      sseEvents: [
+        {
+          version: "v1",
+          stream: "agent_step_session_events",
+          eventType: "tool_activity",
+          stepExecutionId: "step-agent-1",
+          data: {
+            item: {
+              itemType: "tool_activity",
+              timelineItemId: "tool:legacy:started",
+              createdAt: "2026-04-09T12:03:00.000Z",
+              toolKind: "harness",
+              toolName: "bash",
+              status: "started",
+              summary: "Legacy input summary.",
+            },
+          },
+        },
+        {
+          version: "v1",
+          stream: "agent_step_session_events",
+          eventType: "tool_activity",
+          stepExecutionId: "step-agent-1",
+          data: {
+            item: {
+              itemType: "tool_activity",
+              timelineItemId: "tool:legacy:completed",
+              createdAt: "2026-04-09T12:03:01.000Z",
+              toolKind: "harness",
+              toolName: "bash",
+              status: "completed",
+              summary: "Legacy output summary.",
+            },
+          },
+        },
+      ],
+    });
+
+    const timelineText = screen.getByTestId("agent-step-timeline-list").textContent ?? "";
+    expect(timelineText).toContain("Legacy input summary.");
+    expect(timelineText).toContain("Legacy output summary.");
+  });
+
   it("shows bootstrap prompt from session history as a normal user message", async () => {
     const bootstrapPromptContent = [
       "Synthesize the setup handoff.",

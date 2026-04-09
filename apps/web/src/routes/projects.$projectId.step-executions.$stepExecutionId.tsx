@@ -33,6 +33,15 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import {
+  AiToolCall,
+  AiToolCallContent,
+  AiToolCallError,
+  AiToolCallHeader,
+  AiToolCallInput,
+  AiToolCallOutput,
+  type ToolCallState,
+} from "@/components/elements/ai-tool-call";
+import {
   PromptInput,
   PromptInputBody,
   PromptInputFooter,
@@ -125,6 +134,27 @@ const AGENT_STEP_SSE_EVENT_NAMES = [
 
 type FormBody = Extract<GetRuntimeStepExecutionDetailOutput["body"], { stepType: "form" }>;
 type AgentBody = GetAgentStepExecutionDetailOutput["body"];
+type TimelineToolItem = Extract<AgentStepTimelineItem, { itemType: "tool_activity" }>;
+
+type ToolCallTimelineEntry = {
+  readonly entryType: "tool-call";
+  readonly timelineItemId: string;
+  readonly toolKind: TimelineToolItem["toolKind"];
+  readonly toolName: string;
+  readonly state: ToolCallState;
+  readonly createdAt: string;
+  readonly summary?: string;
+  readonly input?: Record<string, unknown>;
+  readonly output?: string;
+  readonly error?: string;
+};
+
+type TimelineDisplayEntry =
+  | {
+      readonly entryType: "message";
+      readonly item: Extract<AgentStepTimelineItem, { itemType: "message" }>;
+    }
+  | ToolCallTimelineEntry;
 
 function formatTimestamp(value: string | undefined): string {
   if (!value) {
@@ -176,6 +206,35 @@ function formatUnknown(value: unknown): string {
   return serialized.isOk() ? serialized.value : "[unserializable]";
 }
 
+function parseToolPayload(value: string | undefined): Record<string, unknown> | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const parsed = Result.try({
+    try: () => JSON.parse(value),
+    catch: () => undefined,
+  });
+
+  if (parsed.isOk() && typeof parsed.value === "object" && parsed.value !== null) {
+    return parsed.value as Record<string, unknown>;
+  }
+
+  return { value };
+}
+
+function resolveToolInputPayload(item: TimelineToolItem): Record<string, unknown> | undefined {
+  return item.input ? parseToolPayload(item.input) : undefined;
+}
+
+function resolveToolOutputPayload(item: TimelineToolItem): string | undefined {
+  return item.output;
+}
+
+function resolveToolErrorPayload(item: TimelineToolItem): string | undefined {
+  return item.error;
+}
+
 function buildAgentStepStreamUrl(projectId: string, stepExecutionId: string): string {
   const url = new URL(`${resolveRuntimeBackendUrl()}/sse/agent-step-session-events`);
   url.searchParams.set("projectId", projectId);
@@ -194,6 +253,124 @@ function upsertTimelineItem(
     const byTime = left.createdAt.localeCompare(right.createdAt);
     return byTime !== 0 ? byTime : left.timelineItemId.localeCompare(right.timelineItemId);
   });
+}
+
+function buildTimelineDisplayEntries(
+  items: readonly AgentStepTimelineItem[],
+): TimelineDisplayEntry[] {
+  const pendingToolIndexes = new Map<string, number[]>();
+  const displayEntries: TimelineDisplayEntry[] = [];
+
+  const toToolCorrelationKey = (timelineItemId: string): string => {
+    if (timelineItemId.endsWith(":started")) {
+      return timelineItemId.slice(0, -":started".length);
+    }
+
+    if (timelineItemId.endsWith(":completed")) {
+      return timelineItemId.slice(0, -":completed".length);
+    }
+
+    if (timelineItemId.endsWith(":failed")) {
+      return timelineItemId.slice(0, -":failed".length);
+    }
+
+    return timelineItemId;
+  };
+
+  for (const item of items) {
+    if (item.itemType === "message") {
+      displayEntries.push({ entryType: "message", item });
+      continue;
+    }
+
+    const toolKey = toToolCorrelationKey(item.timelineItemId);
+    const pendingIndexes = pendingToolIndexes.get(toolKey) ?? [];
+
+    if (item.status === "started") {
+      const inputPayload =
+        resolveToolInputPayload(item) ?? (item.summary ? { summary: item.summary } : undefined);
+
+      displayEntries.push({
+        entryType: "tool-call",
+        timelineItemId: item.timelineItemId,
+        toolKind: item.toolKind,
+        toolName: item.toolName,
+        state: "running",
+        createdAt: item.createdAt,
+        ...(item.summary ? { summary: item.summary } : {}),
+        ...(inputPayload ? { input: inputPayload } : {}),
+      });
+
+      pendingIndexes.push(displayEntries.length - 1);
+      pendingToolIndexes.set(toolKey, pendingIndexes);
+      continue;
+    }
+
+    const pendingIndex = pendingIndexes.pop();
+    if (pendingIndex === undefined) {
+      const outputPayload = resolveToolOutputPayload(item);
+      const errorPayload = resolveToolErrorPayload(item);
+
+      displayEntries.push({
+        entryType: "tool-call",
+        timelineItemId: item.timelineItemId,
+        toolKind: item.toolKind,
+        toolName: item.toolName,
+        state: item.status === "completed" ? "completed" : "error",
+        createdAt: item.createdAt,
+        ...(item.summary ? { summary: item.summary } : {}),
+        ...(item.status === "completed"
+          ? outputPayload
+            ? { output: outputPayload }
+            : item.summary
+              ? { output: item.summary }
+              : {}
+          : {}),
+        ...(item.status === "failed"
+          ? errorPayload
+            ? { error: errorPayload }
+            : item.summary
+              ? { error: item.summary }
+              : {}
+          : {}),
+      });
+      pendingToolIndexes.set(toolKey, pendingIndexes);
+      continue;
+    }
+
+    const pendingEntry = displayEntries[pendingIndex];
+    if (pendingEntry?.entryType !== "tool-call") {
+      pendingToolIndexes.set(toolKey, pendingIndexes);
+      continue;
+    }
+
+    const outputPayload = resolveToolOutputPayload(item);
+    const errorPayload = resolveToolErrorPayload(item);
+
+    displayEntries[pendingIndex] = {
+      ...pendingEntry,
+      state: item.status === "completed" ? "completed" : "error",
+      ...(pendingEntry.summary ? {} : item.summary ? { summary: item.summary } : {}),
+      ...(item.status === "completed"
+        ? outputPayload
+          ? { output: outputPayload }
+          : item.summary
+            ? { output: item.summary }
+            : {}
+        : {}),
+      ...(item.status === "failed"
+        ? errorPayload
+          ? { error: errorPayload }
+          : item.summary
+            ? { error: item.summary }
+            : {}
+        : {}),
+    };
+
+    pendingToolIndexes.set(toolKey, pendingIndexes);
+  }
+
+  return displayEntries;
 }
 
 function getAgentComposerUiState(params: { state: AgentStepRuntimeState; sessionId?: string }) {
@@ -2110,8 +2287,12 @@ function AgentInteractionSurface(props: {
 
   const selectedModel = detail.body.harnessBinding.selectedModel;
   const selectedAgent = detail.body.harnessBinding.selectedAgent;
+  const timelineDisplayEntries = useMemo(
+    () => buildTimelineDisplayEntries(timelineItems),
+    [timelineItems],
+  );
   const attachCommand = detail.body.harnessBinding.serverBaseUrl
-    ? `opencode attach ${detail.body.harnessBinding.serverBaseUrl}`
+    ? `opencode attach ${detail.body.harnessBinding.serverBaseUrl} -s ${detail.body.harnessBinding.sessionId}`
     : null;
   const selectedAgentLabel = getAgentLabel(selectedAgent, harnessMetadataQuery.data);
   const selectedModelLabel = getModelLabel(selectedModel, harnessMetadataQuery.data);
@@ -2125,7 +2306,7 @@ function AgentInteractionSurface(props: {
   });
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 scrollbar-thin">
       <StepExecutionShellCard
         shell={shell}
         completionOutcome={completionOutcome}
@@ -2315,74 +2496,73 @@ function AgentInteractionSurface(props: {
                   </div>
                 </CardHeader>
                 <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto py-4">
-                  {timelineItems.length === 0 ? (
+                  {timelineDisplayEntries.length === 0 ? (
                     <div className="border border-dashed border-border/70 bg-background/50 px-3 py-6 text-center text-sm text-muted-foreground">
                       No timeline activity yet. Start the session to begin the runtime trace.
                     </div>
                   ) : (
                     <div className="space-y-3 pr-1" data-testid="agent-step-timeline-list">
-                      {timelineItems.map((item) =>
-                        item.itemType === "message" ? (
+                      {timelineDisplayEntries.map((entry) =>
+                        entry.entryType === "message" ? (
                           <article
-                            key={item.timelineItemId}
+                            key={entry.item.timelineItemId}
                             className="border border-border/70 bg-background/55 p-3"
-                            data-testid={`agent-step-timeline-message-${item.timelineItemId}`}
+                            data-testid={`agent-step-timeline-message-${entry.item.timelineItemId}`}
                           >
                             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                               <div className="flex items-center gap-2">
                                 <ExecutionBadge
-                                  label={item.role}
+                                  label={entry.item.role}
                                   tone={
-                                    item.role === "assistant"
+                                    entry.item.role === "assistant"
                                       ? "violet"
-                                      : item.role === "user"
+                                      : entry.item.role === "user"
                                         ? "sky"
                                         : "slate"
                                   }
                                 />
                                 <span className="text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
-                                  {formatTimestamp(item.createdAt)}
+                                  {formatTimestamp(entry.item.createdAt)}
                                 </span>
                               </div>
                             </div>
                             <pre className="whitespace-pre-wrap break-words text-sm text-foreground">
-                              {item.content}
+                              {entry.item.content}
                             </pre>
                           </article>
                         ) : (
-                          <article
-                            key={item.timelineItemId}
-                            className="border border-border/70 bg-background/55 p-3"
-                            data-testid={`agent-step-timeline-tool-${item.timelineItemId}`}
+                          <AiToolCall
+                            key={entry.timelineItemId}
+                            name={entry.toolName}
+                            state={entry.state}
+                            className="rounded-none border-border/70 bg-background/55"
                           >
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <div className="flex items-center gap-2">
+                            <AiToolCallHeader className="rounded-none">
+                              <div className="flex flex-wrap items-center gap-2">
                                 <ExecutionBadge
-                                  label={item.toolKind}
-                                  tone={getToolActivityTone(item.toolKind)}
+                                  label={entry.toolKind}
+                                  tone={entry.toolKind === "mcp" ? "amber" : "violet"}
                                 />
-                                <ExecutionBadge
-                                  label={item.status}
-                                  tone={
-                                    item.status === "completed"
-                                      ? "emerald"
-                                      : item.status === "failed"
-                                        ? "rose"
-                                        : "amber"
-                                  }
-                                />
-                                <span className="font-medium uppercase tracking-[0.12em] text-foreground">
-                                  {item.toolName}
+                                <span className="text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
+                                  {formatTimestamp(entry.createdAt)}
                                 </span>
                               </div>
-                              <span className="text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
-                                {formatTimestamp(item.createdAt)}
-                              </span>
-                            </div>
-                            {item.summary ? (
-                              <p className="mt-2 text-sm text-muted-foreground">{item.summary}</p>
-                            ) : null}
-                          </article>
+                            </AiToolCallHeader>
+                            <AiToolCallContent>
+                              {entry.summary ? (
+                                <p className="text-sm text-muted-foreground">{entry.summary}</p>
+                              ) : null}
+                              {entry.input ? <AiToolCallInput input={entry.input} /> : null}
+                              {entry.output ? (
+                                <AiToolCallOutput>
+                                  <pre className="whitespace-pre-wrap break-words font-mono text-xs">
+                                    {entry.output}
+                                  </pre>
+                                </AiToolCallOutput>
+                              ) : null}
+                              {entry.error ? <AiToolCallError error={entry.error} /> : null}
+                            </AiToolCallContent>
+                          </AiToolCall>
                         ),
                       )}
                     </div>
