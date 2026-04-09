@@ -40,7 +40,7 @@ During this period, implementation and planning discussions converged on a recur
 
 The practical insight that emerged was that Chiron required tighter ownership over execution semantics, approval behavior, and scoping boundaries than a generalized orchestration layer was conveniently providing in this context.
 
-This report should therefore document the period as the point where that mismatch became explicit and decision-relevant.
+This report should therefore document the period as the point where that mismatch became explicit and decision-relevant. The key nuance is that isolation, sandboxing, and orchestrated agent execution were not rejected as unimportant. They remained valid concerns Chiron still wanted. What changed was scope priority: the master’s project needed to get the core guidance value right first, namely offloading the project’s mental model into a system shared between the user and the agents implementing it, before pursuing the fuller conductor-style orchestration vision as a primary implementation target.
 
 ---
 
@@ -77,6 +77,8 @@ The most plausible near-term optimizer became **MiPRO**. Because it is built aro
 **ACE** was even more future-facing. Its generator-reflector-curator playbook model matched the idea of agents gradually learning preferred rules and reusable practices over repeated workflows and multiple projects [12], [13]. But that same agent-loop orientation meant ACE belonged to a later stage of Chiron’s evolution, once the runtime and methodology boundaries were stronger and long-lived agent memory could be introduced coherently.
 
 Historically, this is the important distinction: by the end of this window, the optimizer conversation had stopped being “which advanced technique sounds interesting?” and had become “which optimizer is realistic for the next execution phase?” In that narrower frame, MiPRO remained viable, while GEPA and ACE were still deferred.
+
+The same narrowing logic applied to orchestration and isolation. Full git-worktree-heavy execution control, deeper sandboxing, and richer agent coordination still made sense in the long run, but they no longer defined the immediate thesis-critical implementation target. The clearer differentiator was the guidance layer itself: preserving project context, scoping rules, and lifecycle meaning in a form both users and agents could rely on.
 
 ---
 
