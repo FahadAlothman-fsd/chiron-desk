@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Progress Report 3</title>
+  <style>
+@page { size: A4; margin: 16mm 14mm 16mm 14mm; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  line-height: 1.6;
+  color: #141414;
+  margin: 0;
+  background: #ffffff;
+}
+
+.cover-page {
+  min-height: 94vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 22px 20px;
+  page-break-after: always;
+}
+
+.cover-logo {
+  width: 180px;
+  max-width: 44%;
+  margin-bottom: 14px;
+}
+
+.cover-title {
+  font-size: 50px;
+  font-weight: 800;
+  line-height: 1.1;
+  max-width: 980px;
+  color: #6b6150;
+  margin: 0 0 10px;
+}
+
+.cover-subtitle {
+  font-size: 22px;
+  line-height: 1.28;
+  max-width: 900px;
+  color: #6b6150;
+  margin: 0 0 10px;
+  font-weight: 700;
+}
+
+.cover-meta {
+  font-size: 15px;
+  color: #6b6150;
+  max-width: 880px;
+  margin: 4px auto;
+}
+
+.cover-student {
+  margin-top: 22px;
+  font-size: 18px;
+  color: #00796b;
+  font-weight: 500;
+}
+
+.report-body {
+  background: #ffffff;
+  max-width: 980px;
+  margin: 8px auto;
+  padding: 14px 24px 28px;
+}
+
+h1, h2, h3 { line-height: 1.25; }
+h1 { font-size: 2rem; margin-bottom: 0.6rem; }
+h2 { font-size: 1.35rem; margin-top: 2rem; }
+h3 { font-size: 1.1rem; margin-top: 1.25rem; }
+hr { border: none; border-top: 1px solid #ddd; margin: 1.5rem 0; }
+code { background: #f6f8fa; padding: 0.1em 0.3em; border-radius: 4px; }
+pre { background: #f6f8fa; padding: 12px; overflow-x: auto; border-radius: 8px; }
+a { color: #0b57d0; text-decoration: underline; word-break: break-word; }
+ul, ol { padding-left: 1.2rem; }
+
+@media print {
+  body { background: #fff; }
+  .report-body { margin: 0; max-width: none; padding: 0; }
+  .cover-page { min-height: 94vh; }
+}
+</style>
+</head>
+<body>
+  
+<section class="cover-page">
+  <img class="cover-logo" src="kfupm-logo-green.png" alt="KFUPM Logo" />
+  <div class="cover-title">Chiron</div>
+  <div class="cover-subtitle">Early Orchestration Direction and Initial System Realization</div>
+  <div class="cover-meta">Progress Report 3 • 27 Oct 2025 — 9 Nov 2025</div>
+  <div class="cover-meta">Master’s Research Progress Update</div>
+  <div class="cover-student">Fahad Alothman</div>
+</section>
+
+  <main class="report-body">
+    <h1>Progress Report 3</h1>
+<p><strong>Title:</strong> Early Orchestration Direction and Initial System Realization<br />
+<strong>Reporting Window:</strong> 27 Oct 2025 — 9 Nov 2025<br />
+<strong>Submission Context:</strong> Master’s Research Progress Update</p>
+<hr />
+<h2>Abstract</h2>
+<p>This third progress report closes the initial reporting phase by documenting the transition from research-backed design foundation into an initial implementation and orchestration direction. The previous two reports established the central problem—supporting better software development lifecycle decisions under agentic workflows—and clarified that the solution required structured guidance, visible progression, and stronger design and domain foundations. This report captures the next step: beginning to materialize those ideas into a working system direction.</p>
+<p>The main outcome of this period was not yet a fully realized guidance platform, but a concrete shift from conceptual architecture into initial implementation surfaces. The project began transforming design artifacts and methodological assumptions into code-level commitments: schema implementation, seeded agent roles, initial user-facing application structure, and an early orchestration stack that could support guided workflow execution. The report also records why this shift mattered: once a system begins to materialize, assumptions that felt stable in research become testable and sometimes fragile.</p>
+<hr />
+<h2>1. Why Progress Report 3 Matters</h2>
+<p>Progress Report 3 marks the point where the project ceased to be only a comparative and design exercise. In the earlier reports, the main question was how to frame the problem of guidance for AI-assisted software development. In this period, the question became more concrete:</p>
+<blockquote>
+<p>What is the minimum working system direction that can begin to embody that guidance thesis without prematurely overcommitting to a final architecture?</p>
+</blockquote>
+<p>This distinction is important. The project was still in an exploratory phase, but exploration was no longer only conceptual. It had become implementation-oriented exploration: enough to test whether the emerging design and methodology assumptions could survive contact with real system structure.</p>
+<hr />
+<h2>2. From Design Foundation to Build Direction</h2>
+<p>In this period, the project moved from design-backed planning into initial system realization. Several themes converged:</p>
+<ul>
+<li>the domain model was no longer just an abstraction and began to serve as a practical implementation boundary,</li>
+<li>workflow execution was no longer only a conceptual future requirement and began to influence concrete technical choices,</li>
+<li>and the project began defining what a guided development environment would need in terms of execution surfaces, role definitions, and orchestration patterns.</li>
+</ul>
+<p>This was not yet the stage where later formal guidance layers had crystallized. Instead, the period should be understood as the first serious attempt to turn a research thesis into a buildable system direction.</p>
+<hr />
+<h2>3. Initial System Commitments</h2>
+<h3>3.1 Schema and Persistent Structure</h3>
+<p>One major shift in this period was that domain modeling began to translate into implementation commitments. The project moved toward a concrete 16-table schema that represented projects, workflows, workflow paths, execution records, agent definitions, approvals, outputs, and variable context.</p>
+<p>This matters because it shows a change in the mental model of the project:</p>
+<ul>
+<li>from “the system should help people follow a process”</li>
+<li>to “the system must persist the entities that make that process inspectable and recoverable.”</li>
+</ul>
+<h3>3.2 Initial User-Facing Application Direction</h3>
+<p>At this stage, the application direction increasingly reflected a guided workbench model. Rather than treating the user as someone who only chats with an agent, the project began emphasizing:</p>
+<ul>
+<li>project-level navigation,</li>
+<li>workflow-specific views,</li>
+<li>execution visibility,</li>
+<li>and workbench-like artifact interaction.</li>
+</ul>
+<p>This was still early, but it is a key threshold: guidance was beginning to be translated into interface commitments, not just methodological slogans.</p>
+<h3>3.3 Role and Workflow Execution Thinking</h3>
+<p>The earlier BMAD baseline had already reinforced role-aware task decomposition. In this report period, that idea became more operational: the project began treating workflows and agent roles as parts of an executable system, rather than as planning-only aids. Early seeding direction for core roles such as PM, Analyst, Architect, Developer, Scrum Master, and UX-oriented roles reflects that shift from conceptual process participants into concrete system entities.</p>
+<p>This is the first point where “agent orchestration” becomes a concrete architectural direction rather than a purely aspirational phrase.</p>
+<h3>3.4 Methodology Starts Becoming Data-Driven</h3>
+<p>Another notable change in this period was that methodology began to move away from hardcoded assumptions and toward data-backed execution support. Dynamic options, structured tags, and workflow metadata started to matter more as operational inputs rather than as loose supplementary notes. This was not yet the later formal methodology architecture, but it was the first clear indication that if methodology was meant to guide execution, it would eventually need to exist as system data rather than only explanatory process material.</p>
+<hr />
+<h2>4. Why Orchestration Became Central</h2>
+<p>By this period, the project had enough evidence to conclude that the guidance problem could not be solved purely by good specs, good prompts, or better chat ergonomics. Those were helpful, but insufficient. The real challenge was how to coordinate:</p>
+<ul>
+<li>multiple stages of work,</li>
+<li>multiple role responsibilities,</li>
+<li>evolving project context,</li>
+<li>and user oversight over progress.</li>
+</ul>
+<p>This made orchestration central. However, the orchestration goal at this stage was still modest and early:</p>
+<ul>
+<li>define a path for workflows to execute in a guided sequence,</li>
+<li>preserve enough context to move across steps coherently,</li>
+<li>and support the user in following the project lifecycle without reconstructing everything manually.</li>
+</ul>
+<p>The project had not yet reached its later more formal methodology framing. What it did achieve here was a decisive realization that orchestration itself was part of the thesis contribution.</p>
+<hr />
+<h2>5. Tool and Framework Perspective in This Period</h2>
+<p>This reporting window is also the first point where the project’s relation to the agentic tooling landscape became more concrete.</p>
+<h3>5.1 BMAD as Baseline, Still Valuable</h3>
+<p>BMAD remained highly relevant in this period because it provided a structured way to move from ideation into implementation planning. It was still the strongest baseline under consideration because it offered not just specs, but specifications coupled with workflows, role specialization, and guided process movement.</p>
+<h3>5.2 Chat-Mediated Guidance Still a Friction Point</h3>
+<p>At the same time, the limitation identified in Progress Report 2 remained active: guidance was still too dependent on repeated chat interactions. Even when the process was structured, users often had to repeatedly ask the system what had been completed, what remained next, and how current work related to the broader project state. This meant that the system still relied too much on conversational recovery of progress, rather than making progress directly visible.</p>
+<h3>5.3 Comparison Context: Orchestration and Planning Tools</h3>
+<p>This period also benefited from a broader awareness of other approaches in the ecosystem:</p>
+<ul>
+<li><strong>CrewAI</strong> represented a strong multi-agent orchestration approach, emphasizing agents, tasks, crews, flows, planning, reasoning, memory, and collaboration [4], [5].</li>
+<li><strong>Vibe Kanban</strong> represented a more UI-centered planning/review paradigm, especially around planning, prompting, reviewing, and running coding agents in parallel workspaces [6], [7].</li>
+</ul>
+<p>These were useful comparison points because they reinforced two distinct aspects of the problem:</p>
+<ul>
+<li>orchestration frameworks help coordinate autonomous or semi-autonomous agents,</li>
+<li>planning/review tools help externalize work and reduce human bottlenecks.</li>
+</ul>
+<p>The project’s early direction sat between these poles: it was concerned with both SDLC guidance and agent orchestration, rather than only one of them.</p>
+<hr />
+<h2>6. Early Technical Direction and Initial Stack Thinking</h2>
+<p>By this point, the project was beginning to settle on a first serious technical direction for implementation. This included:</p>
+<ul>
+<li>a desktop-oriented user experience rather than a purely CLI-bound one,</li>
+<li>web technologies suitable for rich project/workflow interfaces,</li>
+<li>a backend and persistence layer capable of supporting explicit workflow and project entities,</li>
+<li>and an early orchestration approach that could support agentic execution in a structured way.</li>
+</ul>
+<p>This period can therefore be read as the first point where implementation choices stopped being mere experiments and started becoming a coherent system direction.</p>
+<p>At the same time, platform priorities were still flexible. The focus was on establishing the fastest workable implementation path that could test the orchestration thesis, rather than prematurely freezing the entire final delivery shape.</p>
+<p>Importantly, however, these choices were still provisional enough to be revised later. The project was not yet declaring a final mature architecture; it was identifying an initial architecture that could carry the research problem forward into real testing.</p>
+<hr />
+<h2>7. Assumptions Strengthened or Revised in This Period</h2>
+<h3>Assumption A</h3>
+<p><strong>Assumption carried from Progress Report 2:</strong> Guidance must be visible, not merely implied.<br />
+<strong>Status in this period:</strong> Strengthened.<br />
+<strong>Why:</strong> Initial application and schema direction reinforced that visibility requires persistent system surfaces.</p>
+<h3>Assumption B</h3>
+<p><strong>Assumption:</strong> Domain modeling and workflow planning are enough to preserve project continuity.<br />
+<strong>What challenged it:</strong> Early implementation thinking suggested that execution coordination itself must become a first-class concern.<br />
+<strong>Correction:</strong> Guidance systems need orchestration, not only planning structure.</p>
+<h3>Assumption C</h3>
+<p><strong>Assumption:</strong> A strong methodology baseline can be translated directly into a product with minimal reinterpretation.<br />
+<strong>What challenged it:</strong> Translating structured methodology into user-facing software exposed interface and execution questions that methodology alone did not fully answer.<br />
+<strong>Correction:</strong> Methodology must be operationalized through system-specific design and execution boundaries.</p>
+<h3>Assumption D</h3>
+<p><strong>Assumption:</strong> Research-stage architecture can stay abstract until later.<br />
+<strong>What challenged it:</strong> Once the system began to materialize, abstraction alone was no longer enough to decide what had to be persisted, executed, or surfaced.<br />
+<strong>Correction:</strong> The project needed an initial working architecture direction, even if later reports would refine or revise it.</p>
+<hr />
+<h2>8. Timeline (Progress Report 3 Scope)</h2>
+<h3>Week 1 (27 Oct — 2 Nov 2025): Transition from Planning to Initial Build Direction</h3>
+<ul>
+<li>Moved from design and planning artifacts into initial implementation commitment.</li>
+<li>Began treating workflows, agents, and execution context as persistent system concerns rather than only planning abstractions.</li>
+<li>Strengthened the idea of a guided workbench-like system rather than a purely chat-based assistant interface.</li>
+<li>Began implementing the 16-table schema and concrete seeding direction for core project roles.</li>
+</ul>
+<h3>Week 2 (3 Nov — 9 Nov 2025): Early Orchestration and Application Structure</h3>
+<ul>
+<li>Advanced schema and application structure toward a first workable foundation.</li>
+<li>Clarified that the project required orchestration support, not just better planning artifacts.</li>
+<li>Crossed an implementation-readiness threshold: enough clarity existed to move from design-backed planning into disciplined build work.</li>
+<li>Ended the period with a clearer early product/system direction that could support future implementation work.</li>
+</ul>
+<hr />
+<h2>9. What This Period Still Had Not Become</h2>
+<p>It is equally important to state what had <strong>not</strong> yet materialized in this reporting window.</p>
+<p>This period did <strong>not</strong> yet include:</p>
+<ul>
+<li>the later L1/L2/L3 methodology layering,</li>
+<li>a formal state-machine model,</li>
+<li>methodology versioning or progressive seeding,</li>
+<li>deterministic publish or project pinning semantics,</li>
+<li>or the later hardened facts/artifacts methodology structure.</li>
+</ul>
+<p>What existed instead was a much earlier stage of the same broader trajectory: workflow execution thinking, role-aware orchestration, schema-backed persistence, and the first movement toward data-driven methodology support. This distinction keeps the report historically honest while still showing the project’s direction of travel.</p>
+<hr />
+<h2>10. Why This Period Matters in the Larger Story</h2>
+<p>Progress Report 3 is where the project first becomes concretely legible as a system initiative rather than only a research thesis. The importance of this period is that it translates prior research into initial build commitments without pretending that the final form was already known.</p>
+<p>This is also the point where SDLC guidance and agent orchestration become explicitly linked: guidance requires more than documentation, but orchestration requires more than raw autonomy. The project’s emerging contribution lies in trying to combine those two concerns into one system direction.</p>
+<hr />
+<h2>11. Initial Stack Decision</h2>
+<p>To make the timeline explicit, this report now closes the initial reporting phase with the initially chosen implementation stack and the reasons for that choice at that time.</p>
+<h3>11.1 Initial Stack</h3>
+<p><strong>Frontend / Desktop shell</strong>
+- React-based frontend workbench
+- Tauri desktop host (including sidecar discussions for local runtime/service coupling) [8]</p>
+<p><strong>Backend / orchestration + contracts</strong>
+- Python backend direction
+- FastAPI service boundary [9]
+- Pydantic for typed request/response and validation contracts [10]
+- DSPy-oriented orchestration/optimization exploration [1]–[3]</p>
+<h3>11.2 Why This Was Chosen in the Initial Phase</h3>
+<p>This decision optimized for research velocity and controllable local experimentation:</p>
+<ul>
+<li><strong>Python ecosystem speed for AI prototyping:</strong> FastAPI + Pydantic provided rapid, strongly-typed API iteration [9], [10].</li>
+<li><strong>Local-first desktop intent:</strong> Tauri gave a lightweight desktop host while preserving a web-style UI workflow [8].</li>
+<li><strong>Agentic experimentation fit:</strong> DSPy-style experimentation aligned with the thesis goal of structured, improvable agent behaviors [1]–[3].</li>
+<li><strong>Pragmatic separation of concerns:</strong> desktop shell and backend orchestration could evolve somewhat independently while the methodology model was still forming.</li>
+</ul>
+<p>This was an intentionally provisional stack decision: good for proving feasibility and shaping the product thesis, but not yet guaranteed to be the long-term production architecture.</p>
+<h3>11.3 Transition Pressure Identified at End of the Initial Phase</h3>
+<p>By the end of the initial phase, one practical implementation pressure was already visible: development agents performed better in a single-language project than in a mixed-language runtime split. In practice, coordinating frontend/runtime code in TypeScript while maintaining a separate Python service path increased implementation friction for agent-driven development workflows.</p>
+<p>This did not invalidate the initial stack decision, but it did create a clear signal for the next phase: moving toward a more unified TypeScript path would likely improve implementation throughput, consistency, and agent reliability.</p>
+<h3>11.4 Early Optimizer Research Direction</h3>
+<p>This period also seeded a line of optimizer research that would matter more clearly later when the AX and DSPy-style direction became more concrete. At the time, the project was not yet committing to one optimizer as implementation policy, but it was already useful to distinguish between three different optimization patterns.</p>
+<p><strong>MiPRO</strong> appeared attractive for structured, evaluable outputs because it jointly optimizes instructions and few-shot demonstrations, using bootstrapping and Bayesian search to improve prompt-program behavior against a defined metric [11], [12]. In Chiron terms, this made it a plausible fit for earlier workflow-path selection and other constrained routing or classification decisions where correctness could be scored.</p>
+<p><strong>GEPA</strong> represented a different kind of possibility. Rather than optimizing a single instruction/demo configuration, it uses reflective prompt evolution over execution traces and Pareto-style candidate selection, which makes it more suitable when competing objectives must be balanced explicitly [13], [14]. In Chiron, this suggested possible future use for outputs where quality, brevity, and downstream usefulness would need to be traded off rather than reduced to one simple score.</p>
+<p><strong>ACE</strong> pointed in yet another direction. Instead of focusing mainly on one-shot prompt optimization, it treats context as an evolving playbook through a generator-reflector-curator loop, making it especially relevant to long-running agents that accumulate and refine reusable rules over time [15], [16]. For Chiron, this aligned more naturally with the future idea of agents learning user-preferred practices across repeated workflows and multiple projects than with the immediate implementation baseline.</p>
+<p>At this stage, these optimizer ideas should be read as research direction rather than settled implementation policy. The significance of this period is that the project was already distinguishing between prompt optimization for structured outputs, richer multi-objective evolution, and longer-horizon agent learning as separate design possibilities rather than collapsing them into one generic “AI optimization” bucket.</p>
+<hr />
+<h2>12. Risks and Open Questions Entering Progress Report 4</h2>
+<h3>Risks</h3>
+<ul>
+<li>Introducing implementation commitments too quickly before their guidance implications are understood.</li>
+<li>Building workflow execution features without sufficient clarity about how users observe and control them.</li>
+<li>Letting orchestration complexity outpace the clarity of the system’s visible model.</li>
+</ul>
+<h3>Open Questions</h3>
+<ul>
+<li>What is the right balance between flexible agent autonomy and guided execution structure?</li>
+<li>Which orchestration responsibilities belong in workflow logic versus user-facing system design?</li>
+<li>How should the system present project progression so that users no longer need to reconstruct it through repeated chat queries?</li>
+</ul>
+<p>These questions define the transition into Progress Report 4.</p>
+<hr />
+<h2>13. Conclusion</h2>
+<p>Progress Report 3 closes the initial reporting phase by documenting the first concrete step from research-backed design into initial system realization. The report does not claim that the final project architecture was already complete or stable. Instead, it shows that the project had matured enough to begin building toward its thesis direction in a disciplined way.</p>
+<p>The period established that the core problem—guidance for software development lifecycle decisions under agentic workflows—requires both structured methodology and orchestration-aware system design. This insight created the conditions for later reports, where implementation decisions could become more explicit and technically grounded.</p>
+<hr />
+<h2>References</h2>
+<p>[1] O. Khattab et al., “DSPy: Compiling Declarative Language Model Calls into Self-Improving Pipelines,” 2023. [Online]. Available: <a href="https://arxiv.org/abs/2310.03714">https://arxiv.org/abs/2310.03714</a><br />
+[2] K. Hu, “Learning AI Agent Programming (with DSPy),” Jun. 2025. [Online]. Available: <a href="https://blog.kevinhu.me/2025/06/22/Agentic-Programming/">https://blog.kevinhu.me/2025/06/22/Agentic-Programming/</a><br />
+[3] M. Mansurova, “Programming, Not Prompting: A Hands-On Guide to DSPy,” Towards Data Science, Jun. 23, 2025. [Online]. Available: <a href="https://towardsdatascience.com/programming-not-prompting-a-hands-on-guide-to-dspy/">https://towardsdatascience.com/programming-not-prompting-a-hands-on-guide-to-dspy/</a><br />
+[4] crewAIInc, “crewAI,” GitHub repository, 2025. [Online]. Available: <a href="https://github.com/crewAIInc/crewAI">https://github.com/crewAIInc/crewAI</a><br />
+[5] CrewAI, “CrewAI OSS: The open source, multi-agent orchestration framework,” 2025. [Online]. Available: <a href="https://crewai.com/open-source">https://crewai.com/open-source</a><br />
+[6] BloopAI, “vibe-kanban,” GitHub repository, 2025. [Online]. Available: <a href="https://github.com/BloopAI/vibe-kanban">https://github.com/BloopAI/vibe-kanban</a><br />
+[7] Vibe Kanban, “Orchestrate AI Coding Agents,” 2025. [Online]. Available: <a href="https://www.vibekanban.com/">https://www.vibekanban.com/</a><br />
+[8] Tauri Programme, “Tauri,” Documentation, 2025. [Online]. Available: <a href="https://tauri.app/">https://tauri.app/</a><br />
+[9] FastAPI, “FastAPI,” Documentation, 2025. [Online]. Available: <a href="https://fastapi.tiangolo.com/">https://fastapi.tiangolo.com/</a><br />
+[10] Pydantic, “Pydantic,” Documentation, 2025. [Online]. Available: <a href="https://docs.pydantic.dev/">https://docs.pydantic.dev/</a><br />
+[11] DSPy, “MIPROv2,” Documentation, 2025. [Online]. Available: <a href="https://dspy.ai/api/optimizers/MIPROv2/">https://dspy.ai/api/optimizers/MIPROv2/</a><br />
+[12] S. Opsahl-Ong et al., “Optimizing Instructions and Demonstrations for Multi-Stage Language Model Programs,” 2024. [Online]. Available: <a href="https://arxiv.org/abs/2406.11695">https://arxiv.org/abs/2406.11695</a><br />
+[13] DSPy, “GEPA Overview,” Documentation, 2025. [Online]. Available: <a href="https://dspy.ai/api/optimizers/GEPA/overview/">https://dspy.ai/api/optimizers/GEPA/overview/</a><br />
+[14] L. A. Agrawal et al., “GEPA: Reflective Prompt Evolution Can Outperform Reinforcement Learning,” 2025. [Online]. Available: <a href="https://arxiv.org/abs/2507.19457">https://arxiv.org/abs/2507.19457</a><br />
+[15] Q. Zhang et al., “Agentic Context Engineering: Evolving Contexts for Self-Improving Language Models,” 2025. [Online]. Available: <a href="https://arxiv.org/abs/2510.04618">https://arxiv.org/abs/2510.04618</a><br />
+[16] Ax LLM, “Agentic Context Engineering (ACE),” Documentation, 2025. [Online]. Available: <a href="https://axllm.dev/ace/">https://axllm.dev/ace/</a></p>
+  </main>
+</body>
+</html>
