@@ -1,0 +1,62 @@
+academic_reports/PROGRESS_REPORT_03_EARLY_ORCHESTRATION_DIRECTION.md
+  b49b68eb695edf89 108-109,211,215-217,223-225,236-247,278-293
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.6",
+  "base_commit_sha": "399d40b7e1e18d853870adc86cad1d5360f5d6f9",
+  "prompts": {
+    "5c86959ba70ad1ac": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_28e4613b4ffeEAFQIkKh8SX1fY",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 845,
+      "overriden_lines": 0
+    },
+    "a13a663a6d30d314": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_28e45f3deffeKGYGUAwaAFNNxb",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 516,
+      "overriden_lines": 0
+    },
+    "a14778d168a03fe7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_28e45c79dffet10yanSsy4Vjsm",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 762,
+      "overriden_lines": 0
+    },
+    "b49b68eb695edf89": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2b6a37222ffeL5k3UQUISSA73o",
+        "model": "openai/gpt-5.3-codex"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 265,
+      "overriden_lines": 0
+    }
+  }
+}
