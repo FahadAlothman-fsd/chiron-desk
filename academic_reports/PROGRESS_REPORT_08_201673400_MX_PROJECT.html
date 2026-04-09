@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Progress Report 8</title>
+  <style>
+@page { size: A4; margin: 16mm 14mm 16mm 14mm; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  line-height: 1.6;
+  color: #141414;
+  margin: 0;
+  background: #ffffff;
+}
+
+.cover-page {
+  min-height: 94vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 22px 20px;
+  page-break-after: always;
+}
+
+.cover-logo {
+  width: 180px;
+  max-width: 44%;
+  margin-bottom: 14px;
+}
+
+.cover-title {
+  font-size: 50px;
+  font-weight: 800;
+  line-height: 1.1;
+  max-width: 980px;
+  color: #6b6150;
+  margin: 0 0 10px;
+}
+
+.cover-subtitle {
+  font-size: 22px;
+  line-height: 1.28;
+  max-width: 900px;
+  color: #6b6150;
+  margin: 0 0 10px;
+  font-weight: 700;
+}
+
+.cover-meta {
+  font-size: 15px;
+  color: #6b6150;
+  max-width: 880px;
+  margin: 4px auto;
+}
+
+.cover-student {
+  margin-top: 22px;
+  font-size: 18px;
+  color: #00796b;
+  font-weight: 500;
+}
+
+.report-body {
+  background: #ffffff;
+  max-width: 980px;
+  margin: 8px auto;
+  padding: 14px 24px 28px;
+}
+
+h1, h2, h3 { line-height: 1.25; }
+h1 { font-size: 2rem; margin-bottom: 0.6rem; }
+h2 { font-size: 1.35rem; margin-top: 2rem; }
+h3 { font-size: 1.1rem; margin-top: 1.25rem; }
+hr { border: none; border-top: 1px solid #ddd; margin: 1.5rem 0; }
+code { background: #f6f8fa; padding: 0.1em 0.3em; border-radius: 4px; }
+pre { background: #f6f8fa; padding: 12px; overflow-x: auto; border-radius: 8px; }
+a { color: #0b57d0; text-decoration: underline; word-break: break-word; }
+ul, ol { padding-left: 1.2rem; }
+
+@media print {
+  body { background: #fff; }
+  .report-body { margin: 0; max-width: none; padding: 0; }
+  .cover-page { min-height: 94vh; }
+}
+</style>
+</head>
+<body>
+  
+<section class="cover-page">
+  <img class="cover-logo" src="kfupm-logo-green.png" alt="KFUPM Logo" />
+  <div class="cover-title">Chiron</div>
+  <div class="cover-subtitle">Effect Foundation and Runtime Migration Execution on a Workflow-Path Backbone</div>
+  <div class="cover-meta">Progress Report 8 • 5 Jan 2026 — 18 Jan 2026</div>
+  <div class="cover-meta">Master’s Research Progress Update</div>
+  <div class="cover-student">Fahad Alothman</div>
+</section>
+
+  <main class="report-body">
+    <h1>Progress Report 8</h1>
+<p><strong>Title:</strong> Effect Foundation and Runtime Migration Execution on a Workflow-Path Backbone<br />
+<strong>Reporting Window:</strong> 5 Jan 2026 — 18 Jan 2026<br />
+<strong>Submission Context:</strong> Master’s Research Progress Update</p>
+<hr />
+<h2>Abstract</h2>
+<p>Progress Report 8 documents the main migration-execution window that followed the strategic reframing in Progress Report 7. The period advanced a staged runtime transition from the prior orchestration center toward an Effect- and AI-SDK-oriented execution core. This was not a planning-only interval; it was an implementation-heavy phase with tightly sequenced delivery slices.</p>
+<p>A key historical point is architectural continuity during change. Chiron was still operating with independent workflows, and workflow paths remained the practical backbone for execution flow. The migration therefore focused on replacing runtime responsibilities while preserving path-driven execution continuity and user-facing workflow operability.</p>
+<hr />
+<h2>1. Period Character: Migration Execution Under Controlled Scope</h2>
+<p>This reporting window was a high-intensity implementation period centered on runtime replacement, not broad capability expansion. The scope was controlled through story-sliced migration increments, each targeting one dependency layer or execution concern.</p>
+<p>The practical objective was to reduce orchestration indirection while improving ownership over lifecycle, variable flow, approval semantics, and service boundaries. The period should be interpreted as controlled architectural execution rather than exploratory prototyping.</p>
+<hr />
+<h2>2. Execution Model Continuity: Independent Workflows with Workflow Paths as Backbone</h2>
+<p>At this stage, Chiron’s working execution model remained anchored in independent workflows connected by workflow paths; formal methodology-layer contracts had not yet become the primary execution model. In this period, that backbone was retained deliberately.</p>
+<p>This decision mattered for delivery stability:</p>
+<ul>
+<li>execution continuity remained path-oriented,</li>
+<li>migration work could proceed without rebuilding every user-facing orchestration surface at once,</li>
+<li>and runtime internals could be replaced while preserving operational behavior at the workflow-navigation level.</li>
+</ul>
+<p>In other words, the project changed the engine while keeping the route structure understandable and usable.</p>
+<hr />
+<h2>3. Effect Foundation: Establishing Service-Layer Ownership</h2>
+<p>The first major outcome of the period was the establishment of an Effect-based foundation for the workflow engine [1]. Core execution responsibilities were reorganized into explicit services and layered runtime composition.</p>
+<p>This strengthened determinism and maintainability by moving critical concerns into typed, composable service boundaries instead of dispersed orchestration logic. The architecture gained clearer control points for configuration, execution context, error handling, and stateful runtime interaction.</p>
+<hr />
+<h2>4. AI-SDK Integration and Orchestration Decoupling</h2>
+<p>The second major outcome was integration of AI-SDK-centered interaction primitives into the new runtime path [2], [3]. This was accompanied by active removal of prior orchestration coupling and expansion of multi-provider AI handling.</p>
+<p>Operationally, this reduced dependence on a heavier abstraction path and improved direct control over message flow, tool execution interfaces, and provider wiring. The period therefore converted earlier strategic intent into concrete runtime behavior.</p>
+<hr />
+<h2>5. Variable, Step-Handler, and Executor Migration Sequence</h2>
+<p>A central implementation sequence in this window addressed the core execution loop in stages:</p>
+<ul>
+<li>variable-system migration into the new runtime layer,</li>
+<li>step-handler migration into Effect-aligned service execution,</li>
+<li>mainline wiring of the new executor path,</li>
+<li>and cleanup of legacy execution surfaces after replacement stabilized.</li>
+</ul>
+<p>This sequence reduced migration risk by avoiding a single-shot runtime cutover. It also improved traceability of behavior changes because each layer of the execution loop was transitioned with explicit scope.</p>
+<hr />
+<h2>6. Scoping Strategy in This Period: Operational Boundaries Before Formal Methodology Boundaries</h2>
+<p>The project’s scoping strategy in this report window was pragmatic: enforce control through runtime services and execution-path constraints while formal methodology-layer contracts were still emerging.</p>
+<p>This means scope was managed through operational authority boundaries:</p>
+<ul>
+<li>where variable ownership lived,</li>
+<li>where transition and approval decisions executed,</li>
+<li>and where workflow-step context was interpreted and persisted.</li>
+</ul>
+<p>The significance is historical: the period did not finalize the later formal methodology-layer model, but it made the boundaries that model would later codify visible and testable in implementation practice.</p>
+<hr />
+<h2>7. Stack Status at End of Progress Report 8</h2>
+<p>By the end of this reporting window, the active runtime direction had shifted noticeably in implementation practice:</p>
+<ul>
+<li><strong>Desktop host:</strong> Tauri [5]</li>
+<li><strong>Frontend:</strong> React + TanStack Router + shadcn/ui</li>
+<li><strong>Backend/API:</strong> TypeScript services with Hono + tRPC [6], [7]</li>
+<li><strong>AI/runtime orchestration path:</strong> Effect + AI-SDK (+ AX integrations where needed) [1]–[4]</li>
+<li><strong>Data layer:</strong> Drizzle ORM with PostgreSQL</li>
+<li><strong>Authentication:</strong> Better Auth</li>
+<li><strong>Runtime/tooling:</strong> Bun + Turborepo</li>
+</ul>
+<p>Compared with the prior report, this period marks execution-level migration progress rather than only directional reassessment.</p>
+<hr />
+<h2>8. Why This Period Matters</h2>
+<p>Progress Report 8 matters because it operationalized the transition logic established earlier. It showed that runtime migration could proceed while preserving workflow-path continuity and without immediate dependence on a fully materialized methodology layer.</p>
+<p>This period also clarified the next requirement: once runtime boundaries were made explicit in services and execution flow, they needed to be elevated into stable methodology-level contracts. That is the bridge to subsequent lifecycle/state formalization work.</p>
+<hr />
+<h2>9. Open Questions Entering Progress Report 9</h2>
+<ul>
+<li>Which operational scoping rules from runtime services should be promoted into first-class methodology-layer contracts?</li>
+<li>How should project-, workflow-, and step-level authority be represented so path-driven execution remains coherent as lifecycle complexity grows?</li>
+<li>Which transition and approval semantics are now stable enough to standardize across workflows?</li>
+<li>What verification strategy is required to preserve migration gains while moving toward formalized lifecycle/state models?</li>
+</ul>
+<p>These questions define the handoff from migration execution to boundary formalization.</p>
+<hr />
+<h2>Conclusion</h2>
+<p>Progress Report 8 is the implementation counterpart to the reframing captured in Progress Report 7. The period replaced core runtime surfaces through a staged Effect and AI-SDK migration while preserving independent-workflow operation through workflow paths.</p>
+<p>Its central contribution is not only technology substitution, but boundary exposure: it made scoping, transition, and authority concerns concrete in running systems, preparing the ground for the formal methodology-layer and lifecycle/state model that followed.</p>
+<hr />
+<h2>References</h2>
+<p>[1] Effect Authors, “Effect Documentation,” 2026. [Online]. Available: <a href="https://effect.website/">https://effect.website/</a><br />
+[2] Vercel, “AI SDK Documentation,” 2026. [Online]. Available: <a href="https://ai-sdk.dev/docs">https://ai-sdk.dev/docs</a><br />
+[3] Vercel, “AI SDK 6,” 2025. [Online]. Available: <a href="https://vercel.com/blog/ai-sdk-6">https://vercel.com/blog/ai-sdk-6</a><br />
+[4] axllm, “ax,” GitHub repository (<code>@ax-llm/ax</code>), 2026. [Online]. Available: <a href="https://github.com/axllm/ax">https://github.com/axllm/ax</a><br />
+[5] Tauri Programme, “Tauri,” Documentation, 2026. [Online]. Available: <a href="https://tauri.app/">https://tauri.app/</a><br />
+[6] Hono Authors, “Hono,” Documentation, 2026. [Online]. Available: <a href="https://hono.dev/">https://hono.dev/</a><br />
+[7] tRPC Authors, “tRPC,” Documentation, 2026. [Online]. Available: <a href="https://trpc.io/docs">https://trpc.io/docs</a></p>
+  </main>
+</body>
+</html>
