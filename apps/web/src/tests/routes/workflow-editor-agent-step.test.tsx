@@ -233,6 +233,11 @@ describe("workflow editor agent step dialog", () => {
     fireEvent.click(screen.getByRole("button", { name: /prd artifact/i }));
     fireEvent.click(screen.getAllByRole("button", { name: /summary/i }).at(-1)!);
 
+    fireEvent.click(screen.getByRole("button", { name: /read scope/i }));
+    const readScopeTable = screen.getByRole("table");
+    const readScopeBodyRows = within(readScopeTable).getAllByRole("row").slice(1);
+    expect(readScopeBodyRows).toHaveLength(2);
+
     fireEvent.click(screen.getByRole("button", { name: /completion & runtime policy/i }));
     const completionCheckbox = screen.getByRole("checkbox");
     fireEvent.click(completionCheckbox);

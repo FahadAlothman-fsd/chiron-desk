@@ -40,6 +40,7 @@ export function ReadScopeTab({
   const availableExplicitRows = [...explicitRows].sort((left, right) =>
     left.key.localeCompare(right.key),
   );
+  const explicitRowIds = new Set(availableExplicitRows.map((row) => row.contextFactDefinitionId));
 
   return (
     <div className="grid gap-4">
@@ -105,7 +106,11 @@ export function ReadScopeTab({
           })}
 
           {inferredRows
-            .filter((row) => !enabledExplicit.has(row.contextFactDefinitionId))
+            .filter(
+              (row) =>
+                !enabledExplicit.has(row.contextFactDefinitionId) &&
+                !explicitRowIds.has(row.contextFactDefinitionId),
+            )
             .map((row) => (
               <TableRow key={`inferred-${row.contextFactDefinitionId}`}>
                 <TableCell>
