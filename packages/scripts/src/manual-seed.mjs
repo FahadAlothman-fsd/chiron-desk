@@ -106,6 +106,16 @@ const RUNTIME_FIXTURE_TABLE_INSERTIONS = [
   ["methodologyWorkflowContextFactDraftSpecs", schema.methodologyWorkflowContextFactDraftSpecs],
   ["methodologyWorkflowContextFactDraftSpecFacts", schema.methodologyWorkflowContextFactDraftSpecFields],
   ["methodology_workflow_steps", schema.methodologyWorkflowSteps],
+  ["methodologyWorkflowAgentSteps", schema.methodologyWorkflowAgentSteps],
+  [
+    "methodologyWorkflowAgentStepExplicitReadGrants",
+    schema.methodologyWorkflowAgentStepExplicitReadGrants,
+  ],
+  ["methodologyWorkflowAgentStepWriteItems", schema.methodologyWorkflowAgentStepWriteItems],
+  [
+    "methodologyWorkflowAgentStepWriteItemRequirements",
+    schema.methodologyWorkflowAgentStepWriteItemRequirements,
+  ],
   ["methodology_workflow_edges", schema.methodologyWorkflowEdges],
   ["methodologyWorkflowFormFields", schema.methodologyWorkflowFormFields],
 ];

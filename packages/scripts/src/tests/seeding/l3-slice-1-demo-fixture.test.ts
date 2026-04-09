@@ -20,17 +20,20 @@ describe("l3 slice-1 demo fixture", () => {
     expect(methodologyCanonicalTableSeedRows.methodology_workflow_edges).toHaveLength(0);
   });
 
-  it("seeds WU.SETUP form->form demo with exactly two steps and one edge", async () => {
+  it("seeds WU.SETUP form->form->agent demo with deterministic runtime handoff shape", async () => {
     const { fixture } = await loadSeedArtifacts();
     const { SLICE_1_DEMO_FIXTURE, slice1DemoFixtureSeedRows } = fixture;
 
     expect(SLICE_1_DEMO_FIXTURE.workUnitTypeKey).toBe("setup");
     expect(SLICE_1_DEMO_FIXTURE.workflowKey).toBe("setup_project");
 
-    expect(slice1DemoFixtureSeedRows.methodology_workflow_steps).toHaveLength(2);
-    expect(slice1DemoFixtureSeedRows.methodology_workflow_edges).toHaveLength(1);
+    expect(slice1DemoFixtureSeedRows.methodology_workflow_steps).toHaveLength(3);
+    expect(slice1DemoFixtureSeedRows.methodology_workflow_edges).toHaveLength(2);
 
-    const formStepRows = slice1DemoFixtureSeedRows.methodology_workflow_steps;
+    const formStepRows = slice1DemoFixtureSeedRows.methodology_workflow_steps.filter(
+      (row) => row.type === "form",
+    );
+    expect(formStepRows).toHaveLength(2);
     for (const row of formStepRows) {
       expect(row.type).toBe("form");
       expect(row.workflowId).toBe(SLICE_1_DEMO_FIXTURE.workflowId);
@@ -39,6 +42,15 @@ describe("l3 slice-1 demo fixture", () => {
         agent: { markdown: expect.any(String) },
       });
     }
+
+    const agentStepRows = slice1DemoFixtureSeedRows.methodology_workflow_steps.filter(
+      (row) => row.type === "agent",
+    );
+    expect(agentStepRows).toHaveLength(1);
+    expect(agentStepRows[0]).toMatchObject({
+      key: "synthesize_setup_handoff",
+      displayName: "Synthesize Setup Handoff",
+    });
 
     expect(slice1DemoFixtureSeedRows.workflowMetadataPatch).toEqual({
       workflowId: SLICE_1_DEMO_FIXTURE.workflowId,
@@ -155,6 +167,43 @@ describe("l3 slice-1 demo fixture", () => {
           "seed:work-unit-fact:brainstorming:setup-work-unit:mver_bmad_v1_active",
       }),
     ]);
+
+    expect(slice1DemoFixtureSeedRows.methodologyWorkflowAgentSteps).toEqual([
+      expect.objectContaining({
+        stepId: "seed:l3-slice-1:setup-project:mver_bmad_v1_active:step:synthesize-setup-handoff",
+        harness: "opencode",
+        agentKey: "Atlas (Plan Executor)",
+        modelJson: null,
+        completionRequirementsJson: [
+          {
+            contextFactDefinitionId:
+              "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:reference-artifact",
+          },
+          {
+            contextFactDefinitionId:
+              "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:requires-brainstorming",
+          },
+          {
+            contextFactDefinitionId:
+              "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:project-summary",
+          },
+        ],
+      }),
+    ]);
+
+    expect(slice1DemoFixtureSeedRows.methodologyWorkflowAgentStepExplicitReadGrants).toHaveLength(
+      8,
+    );
+    expect(slice1DemoFixtureSeedRows.methodologyWorkflowAgentStepWriteItems).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ writeItemId: "write-reference-artifact", sortOrder: 100 }),
+        expect.objectContaining({ writeItemId: "write-requires-brainstorming", sortOrder: 200 }),
+        expect.objectContaining({ writeItemId: "write-project-summary", sortOrder: 300 }),
+      ]),
+    );
+    expect(
+      slice1DemoFixtureSeedRows.methodologyWorkflowAgentStepWriteItemRequirements,
+    ).toHaveLength(4);
   });
 
   it("keeps fixture-only BMAD-derived context-fact examples separate from permanent seeds", async () => {

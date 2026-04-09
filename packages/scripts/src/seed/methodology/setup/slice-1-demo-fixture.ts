@@ -32,6 +32,14 @@ export type MethodologyWorkflowContextFactDraftSpecSeedRow =
   typeof schema.methodologyWorkflowContextFactDraftSpecs.$inferInsert;
 export type MethodologyWorkflowContextFactDraftSpecFactSeedRow =
   typeof schema.methodologyWorkflowContextFactDraftSpecFields.$inferInsert;
+export type MethodologyWorkflowAgentStepSeedRow =
+  typeof schema.methodologyWorkflowAgentSteps.$inferInsert;
+export type MethodologyWorkflowAgentStepExplicitReadGrantSeedRow =
+  typeof schema.methodologyWorkflowAgentStepExplicitReadGrants.$inferInsert;
+export type MethodologyWorkflowAgentStepWriteItemSeedRow =
+  typeof schema.methodologyWorkflowAgentStepWriteItems.$inferInsert;
+export type MethodologyWorkflowAgentStepWriteItemRequirementSeedRow =
+  typeof schema.methodologyWorkflowAgentStepWriteItemRequirements.$inferInsert;
 
 export type Slice1FixtureOnlyFactExample = {
   readonly factKey: string;
@@ -86,12 +94,20 @@ export type Slice1DemoFixtureSeedRows = {
   readonly methodology_workflow_steps: readonly MethodologyWorkflowStepSeedRow[];
   readonly methodology_workflow_edges: readonly MethodologyWorkflowEdgeSeedRow[];
   readonly methodologyWorkflowFormFields: readonly MethodologyWorkflowFormFieldSeedRow[];
+  readonly methodologyWorkflowAgentSteps: readonly MethodologyWorkflowAgentStepSeedRow[];
+  readonly methodologyWorkflowAgentStepExplicitReadGrants: readonly MethodologyWorkflowAgentStepExplicitReadGrantSeedRow[];
+  readonly methodologyWorkflowAgentStepWriteItems: readonly MethodologyWorkflowAgentStepWriteItemSeedRow[];
+  readonly methodologyWorkflowAgentStepWriteItemRequirements: readonly MethodologyWorkflowAgentStepWriteItemRequirementSeedRow[];
 };
 
 function buildSlice1DemoFixtureSeedRows(methodologyVersionId: string): Slice1DemoFixtureSeedRows {
   const baseId = `seed:l3-slice-1:setup-project:${methodologyVersionId}`;
   const setupStepId = `${baseId}:step:collect-setup`;
   const factStepId = `${baseId}:step:exercise-bindings`;
+  const synthesizeStepId = `${baseId}:step:synthesize-setup-handoff`;
+  const writeReferenceArtifactRowId = `${baseId}:write-item:reference-artifact`;
+  const writeRequiresBrainstormingRowId = `${baseId}:write-item:requires-brainstorming`;
+  const writeProjectSummaryRowId = `${baseId}:write-item:project-summary`;
   const setupWorkflowId = `seed:workflow:setup:setup-project:${methodologyVersionId}`;
 
   return {
@@ -328,6 +344,24 @@ function buildSlice1DemoFixtureSeedRows(methodologyVersionId: string): Slice1Dem
           "Treat this as a runtime test harness for context-fact rendering, not as product-facing setup truth.",
         ),
       },
+      {
+        id: synthesizeStepId,
+        methodologyVersionId,
+        workflowId: setupWorkflowId,
+        key: "synthesize_setup_handoff",
+        type: "agent",
+        displayName: "Synthesize Setup Handoff",
+        configJson: {
+          descriptionJson: {
+            markdown:
+              "Synthesizes setup intake into a reusable handoff that drives downstream workflow branching.",
+          },
+        },
+        guidanceJson: guidanceJson(
+          "Synthesize setup findings into concise handoff outputs and decide if brainstorming is required.",
+          "Ground the synthesis in known setup context facts, persist durable handoff outputs, and set the brainstorming gate explicitly.",
+        ),
+      },
     ] satisfies readonly MethodologyWorkflowStepSeedRow[],
     methodology_workflow_edges: [
       {
@@ -341,6 +375,20 @@ function buildSlice1DemoFixtureSeedRows(methodologyVersionId: string): Slice1Dem
           markdown: guidanceJson(
             "Proceed to the draft runtime test form once the real setup context has been collected.",
             "Use this edge to hand off from the real setup intake to the context-fact binding test harness.",
+          ).human.markdown,
+        },
+      },
+      {
+        id: `${baseId}:edge:exercise-bindings->synthesize-handoff`,
+        methodologyVersionId,
+        workflowId: setupWorkflowId,
+        fromStepId: factStepId,
+        toStepId: synthesizeStepId,
+        edgeKey: "exercise_context_fact_bindings_to_synthesize_setup_handoff",
+        descriptionJson: {
+          markdown: guidanceJson(
+            "Proceed to setup synthesis once binding coverage has been exercised.",
+            "Hand off from context-fact binding exercise into the setup synthesis agent step.",
           ).human.markdown,
         },
       },
@@ -472,6 +520,91 @@ function buildSlice1DemoFixtureSeedRows(methodologyVersionId: string): Slice1Dem
         sortOrder: 6,
       },
     ] satisfies readonly MethodologyWorkflowFormFieldSeedRow[],
+    methodologyWorkflowAgentSteps: [
+      {
+        stepId: synthesizeStepId,
+        objective:
+          "Produce a concise setup handoff grounded in collected setup context and decide whether brainstorming should follow.",
+        instructionsMarkdown:
+          "Ground output only in available setup context facts. Summarize workflow mode, scan level, repository shape, and project parts. Persist the handoff artifact reference, update project summary for downstream reuse, and explicitly set whether brainstorming is required with clear rationale.",
+        harness: "opencode",
+        agentKey: "Atlas (Plan Executor)",
+        modelJson: null,
+        completionRequirementsJson: [
+          { contextFactDefinitionId: `${baseId}:ctx:reference-artifact` },
+          { contextFactDefinitionId: `${baseId}:ctx:requires-brainstorming` },
+          { contextFactDefinitionId: `${baseId}:ctx:project-summary` },
+        ],
+        sessionStart: "explicit",
+        continuationMode: "bootstrap_only",
+        liveStreamCount: 1,
+        nativeMessageLog: false,
+        persistedWritePolicy: "applied_only",
+      },
+    ] satisfies readonly MethodologyWorkflowAgentStepSeedRow[],
+    methodologyWorkflowAgentStepExplicitReadGrants: [
+      { agentStepId: synthesizeStepId, contextFactDefinitionId: `${baseId}:ctx:workflow-mode` },
+      { agentStepId: synthesizeStepId, contextFactDefinitionId: `${baseId}:ctx:scan-level` },
+      { agentStepId: synthesizeStepId, contextFactDefinitionId: `${baseId}:ctx:repository-type` },
+      { agentStepId: synthesizeStepId, contextFactDefinitionId: `${baseId}:ctx:project-parts` },
+      { agentStepId: synthesizeStepId, contextFactDefinitionId: `${baseId}:ctx:project-summary` },
+      { agentStepId: synthesizeStepId, contextFactDefinitionId: `${baseId}:ctx:deep-dive-target` },
+      {
+        agentStepId: synthesizeStepId,
+        contextFactDefinitionId: `${baseId}:ctx:reference-workflow`,
+      },
+      {
+        agentStepId: synthesizeStepId,
+        contextFactDefinitionId: `${baseId}:ctx:reference-artifact`,
+      },
+    ] satisfies readonly MethodologyWorkflowAgentStepExplicitReadGrantSeedRow[],
+    methodologyWorkflowAgentStepWriteItems: [
+      {
+        id: writeReferenceArtifactRowId,
+        agentStepId: synthesizeStepId,
+        writeItemId: "write-reference-artifact",
+        contextFactDefinitionId: `${baseId}:ctx:reference-artifact`,
+        contextFactKind: "artifact_reference_fact",
+        label: "Reference Artifact",
+        sortOrder: 100,
+      },
+      {
+        id: writeRequiresBrainstormingRowId,
+        agentStepId: synthesizeStepId,
+        writeItemId: "write-requires-brainstorming",
+        contextFactDefinitionId: `${baseId}:ctx:requires-brainstorming`,
+        contextFactKind: "plain_value_fact",
+        label: "Requires Brainstorming",
+        sortOrder: 200,
+      },
+      {
+        id: writeProjectSummaryRowId,
+        agentStepId: synthesizeStepId,
+        writeItemId: "write-project-summary",
+        contextFactDefinitionId: `${baseId}:ctx:project-summary`,
+        contextFactKind: "plain_value_fact",
+        label: "Project Summary",
+        sortOrder: 300,
+      },
+    ] satisfies readonly MethodologyWorkflowAgentStepWriteItemSeedRow[],
+    methodologyWorkflowAgentStepWriteItemRequirements: [
+      {
+        writeItemRowId: writeReferenceArtifactRowId,
+        contextFactDefinitionId: `${baseId}:ctx:workflow-mode`,
+      },
+      {
+        writeItemRowId: writeReferenceArtifactRowId,
+        contextFactDefinitionId: `${baseId}:ctx:scan-level`,
+      },
+      {
+        writeItemRowId: writeRequiresBrainstormingRowId,
+        contextFactDefinitionId: `${baseId}:ctx:project-parts`,
+      },
+      {
+        writeItemRowId: writeProjectSummaryRowId,
+        contextFactDefinitionId: `${baseId}:ctx:repository-type`,
+      },
+    ] satisfies readonly MethodologyWorkflowAgentStepWriteItemRequirementSeedRow[],
   } as const;
 }
 
