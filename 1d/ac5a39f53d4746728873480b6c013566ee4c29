@@ -1,0 +1,59 @@
+packages/agent-runtime/src/fake-harness-service.ts
+  2adda23b90026ec0 330,351-354
+  83ffcfbb8dfcb7a3 321,324,345
+packages/agent-runtime/src/tests/harness/harness-service-contract.test.ts
+  83ffcfbb8dfcb7a3 198-204
+  2adda23b90026ec0 157-176,187-196
+packages/agent-runtime/src/opencode-harness-service.ts
+  5bcefd2e09c0df96 407,650,716-736,862-864,874,887-889,1215,1217-1227,1229,1232,1238
+packages/agent-runtime/src/tests/opencode/opencode-harness-service.test.ts
+  2adda23b90026ec0 146,281-283,292,304,308-313
+packages/contracts/src/agent-step/runtime.ts
+  5bcefd2e09c0df96 151-153
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.6",
+  "base_commit_sha": "1dac5a39f53d4746728873480b6c013566ee4c29",
+  "prompts": {
+    "2adda23b90026ec0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_28b8b8abbffe3xukLCO2PQhD9I",
+        "model": "openai/gpt-5.3-codex-spark"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 274,
+      "total_deletions": 116,
+      "accepted_lines": 184,
+      "overriden_lines": 0
+    },
+    "5bcefd2e09c0df96": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_290ca60e8ffeOFobgL3ZePtRb4",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 294,
+      "total_deletions": 96,
+      "accepted_lines": 240,
+      "overriden_lines": 0
+    },
+    "83ffcfbb8dfcb7a3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_28b971d6bffeoKPPUsvCJrNaSc",
+        "model": "openai/gpt-5.3-codex-spark"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 11,
+      "total_deletions": 2,
+      "accepted_lines": 11,
+      "overriden_lines": 0
+    }
+  }
+}
