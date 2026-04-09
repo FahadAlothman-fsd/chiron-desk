@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Progress Report 2</title>
+  <style>
+@page { size: A4; margin: 16mm 14mm 16mm 14mm; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  line-height: 1.6;
+  color: #141414;
+  margin: 0;
+  background: #ffffff;
+}
+
+.cover-page {
+  min-height: 94vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 22px 20px;
+  page-break-after: always;
+}
+
+.cover-logo {
+  width: 180px;
+  max-width: 44%;
+  margin-bottom: 14px;
+}
+
+.cover-title {
+  font-size: 50px;
+  font-weight: 800;
+  line-height: 1.1;
+  max-width: 980px;
+  color: #6b6150;
+  margin: 0 0 10px;
+}
+
+.cover-subtitle {
+  font-size: 22px;
+  line-height: 1.28;
+  max-width: 900px;
+  color: #6b6150;
+  margin: 0 0 10px;
+  font-weight: 700;
+}
+
+.cover-meta {
+  font-size: 15px;
+  color: #6b6150;
+  max-width: 880px;
+  margin: 4px auto;
+}
+
+.cover-student {
+  margin-top: 22px;
+  font-size: 18px;
+  color: #00796b;
+  font-weight: 500;
+}
+
+.report-body {
+  background: #ffffff;
+  max-width: 980px;
+  margin: 8px auto;
+  padding: 14px 24px 28px;
+}
+
+h1, h2, h3 { line-height: 1.25; }
+h1 { font-size: 2rem; margin-bottom: 0.6rem; }
+h2 { font-size: 1.35rem; margin-top: 2rem; }
+h3 { font-size: 1.1rem; margin-top: 1.25rem; }
+hr { border: none; border-top: 1px solid #ddd; margin: 1.5rem 0; }
+code { background: #f6f8fa; padding: 0.1em 0.3em; border-radius: 4px; }
+pre { background: #f6f8fa; padding: 12px; overflow-x: auto; border-radius: 8px; }
+a { color: #0b57d0; text-decoration: underline; word-break: break-word; }
+ul, ol { padding-left: 1.2rem; }
+
+@media print {
+  body { background: #fff; }
+  .report-body { margin: 0; max-width: none; padding: 0; }
+  .cover-page { min-height: 94vh; }
+}
+</style>
+</head>
+<body>
+  
+<section class="cover-page">
+  <img class="cover-logo" src="kfupm-logo-green.png" alt="KFUPM Logo" />
+  <div class="cover-title">Chiron</div>
+  <div class="cover-subtitle">Research, UX Structuring, and Architecture Foundation</div>
+  <div class="cover-meta">Progress Report 2 • 13 Oct 2025 — 26 Oct 2025</div>
+  <div class="cover-meta">Master’s Research Progress Update</div>
+  <div class="cover-student">Fahad Alothman</div>
+</section>
+
+  <main class="report-body">
+    <h1>Progress Report 2</h1>
+<p><strong>Title:</strong> Research, UX Structuring, and Architecture Foundation<br />
+<strong>Reporting Window:</strong> 13 Oct 2025 — 26 Oct 2025<br />
+<strong>Submission Context:</strong> Master’s Research Progress Update</p>
+<hr />
+<h2>Abstract</h2>
+<p>This second progress report continues the initial research and ideation phase of the project. While Progress Report 1 established the core problem—maintaining decision quality and clarity in AI-assisted software development—this report documents the next step: translating that abstract problem into a more structured design and architecture foundation.</p>
+<p>The key outcome of this period was not a mature product implementation, but a clearer understanding that the problem of guidance could not be addressed by prompt strategy alone. It required explicit user flows, visual information architecture, domain modeling, and a first disciplined attempt at system boundaries. During this period, the project moved from broad landscape research toward a more concrete interaction model: if agentic development is to support long-horizon software delivery, then its artifacts, transitions, and user-facing surfaces must be intentionally designed rather than improvised through chat.</p>
+<p>This report therefore focuses on three main developments: the adoption of a more explicit UX and workflow framing, the first serious database and domain decomposition effort, and the refinement of the baseline methodology model inherited from BMAD. It also records the assumptions that were strengthened or challenged as the project moved from pure ideation into design-backed planning.</p>
+<hr />
+<h2>1. Continuation of the Core Research Problem</h2>
+<p>At the end of Progress Report 1, the project had reached a working thesis direction: AI-assisted software development quality depends not only on model performance, but on how clearly a system preserves intent, rationale, and progression across time. Progress Report 2 built on this result by asking a more concrete follow-up question:</p>
+<blockquote>
+<p>If guidance is the core problem, what structures are required to make guidance visible, navigable, and operational in a development system?</p>
+</blockquote>
+<p>This shift matters. In the first period, the problem was diagnosed. In the second, the project began to identify the types of structures that could operationalize a response.</p>
+<hr />
+<h2>2. From Abstract Guidance to Interaction Design</h2>
+<p>One of the most important realizations in this reporting window was that the project could not remain at the level of “good process ideas.” If the system was meant to guide long-horizon development, then it needed a usable interaction model that could externalize project state and reduce the need for developers to hold everything in working memory.</p>
+<p>This led to three design-oriented lines of work:</p>
+<ol>
+<li><strong>User flow identification</strong> — what a developer/operator actually needs to do in sequence.</li>
+<li><strong>Information architecture</strong> — what system surfaces must exist for those actions to be comprehensible.</li>
+<li><strong>Visual/workbench thinking</strong> — how artifacts, decisions, and progress can be observed side-by-side rather than buried in chat.</li>
+</ol>
+<p>The project therefore moved closer to a “guided workbench” concept, even though later formal constructs had not yet emerged. At this point, the language was still centered on workflow visibility, project structure, and interaction clarity rather than formal lifecycle contracts.</p>
+<hr />
+<h2>3. Why UX Became a Research Concern, Not Just a Product Concern</h2>
+<p>During this period, UX was not treated as cosmetic design. It became part of the research problem itself.</p>
+<p>The reasoning was straightforward:</p>
+<ul>
+<li>If users cannot see where they are in a process, guidance fails.</li>
+<li>If artifacts are not visible, rationale becomes hard to inspect.</li>
+<li>If navigation does not reflect the development lifecycle, then the system does not help users maintain a project mental model.</li>
+</ul>
+<p>This is why the project began to invest in structured user flows and design foundations at this stage. The design activity was not separate from the methodological research; it was one of the first operational tests of the thesis that guidance must be explicit and observable.</p>
+<hr />
+<h2>4. Database and Domain Modeling as a Research Result</h2>
+<p>Another major outcome of this reporting period was the first serious attempt to model the domain explicitly. This included early decomposition into projects, workflows, agents, chat/execution context, and variable-like state management.</p>
+<p>The significance of this step is not simply “a database was designed.” The more important point is what this revealed:</p>
+<h3>4.1 What the domain model showed</h3>
+<ul>
+<li>AI-assisted development involves more than conversation history.</li>
+<li>Multiple kinds of entities must be represented if the system is to preserve lifecycle coherence.</li>
+<li>The system needs structure for projects, tasks/workflows, agents, user interactions, and evolving execution context.</li>
+</ul>
+<h3>4.2 Why this mattered in the research phase</h3>
+<p>The modeling effort forced a shift from broad process thinking to explicit system semantics. Once the project began designing tables and relationships, the guidance problem became less theoretical and more architectural: what information must persist if the system is meant to support continuity and recoverability?</p>
+<p>That question set up a crucial later evolution, even though this report stops before those later architectural realizations fully materialized.</p>
+<hr />
+<h2>5. Refining the BMAD Baseline</h2>
+<p>Progress Report 1 positioned BMAD as the initial structured baseline. During this second period, the project started to understand more clearly <strong>why</strong> BMAD was useful and <strong>where</strong> it would eventually need extension.</p>
+<h3>5.1 What became clearer about BMAD in this period</h3>
+<p>BMAD was valuable because it offered [1]–[3]:</p>
+<ul>
+<li>phased decomposition,</li>
+<li>role-aware task progression,</li>
+<li>stronger process scaffolding than freeform prompting,</li>
+<li>and a method for moving from idea to implementation planning without losing all structure.</li>
+</ul>
+<p>At this stage, BMAD was not viewed as a weak baseline; on the contrary, it appeared stronger than many other spec-driven approaches because it did not stop at writing specifications. It combined specifications, workflows, role specialization, and structured process guidance in a way that could move a user through a project more deliberately than a purely prompt-driven or document-only system.</p>
+<h3>5.2 Emerging Limitation: Guidance Still Mediated Through Chat</h3>
+<p>The main limitation observed in this period was not the absence of guidance, but the form in which that guidance was delivered. In practice, much of the user’s interaction with the method still depended on repeatedly querying the agent through chat to answer questions such as [1]–[3]:</p>
+<ul>
+<li>where are we in the project progression,</li>
+<li>what should happen next,</li>
+<li>which artifact is currently authoritative,</li>
+<li>and whether a prerequisite step has actually been completed.</li>
+</ul>
+<p>This meant that even when the method itself was well-structured, the user experience still required repetitive progress-checking behavior. That has two consequences:</p>
+<ol>
+<li><strong>Token cost increases</strong>, because state must be repeatedly re-established through dialogue.</li>
+<li><strong>Cognitive friction remains</strong>, because the user must still actively reconstruct progress rather than simply observe it.</li>
+</ol>
+<p>This limitation did not invalidate BMAD. Instead, it clarified the gap between a strong guided methodology and a system that makes guidance continuously visible at the UI/UX level.</p>
+<h3>5.3 What still remained unresolved</h3>
+<p>At the same time, the project increasingly recognized that methodological scaffolding alone does not automatically produce an explicit, durable system model. A methodology can guide work, but a software system still needs its own architecture, state representation, and navigable surfaces if it is meant to preserve lifecycle clarity.</p>
+<p>This period therefore sharpened a subtle but important distinction:</p>
+<blockquote>
+<p>A development framework can improve process discipline, but it does not automatically become a project-specific guidance system.</p>
+</blockquote>
+<p>That distinction is one of the most important takeaways from Progress Report 2.</p>
+<hr />
+<h2>6. Assumptions Strengthened or Challenged in This Period</h2>
+<h3>Assumption A</h3>
+<p><strong>Assumption carried from Progress Report 1:</strong> Structured methods are better than freeform prompting for long-horizon work.<br />
+<strong>Status in this period:</strong> Strengthened.<br />
+<strong>Why:</strong> UX analysis and architecture planning reinforced that explicit structure improves decision continuity.</p>
+<h3>Assumption B</h3>
+<p><strong>Initial assumption:</strong> Better structure at the workflow/method level may be enough by itself.<br />
+<strong>What challenged it:</strong> Database/domain design showed that process structure still requires explicit system representation.<br />
+<strong>Correction:</strong> Guidance requires both methodological scaffolding and durable system semantics.</p>
+<h3>Assumption C</h3>
+<p><strong>Initial assumption:</strong> UX design can be postponed until after technical architecture is fixed.<br />
+<strong>What challenged it:</strong> The guidance problem itself depends on what users can inspect and navigate.<br />
+<strong>Correction:</strong> UX and architecture must co-evolve in systems where visibility and traceability are core requirements.</p>
+<h3>Assumption D</h3>
+<p><strong>Initial assumption:</strong> Research can remain abstract for longer without loss.<br />
+<strong>What challenged it:</strong> Once domain modeling started, important hidden assumptions surfaced immediately.<br />
+<strong>Correction:</strong> Early modeling is a research instrument, not merely an implementation step.</p>
+<hr />
+<h2>7. Timeline (Progress Report 2 Scope)</h2>
+<h3>Week 1 (13 Oct — 19 Oct 2025): Structuring the Problem Through UX and Planning</h3>
+<ul>
+<li>Expanded the initial problem framing into more explicit user-flow and interaction questions.</li>
+<li>Investigated how spec-driven and workflow-guided approaches could reduce ambiguity over time.</li>
+<li>Used BMAD as a working structured baseline for exploring phased development behavior.</li>
+<li>Began translating broad guidance concerns into designable surfaces and navigable workflow concepts.</li>
+</ul>
+<h3>Week 2 (20 Oct — 26 Oct 2025): Architecture and Domain Modeling Foundation</h3>
+<ul>
+<li>Developed the first stronger domain model for projects, workflows, agents, and execution context.</li>
+<li>Strengthened the view that software guidance requires persistent structure, not only high-quality prompts.</li>
+<li>Clarified that UX and architecture are interdependent in any system meant to support project-level decision clarity.</li>
+<li>Ended the period with a more concrete design/architecture foundation for future implementation work.</li>
+</ul>
+<hr />
+<h2>8. Why This Period Matters in the Larger Story</h2>
+<p>Progress Report 2 is important because it marks the point where the project began to move from “this is an interesting problem” to “this problem requires a deliberately shaped system.”</p>
+<p>This was still a research/ideation period, but it was more concrete than the first one. The project was no longer only comparing paradigms conceptually; it was starting to identify what kinds of screens, entities, boundaries, and process structures might be necessary to operationalize the guidance thesis.</p>
+<p>In that sense, Progress Report 2 is the bridge between pure research and future architecture realization.</p>
+<hr />
+<h2>9. Risks and Open Questions Entering Progress Report 3</h2>
+<h3>Risks</h3>
+<ul>
+<li>Turning design structure into heavy process overhead.</li>
+<li>Confusing methodological clarity with full system completeness.</li>
+<li>Locking in domain boundaries too early before enough implementation evidence exists.</li>
+</ul>
+<h3>Open Questions</h3>
+<ul>
+<li>What is the minimum viable architecture needed to support guidance without overengineering?</li>
+<li>Which project elements must become persistent system entities versus remain temporary workflow context?</li>
+<li>How should structured methods interface with more advanced orchestration layers in later phases?</li>
+</ul>
+<p>These questions define the handoff into Progress Report 3.</p>
+<hr />
+<h2>10. Conclusion</h2>
+<p>Progress Report 2 documents the first meaningful narrowing of the project from broad research into explicit design and architecture foundation work. The main outcome of this period was the realization that the guidance problem cannot be solved by process ideas alone. It requires deliberate interaction design, persistent structure, and explicit domain modeling.</p>
+<p>This period also clarified the role of BMAD in the project: highly useful as a structured baseline, but insufficient by itself as a full project guidance system. That is not a weakness of the framework; rather, it reflects the difference between a general methodology and a project-specific system designed to preserve lifecycle clarity over time.</p>
+<p>As a result, Progress Report 2 closes with a stronger and more grounded foundation than Progress Report 1: the problem is now not only identified, but partially translated into design and architecture form. Later reports can therefore begin introducing implementation-oriented decisions without losing the research logic that produced them.</p>
+<hr />
+<h2>References</h2>
+<p>[1] bmad-code-org, “BMAD-METHOD,” GitHub repository, 2025. [Online]. Available: <a href="https://github.com/bmad-code-org/BMAD-METHOD">https://github.com/bmad-code-org/BMAD-METHOD</a><br />
+[2] bmad-code-org, “BMAD Method v4.44.1,” GitHub release, Sep. 29, 2025. [Online]. Available: <a href="https://github.com/bmad-code-org/BMAD-METHOD/releases/tag/v4.44.1">https://github.com/bmad-code-org/BMAD-METHOD/releases/tag/v4.44.1</a><br />
+[3] V. Mysore, “What is BMAD-METHOD™? A Simple Guide to the Future of AI-Driven Development,” Medium, Sep. 8, 2025. [Online]. Available: <a href="https://medium.com/@visrow/what-is-bmad-method-a-simple-guide-to-the-future-of-ai-driven-development-412274f91419">https://medium.com/@visrow/what-is-bmad-method-a-simple-guide-to-the-future-of-ai-driven-development-412274f91419</a>  </p>
+  </main>
+</body>
+</html>
