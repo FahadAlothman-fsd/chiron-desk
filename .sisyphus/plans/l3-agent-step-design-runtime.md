@@ -4,6 +4,7 @@
 > **Summary**: Implement the Agent step as a dedicated L3 slice on top of the already-complete context-facts/Form baseline, with a workflow-editor design-time dialog, execution-bound OpenCode runtime, thin MCP transport, single-stream timeline UX, and shared context/write semantics grounded in the six locked workflow context fact kinds.
 > **Deliverables**:
 > - Decision-complete design-time Agent-step authoring model, schema, repositories, services, procedures, and dialog UX, including AI Elements `ModelSelector` usage in the Agent dialog
+> - Seeded setup demo workflow update (draft + active): `form -> form -> agent` with deterministic agent-step payload, reads/writes/completion policy, and manual seeder persistence wiring
 > - Runtime Agent-step state/binding/applied-write persistence, session lifecycle, timeline/history loading, and step-execution UX
 > - Thin Chiron MCP route with three v1 tools: `read_step_snapshot`, `read_context_value`, `write_context_value`
 > - `HarnessService` abstraction in `packages/agent-runtime` with an `OpencodeHarnessService` implementation and managed server/session lifecycle
@@ -45,6 +46,25 @@
 - Keep `apps/server` MCP transport thin; all MCP business rules live in workflow-engine services.
 - Use a fake harness/test adapter before the real OpenCode adapter in tests.
 - Do not let artifact/git truth live in Agent services; route it through a new sandbox-engine git query seam.
+
+### Current Status (2026-04-09)
+- ✅ **Design-time is fully completed (FULL CRUD)** for Agent-step authoring:
+  - Contracts and schemas locked.
+  - Repository persistence and invariants implemented.
+  - Methodology-engine services and transaction wiring implemented.
+  - API procedures and workflow-editor dialog UX implemented.
+- ✅ **Design-time bug fixes completed**:
+  - Inferred-read dedupe rendering fixed in Read Scope.
+  - `getEditorDefinition` hardened for repository shape compatibility.
+- ✅ **Seed coverage added for setup workflow (draft + active)**:
+  - New setup workflow step seeded after second form step: `synthesize_setup_handoff`.
+  - Agent selection seeded as `Atlas (Plan Executor)` with `modelJson: null` (use harness default model).
+  - Read grants, write items (including `project-summary`), and completion requirements seeded deterministically.
+  - Manual seeder pipeline (`packages/scripts/src/manual-seed.mjs`) updated to persist agent-step runtime fixture tables:
+    - `methodologyWorkflowAgentSteps`
+    - `methodologyWorkflowAgentStepExplicitReadGrants`
+    - `methodologyWorkflowAgentStepWriteItems`
+    - `methodologyWorkflowAgentStepWriteItemRequirements`
 
 ## Work Objectives
 ### Core Objective
@@ -341,6 +361,21 @@ Wave 5: runtime web UX + end-to-end verification + cleanup
 - Confirm real harness discovery, tab structure, read/write UX, drag-and-drop ordering, and save/discard behavior feel correct.
 - Immediately after human validation, run a focused Metis review on the implemented design-time slice to surface drift before runtime work begins.
 - Continue into runtime only after explicit approval.
+
+**Status**: ✅ Passed (user validated design-time as complete and approved moving into runtime).
+
+- [x] 4.1 Seed setup workflow with Agent-step handoff (draft + active)
+
+  **What was done**:
+  - Added a seeded Agent step (`synthesize_setup_handoff`) in `setup_project`, linked after `exercise_context_fact_bindings` for both `mver_bmad_v1_draft` and `mver_bmad_v1_active`.
+  - Seeded Agent payload with explicit read grants, write items, and completion requirements.
+  - Set harness selection to `opencode` with `agentKey: "Atlas (Plan Executor)"` and `modelJson: null`.
+  - Patched manual seeder insertion list so fixture agent-step rows and child rows are actually persisted to DB.
+
+  **Acceptance Criteria**:
+  - [x] Draft and active setup workflow include the seeded handoff Agent step row.
+  - [x] Agent-step payload row exists in `methodology_workflow_agent_steps` after `db:seed:reset`.
+  - [x] Explicit reads/write items/requirements are persisted for the seeded step.
 
 - [ ] 5. Add runtime schema, repositories, and normalized state split
 
