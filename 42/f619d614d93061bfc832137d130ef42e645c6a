@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.6",
+  "base_commit_sha": "42f619d614d93061bfc832137d130ef42e645c6a",
+  "prompts": {
+    "a14778d168a03fe7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_28e45c79dffet10yanSsy4Vjsm",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 15,
+      "total_deletions": 15,
+      "accepted_lines": 14,
+      "overriden_lines": 0
+    }
+  }
+}
