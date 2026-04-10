@@ -1,0 +1,27 @@
+apps/web/src/routes/projects.$projectId.step-executions.$stepExecutionId.tsx
+  5bcefd2e09c0df96 22,37-42,2627-2632,2634,2639-2641,2643,2645,2647-2655,2661-2665,2667-2668,2673,2675-2686
+apps/web/src/tests/routes/runtime-agent-step-detail.test.tsx
+  5bcefd2e09c0df96 881
+apps/web/src/components/elements/ai-reasoning.tsx
+  5bcefd2e09c0df96 149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "008243a49484a43d4c2372e17f50834e8023ce7d",
+  "prompts": {
+    "5bcefd2e09c0df96": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_290ca60e8ffeOFobgL3ZePtRb4",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "TaskFlow Setup",
+      "messages": [],
+      "total_additions": 77,
+      "total_deletions": 41,
+      "accepted_lines": 51,
+      "overriden_lines": 3
+    }
+  }
+}
