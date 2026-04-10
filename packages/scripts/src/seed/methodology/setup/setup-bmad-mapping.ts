@@ -26,6 +26,7 @@ export const LOCKED_BMAD_SETUP_WORK_UNIT_FACT_KEYS = [
   "workflow_mode",
   "scan_level",
   "requires_brainstorming",
+  "requires_product_brief",
   "deep_dive_target",
 ] as const;
 
@@ -632,20 +633,20 @@ function buildSetupWorkflowSeedRows(
 
 const canonicalSetupArtifactSlots = [
   {
-    idSuffix: "setup-readme",
-    key: "setup_readme",
-    displayName: "Setup README",
+    idSuffix: "project-overview",
+    key: "PROJECT_OVERVIEW",
+    displayName: "Project Overview",
     descriptionJson: toDescriptionJson(
-      "Durable setup artifact capturing baseline project context.",
+      "Durable setup artifact capturing the project vision, goals, requirements, and key decisions.",
     ),
     guidanceJson: toGuidanceJson(
-      "Use this artifact to summarize the setup baseline.",
+      "Use this artifact to summarize the project discovery outcomes.",
       "Populate from supported template variables only.",
     ),
     cardinality: "single",
     rulesJson: {
-      pathStrategy: "project-root",
-      suggestedPath: "README.md",
+      pathStrategy: "project-knowledge",
+      suggestedPath: "project-overview.md",
       templateEngine: "handlebars",
       maxFiles: 1,
     },
@@ -672,7 +673,7 @@ function buildSetupArtifactSlotDefinitionSeedRows(
 const canonicalSetupArtifactSlotTemplates = [
   {
     idSuffix: "default",
-    slotIdSuffix: "setup-readme",
+    slotIdSuffix: "project-overview",
     key: "default",
     displayName: "Default Setup README",
     descriptionJson: toDescriptionJson(
