@@ -1,0 +1,25 @@
+packages/sandbox-engine/src/services/sandbox-git-service.ts
+  5bcefd2e09c0df96 60-61,70-71,78-79,86-87,116-117,233-244,250-251,263-264,278-279,290-291,305-312,440-442
+packages/sandbox-engine/src/tests/sandbox-git-service.test.ts
+  5bcefd2e09c0df96 45-46,120-121,128-129,139-140,147-148,158-159,178-179,186-187,194-195
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "0967b91531843d968d5d75db6f0636fa7a3819e1",
+  "prompts": {
+    "5bcefd2e09c0df96": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_290ca60e8ffeOFobgL3ZePtRb4",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "TaskFlow Setup",
+      "messages": [],
+      "total_additions": 111,
+      "total_deletions": 12,
+      "accepted_lines": 111,
+      "overriden_lines": 0
+    }
+  }
+}
