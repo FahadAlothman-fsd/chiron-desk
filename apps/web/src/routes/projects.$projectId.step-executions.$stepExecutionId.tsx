@@ -103,7 +103,10 @@ import {
   ModelSelectorSeparator,
   ModelSelectorTrigger,
 } from "@/features/workflow-editor/agent-step-tabs/model-selector";
-import type { WorkflowHarnessDiscoveryMetadata } from "@/features/workflow-editor/types";
+import {
+  STEP_TYPE_ICON_CODES,
+  type WorkflowHarnessDiscoveryMetadata,
+} from "@/features/workflow-editor/types";
 import {
   DetailCode,
   DetailEyebrow,
@@ -763,6 +766,30 @@ function getStepTypeFrameStyle(stepType: string): StepTypeFrameStyle {
         "--frame-corner": "color-mix(in oklab, var(--foreground) 56%, var(--border))",
       };
   }
+}
+
+function getStepTypeColors(stepType: GetRuntimeStepExecutionDetailOutput["shell"]["stepType"]) {
+  switch (stepType) {
+    case "action":
+      return { border: "border-emerald-500/30", bg: "bg-emerald-500/5" };
+    case "agent":
+      return { border: "border-violet-500/30", bg: "bg-violet-500/5" };
+    case "invoke":
+      return { border: "border-amber-500/30", bg: "bg-amber-500/5" };
+    case "branch":
+      return { border: "border-rose-500/30", bg: "bg-rose-500/5" };
+    case "display":
+      return { border: "border-slate-500/30", bg: "bg-slate-500/5" };
+    case "form":
+    default:
+      return { border: "border-sky-500/30", bg: "bg-sky-500/5" };
+  }
+}
+
+function getCompletionGateLabel(
+  stepType: GetRuntimeStepExecutionDetailOutput["shell"]["stepType"],
+) {
+  return stepType === "agent" ? "Session completion" : "Completion gate";
 }
 
 function ReferenceOptionCombobox(props: {
@@ -1626,17 +1653,32 @@ function StepExecutionShellCard(props: {
   onComplete?: () => void;
 }) {
   const { shell, completionOutcome, isBusy, onComplete } = props;
+  const stepTypeColors = getStepTypeColors(shell.stepType);
+  const stepTypeIconCode = STEP_TYPE_ICON_CODES[shell.stepType];
 
   return (
     <Card frame="cut-heavy" tone="runtime" corner="white">
       <CardHeader>
-        <div className="space-y-1">
-          <DetailEyebrow>Shared step shell</DetailEyebrow>
-          <CardTitle>Step execution identity &amp; status</CardTitle>
-          <CardDescription>
-            Common runtime metadata stays in the shared shell while step-type specific interaction
-            lives below.
-          </CardDescription>
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1">
+            <DetailEyebrow>Shared step shell</DetailEyebrow>
+            <CardTitle>Step execution identity &amp; status</CardTitle>
+            <CardDescription>
+              Common runtime metadata stays in the shared shell while step-type specific interaction
+              lives below.
+            </CardDescription>
+          </div>
+
+          {stepTypeIconCode ? (
+            <div className="flex size-10 shrink-0 items-center justify-center border border-border/70 bg-background/50 p-2">
+              <img
+                src={`/visuals/workflow-editor/step-types/asset-${stepTypeIconCode}.svg`}
+                alt=""
+                aria-hidden="true"
+                className="h-7 w-auto object-contain invert brightness-150 contrast-125"
+              />
+            </div>
+          ) : null}
         </div>
       </CardHeader>
 
@@ -1668,7 +1710,13 @@ function StepExecutionShellCard(props: {
             </div>
           </div>
 
-          <div className="space-y-3 border border-sky-500/30 bg-sky-500/5 p-3 before:pointer-events-none before:absolute">
+          <div
+            className={cn(
+              "space-y-3 border p-3 before:pointer-events-none before:absolute",
+              stepTypeColors.border,
+              stepTypeColors.bg,
+            )}
+          >
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <DetailLabel>Activated</DetailLabel>
@@ -1679,7 +1727,7 @@ function StepExecutionShellCard(props: {
                 <DetailPrimary>{formatTimestamp(shell.completedAt)}</DetailPrimary>
               </div>
               <div className="sm:col-span-2">
-                <DetailLabel>Completion gate</DetailLabel>
+                <DetailLabel>{getCompletionGateLabel(shell.stepType)}</DetailLabel>
                 <DetailPrimary>{completionOutcome}</DetailPrimary>
                 {!shell.completionAction.enabled && shell.completionAction.reasonIfDisabled ? (
                   <p className="mt-1 text-xs text-muted-foreground">
