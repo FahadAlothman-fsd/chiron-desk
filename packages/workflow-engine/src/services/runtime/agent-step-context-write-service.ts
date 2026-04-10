@@ -7,6 +7,7 @@ import {
 } from "@chiron/contracts/agent-step/errors";
 import { LifecycleRepository, MethodologyRepository } from "@chiron/methodology-engine";
 import { ProjectContextRepository } from "@chiron/project-context";
+import { SandboxGitService, type SandboxGitFileResolution } from "@chiron/sandbox-engine";
 import { Context, Effect, Layer } from "effect";
 
 import { RepositoryError } from "../../errors";
@@ -17,6 +18,7 @@ import { StepExecutionRepository } from "../../repositories/step-execution-repos
 import { StepContextQueryService } from "../step-context-query-service";
 import { StepExecutionTransactionService } from "../step-execution-transaction-service";
 import {
+  type AgentStepRuntimeResolvedContext,
   ensureAgentStepRuntimeContext,
   listExposedWriteItemIds,
   listUnsatisfiedRequirementIds,
@@ -58,6 +60,7 @@ export const AgentStepContextWriteServiceLive = Layer.effect(
     const bindingRepo = yield* AgentStepExecutionHarnessBindingRepository;
     const contextQuery = yield* StepContextQueryService;
     const tx = yield* StepExecutionTransactionService;
+    const sandboxGit = yield* SandboxGitService;
 
     const writeContextValue = (input: WriteContextValueInput) =>
       Effect.gen(function* () {
@@ -91,16 +94,23 @@ export const AgentStepContextWriteServiceLive = Layer.effect(
           });
         }
 
-        const currentValues = valueJsonToCurrentValues({
+        const rawCurrentValues = valueJsonToCurrentValues({
           contextFactDefinitionId: writeItem.contextFactDefinitionId,
           valueJson: input.valueJson,
         });
-        if (currentValues.length === 0) {
+        if (rawCurrentValues.length === 0) {
           return yield* new McpToolValidationError({
             toolName: "write_context_value",
             message: "write_context_value requires at least one non-empty value.",
           });
         }
+
+        const currentValues = yield* resolveCurrentValues({
+          context,
+          writeItem,
+          rawCurrentValues,
+          sandboxGit,
+        });
 
         const beforeExposedIds = new Set(
           listExposedWriteItemIds({
@@ -174,3 +184,186 @@ export const AgentStepContextWriteServiceLive = Layer.effect(
     return AgentStepContextWriteService.of({ writeContextValue });
   }),
 );
+
+function resolveCurrentValues(params: {
+  context: AgentStepRuntimeResolvedContext;
+  writeItem: AgentStepRuntimeWriteItem;
+  rawCurrentValues: readonly {
+    contextFactDefinitionId: string;
+    instanceOrder: number;
+    valueJson: unknown;
+  }[];
+  sandboxGit: SandboxGitService["Type"];
+}) {
+  return params.writeItem.contextFactKind === "artifact_reference_fact"
+    ? resolveArtifactReferenceValues(params)
+    : Effect.succeed(params.rawCurrentValues);
+}
+
+function resolveArtifactReferenceValues(params: {
+  context: AgentStepRuntimeResolvedContext;
+  writeItem: AgentStepRuntimeWriteItem;
+  rawCurrentValues: readonly {
+    contextFactDefinitionId: string;
+    instanceOrder: number;
+    valueJson: unknown;
+  }[];
+  sandboxGit: SandboxGitService["Type"];
+}) {
+  return Effect.gen(function* () {
+    if (!params.context.projectRootPath) {
+      return yield* new McpToolValidationError({
+        toolName: "write_context_value",
+        message: "Artifact references require a project root path before they can be recorded.",
+      });
+    }
+
+    const existingByOrder = new Map(
+      params.context.contextFacts
+        .filter((fact) => fact.contextFactDefinitionId === params.writeItem.contextFactDefinitionId)
+        .map((fact) => [fact.instanceOrder, fact.valueJson] as const),
+    );
+
+    return yield* Effect.forEach(params.rawCurrentValues, (value) =>
+      Effect.gen(function* () {
+        const relativePath = yield* extractRelativePath(value.valueJson);
+        const resolution = yield* params.sandboxGit.resolveArtifactReference({
+          rootPath: params.context.projectRootPath!,
+          filePath: relativePath,
+        });
+
+        const existing = parseRecordedArtifactReference(existingByOrder.get(value.instanceOrder));
+        if (existing) {
+          const comparison = yield* params.sandboxGit.compareRecordedArtifactReference({
+            recorded: existing,
+            current: resolution,
+          });
+
+          if (comparison.status === "deleted") {
+            return {
+              contextFactDefinitionId: value.contextFactDefinitionId,
+              instanceOrder: value.instanceOrder,
+              valueJson: {
+                relativePath: comparison.relativePath,
+                gitCommitHash: comparison.gitCommitHash,
+                gitBlobHash: comparison.gitBlobHash,
+                deleted: true,
+              },
+            };
+          }
+        }
+
+        yield* validateArtifactResolution({
+          resolution,
+          relativePath,
+        });
+
+        if (resolution.status !== "committed") {
+          return yield* new McpToolValidationError({
+            toolName: "write_context_value",
+            message: `Artifact '${relativePath}' could not be resolved to a committed file.`,
+          });
+        }
+
+        return {
+          contextFactDefinitionId: value.contextFactDefinitionId,
+          instanceOrder: value.instanceOrder,
+          valueJson: {
+            relativePath: resolution.relativePath,
+            gitCommitHash: resolution.gitCommitHash,
+            gitBlobHash: resolution.gitBlobHash,
+          },
+        };
+      }).pipe(
+        Effect.catchTag(
+          "SandboxGitInvalidPathError",
+          (error) =>
+            new McpToolValidationError({
+              toolName: "write_context_value",
+              message: error.message,
+            }),
+        ),
+      ),
+    );
+  });
+}
+
+function extractRelativePath(valueJson: unknown) {
+  return Effect.gen(function* () {
+    if (
+      !valueJson ||
+      typeof valueJson !== "object" ||
+      !("relativePath" in valueJson) ||
+      typeof valueJson.relativePath !== "string" ||
+      valueJson.relativePath.trim().length === 0
+    ) {
+      return yield* new McpToolValidationError({
+        toolName: "write_context_value",
+        message:
+          "Artifact reference writes require valueJson to contain a non-empty relativePath string.",
+      });
+    }
+
+    return valueJson.relativePath;
+  });
+}
+
+function validateArtifactResolution(params: {
+  resolution: SandboxGitFileResolution;
+  relativePath: string;
+}) {
+  switch (params.resolution.status) {
+    case "git_not_installed":
+      return new McpToolValidationError({
+        toolName: "write_context_value",
+        message:
+          "Git is not installed or is not available on PATH. Initialize the project repository before writing artifact references.",
+      });
+    case "not_a_repo":
+      return new McpToolValidationError({
+        toolName: "write_context_value",
+        message:
+          "Project root directory is not a git repository. Initialize git in the project root before writing artifact references.",
+      });
+    case "missing":
+      return new McpToolValidationError({
+        toolName: "write_context_value",
+        message: `Artifact path '${params.relativePath}' does not exist in the project repository.`,
+      });
+    case "not_committed":
+      return new McpToolValidationError({
+        toolName: "write_context_value",
+        message: `Artifact path '${params.relativePath}' is not committed yet. Commit the file before writing the artifact reference.`,
+      });
+    case "committed":
+      return Effect.void;
+  }
+}
+
+function parseRecordedArtifactReference(valueJson: unknown): {
+  relativePath: string;
+  gitCommitHash?: string | null;
+  gitBlobHash?: string | null;
+} | null {
+  if (!valueJson || typeof valueJson !== "object") {
+    return null;
+  }
+
+  if (!("relativePath" in valueJson) || typeof valueJson.relativePath !== "string") {
+    return null;
+  }
+
+  return {
+    relativePath: valueJson.relativePath,
+    gitCommitHash:
+      "gitCommitHash" in valueJson &&
+      (typeof valueJson.gitCommitHash === "string" || valueJson.gitCommitHash === null)
+        ? valueJson.gitCommitHash
+        : undefined,
+    gitBlobHash:
+      "gitBlobHash" in valueJson &&
+      (typeof valueJson.gitBlobHash === "string" || valueJson.gitBlobHash === null)
+        ? valueJson.gitBlobHash
+        : undefined,
+  };
+}

@@ -18,6 +18,7 @@
     "@chiron/contracts": "workspace:*",
     "@chiron/methodology-engine": "workspace:*",
     "@chiron/project-context": "workspace:*",
+    "@chiron/sandbox-engine": "workspace:*",
     "effect": "catalog:"
   },
   "devDependencies": {

@@ -2,6 +2,7 @@ import { Layer } from "effect";
 import { HarnessService } from "@chiron/agent-runtime";
 import { LifecycleRepository, MethodologyRepository } from "@chiron/methodology-engine";
 import { ProjectContextRepository } from "@chiron/project-context";
+import { SandboxGitServiceLive } from "@chiron/sandbox-engine";
 
 import { RuntimeArtifactServiceLive } from "../services/runtime-artifact-service";
 import { RuntimeFactServiceLive } from "../services/runtime-fact-service";
@@ -86,6 +87,7 @@ const WorkflowEngineRuntimeAgentStepBaseLayer = Layer.mergeAll(
   Layer.service(ProjectContextRepository),
   Layer.service(LifecycleRepository),
   Layer.service(MethodologyRepository),
+  SandboxGitServiceLive,
   WorkflowEngineRuntimeStepCoreLayer,
   WorkflowEngineRuntimeStepLifecycleLayer,
   WorkflowEngineRuntimeStepTransactionLayer,
