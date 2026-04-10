@@ -20,7 +20,7 @@ export const AGENT_STEP_ALLOWED_STATE_TRANSITIONS = {
   starting_session: ["active_streaming", "active_idle", "disconnected_or_error"],
   active_streaming: ["active_idle", "disconnected_or_error"],
   active_idle: ["active_streaming", "disconnected_or_error", "completed"],
-  disconnected_or_error: ["starting_session", "completed"],
+  disconnected_or_error: ["starting_session", "active_idle", "completed"],
   completed: [],
 } as const;
 
@@ -49,6 +49,10 @@ export const AgentStepAllowedStateTransition = Schema.Union(
   Schema.Struct({
     from: Schema.Literal("disconnected_or_error"),
     to: Schema.Literal("starting_session"),
+  }),
+  Schema.Struct({
+    from: Schema.Literal("disconnected_or_error"),
+    to: Schema.Literal("active_idle"),
   }),
   Schema.Struct({ from: Schema.Literal("disconnected_or_error"), to: Schema.Literal("completed") }),
 );
@@ -235,6 +239,19 @@ export const StartAgentStepSessionOutput = Schema.Struct({
   bindingState: Schema.Literal("binding", "bound"),
 });
 export type StartAgentStepSessionOutput = typeof StartAgentStepSessionOutput.Type;
+
+export const ReconnectAgentStepSessionInput = Schema.Struct({
+  projectId: Schema.NonEmptyString,
+  stepExecutionId: Schema.NonEmptyString,
+});
+export type ReconnectAgentStepSessionInput = typeof ReconnectAgentStepSessionInput.Type;
+
+export const ReconnectAgentStepSessionOutput = Schema.Struct({
+  stepExecutionId: Schema.NonEmptyString,
+  state: AgentStepRuntimeState,
+  bindingState: Schema.Literal("bound"),
+});
+export type ReconnectAgentStepSessionOutput = typeof ReconnectAgentStepSessionOutput.Type;
 
 export const SendAgentStepMessageInput = Schema.Struct({
   projectId: Schema.NonEmptyString,

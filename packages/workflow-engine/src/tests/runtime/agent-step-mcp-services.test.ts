@@ -8,6 +8,46 @@ import { AgentStepSessionCommandService } from "../../services/runtime/agent-ste
 import { AgentStepSnapshotService } from "../../services/runtime/agent-step-snapshot-service";
 import { makeAgentStepRuntimeTestContext } from "./agent-step-runtime-test-support";
 
+async function seedSavedSession(ctx: ReturnType<typeof makeAgentStepRuntimeTestContext>) {
+  const started = await Effect.runPromise(
+    ctx.harness.startSession({
+      stepExecutionId: "step-exec-1",
+      projectRootPath: "/tmp/chiron-test",
+      agent: ctx.agentPayload.harnessSelection.agent,
+      model: ctx.agentPayload.harnessSelection.model,
+      objective: ctx.agentPayload.objective,
+      instructionsMarkdown: ctx.agentPayload.instructionsMarkdown,
+    }),
+  );
+
+  const now = new Date("2026-04-09T12:00:00.000Z");
+  const existing = ctx.bindings[0];
+  if (existing) {
+    existing.bindingState = "bound";
+    existing.sessionId = started.session.sessionId;
+    existing.serverInstanceId = started.serverInstanceId ?? null;
+    existing.serverBaseUrl = started.serverBaseUrl ?? null;
+    existing.selectedAgentKey = started.session.agent ?? ctx.agentPayload.harnessSelection.agent;
+    existing.selectedModelJson = started.session.model ?? ctx.agentPayload.harnessSelection.model;
+    existing.updatedAt = now;
+    return;
+  }
+
+  ctx.bindings.push({
+    id: "binding-1",
+    stepExecutionId: "step-exec-1",
+    harnessId: "opencode",
+    bindingState: "bound",
+    sessionId: started.session.sessionId,
+    serverInstanceId: started.serverInstanceId ?? null,
+    serverBaseUrl: started.serverBaseUrl ?? null,
+    selectedAgentKey: started.session.agent ?? ctx.agentPayload.harnessSelection.agent,
+    selectedModelJson: started.session.model ?? ctx.agentPayload.harnessSelection.model,
+    createdAt: now,
+    updatedAt: now,
+  });
+}
+
 describe("AgentStep MCP services", () => {
   it("implements read_step_snapshot and read_context_value v1 semantics", async () => {
     const ctx = makeAgentStepRuntimeTestContext();
@@ -60,6 +100,8 @@ describe("AgentStep MCP services", () => {
 
   it("applies valid writes, returns newly exposed write items, and does not persist invalid writes", async () => {
     const ctx = makeAgentStepRuntimeTestContext();
+
+    await seedSavedSession(ctx);
 
     await Effect.runPromise(
       Effect.gen(function* () {
@@ -144,6 +186,8 @@ describe("AgentStep MCP services", () => {
 
   it("rejects blocked writes until requirements are satisfied", async () => {
     const ctx = makeAgentStepRuntimeTestContext();
+
+    await seedSavedSession(ctx);
 
     await Effect.runPromise(
       Effect.gen(function* () {

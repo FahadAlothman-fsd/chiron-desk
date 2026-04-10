@@ -74,6 +74,7 @@ export interface AgentStepRuntimeTestContext {
   readonly bindings: AgentStepExecutionHarnessBindingRow[];
   readonly appliedWrites: AgentStepExecutionAppliedWriteRow[];
   readonly agentPayload: AgentStepDesignTimePayload;
+  readonly harness: ReturnType<typeof makeFakeHarnessService>;
 }
 
 export function makeAgentStepRuntimeTestContext(options?: {
@@ -717,5 +718,6 @@ export function makeAgentStepRuntimeTestContext(options?: {
     bindings,
     appliedWrites,
     agentPayload,
+    harness,
   } satisfies AgentStepRuntimeTestContext;
 }

@@ -289,6 +289,32 @@ export function makeFakeHarnessService(options: FakeHarnessOptions = {}) {
               ),
         ),
       ),
+    reconnectSession: (config) =>
+      Effect.gen(function* () {
+        const record = yield* requireSession(config.resumeSessionId, "start_session");
+
+        sessionIdByStepExecutionId.set(config.stepExecutionId, config.resumeSessionId);
+
+        return {
+          session: record.session,
+          serverInstanceId: `fake-server:${record.session.stepExecutionId}`,
+          serverBaseUrl: `http://fake-opencode.local/${record.session.stepExecutionId}`,
+          timeline: [...record.timeline],
+          cursor: createCursor(record.timeline),
+        } satisfies HarnessSessionStarted;
+      }).pipe(
+        Effect.catchAll((error) =>
+          error instanceof HarnessExecutionError
+            ? Effect.fail(error)
+            : Effect.fail(
+                normalizeExecutionError(
+                  "start_session",
+                  "Failed to reconnect fake harness session.",
+                  error,
+                ),
+              ),
+        ),
+      ),
     sendMessage: (sessionId: string, message: string) =>
       Effect.gen(function* () {
         if (message.trim().length === 0) {

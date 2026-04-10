@@ -73,6 +73,17 @@ export const HarnessSessionConfig = Schema.Struct({
 });
 export type HarnessSessionConfig = typeof HarnessSessionConfig.Type;
 
+export const HarnessReconnectSessionConfig = Schema.Struct({
+  stepExecutionId: Schema.NonEmptyString,
+  projectRootPath: Schema.NonEmptyString,
+  resumeSessionId: Schema.NonEmptyString,
+  agent: Schema.optional(Schema.NonEmptyString),
+  model: Schema.optional(ModelReference),
+  objective: Schema.NonEmptyString,
+  instructionsMarkdown: Schema.NonEmptyString,
+});
+export type HarnessReconnectSessionConfig = typeof HarnessReconnectSessionConfig.Type;
+
 export const HarnessSession = Schema.Struct({
   sessionId: Schema.NonEmptyString,
   stepExecutionId: Schema.NonEmptyString,
@@ -123,6 +134,9 @@ export class HarnessService extends Context.Tag("@chiron/agent-runtime/HarnessSe
     >;
     readonly startSession: (
       config: HarnessSessionConfig,
+    ) => import("effect").Effect.Effect<HarnessSessionStarted, HarnessOperationError>;
+    readonly reconnectSession: (
+      config: HarnessReconnectSessionConfig,
     ) => import("effect").Effect.Effect<HarnessSessionStarted, HarnessOperationError>;
     readonly sendMessage: (
       sessionId: string,

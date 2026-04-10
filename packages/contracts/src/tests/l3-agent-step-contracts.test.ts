@@ -151,7 +151,7 @@ describe("l3 agent-step contracts", () => {
       starting_session: ["active_streaming", "active_idle", "disconnected_or_error"],
       active_streaming: ["active_idle", "disconnected_or_error"],
       active_idle: ["active_streaming", "disconnected_or_error", "completed"],
-      disconnected_or_error: ["starting_session", "completed"],
+      disconnected_or_error: ["starting_session", "active_idle", "completed"],
       completed: [],
     });
 
@@ -215,6 +215,13 @@ describe("l3 agent-step contracts", () => {
           exposureMode: "requirements_only",
         },
       ],
+      writeSetCompletion: {
+        total: 1,
+        applied: 1,
+        ready: 0,
+        blocked: 0,
+        isComplete: true,
+      },
       timelinePreview: [
         {
           itemType: "thinking",
@@ -268,6 +275,13 @@ describe("l3 agent-step contracts", () => {
         instructionsMarkdown: "Use the reusable context only.",
         readableContextFacts: [],
         writeItems: [],
+        writeSetCompletion: {
+          total: 0,
+          applied: 0,
+          ready: 0,
+          blocked: 0,
+          isComplete: false,
+        },
         timelinePreview: [],
       },
     });

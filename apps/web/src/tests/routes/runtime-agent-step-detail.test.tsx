@@ -412,6 +412,7 @@ function buildOrpc(overrides?: {
   timelinePage?: ReturnType<typeof buildTimelinePage>;
   getTimelinePage?: ReturnType<typeof vi.fn>;
   startSession?: ReturnType<typeof vi.fn>;
+  reconnectSession?: ReturnType<typeof vi.fn>;
   sendMessage?: ReturnType<typeof vi.fn>;
   updateTurnSelection?: ReturnType<typeof vi.fn>;
   completeStep?: ReturnType<typeof vi.fn>;
@@ -438,6 +439,13 @@ function buildOrpc(overrides?: {
       stepExecutionId: "step-agent-1",
       accepted: true as const,
       state: "active_streaming" as const,
+    }));
+  const reconnectSession =
+    overrides?.reconnectSession ??
+    vi.fn(async () => ({
+      stepExecutionId: "step-agent-1",
+      state: "active_idle" as const,
+      bindingState: "bound" as const,
     }));
   const updateTurnSelection =
     overrides?.updateTurnSelection ??
@@ -506,6 +514,7 @@ function buildOrpc(overrides?: {
           }),
         },
         startAgentStepSession: { mutationOptions: withMutationOptions(startSession) },
+        reconnectAgentStepSession: { mutationOptions: withMutationOptions(reconnectSession) },
         sendAgentStepMessage: { mutationOptions: withMutationOptions(sendMessage) },
         updateAgentStepTurnSelection: { mutationOptions: withMutationOptions(updateTurnSelection) },
         completeAgentStepExecution: { mutationOptions: withMutationOptions(completeStep) },
@@ -527,6 +536,7 @@ function buildOrpc(overrides?: {
     },
     getTimelinePage,
     startSession,
+    reconnectSession,
     sendMessage,
     updateTurnSelection,
     completeStep,
@@ -638,7 +648,7 @@ describe("runtime agent step detail route", () => {
     {
       state: "disconnected_or_error",
       assert: () => {
-        expect(screen.getByRole("button", { name: /Retry Session/i })).toBeTruthy();
+        expect(screen.getByRole("button", { name: /Reconnect Session/i })).toBeTruthy();
         expect(composerTextbox().disabled).toBe(true);
       },
     },

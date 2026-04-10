@@ -9,6 +9,46 @@ import { AgentStepSessionCommandService } from "../../services/runtime/agent-ste
 import { AgentStepTimelineService } from "../../services/runtime/agent-step-timeline-service";
 import { makeAgentStepRuntimeTestContext } from "./agent-step-runtime-test-support";
 
+async function seedSavedSession(ctx: ReturnType<typeof makeAgentStepRuntimeTestContext>) {
+  const started = await Effect.runPromise(
+    ctx.harness.startSession({
+      stepExecutionId: "step-exec-1",
+      projectRootPath: "/tmp/chiron-test",
+      agent: ctx.agentPayload.harnessSelection.agent,
+      model: ctx.agentPayload.harnessSelection.model,
+      objective: ctx.agentPayload.objective,
+      instructionsMarkdown: ctx.agentPayload.instructionsMarkdown,
+    }),
+  );
+
+  const now = new Date("2026-04-09T12:00:00.000Z");
+  const existing = ctx.bindings[0];
+  if (existing) {
+    existing.bindingState = "bound";
+    existing.sessionId = started.session.sessionId;
+    existing.serverInstanceId = started.serverInstanceId ?? null;
+    existing.serverBaseUrl = started.serverBaseUrl ?? null;
+    existing.selectedAgentKey = started.session.agent ?? ctx.agentPayload.harnessSelection.agent;
+    existing.selectedModelJson = started.session.model ?? ctx.agentPayload.harnessSelection.model;
+    existing.updatedAt = now;
+    return;
+  }
+
+  ctx.bindings.push({
+    id: "binding-1",
+    stepExecutionId: "step-exec-1",
+    harnessId: "opencode",
+    bindingState: "bound",
+    sessionId: started.session.sessionId,
+    serverInstanceId: started.serverInstanceId ?? null,
+    serverBaseUrl: started.serverBaseUrl ?? null,
+    selectedAgentKey: started.session.agent ?? ctx.agentPayload.harnessSelection.agent,
+    selectedModelJson: started.session.model ?? ctx.agentPayload.harnessSelection.model,
+    createdAt: now,
+    updatedAt: now,
+  });
+}
+
 describe("AgentStep runtime services", () => {
   it("builds full agent-step detail payload before and after session start", async () => {
     const ctx = makeAgentStepRuntimeTestContext();
@@ -35,6 +75,8 @@ describe("AgentStep runtime services", () => {
       "write-summary",
     ]);
     expect(beforeStart?.body.timelinePreview).toEqual([]);
+
+    await seedSavedSession(ctx);
 
     await Effect.runPromise(
       Effect.gen(function* () {
@@ -71,6 +113,8 @@ describe("AgentStep runtime services", () => {
 
   it("enforces runtime state transitions, idempotent start, and next-turn selection updates", async () => {
     const ctx = makeAgentStepRuntimeTestContext();
+
+    await seedSavedSession(ctx);
 
     const startResult = await Effect.runPromise(
       Effect.gen(function* () {
@@ -182,6 +226,8 @@ describe("AgentStep runtime services", () => {
   it("recovers stale starting_session to active_idle when bound session is still live", async () => {
     const ctx = makeAgentStepRuntimeTestContext();
 
+    await seedSavedSession(ctx);
+
     await Effect.runPromise(
       Effect.gen(function* () {
         const service = yield* AgentStepSessionCommandService;
@@ -218,6 +264,8 @@ describe("AgentStep runtime services", () => {
 
   it("loads timeline pages and enforces the single live stream rule", async () => {
     const ctx = makeAgentStepRuntimeTestContext();
+
+    await seedSavedSession(ctx);
 
     await Effect.runPromise(
       Effect.gen(function* () {
@@ -303,6 +351,8 @@ describe("AgentStep runtime services", () => {
   it("preserves session id when timeline read marks stale binding as errored", async () => {
     const ctx = makeAgentStepRuntimeTestContext();
 
+    await seedSavedSession(ctx);
+
     await Effect.runPromise(
       Effect.gen(function* () {
         const service = yield* AgentStepSessionCommandService;
@@ -340,6 +390,8 @@ describe("AgentStep runtime services", () => {
 
   it("reuses preserved session id on retry after errored binding", async () => {
     const ctx = makeAgentStepRuntimeTestContext();
+
+    await seedSavedSession(ctx);
 
     await Effect.runPromise(
       Effect.gen(function* () {

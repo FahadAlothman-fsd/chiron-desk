@@ -1373,6 +1373,91 @@ export function makeOpencodeHarnessService(
           } satisfies HarnessSessionStarted;
         }).pipe(Effect.tapError(() => cleanupFailedStart(record)));
       }),
+    reconnectSession: (config) =>
+      Effect.gen(function* () {
+        const mappedSessionId = sessionIdByStepExecutionId.get(config.stepExecutionId);
+        if (mappedSessionId === config.resumeSessionId) {
+          const existing = yield* requireSession(mappedSessionId, "start_session").pipe(
+            Effect.catchTag("HarnessExecutionError", () => Effect.succeed(undefined)),
+          );
+
+          if (existing) {
+            return {
+              session: existing.session,
+              serverInstanceId: existing.server.serverInstanceId,
+              serverBaseUrl: existing.server.baseUrl,
+              timeline: [...existing.timeline],
+              cursor: createCursor(existing.timeline),
+            } satisfies HarnessSessionStarted;
+          }
+        }
+
+        let record: SessionRecord | undefined;
+
+        return yield* Effect.gen(function* () {
+          const server = yield* serverManager.startManagedServer(
+            config.stepExecutionId,
+            config.projectRootPath,
+          );
+
+          const promptSelections = yield* resolvePromptSelections(
+            server.client,
+            {
+              agent: config.agent,
+              model: config.model,
+            },
+            "start_session",
+          );
+
+          const resumeMessages = yield* Effect.tryPromise({
+            try: () => server.client.listMessages(config.resumeSessionId),
+            catch: (error) =>
+              opencodeError(
+                "start_session",
+                `Harness session '${config.resumeSessionId}' was not found.`,
+                error,
+              ),
+          });
+
+          const resumed = createRecord(
+            {
+              ...config,
+              resumeSessionId: config.resumeSessionId,
+            },
+            server,
+            {
+              id: config.resumeSessionId,
+              time: { created: new Date().toISOString() },
+            },
+            promptSelections.agent,
+            promptSelections.model,
+          );
+          record = resumed;
+
+          const appended = syncSessionMessages(resumed, resumeMessages);
+          resumed.session = {
+            ...resumed.session,
+            state: "active_idle",
+          };
+          if (appended.length > 0) {
+            yield* pushTimelineEvents(resumed, appended);
+          }
+
+          sessionsById.set(resumed.session.sessionId, resumed);
+          sessionIdByStepExecutionId.set(
+            resumed.session.stepExecutionId,
+            resumed.session.sessionId,
+          );
+
+          return {
+            session: resumed.session,
+            serverInstanceId: resumed.server.serverInstanceId,
+            serverBaseUrl: resumed.server.baseUrl,
+            timeline: [...resumed.timeline],
+            cursor: createCursor(resumed.timeline),
+          } satisfies HarnessSessionStarted;
+        }).pipe(Effect.tapError(() => cleanupFailedStart(record)));
+      }),
     sendMessage: (sessionId, message) =>
       Effect.gen(function* () {
         if (message.trim().length === 0) {

@@ -16,6 +16,7 @@ import type {
   CompleteAgentStepExecutionInput,
   GetAgentStepExecutionDetailInput,
   GetAgentStepTimelinePageInput,
+  ReconnectAgentStepSessionInput,
   SendAgentStepMessageInput,
   StartAgentStepSessionInput,
   UpdateAgentStepTurnSelectionInput,
@@ -226,6 +227,11 @@ const getAgentStepTimelinePageInput: z.ZodType<GetAgentStepTimelinePageInput> = 
 });
 
 const startAgentStepSessionInput: z.ZodType<StartAgentStepSessionInput> = z.object({
+  projectId: z.string().min(1),
+  stepExecutionId: z.string().min(1),
+});
+
+const reconnectAgentStepSessionInput: z.ZodType<ReconnectAgentStepSessionInput> = z.object({
   projectId: z.string().min(1),
   stepExecutionId: z.string().min(1),
 });
@@ -791,6 +797,18 @@ export function createProjectRuntimeRouter(serviceLayer: Layer.Layer<any>) {
           Effect.gen(function* () {
             const agentStepSessionCommandService = yield* AgentStepSessionCommandService;
             return yield* agentStepSessionCommandService.startAgentStepSession(input);
+          }),
+        ),
+      ),
+
+    reconnectAgentStepSession: protectedProcedure
+      .input(reconnectAgentStepSessionInput)
+      .handler(async ({ input }) =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const agentStepSessionCommandService = yield* AgentStepSessionCommandService;
+            return yield* agentStepSessionCommandService.reconnectAgentStepSession(input);
           }),
         ),
       ),

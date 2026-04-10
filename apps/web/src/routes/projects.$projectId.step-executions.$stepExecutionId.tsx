@@ -463,15 +463,19 @@ function getAgentComposerUiState(params: { state: AgentStepRuntimeState; session
       return {
         enabled: false,
         startSessionVisible: true,
-        startSessionLabel: "Retry Session",
-        reason: "The session disconnected or errored. Retry to recover.",
+        startSessionLabel: sessionId ? "Reconnect Session" : "Start Session",
+        reason: sessionId
+          ? "The session disconnected. Reconnect to re-open the existing session."
+          : "No session is currently bound. Start a new session.",
       } as const;
     case "completed":
       return {
         enabled: false,
-        startSessionVisible: false,
-        startSessionLabel: "Start Session",
-        reason: "This Agent step is completed.",
+        startSessionVisible: Boolean(sessionId),
+        startSessionLabel: "Reconnect Session",
+        reason: sessionId
+          ? "This Agent step is completed. Reconnect to inspect the existing session."
+          : "This Agent step is completed.",
       } as const;
   }
 }
@@ -2147,9 +2151,7 @@ function AgentInteractionSurface(props: {
       : {}),
   });
   const shouldStreamSessionEvents =
-    Boolean(detail.body.harnessBinding.sessionId) &&
-    runtimeState !== "disconnected_or_error" &&
-    runtimeState !== "completed";
+    Boolean(detail.body.harnessBinding.sessionId) && runtimeState !== "disconnected_or_error";
   const streamUrl = shouldStreamSessionEvents
     ? buildAgentStepStreamUrl(projectId, shell.stepExecutionId)
     : null;
@@ -2302,6 +2304,39 @@ function AgentInteractionSurface(props: {
     }),
   );
 
+  const reconnectSessionMutation = useMutation(
+    orpc.project.reconnectAgentStepSession.mutationOptions({
+      onSuccess: async (result) => {
+        setRuntimeState(result.state);
+        setLiveErrorMessage(null);
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: runtimeStepExecutionDetailQueryKey(projectId, shell.stepExecutionId),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: runtimeAgentStepExecutionDetailQueryKey(projectId, shell.stepExecutionId),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: runtimeWorkflowExecutionDetailQueryKey(projectId, shell.workflowExecutionId),
+          }),
+        ]);
+      },
+      onError: async () => {
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: runtimeStepExecutionDetailQueryKey(projectId, shell.stepExecutionId),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: runtimeAgentStepExecutionDetailQueryKey(projectId, shell.stepExecutionId),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: runtimeWorkflowExecutionDetailQueryKey(projectId, shell.workflowExecutionId),
+          }),
+        ]);
+      },
+    }),
+  );
+
   const sendMessageMutation = useMutation(
     orpc.project.sendAgentStepMessage.mutationOptions({
       onSuccess: async (result) => {
@@ -2362,6 +2397,7 @@ function AgentInteractionSurface(props: {
 
   const isBusy =
     startSessionMutation.isPending ||
+    reconnectSessionMutation.isPending ||
     updateTurnSelectionMutation.isPending ||
     completeStepMutation.isPending;
 
@@ -3006,18 +3042,30 @@ function AgentInteractionSurface(props: {
                   {composerUiState.startSessionVisible ? (
                     <Button
                       type="button"
-                      disabled={isBusy || runtimeState === "completed"}
-                      onClick={() =>
+                      disabled={isBusy}
+                      onClick={() => {
+                        const hasBoundSession = Boolean(detail.body.harnessBinding.sessionId);
+                        if (hasBoundSession) {
+                          reconnectSessionMutation.mutate({
+                            projectId,
+                            stepExecutionId: shell.stepExecutionId,
+                          });
+                          return;
+                        }
+
                         startSessionMutation.mutate({
                           projectId,
                           stepExecutionId: shell.stepExecutionId,
-                        })
-                      }
+                        });
+                      }}
                       data-testid="agent-step-start-session"
                     >
                       {startSessionMutation.isPending ? (
                         <Loader2Icon className="size-3.5 animate-spin" />
-                      ) : runtimeState === "disconnected_or_error" ? (
+                      ) : reconnectSessionMutation.isPending ? (
+                        <Loader2Icon className="size-3.5 animate-spin" />
+                      ) : runtimeState === "disconnected_or_error" ||
+                        runtimeState === "completed" ? (
                         <RefreshCcwIcon className="size-3.5" />
                       ) : (
                         <PlayIcon className="size-3.5" />
