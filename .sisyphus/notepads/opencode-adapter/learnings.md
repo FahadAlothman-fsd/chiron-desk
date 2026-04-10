@@ -1,0 +1,1 @@
+- 2026-04-10: Removed OpenCode cwd fallback paths and made harness session config require explicit projectRootPath; managed server startup now errors when directory is blank/missing.

@@ -172,6 +172,7 @@ export const AgentStepRuntimeDetailPayload = Schema.Struct({
   readableContextFacts: Schema.Array(AgentStepReadableContextFact),
   writeItems: Schema.Array(AgentStepRuntimeWriteItem),
   timelinePreview: Schema.Array(AgentStepTimelineItem),
+  projectRootPath: Schema.optional(Schema.NonEmptyString),
 });
 export type AgentStepRuntimeDetailPayload = typeof AgentStepRuntimeDetailPayload.Type;
 

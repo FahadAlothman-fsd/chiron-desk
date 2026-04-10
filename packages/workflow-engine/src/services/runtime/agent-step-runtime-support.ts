@@ -50,6 +50,7 @@ export interface AgentStepRuntimeResolvedContext {
     readonly projectId: string;
     readonly methodologyVersionId: string;
   };
+  readonly projectRootPath: string | null;
   readonly workUnitType: WorkUnitTypeRow;
   readonly workflowEditor: WorkflowEditorDefinitionReadModel;
   readonly agentPayload: AgentStepDesignTimePayload;
@@ -77,6 +78,9 @@ export interface AgentStepRuntimeResolutionDeps {
     readonly findProjectPin: (
       projectId: string,
     ) => Effect.Effect<AgentStepRuntimeResolvedContext["projectPin"] | null, RepositoryError>;
+    readonly getProjectById: (params: {
+      projectId: string;
+    }) => Effect.Effect<{ projectRootPath: string | null } | null, RepositoryError>;
   };
   readonly lifecycleRepo: {
     readonly findWorkUnitTypes: (
@@ -466,6 +470,10 @@ export function ensureAgentStepRuntimeContext(
       );
     }
 
+    const project = yield* deps.projectContextRepo.getProjectById({
+      projectId: workflowDetail.projectId,
+    });
+
     const [workUnitTypes, workflowEditor, stateRow, bindingRow, contextFacts] = yield* Effect.all([
       deps.lifecycleRepo.findWorkUnitTypes(projectPin.methodologyVersionId),
       Effect.gen(function* () {
@@ -541,6 +549,7 @@ export function ensureAgentStepRuntimeContext(
       stepExecution,
       workflowDetail,
       projectPin,
+      projectRootPath: project?.projectRootPath ?? null,
       workUnitType,
       workflowEditor,
       agentPayload: agentStepDefinition.payload,

@@ -298,9 +298,9 @@ function buildSlice1DemoFixtureSeedRows(methodologyVersionId: string): Slice1Dem
       {
         stepId: synthesizeStepId,
         objective:
-          "Conduct a deep discovery conversation with the user to understand their project vision, goals, and requirements. Elicit project details through clarifying questions, then produce a structured PROJECT_OVERVIEW document.",
+          "Use Chiron MCP tools (chiron_read_context_value, chiron_write_context_value) to conduct a discovery conversation and capture project details. Write project_name, requires_brainstorming, requires_product_brief, and create a PROJECT_OVERVIEW artifact with git repository setup.",
         instructionsMarkdown:
-          "Engage the user in a discovery conversation to understand: 1) Project vision - what are we building and why? 2) Target users - who will use this and what do they need? 3) Goals and success criteria - how will we know this is successful? 4) Constraints - technical, business, or timeline limitations. 5) Key requirements - must-have features or capabilities.\n\nAsk clarifying questions to fill gaps. Then produce:\n- project_name: A clear project name\n- requires_brainstorming: JSON with {recommend_brainstorming_session: boolean, reasoning: string}\n- requires_product_brief: JSON with {recommend_product_brief: boolean, reasoning: string}\n- PROJECT_OVERVIEW artifact: A comprehensive document capturing all discovery findings",
+          "You are operating in Chiron with access to MCP tools. Available tools:\n- chiron_read_step_snapshot: Read the current step execution context (objective, instructions, state)\n- chiron_read_context_value: Read context facts by contextFactDefinitionId\n- chiron_write_context_value: Write context values by writeItemId\n\nAvailable write items and their IDs:\n- project_name (string): The canonical project name\n- requires_brainstorming (JSON): {recommend_brainstorming_session: boolean, reasoning: string}\n- requires_product_brief (JSON): {recommend_product_brief: boolean, reasoning: string}\n- PROJECT_OVERVIEW (artifact): Path to the project overview document\n\nCRITICAL: The PROJECT_OVERVIEW artifact requires you to:\n1. Create a markdown file with the project discovery content\n2. Initialize a git repository in the project directory (if not exists)\n3. Commit the file to the repository\n4. Use chiron_write_context_value with writeItemId=PROJECT_OVERVIEW and valueJson=path/to/file.md\n\nDEPENDENCIES: You must write PROJECT_OVERVIEW before you can write requires_brainstorming or requires_product_brief. The system will block these writes until the artifact is committed.\n\nEngage the user in a discovery conversation to understand: 1) Project vision - what are we building and why? 2) Target users - who will use this and what do they need? 3) Goals and success criteria - how will we know this is successful? 4) Constraints - technical, business, or timeline limitations. 5) Key requirements - must-have features or capabilities.\n\nAsk clarifying questions to fill gaps. Then use the MCP tools to write:\n- project_name: A clear project name\n- PROJECT_OVERVIEW: File path after creating doc and committing to git\n- requires_brainstorming: JSON recommendation (blocked until PROJECT_OVERVIEW is written)\n- requires_product_brief: JSON recommendation (blocked until PROJECT_OVERVIEW is written)",
         harness: "opencode",
         agentKey: "Atlas (Plan Executor)",
         modelJson: null,
@@ -364,16 +364,16 @@ function buildSlice1DemoFixtureSeedRows(methodologyVersionId: string): Slice1Dem
         contextFactDefinitionId: `${baseId}:ctx:project-type`,
       },
       {
-        writeItemRowId: writeRequiresBrainstormingRowId,
+        writeItemRowId: writeProjectOverviewArtifactRowId,
         contextFactDefinitionId: `${baseId}:ctx:project-type`,
+      },
+      {
+        writeItemRowId: writeRequiresBrainstormingRowId,
+        contextFactDefinitionId: `${baseId}:ctx:project-overview-artifact`,
       },
       {
         writeItemRowId: writeRequiresProductBriefRowId,
-        contextFactDefinitionId: `${baseId}:ctx:project-type`,
-      },
-      {
-        writeItemRowId: writeProjectOverviewArtifactRowId,
-        contextFactDefinitionId: `${baseId}:ctx:project-type`,
+        contextFactDefinitionId: `${baseId}:ctx:project-overview-artifact`,
       },
     ] satisfies readonly MethodologyWorkflowAgentStepWriteItemRequirementSeedRow[],
   } as const;

@@ -364,7 +364,18 @@ export function makeAgentStepRuntimeTestContext(options?: {
     getProjectPinLineage: () => Effect.succeed([]),
     createProject: () => Effect.die("unused"),
     listProjects: () => Effect.succeed([]),
-    getProjectById: () => Effect.succeed(null),
+    getProjectById: ({ projectId }: { projectId: string }) =>
+      Effect.succeed(
+        projectId === "project-1"
+          ? {
+              id: "project-1",
+              name: "Project 1",
+              projectRootPath: "/tmp/project-1",
+              createdAt: now,
+              updatedAt: now,
+            }
+          : null,
+      ),
   } as unknown as Context.Tag.Service<typeof ProjectContextRepository>);
 
   const lifecycleLayer = Layer.succeed(LifecycleRepository, {

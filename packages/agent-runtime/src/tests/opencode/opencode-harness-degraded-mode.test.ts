@@ -127,6 +127,7 @@ describe("OpencodeHarnessService degraded modes", () => {
       Effect.either(
         service.startSession({
           stepExecutionId: "step-exec-2",
+          projectRootPath: "/tmp/chiron",
           objective: "Bootstrap",
           instructionsMarkdown: "This will fail.",
         }),

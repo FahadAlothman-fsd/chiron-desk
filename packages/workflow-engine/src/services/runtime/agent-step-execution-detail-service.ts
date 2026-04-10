@@ -111,6 +111,7 @@ export const AgentStepExecutionDetailServiceLive = Layer.effect(
               state: refreshedContext.runtimeState,
               sessionId: refreshedContext.bindingRow?.sessionId ?? undefined,
             }),
+            projectRootPath: refreshedContext.projectRootPath,
             objective: refreshedContext.agentPayload.objective,
             instructionsMarkdown: refreshedContext.agentPayload.instructionsMarkdown,
             readableContextFacts: refreshedContext.readableContextFacts,

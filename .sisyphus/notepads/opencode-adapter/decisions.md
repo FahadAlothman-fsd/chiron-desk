@@ -1,0 +1,1 @@
+- 2026-04-10: Enforced explicit project root before starting harness sessions by adding an AgentStepStateTransitionError when projectRootPath is unavailable.

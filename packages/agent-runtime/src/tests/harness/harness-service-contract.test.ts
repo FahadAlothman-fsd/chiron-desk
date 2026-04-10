@@ -34,6 +34,7 @@ describe("HarnessService contract", () => {
     const firstStart = await Effect.runPromise(
       harness.startSession({
         stepExecutionId: "step-exec-1",
+        projectRootPath: "/tmp/chiron",
         agent: "fake-agent",
         model: { provider: "fake-provider", model: "fake-model" },
         objective: "Draft a setup handoff.",
@@ -43,6 +44,7 @@ describe("HarnessService contract", () => {
     const secondStart = await Effect.runPromise(
       harness.startSession({
         stepExecutionId: "step-exec-1",
+        projectRootPath: "/tmp/chiron",
         agent: "fake-agent",
         model: { provider: "fake-provider", model: "fake-model" },
         objective: "ignored",
@@ -89,6 +91,7 @@ describe("HarnessService contract", () => {
     const started = await Effect.runPromise(
       harness.startSession({
         stepExecutionId: "step-exec-2",
+        projectRootPath: "/tmp/chiron",
         objective: "Implement runtime services.",
         instructionsMarkdown: "Stay inside the contract.",
       }),
@@ -195,8 +198,8 @@ describe("HarnessService contract", () => {
       output: JSON.stringify({ turn: 1, reply: "Fake response 1: PLEASE CONTINUE" }),
     });
 
-    const startedToolId = streamEvents[3]?.data?.item?.timelineItemId;
-    const completedToolId = streamEvents[5]?.data?.item?.timelineItemId;
+    const startedToolId = fullPage.items[2]?.timelineItemId;
+    const completedToolId = fullPage.items[4]?.timelineItemId;
     expect(startedToolId).toBeDefined();
     expect(completedToolId).toBeDefined();
     expect(startedToolId).toMatch(/^tool:[^:]+:started$/);

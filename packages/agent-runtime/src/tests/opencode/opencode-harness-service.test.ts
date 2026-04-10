@@ -228,6 +228,7 @@ describe("OpencodeHarnessService runtime", () => {
     const started = await Effect.runPromise(
       service.startSession({
         stepExecutionId: "step-exec-1",
+        projectRootPath: "/tmp/chiron",
         agent: "explore",
         model: { provider: "anthropic", model: "claude-sonnet-4" },
         objective: "Draft a setup handoff.",
@@ -237,6 +238,7 @@ describe("OpencodeHarnessService runtime", () => {
     const restarted = await Effect.runPromise(
       service.startSession({
         stepExecutionId: "step-exec-1",
+        projectRootPath: "/tmp/chiron",
         objective: "ignored",
         instructionsMarkdown: "ignored",
       }),
@@ -394,6 +396,7 @@ describe("OpencodeHarnessService runtime", () => {
     const started = await Effect.runPromise(
       service.startSession({
         stepExecutionId: "step-1",
+        projectRootPath: "/tmp/chiron",
         resumeSessionId: "resume-session-1",
         objective: "Reuse the existing session.",
         instructionsMarkdown: "Do not fork history.",
@@ -452,6 +455,7 @@ describe("OpencodeHarnessService runtime", () => {
     await Effect.runPromise(
       service.startSession({
         stepExecutionId: "step-exec-error",
+        projectRootPath: "/tmp/chiron",
         objective: "Bootstrap",
         instructionsMarkdown: "Instructions",
       }),

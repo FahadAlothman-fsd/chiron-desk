@@ -88,7 +88,7 @@ type OpencodeServerManagerServiceShape = {
   readonly startDiscoveryServer: () => Effect.Effect<OpencodeManagedServer, HarnessDiscoveryError>;
   readonly startManagedServer: (
     stepExecutionId: string,
-    directory?: string,
+    directory: string,
   ) => Effect.Effect<OpencodeManagedServer, OpenCodeExecutionError>;
   readonly stopServer: (server: OpencodeManagedServer) => Effect.Effect<void, never>;
 };
@@ -568,14 +568,20 @@ export function makeOpencodeServerManagerService(
           ...(input.stepExecutionId ? { stepExecutionId: input.stepExecutionId } : {}),
           baseUrl,
           client:
-            baseUrl.length > 0
+            baseUrl.length > 0 && input.directory
               ? await Effect.runPromise(
                   clientFactoryService.createClient({
                     baseUrl,
-                    directory: input.directory ?? process.cwd(),
+                    directory: input.directory,
                   }),
                 )
-              : fallbackClient,
+              : baseUrl.length > 0 && input.stepExecutionId
+                ? (() => {
+                    throw input.onError(
+                      "OpenCode working directory is required to start a managed server.",
+                    );
+                  })()
+                : fallbackClient,
           close: () => {
             runtime.server.close();
           },
@@ -595,7 +601,6 @@ export function makeOpencodeServerManagerService(
       clientFactoryService
         .createClient({
           baseUrl,
-          directory: process.cwd(),
         })
         .pipe(
           Effect.flatMap((client) =>
@@ -624,6 +629,13 @@ export function makeOpencodeServerManagerService(
     startDiscoveryServer: () => spawnServer({ onError: discoveryError }),
     startManagedServer: (stepExecutionId, directory) =>
       Effect.gen(function* () {
+        if (directory.trim().length === 0) {
+          return yield* opencodeError(
+            "start_session",
+            "OpenCode working directory is required to start a managed server.",
+          );
+        }
+
         const existing = managedServers.get(stepExecutionId);
         if (existing) {
           const healthy = yield* Effect.either(
@@ -647,7 +659,7 @@ export function makeOpencodeServerManagerService(
 
         return yield* spawnServer({
           stepExecutionId,
-          ...(directory ? { directory } : {}),
+          directory,
           onError: (message, cause) => opencodeError("start_session", message, cause),
         });
       }),

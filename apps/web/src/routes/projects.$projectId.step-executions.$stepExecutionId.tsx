@@ -2292,7 +2292,7 @@ function AgentInteractionSurface(props: {
     [timelineItems],
   );
   const attachCommand = detail.body.harnessBinding.serverBaseUrl
-    ? `opencode attach ${detail.body.harnessBinding.serverBaseUrl} -s ${detail.body.harnessBinding.sessionId}`
+    ? `opencode attach ${detail.body.harnessBinding.serverBaseUrl} -s ${detail.body.harnessBinding.sessionId}${detail.body.projectRootPath ? ` --dir ${detail.body.projectRootPath}` : ""}`
     : null;
   const selectedAgentLabel = getAgentLabel(selectedAgent, harnessMetadataQuery.data);
   const selectedModelLabel = getModelLabel(selectedModel, harnessMetadataQuery.data);

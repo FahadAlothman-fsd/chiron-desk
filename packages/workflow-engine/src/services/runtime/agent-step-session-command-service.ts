@@ -100,7 +100,16 @@ export const AgentStepSessionCommandServiceLive = Layer.effect(
       Effect.gen(function* () {
         const context = yield* resolveProjectContext(input.stepExecutionId, input.projectId);
         const project = yield* projectContextRepo.getProjectById({ projectId: input.projectId });
+        const projectRootPath = project?.projectRootPath?.trim();
         let transitionFromState = context.runtimeState;
+
+        if (!projectRootPath) {
+          return yield* new AgentStepStateTransitionError({
+            fromState: transitionFromState,
+            toState: "starting_session",
+            message: "Project root path is required to start an agent session.",
+          });
+        }
 
         if (context.bindingRow?.bindingState === "binding") {
           yield* bindingRepo.updateBinding({
@@ -223,7 +232,7 @@ export const AgentStepSessionCommandServiceLive = Layer.effect(
 
         const started = yield* harness.startSession({
           stepExecutionId: context.stepExecution.id,
-          ...(project?.projectRootPath ? { projectRootPath: project.projectRootPath } : {}),
+          projectRootPath,
           ...(context.bindingRow?.sessionId
             ? { resumeSessionId: context.bindingRow.sessionId }
             : {}),

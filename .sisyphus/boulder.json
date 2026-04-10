@@ -43,7 +43,29 @@
     "ses_28ccebb78ffen9XJF21uj63hQH",
     "ses_28cc994cdffeNODghGIOW9vQu5",
     "ses_28cc98edeffel9hMWnhkygM3R0",
-    "ses_28cc0894cffelsD7Eo43mrGk76"
+    "ses_28cc0894cffelsD7Eo43mrGk76",
+    "ses_28c2ea3e5ffe8F913ZBSNJXynt",
+    "ses_28c2ea3dcffeDFHHcHFsCMFotf",
+    "ses_28c2eafcbffemGQCoA4gQ5kBel",
+    "ses_28c2ea3dbffe5hc7gfuPS5C3MH",
+    "ses_28c2b81e4ffeldHUIRrFvyagWd",
+    "ses_28c1c1e60ffeV70ZDnvd7UIBrL",
+    "ses_28c1c22feffeI81OP6kHp6kWEQ",
+    "ses_28bad39fdffeWouJWGsP6vfjOY",
+    "ses_28bad4398ffeqGdVPKmDvgs6Dq",
+    "ses_28bad39f6ffeslrP7VC2b6ffqZ",
+    "ses_28ba8d16dffeTZzPyYQxAV4iRU",
+    "ses_28b9717f1ffeCKTBbCID3yd0QD",
+    "ses_28b971d6bffeoKPPUsvCJrNaSc",
+    "ses_28b8b9049ffekZb97bfTxJGn1d",
+    "ses_28b8b8abbffe3xukLCO2PQhD9I",
+    "ses_28b26bfefffe9E6Bdo47kMJ0yY",
+    "ses_28b14d827ffe4xzaT9WMzD6xXu",
+    "ses_28ae890ddffeUsyvkhsQoEWro4",
+    "ses_28ae88297ffeyhQ7WiDimahvj5",
+    "ses_28ae8895cffeKmx2qPDMVIxxZr",
+    "ses_28ae4dc3effeJOzlKM07mTTP28",
+    "ses_28ad3953effeCOaUzg70FtNy7z"
   ],
   "plan_name": "l3-agent-step-design-runtime",
   "worktree_path": null,
@@ -97,10 +119,9 @@
       "task_key": "todo:9",
       "task_label": "9",
       "task_title": "Implement OpencodeHarnessService and managed server/session lifecycle",
-      "session_id": "ses_28defb8dbffeHLE62fWM8ejRsB",
-      "agent": "Sisyphus-Junior",
-      "category": "visual-engineering",
-      "updated_at": "2026-04-09T12:14:25.250Z"
+      "session_id": "ses_28ad3953effeCOaUzg70FtNy7z",
+      "agent": "build",
+      "updated_at": "2026-04-10T02:20:16.223Z"
     }
   }
 }

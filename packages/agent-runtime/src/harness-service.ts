@@ -64,7 +64,7 @@ export type HarnessOperationError = typeof HarnessOperationError.Type;
 
 export const HarnessSessionConfig = Schema.Struct({
   stepExecutionId: Schema.NonEmptyString,
-  projectRootPath: Schema.optional(Schema.NonEmptyString),
+  projectRootPath: Schema.NonEmptyString,
   resumeSessionId: Schema.optional(Schema.NonEmptyString),
   agent: Schema.optional(Schema.NonEmptyString),
   model: Schema.optional(ModelReference),
