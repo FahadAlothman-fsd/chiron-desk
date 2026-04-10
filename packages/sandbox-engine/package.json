@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "@chiron/contracts": "workspace:*",
-    "effect": "catalog:"
+    "effect": "catalog:",
+    "simple-git": "^3.32.3"
   },
   "devDependencies": {
     "@chiron/config": "workspace:*",
