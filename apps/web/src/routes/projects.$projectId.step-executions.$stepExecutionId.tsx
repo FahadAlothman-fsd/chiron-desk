@@ -2360,12 +2360,6 @@ function AgentInteractionSurface(props: {
     }),
   );
 
-  const completionOutcome =
-    shell.status === "completed"
-      ? "Completed"
-      : shell.completionAction.enabled
-        ? "Ready to complete"
-        : (shell.completionAction.reasonIfDisabled ?? "Incomplete");
   const isBusy =
     startSessionMutation.isPending ||
     updateTurnSelectionMutation.isPending ||
@@ -2422,6 +2416,13 @@ function AgentInteractionSurface(props: {
     }),
     [writeItems],
   );
+
+  const completionOutcome =
+    shell.status === "completed"
+      ? "Completed"
+      : shell.completionAction.enabled
+        ? "Ready to complete"
+        : (shell.completionAction.reasonIfDisabled ?? "Incomplete");
 
   const selectedModel = detail.body.harnessBinding.selectedModel;
   const selectedAgent = detail.body.harnessBinding.selectedAgent;
