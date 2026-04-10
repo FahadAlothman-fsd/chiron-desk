@@ -1,0 +1,23 @@
+apps/web/src/routes/projects.$projectId.step-executions.$stepExecutionId.tsx
+  5bcefd2e09c0df96 22,71,2077-2079,2526,2529,2532-2533,2535-2540,2542-2549,2554-2563,2565,2567-2626,2631-2640,2645-2649,2651-2660,2662-2701,2703-2704,2706
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "581e80e73552324f833844a76f430365e9b2696c",
+  "prompts": {
+    "5bcefd2e09c0df96": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_290ca60e8ffeOFobgL3ZePtRb4",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "TaskFlow Setup",
+      "messages": [],
+      "total_additions": 209,
+      "total_deletions": 159,
+      "accepted_lines": 170,
+      "overriden_lines": 1
+    }
+  }
+}
