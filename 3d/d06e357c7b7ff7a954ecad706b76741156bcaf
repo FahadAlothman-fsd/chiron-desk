@@ -1,0 +1,36 @@
+packages/workflow-engine/src/services/runtime/agent-step-execution-detail-service.ts
+  5bcefd2e09c0df96 98-100,104-106,113-115,120-121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "3dd06e357c7b7ff7a954ecad706b76741156bcaf",
+  "prompts": {
+    "5bcefd2e09c0df96": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_290ca60e8ffeOFobgL3ZePtRb4",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": null,
+      "messages": [],
+      "total_additions": 18,
+      "total_deletions": 22,
+      "accepted_lines": 35,
+      "overriden_lines": 0
+    },
+    "b4a15befb0383026": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_28ad3953effeCOaUzg70FtNy7z",
+        "model": "openai/gpt-5.3-codex"
+      },
+      "human_author": "TaskFlow Setup",
+      "messages": [],
+      "total_additions": 26,
+      "total_deletions": 2,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}
