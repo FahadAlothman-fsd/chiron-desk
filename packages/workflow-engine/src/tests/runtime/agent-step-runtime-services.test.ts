@@ -50,6 +50,39 @@ async function seedSavedSession(ctx: ReturnType<typeof makeAgentStepRuntimeTestC
 }
 
 describe("AgentStep runtime services", () => {
+  it("creates and binds a harness session when no saved session exists", async () => {
+    const ctx = makeAgentStepRuntimeTestContext();
+
+    const started = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* AgentStepSessionCommandService;
+        return yield* service.startAgentStepSession({
+          projectId: "project-1",
+          stepExecutionId: "step-exec-1",
+        });
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    expect(started).toEqual({
+      stepExecutionId: "step-exec-1",
+      state: "active_idle",
+      bindingState: "bound",
+    });
+    expect(ctx.bindings).toHaveLength(1);
+    expect(ctx.bindings[0]).toMatchObject({
+      stepExecutionId: "step-exec-1",
+      harnessId: "opencode",
+      bindingState: "bound",
+      serverInstanceId: "fake-server:step-exec-1",
+      serverBaseUrl: "http://fake-opencode.local/step-exec-1",
+      selectedAgentKey: ctx.agentPayload.harnessSelection.agent,
+      selectedModelJson: ctx.agentPayload.harnessSelection.model,
+    });
+    expect(ctx.bindings[0]?.sessionId).toBeTruthy();
+    expect(ctx.states[0]?.state).toBe("active_idle");
+    expect(ctx.states[0]?.bootstrapAppliedAt).toBeInstanceOf(Date);
+  });
+
   it("builds full agent-step detail payload before and after session start", async () => {
     const ctx = makeAgentStepRuntimeTestContext();
 

@@ -12,6 +12,7 @@ import type {
 } from "@chiron/contracts/agent-step/runtime";
 import { HarnessService, type HarnessOperationError } from "@chiron/agent-runtime";
 import { AgentStepStateTransitionError } from "@chiron/contracts/agent-step/errors";
+import type { ModelReference } from "@chiron/contracts/methodology/agent";
 import { LifecycleRepository, MethodologyRepository } from "@chiron/methodology-engine";
 import { ProjectContextRepository } from "@chiron/project-context";
 import { Context, Effect, Layer } from "effect";
@@ -107,6 +108,14 @@ export const AgentStepSessionCommandServiceLive = Layer.effect(
         const project = yield* projectContextRepo.getProjectById({ projectId: input.projectId });
         const projectRootPath = project?.projectRootPath?.trim();
         const sessionId = context.bindingRow?.sessionId;
+        const selectedAgent =
+          context.bindingRow?.selectedAgentKey ??
+          context.agentPayload.harnessSelection.agent ??
+          null;
+        const selectedModel =
+          context.bindingRow?.selectedModelJson ??
+          context.agentPayload.harnessSelection.model ??
+          null;
         const harnessId =
           context.bindingRow?.harnessId ??
           context.agentPayload.harnessSelection.harness ??
@@ -120,13 +129,117 @@ export const AgentStepSessionCommandServiceLive = Layer.effect(
           });
         }
 
+        const persistBoundBinding = ({
+          resolvedSessionId,
+          resolvedServerInstanceId,
+          resolvedServerBaseUrl,
+          resolvedAgent,
+          resolvedModel,
+        }: {
+          resolvedSessionId: string;
+          resolvedServerInstanceId: string | null;
+          resolvedServerBaseUrl: string | null;
+          resolvedAgent: string | null;
+          resolvedModel: ModelReference | null;
+        }) =>
+          bindingRepo
+            .updateBinding({
+              stepExecutionId: context.stepExecution.id,
+              harnessId,
+              bindingState: "bound",
+              sessionId: resolvedSessionId,
+              serverInstanceId: resolvedServerInstanceId,
+              serverBaseUrl: resolvedServerBaseUrl,
+              selectedAgentKey: resolvedAgent,
+              selectedModelJson: resolvedModel,
+            })
+            .pipe(
+              Effect.flatMap((updated) =>
+                updated
+                  ? Effect.succeed(updated)
+                  : bindingRepo.createBinding({
+                      stepExecutionId: context.stepExecution.id,
+                      harnessId,
+                      bindingState: "bound",
+                      sessionId: resolvedSessionId,
+                      serverInstanceId: resolvedServerInstanceId,
+                      serverBaseUrl: resolvedServerBaseUrl,
+                      selectedAgentKey: resolvedAgent,
+                      selectedModelJson: resolvedModel,
+                    }),
+              ),
+            );
+
+        const harnessSelection = {
+          ...(selectedAgent ? { agent: selectedAgent } : {}),
+          ...(selectedModel ? { model: selectedModel } : {}),
+        };
+
         if (!sessionId) {
-          return yield* new AgentStepStateTransitionError({
-            fromState: context.runtimeState,
-            toState: "starting_session",
-            message:
-              "No saved harness session is bound to this step. Session creation is disabled for now.",
+          const started = yield* harness.startSession({
+            stepExecutionId: context.stepExecution.id,
+            projectRootPath,
+            ...harnessSelection,
+            objective: context.agentPayload.objective,
+            instructionsMarkdown: context.agentPayload.instructionsMarkdown,
           });
+
+          yield* persistBoundBinding({
+            resolvedSessionId: started.session.sessionId,
+            resolvedServerInstanceId: started.serverInstanceId ?? null,
+            resolvedServerBaseUrl: started.serverBaseUrl ?? null,
+            resolvedAgent: started.session.agent ?? selectedAgent ?? null,
+            resolvedModel: started.session.model ?? selectedModel ?? null,
+          });
+
+          let resolvedState = context.runtimeState;
+          if (context.runtimeState === "active_streaming") {
+            resolvedState = "active_streaming";
+          } else {
+            if (context.runtimeState === "not_started") {
+              yield* transitionAgentStepState({
+                stepExecutionId: context.stepExecution.id,
+                from: "not_started",
+                to: "starting_session",
+                stateRepo,
+              });
+              yield* transitionAgentStepState({
+                stepExecutionId: context.stepExecution.id,
+                from: "starting_session",
+                to: "active_idle",
+                stateRepo,
+              });
+            } else if (context.runtimeState === "starting_session") {
+              yield* transitionAgentStepState({
+                stepExecutionId: context.stepExecution.id,
+                from: "starting_session",
+                to: "active_idle",
+                stateRepo,
+              });
+            } else if (context.runtimeState === "disconnected_or_error") {
+              yield* transitionAgentStepState({
+                stepExecutionId: context.stepExecution.id,
+                from: "disconnected_or_error",
+                to: "active_idle",
+                stateRepo,
+              });
+            }
+
+            resolvedState = "active_idle";
+          }
+
+          if (!context.stateRow?.bootstrapAppliedAt) {
+            yield* stateRepo.updateState({
+              stepExecutionId: context.stepExecution.id,
+              bootstrapAppliedAt: new Date(),
+            });
+          }
+
+          return {
+            stepExecutionId: context.stepExecution.id,
+            state: resolvedState,
+            bindingState: "bound",
+          } satisfies StartAgentStepSessionOutput;
         }
 
         const reconnected = yield* harness
@@ -134,10 +247,7 @@ export const AgentStepSessionCommandServiceLive = Layer.effect(
             stepExecutionId: context.stepExecution.id,
             projectRootPath,
             resumeSessionId: sessionId,
-            agent:
-              context.bindingRow?.selectedAgentKey ?? context.agentPayload.harnessSelection.agent,
-            model:
-              context.bindingRow?.selectedModelJson ?? context.agentPayload.harnessSelection.model,
+            ...harnessSelection,
             objective: context.agentPayload.objective,
             instructionsMarkdown: context.agentPayload.instructionsMarkdown,
           })
@@ -185,23 +295,12 @@ export const AgentStepSessionCommandServiceLive = Layer.effect(
           });
         }
 
-        yield* bindingRepo.updateBinding({
-          stepExecutionId: context.stepExecution.id,
-          harnessId,
-          bindingState: "bound",
-          sessionId: reconnected.session.sessionId,
-          serverInstanceId: reconnected.serverInstanceId ?? null,
-          serverBaseUrl: reconnected.serverBaseUrl ?? null,
-          selectedAgentKey:
-            reconnected.session.agent ??
-            context.bindingRow?.selectedAgentKey ??
-            context.agentPayload.harnessSelection.agent ??
-            null,
-          selectedModelJson:
-            reconnected.session.model ??
-            context.bindingRow?.selectedModelJson ??
-            context.agentPayload.harnessSelection.model ??
-            null,
+        yield* persistBoundBinding({
+          resolvedSessionId: reconnected.session.sessionId,
+          resolvedServerInstanceId: reconnected.serverInstanceId ?? null,
+          resolvedServerBaseUrl: reconnected.serverBaseUrl ?? null,
+          resolvedAgent: reconnected.session.agent ?? selectedAgent ?? null,
+          resolvedModel: reconnected.session.model ?? selectedModel ?? null,
         });
 
         let resolvedState = context.runtimeState;
