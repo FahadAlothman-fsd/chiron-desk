@@ -878,7 +878,7 @@ describe("runtime agent step detail route", () => {
       ],
     });
 
-    expect(screen.getByText("Thinking")).toBeTruthy();
+    expect(screen.getByText("REASONING")).toBeTruthy();
     expect(
       screen.getByText("I should inspect the working tree before suggesting a patch."),
     ).toBeTruthy();

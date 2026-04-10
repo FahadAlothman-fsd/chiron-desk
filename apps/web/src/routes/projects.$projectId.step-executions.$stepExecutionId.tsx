@@ -19,6 +19,7 @@ import { Result } from "better-result";
 import {
   BotIcon,
   CheckIcon,
+  UserIcon,
   ChevronsUpDownIcon,
   CopyIcon,
   Loader2Icon,
@@ -33,7 +34,12 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-import { AiThinkingBlock } from "@/components/elements/ai-thinking-block";
+import {
+  AiReasoning,
+  AiReasoningContent,
+  AiReasoningText,
+  AiReasoningTrigger,
+} from "@/components/elements/ai-reasoning";
 import {
   AiToolCall,
   AiToolCallContent,
@@ -2618,36 +2624,66 @@ function AgentInteractionSurface(props: {
                         entry.entryType === "message" ? (
                           <article
                             key={entry.item.timelineItemId}
-                            className="border border-border/70 bg-background/55 p-3"
+                            className={cn(
+                              "border p-3",
+                              entry.item.role === "assistant"
+                                ? "border-violet-500/30 bg-violet-500/5"
+                                : entry.item.role === "user"
+                                  ? "border-sky-500/30 bg-sky-500/5"
+                                  : "border-border/70 bg-background/55",
+                            )}
                             data-testid={`agent-step-timeline-message-${entry.item.timelineItemId}`}
                           >
                             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                               <div className="flex items-center gap-2">
-                                <ExecutionBadge
-                                  label={entry.item.role}
-                                  tone={
+                                <div
+                                  className={cn(
+                                    "flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium",
                                     entry.item.role === "assistant"
-                                      ? "violet"
+                                      ? "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300"
                                       : entry.item.role === "user"
-                                        ? "sky"
-                                        : "slate"
-                                  }
-                                />
+                                        ? "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300"
+                                        : "bg-muted text-muted-foreground",
+                                  )}
+                                >
+                                  {entry.item.role === "assistant" ? (
+                                    <BotIcon className="size-3.5" />
+                                  ) : entry.item.role === "user" ? (
+                                    <UserIcon className="size-3.5" />
+                                  ) : null}
+                                  <span className="capitalize">{entry.item.role}</span>
+                                </div>
                                 <span className="text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
                                   {formatTimestamp(entry.item.createdAt)}
                                 </span>
                               </div>
                             </div>
-                            <pre className="whitespace-pre-wrap break-words text-sm text-foreground">
+                            <pre
+                              className={cn(
+                                "whitespace-pre-wrap break-words text-sm",
+                                entry.item.role === "assistant"
+                                  ? "text-foreground"
+                                  : "text-foreground/90",
+                              )}
+                            >
                               {entry.item.content}
                             </pre>
                           </article>
                         ) : entry.entryType === "thinking" ? (
-                          <AiThinkingBlock
+                          <AiReasoning
                             key={entry.item.timelineItemId}
-                            content={entry.item.content}
-                            className="bg-background/40"
-                          />
+                            defaultOpen={true}
+                            className="rounded-none border-border/70 bg-background/40"
+                          >
+                            <AiReasoningTrigger>
+                              <span className="text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
+                                {formatTimestamp(entry.item.createdAt)}
+                              </span>
+                            </AiReasoningTrigger>
+                            <AiReasoningContent>
+                              <AiReasoningText>{entry.item.content}</AiReasoningText>
+                            </AiReasoningContent>
+                          </AiReasoning>
                         ) : (
                           <AiToolCall
                             key={entry.timelineItemId}
