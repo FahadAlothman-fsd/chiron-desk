@@ -1,0 +1,25 @@
+.sisyphus/notepads/opencode-adapter/learnings.md
+  55302d1c6fffb7fe 2
+.sisyphus/notepads/opencode-adapter/issues.md
+  55302d1c6fffb7fe 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "91362f443ba5979ec55769cc21f51d717656a7eb",
+  "prompts": {
+    "55302d1c6fffb7fe": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_288c2b27effeMit033GL1KgrNe",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "TaskFlow Setup",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}
