@@ -1,5 +1,6 @@
 import type {
   AgentStepRuntimeState,
+  AgentStepTimelineCursor,
   AgentStepTimelineItem,
   GetAgentStepExecutionDetailOutput,
 } from "@chiron/contracts/agent-step/runtime";
@@ -32,6 +33,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import { AiThinkingBlock } from "@/components/elements/ai-thinking-block";
 import {
   AiToolCall,
   AiToolCallContent,
@@ -118,6 +120,19 @@ export const runtimeAgentStepExecutionDetailQueryKey = (
   stepExecutionId: string,
 ) => ["runtime-agent-step-execution-detail", projectId, stepExecutionId] as const;
 
+export const agentStepTimelineQueryKey = (
+  projectId: string,
+  stepExecutionId: string,
+  cursor?: AgentStepTimelineCursor,
+) =>
+  [
+    "runtime-agent-step-timeline",
+    projectId,
+    stepExecutionId,
+    cursor?.before ?? null,
+    cursor?.after ?? null,
+  ] as const;
+
 const runtimeWorkflowExecutionDetailQueryKey = (projectId: string, workflowExecutionId: string) =>
   ["runtime-workflow-execution-detail", projectId, workflowExecutionId] as const;
 
@@ -134,6 +149,7 @@ const AGENT_STEP_SSE_EVENT_NAMES = [
 
 type FormBody = Extract<GetRuntimeStepExecutionDetailOutput["body"], { stepType: "form" }>;
 type AgentBody = GetAgentStepExecutionDetailOutput["body"];
+type TimelineThinkingItem = Extract<AgentStepTimelineItem, { itemType: "thinking" }>;
 type TimelineToolItem = Extract<AgentStepTimelineItem, { itemType: "tool_activity" }>;
 
 type ToolCallTimelineEntry = {
@@ -144,7 +160,7 @@ type ToolCallTimelineEntry = {
   readonly state: ToolCallState;
   readonly createdAt: string;
   readonly summary?: string;
-  readonly input?: Record<string, unknown>;
+  readonly input?: unknown;
   readonly output?: string;
   readonly error?: string;
 };
@@ -153,6 +169,10 @@ type TimelineDisplayEntry =
   | {
       readonly entryType: "message";
       readonly item: Extract<AgentStepTimelineItem, { itemType: "message" }>;
+    }
+  | {
+      readonly entryType: "thinking";
+      readonly item: TimelineThinkingItem;
     }
   | ToolCallTimelineEntry;
 
@@ -206,7 +226,7 @@ function formatUnknown(value: unknown): string {
   return serialized.isOk() ? serialized.value : "[unserializable]";
 }
 
-function parseToolPayload(value: string | undefined): Record<string, unknown> | undefined {
+function parseToolPayload(value: string | undefined): unknown {
   if (!value) {
     return undefined;
   }
@@ -216,14 +236,14 @@ function parseToolPayload(value: string | undefined): Record<string, unknown> | 
     catch: () => undefined,
   });
 
-  if (parsed.isOk() && typeof parsed.value === "object" && parsed.value !== null) {
-    return parsed.value as Record<string, unknown>;
+  if (parsed.isOk()) {
+    return parsed.value;
   }
 
-  return { value };
+  return value;
 }
 
-function resolveToolInputPayload(item: TimelineToolItem): Record<string, unknown> | undefined {
+function resolveToolInputPayload(item: TimelineToolItem): unknown {
   return item.input ? parseToolPayload(item.input) : undefined;
 }
 
@@ -255,6 +275,19 @@ function upsertTimelineItem(
   });
 }
 
+function mergeTimelineItems(
+  items: readonly AgentStepTimelineItem[],
+  nextItems: readonly AgentStepTimelineItem[],
+): AgentStepTimelineItem[] {
+  let merged = [...items];
+
+  for (const item of nextItems) {
+    merged = upsertTimelineItem(merged, item);
+  }
+
+  return merged;
+}
+
 function buildTimelineDisplayEntries(
   items: readonly AgentStepTimelineItem[],
 ): TimelineDisplayEntry[] {
@@ -283,12 +316,16 @@ function buildTimelineDisplayEntries(
       continue;
     }
 
+    if (item.itemType === "thinking") {
+      displayEntries.push({ entryType: "thinking", item });
+      continue;
+    }
+
     const toolKey = toToolCorrelationKey(item.timelineItemId);
     const pendingIndexes = pendingToolIndexes.get(toolKey) ?? [];
 
     if (item.status === "started") {
-      const inputPayload =
-        resolveToolInputPayload(item) ?? (item.summary ? { summary: item.summary } : undefined);
+      const inputPayload = resolveToolInputPayload(item);
 
       displayEntries.push({
         entryType: "tool-call",
@@ -1958,6 +1995,20 @@ function AgentInteractionSurface(props: {
     queryKey: agentStepHarnessMetadataQueryKey,
   });
 
+  const shouldFetchTimelineHistory =
+    Boolean(detail.body.harnessBinding.sessionId) && detail.body.timelinePreview.length > 0;
+  const timelineHistoryQuery = useQuery({
+    ...orpc.project.getAgentStepTimelinePage.queryOptions({
+      input: {
+        projectId,
+        stepExecutionId: shell.stepExecutionId,
+        limit: 1000,
+      },
+    }),
+    queryKey: agentStepTimelineQueryKey(projectId, shell.stepExecutionId),
+    enabled: shouldFetchTimelineHistory,
+  });
+
   const [composerText, setComposerText] = useState("");
   const [agentSelectorOpen, setAgentSelectorOpen] = useState(false);
   const [modelSelectorOpen, setModelSelectorOpen] = useState(false);
@@ -1970,6 +2021,7 @@ function AgentInteractionSurface(props: {
   const [liveErrorMessage, setLiveErrorMessage] = useState<string | null>(null);
   const [copiedAttachCommand, setCopiedAttachCommand] = useState(false);
   const [pendingTurnSubmit, setPendingTurnSubmit] = useState(false);
+  const timelinePreviewRef = useRef(detail.body.timelinePreview);
   const processedEventCountRef = useRef(0);
   const pendingOptimisticUserTimelineIdRef = useRef<string | null>(null);
   const pendingOptimisticUserMessageRef = useRef<string | null>(null);
@@ -1979,14 +2031,46 @@ function AgentInteractionSurface(props: {
   }, [detail.body.state]);
 
   useEffect(() => {
+    timelinePreviewRef.current = detail.body.timelinePreview;
+  }, [detail.body.timelinePreview]);
+
+  useEffect(() => {
+    if (!shell.stepExecutionId) {
+      return;
+    }
+
     processedEventCountRef.current = 0;
     setLiveErrorMessage(null);
     setCopiedAttachCommand(false);
     setPendingTurnSubmit(false);
     pendingOptimisticUserTimelineIdRef.current = null;
     pendingOptimisticUserMessageRef.current = null;
+    setTimelineItems(timelinePreviewRef.current);
+  }, [shell.stepExecutionId]);
+
+  useEffect(() => {
+    if (timelineHistoryQuery.data?.items) {
+      return;
+    }
+
     setTimelineItems(detail.body.timelinePreview);
-  }, [detail.body.timelinePreview]);
+  }, [detail.body.timelinePreview, timelineHistoryQuery.data?.items]);
+
+  useEffect(() => {
+    if (!timelineHistoryQuery.data?.items) {
+      return;
+    }
+
+    setTimelineItems((previous) => mergeTimelineItems(previous, timelineHistoryQuery.data.items));
+  }, [timelineHistoryQuery.data?.items]);
+
+  useEffect(() => {
+    if (!timelineHistoryQuery.error) {
+      return;
+    }
+
+    console.error("Failed to load full agent step timeline history.", timelineHistoryQuery.error);
+  }, [timelineHistoryQuery.error]);
 
   useEffect(() => {
     if (!copiedAttachCommand) {
@@ -2004,7 +2088,9 @@ function AgentInteractionSurface(props: {
 
   const composerUiState = getAgentComposerUiState({
     state: runtimeState,
-    sessionId: detail.body.harnessBinding.sessionId,
+    ...(detail.body.harnessBinding.sessionId
+      ? { sessionId: detail.body.harnessBinding.sessionId }
+      : {}),
   });
   const shouldStreamSessionEvents =
     Boolean(detail.body.harnessBinding.sessionId) &&
@@ -2016,6 +2102,10 @@ function AgentInteractionSurface(props: {
   const stream = useSSE<AgentStepSseEnvelope, AgentStepSseEnvelope>(streamUrl, {
     eventNames: AGENT_STEP_SSE_EVENT_NAMES,
   });
+  const timelineHistoryErrorMessage = timelineHistoryQuery.error
+    ? toErrorMessage(timelineHistoryQuery.error)
+    : null;
+  const isTimelineHistoryLoading = shouldFetchTimelineHistory && timelineHistoryQuery.isLoading;
 
   useEffect(() => {
     const nextEvents = stream.events.slice(processedEventCountRef.current);
@@ -2028,13 +2118,7 @@ function AgentInteractionSurface(props: {
     for (const event of nextEvents) {
       if (event.eventType === "bootstrap") {
         setRuntimeState(event.data.state);
-        setTimelineItems((previous) => {
-          let merged = previous;
-          for (const item of event.data.timelineItems) {
-            merged = upsertTimelineItem(merged, item);
-          }
-          return merged;
-        });
+        setTimelineItems((previous) => mergeTimelineItems(previous, event.data.timelineItems));
         continue;
       }
 
@@ -2352,7 +2436,10 @@ function AgentInteractionSurface(props: {
                   <div className="flex flex-wrap items-center gap-2">
                     <ExecutionBadge
                       label={renderAgentStateLabel(runtimeState)}
-                      tone={getAgentStateTone(runtimeState)}
+                      {...(() => {
+                        const tone = getAgentStateTone(runtimeState);
+                        return tone ? { tone } : {};
+                      })()}
                     />
                     <ExecutionBadge
                       label={stream.status === "open" ? "stream open" : stream.status}
@@ -2480,22 +2567,47 @@ function AgentInteractionSurface(props: {
                 className="flex h-[calc(100vh-16rem)] min-h-[26rem] min-w-0 flex-col border-border/70 bg-background/40"
               >
                 <CardHeader className="border-b border-border/70">
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="space-y-1">
                       <CardDescription className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
                         Timeline
                       </CardDescription>
                       <CardTitle className="text-sm">Conversation &amp; tool activity</CardTitle>
                     </div>
-                    {runtimeState === "active_streaming" ? (
-                      <div className="flex items-center gap-2 text-xs text-sky-200">
-                        <RadioIcon className="size-3.5 animate-pulse" />
-                        <span>Streaming current turn</span>
-                      </div>
-                    ) : null}
+                    <div className="flex flex-col items-start gap-2 text-xs md:items-end">
+                      {isTimelineHistoryLoading ? (
+                        <div
+                          className="flex items-center gap-2 text-muted-foreground"
+                          data-testid="agent-step-timeline-history-loading"
+                        >
+                          <Loader2Icon className="size-3.5 animate-spin" />
+                          <span>Loading full history…</span>
+                        </div>
+                      ) : null}
+                      {runtimeState === "active_streaming" ? (
+                        <div className="flex items-center gap-2 text-sky-200">
+                          <RadioIcon className="size-3.5 animate-pulse" />
+                          <span>Streaming current turn</span>
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto py-4">
+                  {timelineHistoryErrorMessage ? (
+                    <div
+                      className="flex items-start gap-2 border border-destructive/60 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                      data-testid="agent-step-timeline-history-error"
+                    >
+                      <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
+                      <div className="space-y-1">
+                        <p>Couldn&apos;t load the full timeline history.</p>
+                        <p className="text-xs text-destructive/80">
+                          Showing the recent preview instead. {timelineHistoryErrorMessage}
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
                   {timelineDisplayEntries.length === 0 ? (
                     <div className="border border-dashed border-border/70 bg-background/50 px-3 py-6 text-center text-sm text-muted-foreground">
                       No timeline activity yet. Start the session to begin the runtime trace.
@@ -2530,6 +2642,12 @@ function AgentInteractionSurface(props: {
                               {entry.item.content}
                             </pre>
                           </article>
+                        ) : entry.entryType === "thinking" ? (
+                          <AiThinkingBlock
+                            key={entry.item.timelineItemId}
+                            content={entry.item.content}
+                            className="bg-background/40"
+                          />
                         ) : (
                           <AiToolCall
                             key={entry.timelineItemId}

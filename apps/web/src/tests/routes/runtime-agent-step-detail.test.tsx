@@ -137,6 +137,7 @@ vi.mock("@/features/workflow-editor/agent-step-tabs/model-selector", () => ({
 
 import {
   RuntimeFormStepDetailRoute,
+  agentStepTimelineQueryKey,
   runtimeAgentStepExecutionDetailQueryKey,
   runtimeStepExecutionDetailQueryKey,
 } from "../../routes/projects.$projectId.step-executions.$stepExecutionId";
@@ -380,11 +381,36 @@ function buildHarnessMetadata() {
   };
 }
 
+function buildTimelinePage() {
+  return {
+    stepExecutionId: "step-agent-1",
+    cursor: {},
+    items: [
+      {
+        itemType: "message" as const,
+        timelineItemId: "timeline-0",
+        createdAt: "2026-04-09T12:00:30.000Z",
+        role: "user" as const,
+        content: "Use the readable facts and emit structured writes.",
+      },
+      {
+        itemType: "message" as const,
+        timelineItemId: "timeline-1",
+        createdAt: "2026-04-09T12:01:00.000Z",
+        role: "assistant" as const,
+        content: "Bootstrap complete.",
+      },
+    ],
+  };
+}
+
 function buildOrpc(overrides?: {
   state?: AgentState;
   agentDetailTransform?: (
     detail: ReturnType<typeof buildAgentDetail>,
   ) => ReturnType<typeof buildAgentDetail>;
+  timelinePage?: ReturnType<typeof buildTimelinePage>;
+  getTimelinePage?: ReturnType<typeof vi.fn>;
   startSession?: ReturnType<typeof vi.fn>;
   sendMessage?: ReturnType<typeof vi.fn>;
   updateTurnSelection?: ReturnType<typeof vi.fn>;
@@ -396,6 +422,8 @@ function buildOrpc(overrides?: {
     overrides?.agentDetailTransform?.(buildAgentDetail(state)) ?? buildAgentDetail(state);
   const workflowDetail = buildWorkflowDetail();
   const harnessMetadata = buildHarnessMetadata();
+  const timelinePage = overrides?.timelinePage ?? buildTimelinePage();
+  const getTimelinePage = overrides?.getTimelinePage ?? vi.fn(async () => timelinePage);
 
   const startSession =
     overrides?.startSession ??
@@ -444,6 +472,25 @@ function buildOrpc(overrides?: {
             queryFn: async () => agentDetail,
           }),
         },
+        getAgentStepTimelinePage: {
+          queryOptions: ({
+            input,
+          }: {
+            input: {
+              projectId: string;
+              stepExecutionId: string;
+              cursor?: { before?: string; after?: string };
+              limit?: number;
+            };
+          }) => ({
+            queryKey: agentStepTimelineQueryKey(
+              input.projectId,
+              input.stepExecutionId,
+              input.cursor,
+            ),
+            queryFn: async () => getTimelinePage(input),
+          }),
+        },
         getRuntimeWorkflowExecutionDetail: {
           queryOptions: ({
             input,
@@ -478,6 +525,7 @@ function buildOrpc(overrides?: {
         },
       },
     },
+    getTimelinePage,
     startSession,
     sendMessage,
     updateTurnSelection,
@@ -493,6 +541,8 @@ async function renderRoute(
     agentDetailTransform?: (
       detail: ReturnType<typeof buildAgentDetail>,
     ) => ReturnType<typeof buildAgentDetail>;
+    timelinePage?: ReturnType<typeof buildTimelinePage>;
+    getTimelinePage?: ReturnType<typeof vi.fn>;
   },
 ) {
   const queryClient =
@@ -503,7 +553,14 @@ async function renderRoute(
         mutations: { retry: false },
       },
     });
-  const setup = buildOrpc({ state, agentDetailTransform: options?.agentDetailTransform });
+  const setup = buildOrpc({
+    state,
+    ...(options?.agentDetailTransform
+      ? { agentDetailTransform: options.agentDetailTransform }
+      : {}),
+    ...(options?.timelinePage ? { timelinePage: options.timelinePage } : {}),
+    ...(options?.getTimelinePage ? { getTimelinePage: options.getTimelinePage } : {}),
+  });
 
   useParamsMock.mockReturnValue({ projectId: "project-1", stepExecutionId: "step-agent-1" });
   useRouteContextMock.mockReturnValue({ orpc: setup.orpc, queryClient });
@@ -624,6 +681,84 @@ describe("runtime agent step detail route", () => {
     expect(composerTextbox().disabled).toBe(true);
   });
 
+  it("hydrates the timeline with full history on mount", async () => {
+    const { getTimelinePage } = await renderRoute("active_idle");
+
+    await screen.findByText("Use the readable facts and emit structured writes.");
+
+    expect(getTimelinePage).toHaveBeenCalledWith({
+      projectId: "project-1",
+      stepExecutionId: "step-agent-1",
+      limit: 1000,
+    });
+  });
+
+  it("shows a localized loading indicator while full history is loading", async () => {
+    let resolveTimelinePage: ((value: ReturnType<typeof buildTimelinePage>) => void) | undefined;
+    const getTimelinePage = vi.fn(
+      () =>
+        new Promise<ReturnType<typeof buildTimelinePage>>((resolve) => {
+          resolveTimelinePage = resolve;
+        }),
+    );
+
+    await renderRoute("active_idle", { getTimelinePage });
+
+    expect(screen.getByTestId("agent-step-timeline-history-loading")).toBeTruthy();
+    expect(screen.getByText("Bootstrap complete.")).toBeTruthy();
+
+    resolveTimelinePage?.(buildTimelinePage());
+    await waitFor(() => {
+      expect(screen.queryByTestId("agent-step-timeline-history-loading")).toBeNull();
+    });
+  });
+
+  it("falls back to the preview when the full history query fails", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    try {
+      await renderRoute("active_idle", {
+        getTimelinePage: vi.fn(async () => {
+          throw new Error("history unavailable");
+        }),
+      });
+
+      await screen.findByTestId("agent-step-timeline-history-error");
+
+      expect(screen.getByText("Bootstrap complete.")).toBeTruthy();
+      expect(screen.getByText(/history unavailable/i)).toBeTruthy();
+      expect(consoleError).toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it.each([
+    {
+      label: "without a started session",
+      state: "not_started" as AgentState,
+      agentDetailTransform: undefined,
+    },
+    {
+      label: "when the preview is empty",
+      state: "active_idle" as AgentState,
+      agentDetailTransform: (detail: ReturnType<typeof buildAgentDetail>) => ({
+        ...detail,
+        body: {
+          ...detail.body,
+          timelinePreview: [],
+        },
+      }),
+    },
+  ])("does not fetch full timeline history $label", async ({ state, agentDetailTransform }) => {
+    const { getTimelinePage } = await renderRoute(
+      state,
+      agentDetailTransform ? { agentDetailTransform } : undefined,
+    );
+
+    expect(getTimelinePage).not.toHaveBeenCalled();
+  });
+
   it("invalidates side-panel queries after a successful write tool event", async () => {
     const queryClient = new QueryClient({
       defaultOptions: {
@@ -667,6 +802,8 @@ describe("runtime agent step detail route", () => {
   });
 
   it("merges started and completed tool events into one expandable tool-call entry", async () => {
+    const user = userEvent.setup();
+
     await renderRoute("active_idle", {
       sseEvents: [
         {
@@ -709,15 +846,47 @@ describe("runtime agent step detail route", () => {
     });
 
     expect(screen.getAllByText("bash")).toHaveLength(1);
+    expect(screen.queryByText("$ pwd")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: /bash/i }));
+
     const timelineList = screen.getByTestId("agent-step-timeline-list");
     const timelineText = timelineList.textContent ?? "";
     expect(timelineText).toContain("Completed");
-    expect(timelineText).toContain("command");
-    expect(timelineText).toContain('"command": "pwd"');
+    expect(timelineText).toContain("Check current working directory.");
+    expect(timelineText).toContain("$ pwd");
     expect(timelineText).toContain("home/gondilf/Desktop/projects/masters/chiron");
   });
 
+  it("renders thinking timeline entries with muted reasoning styling", async () => {
+    await renderRoute("active_idle", {
+      sseEvents: [
+        {
+          version: "v1",
+          stream: "agent_step_session_events",
+          eventType: "timeline",
+          stepExecutionId: "step-agent-1",
+          data: {
+            item: {
+              itemType: "thinking",
+              timelineItemId: "thinking-1",
+              createdAt: "2026-04-09T12:02:00.000Z",
+              content: "I should inspect the working tree before suggesting a patch.",
+            },
+          },
+        },
+      ],
+    });
+
+    expect(screen.getByText("Thinking")).toBeTruthy();
+    expect(
+      screen.getByText("I should inspect the working tree before suggesting a patch."),
+    ).toBeTruthy();
+  });
+
   it("falls back to summary-only tool activity payloads when structured payload is missing", async () => {
+    const user = userEvent.setup();
+
     await renderRoute("active_idle", {
       sseEvents: [
         {
@@ -756,6 +925,8 @@ describe("runtime agent step detail route", () => {
         },
       ],
     });
+
+    await user.click(screen.getByRole("button", { name: /bash/i }));
 
     const timelineText = screen.getByTestId("agent-step-timeline-list").textContent ?? "";
     expect(timelineText).toContain("Legacy input summary.");
