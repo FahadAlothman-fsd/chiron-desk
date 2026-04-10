@@ -95,40 +95,34 @@ export const AgentStepExecutionDetailServiceLive = Layer.effect(
           input,
         );
 
+        const satisfiedFactDefinitionIds = new Set(
+          (refreshedContext.contextFacts ?? []).map((fact) => fact.contextFactDefinitionId),
+        );
+
         const writeSetCompletion = {
           total: refreshedContext.writeItems.length,
-          applied: refreshedContext.writeItems.filter((item) => {
-            const fact = refreshedContext.contextFacts.find(
-              (f) => f.contextFactDefinitionId === item.contextFactDefinitionId,
-            );
-            return (fact?.instances.length ?? 0) > 0;
-          }).length,
+          applied: refreshedContext.writeItems.filter((item) =>
+            satisfiedFactDefinitionIds.has(item.contextFactDefinitionId),
+          ).length,
           ready: 0,
           blocked: 0,
           isComplete: false,
         };
 
         writeSetCompletion.blocked = refreshedContext.writeItems.filter((item) => {
-          const requirementsSatisfied = item.requirementContextFactDefinitionIds.every((reqId) => {
-            const reqFact = refreshedContext.contextFacts.find(
-              (f) => f.contextFactDefinitionId === reqId,
-            );
-            return (reqFact?.instances.length ?? 0) > 0;
-          });
+          const requirementsSatisfied = item.requirementContextFactDefinitionIds.every((reqId) =>
+            satisfiedFactDefinitionIds.has(reqId),
+          );
           return !requirementsSatisfied;
         }).length;
 
         writeSetCompletion.ready = refreshedContext.writeItems.filter((item) => {
-          const requirementsSatisfied = item.requirementContextFactDefinitionIds.every((reqId) => {
-            const reqFact = refreshedContext.contextFacts.find(
-              (f) => f.contextFactDefinitionId === reqId,
-            );
-            return (reqFact?.instances.length ?? 0) > 0;
-          });
-          const fact = refreshedContext.contextFacts.find(
-            (f) => f.contextFactDefinitionId === item.contextFactDefinitionId,
+          const requirementsSatisfied = item.requirementContextFactDefinitionIds.every((reqId) =>
+            satisfiedFactDefinitionIds.has(reqId),
           );
-          return requirementsSatisfied && (fact?.instances.length ?? 0) === 0;
+          return (
+            requirementsSatisfied && !satisfiedFactDefinitionIds.has(item.contextFactDefinitionId)
+          );
         }).length;
 
         writeSetCompletion.isComplete =
