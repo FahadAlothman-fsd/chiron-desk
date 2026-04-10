@@ -223,4 +223,220 @@ describe("AgentStep MCP services", () => {
     expect(blocked.left).toBeInstanceOf(McpWriteRequirementError);
     expect(ctx.appliedWrites).toHaveLength(0);
   });
+
+  it("records committed git metadata for artifact reference writes", async () => {
+    const ctx = makeAgentStepRuntimeTestContext();
+
+    await seedSavedSession(ctx);
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const session = yield* AgentStepSessionCommandService;
+        yield* session.startAgentStepSession({
+          projectId: "project-1",
+          stepExecutionId: "step-exec-1",
+        });
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* AgentStepMcpService;
+        yield* service.execute({
+          version: "v1",
+          toolName: "write_context_value",
+          input: {
+            stepExecutionId: "step-exec-1",
+            writeItemId: "write-summary",
+            valueJson: "Approved summary",
+          },
+        });
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    const artifactWrite = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* AgentStepMcpService;
+        return yield* service.execute({
+          version: "v1",
+          toolName: "write_context_value",
+          input: {
+            stepExecutionId: "step-exec-1",
+            writeItemId: "write-artifact",
+            valueJson: { relativePath: "docs/setup.md" },
+          },
+        });
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    expect(artifactWrite.response.toolName).toBe("write_context_value");
+    if (artifactWrite.response.toolName !== "write_context_value") {
+      throw new Error("expected write_context_value response");
+    }
+
+    expect(artifactWrite.response.output.appliedWrite.valueJson).toEqual({
+      relativePath: "docs/setup.md",
+      gitCommitHash: "commit-123",
+      gitBlobHash: "blob-123",
+    });
+    expect(
+      ctx.contextFacts.find((fact) => fact.contextFactDefinitionId === "ctx-artifact")?.valueJson,
+    ).toEqual({
+      relativePath: "docs/setup.md",
+      gitCommitHash: "commit-123",
+      gitBlobHash: "blob-123",
+    });
+  });
+
+  it("rejects artifact reference writes when the file is not committed", async () => {
+    const ctx = makeAgentStepRuntimeTestContext({
+      artifactReferenceResolutions: {
+        "docs/setup.md": {
+          status: "not_committed",
+          relativePath: "docs/setup.md",
+          tracked: true,
+          untracked: false,
+          staged: true,
+          modified: false,
+          deleted: false,
+        },
+      },
+    });
+
+    await seedSavedSession(ctx);
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const session = yield* AgentStepSessionCommandService;
+        yield* session.startAgentStepSession({
+          projectId: "project-1",
+          stepExecutionId: "step-exec-1",
+        });
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* AgentStepMcpService;
+        yield* service.execute({
+          version: "v1",
+          toolName: "write_context_value",
+          input: {
+            stepExecutionId: "step-exec-1",
+            writeItemId: "write-summary",
+            valueJson: "Approved summary",
+          },
+        });
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* AgentStepMcpService;
+        return yield* Effect.either(
+          service.execute({
+            version: "v1",
+            toolName: "write_context_value",
+            input: {
+              stepExecutionId: "step-exec-1",
+              writeItemId: "write-artifact",
+              valueJson: { relativePath: "docs/setup.md" },
+            },
+          }),
+        );
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    expect(result._tag).toBe("Left");
+    if (result._tag !== "Left") {
+      throw new Error("expected artifact write to fail");
+    }
+
+    expect(result.left).toBeInstanceOf(McpToolValidationError);
+    expect(result.left.message).toContain("not committed yet");
+    expect(ctx.contextFacts.some((fact) => fact.contextFactDefinitionId === "ctx-artifact")).toBe(
+      false,
+    );
+  });
+
+  it("records deleted artifact updates distinctly when an existing artifact path is removed", async () => {
+    const ctx = makeAgentStepRuntimeTestContext({
+      initialContextFacts: [
+        {
+          id: "fact-summary-1",
+          workflowExecutionId: "wfexec-1",
+          contextFactDefinitionId: "ctx-summary",
+          instanceOrder: 0,
+          valueJson: "Approved summary",
+          sourceStepExecutionId: "step-exec-1",
+          createdAt: new Date("2026-04-09T12:00:01.000Z"),
+          updatedAt: new Date("2026-04-09T12:00:01.000Z"),
+        },
+        {
+          id: "fact-artifact-1",
+          workflowExecutionId: "wfexec-1",
+          contextFactDefinitionId: "ctx-artifact",
+          instanceOrder: 0,
+          valueJson: {
+            relativePath: "docs/setup.md",
+            gitCommitHash: "commit-old",
+            gitBlobHash: "blob-old",
+          },
+          sourceStepExecutionId: "step-exec-1",
+          createdAt: new Date("2026-04-09T12:00:02.000Z"),
+          updatedAt: new Date("2026-04-09T12:00:02.000Z"),
+        },
+      ],
+      artifactReferenceResolutions: {
+        "docs/setup.md": {
+          status: "not_committed",
+          relativePath: "docs/setup.md",
+          tracked: true,
+          untracked: false,
+          staged: false,
+          modified: false,
+          deleted: true,
+        },
+      },
+    });
+
+    await seedSavedSession(ctx);
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const session = yield* AgentStepSessionCommandService;
+        yield* session.startAgentStepSession({
+          projectId: "project-1",
+          stepExecutionId: "step-exec-1",
+        });
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    const artifactWrite = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* AgentStepMcpService;
+        return yield* service.execute({
+          version: "v1",
+          toolName: "write_context_value",
+          input: {
+            stepExecutionId: "step-exec-1",
+            writeItemId: "write-artifact",
+            valueJson: { relativePath: "docs/setup.md" },
+          },
+        });
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    expect(artifactWrite.response.toolName).toBe("write_context_value");
+    if (artifactWrite.response.toolName !== "write_context_value") {
+      throw new Error("expected write_context_value response");
+    }
+
+    expect(artifactWrite.response.output.appliedWrite.valueJson).toEqual({
+      relativePath: "docs/setup.md",
+      gitCommitHash: "commit-old",
+      gitBlobHash: "blob-old",
+      deleted: true,
+    });
+  });
 });

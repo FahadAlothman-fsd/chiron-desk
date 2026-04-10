@@ -7,6 +7,7 @@ import {
   type WorkflowEditorDefinitionReadModel,
 } from "@chiron/methodology-engine";
 import { ProjectContextRepository } from "@chiron/project-context";
+import { SandboxGitService, type SandboxGitFileResolution } from "@chiron/sandbox-engine";
 import { Context, Effect, Layer } from "effect";
 
 import {
@@ -45,6 +46,7 @@ const now = new Date("2026-04-09T12:00:00.000Z");
 export interface AgentStepRuntimeTestContext {
   readonly layer: Layer.Layer<
     | HarnessService
+    | SandboxGitService
     | StepExecutionRepository
     | ExecutionReadRepository
     | ProjectContextRepository
@@ -79,6 +81,7 @@ export interface AgentStepRuntimeTestContext {
 
 export function makeAgentStepRuntimeTestContext(options?: {
   initialContextFacts?: readonly RuntimeWorkflowExecutionContextFactRow[];
+  artifactReferenceResolutions?: Readonly<Record<string, SandboxGitFileResolution>>;
 }) {
   const steps: RuntimeStepExecutionRow[] = [
     {
@@ -227,6 +230,53 @@ export function makeAgentStepRuntimeTestContext(options?: {
     })(),
     responseResolver: ({ turn, message }) => `Turn ${turn}: ${message.toUpperCase()}`,
   });
+
+  const sandboxGitLayer = Layer.succeed(SandboxGitService, {
+    getAvailability: () => Effect.succeed({ status: "available", version: "2.51.0" } as const),
+    normalizeRepoRelativePath: (_rootPath: string, filePath: string) => Effect.succeed(filePath),
+    resolveArtifactReference: ({ filePath }: { rootPath: string; filePath: string }) =>
+      Effect.succeed(
+        options?.artifactReferenceResolutions?.[filePath] ?? {
+          status: "committed",
+          relativePath: filePath,
+          gitCommitHash: "commit-123",
+          gitBlobHash: "blob-123",
+        },
+      ),
+    compareRecordedArtifactReference: ({ recorded, current }: any) =>
+      Effect.succeed(
+        current.status === "missing" || (current.status === "not_committed" && current.deleted)
+          ? {
+              status: "deleted",
+              relativePath: recorded.relativePath,
+              gitCommitHash: recorded.gitCommitHash ?? null,
+              gitBlobHash: recorded.gitBlobHash ?? null,
+            }
+          : current.status === "committed" &&
+              current.relativePath === recorded.relativePath &&
+              current.gitCommitHash === (recorded.gitCommitHash ?? null) &&
+              current.gitBlobHash === recorded.gitBlobHash
+            ? {
+                status: "unchanged",
+                relativePath: current.relativePath,
+                gitCommitHash: current.gitCommitHash,
+                gitBlobHash: current.gitBlobHash,
+              }
+            : {
+                status: "changed",
+                relativePath:
+                  current.status === "committed" ? current.relativePath : recorded.relativePath,
+                gitCommitHash:
+                  current.status === "committed"
+                    ? current.gitCommitHash
+                    : (recorded.gitCommitHash ?? null),
+                gitBlobHash:
+                  current.status === "committed"
+                    ? current.gitBlobHash
+                    : (recorded.gitBlobHash ?? ""),
+              },
+      ),
+  } as unknown as Context.Tag.Service<typeof SandboxGitService>);
 
   const stepRepoLayer = Layer.succeed(StepExecutionRepository, {
     createStepExecution: () => Effect.die("unused"),
@@ -670,6 +720,7 @@ export function makeAgentStepRuntimeTestContext(options?: {
 
   const layer = Layer.mergeAll(
     Layer.succeed(HarnessService, harness),
+    sandboxGitLayer,
     stepRepoLayer,
     executionReadLayer,
     projectContextLayer,
