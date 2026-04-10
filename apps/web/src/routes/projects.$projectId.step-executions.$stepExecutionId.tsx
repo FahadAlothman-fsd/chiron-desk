@@ -2713,7 +2713,7 @@ function AgentInteractionSurface(props: {
                 {
                   gridTemplateColumns: sidePanelOpen
                     ? "minmax(0,1fr) minmax(20rem,0.9fr)"
-                    : "minmax(0,1fr) 2.75rem",
+                    : "minmax(0,1fr) minmax(0,0fr)",
                 } as CSSProperties
               }
             >
@@ -2731,6 +2731,17 @@ function AgentInteractionSurface(props: {
                       <CardTitle className="text-sm">Conversation &amp; tool activity</CardTitle>
                     </div>
                     <div className="flex flex-col items-start gap-2 text-xs md:items-end">
+                      {!sidePanelOpen ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon-sm"
+                          aria-label="Open context side panel"
+                          onClick={() => setSidePanelOpen(true)}
+                        >
+                          <PanelRightOpenIcon className="size-3.5" />
+                        </Button>
+                      ) : null}
                       {isTimelineHistoryLoading ? (
                         <div
                           className="flex items-center gap-2 text-muted-foreground"
@@ -2876,44 +2887,37 @@ function AgentInteractionSurface(props: {
 
               <aside
                 className={cn(
-                  "flex h-[calc(100vh-16rem)] min-h-[26rem] min-w-0 flex-col overflow-hidden border border-border/70 bg-background/40",
-                  !sidePanelOpen && "justify-self-end",
+                  "flex h-[calc(100vh-16rem)] min-h-[26rem] min-w-0 flex-col overflow-hidden border border-border/70 bg-background/40 transition-all duration-200 ease-out",
+                  sidePanelOpen
+                    ? "translate-x-0 opacity-100"
+                    : "pointer-events-none -translate-x-2 border-transparent opacity-0",
                 )}
+                aria-hidden={!sidePanelOpen}
               >
-                <div
-                  className={cn(
-                    "flex items-center gap-2 border-b border-border/70 py-2",
-                    sidePanelOpen ? "justify-between px-3" : "justify-center px-1",
-                  )}
-                >
+                <div className="flex items-center justify-between gap-2 border-b border-border/70 px-3 py-2">
+                  <div className="space-y-0.5">
+                    <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
+                      Context side panel
+                    </p>
+                    <p className="text-sm font-medium">Read / Write</p>
+                  </div>
                   {sidePanelOpen ? (
-                    <div className="space-y-0.5">
-                      <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
-                        Context side panel
-                      </p>
-                      <p className="text-sm font-medium">Read / Write</p>
-                    </div>
-                  ) : null}
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon-sm"
-                    aria-label="Toggle side panel"
-                    onClick={() => setSidePanelOpen((current) => !current)}
-                  >
-                    {sidePanelOpen ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      aria-label="Close context side panel"
+                      onClick={() => setSidePanelOpen(false)}
+                    >
                       <PanelRightCloseIcon className="size-3.5" />
-                    ) : (
-                      <PanelRightOpenIcon className="size-3.5" />
-                    )}
-                  </Button>
+                    </Button>
+                  ) : null}
                 </div>
 
                 <div
                   className={cn(
                     "min-h-0 flex-1 space-y-3 overflow-y-auto p-3 transition-opacity duration-150",
-                    sidePanelOpen ? "opacity-100" : "pointer-events-none select-none opacity-0",
+                    sidePanelOpen ? "opacity-100" : "opacity-0",
                   )}
                 >
                   <div className="flex gap-2">
