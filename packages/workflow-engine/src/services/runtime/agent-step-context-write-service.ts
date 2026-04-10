@@ -247,6 +247,8 @@ function resolveArtifactReferenceValues(params: {
                 relativePath: comparison.relativePath,
                 gitCommitHash: comparison.gitCommitHash,
                 gitBlobHash: comparison.gitBlobHash,
+                gitCommitSubject: comparison.gitCommitSubject,
+                gitCommitBody: comparison.gitCommitBody,
                 deleted: true,
               },
             };
@@ -272,6 +274,8 @@ function resolveArtifactReferenceValues(params: {
             relativePath: resolution.relativePath,
             gitCommitHash: resolution.gitCommitHash,
             gitBlobHash: resolution.gitBlobHash,
+            gitCommitSubject: resolution.gitCommitSubject,
+            gitCommitBody: resolution.gitCommitBody,
           },
         };
       }).pipe(
@@ -344,6 +348,8 @@ function parseRecordedArtifactReference(valueJson: unknown): {
   relativePath: string;
   gitCommitHash?: string | null;
   gitBlobHash?: string | null;
+  gitCommitSubject?: string | null;
+  gitCommitBody?: string | null;
 } | null {
   if (!valueJson || typeof valueJson !== "object") {
     return null;
@@ -364,6 +370,16 @@ function parseRecordedArtifactReference(valueJson: unknown): {
       "gitBlobHash" in valueJson &&
       (typeof valueJson.gitBlobHash === "string" || valueJson.gitBlobHash === null)
         ? valueJson.gitBlobHash
+        : undefined,
+    gitCommitSubject:
+      "gitCommitSubject" in valueJson &&
+      (typeof valueJson.gitCommitSubject === "string" || valueJson.gitCommitSubject === null)
+        ? valueJson.gitCommitSubject
+        : undefined,
+    gitCommitBody:
+      "gitCommitBody" in valueJson &&
+      (typeof valueJson.gitCommitBody === "string" || valueJson.gitCommitBody === null)
+        ? valueJson.gitCommitBody
         : undefined,
   };
 }

@@ -241,6 +241,8 @@ export function makeAgentStepRuntimeTestContext(options?: {
           relativePath: filePath,
           gitCommitHash: "commit-123",
           gitBlobHash: "blob-123",
+          gitCommitSubject: "seed",
+          gitCommitBody: "seed body",
         },
       ),
     compareRecordedArtifactReference: ({ recorded, current }: any) =>
@@ -251,6 +253,8 @@ export function makeAgentStepRuntimeTestContext(options?: {
               relativePath: recorded.relativePath,
               gitCommitHash: recorded.gitCommitHash ?? null,
               gitBlobHash: recorded.gitBlobHash ?? null,
+              gitCommitSubject: recorded.gitCommitSubject ?? null,
+              gitCommitBody: recorded.gitCommitBody ?? null,
             }
           : current.status === "committed" &&
               current.relativePath === recorded.relativePath &&
@@ -261,6 +265,8 @@ export function makeAgentStepRuntimeTestContext(options?: {
                 relativePath: current.relativePath,
                 gitCommitHash: current.gitCommitHash,
                 gitBlobHash: current.gitBlobHash,
+                gitCommitSubject: current.gitCommitSubject,
+                gitCommitBody: current.gitCommitBody,
               }
             : {
                 status: "changed",
@@ -274,6 +280,14 @@ export function makeAgentStepRuntimeTestContext(options?: {
                   current.status === "committed"
                     ? current.gitBlobHash
                     : (recorded.gitBlobHash ?? ""),
+                gitCommitSubject:
+                  current.status === "committed"
+                    ? current.gitCommitSubject
+                    : (recorded.gitCommitSubject ?? null),
+                gitCommitBody:
+                  current.status === "committed"
+                    ? current.gitCommitBody
+                    : (recorded.gitCommitBody ?? null),
               },
       ),
   } as unknown as Context.Tag.Service<typeof SandboxGitService>);

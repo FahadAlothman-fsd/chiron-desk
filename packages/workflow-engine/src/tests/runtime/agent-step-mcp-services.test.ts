@@ -278,6 +278,8 @@ describe("AgentStep MCP services", () => {
       relativePath: "docs/setup.md",
       gitCommitHash: "commit-123",
       gitBlobHash: "blob-123",
+      gitCommitSubject: "seed",
+      gitCommitBody: "seed body",
     });
     expect(
       ctx.contextFacts.find((fact) => fact.contextFactDefinitionId === "ctx-artifact")?.valueJson,
@@ -285,6 +287,8 @@ describe("AgentStep MCP services", () => {
       relativePath: "docs/setup.md",
       gitCommitHash: "commit-123",
       gitBlobHash: "blob-123",
+      gitCommitSubject: "seed",
+      gitCommitBody: "seed body",
     });
   });
 
@@ -381,6 +385,8 @@ describe("AgentStep MCP services", () => {
             relativePath: "docs/setup.md",
             gitCommitHash: "commit-old",
             gitBlobHash: "blob-old",
+            gitCommitSubject: "subject-old",
+            gitCommitBody: "body-old",
           },
           sourceStepExecutionId: "step-exec-1",
           createdAt: new Date("2026-04-09T12:00:02.000Z"),
@@ -436,6 +442,8 @@ describe("AgentStep MCP services", () => {
       relativePath: "docs/setup.md",
       gitCommitHash: "commit-old",
       gitBlobHash: "blob-old",
+      gitCommitSubject: "subject-old",
+      gitCommitBody: "body-old",
       deleted: true,
     });
   });
