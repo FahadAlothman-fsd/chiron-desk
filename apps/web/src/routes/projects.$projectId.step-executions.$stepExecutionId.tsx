@@ -19,6 +19,7 @@ import { Result } from "better-result";
 import {
   BotIcon,
   CheckIcon,
+  ChevronRight,
   UserIcon,
   ChevronsUpDownIcon,
   CopyIcon,
@@ -67,6 +68,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Command,
@@ -2072,6 +2074,9 @@ function AgentInteractionSurface(props: {
   const [modelSelectorOpen, setModelSelectorOpen] = useState(false);
   const [sidePanelOpen, setSidePanelOpen] = useState(true);
   const [sidePanelTab, setSidePanelTab] = useState<"read" | "write">("write");
+  const [metadataOpen, setMetadataOpen] = useState(false);
+  const [objectiveOpen, setObjectiveOpen] = useState(false);
+  const [instructionsOpen, setInstructionsOpen] = useState(false);
   const [runtimeState, setRuntimeState] = useState<AgentStepRuntimeState>(detail.body.state);
   const [timelineItems, setTimelineItems] = useState<readonly AgentStepTimelineItem[]>(
     detail.body.timelinePreview,
@@ -2518,127 +2523,187 @@ function AgentInteractionSurface(props: {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="space-y-1">
                     <CardDescription className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
-                      Objective
+                      Agent step metadata
                     </CardDescription>
                     <CardTitle className="text-sm uppercase tracking-[0.12em]">
-                      {detail.body.objective}
+                      Runtime context
                     </CardTitle>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <ExecutionBadge
-                      label={renderAgentStateLabel(runtimeState)}
-                      {...(() => {
-                        const tone = getAgentStateTone(runtimeState);
-                        return tone ? { tone } : {};
-                      })()}
-                    />
-                    <ExecutionBadge
-                      label={stream.status === "open" ? "stream open" : stream.status}
-                      tone={
-                        stream.status === "error"
-                          ? "rose"
-                          : stream.status === "open"
-                            ? "sky"
-                            : "slate"
-                      }
-                    />
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <ExecutionBadge
+                        label={renderAgentStateLabel(runtimeState)}
+                        {...(() => {
+                          const tone = getAgentStateTone(runtimeState);
+                          return tone ? { tone } : {};
+                        })()}
+                      />
+                      <ExecutionBadge
+                        label={stream.status === "open" ? "stream open" : stream.status}
+                        tone={
+                          stream.status === "error"
+                            ? "rose"
+                            : stream.status === "open"
+                              ? "sky"
+                              : "slate"
+                        }
+                      />
+                    </div>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="grid gap-4 py-4 xl:grid-cols-[minmax(0,1fr)_minmax(15rem,0.45fr)]">
-                <div className="space-y-2">
-                  <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
-                    Instructions
-                  </p>
-                  <div className="border border-border/70 bg-background/60 p-3 text-sm leading-relaxed text-foreground">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {detail.body.instructionsMarkdown}
-                    </ReactMarkdown>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="border border-border/70 bg-background/60 p-3 text-xs">
-                    <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
-                      Session policy
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <ExecutionBadge label={detail.body.sessionStartPolicy} tone="amber" />
-                      <ExecutionBadge
-                        label={detail.body.contractBoundary.streamContract.streamName}
-                        tone="sky"
-                      />
-                      <ExecutionBadge label={detail.body.contractBoundary.version} tone="slate" />
-                    </div>
-                  </div>
-                  <div className="border border-border/70 bg-background/60 p-3 text-xs">
-                    <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
-                      Harness binding
-                    </p>
-                    <div className="mt-2 space-y-2">
-                      <div className="flex flex-wrap gap-2">
-                        <ExecutionBadge
-                          label={detail.body.harnessBinding.harnessId}
-                          tone="violet"
+              <CardContent className="space-y-3 py-4">
+                <Collapsible open={metadataOpen} onOpenChange={setMetadataOpen}>
+                  <div className="border border-border/70 bg-background/60">
+                    <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground transition hover:bg-background/80">
+                      <span>Metadata details</span>
+                      <span className="inline-flex items-center gap-1">
+                        <ChevronRight
+                          className={cn(
+                            "size-3.5 transition-transform",
+                            metadataOpen ? "rotate-90" : "",
+                          )}
                         />
-                        <ExecutionBadge
-                          label={detail.body.harnessBinding.bindingState}
-                          tone={
-                            detail.body.harnessBinding.bindingState === "bound"
-                              ? "emerald"
-                              : "amber"
-                          }
-                        />
-                      </div>
-                      {detail.body.harnessBinding.sessionId ? (
-                        <DetailCode>{detail.body.harnessBinding.sessionId}</DetailCode>
-                      ) : (
-                        <p className="text-muted-foreground">No live harness session yet.</p>
-                      )}
-                      {detail.body.harnessBinding.serverBaseUrl ? (
-                        <DetailCode>{detail.body.harnessBinding.serverBaseUrl}</DetailCode>
-                      ) : null}
-                      {attachCommand ? (
-                        <div className="flex items-center justify-between gap-2 rounded-none border border-border/70 bg-background/50 px-2 py-1.5 text-[0.7rem]">
-                          <span className="truncate text-muted-foreground">{attachCommand}</span>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-7 shrink-0 px-2"
-                            onClick={async () => {
-                              const copied = await Result.tryPromise({
-                                try: () => navigator.clipboard.writeText(attachCommand),
-                                catch: (error) => error,
-                              });
+                        {metadataOpen ? "Collapse" : "Expand"}
+                      </span>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="space-y-3 border-t border-border/70 p-3 text-xs">
+                        <Collapsible open={objectiveOpen} onOpenChange={setObjectiveOpen}>
+                          <div className="border border-border/70 bg-background/50">
+                            <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground transition hover:bg-background/80">
+                              <span>Objective</span>
+                              <span className="inline-flex items-center gap-1">
+                                <ChevronRight
+                                  className={cn(
+                                    "size-3.5 transition-transform",
+                                    objectiveOpen ? "rotate-90" : "",
+                                  )}
+                                />
+                                {objectiveOpen ? "Collapse" : "Expand"}
+                              </span>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent>
+                              <div className="border-t border-border/70 p-3 text-sm leading-relaxed text-foreground">
+                                {detail.body.objective}
+                              </div>
+                            </CollapsibleContent>
+                          </div>
+                        </Collapsible>
 
-                              if (copied.isOk()) {
-                                setCopiedAttachCommand(true);
-                                return;
-                              }
+                        <Collapsible open={instructionsOpen} onOpenChange={setInstructionsOpen}>
+                          <div className="border border-border/70 bg-background/50">
+                            <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground transition hover:bg-background/80">
+                              <span>Instructions</span>
+                              <span className="inline-flex items-center gap-1">
+                                <ChevronRight
+                                  className={cn(
+                                    "size-3.5 transition-transform",
+                                    instructionsOpen ? "rotate-90" : "",
+                                  )}
+                                />
+                                {instructionsOpen ? "Collapse" : "Expand"}
+                              </span>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent>
+                              <div className="border-t border-border/70 p-3 text-sm leading-relaxed text-foreground">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                  {detail.body.instructionsMarkdown}
+                                </ReactMarkdown>
+                              </div>
+                            </CollapsibleContent>
+                          </div>
+                        </Collapsible>
 
-                              setLiveErrorMessage(
-                                "Failed to copy attach command. Copy it manually from the line above.",
-                              );
-                            }}
-                          >
-                            {copiedAttachCommand ? (
-                              <>
-                                <CheckIcon className="size-3.5" />
-                                <span>Copied</span>
-                              </>
-                            ) : (
-                              <>
-                                <CopyIcon className="size-3.5" />
-                                <span>Copy attach</span>
-                              </>
-                            )}
-                          </Button>
+                        <div className="border border-border/70 bg-background/50 p-3">
+                          <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
+                            Session policy
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <ExecutionBadge label={detail.body.sessionStartPolicy} tone="amber" />
+                            <ExecutionBadge
+                              label={detail.body.contractBoundary.streamContract.streamName}
+                              tone="sky"
+                            />
+                            <ExecutionBadge
+                              label={detail.body.contractBoundary.version}
+                              tone="slate"
+                            />
+                          </div>
                         </div>
-                      ) : null}
-                    </div>
+
+                        <div className="space-y-2 border border-border/70 bg-background/50 p-3">
+                          <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
+                            Harness binding
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            <ExecutionBadge
+                              label={detail.body.harnessBinding.harnessId}
+                              tone="violet"
+                            />
+                            <ExecutionBadge
+                              label={detail.body.harnessBinding.bindingState}
+                              tone={
+                                detail.body.harnessBinding.bindingState === "bound"
+                                  ? "emerald"
+                                  : "amber"
+                              }
+                            />
+                          </div>
+                          {detail.body.harnessBinding.sessionId ? (
+                            <DetailCode>{detail.body.harnessBinding.sessionId}</DetailCode>
+                          ) : (
+                            <p className="text-muted-foreground">No live harness session yet.</p>
+                          )}
+                          {detail.body.harnessBinding.serverBaseUrl ? (
+                            <DetailCode>{detail.body.harnessBinding.serverBaseUrl}</DetailCode>
+                          ) : null}
+
+                          {attachCommand ? (
+                            <div className="flex items-center justify-between gap-2 rounded-none border border-border/70 bg-background/60 px-2 py-1.5 text-[0.7rem]">
+                              <span className="truncate text-muted-foreground">
+                                {attachCommand}
+                              </span>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-7 shrink-0 px-2"
+                                onClick={async () => {
+                                  const copied = await Result.tryPromise({
+                                    try: () => navigator.clipboard.writeText(attachCommand),
+                                    catch: (error) => error,
+                                  });
+
+                                  if (copied.isOk()) {
+                                    setCopiedAttachCommand(true);
+                                    return;
+                                  }
+
+                                  setLiveErrorMessage(
+                                    "Failed to copy attach command. Copy it manually from the line above.",
+                                  );
+                                }}
+                              >
+                                {copiedAttachCommand ? (
+                                  <>
+                                    <CheckIcon className="size-3.5" />
+                                    <span>Copied</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <CopyIcon className="size-3.5" />
+                                    <span>Copy attach</span>
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    </CollapsibleContent>
                   </div>
-                </div>
+                </Collapsible>
               </CardContent>
             </Card>
 
