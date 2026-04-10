@@ -1,0 +1,23 @@
+apps/web/src/routes/projects.$projectId.step-executions.$stepExecutionId.tsx
+  5996ecd12ff07def 107-109,771-785,789,791-794,1656-1657,1662-1681,1713-1719,1730
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "f34e19b9dff74edb82b8e5be1ffd79f40a595c14",
+  "prompts": {
+    "5996ecd12ff07def": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_288ad280effenBeZU4nLoFw06j",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "TaskFlow Setup",
+      "messages": [],
+      "total_additions": 70,
+      "total_deletions": 12,
+      "accepted_lines": 69,
+      "overriden_lines": 1
+    }
+  }
+}
