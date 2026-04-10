@@ -217,15 +217,15 @@ describe("l3 agent-step contracts", () => {
       ],
       timelinePreview: [
         {
-          itemType: "message",
+          itemType: "thinking",
           timelineItemId: "item-1",
           createdAt: "2026-04-09T00:00:00.000Z",
-          role: "system",
           content: "Bootstrap applied.",
         },
       ],
     });
 
+    expect(detail.timelinePreview[0]?.itemType).toBe("thinking");
     expect(detail.contractBoundary.streamContract.streamCount).toBe(1);
     expect(detail.contractBoundary.requestContextAccess).toBe(false);
     expect(detail.contractBoundary.nativeMessageLog).toBe(false);

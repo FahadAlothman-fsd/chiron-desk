@@ -140,6 +140,14 @@ export const AgentStepTimelineMessageItem = Schema.Struct({
 });
 export type AgentStepTimelineMessageItem = typeof AgentStepTimelineMessageItem.Type;
 
+export const AgentStepTimelineThinkingItem = Schema.Struct({
+  itemType: Schema.Literal("thinking"),
+  timelineItemId: Schema.NonEmptyString,
+  createdAt: Schema.String,
+  content: Schema.String,
+});
+export type AgentStepTimelineThinkingItem = typeof AgentStepTimelineThinkingItem.Type;
+
 export const AgentStepTimelineToolItem = Schema.Struct({
   itemType: Schema.Literal("tool_activity"),
   timelineItemId: Schema.NonEmptyString,
@@ -156,6 +164,7 @@ export type AgentStepTimelineToolItem = typeof AgentStepTimelineToolItem.Type;
 
 export const AgentStepTimelineItem = Schema.Union(
   AgentStepTimelineMessageItem,
+  AgentStepTimelineThinkingItem,
   AgentStepTimelineToolItem,
 );
 export type AgentStepTimelineItem = typeof AgentStepTimelineItem.Type;

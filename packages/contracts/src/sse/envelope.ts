@@ -5,6 +5,7 @@ import {
   AgentStepRuntimeState,
   AgentStepStreamContract,
   AgentStepTimelineItem,
+  AgentStepTimelineToolItem,
 } from "../agent-step/runtime.js";
 
 export const AGENT_STEP_SSE_EVENT_TYPES = [
@@ -55,15 +56,7 @@ export const AgentStepSseEnvelope = Schema.Union(
     eventType: Schema.Literal("tool_activity"),
     stepExecutionId: Schema.NonEmptyString,
     data: Schema.Struct({
-      item: Schema.Struct({
-        itemType: Schema.Literal("tool_activity"),
-        timelineItemId: Schema.NonEmptyString,
-        createdAt: Schema.String,
-        toolKind: Schema.Literal("harness", "mcp"),
-        toolName: Schema.NonEmptyString,
-        status: Schema.Literal("started", "completed", "failed"),
-        summary: Schema.optional(Schema.String),
-      }),
+      item: AgentStepTimelineToolItem,
     }),
   }),
   Schema.Struct({

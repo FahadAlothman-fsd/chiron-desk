@@ -68,10 +68,9 @@ describe("l3 agent-step SSE envelope", () => {
       stepExecutionId: "step-exec-1",
       data: {
         item: {
-          itemType: "message",
+          itemType: "thinking",
           timelineItemId: "item-1",
           createdAt: "2026-04-09T00:00:00.000Z",
-          role: "assistant",
           content: "Here is the draft.",
         },
       },
@@ -80,7 +79,7 @@ describe("l3 agent-step SSE envelope", () => {
     if (timelineEvent.eventType !== "timeline") {
       throw new Error("expected timeline event");
     }
-    expect(timelineEvent.data.item.itemType).toBe("message");
+    expect(timelineEvent.data.item.itemType).toBe("thinking");
 
     const toolEvent = decode({
       version: "v1",
@@ -96,6 +95,9 @@ describe("l3 agent-step SSE envelope", () => {
           toolName: "write_context_value",
           status: "completed",
           summary: "Applied context write",
+          input: '{"path":"summary"}',
+          output: "Applied context write",
+          error: "noop",
         },
       },
     });
@@ -104,6 +106,7 @@ describe("l3 agent-step SSE envelope", () => {
       throw new Error("expected tool_activity event");
     }
     expect(toolEvent.data.item.toolKind).toBe("mcp");
+    expect(toolEvent.data.item.input).toBe('{"path":"summary"}');
 
     const errorEvent = decode({
       version: "v1",
