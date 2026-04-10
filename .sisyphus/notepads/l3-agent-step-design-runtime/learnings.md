@@ -24,3 +24,10 @@
 - The agent-step detail route now needs two timeline sources with different jobs: `detail.body.timelinePreview` for immediate paint and `project.getAgentStepTimelinePage` for full history hydration after mount.
 - `getAgentStepTimelinePage` should only run when a real session exists and the preview is non-empty; otherwise the preview already proves there is no persisted timeline to backfill.
 - Full-history hydration must merge into local `timelineItems` state instead of replacing it blindly, otherwise SSE events that land during the initial fetch can be lost.
+
+## 2026-04-10 — step shell type theming
+
+- `StepExecutionShellCard` in `apps/web/src/routes/projects.$projectId.step-executions.$stepExecutionId.tsx` is the shared runtime shell for both form and agent steps, so step-type-specific polish belongs there instead of duplicating it in each step surface.
+- Workflow step icons already come from `STEP_TYPE_ICON_CODES` in `apps/web/src/features/workflow-editor/types.ts`; runtime surfaces can reuse the same `/visuals/workflow-editor/step-types/asset-{code}.svg` assets to stay visually aligned with the workflow editor.
+- The existing workflow-editor icon treatment (`invert brightness-150 contrast-125`) also works cleanly in runtime cards when the icon sits inside a `border-border/70 bg-background/50` wrapper.
+- Completion-gate chrome should follow the step type palette instead of staying hardcoded to sky, with `form -> sky` and `agent -> violet` matching the editor/runtime badge language already used elsewhere.
