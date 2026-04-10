@@ -1,1 +1,2 @@
 - 2026-04-10: No new unresolved issues discovered during this change; agent-runtime tests pass locally.
+- 2026-04-10: Workspace-wide `bun run check-types` still fails due pre-existing unrelated server/workflow-engine typing issues; this change passed targeted `packages/agent-runtime` type-checking and tests.

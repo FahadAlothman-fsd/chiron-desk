@@ -1,1 +1,2 @@
 - 2026-04-10: Removed OpenCode cwd fallback paths and made harness session config require explicit projectRootPath; managed server startup now errors when directory is blank/missing.
+- 2026-04-10: OpenCode SDK assistant reasoning arrives as message parts with `type: "reasoning"` and `text`/`time.start`, not `type: "thinking"`; Chiron timeline extraction must normalize `reasoning` parts into internal `thinking` timeline items.
