@@ -1,0 +1,25 @@
+packages/workflow-engine/src/services/runtime/agent-step-session-command-service.ts
+  5bcefd2e09c0df96 15,111-118,132-177,179-184,186-192,194-242,250,298-303
+packages/workflow-engine/src/tests/runtime/agent-step-runtime-services.test.ts
+  5bcefd2e09c0df96 53-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "50b8de9832f319c0d043edeaf13dd0be013bbb50",
+  "prompts": {
+    "5bcefd2e09c0df96": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_290ca60e8ffeOFobgL3ZePtRb4",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "TaskFlow Setup",
+      "messages": [],
+      "total_additions": 165,
+      "total_deletions": 35,
+      "accepted_lines": 158,
+      "overriden_lines": 0
+    }
+  }
+}
