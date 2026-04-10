@@ -1,0 +1,51 @@
+packages/agent-runtime/src/tests/opencode/opencode-harness-service.test.ts
+  8771dce783e90e1e 152-154,288-289,301-303,324-327,332
+packages/agent-runtime/src/opencode-harness-service.ts
+  8771dce783e90e1e 720-741,940-950,987,994
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "f8b4da9060533df25e6b73dcc1926b049007c430",
+  "prompts": {
+    "2d708a6bf21d7f2d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_28aab57b7ffeXRcnnCz7exoxP5",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "TaskFlow Setup",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 273,
+      "overriden_lines": 0
+    },
+    "8771dce783e90e1e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_28ab4af59ffepnC62bWIYAl9To",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "TaskFlow Setup",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 227,
+      "overriden_lines": 0
+    },
+    "bb598ddc82167371": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_28abd48b7ffe0nehUgIW2demdm",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "TaskFlow Setup",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 16,
+      "overriden_lines": 0
+    }
+  }
+}
