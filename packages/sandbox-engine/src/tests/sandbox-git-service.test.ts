@@ -42,6 +42,8 @@ describe("sandbox git service", () => {
     expect(result.relativePath).toBe("docs/setup.md");
     expect(result.gitCommitHash).toMatch(/^[a-f0-9]{40}$/);
     expect(result.gitBlobHash).toMatch(/^[a-f0-9]{40}$/);
+    expect(result.gitCommitSubject).toBe("seed");
+    expect(result.gitCommitBody).toBeNull();
   });
 
   it("reports untracked and modified files as not_committed", async () => {
@@ -115,12 +117,16 @@ describe("sandbox git service", () => {
           relativePath: "docs/setup.md",
           gitCommitHash: "commit-1",
           gitBlobHash: "blob-1",
+          gitCommitSubject: "subject-1",
+          gitCommitBody: "body-1",
         },
         current: {
           status: "committed",
           relativePath: "docs/setup.md",
           gitCommitHash: "commit-1",
           gitBlobHash: "blob-1",
+          gitCommitSubject: "subject-1",
+          gitCommitBody: "body-1",
         },
       }),
     );
@@ -130,12 +136,16 @@ describe("sandbox git service", () => {
           relativePath: "docs/setup.md",
           gitCommitHash: "commit-1",
           gitBlobHash: "blob-1",
+          gitCommitSubject: "subject-1",
+          gitCommitBody: "body-1",
         },
         current: {
           status: "committed",
           relativePath: "docs/setup.md",
           gitCommitHash: "commit-2",
           gitBlobHash: "blob-2",
+          gitCommitSubject: "subject-2",
+          gitCommitBody: "body-2",
         },
       }),
     );
@@ -145,6 +155,8 @@ describe("sandbox git service", () => {
           relativePath: "docs/setup.md",
           gitCommitHash: "commit-1",
           gitBlobHash: "blob-1",
+          gitCommitSubject: "subject-1",
+          gitCommitBody: "body-1",
         },
         current: {
           status: "not_committed",
@@ -163,18 +175,24 @@ describe("sandbox git service", () => {
       relativePath: "docs/setup.md",
       gitCommitHash: "commit-1",
       gitBlobHash: "blob-1",
+      gitCommitSubject: "subject-1",
+      gitCommitBody: "body-1",
     });
     expect(changed).toEqual({
       status: "changed",
       relativePath: "docs/setup.md",
       gitCommitHash: "commit-2",
       gitBlobHash: "blob-2",
+      gitCommitSubject: "subject-2",
+      gitCommitBody: "body-2",
     });
     expect(deleted).toEqual({
       status: "deleted",
       relativePath: "docs/setup.md",
       gitCommitHash: "commit-1",
       gitBlobHash: "blob-1",
+      gitCommitSubject: "subject-1",
+      gitCommitBody: "body-1",
     });
   });
 });

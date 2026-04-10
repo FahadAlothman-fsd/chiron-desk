@@ -57,6 +57,8 @@ export type SandboxGitFileResolution =
       readonly relativePath: string;
       readonly gitCommitHash: string | null;
       readonly gitBlobHash: string;
+      readonly gitCommitSubject: string | null;
+      readonly gitCommitBody: string | null;
     };
 
 export type SandboxGitArtifactComparison =
@@ -65,18 +67,24 @@ export type SandboxGitArtifactComparison =
       readonly relativePath: string;
       readonly gitCommitHash: string | null;
       readonly gitBlobHash: string;
+      readonly gitCommitSubject: string | null;
+      readonly gitCommitBody: string | null;
     }
   | {
       readonly status: "changed";
       readonly relativePath: string;
       readonly gitCommitHash: string | null;
       readonly gitBlobHash: string;
+      readonly gitCommitSubject: string | null;
+      readonly gitCommitBody: string | null;
     }
   | {
       readonly status: "deleted";
       readonly relativePath: string;
       readonly gitCommitHash: string | null;
       readonly gitBlobHash: string | null;
+      readonly gitCommitSubject: string | null;
+      readonly gitCommitBody: string | null;
     };
 
 export interface SandboxGitServiceOptions {
@@ -105,6 +113,8 @@ export class SandboxGitService extends Context.Tag(
         readonly relativePath: string;
         readonly gitCommitHash?: string | null;
         readonly gitBlobHash?: string | null;
+        readonly gitCommitSubject?: string | null;
+        readonly gitCommitBody?: string | null;
       };
       current: Extract<
         SandboxGitFileResolution,
@@ -220,11 +230,25 @@ export const makeSandboxGitService = (options: SandboxGitServiceOptions = {}) =>
             }),
           );
 
+          const gitCommitSubject = yield* gitTryPromise(
+            () => client.raw(["log", "-1", "--format=%s", "--", relativePath]),
+            rootPath,
+            "log-subject",
+          ).pipe(Effect.map(toNullableTrimmed));
+
+          const gitCommitBody = yield* gitTryPromise(
+            () => client.raw(["log", "-1", "--format=%b", "--", relativePath]),
+            rootPath,
+            "log-body",
+          ).pipe(Effect.map(toNullableTrimmed));
+
           return {
             status: "committed",
             relativePath,
             gitCommitHash,
             gitBlobHash,
+            gitCommitSubject,
+            gitCommitBody,
           } satisfies SandboxGitFileResolution;
         });
 
@@ -236,6 +260,8 @@ export const makeSandboxGitService = (options: SandboxGitServiceOptions = {}) =>
           readonly relativePath: string;
           readonly gitCommitHash?: string | null;
           readonly gitBlobHash?: string | null;
+          readonly gitCommitSubject?: string | null;
+          readonly gitCommitBody?: string | null;
         };
         current: Extract<
           SandboxGitFileResolution,
@@ -249,6 +275,8 @@ export const makeSandboxGitService = (options: SandboxGitServiceOptions = {}) =>
                 relativePath: recorded.relativePath,
                 gitCommitHash: recorded.gitCommitHash ?? null,
                 gitBlobHash: recorded.gitBlobHash ?? null,
+                gitCommitSubject: recorded.gitCommitSubject ?? null,
+                gitCommitBody: recorded.gitCommitBody ?? null,
               }
             : current.status === "committed" &&
                 current.relativePath === recorded.relativePath &&
@@ -259,6 +287,8 @@ export const makeSandboxGitService = (options: SandboxGitServiceOptions = {}) =>
                   relativePath: current.relativePath,
                   gitCommitHash: current.gitCommitHash,
                   gitBlobHash: current.gitBlobHash,
+                  gitCommitSubject: current.gitCommitSubject,
+                  gitCommitBody: current.gitCommitBody,
                 }
               : {
                   status: "changed",
@@ -272,6 +302,14 @@ export const makeSandboxGitService = (options: SandboxGitServiceOptions = {}) =>
                     current.status === "committed"
                       ? current.gitBlobHash
                       : (recorded.gitBlobHash ?? ""),
+                  gitCommitSubject:
+                    current.status === "committed"
+                      ? current.gitCommitSubject
+                      : (recorded.gitCommitSubject ?? null),
+                  gitCommitBody:
+                    current.status === "committed"
+                      ? current.gitCommitBody
+                      : (recorded.gitCommitBody ?? null),
                 },
         );
 
@@ -397,6 +435,11 @@ function parseBlobHash(stdout: string): string | null {
 
   const parts = line.split(/\s+/);
   return parts.length >= 3 ? (parts[2] ?? null) : null;
+}
+
+function toNullableTrimmed(stdout: string): string | null {
+  const trimmed = stdout.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 function isNotRepoError(cause: unknown): boolean {
