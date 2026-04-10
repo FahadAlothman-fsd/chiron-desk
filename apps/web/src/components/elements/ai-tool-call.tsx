@@ -68,12 +68,6 @@ function AiToolCall({
     [isControlled, onOpenChange],
   );
 
-  React.useEffect(() => {
-    if (state === "completed" || state === "error") {
-      handleOpenChange(true);
-    }
-  }, [state, handleOpenChange]);
-
   const contextValue = React.useMemo(() => ({ name, state, isOpen }), [name, state, isOpen]);
 
   return (
@@ -194,21 +188,83 @@ function AiToolCallContent({ children, className }: AiToolCallContentProps) {
 }
 
 interface AiToolCallInputProps {
-  input: Record<string, unknown>;
+  input: unknown;
   className?: string;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function readOptionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+}
+
 function AiToolCallInput({ input, className }: AiToolCallInputProps) {
-  const formattedJson = React.useMemo(() => JSON.stringify(input, null, 2), [input]);
+  const resolved = React.useMemo(() => {
+    const record = isRecord(input) ? input : undefined;
+    const description = readOptionalString(record?.description);
+    const command = readOptionalString(record?.command);
+    const workdir = readOptionalString(record?.workdir);
+    const timeout = typeof record?.timeout === "number" ? record.timeout : undefined;
+
+    if (record && command) {
+      const extraEntries = Object.entries(record).filter(
+        ([key]) => !["command", "description", "workdir", "timeout"].includes(key),
+      );
+
+      return {
+        description,
+        command,
+        workdir,
+        timeout,
+        extraJson:
+          extraEntries.length > 0
+            ? JSON.stringify(Object.fromEntries(extraEntries), null, 2)
+            : null,
+      } as const;
+    }
+
+    return {
+      description,
+      command: null,
+      workdir: null,
+      timeout: null,
+      extraJson: null,
+      formattedJson: JSON.stringify(input, null, 2),
+    } as const;
+  }, [input]);
 
   return (
     <div data-slot="ai-tool-call-input" className={cn("space-y-1.5", className)}>
       <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
         Input
       </span>
-      <pre className="rounded-md bg-muted/50 p-3 overflow-x-auto text-xs font-mono text-foreground">
-        {formattedJson}
-      </pre>
+      {resolved.description ? (
+        <p className="text-xs text-muted-foreground">{resolved.description}</p>
+      ) : null}
+      {resolved.command ? (
+        <div className="space-y-2">
+          <pre className="rounded-md bg-muted/50 p-3 overflow-x-auto text-xs font-mono text-foreground">
+            {`$ ${resolved.command}`}
+          </pre>
+          {resolved.workdir || resolved.timeout !== undefined ? (
+            <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+              {resolved.workdir ? <span>cwd {resolved.workdir}</span> : null}
+              {resolved.timeout !== undefined ? <span>timeout {resolved.timeout}ms</span> : null}
+            </div>
+          ) : null}
+          {resolved.extraJson ? (
+            <pre className="rounded-md bg-muted/30 p-3 overflow-x-auto text-xs font-mono text-muted-foreground">
+              {resolved.extraJson}
+            </pre>
+          ) : null}
+        </div>
+      ) : (
+        <pre className="rounded-md bg-muted/50 p-3 overflow-x-auto text-xs font-mono text-foreground">
+          {resolved.formattedJson}
+        </pre>
+      )}
     </div>
   );
 }
