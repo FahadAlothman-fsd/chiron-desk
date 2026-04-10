@@ -1,0 +1,25 @@
+packages/agent-runtime/src/tests/opencode/opencode-harness-service.test.ts
+  55302d1c6fffb7fe 152-155,305,322-326,332,335-337
+packages/agent-runtime/src/opencode-harness-service.ts
+  55302d1c6fffb7fe 720,722-723,727-728,738-742,952,955-956
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "55800d137027672846bc59f0ec2c222e72e55259",
+  "prompts": {
+    "55302d1c6fffb7fe": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_288c2b27effeMit033GL1KgrNe",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "TaskFlow Setup",
+      "messages": [],
+      "total_additions": 31,
+      "total_deletions": 14,
+      "accepted_lines": 30,
+      "overriden_lines": 1
+    }
+  }
+}
