@@ -169,6 +169,15 @@ export const AgentStepTimelineItem = Schema.Union(
 );
 export type AgentStepTimelineItem = typeof AgentStepTimelineItem.Type;
 
+export const AgentStepWriteSetCompletion = Schema.Struct({
+  total: Schema.Number,
+  applied: Schema.Number,
+  ready: Schema.Number,
+  blocked: Schema.Number,
+  isComplete: Schema.Boolean,
+});
+export type AgentStepWriteSetCompletion = typeof AgentStepWriteSetCompletion.Type;
+
 export const AgentStepRuntimeDetailPayload = Schema.Struct({
   stepType: Schema.Literal("agent"),
   state: AgentStepRuntimeState,
@@ -180,6 +189,7 @@ export const AgentStepRuntimeDetailPayload = Schema.Struct({
   instructionsMarkdown: Schema.NonEmptyString,
   readableContextFacts: Schema.Array(AgentStepReadableContextFact),
   writeItems: Schema.Array(AgentStepRuntimeWriteItem),
+  writeSetCompletion: AgentStepWriteSetCompletion,
   timelinePreview: Schema.Array(AgentStepTimelineItem),
   projectRootPath: Schema.optional(Schema.NonEmptyString),
 });

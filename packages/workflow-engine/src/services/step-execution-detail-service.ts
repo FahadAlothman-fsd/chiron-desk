@@ -716,10 +716,11 @@ export const StepExecutionDetailServiceLive = Layer.effect(
 
         const completionEnabled =
           stepExecution.status === "active" &&
-          stepExecution.stepType === "form" &&
-          !!formState?.submittedAt &&
-          formState.submittedPayloadJson !== null &&
-          formState.submittedPayloadJson !== undefined;
+          (stepExecution.stepType === "agent" ||
+            (stepExecution.stepType === "form" &&
+              !!formState?.submittedAt &&
+              formState.submittedPayloadJson !== null &&
+              formState.submittedPayloadJson !== undefined));
 
         const body: GetRuntimeStepExecutionDetailOutput["body"] =
           stepExecution.stepType === "form"
@@ -928,9 +929,7 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                   ? "Step execution is already completed."
                   : completionEnabled
                     ? undefined
-                    : stepExecution.stepType === "agent"
-                      ? "Agent steps can complete only when the session is in a terminal state (completed, disconnected, or error)."
-                      : "Form steps can complete only after a submitted payload is present.",
+                    : "Form steps can complete only after a submitted payload is present.",
             },
           },
           body,

@@ -95,6 +95,45 @@ export const AgentStepExecutionDetailServiceLive = Layer.effect(
           input,
         );
 
+        const writeSetCompletion = {
+          total: refreshedContext.writeItems.length,
+          applied: refreshedContext.writeItems.filter((item) => {
+            const fact = refreshedContext.contextFacts.find(
+              (f) => f.contextFactDefinitionId === item.contextFactDefinitionId,
+            );
+            return (fact?.instances.length ?? 0) > 0;
+          }).length,
+          ready: 0,
+          blocked: 0,
+          isComplete: false,
+        };
+
+        writeSetCompletion.blocked = refreshedContext.writeItems.filter((item) => {
+          const requirementsSatisfied = item.requirementContextFactDefinitionIds.every((reqId) => {
+            const reqFact = refreshedContext.contextFacts.find(
+              (f) => f.contextFactDefinitionId === reqId,
+            );
+            return (reqFact?.instances.length ?? 0) > 0;
+          });
+          return !requirementsSatisfied;
+        }).length;
+
+        writeSetCompletion.ready = refreshedContext.writeItems.filter((item) => {
+          const requirementsSatisfied = item.requirementContextFactDefinitionIds.every((reqId) => {
+            const reqFact = refreshedContext.contextFacts.find(
+              (f) => f.contextFactDefinitionId === reqId,
+            );
+            return (reqFact?.instances.length ?? 0) > 0;
+          });
+          const fact = refreshedContext.contextFacts.find(
+            (f) => f.contextFactDefinitionId === item.contextFactDefinitionId,
+          );
+          return requirementsSatisfied && (fact?.instances.length ?? 0) === 0;
+        }).length;
+
+        writeSetCompletion.isComplete =
+          writeSetCompletion.total > 0 && writeSetCompletion.applied === writeSetCompletion.total;
+
         return {
           stepExecutionId: refreshedContext.stepExecution.id,
           workflowExecutionId: refreshedContext.workflowDetail.workflowExecution.id,
@@ -116,6 +155,7 @@ export const AgentStepExecutionDetailServiceLive = Layer.effect(
             instructionsMarkdown: refreshedContext.agentPayload.instructionsMarkdown,
             readableContextFacts: refreshedContext.readableContextFacts,
             writeItems: refreshedContext.writeItems,
+            writeSetCompletion,
             timelinePreview: timelinePreview.items,
           },
         } satisfies GetAgentStepExecutionDetailOutput;
