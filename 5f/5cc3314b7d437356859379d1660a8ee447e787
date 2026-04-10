@@ -1,0 +1,45 @@
+packages/agent-runtime/src/fake-harness-service.ts
+  5bcefd2e09c0df96 292-317
+packages/contracts/src/agent-step/runtime.ts
+  5bcefd2e09c0df96 23,53-54,56,243-255
+packages/workflow-engine/src/tests/runtime/agent-step-runtime-test-support.ts
+  5bcefd2e09c0df96 77,721
+packages/workflow-engine/src/services/runtime/agent-step-session-command-service.ts
+  5bcefd2e09c0df96 4-5,60-62,109-113,117,119,123,125,127-128,132-145,149,153,158,161,163,168-172,181-185,190,192-194,196-197,201-202,207-241,252,355-483,541
+packages/workflow-engine/src/tests/runtime/agent-step-runtime-services.test.ts
+  5bcefd2e09c0df96 12-51,79,117-118,229,268-269,354-355,394
+packages/workflow-engine/src/tests/runtime/agent-step-mcp-services.test.ts
+  5bcefd2e09c0df96 11-50,104-105,190
+packages/api/src/routers/project-runtime.ts
+  5bcefd2e09c0df96 19,234-238,804-811
+apps/web/src/routes/projects.$projectId.step-executions.$stepExecutionId.tsx
+  5bcefd2e09c0df96 466-469,474-478,2154,2307-2339,2400,3045-3055,3059-3060,3065-3068
+packages/contracts/src/tests/l3-agent-step-contracts.test.ts
+  5bcefd2e09c0df96 154,218-224,278-284
+apps/web/src/tests/routes/runtime-agent-step-detail.test.tsx
+  5bcefd2e09c0df96 415,443-449,517,539,651
+packages/agent-runtime/src/opencode-harness-service.ts
+  5bcefd2e09c0df96 1376-1448,1450-1460
+packages/agent-runtime/src/harness-service.ts
+  5bcefd2e09c0df96 76-86,138-139
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "5f5cc3314b7d437356859379d1660a8ee447e787",
+  "prompts": {
+    "5bcefd2e09c0df96": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_290ca60e8ffeOFobgL3ZePtRb4",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "TaskFlow Setup",
+      "messages": [],
+      "total_additions": 599,
+      "total_deletions": 180,
+      "accepted_lines": 588,
+      "overriden_lines": 2
+    }
+  }
+}
