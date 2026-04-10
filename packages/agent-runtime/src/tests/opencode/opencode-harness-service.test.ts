@@ -149,8 +149,10 @@ describe("OpencodeHarnessService runtime", () => {
             },
           },
           {
-            type: "thinking",
-            thinking: "I should confirm the summary write before replying.",
+            id: "reasoning-part-1",
+            type: "reasoning",
+            text: "I should confirm the summary write before replying.",
+            time: { start: 1_744_193_202_500, end: 1_744_193_202_900 },
           },
           {
             type: "text",
@@ -300,6 +302,7 @@ describe("OpencodeHarnessService runtime", () => {
       }),
       expect.objectContaining({
         itemType: "thinking",
+        createdAt: "2025-04-09T10:06:42.500Z",
         content: "I should confirm the summary write before replying.",
       }),
       expect.objectContaining({
@@ -316,16 +319,23 @@ describe("OpencodeHarnessService runtime", () => {
       }),
     ]);
 
-    expect(startedToolItem?.summary).toBe("Applied summary write");
-    expect(JSON.parse(String(startedToolItem?.input))).toEqual({
+    expect(startedToolItem).toMatchObject({
+      itemType: "tool_activity",
+      summary: "Applied summary write",
+    });
+    expect(JSON.parse(String((startedToolItem as { input?: string } | undefined)?.input))).toEqual({
       summary: "Current project summary",
       updated: true,
     });
     expect(thinkingItem).toMatchObject({
       itemType: "thinking",
+      createdAt: "2025-04-09T10:06:42.500Z",
       content: "I should confirm the summary write before replying.",
     });
-    expect(completedToolItem?.output).toBe("Applied summary write");
+    expect(completedToolItem).toMatchObject({
+      itemType: "tool_activity",
+      output: "Applied summary write",
+    });
 
     const streamEvents = Array.from(
       await Effect.runPromise(

@@ -717,12 +717,15 @@ function getMessageText(parts: readonly unknown[]): string {
   return chunks.join("\n").trim();
 }
 
-function getThinkingText(parts: readonly unknown[]): readonly string[] {
-  const chunks: string[] = [];
+function getThinkingParts(
+  parts: readonly unknown[],
+): readonly { content: string; createdAt?: string }[] {
+  const chunks: { content: string; createdAt?: string }[] = [];
 
   for (const partValue of parts) {
     const part = asRecord(partValue) ?? {};
-    if (readString(part.type) !== "thinking") {
+    const type = readString(part.type);
+    if (type !== "thinking" && type !== "reasoning") {
       continue;
     }
 
@@ -732,7 +735,11 @@ function getThinkingText(parts: readonly unknown[]): readonly string[] {
       readOptionalString(part.content);
 
     if (content) {
-      chunks.push(content);
+      const start = readNumber(asRecord(part.time)?.start);
+      chunks.push({
+        content,
+        ...(start === undefined ? {} : { createdAt: normalizeTimestamp(start, "") }),
+      });
     }
   }
 
@@ -942,11 +949,11 @@ function buildThinkingItems(
   parts: readonly unknown[],
   fallbackCreatedAt: string,
 ): readonly AgentStepTimelineItem[] {
-  return getThinkingText(parts).map((content, index) => ({
+  return getThinkingParts(parts).map((part, index) => ({
     itemType: "thinking",
     timelineItemId: `thinking:${messageId}:${index}`,
-    createdAt: fallbackCreatedAt,
-    content,
+    createdAt: part.createdAt ?? fallbackCreatedAt,
+    content: part.content,
   }));
 }
 
