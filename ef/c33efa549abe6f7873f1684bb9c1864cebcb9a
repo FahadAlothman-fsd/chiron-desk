@@ -1,0 +1,75 @@
+packages/agent-runtime/src/tests/harness/harness-service-contract.test.ts
+  5484322b92831cea 37,47,94,201-202
+.sisyphus/notepads/l3-step-definition-execution-final/learnings.md
+  b4a15befb0383026 81-82
+packages/workflow-engine/src/services/runtime/agent-step-session-command-service.ts
+  5484322b92831cea 103,106-113,235
+packages/agent-runtime/src/opencode-harness-service.ts
+  5484322b92831cea 91,571,575,578-584,632-638,662
+packages/agent-runtime/src/harness-service.ts
+  5484322b92831cea 67
+packages/workflow-engine/src/services/runtime/agent-step-runtime-support.ts
+  b4a15befb0383026 53,81-83,473-476,552
+.sisyphus/notepads/l3-step-definition-execution-final/issues.md
+  b4a15befb0383026 16
+packages/contracts/src/agent-step/runtime.ts
+  5bcefd2e09c0df96 175
+packages/agent-runtime/src/tests/opencode/opencode-harness-degraded-mode.test.ts
+  5484322b92831cea 130
+packages/agent-runtime/src/tests/opencode/opencode-harness-service.test.ts
+  5484322b92831cea 231,241,399,458
+packages/workflow-engine/src/services/runtime/agent-step-execution-detail-service.ts
+  b4a15befb0383026 114
+apps/web/src/routes/projects.$projectId.step-executions.$stepExecutionId.tsx
+  b4a15befb0383026 2295
+packages/workflow-engine/src/tests/runtime/agent-step-runtime-test-support.ts
+  b4a15befb0383026 367-378
+packages/scripts/src/seed/methodology/setup/slice-1-demo-fixture.ts
+  5bcefd2e09c0df96 301,303,367,371-372,375-376
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.6",
+  "base_commit_sha": "efc33efa549abe6f7873f1684bb9c1864cebcb9a",
+  "prompts": {
+    "5484322b92831cea": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_28ae4dc3effeJOzlKM07mTTP28",
+        "model": "openai/gpt-5.3-codex"
+      },
+      "human_author": "TaskFlow Setup",
+      "messages": [],
+      "total_additions": 47,
+      "total_deletions": 18,
+      "accepted_lines": 39,
+      "overriden_lines": 0
+    },
+    "5bcefd2e09c0df96": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_290ca60e8ffeOFobgL3ZePtRb4",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "TaskFlow Setup",
+      "messages": [],
+      "total_additions": 9,
+      "total_deletions": 8,
+      "accepted_lines": 8,
+      "overriden_lines": 0
+    },
+    "b4a15befb0383026": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_28ad3953effeCOaUzg70FtNy7z",
+        "model": "openai/gpt-5.3-codex"
+      },
+      "human_author": "TaskFlow Setup",
+      "messages": [],
+      "total_additions": 26,
+      "total_deletions": 2,
+      "accepted_lines": 26,
+      "overriden_lines": 0
+    }
+  }
+}
