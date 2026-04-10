@@ -149,6 +149,10 @@ describe("OpencodeHarnessService runtime", () => {
             },
           },
           {
+            type: "thinking",
+            thinking: "I should confirm the summary write before replying.",
+          },
+          {
             type: "text",
             text: "Updated the summary and queued the next artifact write.",
           },
@@ -281,7 +285,8 @@ describe("OpencodeHarnessService runtime", () => {
 
     const page = await Effect.runPromise(service.getTimelinePage("session-1"));
     const startedToolItem = page.items[2];
-    const completedToolItem = page.items[4];
+    const thinkingItem = page.items[3];
+    const completedToolItem = page.items[5];
 
     expect(page.items).toEqual([
       expect.objectContaining({ itemType: "message", role: "user" }),
@@ -292,6 +297,10 @@ describe("OpencodeHarnessService runtime", () => {
         toolName: "write_context_value",
         status: "started",
         summary: "Applied summary write",
+      }),
+      expect.objectContaining({
+        itemType: "thinking",
+        content: "I should confirm the summary write before replying.",
       }),
       expect.objectContaining({
         itemType: "message",
@@ -312,11 +321,15 @@ describe("OpencodeHarnessService runtime", () => {
       summary: "Current project summary",
       updated: true,
     });
+    expect(thinkingItem).toMatchObject({
+      itemType: "thinking",
+      content: "I should confirm the summary write before replying.",
+    });
     expect(completedToolItem?.output).toBe("Applied summary write");
 
     const streamEvents = Array.from(
       await Effect.runPromise(
-        Stream.runCollect(service.streamSessionEvents("session-1").pipe(Stream.take(9))),
+        Stream.runCollect(service.streamSessionEvents("session-1").pipe(Stream.take(10))),
       ),
     );
     expect(streamEvents.map((event) => event.eventType)).toEqual([
@@ -325,6 +338,7 @@ describe("OpencodeHarnessService runtime", () => {
       "session_state",
       "timeline",
       "tool_activity",
+      "timeline",
       "timeline",
       "tool_activity",
       "session_state",

@@ -717,6 +717,28 @@ function getMessageText(parts: readonly unknown[]): string {
   return chunks.join("\n").trim();
 }
 
+function getThinkingText(parts: readonly unknown[]): readonly string[] {
+  const chunks: string[] = [];
+
+  for (const partValue of parts) {
+    const part = asRecord(partValue) ?? {};
+    if (readString(part.type) !== "thinking") {
+      continue;
+    }
+
+    const content =
+      readOptionalString(part.thinking) ??
+      readOptionalString(part.text) ??
+      readOptionalString(part.content);
+
+    if (content) {
+      chunks.push(content);
+    }
+  }
+
+  return chunks;
+}
+
 function getToolKind(toolName: string): "harness" | "mcp" {
   return toolName === "read_step_snapshot" ||
     toolName === "read_context_value" ||
@@ -915,6 +937,19 @@ function buildToolItems(
   return { started, finished };
 }
 
+function buildThinkingItems(
+  messageId: string,
+  parts: readonly unknown[],
+  fallbackCreatedAt: string,
+): readonly AgentStepTimelineItem[] {
+  return getThinkingText(parts).map((content, index) => ({
+    itemType: "thinking",
+    timelineItemId: `thinking:${messageId}:${index}`,
+    createdAt: fallbackCreatedAt,
+    content,
+  }));
+}
+
 function syncSessionMessages(record: SessionRecord, messages: readonly OpencodeMessageRecord[]) {
   const appended: AgentStepTimelineItem[] = [];
 
@@ -949,7 +984,14 @@ function syncSessionMessages(record: SessionRecord, messages: readonly OpencodeM
     }
 
     const toolItems = buildToolItems(messageId, messageRecord.parts, createdAt);
+    const thinkingItems = buildThinkingItems(messageId, messageRecord.parts, createdAt);
     for (const item of toolItems.started) {
+      if (addTimelineItem(record, item)) {
+        appended.push(item);
+      }
+    }
+
+    for (const item of thinkingItems) {
       if (addTimelineItem(record, item)) {
         appended.push(item);
       }
