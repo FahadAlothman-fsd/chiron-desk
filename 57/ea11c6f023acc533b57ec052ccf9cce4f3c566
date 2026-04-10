@@ -1,0 +1,27 @@
+packages/workflow-engine/src/services/runtime/agent-step-context-write-service.ts
+  5bcefd2e09c0df96 10,21,63,97,101,108-113,187-369
+packages/workflow-engine/package.json
+  5bcefd2e09c0df96 21
+packages/workflow-engine/src/layers/live.ts
+  5bcefd2e09c0df96 5,90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "57ea11c6f023acc533b57ec052ccf9cce4f3c566",
+  "prompts": {
+    "5bcefd2e09c0df96": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_290ca60e8ffeOFobgL3ZePtRb4",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "TaskFlow Setup",
+      "messages": [],
+      "total_additions": 7,
+      "total_deletions": 5,
+      "accepted_lines": 475,
+      "overriden_lines": 0
+    }
+  }
+}
