@@ -1,0 +1,27 @@
+packages/workflow-engine/src/tests/runtime/agent-step-mcp-services.test.ts
+  5bcefd2e09c0df96 281-282,290-291,388-389,445-446
+packages/workflow-engine/src/tests/runtime/agent-step-runtime-test-support.ts
+  5bcefd2e09c0df96 244-245,256-257,268-269,283-290
+packages/workflow-engine/src/services/runtime/agent-step-context-write-service.ts
+  5bcefd2e09c0df96 250-251,277-278,351-352,374-382
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "b65d8768580ac580ffcae1db2eec2d5e96f47285",
+  "prompts": {
+    "5bcefd2e09c0df96": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_290ca60e8ffeOFobgL3ZePtRb4",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "TaskFlow Setup",
+      "messages": [],
+      "total_additions": 16,
+      "total_deletions": 16,
+      "accepted_lines": 64,
+      "overriden_lines": 0
+    }
+  }
+}
