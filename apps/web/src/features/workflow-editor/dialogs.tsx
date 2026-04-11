@@ -40,19 +40,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../components/ui/select";
+import { RadioGroup, RadioGroupItem } from "../../components/ui/radio-group";
 import { Textarea } from "../../components/ui/textarea";
 
 import type {
+  WorkflowBranchRouteConditionPayload,
+  WorkflowBranchRouteGroupPayload,
+  WorkflowBranchRoutePayload,
+  WorkflowBranchStepPayload,
+  WorkflowConditionOperator,
   WorkflowContextFactDefinitionItem,
   WorkflowContextFactDraft,
   WorkflowEditorEdge,
   WorkflowEditorPickerBadge,
   WorkflowEditorFieldDraft,
   WorkflowEditorGuidance,
+  WorkflowInvokeArtifactSlotDefinition,
   WorkflowEditorMetadata,
   WorkflowEditorPickerOption,
   WorkflowEditorStep,
   WorkflowFormStepPayload,
+  WorkflowInvokeStepPayload,
+  WorkflowInvokeWorkUnitFactDefinition,
 } from "./types";
 import { STEP_TYPE_ICON_CODES, STEP_TYPE_LABELS } from "./types";
 
@@ -77,12 +86,136 @@ type WorkflowContextFactDialogProps = {
   availableWorkflows: readonly WorkflowEditorPickerOption[];
   workUnitFactsQueryScope: string;
   loadWorkUnitFacts: (workUnitTypeKey: string) => Promise<readonly WorkflowEditorPickerOption[]>;
+  loadWorkUnitArtifactSlots: (
+    workUnitTypeKey: string,
+  ) => Promise<readonly WorkflowEditorPickerOption[]>;
   onOpenChange: (open: boolean) => void;
   onSave: (draft: WorkflowContextFactDraft) => Promise<void> | void;
 };
 
+type InvokeStepDialogProps = {
+  open: boolean;
+  mode: "create" | "edit";
+  step?: WorkflowEditorStep | undefined;
+  availableWorkflows: readonly WorkflowEditorPickerOption[];
+  availableWorkUnits: readonly WorkflowEditorPickerOption[];
+  availableTransitions: readonly WorkflowEditorPickerOption[];
+  availableContextFacts: readonly WorkflowContextFactDefinitionItem[];
+  workUnitFactsQueryScope: string;
+  loadWorkUnitFacts: (
+    workUnitDefinitionId: string,
+  ) => Promise<readonly WorkflowInvokeWorkUnitFactDefinition[]>;
+  loadWorkUnitArtifactSlots: (
+    workUnitDefinitionId: string,
+  ) => Promise<readonly WorkflowInvokeArtifactSlotDefinition[]>;
+  loadWorkUnitTransitions?: (
+    workUnitDefinitionId: string,
+  ) => Promise<readonly WorkflowEditorPickerOption[]>;
+  loadWorkUnitWorkflows?: (
+    workUnitDefinitionId: string,
+  ) => Promise<readonly WorkflowEditorPickerOption[]>;
+  loadTransitionBoundWorkflowKeys?: (
+    workUnitDefinitionId: string,
+    transitionId: string,
+  ) => Promise<readonly string[]>;
+  onOpenChange: (open: boolean) => void;
+  onSave: (payload: WorkflowInvokeStepPayload) => Promise<void> | void;
+  onDelete?: (() => Promise<void> | void) | undefined;
+};
+
+type BranchStepDialogProps = {
+  open: boolean;
+  mode: "create" | "edit";
+  step?: WorkflowEditorStep | undefined;
+  availableSteps: readonly WorkflowEditorPickerOption[];
+  availableContextFacts: readonly WorkflowContextFactDefinitionItem[];
+  conditionOperators: readonly WorkflowConditionOperator[];
+  onOpenChange: (open: boolean) => void;
+  onSave: (payload: WorkflowBranchStepPayload) => Promise<void> | void;
+  onDelete?: (() => Promise<void> | void) | undefined;
+};
+
+type RouteDialogProps = {
+  open: boolean;
+  ownerStepId?: string;
+  route: WorkflowBranchRoutePayload | null;
+  availableSteps: readonly WorkflowEditorPickerOption[];
+  availableContextFacts: readonly WorkflowContextFactDefinitionItem[];
+  conditionOperators: readonly WorkflowConditionOperator[];
+  onOpenChange: (open: boolean) => void;
+  onSave: (route: WorkflowBranchRoutePayload) => void;
+};
+
 type FormStepDialogTab = "contract" | "fields" | "guidance";
 type WorkflowContextFactDialogTab = "contract" | "value-semantics" | "guidance";
+type InvokeStepDialogTab = "contract" | "target" | "bindings" | "guidance";
+type BranchStepDialogTab = "contract" | "routes" | "guidance";
+
+type InvokeBindingDraft = {
+  localId: string;
+  destinationKind: "work_unit_fact" | "artifact_slot";
+  destinationDefinitionId: string;
+  sourceKind: "context_fact" | "literal" | "runtime";
+  contextFactDefinitionId: string;
+  literalValue: string;
+};
+
+type InvokeActivationTransitionDraft = {
+  localId: string;
+  transitionId: string;
+  workflowDefinitionIds: string[];
+};
+
+type InvokeStepDialogSnapshot = {
+  contract: {
+    key: string;
+    label: string;
+    descriptionMarkdown: string;
+  };
+  target: {
+    targetKind: WorkflowInvokeStepPayload["targetKind"];
+    sourceMode: WorkflowInvokeStepPayload["sourceMode"];
+    workflowDefinitionIds: string[];
+    workUnitDefinitionId: string;
+    contextFactDefinitionId: string;
+  };
+  bindings: {
+    bindings: Array<Omit<InvokeBindingDraft, "localId">>;
+    activationTransitions: Array<Omit<InvokeActivationTransitionDraft, "localId">>;
+  };
+  guidance: WorkflowEditorGuidance;
+};
+
+type BranchStepDialogSnapshot = {
+  contract: {
+    key: string;
+    label: string;
+    descriptionMarkdown: string;
+    defaultTargetStepId: string | null;
+  };
+  routes: {
+    routes: WorkflowBranchRoutePayload[];
+  };
+  guidance: WorkflowEditorGuidance;
+};
+
+type RouteDialogSnapshot = {
+  targetStepId: string;
+  conditionMode: "all" | "any";
+  groups: WorkflowBranchRouteGroupPayload[];
+};
+
+type InvokeBindingDestinationOption = {
+  kind: "work_unit_fact" | "artifact_slot";
+  definitionId: string;
+  label: string;
+  key: string;
+  cardinality: "one" | "many";
+  factType?: WorkflowInvokeWorkUnitFactDefinition["factType"];
+  validationJson?: unknown;
+  summary: string;
+  literalAllowed: boolean;
+};
 
 const CONTEXT_FACT_KIND_OPTIONS = [
   { value: "plain_value_fact", label: "Plain Value Fact" },
@@ -128,8 +261,9 @@ type WorkflowContextFactDialogSnapshot = {
     externalFactDefinitionId: string;
     allowedWorkflowDefinitionIds: string[];
     artifactSlotDefinitionId: string;
-    workUnitTypeKey: string;
-    includedFactDefinitionIds: string[];
+    workUnitDefinitionId: string;
+    selectedWorkUnitFactDefinitionIds: string[];
+    selectedArtifactSlotDefinitionIds: string[];
     plainStringDefaultValue: string;
     plainStringValidationType: PlainStringValidationType;
     plainStringPathKind: "file" | "directory";
@@ -187,6 +321,10 @@ function toContextFactDraft(
     externalFactDefinitionId: fact?.externalFactDefinitionId ?? "",
     allowedWorkflowDefinitionIds: fact?.allowedWorkflowDefinitionIds ?? [],
     artifactSlotDefinitionId: fact?.artifactSlotDefinitionId ?? "",
+    workUnitDefinitionId: fact?.workUnitDefinitionId ?? fact?.workUnitTypeKey ?? "",
+    selectedWorkUnitFactDefinitionIds:
+      fact?.selectedWorkUnitFactDefinitionIds ?? fact?.includedFactDefinitionIds ?? [],
+    selectedArtifactSlotDefinitionIds: fact?.selectedArtifactSlotDefinitionIds ?? [],
     workUnitTypeKey: fact?.workUnitTypeKey ?? "",
     includedFactDefinitionIds: fact?.includedFactDefinitionIds ?? [],
   };
@@ -220,8 +358,11 @@ function toWorkflowContextFactDialogSnapshot(params: {
       externalFactDefinitionId: params.draft.externalFactDefinitionId ?? "",
       allowedWorkflowDefinitionIds: [...params.draft.allowedWorkflowDefinitionIds],
       artifactSlotDefinitionId: params.draft.artifactSlotDefinitionId ?? "",
-      workUnitTypeKey: params.draft.workUnitTypeKey ?? "",
-      includedFactDefinitionIds: params.draftSpecCards.map((entry) => entry.factDefinitionId),
+      workUnitDefinitionId: params.draft.workUnitDefinitionId ?? params.draft.workUnitTypeKey ?? "",
+      selectedWorkUnitFactDefinitionIds: params.draftSpecCards.map(
+        (entry) => entry.factDefinitionId,
+      ),
+      selectedArtifactSlotDefinitionIds: [...params.draft.selectedArtifactSlotDefinitionIds],
       plainStringDefaultValue: params.plainStringDefaultValue,
       plainStringValidationType: params.plainStringValidationType,
       plainStringPathKind: params.plainStringPathKind,
@@ -294,7 +435,9 @@ function summarizeContextFact(fact: WorkflowContextFactDraft | WorkflowContextFa
         ? `${lead} · ${fact.artifactSlotDefinitionId.trim()}`
         : lead;
     case "work_unit_draft_spec_fact":
-      return fact.workUnitTypeKey?.trim() ? `${lead} · ${fact.workUnitTypeKey.trim()}` : lead;
+      return fact.workUnitDefinitionId?.trim() || fact.workUnitTypeKey?.trim()
+        ? `${lead} · ${(fact.workUnitDefinitionId ?? fact.workUnitTypeKey ?? "").trim()}`
+        : lead;
   }
 }
 
@@ -525,6 +668,7 @@ function SearchableCombobox(props: {
               {props.options.map((option) => (
                 <CommandItem
                   key={option.value}
+                  disabled={option.disabled}
                   value={
                     option.searchText ??
                     [
@@ -536,6 +680,9 @@ function SearchableCombobox(props: {
                   }
                   density="compact"
                   onSelect={() => {
+                    if (option.disabled) {
+                      return;
+                    }
                     props.onChange(option.value);
                     setOpen(false);
                   }}
@@ -557,6 +704,11 @@ function SearchableCombobox(props: {
                       ) : option.description ? (
                         <span className="truncate text-[0.68rem] uppercase tracking-[0.08em] text-muted-foreground">
                           {option.description}
+                        </span>
+                      ) : null}
+                      {option.disabledReason ? (
+                        <span className="truncate text-[0.68rem] uppercase tracking-[0.08em] text-amber-300/90">
+                          {option.disabledReason}
                         </span>
                       ) : null}
                     </div>
@@ -760,6 +912,1786 @@ function GuidanceFields(props: {
         />
       </div>
     </div>
+  );
+}
+
+function createEmptyInvokeBindingDraft(): InvokeBindingDraft {
+  return {
+    localId: createLocalId("invoke-binding"),
+    destinationKind: "work_unit_fact",
+    destinationDefinitionId: "",
+    sourceKind: "context_fact",
+    contextFactDefinitionId: "",
+    literalValue: "",
+  };
+}
+
+const INVOKE_BINDING_SOURCE_OPTIONS = [
+  {
+    value: "context_fact",
+    label: "Context Fact",
+    description: "Read from a compatible workflow context fact.",
+  },
+  {
+    value: "literal",
+    label: "Literal",
+    description: "Provide a fixed literal value inline.",
+  },
+  {
+    value: "runtime",
+    label: "Runtime",
+    description: "Value will be supplied when the project runs.",
+  },
+] as const;
+
+function isLiteralCapableFactDefinition(
+  definition: Pick<
+    WorkflowInvokeWorkUnitFactDefinition,
+    "factType" | "cardinality" | "validationJson"
+  >,
+) {
+  if (definition.cardinality !== "one") {
+    return false;
+  }
+
+  if (
+    definition.factType !== "string" &&
+    definition.factType !== "number" &&
+    definition.factType !== "boolean"
+  ) {
+    return false;
+  }
+
+  return !(
+    typeof definition.validationJson === "object" &&
+    definition.validationJson !== null &&
+    "kind" in definition.validationJson &&
+    definition.validationJson.kind === "path"
+  );
+}
+
+function getContextFactValueType(
+  fact: WorkflowContextFactDefinitionItem,
+): WorkflowInvokeWorkUnitFactDefinition["factType"] | "artifact_reference" | null {
+  switch (fact.kind) {
+    case "plain_value_fact":
+      return fact.valueType ?? "string";
+    case "artifact_reference_fact":
+      return "artifact_reference";
+    default:
+      return null;
+  }
+}
+
+function isContextFactCompatibleWithDestination(
+  fact: WorkflowContextFactDefinitionItem,
+  destination: InvokeBindingDestinationOption | undefined,
+) {
+  if (!destination || fact.cardinality !== destination.cardinality) {
+    return false;
+  }
+
+  if (destination.kind === "artifact_slot") {
+    return fact.kind === "artifact_reference_fact";
+  }
+
+  return getContextFactValueType(fact) === (destination.factType ?? null);
+}
+
+function createEmptyInvokeActivationTransitionDraft(): InvokeActivationTransitionDraft {
+  return {
+    localId: createLocalId("invoke-activation-transition"),
+    transitionId: "",
+    workflowDefinitionIds: [],
+  };
+}
+
+function toInvokeGuidance(
+  guidance?: WorkflowInvokeStepPayload["guidance"],
+): WorkflowEditorGuidance {
+  return {
+    humanMarkdown: guidance?.human?.markdown ?? "",
+    agentMarkdown: guidance?.agent?.markdown ?? "",
+  };
+}
+
+function toInvokeBindingDrafts(
+  payload: WorkflowInvokeStepPayload | undefined,
+): InvokeBindingDraft[] {
+  if (!payload || payload.targetKind !== "work_unit") {
+    return [];
+  }
+
+  return payload.bindings.map((binding) => ({
+    localId: createLocalId("invoke-binding"),
+    destinationKind: binding.destination.kind,
+    destinationDefinitionId:
+      binding.destination.kind === "work_unit_fact"
+        ? binding.destination.workUnitFactDefinitionId
+        : binding.destination.artifactSlotDefinitionId,
+    sourceKind: binding.source.kind,
+    contextFactDefinitionId:
+      binding.source.kind === "context_fact" ? binding.source.contextFactDefinitionId : "",
+    literalValue:
+      binding.source.kind === "literal"
+        ? String(binding.source.value)
+        : binding.source.kind === "runtime"
+          ? ""
+          : "",
+  }));
+}
+
+function toInvokeActivationTransitionDrafts(
+  payload: WorkflowInvokeStepPayload | undefined,
+): InvokeActivationTransitionDraft[] {
+  if (!payload || payload.targetKind !== "work_unit") {
+    return [];
+  }
+
+  return payload.activationTransitions.map((transition) => ({
+    localId: createLocalId("invoke-activation-transition"),
+    transitionId: transition.transitionId,
+    workflowDefinitionIds: [...transition.workflowDefinitionIds],
+  }));
+}
+
+function toInvokeStepDialogSnapshot(params: {
+  key: string;
+  label: string;
+  descriptionMarkdown: string;
+  targetKind: WorkflowInvokeStepPayload["targetKind"];
+  sourceMode: WorkflowInvokeStepPayload["sourceMode"];
+  workflowDefinitionIds: readonly string[];
+  workUnitDefinitionId: string;
+  contextFactDefinitionId: string;
+  bindings: readonly InvokeBindingDraft[];
+  activationTransitions: readonly InvokeActivationTransitionDraft[];
+  guidance: WorkflowEditorGuidance;
+}): InvokeStepDialogSnapshot {
+  return {
+    contract: {
+      key: params.key,
+      label: params.label,
+      descriptionMarkdown: params.descriptionMarkdown,
+    },
+    target: {
+      targetKind: params.targetKind,
+      sourceMode: params.sourceMode,
+      workflowDefinitionIds: [...params.workflowDefinitionIds],
+      workUnitDefinitionId: params.workUnitDefinitionId,
+      contextFactDefinitionId: params.contextFactDefinitionId,
+    },
+    bindings: {
+      bindings: params.bindings.map(({ localId: _localId, ...binding }) => ({ ...binding })),
+      activationTransitions: params.activationTransitions.map(
+        ({ localId: _localId, ...transition }) => ({
+          ...transition,
+          workflowDefinitionIds: [...transition.workflowDefinitionIds],
+        }),
+      ),
+    },
+    guidance: {
+      humanMarkdown: params.guidance.humanMarkdown,
+      agentMarkdown: params.guidance.agentMarkdown,
+    },
+  };
+}
+
+function toWorkflowInvokePayload(params: {
+  key: string;
+  label: string;
+  descriptionMarkdown: string;
+  targetKind: WorkflowInvokeStepPayload["targetKind"];
+  sourceMode: WorkflowInvokeStepPayload["sourceMode"];
+  workflowDefinitionIds: readonly string[];
+  workUnitDefinitionId: string;
+  contextFactDefinitionId: string;
+  bindings: readonly InvokeBindingDraft[];
+  bindingDestinationsByKey: ReadonlyMap<string, InvokeBindingDestinationOption>;
+  activationTransitions: readonly InvokeActivationTransitionDraft[];
+  guidance: WorkflowEditorGuidance;
+}): WorkflowInvokeStepPayload {
+  const normalizedKey = params.key.trim();
+  const normalizedLabel = params.label.trim();
+  const normalizedDescription = params.descriptionMarkdown.trim();
+  const normalizedGuidance = {
+    human: { markdown: params.guidance.humanMarkdown.trim() },
+    agent: { markdown: params.guidance.agentMarkdown.trim() },
+  };
+  const base = {
+    key: normalizedKey,
+    ...(normalizedLabel.length > 0 ? { label: normalizedLabel } : {}),
+    ...(normalizedDescription.length > 0
+      ? { descriptionJson: { markdown: normalizedDescription } }
+      : {}),
+    guidance: normalizedGuidance,
+  };
+
+  if (params.targetKind === "workflow" && params.sourceMode === "fixed_set") {
+    return {
+      ...base,
+      targetKind: "workflow",
+      sourceMode: "fixed_set",
+      workflowDefinitionIds: params.workflowDefinitionIds
+        .map((workflowDefinitionId) => workflowDefinitionId.trim())
+        .filter((workflowDefinitionId) => workflowDefinitionId.length > 0),
+    };
+  }
+
+  if (params.targetKind === "workflow") {
+    return {
+      ...base,
+      targetKind: "workflow",
+      sourceMode: "context_fact_backed",
+      contextFactDefinitionId: params.contextFactDefinitionId.trim(),
+    };
+  }
+
+  const bindings = params.bindings.map(({ localId: _localId, ...binding }) => {
+    const destinationKey = `${binding.destinationKind}:${binding.destinationDefinitionId.trim()}`;
+    const destinationDefinition = params.bindingDestinationsByKey.get(destinationKey);
+    const literalValue =
+      destinationDefinition?.factType === "number"
+        ? Number(binding.literalValue)
+        : destinationDefinition?.factType === "boolean"
+          ? binding.literalValue === "true"
+          : binding.literalValue;
+
+    return {
+      destination:
+        binding.destinationKind === "work_unit_fact"
+          ? {
+              kind: "work_unit_fact" as const,
+              workUnitFactDefinitionId: binding.destinationDefinitionId.trim(),
+            }
+          : {
+              kind: "artifact_slot" as const,
+              artifactSlotDefinitionId: binding.destinationDefinitionId.trim(),
+            },
+      source:
+        binding.sourceKind === "context_fact"
+          ? {
+              kind: "context_fact" as const,
+              contextFactDefinitionId: binding.contextFactDefinitionId.trim(),
+            }
+          : binding.sourceKind === "literal"
+            ? { kind: "literal" as const, value: literalValue }
+            : { kind: "runtime" as const },
+    };
+  });
+  const activationTransitions = params.activationTransitions.map(
+    ({ localId: _localId, ...transition }) => ({
+      transitionId: transition.transitionId.trim(),
+      workflowDefinitionIds: transition.workflowDefinitionIds
+        .map((workflowDefinitionId) => workflowDefinitionId.trim())
+        .filter((workflowDefinitionId) => workflowDefinitionId.length > 0),
+    }),
+  );
+
+  if (params.sourceMode === "fixed_set") {
+    return {
+      ...base,
+      targetKind: "work_unit",
+      sourceMode: "fixed_set",
+      workUnitDefinitionId: params.workUnitDefinitionId.trim(),
+      bindings,
+      activationTransitions,
+    };
+  }
+
+  return {
+    ...base,
+    targetKind: "work_unit",
+    sourceMode: "context_fact_backed",
+    contextFactDefinitionId: params.contextFactDefinitionId.trim(),
+    bindings,
+    activationTransitions,
+  };
+}
+
+export function InvokeStepDialog({
+  open,
+  mode,
+  step,
+  availableWorkflows,
+  availableWorkUnits,
+  availableTransitions,
+  availableContextFacts,
+  workUnitFactsQueryScope,
+  loadWorkUnitFacts,
+  loadWorkUnitArtifactSlots,
+  loadWorkUnitTransitions,
+  loadWorkUnitWorkflows,
+  loadTransitionBoundWorkflowKeys,
+  onOpenChange,
+  onSave,
+  onDelete,
+}: InvokeStepDialogProps) {
+  const [key, setKey] = useState("");
+  const [label, setLabel] = useState("");
+  const [descriptionMarkdown, setDescriptionMarkdown] = useState("");
+  const [targetKind, setTargetKind] = useState<WorkflowInvokeStepPayload["targetKind"]>("workflow");
+  const [sourceMode, setSourceMode] =
+    useState<WorkflowInvokeStepPayload["sourceMode"]>("fixed_set");
+  const [workflowDefinitionIds, setWorkflowDefinitionIds] = useState<string[]>([]);
+  const [workUnitDefinitionId, setWorkUnitDefinitionId] = useState("");
+  const [contextFactDefinitionId, setContextFactDefinitionId] = useState("");
+  const [bindings, setBindings] = useState<InvokeBindingDraft[]>([]);
+  const [activationTransitions, setActivationTransitions] = useState<
+    InvokeActivationTransitionDraft[]
+  >([]);
+  const [guidance, setGuidance] = useState<WorkflowEditorGuidance>(normalizeGuidance());
+  const [initialSnapshot, setInitialSnapshot] = useState<InvokeStepDialogSnapshot | null>(null);
+  const [activeTab, setActiveTab] = useState<InvokeStepDialogTab>("contract");
+  const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [boundWorkflowKeysByTransition, setBoundWorkflowKeysByTransition] = useState<
+    Record<string, readonly string[]>
+  >({});
+
+  const invokeStep = step?.stepType === "invoke" ? step : undefined;
+  const contextFactsById = useMemo(
+    () => new Map(availableContextFacts.map((fact) => [fact.contextFactDefinitionId, fact])),
+    [availableContextFacts],
+  );
+  const workflowReferenceFactOptions = useMemo(
+    () =>
+      availableContextFacts
+        .filter((fact) => fact.kind === "workflow_reference_fact")
+        .map((fact) => ({
+          value: fact.contextFactDefinitionId,
+          label: fact.label || fact.key,
+          secondaryLabel: fact.key,
+          description: fact.summary,
+        })),
+    [availableContextFacts],
+  );
+  const workUnitDraftSpecFactOptions = useMemo(
+    () =>
+      availableContextFacts
+        .filter((fact) => fact.kind === "work_unit_draft_spec_fact")
+        .map((fact) => ({
+          value: fact.contextFactDefinitionId,
+          label: fact.label || fact.key,
+          secondaryLabel: fact.key,
+          description: fact.summary,
+        })),
+    [availableContextFacts],
+  );
+  const bindingContextFactOptions = useMemo(
+    () =>
+      availableContextFacts.map((fact) => ({
+        value: fact.contextFactDefinitionId,
+        label: fact.label || fact.key,
+        secondaryLabel: fact.key,
+        description: fact.summary,
+      })),
+    [availableContextFacts],
+  );
+  const selectedContextFact = contextFactsById.get(contextFactDefinitionId);
+  const selectedBindingWorkUnitDefinitionId =
+    targetKind !== "work_unit"
+      ? ""
+      : sourceMode === "fixed_set"
+        ? workUnitDefinitionId.trim()
+        : selectedContextFact?.kind === "work_unit_draft_spec_fact"
+          ? (selectedContextFact.workUnitDefinitionId?.trim() ?? "")
+          : "";
+  const bindingWorkUnitFactsQuery = useQuery({
+    queryKey: [
+      "workflow-editor",
+      "invoke-binding-work-unit-facts",
+      workUnitFactsQueryScope,
+      selectedBindingWorkUnitDefinitionId,
+    ],
+    queryFn: async () => loadWorkUnitFacts(selectedBindingWorkUnitDefinitionId),
+    enabled: open && targetKind === "work_unit" && selectedBindingWorkUnitDefinitionId.length > 0,
+  });
+  const bindingArtifactSlotsQuery = useQuery({
+    queryKey: [
+      "workflow-editor",
+      "invoke-binding-artifact-slots",
+      workUnitFactsQueryScope,
+      selectedBindingWorkUnitDefinitionId,
+    ],
+    queryFn: async () => loadWorkUnitArtifactSlots(selectedBindingWorkUnitDefinitionId),
+    enabled: open && targetKind === "work_unit" && selectedBindingWorkUnitDefinitionId.length > 0,
+  });
+  const bindingTransitionsQuery = useQuery({
+    queryKey: [
+      "workflow-editor",
+      "invoke-binding-transitions",
+      workUnitFactsQueryScope,
+      selectedBindingWorkUnitDefinitionId,
+    ],
+    queryFn: async () => {
+      if (loadWorkUnitTransitions) {
+        return loadWorkUnitTransitions(selectedBindingWorkUnitDefinitionId);
+      }
+
+      return availableTransitions;
+    },
+    enabled: open && targetKind === "work_unit" && selectedBindingWorkUnitDefinitionId.length > 0,
+  });
+  const bindingWorkflowsQuery = useQuery({
+    queryKey: [
+      "workflow-editor",
+      "invoke-binding-workflows",
+      workUnitFactsQueryScope,
+      selectedBindingWorkUnitDefinitionId,
+    ],
+    queryFn: async () => {
+      if (loadWorkUnitWorkflows) {
+        return loadWorkUnitWorkflows(selectedBindingWorkUnitDefinitionId);
+      }
+
+      return availableWorkflows;
+    },
+    enabled: open && targetKind === "work_unit" && selectedBindingWorkUnitDefinitionId.length > 0,
+  });
+  const availableBindingDestinations = useMemo(() => {
+    const selectedDraftSpecFact =
+      sourceMode === "context_fact_backed" &&
+      selectedContextFact?.kind === "work_unit_draft_spec_fact"
+        ? selectedContextFact
+        : null;
+    const selectedFactIds = new Set(selectedDraftSpecFact?.selectedWorkUnitFactDefinitionIds ?? []);
+    const selectedArtifactIds = new Set(
+      selectedDraftSpecFact?.selectedArtifactSlotDefinitionIds ?? [],
+    );
+
+    const factDestinations = (bindingWorkUnitFactsQuery.data ?? [])
+      .filter(
+        (definition) => sourceMode !== "context_fact_backed" || selectedFactIds.has(definition.id),
+      )
+      .map(
+        (definition) =>
+          ({
+            kind: "work_unit_fact",
+            definitionId: definition.id,
+            label: definition.label,
+            key: definition.key,
+            cardinality: definition.cardinality,
+            factType: definition.factType,
+            validationJson: definition.validationJson,
+            summary: `work unit fact · ${definition.factType} · ${definition.cardinality}`,
+            literalAllowed: isLiteralCapableFactDefinition(definition),
+          }) satisfies InvokeBindingDestinationOption,
+      );
+    const artifactDestinations = (bindingArtifactSlotsQuery.data ?? [])
+      .filter(
+        (definition) =>
+          sourceMode !== "context_fact_backed" || selectedArtifactIds.has(definition.id),
+      )
+      .map(
+        (definition) =>
+          ({
+            kind: "artifact_slot",
+            definitionId: definition.id,
+            label: definition.label,
+            key: definition.key,
+            cardinality: definition.cardinality === "fileset" ? "many" : "one",
+            summary: `artifact slot · ${definition.cardinality}`,
+            literalAllowed: false,
+          }) satisfies InvokeBindingDestinationOption,
+      );
+
+    return [...factDestinations, ...artifactDestinations];
+  }, [
+    bindingArtifactSlotsQuery.data,
+    bindingWorkUnitFactsQuery.data,
+    selectedContextFact,
+    sourceMode,
+  ]);
+  const bindingDestinationsByKey = useMemo(
+    () =>
+      new Map(
+        availableBindingDestinations.map((destination) => [
+          `${destination.kind}:${destination.definitionId}`,
+          destination,
+        ]),
+      ),
+    [availableBindingDestinations],
+  );
+  const bindingDestinationOptions = useMemo(
+    () =>
+      availableBindingDestinations.map((destination) => ({
+        value: `${destination.kind}:${destination.definitionId}`,
+        label: destination.label,
+        secondaryLabel: destination.key,
+        description: destination.summary,
+      })),
+    [availableBindingDestinations],
+  );
+  const availableInvokeTransitionOptions = useMemo(
+    () => bindingTransitionsQuery.data ?? availableTransitions,
+    [availableTransitions, bindingTransitionsQuery.data],
+  );
+  const availableInvokeWorkflowOptions = useMemo(
+    () => bindingWorkflowsQuery.data ?? availableWorkflows,
+    [availableWorkflows, bindingWorkflowsQuery.data],
+  );
+
+  useEffect(() => {
+    if (!open) {
+      setIsDiscardDialogOpen(false);
+      setStatusMessage(null);
+      return;
+    }
+
+    const payload = invokeStep?.payload;
+    const nextKey = payload?.key ?? "";
+    const nextLabel = payload?.label ?? "";
+    const nextDescriptionMarkdown = payload?.descriptionJson?.markdown ?? "";
+    const nextTargetKind = payload?.targetKind ?? "workflow";
+    const nextSourceMode = payload?.sourceMode ?? "fixed_set";
+    const nextWorkflowDefinitionIds =
+      payload?.targetKind === "workflow" && payload.sourceMode === "fixed_set"
+        ? [...payload.workflowDefinitionIds]
+        : [];
+    const nextWorkUnitDefinitionId =
+      payload?.targetKind === "work_unit" && payload.sourceMode === "fixed_set"
+        ? payload.workUnitDefinitionId
+        : "";
+    const nextContextFactDefinitionId =
+      payload?.sourceMode === "context_fact_backed" ? payload.contextFactDefinitionId : "";
+    const nextBindings = toInvokeBindingDrafts(payload);
+    const nextActivationTransitions = toInvokeActivationTransitionDrafts(payload);
+    const nextGuidance = toInvokeGuidance(payload?.guidance);
+
+    setKey(nextKey);
+    setLabel(nextLabel);
+    setDescriptionMarkdown(nextDescriptionMarkdown);
+    setTargetKind(nextTargetKind);
+    setSourceMode(nextSourceMode);
+    setWorkflowDefinitionIds(nextWorkflowDefinitionIds);
+    setWorkUnitDefinitionId(nextWorkUnitDefinitionId);
+    setContextFactDefinitionId(nextContextFactDefinitionId);
+    setBindings(nextBindings);
+    setActivationTransitions(nextActivationTransitions);
+    setGuidance(nextGuidance);
+    setInitialSnapshot(
+      toInvokeStepDialogSnapshot({
+        key: nextKey,
+        label: nextLabel,
+        descriptionMarkdown: nextDescriptionMarkdown,
+        targetKind: nextTargetKind,
+        sourceMode: nextSourceMode,
+        workflowDefinitionIds: nextWorkflowDefinitionIds,
+        workUnitDefinitionId: nextWorkUnitDefinitionId,
+        contextFactDefinitionId: nextContextFactDefinitionId,
+        bindings: nextBindings,
+        activationTransitions: nextActivationTransitions,
+        guidance: nextGuidance,
+      }),
+    );
+    setActiveTab("contract");
+    setIsDiscardDialogOpen(false);
+    setStatusMessage(null);
+  }, [invokeStep, open]);
+
+  useEffect(() => {
+    if (!open || targetKind !== "work_unit") {
+      return;
+    }
+
+    setBindings((previous) =>
+      previous.map((binding) => {
+        const destination = bindingDestinationsByKey.get(
+          `${binding.destinationKind}:${binding.destinationDefinitionId}`,
+        );
+        const compatibleSourceKinds = destination
+          ? [
+              "context_fact",
+              ...(destination.literalAllowed ? (["literal"] as const) : []),
+              "runtime",
+            ]
+          : (["context_fact", "runtime"] as const);
+        const nextSourceKind = compatibleSourceKinds.includes(binding.sourceKind)
+          ? binding.sourceKind
+          : compatibleSourceKinds[0];
+        const nextContextFactId =
+          nextSourceKind === "context_fact" ? binding.contextFactDefinitionId : "";
+        const nextLiteralValue = nextSourceKind === "literal" ? binding.literalValue : "";
+
+        return nextSourceKind !== binding.sourceKind ||
+          nextContextFactId !== binding.contextFactDefinitionId ||
+          nextLiteralValue !== binding.literalValue
+          ? {
+              ...binding,
+              sourceKind: nextSourceKind,
+              contextFactDefinitionId: nextContextFactId,
+              literalValue: nextLiteralValue,
+            }
+          : binding;
+      }),
+    );
+  }, [bindingDestinationsByKey, open, targetKind]);
+
+  useEffect(() => {
+    if (
+      !open ||
+      targetKind !== "work_unit" ||
+      selectedBindingWorkUnitDefinitionId.length === 0 ||
+      !loadTransitionBoundWorkflowKeys
+    ) {
+      setBoundWorkflowKeysByTransition({});
+      return;
+    }
+
+    const transitionIds = [
+      ...new Set(
+        activationTransitions
+          .map((transition) => transition.transitionId.trim())
+          .filter((transitionId) => transitionId.length > 0),
+      ),
+    ];
+    if (transitionIds.length === 0) {
+      setBoundWorkflowKeysByTransition({});
+      return;
+    }
+
+    let cancelled = false;
+    void Promise.all(
+      transitionIds.map(async (transitionId) => {
+        const workflowKeys = await loadTransitionBoundWorkflowKeys(
+          selectedBindingWorkUnitDefinitionId,
+          transitionId,
+        );
+        return [transitionId, [...workflowKeys]] as const;
+      }),
+    ).then((entries) => {
+      if (cancelled) {
+        return;
+      }
+
+      setBoundWorkflowKeysByTransition(
+        Object.fromEntries(entries) as Record<string, readonly string[]>,
+      );
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activationTransitions,
+    loadTransitionBoundWorkflowKeys,
+    open,
+    selectedBindingWorkUnitDefinitionId,
+    targetKind,
+  ]);
+
+  useEffect(() => {
+    if (!open || targetKind !== "work_unit") {
+      return;
+    }
+
+    setActivationTransitions((previous) => {
+      let changed = false;
+      const next = previous.map((transition) => {
+        const transitionId = transition.transitionId.trim();
+        if (transitionId.length === 0) {
+          if (transition.workflowDefinitionIds.length > 0) {
+            changed = true;
+            return { ...transition, workflowDefinitionIds: [] };
+          }
+
+          return transition;
+        }
+
+        const boundWorkflowKeys = boundWorkflowKeysByTransition[transitionId] ?? [];
+        const allowedWorkflowValues = new Set(
+          availableInvokeWorkflowOptions
+            .filter((option) => {
+              const workflowKey = option.secondaryLabel ?? option.value;
+              return boundWorkflowKeys.includes(workflowKey);
+            })
+            .map((option) => option.value),
+        );
+        const nextWorkflowDefinitionIds = transition.workflowDefinitionIds.filter((workflowId) =>
+          allowedWorkflowValues.has(workflowId),
+        );
+
+        if (nextWorkflowDefinitionIds.length !== transition.workflowDefinitionIds.length) {
+          changed = true;
+          return { ...transition, workflowDefinitionIds: nextWorkflowDefinitionIds };
+        }
+
+        return transition;
+      });
+
+      return changed ? next : previous;
+    });
+  }, [availableInvokeWorkflowOptions, boundWorkflowKeysByTransition, open, targetKind]);
+
+  const currentSnapshot = useMemo(
+    () =>
+      toInvokeStepDialogSnapshot({
+        key,
+        label,
+        descriptionMarkdown,
+        targetKind,
+        sourceMode,
+        workflowDefinitionIds,
+        workUnitDefinitionId,
+        contextFactDefinitionId,
+        bindings,
+        activationTransitions,
+        guidance,
+      }),
+    [
+      activationTransitions,
+      bindings,
+      contextFactDefinitionId,
+      descriptionMarkdown,
+      guidance,
+      key,
+      label,
+      sourceMode,
+      targetKind,
+      workflowDefinitionIds,
+      workUnitDefinitionId,
+    ],
+  );
+
+  const isContractDirty =
+    open && initialSnapshot
+      ? !areDialogSnapshotSectionsEqual(currentSnapshot.contract, initialSnapshot.contract)
+      : false;
+  const isTargetDirty =
+    open && initialSnapshot
+      ? !areDialogSnapshotSectionsEqual(currentSnapshot.target, initialSnapshot.target)
+      : false;
+  const isBindingsDirty =
+    open && initialSnapshot
+      ? !areDialogSnapshotSectionsEqual(currentSnapshot.bindings, initialSnapshot.bindings)
+      : false;
+  const isGuidanceDirty =
+    open && initialSnapshot
+      ? !areDialogSnapshotSectionsEqual(currentSnapshot.guidance, initialSnapshot.guidance)
+      : false;
+  const isDialogDirty = isContractDirty || isTargetDirty || isBindingsDirty || isGuidanceDirty;
+
+  const validationErrors = useMemo(() => {
+    const errors: string[] = [];
+    if (key.trim().length === 0) {
+      errors.push("Invoke step key is required.");
+    }
+
+    if (
+      targetKind === "workflow" &&
+      sourceMode === "fixed_set" &&
+      workflowDefinitionIds.length === 0
+    ) {
+      errors.push("Select at least one workflow for workflow-target invoke.");
+    }
+
+    if (targetKind === "workflow" && sourceMode === "context_fact_backed") {
+      if (contextFactDefinitionId.trim().length === 0) {
+        errors.push("Select a workflow reference context fact.");
+      } else if (selectedContextFact?.kind !== "workflow_reference_fact") {
+        errors.push("Workflow-target invoke requires a workflow reference context fact.");
+      }
+    }
+
+    if (
+      targetKind === "work_unit" &&
+      sourceMode === "fixed_set" &&
+      workUnitDefinitionId.trim().length === 0
+    ) {
+      errors.push("Select a work unit for work-unit-target invoke.");
+    }
+
+    if (targetKind === "work_unit" && sourceMode === "context_fact_backed") {
+      if (contextFactDefinitionId.trim().length === 0) {
+        errors.push("Select a work-unit draft-spec context fact.");
+      } else if (selectedContextFact?.kind !== "work_unit_draft_spec_fact") {
+        errors.push("Work-unit-target invoke requires a work_unit_draft_spec_fact context fact.");
+      }
+    }
+
+    if (targetKind === "work_unit") {
+      bindings.forEach((binding, index) => {
+        const destination = bindingDestinationsByKey.get(
+          `${binding.destinationKind}:${binding.destinationDefinitionId.trim()}`,
+        );
+        if (binding.destinationDefinitionId.trim().length === 0 || !destination) {
+          errors.push(`Complete invoke binding ${index + 1} before saving.`);
+          return;
+        }
+
+        if (binding.sourceKind === "context_fact") {
+          if (binding.contextFactDefinitionId.trim().length === 0) {
+            errors.push(`Select a source context fact for invoke binding ${index + 1}.`);
+            return;
+          }
+
+          const sourceFact = contextFactsById.get(binding.contextFactDefinitionId);
+          if (!sourceFact || !isContextFactCompatibleWithDestination(sourceFact, destination)) {
+            errors.push(`Invoke binding ${index + 1} has an incompatible source context fact.`);
+          }
+          return;
+        }
+
+        if (binding.sourceKind === "literal") {
+          if (!destination.literalAllowed) {
+            errors.push(`Invoke binding ${index + 1} does not allow literal values.`);
+            return;
+          }
+
+          if (destination.factType === "number" && binding.literalValue.trim().length === 0) {
+            errors.push(`Provide a numeric literal for invoke binding ${index + 1}.`);
+            return;
+          }
+
+          if (destination.factType === "number" && Number.isNaN(Number(binding.literalValue))) {
+            errors.push(`Invoke binding ${index + 1} requires a valid numeric literal.`);
+          }
+        }
+      });
+
+      const destinationKeys = bindings
+        .map((binding) => `${binding.destinationKind}:${binding.destinationDefinitionId.trim()}`)
+        .filter((key) => !key.endsWith(":"));
+      if (new Set(destinationKeys).size !== destinationKeys.length) {
+        errors.push("Each invoke destination can only be bound once.");
+      }
+
+      activationTransitions.forEach((transition, index) => {
+        if (transition.transitionId.trim().length === 0) {
+          errors.push(`Select a transition for activation transition ${index + 1}.`);
+          return;
+        }
+
+        if (transition.workflowDefinitionIds.length === 0) {
+          errors.push(`Select at least one workflow for activation transition ${index + 1}.`);
+        }
+      });
+
+      const transitionIds = activationTransitions
+        .map((transition) => transition.transitionId.trim())
+        .filter((transitionId) => transitionId.length > 0);
+      if (new Set(transitionIds).size !== transitionIds.length) {
+        errors.push("Each activation transition can only be configured once.");
+      }
+    }
+
+    return errors;
+  }, [
+    activationTransitions,
+    bindings,
+    bindingDestinationsByKey,
+    contextFactDefinitionId,
+    contextFactsById,
+    key,
+    selectedContextFact,
+    sourceMode,
+    targetKind,
+    workflowDefinitionIds,
+    workUnitDefinitionId,
+  ]);
+
+  const canSave = validationErrors.length === 0;
+  const title =
+    mode === "create" ? "Create Invoke Step" : `Edit Invoke Step: ${invokeStep?.payload.key ?? ""}`;
+
+  const closeDialog = () => {
+    setIsDiscardDialogOpen(false);
+    onOpenChange(false);
+  };
+
+  const requestCloseDialog = () => {
+    if (isDialogDirty) {
+      setIsDiscardDialogOpen(true);
+      return;
+    }
+
+    closeDialog();
+  };
+
+  return (
+    <>
+      <Dialog
+        open={open}
+        onOpenChange={(nextOpen) => {
+          if (nextOpen) {
+            return;
+          }
+
+          requestCloseDialog();
+        }}
+      >
+        <DialogContent className="chiron-cut-frame-thick flex w-[min(68rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] flex-col overflow-hidden p-6 sm:max-w-none sm:p-8">
+          <form
+            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!canSave) {
+                setStatusMessage(validationErrors[0] ?? "Complete the invoke step configuration.");
+                return;
+              }
+
+              setStatusMessage(null);
+              void onSave(
+                toWorkflowInvokePayload({
+                  key,
+                  label,
+                  descriptionMarkdown,
+                  targetKind,
+                  sourceMode,
+                  workflowDefinitionIds,
+                  workUnitDefinitionId,
+                  contextFactDefinitionId,
+                  bindings,
+                  bindingDestinationsByKey,
+                  activationTransitions,
+                  guidance,
+                }),
+              );
+            }}
+          >
+            <DialogHeader className="shrink-0 gap-2">
+              <DialogTitle className="text-base font-semibold uppercase tracking-[0.08em]">
+                {title}
+              </DialogTitle>
+              <DialogDescription>
+                Author invoke contract, target/source configuration, and audience guidance in one
+                dialog.
+              </DialogDescription>
+              <div className="mt-1 flex flex-wrap gap-2 border-b border-border pb-3">
+                <TabButton
+                  active={activeTab === "contract"}
+                  onClick={() => setActiveTab("contract")}
+                  isDirty={isContractDirty}
+                  dirtyIndicatorTestId="workflow-invoke-step-contract-modified-indicator"
+                >
+                  Contract
+                </TabButton>
+                <TabButton
+                  active={activeTab === "target"}
+                  onClick={() => setActiveTab("target")}
+                  isDirty={isTargetDirty}
+                  dirtyIndicatorTestId="workflow-invoke-step-target-modified-indicator"
+                >
+                  Target
+                </TabButton>
+                <TabButton
+                  active={activeTab === "bindings"}
+                  onClick={() => setActiveTab("bindings")}
+                  isDirty={isBindingsDirty}
+                  dirtyIndicatorTestId="workflow-invoke-step-bindings-modified-indicator"
+                >
+                  Bindings
+                </TabButton>
+                <TabButton
+                  active={activeTab === "guidance"}
+                  onClick={() => setActiveTab("guidance")}
+                  isDirty={isGuidanceDirty}
+                  dirtyIndicatorTestId="workflow-invoke-step-guidance-modified-indicator"
+                >
+                  Guidance
+                </TabButton>
+              </div>
+            </DialogHeader>
+
+            <div className="min-h-0 flex-1 overflow-y-auto py-4 pr-1 scrollbar-thin">
+              {statusMessage ? (
+                <p className="mb-4 border border-destructive/45 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  {statusMessage}
+                </p>
+              ) : null}
+
+              {!canSave ? (
+                <p className="mb-4 border border-border/70 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                  {validationErrors[0]}
+                </p>
+              ) : null}
+
+              {activeTab === "contract" ? (
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="grid gap-2 lg:col-span-2">
+                    <Label htmlFor="workflow-editor-invoke-step-key">Step Key</Label>
+                    <Input
+                      id="workflow-editor-invoke-step-key"
+                      className="rounded-none border-border/70 bg-background/50"
+                      value={key}
+                      onChange={(event) => {
+                        setKey(event.target.value);
+                        setStatusMessage(null);
+                      }}
+                      placeholder="invoke-story-work"
+                    />
+                  </div>
+                  <div className="grid gap-2 lg:col-span-2">
+                    <Label htmlFor="workflow-editor-invoke-step-label">Step Title</Label>
+                    <Input
+                      id="workflow-editor-invoke-step-label"
+                      className="rounded-none border-border/70 bg-background/50"
+                      value={label}
+                      onChange={(event) => {
+                        setLabel(event.target.value);
+                        setStatusMessage(null);
+                      }}
+                      placeholder="Invoke Story Work"
+                    />
+                  </div>
+                  <div className="grid gap-2 lg:col-span-2">
+                    <Label htmlFor="workflow-editor-invoke-step-description">
+                      Step Description
+                    </Label>
+                    <Textarea
+                      id="workflow-editor-invoke-step-description"
+                      className="min-h-36 resize-none rounded-none border-border/70 bg-background/50"
+                      value={descriptionMarkdown}
+                      onChange={(event) => {
+                        setDescriptionMarkdown(event.target.value);
+                        setStatusMessage(null);
+                      }}
+                      placeholder="Markdown description for this Invoke step"
+                    />
+                  </div>
+                </div>
+              ) : null}
+
+              {activeTab === "target" ? (
+                <div className="grid gap-4">
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <div className="grid gap-2">
+                      <Label htmlFor="workflow-editor-invoke-target-kind">Target Kind</Label>
+                      <Select
+                        value={targetKind}
+                        onValueChange={(value) => {
+                          if (!value) {
+                            return;
+                          }
+                          setTargetKind(value as WorkflowInvokeStepPayload["targetKind"]);
+                          setStatusMessage(null);
+                        }}
+                      >
+                        <SelectTrigger
+                          id="workflow-editor-invoke-target-kind"
+                          className="w-full rounded-none border-border/70 bg-background/50"
+                        >
+                          <SelectValue placeholder="Select target kind" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-none">
+                          <SelectItem value="workflow">workflow</SelectItem>
+                          <SelectItem value="work_unit">work_unit</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="workflow-editor-invoke-source-mode">Source Mode</Label>
+                      <Select
+                        value={sourceMode}
+                        onValueChange={(value) => {
+                          if (!value) {
+                            return;
+                          }
+                          setSourceMode(value as WorkflowInvokeStepPayload["sourceMode"]);
+                          setStatusMessage(null);
+                        }}
+                      >
+                        <SelectTrigger
+                          id="workflow-editor-invoke-source-mode"
+                          className="w-full rounded-none border-border/70 bg-background/50"
+                        >
+                          <SelectValue placeholder="Select source mode" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-none">
+                          <SelectItem value="fixed_set">fixed_set</SelectItem>
+                          <SelectItem value="context_fact_backed">context_fact_backed</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {targetKind === "workflow" && sourceMode === "fixed_set" ? (
+                    <div className="chiron-frame-flat chiron-tone-context grid gap-3 p-3">
+                      <div className="grid gap-1">
+                        <Label id="workflow-editor-invoke-workflow-definitions-label">
+                          Workflow Definitions
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Select the workflow definitions that this invoke step can fan out to.
+                        </p>
+                      </div>
+                      <SearchableMultiSelect
+                        labelId="workflow-editor-invoke-workflow-definitions-label"
+                        values={workflowDefinitionIds}
+                        onChange={(values) => {
+                          setWorkflowDefinitionIds(values);
+                          setStatusMessage(null);
+                        }}
+                        options={availableWorkflows}
+                        placeholder="Select workflows"
+                        searchPlaceholder="Search workflows"
+                        emptyLabel="No workflows found."
+                        singularLabel="workflow"
+                        pluralLabel="workflows"
+                      />
+                    </div>
+                  ) : null}
+
+                  {targetKind === "workflow" && sourceMode === "context_fact_backed" ? (
+                    <div className="chiron-frame-flat chiron-tone-context grid gap-3 p-3">
+                      <div className="grid gap-1">
+                        <Label id="workflow-editor-invoke-workflow-context-fact-label">
+                          Workflow Context Fact
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Select a workflow-reference fact that resolves the workflows at runtime.
+                        </p>
+                      </div>
+                      <SearchableCombobox
+                        labelId="workflow-editor-invoke-workflow-context-fact-label"
+                        value={contextFactDefinitionId}
+                        onChange={(value) => {
+                          setContextFactDefinitionId(value);
+                          setStatusMessage(null);
+                        }}
+                        options={workflowReferenceFactOptions}
+                        placeholder="Select a workflow reference fact"
+                        searchPlaceholder="Search workflow reference facts"
+                        emptyLabel="No workflow reference facts available."
+                      />
+                    </div>
+                  ) : null}
+
+                  {targetKind === "work_unit" && sourceMode === "fixed_set" ? (
+                    <div className="chiron-frame-flat chiron-tone-context grid gap-3 p-3">
+                      <div className="grid gap-1">
+                        <Label id="workflow-editor-invoke-work-unit-label">Work Unit</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Select the authored work-unit definition that this invoke step activates.
+                        </p>
+                      </div>
+                      <SearchableCombobox
+                        labelId="workflow-editor-invoke-work-unit-label"
+                        value={workUnitDefinitionId}
+                        onChange={(value) => {
+                          setWorkUnitDefinitionId(value);
+                          setStatusMessage(null);
+                        }}
+                        options={availableWorkUnits}
+                        placeholder="Select a work unit"
+                        searchPlaceholder="Search work units"
+                        emptyLabel="No work units found."
+                      />
+                    </div>
+                  ) : null}
+
+                  {targetKind === "work_unit" && sourceMode === "context_fact_backed" ? (
+                    <div className="chiron-frame-flat chiron-tone-context grid gap-3 p-3">
+                      <div className="grid gap-1">
+                        <Label id="workflow-editor-invoke-work-unit-context-fact-label">
+                          Workflow Context Fact
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Select a draft-spec fact that resolves the invoked work unit from context.
+                        </p>
+                      </div>
+                      <SearchableCombobox
+                        labelId="workflow-editor-invoke-work-unit-context-fact-label"
+                        value={contextFactDefinitionId}
+                        onChange={(value) => {
+                          setContextFactDefinitionId(value);
+                          setStatusMessage(null);
+                        }}
+                        options={workUnitDraftSpecFactOptions}
+                        placeholder="Select a work-unit draft spec fact"
+                        searchPlaceholder="Search work-unit draft spec facts"
+                        emptyLabel="No work_unit_draft_spec_fact facts available."
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {activeTab === "bindings" ? (
+                targetKind === "workflow" ? (
+                  <div className="chiron-frame-flat grid gap-2 border-amber-500/35 bg-amber-500/8 p-3 text-xs text-muted-foreground">
+                    <p className="font-medium uppercase tracking-[0.12em] text-foreground">
+                      Bindings Unavailable
+                    </p>
+                    <p>
+                      Bindings are only available when Target Kind is <strong>work_unit</strong>.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid gap-4">
+                    <section className="chiron-frame-flat chiron-tone-context grid gap-3 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="grid gap-1">
+                          <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
+                            Work Unit Bindings
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Map values into the invoked work-unit facts and artifact slots.
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          size="xs"
+                          variant="outline"
+                          className="rounded-none"
+                          onClick={() => {
+                            setBindings((previous) => [
+                              ...previous,
+                              createEmptyInvokeBindingDraft(),
+                            ]);
+                            setStatusMessage(null);
+                          }}
+                        >
+                          <PlusIcon className="size-3" /> Add Binding
+                        </Button>
+                      </div>
+
+                      {bindings.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">
+                          No invoke bindings authored yet.
+                        </p>
+                      ) : (
+                        <div className="grid gap-3">
+                          {bindings.map((binding, index) => {
+                            const selectedDestination = bindingDestinationsByKey.get(
+                              `${binding.destinationKind}:${binding.destinationDefinitionId}`,
+                            );
+                            const currentDestinationKey = `${binding.destinationKind}:${binding.destinationDefinitionId}`;
+                            const alreadyBoundDestinationKeys = new Set(
+                              bindings
+                                .filter((entry) => entry.localId !== binding.localId)
+                                .map(
+                                  (entry) =>
+                                    `${entry.destinationKind}:${entry.destinationDefinitionId.trim()}`,
+                                )
+                                .filter((entry) => !entry.endsWith(":")),
+                            );
+                            const destinationOptionsForBinding = bindingDestinationOptions.map(
+                              (option) => {
+                                const isAlreadyBound =
+                                  option.value !== currentDestinationKey &&
+                                  alreadyBoundDestinationKeys.has(option.value);
+                                return isAlreadyBound
+                                  ? {
+                                      ...option,
+                                      disabled: true,
+                                      disabledReason: "Already bound in another binding",
+                                    }
+                                  : option;
+                              },
+                            );
+                            const availableSourceKinds = selectedDestination
+                              ? [
+                                  "context_fact",
+                                  ...(selectedDestination.literalAllowed
+                                    ? (["literal"] as const)
+                                    : []),
+                                  "runtime",
+                                ]
+                              : (["context_fact", "runtime"] as const);
+                            const compatibleContextFactOptions = bindingContextFactOptions.filter(
+                              (option) => {
+                                const sourceFact = contextFactsById.get(option.value);
+                                return sourceFact
+                                  ? isContextFactCompatibleWithDestination(
+                                      sourceFact,
+                                      selectedDestination,
+                                    )
+                                  : false;
+                              },
+                            );
+
+                            return (
+                              <article
+                                key={binding.localId}
+                                className="chiron-cut-frame-thick chiron-tone-canvas grid gap-4 p-4"
+                              >
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <p className="font-geist-pixel-square text-sm uppercase tracking-[0.12em]">
+                                    Binding {index + 1}
+                                  </p>
+                                  <Button
+                                    type="button"
+                                    size="xs"
+                                    variant="destructive"
+                                    className="rounded-none"
+                                    onClick={() =>
+                                      setBindings((previous) =>
+                                        previous.filter(
+                                          (entry) => entry.localId !== binding.localId,
+                                        ),
+                                      )
+                                    }
+                                  >
+                                    <XIcon className="size-3" /> Remove
+                                  </Button>
+                                </div>
+
+                                <div className="grid gap-4 lg:grid-cols-2">
+                                  <div className="grid gap-2 lg:col-span-2">
+                                    <Label
+                                      id={`workflow-editor-invoke-binding-destination-label-${binding.localId}`}
+                                    >
+                                      Destination
+                                    </Label>
+                                    <SearchableCombobox
+                                      labelId={`workflow-editor-invoke-binding-destination-label-${binding.localId}`}
+                                      value={
+                                        binding.destinationDefinitionId
+                                          ? `${binding.destinationKind}:${binding.destinationDefinitionId}`
+                                          : ""
+                                      }
+                                      onChange={(value) => {
+                                        const [nextKind, ...rest] = value.split(":");
+                                        const nextId = rest.join(":");
+                                        if (
+                                          (nextKind !== "work_unit_fact" &&
+                                            nextKind !== "artifact_slot") ||
+                                          nextId.length === 0
+                                        ) {
+                                          return;
+                                        }
+
+                                        setBindings((previous) =>
+                                          previous.map((entry) =>
+                                            entry.localId === binding.localId
+                                              ? {
+                                                  ...entry,
+                                                  destinationKind: nextKind,
+                                                  destinationDefinitionId: nextId,
+                                                }
+                                              : entry,
+                                          ),
+                                        );
+                                      }}
+                                      options={destinationOptionsForBinding}
+                                      placeholder="Select a destination"
+                                      searchPlaceholder="Search destinations"
+                                      emptyLabel="No invoke destinations available."
+                                    />
+                                    {selectedDestination ? (
+                                      <p className="text-[0.7rem] text-muted-foreground">
+                                        Destination metadata: {selectedDestination.summary} ·{" "}
+                                        {selectedDestination.key}
+                                      </p>
+                                    ) : null}
+                                  </div>
+
+                                  <div className="grid gap-2">
+                                    <Label
+                                      htmlFor={`workflow-editor-invoke-binding-type-${binding.localId}`}
+                                    >
+                                      Source Type
+                                    </Label>
+                                    <Select
+                                      value={binding.sourceKind}
+                                      onValueChange={(value) => {
+                                        if (!value) {
+                                          return;
+                                        }
+
+                                        setBindings((previous) =>
+                                          previous.map((entry) =>
+                                            entry.localId === binding.localId
+                                              ? {
+                                                  ...entry,
+                                                  sourceKind:
+                                                    value as InvokeBindingDraft["sourceKind"],
+                                                  contextFactDefinitionId:
+                                                    value === "context_fact"
+                                                      ? entry.contextFactDefinitionId
+                                                      : "",
+                                                  literalValue:
+                                                    value === "literal" ? entry.literalValue : "",
+                                                }
+                                              : entry,
+                                          ),
+                                        );
+                                      }}
+                                    >
+                                      <SelectTrigger
+                                        id={`workflow-editor-invoke-binding-type-${binding.localId}`}
+                                        className="w-full rounded-none border-border/70 bg-background/50"
+                                      >
+                                        <SelectValue placeholder="Select source type" />
+                                      </SelectTrigger>
+                                      <SelectContent className="rounded-none">
+                                        {INVOKE_BINDING_SOURCE_OPTIONS.filter((option) =>
+                                          availableSourceKinds.includes(
+                                            option.value as InvokeBindingDraft["sourceKind"],
+                                          ),
+                                        ).map((option) => (
+                                          <SelectItem key={option.value} value={option.value}>
+                                            {option.label}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    <p className="text-[0.7rem] text-muted-foreground">
+                                      {INVOKE_BINDING_SOURCE_OPTIONS.find(
+                                        (option) => option.value === binding.sourceKind,
+                                      )?.description ??
+                                        "Choose how the destination receives a value."}
+                                    </p>
+                                  </div>
+
+                                  {binding.sourceKind === "context_fact" ? (
+                                    <div className="grid gap-2">
+                                      <Label
+                                        id={`workflow-editor-invoke-binding-source-fact-label-${binding.localId}`}
+                                      >
+                                        Source Context Fact
+                                      </Label>
+                                      <SearchableCombobox
+                                        labelId={`workflow-editor-invoke-binding-source-fact-label-${binding.localId}`}
+                                        value={binding.contextFactDefinitionId}
+                                        onChange={(value) =>
+                                          setBindings((previous) =>
+                                            previous.map((entry) =>
+                                              entry.localId === binding.localId
+                                                ? { ...entry, contextFactDefinitionId: value }
+                                                : entry,
+                                            ),
+                                          )
+                                        }
+                                        options={compatibleContextFactOptions}
+                                        placeholder="Select a compatible context fact"
+                                        searchPlaceholder="Search compatible context facts"
+                                        emptyLabel="No compatible context facts available."
+                                      />
+                                      <p className="text-[0.7rem] text-muted-foreground">
+                                        Source note: only compatible context facts are shown for
+                                        this destination.
+                                      </p>
+                                    </div>
+                                  ) : null}
+
+                                  {binding.sourceKind === "literal" && selectedDestination ? (
+                                    <div className="grid gap-2">
+                                      <Label
+                                        htmlFor={`workflow-editor-invoke-binding-literal-${binding.localId}`}
+                                      >
+                                        Literal Value
+                                      </Label>
+                                      {selectedDestination.factType === "boolean" ? (
+                                        <div className="flex items-center gap-3">
+                                          <Checkbox
+                                            id={`workflow-editor-invoke-binding-literal-${binding.localId}`}
+                                            checked={binding.literalValue === "true"}
+                                            onCheckedChange={(checked) =>
+                                              setBindings((previous) =>
+                                                previous.map((entry) =>
+                                                  entry.localId === binding.localId
+                                                    ? {
+                                                        ...entry,
+                                                        literalValue: checked ? "true" : "false",
+                                                      }
+                                                    : entry,
+                                                ),
+                                              )
+                                            }
+                                          />
+                                          <Label
+                                            htmlFor={`workflow-editor-invoke-binding-literal-${binding.localId}`}
+                                          >
+                                            Boolean literal
+                                          </Label>
+                                        </div>
+                                      ) : (
+                                        <Input
+                                          id={`workflow-editor-invoke-binding-literal-${binding.localId}`}
+                                          type={
+                                            selectedDestination.factType === "number"
+                                              ? "number"
+                                              : "text"
+                                          }
+                                          className="rounded-none border-border/70 bg-background/50"
+                                          value={binding.literalValue}
+                                          onChange={(event) =>
+                                            setBindings((previous) =>
+                                              previous.map((entry) =>
+                                                entry.localId === binding.localId
+                                                  ? { ...entry, literalValue: event.target.value }
+                                                  : entry,
+                                              ),
+                                            )
+                                          }
+                                          placeholder={
+                                            selectedDestination.factType === "number"
+                                              ? "42"
+                                              : "literal text"
+                                          }
+                                        />
+                                      )}
+                                      <p className="text-[0.7rem] text-muted-foreground">
+                                        Source note: literal must match destination type{" "}
+                                        {selectedDestination.factType}.
+                                      </p>
+                                    </div>
+                                  ) : null}
+
+                                  {binding.sourceKind === "runtime" ? (
+                                    <div className="grid gap-2 lg:col-span-2">
+                                      <p className="text-[0.7rem] text-muted-foreground">
+                                        Runtime source: this destination is intentionally left for
+                                        project runtime to provide.
+                                      </p>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </article>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </section>
+
+                    <section className="chiron-frame-flat chiron-tone-context grid gap-3 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="grid gap-1">
+                          <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
+                            Activation Transitions
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Select the transitions and workflows that should activate after invoke.
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          size="xs"
+                          variant="outline"
+                          className="rounded-none"
+                          onClick={() => {
+                            setActivationTransitions((previous) => [
+                              ...previous,
+                              createEmptyInvokeActivationTransitionDraft(),
+                            ]);
+                            setStatusMessage(null);
+                          }}
+                        >
+                          <PlusIcon className="size-3" /> Add Transition
+                        </Button>
+                      </div>
+
+                      {activationTransitions.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">
+                          No activation transitions authored yet.
+                        </p>
+                      ) : (
+                        <div className="grid gap-3">
+                          {activationTransitions.map((transition, index) =>
+                            (() => {
+                              const selectedTransitionId = transition.transitionId.trim();
+                              const selectedTransitionIdsByOtherRows = new Set(
+                                activationTransitions
+                                  .filter((entry) => entry.localId !== transition.localId)
+                                  .map((entry) => entry.transitionId.trim())
+                                  .filter((entry) => entry.length > 0),
+                              );
+                              const transitionOptionsForRow = availableInvokeTransitionOptions.map(
+                                (option) => {
+                                  const isAlreadyUsed =
+                                    option.value !== selectedTransitionId &&
+                                    selectedTransitionIdsByOtherRows.has(option.value);
+                                  return isAlreadyUsed
+                                    ? {
+                                        ...option,
+                                        disabled: true,
+                                        disabledReason:
+                                          "Already used in another activation transition",
+                                      }
+                                    : option;
+                                },
+                              );
+                              const boundWorkflowKeys =
+                                selectedTransitionId.length > 0
+                                  ? (boundWorkflowKeysByTransition[selectedTransitionId] ?? [])
+                                  : [];
+                              const transitionWorkflowOptions =
+                                selectedTransitionId.length > 0
+                                  ? availableInvokeWorkflowOptions.filter((option) => {
+                                      const workflowKey = option.secondaryLabel ?? option.value;
+                                      return boundWorkflowKeys.includes(workflowKey);
+                                    })
+                                  : [];
+
+                              return (
+                                <article
+                                  key={transition.localId}
+                                  className="chiron-cut-frame-thick chiron-tone-canvas grid gap-4 p-4"
+                                >
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <p className="font-geist-pixel-square text-sm uppercase tracking-[0.12em]">
+                                      Activation Transition {index + 1}
+                                    </p>
+                                    <Button
+                                      type="button"
+                                      size="xs"
+                                      variant="destructive"
+                                      className="rounded-none"
+                                      onClick={() =>
+                                        setActivationTransitions((previous) =>
+                                          previous.filter(
+                                            (entry) => entry.localId !== transition.localId,
+                                          ),
+                                        )
+                                      }
+                                    >
+                                      <XIcon className="size-3" /> Remove
+                                    </Button>
+                                  </div>
+
+                                  <div className="grid gap-4 lg:grid-cols-2">
+                                    <div className="grid gap-2">
+                                      <Label
+                                        id={`workflow-editor-invoke-transition-label-${transition.localId}`}
+                                      >
+                                        Transition
+                                      </Label>
+                                      <SearchableCombobox
+                                        labelId={`workflow-editor-invoke-transition-label-${transition.localId}`}
+                                        value={transition.transitionId}
+                                        onChange={(value) =>
+                                          setActivationTransitions((previous) =>
+                                            previous.map((entry) =>
+                                              entry.localId === transition.localId
+                                                ? {
+                                                    ...entry,
+                                                    transitionId: value,
+                                                    workflowDefinitionIds: [],
+                                                  }
+                                                : entry,
+                                            ),
+                                          )
+                                        }
+                                        options={transitionOptionsForRow}
+                                        placeholder="Select a transition"
+                                        searchPlaceholder="Search transitions"
+                                        emptyLabel={
+                                          selectedBindingWorkUnitDefinitionId.length === 0
+                                            ? "Select a work unit first."
+                                            : "No transitions found."
+                                        }
+                                        disabled={selectedBindingWorkUnitDefinitionId.length === 0}
+                                      />
+                                    </div>
+
+                                    <div className="grid gap-2">
+                                      <Label
+                                        id={`workflow-editor-invoke-transition-workflows-label-${transition.localId}`}
+                                      >
+                                        Workflows
+                                      </Label>
+                                      <SearchableMultiSelect
+                                        labelId={`workflow-editor-invoke-transition-workflows-label-${transition.localId}`}
+                                        values={transition.workflowDefinitionIds}
+                                        onChange={(values) =>
+                                          setActivationTransitions((previous) =>
+                                            previous.map((entry) =>
+                                              entry.localId === transition.localId
+                                                ? { ...entry, workflowDefinitionIds: values }
+                                                : entry,
+                                            ),
+                                          )
+                                        }
+                                        options={transitionWorkflowOptions}
+                                        placeholder="Select workflows"
+                                        searchPlaceholder="Search workflows"
+                                        emptyLabel={
+                                          transition.transitionId.trim().length === 0
+                                            ? "Select a transition first."
+                                            : "No bound primary workflows for this transition."
+                                        }
+                                        singularLabel="workflow"
+                                        pluralLabel="workflows"
+                                      />
+                                      {transition.transitionId.trim().length > 0 ? (
+                                        <p className="text-[0.7rem] text-muted-foreground">
+                                          Workflow options are limited to the selected transition's
+                                          bound primary workflows.
+                                        </p>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                </article>
+                              );
+                            })(),
+                          )}
+                        </div>
+                      )}
+                    </section>
+                  </div>
+                )
+              ) : null}
+
+              {activeTab === "guidance" ? (
+                <GuidanceFields guidance={guidance} onChange={setGuidance} />
+              ) : null}
+            </div>
+
+            <DialogFooter className="shrink-0 border-t border-border/70 pt-4 sm:justify-between">
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-none"
+                  onClick={requestCloseDialog}
+                >
+                  Cancel
+                </Button>
+                {mode === "edit" ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    className="rounded-none"
+                    onClick={() => void onDelete?.()}
+                  >
+                    Delete
+                  </Button>
+                ) : null}
+              </div>
+              <Button type="submit" className="rounded-none" disabled={!canSave}>
+                {mode === "create" ? "Create" : "Save"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDiscardDialogOpen} onOpenChange={setIsDiscardDialogOpen}>
+        <DialogContent className="chiron-cut-frame-thick w-[min(28rem,calc(100vw-2rem))] p-8 sm:max-w-none">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold uppercase tracking-[0.08em]">
+              Discard unsaved changes?
+            </DialogTitle>
+            <DialogDescription>
+              You have unsaved invoke-step edits. Discarding now will close the dialog and lose
+              those changes.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-none"
+              onClick={() => setIsDiscardDialogOpen(false)}
+            >
+              Keep Editing
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              className="rounded-none"
+              onClick={closeDialog}
+            >
+              Discard Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -1451,6 +3383,7 @@ export function WorkflowContextFactDialog({
   availableWorkflows,
   workUnitFactsQueryScope,
   loadWorkUnitFacts,
+  loadWorkUnitArtifactSlots,
   onOpenChange,
   onSave,
 }: WorkflowContextFactDialogProps) {
@@ -1472,21 +3405,37 @@ export function WorkflowContextFactDialog({
   const [allowedValueTags, setAllowedValueTags] = useState<string[]>([]);
   const [jsonSubSchemaDrafts, setJsonSubSchemaDrafts] = useState<JsonSubSchemaDraft[]>([]);
   const [pendingIncludedFactDefinitionId, setPendingIncludedFactDefinitionId] = useState("");
+  const [pendingIncludedArtifactSlotDefinitionId, setPendingIncludedArtifactSlotDefinitionId] =
+    useState("");
   const [draftSpecCards, setDraftSpecCards] = useState<WorkUnitDraftFactCard[]>([]);
-  const selectedWorkUnitTypeKey =
-    draft.kind === "work_unit_draft_spec_fact" ? (draft.workUnitTypeKey?.trim() ?? "") : "";
+  const selectedWorkUnitDefinitionId =
+    draft.kind === "work_unit_draft_spec_fact"
+      ? (draft.workUnitDefinitionId?.trim() ?? draft.workUnitTypeKey?.trim() ?? "")
+      : "";
   const selectedWorkUnitFactsQuery = useQuery({
     queryKey: [
       "workflow-editor",
       "work-unit-draft-spec-facts",
       workUnitFactsQueryScope,
-      selectedWorkUnitTypeKey,
+      selectedWorkUnitDefinitionId,
     ],
-    queryFn: async () => loadWorkUnitFacts(selectedWorkUnitTypeKey),
+    queryFn: async () => loadWorkUnitFacts(selectedWorkUnitDefinitionId),
     enabled:
-      open && draft.kind === "work_unit_draft_spec_fact" && selectedWorkUnitTypeKey.length > 0,
+      open && draft.kind === "work_unit_draft_spec_fact" && selectedWorkUnitDefinitionId.length > 0,
   });
   const selectedWorkUnitFacts = selectedWorkUnitFactsQuery.data ?? [];
+  const selectedWorkUnitArtifactSlotsQuery = useQuery({
+    queryKey: [
+      "workflow-editor",
+      "work-unit-draft-spec-artifact-slots",
+      workUnitFactsQueryScope,
+      selectedWorkUnitDefinitionId,
+    ],
+    queryFn: async () => loadWorkUnitArtifactSlots(selectedWorkUnitDefinitionId),
+    enabled:
+      open && draft.kind === "work_unit_draft_spec_fact" && selectedWorkUnitDefinitionId.length > 0,
+  });
+  const selectedWorkUnitArtifactSlots = selectedWorkUnitArtifactSlotsQuery.data ?? [];
   const selectedDraftSpecPickerFacts = useMemo(
     () =>
       selectedWorkUnitFacts.map((option) => {
@@ -1526,13 +3475,39 @@ export function WorkflowContextFactDialog({
         : undefined,
     [draft.kind, pendingIncludedFactDefinitionId, selectedWorkUnitFacts],
   );
+  const availableDraftSpecArtifactOptions = useMemo(
+    () =>
+      selectedWorkUnitArtifactSlots.filter(
+        (option) =>
+          !draft.selectedArtifactSlotDefinitionIds.some(
+            (selectedId) => selectedId === option.value || selectedId === option.secondaryLabel,
+          ),
+      ),
+    [draft.selectedArtifactSlotDefinitionIds, selectedWorkUnitArtifactSlots],
+  );
   const selectedArtifactSlot = useMemo(
     () =>
       draft.kind === "artifact_reference_fact"
-        ? artifactSlots.find((option) => option.value === draft.artifactSlotDefinitionId)
+        ? artifactSlots.find(
+            (option) =>
+              option.value === draft.artifactSlotDefinitionId ||
+              option.secondaryLabel === draft.artifactSlotDefinitionId,
+          )
         : undefined,
     [draft.kind, draft.artifactSlotDefinitionId, artifactSlots],
   );
+  const selectedWorkUnitArtifactOptionsByIdentifier = useMemo(() => {
+    const optionsByIdentifier = new Map<string, WorkflowEditorPickerOption>();
+
+    selectedWorkUnitArtifactSlots.forEach((option) => {
+      optionsByIdentifier.set(option.value, option);
+      if (typeof option.secondaryLabel === "string" && option.secondaryLabel.length > 0) {
+        optionsByIdentifier.set(option.secondaryLabel, option);
+      }
+    });
+
+    return optionsByIdentifier;
+  }, [selectedWorkUnitArtifactSlots]);
   const constrainedSourceCardinality = useMemo(() => {
     switch (draft.kind) {
       case "definition_backed_external_fact":
@@ -1577,9 +3552,12 @@ export function WorkflowContextFactDialog({
         ? [createEmptyJsonSubSchemaDraft([])]
         : [];
     const nextPendingIncludedFactDefinitionId = "";
-    const nextDraftSpecCards = nextDraft.includedFactDefinitionIds.map((factDefinitionId) =>
-      createWorkUnitDraftFactCard(factDefinitionId, []),
-    );
+    const nextPendingIncludedArtifactSlotDefinitionId = "";
+    const nextDraftSpecCards = (
+      nextDraft.selectedWorkUnitFactDefinitionIds.length > 0
+        ? nextDraft.selectedWorkUnitFactDefinitionIds
+        : nextDraft.includedFactDefinitionIds
+    ).map((factDefinitionId) => createWorkUnitDraftFactCard(factDefinitionId, []));
 
     setDraft(nextDraft);
     setPlainStringDefaultValue(nextPlainStringDefaultValue);
@@ -1593,6 +3571,7 @@ export function WorkflowContextFactDialog({
     setAllowedValueTags(nextAllowedValueTags);
     setJsonSubSchemaDrafts(nextJsonSubSchemaDrafts);
     setPendingIncludedFactDefinitionId(nextPendingIncludedFactDefinitionId);
+    setPendingIncludedArtifactSlotDefinitionId(nextPendingIncludedArtifactSlotDefinitionId);
     setDraftSpecCards(nextDraftSpecCards);
     setInitialSnapshot(
       toWorkflowContextFactDialogSnapshot({
@@ -1760,10 +3739,17 @@ export function WorkflowContextFactDialog({
                 descriptionMarkdown: draft.descriptionMarkdown.trim(),
                 externalFactDefinitionId: draft.externalFactDefinitionId?.trim() ?? "",
                 artifactSlotDefinitionId: draft.artifactSlotDefinitionId?.trim() ?? "",
-                workUnitTypeKey: draft.workUnitTypeKey?.trim() ?? "",
+                workUnitDefinitionId:
+                  draft.workUnitDefinitionId?.trim() ?? draft.workUnitTypeKey?.trim() ?? "",
+                workUnitTypeKey:
+                  draft.workUnitDefinitionId?.trim() ?? draft.workUnitTypeKey?.trim() ?? "",
                 allowedWorkflowDefinitionIds: draft.allowedWorkflowDefinitionIds.map((entry) =>
                   entry.trim(),
                 ),
+                selectedWorkUnitFactDefinitionIds: draftSpecCards
+                  .map((entry) => entry.factDefinitionId.trim())
+                  .filter((entry) => entry.length > 0),
+                selectedArtifactSlotDefinitionIds: draft.selectedArtifactSlotDefinitionIds,
                 includedFactDefinitionIds: draftSpecCards
                   .map((entry) => entry.factDefinitionId.trim())
                   .filter((entry) => entry.length > 0),
@@ -1875,6 +3861,7 @@ export function WorkflowContextFactDialog({
                           setAllowedValueTags([]);
                           setJsonSubSchemaDrafts([]);
                           setPendingIncludedFactDefinitionId("");
+                          setPendingIncludedArtifactSlotDefinitionId("");
                           setDraftSpecCards([]);
 
                           return {
@@ -2499,17 +4486,21 @@ export function WorkflowContextFactDialog({
                     <div className="grid gap-4">
                       <div className="grid gap-2 lg:max-w-2xl">
                         <Label id="workflow-editor-context-fact-work-unit-type">
-                          Work Unit Type Key
+                          Work Unit Definition
                         </Label>
                         <SearchableCombobox
                           labelId="workflow-editor-context-fact-work-unit-type"
-                          value={draft.workUnitTypeKey ?? ""}
+                          value={draft.workUnitDefinitionId ?? draft.workUnitTypeKey ?? ""}
                           onChange={(value) => {
                             setPendingIncludedFactDefinitionId("");
+                            setPendingIncludedArtifactSlotDefinitionId("");
                             setDraftSpecCards([]);
                             setDraft((previous) => ({
                               ...previous,
+                              workUnitDefinitionId: value,
                               workUnitTypeKey: value,
+                              selectedWorkUnitFactDefinitionIds: [],
+                              selectedArtifactSlotDefinitionIds: [],
                               includedFactDefinitionIds: [],
                             }));
                           }}
@@ -2545,19 +4536,19 @@ export function WorkflowContextFactDialog({
                                 onChange={setPendingIncludedFactDefinitionId}
                                 options={availableDraftSpecFactOptions}
                                 placeholder={
-                                  selectedWorkUnitTypeKey.length > 0
+                                  selectedWorkUnitDefinitionId.length > 0
                                     ? "Select a fact definition"
                                     : "Select a work unit type first"
                                 }
                                 searchPlaceholder="Search fact definitions..."
                                 emptyLabel={
-                                  selectedWorkUnitTypeKey.length === 0
+                                  selectedWorkUnitDefinitionId.length === 0
                                     ? "Select a work unit type first."
                                     : selectedWorkUnitFactsQuery.isLoading
                                       ? "Loading fact definitions..."
                                       : "No fact definitions found."
                                 }
-                                disabled={selectedWorkUnitTypeKey.length === 0}
+                                disabled={selectedWorkUnitDefinitionId.length === 0}
                               />
                             </div>
                             <div className="flex items-end">
@@ -2565,7 +4556,7 @@ export function WorkflowContextFactDialog({
                                 type="button"
                                 className="rounded-none"
                                 disabled={
-                                  selectedWorkUnitTypeKey.length === 0 ||
+                                  selectedWorkUnitDefinitionId.length === 0 ||
                                   pendingIncludedFactDefinitionId.length === 0
                                 }
                                 onClick={() => {
@@ -2583,6 +4574,9 @@ export function WorkflowContextFactDialog({
                                   setDraftSpecCards(nextCards);
                                   setDraft((previous) => ({
                                     ...previous,
+                                    selectedWorkUnitFactDefinitionIds: nextCards.map(
+                                      (entry) => entry.factDefinitionId,
+                                    ),
                                     includedFactDefinitionIds: nextCards.map(
                                       (entry) => entry.factDefinitionId,
                                     ),
@@ -2597,7 +4591,7 @@ export function WorkflowContextFactDialog({
                           </div>
                         ) : (
                           <p className="text-xs text-muted-foreground">
-                            {selectedWorkUnitTypeKey.length === 0
+                            {selectedWorkUnitDefinitionId.length === 0
                               ? "Select a work unit type to load draft-spec fact definitions."
                               : selectedWorkUnitFactsQuery.isLoading
                                 ? "Loading facts for the selected work unit..."
@@ -2660,6 +4654,9 @@ export function WorkflowContextFactDialog({
                                       setDraftSpecCards(nextCards);
                                       setDraft((previous) => ({
                                         ...previous,
+                                        selectedWorkUnitFactDefinitionIds: nextCards.map(
+                                          (card) => card.factDefinitionId,
+                                        ),
                                         includedFactDefinitionIds: nextCards.map(
                                           (card) => card.factDefinitionId,
                                         ),
@@ -2673,6 +4670,113 @@ export function WorkflowContextFactDialog({
                             ))}
                           </div>
                         )}
+
+                        <div className="grid gap-3 border-t border-border/70 pt-3">
+                          <div className="grid gap-1">
+                            <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
+                              Included Artifact Slot Definitions
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Add reusable artifact-slot references to the draft-spec envelope.
+                            </p>
+                          </div>
+                          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+                            <div className="grid gap-2">
+                              <Label id="workflow-editor-context-fact-draft-spec-artifact-slots">
+                                Artifact Slot Definition
+                              </Label>
+                              <SearchableCombobox
+                                labelId="workflow-editor-context-fact-draft-spec-artifact-slots"
+                                value={pendingIncludedArtifactSlotDefinitionId}
+                                onChange={setPendingIncludedArtifactSlotDefinitionId}
+                                options={availableDraftSpecArtifactOptions}
+                                placeholder={
+                                  selectedWorkUnitDefinitionId.length > 0
+                                    ? "Select an artifact slot"
+                                    : "Select a work unit type first"
+                                }
+                                searchPlaceholder="Search artifact slots..."
+                                emptyLabel={
+                                  selectedWorkUnitDefinitionId.length === 0
+                                    ? "Select a work unit type first."
+                                    : selectedWorkUnitArtifactSlotsQuery.isLoading
+                                      ? "Loading artifact slots..."
+                                      : "No artifact slots available."
+                                }
+                                disabled={selectedWorkUnitDefinitionId.length === 0}
+                              />
+                            </div>
+                            <div className="flex items-end">
+                              <Button
+                                type="button"
+                                className="rounded-none"
+                                disabled={
+                                  selectedWorkUnitDefinitionId.length === 0 ||
+                                  pendingIncludedArtifactSlotDefinitionId.length === 0
+                                }
+                                onClick={() => {
+                                  if (pendingIncludedArtifactSlotDefinitionId.length === 0) {
+                                    return;
+                                  }
+
+                                  setDraft((previous) => {
+                                    const nextSelectedArtifactSlotDefinitionIds = [
+                                      ...previous.selectedArtifactSlotDefinitionIds,
+                                      pendingIncludedArtifactSlotDefinitionId,
+                                    ];
+                                    return {
+                                      ...previous,
+                                      selectedArtifactSlotDefinitionIds:
+                                        nextSelectedArtifactSlotDefinitionIds,
+                                    };
+                                  });
+                                  setPendingIncludedArtifactSlotDefinitionId("");
+                                }}
+                              >
+                                <PlusIcon className="size-3.5" />
+                                Add Artifact Slot
+                              </Button>
+                            </div>
+                          </div>
+
+                          {draft.selectedArtifactSlotDefinitionIds.length === 0 ? (
+                            <p className="text-xs text-muted-foreground">
+                              No included artifact slots yet.
+                            </p>
+                          ) : (
+                            <div className="flex flex-wrap gap-2">
+                              {draft.selectedArtifactSlotDefinitionIds.map((slotDefinitionId) => (
+                                <button
+                                  key={slotDefinitionId}
+                                  type="button"
+                                  className="chiron-frame-flat flex items-center gap-2 px-3 py-2 text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground"
+                                  onClick={() =>
+                                    setDraft((previous) => ({
+                                      ...previous,
+                                      selectedArtifactSlotDefinitionIds:
+                                        previous.selectedArtifactSlotDefinitionIds.filter(
+                                          (current) => current !== slotDefinitionId,
+                                        ),
+                                    }))
+                                  }
+                                >
+                                  <span>{slotDefinitionId}</span>
+                                  {selectedWorkUnitArtifactOptionsByIdentifier.get(slotDefinitionId)
+                                    ?.label ? (
+                                    <span>
+                                      {
+                                        selectedWorkUnitArtifactOptionsByIdentifier.get(
+                                          slotDefinitionId,
+                                        )?.label
+                                      }
+                                    </span>
+                                  ) : null}
+                                  <span className="text-foreground">×</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ) : null}
@@ -2746,6 +4850,1372 @@ type EdgeDialogProps = {
   onSave: (descriptionMarkdown: string) => Promise<void> | void;
   onDelete: () => Promise<void> | void;
 };
+
+function createEmptyBranchRouteCondition(
+  fact?: WorkflowContextFactDefinitionItem,
+): WorkflowBranchRouteConditionPayload {
+  return {
+    conditionId: createLocalId("branch-condition"),
+    contextFactDefinitionId: fact?.contextFactDefinitionId ?? "",
+    contextFactKind: fact?.kind ?? "plain_value_fact",
+    operator: "equals",
+    isNegated: false,
+    comparisonJson: { value: "" },
+  };
+}
+
+function createEmptyBranchRouteGroup(): WorkflowBranchRouteGroupPayload {
+  return {
+    groupId: createLocalId("branch-group"),
+    mode: "all",
+    conditions: [createEmptyBranchRouteCondition()],
+  };
+}
+
+function createEmptyBranchRoute(): WorkflowBranchRoutePayload {
+  return {
+    routeId: createLocalId("branch-route"),
+    targetStepId: "",
+    conditionMode: "all",
+    groups: [createEmptyBranchRouteGroup()],
+  };
+}
+
+function toBranchGuidance(
+  guidance?: WorkflowBranchStepPayload["guidance"],
+): WorkflowEditorGuidance {
+  return {
+    humanMarkdown: guidance?.human?.markdown ?? "",
+    agentMarkdown: guidance?.agent?.markdown ?? "",
+  };
+}
+
+function toBranchStepDialogSnapshot(params: {
+  key: string;
+  label: string;
+  descriptionMarkdown: string;
+  defaultTargetStepId: string | null;
+  routes: readonly WorkflowBranchRoutePayload[];
+  guidance: WorkflowEditorGuidance;
+}): BranchStepDialogSnapshot {
+  return {
+    contract: {
+      key: params.key,
+      label: params.label,
+      descriptionMarkdown: params.descriptionMarkdown,
+      defaultTargetStepId: params.defaultTargetStepId,
+    },
+    routes: {
+      routes: params.routes.map((route) => ({
+        ...route,
+        groups: route.groups.map((group) => ({
+          ...group,
+          conditions: group.conditions.map((condition) => ({ ...condition })),
+        })),
+      })),
+    },
+    guidance: {
+      humanMarkdown: params.guidance.humanMarkdown,
+      agentMarkdown: params.guidance.agentMarkdown,
+    },
+  };
+}
+
+function toRouteDialogSnapshot(route: WorkflowBranchRoutePayload): RouteDialogSnapshot {
+  return {
+    targetStepId: route.targetStepId,
+    conditionMode: route.conditionMode,
+    groups: route.groups.map((group) => ({
+      ...group,
+      conditions: group.conditions.map((condition) => ({ ...condition })),
+    })),
+  };
+}
+
+function toWorkflowBranchStepPayload(params: {
+  key: string;
+  label: string;
+  descriptionMarkdown: string;
+  defaultTargetStepId: string | null;
+  routes: readonly WorkflowBranchRoutePayload[];
+  guidance: WorkflowEditorGuidance;
+}): WorkflowBranchStepPayload {
+  const normalizedKey = params.key.trim();
+  const normalizedLabel = params.label.trim();
+  const normalizedDescription = params.descriptionMarkdown.trim();
+
+  return {
+    key: normalizedKey,
+    ...(normalizedLabel.length > 0 ? { label: normalizedLabel } : {}),
+    ...(normalizedDescription.length > 0
+      ? { descriptionJson: { markdown: normalizedDescription } }
+      : {}),
+    guidance: {
+      human: { markdown: params.guidance.humanMarkdown.trim() },
+      agent: { markdown: params.guidance.agentMarkdown.trim() },
+    },
+    defaultTargetStepId: params.defaultTargetStepId,
+    routes: params.routes.map((route) => ({
+      ...route,
+      targetStepId: route.targetStepId.trim(),
+      groups: route.groups.map((group) => ({
+        ...group,
+        conditions: group.conditions.map((condition) => ({
+          ...condition,
+          contextFactDefinitionId: condition.contextFactDefinitionId.trim(),
+          operator: condition.operator.trim(),
+        })),
+      })),
+    })),
+  };
+}
+
+function getConditionComparisonDisplayValue(condition: WorkflowBranchRouteConditionPayload) {
+  if (condition.operator === "in") {
+    const record = condition.comparisonJson as { values?: unknown } | null;
+    return Array.isArray(record?.values)
+      ? record.values.map((value) => String(value)).join(", ")
+      : "";
+  }
+
+  const record = condition.comparisonJson as { value?: unknown } | null;
+  if (typeof record?.value === "boolean") {
+    return record.value ? "true" : "false";
+  }
+
+  return typeof record?.value === "undefined" ? "" : String(record.value);
+}
+
+function toComparisonScalar(
+  rawValue: string,
+  fact: WorkflowContextFactDefinitionItem | undefined,
+): unknown {
+  if (fact?.kind === "plain_value_fact" && fact.valueType === "number") {
+    const parsed = Number(rawValue);
+    return Number.isFinite(parsed) ? parsed : rawValue;
+  }
+
+  if (fact?.kind === "plain_value_fact" && fact.valueType === "boolean") {
+    return rawValue === "true";
+  }
+
+  return rawValue;
+}
+
+function createComparisonJsonForCondition(params: {
+  operator: WorkflowConditionOperator | undefined;
+  rawValue: string;
+  fact: WorkflowContextFactDefinitionItem | undefined;
+}): unknown {
+  if (!params.operator || !params.operator.requiresComparison) {
+    return null;
+  }
+
+  if (params.operator.key === "in") {
+    return {
+      values: params.rawValue
+        .split(",")
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0)
+        .map((value) => toComparisonScalar(value, params.fact)),
+    };
+  }
+
+  return { value: toComparisonScalar(params.rawValue, params.fact) };
+}
+
+function RouteModeRadioGroup(props: {
+  label: string;
+  value: "all" | "any";
+  onChange: (value: "all" | "any") => void;
+  name: string;
+}) {
+  return (
+    <div className="grid gap-2">
+      <Label>{props.label}</Label>
+      <RadioGroup
+        value={props.value}
+        onValueChange={(value) => value && props.onChange(value as "all" | "any")}
+        className="grid gap-2 sm:grid-cols-2"
+      >
+        {(["all", "any"] as const).map((option) => (
+          <div
+            key={option}
+            className="chiron-frame-flat flex items-center gap-2 px-3 py-2 text-xs uppercase tracking-[0.12em]"
+          >
+            <RadioGroupItem value={option} name={props.name} />
+            <span>{option}</span>
+          </div>
+        ))}
+      </RadioGroup>
+    </div>
+  );
+}
+
+function RouteConditionComparisonField(props: {
+  condition: WorkflowBranchRouteConditionPayload;
+  fact: WorkflowContextFactDefinitionItem | undefined;
+  operator: WorkflowConditionOperator | undefined;
+  onChange: (comparisonJson: unknown) => void;
+}) {
+  if (!props.operator?.requiresComparison) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        This operator does not require comparison input.
+      </p>
+    );
+  }
+
+  const value = getConditionComparisonDisplayValue(props.condition);
+
+  if (props.operator.key === "in") {
+    return (
+      <Textarea
+        aria-label="Comparison Values"
+        className="min-h-24 resize-none rounded-none border-border/70 bg-background/50"
+        value={value}
+        onChange={(event) =>
+          props.onChange(
+            createComparisonJsonForCondition({
+              operator: props.operator,
+              rawValue: event.target.value,
+              fact: props.fact,
+            }),
+          )
+        }
+        placeholder="value-a, value-b"
+      />
+    );
+  }
+
+  if (props.fact?.kind === "plain_value_fact" && props.fact.valueType === "boolean") {
+    return (
+      <Select
+        value={value}
+        onValueChange={(nextValue) =>
+          props.onChange(
+            createComparisonJsonForCondition({
+              operator: props.operator,
+              rawValue: nextValue ?? "false",
+              fact: props.fact,
+            }),
+          )
+        }
+      >
+        <SelectTrigger className="w-full rounded-none border-border/70 bg-background/50">
+          <SelectValue placeholder="Select a value" />
+        </SelectTrigger>
+        <SelectContent className="rounded-none">
+          <SelectItem value="true">true</SelectItem>
+          <SelectItem value="false">false</SelectItem>
+        </SelectContent>
+      </Select>
+    );
+  }
+
+  return (
+    <Input
+      aria-label="Comparison Value"
+      type={
+        props.fact?.kind === "plain_value_fact" && props.fact.valueType === "number"
+          ? "number"
+          : "text"
+      }
+      className="rounded-none border-border/70 bg-background/50"
+      value={value}
+      onChange={(event) =>
+        props.onChange(
+          createComparisonJsonForCondition({
+            operator: props.operator,
+            rawValue: event.target.value,
+            fact: props.fact,
+          }),
+        )
+      }
+      placeholder="Comparison value"
+    />
+  );
+}
+
+export function RouteDialog({
+  open,
+  ownerStepId,
+  route,
+  availableSteps,
+  availableContextFacts,
+  conditionOperators,
+  onOpenChange,
+  onSave,
+}: RouteDialogProps) {
+  const [draft, setDraft] = useState<WorkflowBranchRoutePayload>(route ?? createEmptyBranchRoute());
+  const [initialSnapshot, setInitialSnapshot] = useState<RouteDialogSnapshot | null>(null);
+  const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [expandedGroupIds, setExpandedGroupIds] = useState<string[]>([]);
+
+  const availableTargetSteps = useMemo(
+    () => availableSteps.filter((step) => step.value !== ownerStepId),
+    [availableSteps, ownerStepId],
+  );
+  const factsById = useMemo(
+    () => new Map(availableContextFacts.map((fact) => [fact.contextFactDefinitionId, fact])),
+    [availableContextFacts],
+  );
+  const factOptions = useMemo(
+    () =>
+      availableContextFacts.map((fact) => ({
+        value: fact.contextFactDefinitionId,
+        label: fact.label || fact.key,
+        secondaryLabel: fact.key,
+        description: fact.summary,
+      })),
+    [availableContextFacts],
+  );
+
+  useEffect(() => {
+    if (!open) {
+      setIsDiscardDialogOpen(false);
+      setStatusMessage(null);
+      return;
+    }
+
+    const nextDraft = route ? structuredClone(route) : createEmptyBranchRoute();
+    setDraft(nextDraft);
+    setInitialSnapshot(toRouteDialogSnapshot(nextDraft));
+    setExpandedGroupIds(nextDraft.groups.map((group) => group.groupId));
+    setIsDiscardDialogOpen(false);
+    setStatusMessage(null);
+  }, [open, route]);
+
+  const currentSnapshot = useMemo(() => toRouteDialogSnapshot(draft), [draft]);
+  const isDirty =
+    open && initialSnapshot
+      ? !areDialogSnapshotSectionsEqual(currentSnapshot, initialSnapshot)
+      : false;
+
+  const validationErrors = useMemo(() => {
+    const errors: string[] = [];
+    if (draft.targetStepId.trim().length === 0) {
+      errors.push("Select a target step for this route.");
+    }
+
+    if (draft.groups.length === 0) {
+      errors.push("Add at least one condition group.");
+    }
+
+    draft.groups.forEach((group, groupIndex) => {
+      if (group.conditions.length === 0) {
+        errors.push(`Add at least one condition to group ${groupIndex + 1}.`);
+      }
+
+      group.conditions.forEach((condition, conditionIndex) => {
+        const operator = conditionOperators.find((entry) => entry.key === condition.operator);
+        if (condition.contextFactDefinitionId.trim().length === 0) {
+          errors.push(
+            `Select a context fact for condition ${conditionIndex + 1} in group ${groupIndex + 1}.`,
+          );
+          return;
+        }
+
+        if (!operator) {
+          errors.push(
+            `Select an operator for condition ${conditionIndex + 1} in group ${groupIndex + 1}.`,
+          );
+          return;
+        }
+
+        if (!operator.validateComparison(condition.comparisonJson)) {
+          errors.push(
+            `Provide a valid comparison for condition ${conditionIndex + 1} in group ${groupIndex + 1}.`,
+          );
+        }
+      });
+    });
+
+    return errors;
+  }, [conditionOperators, draft]);
+
+  const canSave = validationErrors.length === 0;
+
+  const closeDialog = () => {
+    setIsDiscardDialogOpen(false);
+    onOpenChange(false);
+  };
+
+  const requestClose = () => {
+    if (isDirty) {
+      setIsDiscardDialogOpen(true);
+      return;
+    }
+
+    closeDialog();
+  };
+
+  return (
+    <>
+      <Dialog
+        open={open}
+        onOpenChange={(nextOpen) => {
+          if (nextOpen) {
+            return;
+          }
+
+          requestClose();
+        }}
+      >
+        <DialogContent className="chiron-cut-frame-thick flex w-[min(64rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] flex-col overflow-hidden p-6 sm:max-w-none">
+          <form
+            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!canSave) {
+                setStatusMessage(validationErrors[0] ?? "Complete the route definition.");
+                return;
+              }
+
+              onSave(draft);
+              onOpenChange(false);
+            }}
+          >
+            <DialogHeader className="shrink-0 gap-2">
+              <DialogTitle className="text-base font-semibold uppercase tracking-[0.08em]">
+                {route ? "Edit Route" : "Add Route"}
+              </DialogTitle>
+              <DialogDescription>
+                Author route target, route-wide condition mode, groups, and operator-backed
+                conditions.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="min-h-0 flex-1 overflow-y-auto py-4 pr-1 scrollbar-thin">
+              {statusMessage ? (
+                <p className="mb-4 border border-destructive/45 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  {statusMessage}
+                </p>
+              ) : null}
+
+              {!canSave ? (
+                <p className="mb-4 border border-border/70 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                  {validationErrors[0]}
+                </p>
+              ) : null}
+
+              <div className="grid gap-4">
+                <section className="chiron-frame-flat chiron-tone-context grid gap-4 p-4">
+                  <div className="grid gap-2">
+                    <Label id="workflow-editor-branch-route-target-label">Target Step</Label>
+                    <SearchableCombobox
+                      labelId="workflow-editor-branch-route-target-label"
+                      value={draft.targetStepId}
+                      onChange={(value) => {
+                        setDraft((previous) => ({ ...previous, targetStepId: value }));
+                        setStatusMessage(null);
+                      }}
+                      options={availableTargetSteps}
+                      placeholder="Select a target step"
+                      searchPlaceholder="Search steps"
+                      emptyLabel="No steps available."
+                    />
+                  </div>
+
+                  <RouteModeRadioGroup
+                    label="Condition Mode"
+                    name={`workflow-editor-route-condition-mode-${draft.routeId}`}
+                    value={draft.conditionMode}
+                    onChange={(value) => {
+                      setDraft((previous) => ({ ...previous, conditionMode: value }));
+                      setStatusMessage(null);
+                    }}
+                  />
+                </section>
+
+                <section className="chiron-frame-flat chiron-tone-context grid gap-3 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="grid gap-1">
+                      <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
+                        Groups
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Build nested condition groups for this route. Each group can require all or
+                        any condition.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="xs"
+                      variant="outline"
+                      className="rounded-none"
+                      onClick={() => {
+                        const nextGroup = createEmptyBranchRouteGroup();
+                        setDraft((previous) => ({
+                          ...previous,
+                          groups: [...previous.groups, nextGroup],
+                        }));
+                        setExpandedGroupIds((previous) => [...previous, nextGroup.groupId]);
+                        setStatusMessage(null);
+                      }}
+                    >
+                      <PlusIcon className="size-3" /> Add Group
+                    </Button>
+                  </div>
+
+                  {draft.groups.map((group, groupIndex) => {
+                    const isExpanded = expandedGroupIds.includes(group.groupId);
+
+                    return (
+                      <article
+                        key={group.groupId}
+                        className="chiron-cut-frame-thick chiron-tone-canvas grid gap-3 p-4"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <button
+                            type="button"
+                            className="grid gap-1 text-left"
+                            onClick={() =>
+                              setExpandedGroupIds((previous) =>
+                                previous.includes(group.groupId)
+                                  ? previous.filter((entry) => entry !== group.groupId)
+                                  : [...previous, group.groupId],
+                              )
+                            }
+                          >
+                            <span className="font-geist-pixel-square text-sm uppercase tracking-[0.12em]">
+                              Group {groupIndex + 1}
+                            </span>
+                            <span className="text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
+                              {group.mode.toUpperCase()} · {group.conditions.length} condition
+                              {group.conditions.length === 1 ? "" : "s"}
+                            </span>
+                          </button>
+                          <Button
+                            type="button"
+                            size="xs"
+                            variant="destructive"
+                            className="rounded-none"
+                            onClick={() =>
+                              setDraft((previous) => ({
+                                ...previous,
+                                groups: previous.groups.filter(
+                                  (entry) => entry.groupId !== group.groupId,
+                                ),
+                              }))
+                            }
+                          >
+                            <XIcon className="size-3" /> Remove Group
+                          </Button>
+                        </div>
+
+                        {isExpanded ? (
+                          <div className="grid gap-4">
+                            <RouteModeRadioGroup
+                              label="Group Mode"
+                              name={`workflow-editor-branch-group-mode-${group.groupId}`}
+                              value={group.mode}
+                              onChange={(value) =>
+                                setDraft((previous) => ({
+                                  ...previous,
+                                  groups: previous.groups.map((entry) =>
+                                    entry.groupId === group.groupId
+                                      ? { ...entry, mode: value }
+                                      : entry,
+                                  ),
+                                }))
+                              }
+                            />
+
+                            <div className="grid gap-3">
+                              {group.conditions.map((condition, conditionIndex) => {
+                                const fact = factsById.get(condition.contextFactDefinitionId);
+                                const compatibleOperators = conditionOperators.filter((operator) =>
+                                  operator.supportedFactKinds.includes(
+                                    fact?.kind ?? condition.contextFactKind,
+                                  ),
+                                );
+                                const selectedOperator = compatibleOperators.find(
+                                  (operator) => operator.key === condition.operator,
+                                );
+
+                                return (
+                                  <div
+                                    key={condition.conditionId}
+                                    className="chiron-frame-flat grid gap-4 p-4"
+                                  >
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                      <p className="font-medium uppercase tracking-[0.12em]">
+                                        Condition {conditionIndex + 1}
+                                      </p>
+                                      <Button
+                                        type="button"
+                                        size="xs"
+                                        variant="destructive"
+                                        className="rounded-none"
+                                        onClick={() =>
+                                          setDraft((previous) => ({
+                                            ...previous,
+                                            groups: previous.groups.map((entry) =>
+                                              entry.groupId === group.groupId
+                                                ? {
+                                                    ...entry,
+                                                    conditions: entry.conditions.filter(
+                                                      (candidate) =>
+                                                        candidate.conditionId !==
+                                                        condition.conditionId,
+                                                    ),
+                                                  }
+                                                : entry,
+                                            ),
+                                          }))
+                                        }
+                                      >
+                                        Remove Condition
+                                      </Button>
+                                    </div>
+
+                                    <div className="grid gap-4 lg:grid-cols-2">
+                                      <div className="grid gap-2 lg:col-span-2">
+                                        <Label
+                                          id={`workflow-editor-branch-condition-fact-${condition.conditionId}`}
+                                        >
+                                          Context Fact
+                                        </Label>
+                                        <SearchableCombobox
+                                          labelId={`workflow-editor-branch-condition-fact-${condition.conditionId}`}
+                                          value={condition.contextFactDefinitionId}
+                                          onChange={(value) => {
+                                            const nextFact = factsById.get(value);
+                                            setDraft((previous) => ({
+                                              ...previous,
+                                              groups: previous.groups.map((entry) =>
+                                                entry.groupId === group.groupId
+                                                  ? {
+                                                      ...entry,
+                                                      conditions: entry.conditions.map(
+                                                        (candidate) =>
+                                                          candidate.conditionId ===
+                                                          condition.conditionId
+                                                            ? {
+                                                                ...candidate,
+                                                                contextFactDefinitionId: value,
+                                                                contextFactKind:
+                                                                  nextFact?.kind ??
+                                                                  candidate.contextFactKind,
+                                                                operator:
+                                                                  conditionOperators.find(
+                                                                    (operator) =>
+                                                                      operator.supportedFactKinds.includes(
+                                                                        nextFact?.kind ??
+                                                                          candidate.contextFactKind,
+                                                                      ),
+                                                                  )?.key ?? "equals",
+                                                                comparisonJson: { value: "" },
+                                                              }
+                                                            : candidate,
+                                                      ),
+                                                    }
+                                                  : entry,
+                                              ),
+                                            }));
+                                          }}
+                                          options={factOptions}
+                                          placeholder="Select a workflow context fact"
+                                          searchPlaceholder="Search context facts"
+                                          emptyLabel="No context facts available."
+                                        />
+                                      </div>
+
+                                      <div className="grid gap-2">
+                                        <Label>Fact Kind</Label>
+                                        <p className="rounded-none border border-border/70 bg-background/40 px-3 py-2 text-xs uppercase tracking-[0.12em] text-muted-foreground">
+                                          {(fact?.kind ?? condition.contextFactKind).replaceAll(
+                                            "_",
+                                            " ",
+                                          )}
+                                        </p>
+                                      </div>
+
+                                      <div className="grid gap-2">
+                                        <Label
+                                          htmlFor={`workflow-editor-branch-condition-operator-${condition.conditionId}`}
+                                        >
+                                          Operator
+                                        </Label>
+                                        <Select
+                                          value={condition.operator}
+                                          onValueChange={(value) =>
+                                            setDraft((previous) => ({
+                                              ...previous,
+                                              groups: previous.groups.map((entry) =>
+                                                entry.groupId === group.groupId
+                                                  ? {
+                                                      ...entry,
+                                                      conditions: entry.conditions.map(
+                                                        (candidate) =>
+                                                          candidate.conditionId ===
+                                                          condition.conditionId
+                                                            ? {
+                                                                ...candidate,
+                                                                operator:
+                                                                  value ?? candidate.operator,
+                                                                comparisonJson:
+                                                                  createComparisonJsonForCondition({
+                                                                    operator:
+                                                                      compatibleOperators.find(
+                                                                        (operator) =>
+                                                                          operator.key ===
+                                                                          (value ??
+                                                                            candidate.operator),
+                                                                      ),
+                                                                    rawValue: "",
+                                                                    fact,
+                                                                  }),
+                                                              }
+                                                            : candidate,
+                                                      ),
+                                                    }
+                                                  : entry,
+                                              ),
+                                            }))
+                                          }
+                                        >
+                                          <SelectTrigger
+                                            id={`workflow-editor-branch-condition-operator-${condition.conditionId}`}
+                                            className="w-full rounded-none border-border/70 bg-background/50"
+                                          >
+                                            <SelectValue placeholder="Select an operator" />
+                                          </SelectTrigger>
+                                          <SelectContent className="rounded-none">
+                                            {compatibleOperators.map((operator) => (
+                                              <SelectItem key={operator.key} value={operator.key}>
+                                                {operator.label}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+
+                                      <div className="grid gap-2 lg:col-span-2">
+                                        <Label>Comparison</Label>
+                                        <RouteConditionComparisonField
+                                          condition={condition}
+                                          fact={fact}
+                                          operator={selectedOperator}
+                                          onChange={(comparisonJson) =>
+                                            setDraft((previous) => ({
+                                              ...previous,
+                                              groups: previous.groups.map((entry) =>
+                                                entry.groupId === group.groupId
+                                                  ? {
+                                                      ...entry,
+                                                      conditions: entry.conditions.map(
+                                                        (candidate) =>
+                                                          candidate.conditionId ===
+                                                          condition.conditionId
+                                                            ? { ...candidate, comparisonJson }
+                                                            : candidate,
+                                                      ),
+                                                    }
+                                                  : entry,
+                                              ),
+                                            }))
+                                          }
+                                        />
+                                      </div>
+
+                                      <div className="flex items-center gap-2 text-xs uppercase tracking-[0.12em]">
+                                        <Checkbox
+                                          checked={condition.isNegated}
+                                          onCheckedChange={(checked) =>
+                                            setDraft((previous) => ({
+                                              ...previous,
+                                              groups: previous.groups.map((entry) =>
+                                                entry.groupId === group.groupId
+                                                  ? {
+                                                      ...entry,
+                                                      conditions: entry.conditions.map(
+                                                        (candidate) =>
+                                                          candidate.conditionId ===
+                                                          condition.conditionId
+                                                            ? {
+                                                                ...candidate,
+                                                                isNegated: checked === true,
+                                                              }
+                                                            : candidate,
+                                                      ),
+                                                    }
+                                                  : entry,
+                                              ),
+                                            }))
+                                          }
+                                        />
+                                        NOT
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            <Button
+                              type="button"
+                              size="xs"
+                              variant="outline"
+                              className="justify-self-start rounded-none"
+                              onClick={() =>
+                                setDraft((previous) => ({
+                                  ...previous,
+                                  groups: previous.groups.map((entry) =>
+                                    entry.groupId === group.groupId
+                                      ? {
+                                          ...entry,
+                                          conditions: [
+                                            ...entry.conditions,
+                                            createEmptyBranchRouteCondition(),
+                                          ],
+                                        }
+                                      : entry,
+                                  ),
+                                }))
+                              }
+                            >
+                              <PlusIcon className="size-3" /> Add Condition
+                            </Button>
+                          </div>
+                        ) : null}
+                      </article>
+                    );
+                  })}
+                </section>
+              </div>
+            </div>
+
+            <DialogFooter className="shrink-0 border-t border-border/70 pt-4 sm:justify-between">
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-none"
+                onClick={requestClose}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" className="rounded-none" disabled={!canSave}>
+                Save Route
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDiscardDialogOpen} onOpenChange={setIsDiscardDialogOpen}>
+        <DialogContent className="chiron-cut-frame-thick w-[min(28rem,calc(100vw-2rem))] p-8 sm:max-w-none">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold uppercase tracking-[0.08em]">
+              Discard unsaved changes?
+            </DialogTitle>
+            <DialogDescription>
+              You have unsaved route edits. Discarding now will close the stacked dialog and keep
+              the parent Branch dialog open.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-none"
+              onClick={() => setIsDiscardDialogOpen(false)}
+            >
+              Keep Editing
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              className="rounded-none"
+              onClick={closeDialog}
+            >
+              Discard Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+export function BranchStepDialog({
+  open,
+  mode,
+  step,
+  availableSteps,
+  availableContextFacts,
+  conditionOperators,
+  onOpenChange,
+  onSave,
+  onDelete,
+}: BranchStepDialogProps) {
+  const branchStep = step?.stepType === "branch" ? step : undefined;
+  const [key, setKey] = useState("");
+  const [label, setLabel] = useState("");
+  const [descriptionMarkdown, setDescriptionMarkdown] = useState("");
+  const [defaultTargetStepId, setDefaultTargetStepId] = useState<string | null>(null);
+  const [routes, setRoutes] = useState<WorkflowBranchRoutePayload[]>([]);
+  const [guidance, setGuidance] = useState<WorkflowEditorGuidance>(normalizeGuidance());
+  const [initialSnapshot, setInitialSnapshot] = useState<BranchStepDialogSnapshot | null>(null);
+  const [activeTab, setActiveTab] = useState<BranchStepDialogTab>("contract");
+  const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [isRouteDialogOpen, setRouteDialogOpen] = useState(false);
+  const [editingRouteId, setEditingRouteId] = useState<string | null>(null);
+
+  const availableTargetSteps = useMemo(
+    () => availableSteps.filter((candidate) => candidate.value !== branchStep?.stepId),
+    [availableSteps, branchStep?.stepId],
+  );
+  const stepLabelById = useMemo(
+    () => new Map(availableSteps.map((option) => [option.value, option.label])),
+    [availableSteps],
+  );
+  const editingRoute = useMemo(
+    () => routes.find((route) => route.routeId === editingRouteId) ?? null,
+    [editingRouteId, routes],
+  );
+
+  useEffect(() => {
+    if (!open) {
+      setIsDiscardDialogOpen(false);
+      setRouteDialogOpen(false);
+      setEditingRouteId(null);
+      setStatusMessage(null);
+      return;
+    }
+
+    const payload = branchStep?.payload;
+    const nextKey = payload?.key ?? "";
+    const nextLabel = payload?.label ?? "";
+    const nextDescriptionMarkdown = payload?.descriptionJson?.markdown ?? "";
+    const nextDefaultTargetStepId = payload?.defaultTargetStepId ?? null;
+    const nextRoutes = payload?.routes ? structuredClone(payload.routes) : [];
+    const nextGuidance = toBranchGuidance(payload?.guidance);
+
+    setKey(nextKey);
+    setLabel(nextLabel);
+    setDescriptionMarkdown(nextDescriptionMarkdown);
+    setDefaultTargetStepId(nextDefaultTargetStepId);
+    setRoutes(nextRoutes);
+    setGuidance(nextGuidance);
+    setInitialSnapshot(
+      toBranchStepDialogSnapshot({
+        key: nextKey,
+        label: nextLabel,
+        descriptionMarkdown: nextDescriptionMarkdown,
+        defaultTargetStepId: nextDefaultTargetStepId,
+        routes: nextRoutes,
+        guidance: nextGuidance,
+      }),
+    );
+    setActiveTab("contract");
+    setIsDiscardDialogOpen(false);
+    setRouteDialogOpen(false);
+    setEditingRouteId(null);
+    setStatusMessage(null);
+  }, [branchStep, open]);
+
+  const currentSnapshot = useMemo(
+    () =>
+      toBranchStepDialogSnapshot({
+        key,
+        label,
+        descriptionMarkdown,
+        defaultTargetStepId,
+        routes,
+        guidance,
+      }),
+    [defaultTargetStepId, descriptionMarkdown, guidance, key, label, routes],
+  );
+  const isContractDirty =
+    open && initialSnapshot
+      ? !areDialogSnapshotSectionsEqual(currentSnapshot.contract, initialSnapshot.contract)
+      : false;
+  const isRoutesDirty =
+    open && initialSnapshot
+      ? !areDialogSnapshotSectionsEqual(currentSnapshot.routes, initialSnapshot.routes)
+      : false;
+  const isGuidanceDirty =
+    open && initialSnapshot
+      ? !areDialogSnapshotSectionsEqual(currentSnapshot.guidance, initialSnapshot.guidance)
+      : false;
+  const isDialogDirty = isContractDirty || isRoutesDirty || isGuidanceDirty;
+
+  const validationErrors = useMemo(() => {
+    const errors: string[] = [];
+    if (key.trim().length === 0) {
+      errors.push("Branch step key is required.");
+    }
+
+    const routeTargetIds = routes
+      .map((route) => route.targetStepId.trim())
+      .filter((value) => value.length > 0);
+    if (new Set(routeTargetIds).size !== routeTargetIds.length) {
+      errors.push("Each branch route must target a unique step.");
+    }
+
+    routes.forEach((route, routeIndex) => {
+      if (route.targetStepId.trim().length === 0) {
+        errors.push(`Select a target step for route ${routeIndex + 1}.`);
+      }
+      if (route.groups.length === 0) {
+        errors.push(`Add at least one group to route ${routeIndex + 1}.`);
+      }
+    });
+
+    return errors;
+  }, [key, routes]);
+
+  const canSave = validationErrors.length === 0;
+  const title =
+    mode === "create" ? "Create Branch Step" : `Edit Branch Step: ${branchStep?.payload.key ?? ""}`;
+
+  const closeDialog = () => {
+    setIsDiscardDialogOpen(false);
+    onOpenChange(false);
+  };
+
+  const requestCloseDialog = () => {
+    if (isDialogDirty) {
+      setIsDiscardDialogOpen(true);
+      return;
+    }
+
+    closeDialog();
+  };
+
+  return (
+    <>
+      <Dialog
+        open={open}
+        onOpenChange={(nextOpen) => {
+          if (nextOpen) {
+            return;
+          }
+
+          requestCloseDialog();
+        }}
+      >
+        <DialogContent className="chiron-cut-frame-thick flex w-[min(68rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] flex-col overflow-hidden p-6 sm:max-w-none sm:p-8">
+          <form
+            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!canSave) {
+                setStatusMessage(validationErrors[0] ?? "Complete the branch configuration.");
+                return;
+              }
+
+              onSave(
+                toWorkflowBranchStepPayload({
+                  key,
+                  label,
+                  descriptionMarkdown,
+                  defaultTargetStepId,
+                  routes,
+                  guidance,
+                }),
+              );
+            }}
+          >
+            <DialogHeader className="shrink-0 gap-2">
+              <DialogTitle className="text-base font-semibold uppercase tracking-[0.08em]">
+                {title}
+              </DialogTitle>
+              <DialogDescription>
+                Author branch contract, default target, conditional routes, and audience guidance in
+                one dialog.
+              </DialogDescription>
+              <div className="mt-1 flex flex-wrap gap-2 border-b border-border pb-3">
+                <TabButton
+                  active={activeTab === "contract"}
+                  onClick={() => setActiveTab("contract")}
+                  isDirty={isContractDirty}
+                >
+                  Contract
+                </TabButton>
+                <TabButton
+                  active={activeTab === "routes"}
+                  onClick={() => setActiveTab("routes")}
+                  isDirty={isRoutesDirty}
+                >
+                  Routes
+                </TabButton>
+                <TabButton
+                  active={activeTab === "guidance"}
+                  onClick={() => setActiveTab("guidance")}
+                  isDirty={isGuidanceDirty}
+                >
+                  Guidance
+                </TabButton>
+              </div>
+            </DialogHeader>
+
+            <div className="min-h-0 flex-1 overflow-y-auto py-4 pr-1 scrollbar-thin">
+              {statusMessage ? (
+                <p className="mb-4 border border-destructive/45 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  {statusMessage}
+                </p>
+              ) : null}
+
+              {!canSave ? (
+                <p className="mb-4 border border-border/70 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                  {validationErrors[0]}
+                </p>
+              ) : null}
+
+              {activeTab === "contract" ? (
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="grid gap-2 lg:col-span-2">
+                    <Label htmlFor="workflow-editor-branch-step-key">Step Key</Label>
+                    <Input
+                      id="workflow-editor-branch-step-key"
+                      className="rounded-none border-border/70 bg-background/50"
+                      value={key}
+                      onChange={(event) => setKey(event.target.value)}
+                      placeholder="branch-on-status"
+                    />
+                  </div>
+                  <div className="grid gap-2 lg:col-span-2">
+                    <Label htmlFor="workflow-editor-branch-step-label">Step Title</Label>
+                    <Input
+                      id="workflow-editor-branch-step-label"
+                      className="rounded-none border-border/70 bg-background/50"
+                      value={label}
+                      onChange={(event) => setLabel(event.target.value)}
+                      placeholder="Branch on Status"
+                    />
+                  </div>
+                  <div className="grid gap-2 lg:col-span-2">
+                    <Label htmlFor="workflow-editor-branch-step-description">
+                      Step Description
+                    </Label>
+                    <Textarea
+                      id="workflow-editor-branch-step-description"
+                      className="min-h-36 resize-none rounded-none border-border/70 bg-background/50"
+                      value={descriptionMarkdown}
+                      onChange={(event) => setDescriptionMarkdown(event.target.value)}
+                      placeholder="Markdown description for this Branch step"
+                    />
+                  </div>
+                  <div className="grid gap-2 lg:col-span-2">
+                    <Label id="workflow-editor-branch-default-target-label">
+                      Default Target Step
+                    </Label>
+                    <SearchableCombobox
+                      labelId="workflow-editor-branch-default-target-label"
+                      value={defaultTargetStepId ?? ""}
+                      onChange={(value) => setDefaultTargetStepId(value || null)}
+                      options={availableTargetSteps}
+                      placeholder="Select a default target"
+                      searchPlaceholder="Search steps"
+                      emptyLabel="No steps available."
+                    />
+                  </div>
+                </div>
+              ) : null}
+
+              {activeTab === "routes" ? (
+                <div className="grid gap-4">
+                  <section className="chiron-frame-flat chiron-tone-context grid gap-3 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="grid gap-1">
+                        <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
+                          Routes
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Conditional routes own the projected branch edges in the workflow canvas.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="xs"
+                        variant="outline"
+                        className="rounded-none"
+                        onClick={() => {
+                          setEditingRouteId(null);
+                          setRouteDialogOpen(true);
+                        }}
+                      >
+                        <PlusIcon className="size-3" /> Add Route
+                      </Button>
+                    </div>
+
+                    {routes.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        No conditional routes authored yet.
+                      </p>
+                    ) : (
+                      <div className="grid gap-3">
+                        {routes.map((route) => (
+                          <article
+                            key={route.routeId}
+                            className="chiron-cut-frame-thick chiron-tone-canvas grid gap-3 p-4"
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div className="grid gap-1">
+                                <p className="font-geist-pixel-square text-sm uppercase tracking-[0.12em]">
+                                  {stepLabelById.get(route.targetStepId) ?? route.targetStepId}
+                                </p>
+                                <p className="text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
+                                  {route.routeId}
+                                </p>
+                              </div>
+                              <span className="inline-flex w-fit items-center rounded-none border border-border/70 px-2 py-1 text-[0.64rem] uppercase tracking-[0.12em] text-muted-foreground">
+                                {route.conditionMode}
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {route.groups.length} group{route.groups.length === 1 ? "" : "s"} ·{" "}
+                              {route.groups.reduce(
+                                (count, group) => count + group.conditions.length,
+                                0,
+                              )}{" "}
+                              condition
+                              {route.groups.reduce(
+                                (count, group) => count + group.conditions.length,
+                                0,
+                              ) === 1
+                                ? ""
+                                : "s"}
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                type="button"
+                                size="xs"
+                                variant="outline"
+                                className="rounded-none"
+                                onClick={() => {
+                                  setEditingRouteId(route.routeId);
+                                  setRouteDialogOpen(true);
+                                }}
+                              >
+                                Edit Route
+                              </Button>
+                              <Button
+                                type="button"
+                                size="xs"
+                                variant="destructive"
+                                className="rounded-none"
+                                onClick={() =>
+                                  setRoutes((previous) =>
+                                    previous.filter((entry) => entry.routeId !== route.routeId),
+                                  )
+                                }
+                              >
+                                Delete Route
+                              </Button>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                </div>
+              ) : null}
+
+              {activeTab === "guidance" ? (
+                <GuidanceFields guidance={guidance} onChange={setGuidance} />
+              ) : null}
+            </div>
+
+            <DialogFooter className="shrink-0 border-t border-border/70 pt-4 sm:justify-between">
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-none"
+                  onClick={requestCloseDialog}
+                >
+                  Cancel
+                </Button>
+                {mode === "edit" ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    className="rounded-none"
+                    onClick={() => void onDelete?.()}
+                  >
+                    Delete
+                  </Button>
+                ) : null}
+              </div>
+              <Button type="submit" className="rounded-none" disabled={!canSave}>
+                {mode === "create" ? "Create" : "Save"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDiscardDialogOpen} onOpenChange={setIsDiscardDialogOpen}>
+        <DialogContent className="chiron-cut-frame-thick w-[min(28rem,calc(100vw-2rem))] p-8 sm:max-w-none">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold uppercase tracking-[0.08em]">
+              Discard unsaved changes?
+            </DialogTitle>
+            <DialogDescription>
+              You have unsaved branch-step edits. Discarding now will close the dialog and lose
+              those changes.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-none"
+              onClick={() => setIsDiscardDialogOpen(false)}
+            >
+              Keep Editing
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              className="rounded-none"
+              onClick={closeDialog}
+            >
+              Discard Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <RouteDialog
+        open={isRouteDialogOpen}
+        ownerStepId={branchStep?.stepId}
+        route={editingRoute}
+        availableSteps={availableTargetSteps}
+        availableContextFacts={availableContextFacts}
+        conditionOperators={conditionOperators}
+        onOpenChange={(nextOpen) => {
+          setRouteDialogOpen(nextOpen);
+          if (!nextOpen) {
+            setEditingRouteId(null);
+          }
+        }}
+        onSave={(nextRoute) => {
+          setRoutes((previous) => {
+            const existingIndex = previous.findIndex(
+              (entry) => entry.routeId === nextRoute.routeId,
+            );
+            if (existingIndex === -1) {
+              return [...previous, nextRoute];
+            }
+
+            return previous.map((entry) =>
+              entry.routeId === nextRoute.routeId ? nextRoute : entry,
+            );
+          });
+          setEditingRouteId(null);
+          setRouteDialogOpen(false);
+        }}
+      />
+    </>
+  );
+}
 
 export function EdgeDialog({ open, edge, onOpenChange, onSave, onDelete }: EdgeDialogProps) {
   const [descriptionMarkdown, setDescriptionMarkdown] = useState("");

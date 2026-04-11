@@ -75,6 +75,7 @@ type StepListInspectorProps = {
   selection: WorkflowEditorSelection;
   onSelectStep: (stepId: string) => void;
   onSelectEdge: (edgeId: string) => void;
+  onFocusBranchStep: (branchStepId: string) => void;
   onClearSelection: () => void;
   onEditSelectedStep: () => void;
   onEditSelectedEdge: () => void;
@@ -97,6 +98,29 @@ function NextStepBadge({ label }: { label: string }) {
   );
 }
 
+function isBranchOwnedEdge(edge: WorkflowEditorEdge) {
+  return edge.edgeOwner === "branch_conditional" || edge.edgeOwner === "branch_default";
+}
+
+function summarizeBranchRoute(
+  route: Extract<WorkflowEditorStep, { stepType: "branch" }>["payload"]["routes"][number],
+) {
+  const conditionCount = route.groups.reduce((count, group) => count + group.conditions.length, 0);
+  return `${route.conditionMode.toUpperCase()} · ${route.groups.length} group${route.groups.length === 1 ? "" : "s"} · ${conditionCount} condition${conditionCount === 1 ? "" : "s"}`;
+}
+
+function getBranchTargetLabel(
+  targetStepId: string | null | undefined,
+  stepById: ReadonlyMap<string, WorkflowEditorStep>,
+) {
+  if (!targetStepId) {
+    return "Unassigned";
+  }
+
+  const step = stepById.get(targetStepId);
+  return step ? step.payload.label?.trim() || step.payload.key : targetStepId;
+}
+
 export function StepListInspector({
   metadata,
   steps,
@@ -104,6 +128,7 @@ export function StepListInspector({
   selection,
   onSelectStep,
   onSelectEdge,
+  onFocusBranchStep,
   onClearSelection,
   onEditSelectedStep,
   onEditSelectedEdge,
@@ -114,12 +139,31 @@ export function StepListInspector({
   const selectedEdge =
     selection?.kind === "edge" ? edges.find((edge) => edge.edgeId === selection.edgeId) : undefined;
   const stepByKey = useMemo(() => new Map(steps.map((step) => [step.payload.key, step])), [steps]);
+  const stepById = useMemo(() => new Map(steps.map((step) => [step.stepId, step])), [steps]);
   const nextStepLabelByStepId = useMemo(() => {
     const labels = new Map<string, string>();
 
     steps.forEach((step) => {
-      const nextEdge = edges.find((edge) => edge.fromStepKey === step.payload.key);
-      const nextStep = nextEdge ? stepByKey.get(nextEdge.toStepKey) : undefined;
+      const outgoingEdges = edges.filter((edge) => edge.fromStepKey === step.payload.key);
+
+      if (outgoingEdges.length === 0) {
+        labels.set(step.stepId, "--> END");
+        return;
+      }
+
+      if (step.stepType === "branch") {
+        const conditionalCount = outgoingEdges.filter(
+          (edge) => edge.edgeOwner === "branch_conditional",
+        ).length;
+        const hasDefault = outgoingEdges.some((edge) => edge.edgeOwner === "branch_default");
+        labels.set(
+          step.stepId,
+          `--> ${conditionalCount} route${conditionalCount === 1 ? "" : "s"}${hasDefault ? " + default" : ""}`,
+        );
+        return;
+      }
+
+      const nextStep = stepByKey.get(outgoingEdges[0]?.toStepKey ?? "");
       labels.set(
         step.stepId,
         nextStep ? `--> ${nextStep.payload.label?.trim() || nextStep.payload.key}` : "--> END",
@@ -128,6 +172,7 @@ export function StepListInspector({
 
     return labels;
   }, [edges, stepByKey, steps]);
+  const selectedBranchStep = selectedStep?.stepType === "branch" ? selectedStep : null;
 
   return (
     <section className="chiron-frame-flat mt-3 grid gap-2 p-2">
@@ -205,13 +250,17 @@ export function StepListInspector({
                   key={edge.edgeId}
                   type="button"
                   className="chiron-frame-flat flex min-w-0 items-center justify-between gap-2 px-2 py-1.5 text-left text-xs hover:bg-accent/25"
-                  onClick={() => onSelectEdge(edge.edgeId)}
+                  onClick={() =>
+                    edge.branchStepId
+                      ? onFocusBranchStep(edge.branchStepId)
+                      : onSelectEdge(edge.edgeId)
+                  }
                 >
                   <span className="min-w-0 flex-1 truncate">
                     {edge.fromStepKey} → {edge.toStepKey}
                   </span>
                   <span className="shrink-0 text-[0.64rem] uppercase tracking-[0.12em] text-muted-foreground">
-                    inspect
+                    {isBranchOwnedEdge(edge) ? "branch" : "inspect"}
                   </span>
                 </button>
               ))}
@@ -293,7 +342,7 @@ export function StepListInspector({
           </div>
           <div className="flex flex-wrap gap-2">
             <Button type="button" size="xs" variant="outline" onClick={onEditSelectedStep}>
-              Edit form step
+              Edit {STEP_TYPE_LABELS[selectedStep.stepType].toLowerCase()} step
             </Button>
             {steps
               .filter((candidate) => candidate.stepId !== selectedStep.stepId)
@@ -309,6 +358,36 @@ export function StepListInspector({
                 </Button>
               ))}
           </div>
+          {selectedBranchStep ? (
+            <div className="chiron-frame-flat grid gap-3 p-3">
+              <div className="grid gap-1">
+                <p className="text-[0.64rem] uppercase tracking-[0.12em] text-muted-foreground">
+                  Branch routing
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Default target:{" "}
+                  {getBranchTargetLabel(selectedBranchStep.payload.defaultTargetStepId, stepById)}
+                </p>
+              </div>
+              {selectedBranchStep.payload.routes.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No conditional routes authored yet.</p>
+              ) : (
+                <ul className="grid gap-2">
+                  {selectedBranchStep.payload.routes.map((route) => (
+                    <li key={route.routeId} className="chiron-cut-frame-thick grid gap-1 p-3">
+                      <p className="font-medium uppercase tracking-[0.1em]">
+                        {getBranchTargetLabel(route.targetStepId, stepById)}
+                      </p>
+                      <p className="text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
+                        {route.routeId}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{summarizeBranchRoute(route)}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : null}
         </div>
       ) : selectedEdge ? (
         <div className="grid gap-2 text-xs">

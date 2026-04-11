@@ -3,9 +3,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "@/components/ui/sonner";
 
 import type {
+  WorkflowBranchStepPayload,
   WorkflowAgentStepPayload,
   WorkflowContextFactDefinitionItem,
   WorkflowContextFactDraft,
+  WorkflowConditionOperator,
   WorkflowEditorEdge,
   WorkflowEditorGuidance,
   WorkflowHarnessDiscoveryMetadata,
@@ -14,6 +16,9 @@ import type {
   WorkflowEditorPickerOption,
   WorkflowEditorStep,
   WorkflowFormStepPayload,
+  WorkflowInvokeArtifactSlotDefinition,
+  WorkflowInvokeStepPayload,
+  WorkflowInvokeWorkUnitFactDefinition,
 } from "../features/workflow-editor/types";
 import { WorkflowEditorShell } from "../features/workflow-editor/workflow-editor-shell";
 
@@ -78,6 +83,122 @@ function toErrorMessage(error: unknown): string {
 
   return String(error);
 }
+
+function parseBranchProjectedEdgeMetadata(value: unknown): {
+  edgeOwner: NonNullable<WorkflowEditorEdge["edgeOwner"]>;
+  branchStepId: string;
+  routeId?: string;
+} | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  if (record.edgeOwner !== "branch_default" && record.edgeOwner !== "branch_conditional") {
+    return null;
+  }
+
+  if (typeof record.branchStepId !== "string" || record.branchStepId.trim().length === 0) {
+    return null;
+  }
+
+  return {
+    edgeOwner: record.edgeOwner,
+    branchStepId: record.branchStepId,
+    ...(typeof record.routeId === "string" && record.routeId.trim().length > 0
+      ? { routeId: record.routeId }
+      : {}),
+  };
+}
+
+const hasComparisonValue = (comparison: unknown) =>
+  typeof comparison === "object" && comparison !== null && "value" in comparison;
+
+const hasComparisonValues = (comparison: unknown) =>
+  typeof comparison === "object" &&
+  comparison !== null &&
+  Array.isArray((comparison as { values?: unknown }).values);
+
+const BUILT_IN_CONDITION_OPERATORS: readonly WorkflowConditionOperator[] = [
+  {
+    key: "equals",
+    label: "Equals",
+    supportedFactKinds: [
+      "plain_value_fact",
+      "definition_backed_external_fact",
+      "bound_external_fact",
+      "workflow_reference_fact",
+      "artifact_reference_fact",
+      "work_unit_draft_spec_fact",
+    ],
+    requiresComparison: true,
+    validateComparison: hasComparisonValue,
+  },
+  {
+    key: "notEquals",
+    label: "Not Equals",
+    supportedFactKinds: [
+      "plain_value_fact",
+      "definition_backed_external_fact",
+      "bound_external_fact",
+      "workflow_reference_fact",
+      "artifact_reference_fact",
+      "work_unit_draft_spec_fact",
+    ],
+    requiresComparison: true,
+    validateComparison: hasComparisonValue,
+  },
+  {
+    key: "contains",
+    label: "Contains",
+    supportedFactKinds: [
+      "plain_value_fact",
+      "workflow_reference_fact",
+      "artifact_reference_fact",
+      "work_unit_draft_spec_fact",
+    ],
+    requiresComparison: true,
+    validateComparison: hasComparisonValue,
+  },
+  {
+    key: "in",
+    label: "In",
+    supportedFactKinds: [
+      "plain_value_fact",
+      "definition_backed_external_fact",
+      "bound_external_fact",
+      "workflow_reference_fact",
+      "artifact_reference_fact",
+      "work_unit_draft_spec_fact",
+    ],
+    requiresComparison: true,
+    validateComparison: hasComparisonValues,
+  },
+  {
+    key: "isEmpty",
+    label: "Is Empty",
+    supportedFactKinds: [
+      "plain_value_fact",
+      "workflow_reference_fact",
+      "artifact_reference_fact",
+      "work_unit_draft_spec_fact",
+    ],
+    requiresComparison: false,
+    validateComparison: () => true,
+  },
+  {
+    key: "isNotEmpty",
+    label: "Is Not Empty",
+    supportedFactKinds: [
+      "plain_value_fact",
+      "workflow_reference_fact",
+      "artifact_reference_fact",
+      "work_unit_draft_spec_fact",
+    ],
+    requiresComparison: false,
+    validateComparison: () => true,
+  },
+];
 
 function normalizeContextFactKind(
   value: unknown,
@@ -356,6 +477,260 @@ function toWorkflowAgentPayload(rawPayload: unknown): WorkflowAgentStepPayload |
   };
 }
 
+function toInvokeBindings(rawBindings: unknown) {
+  if (!Array.isArray(rawBindings)) {
+    return [];
+  }
+
+  return rawBindings.flatMap((entry) => {
+    const binding = asRecord(entry);
+    const destination = asRecord(binding?.destination);
+    const source = asRecord(binding?.source);
+    if (!binding || !destination || !source) {
+      return [];
+    }
+
+    const parsedDestination =
+      destination.kind === "work_unit_fact" &&
+      typeof destination.workUnitFactDefinitionId === "string"
+        ? {
+            kind: "work_unit_fact" as const,
+            workUnitFactDefinitionId: destination.workUnitFactDefinitionId,
+          }
+        : destination.kind === "artifact_slot" &&
+            typeof destination.artifactSlotDefinitionId === "string"
+          ? {
+              kind: "artifact_slot" as const,
+              artifactSlotDefinitionId: destination.artifactSlotDefinitionId,
+            }
+          : null;
+    const parsedSource =
+      source.kind === "context_fact" && typeof source.contextFactDefinitionId === "string"
+        ? {
+            kind: "context_fact" as const,
+            contextFactDefinitionId: source.contextFactDefinitionId,
+          }
+        : source.kind === "literal" &&
+            (typeof source.value === "string" ||
+              typeof source.value === "number" ||
+              typeof source.value === "boolean")
+          ? { kind: "literal" as const, value: source.value }
+          : source.kind === "runtime"
+            ? { kind: "runtime" as const }
+            : null;
+
+    if (!parsedDestination || !parsedSource) {
+      return [];
+    }
+
+    return [
+      {
+        destination: parsedDestination,
+        source: parsedSource,
+      },
+    ];
+  });
+}
+
+function toInvokeActivationTransitions(rawTransitions: unknown) {
+  if (!Array.isArray(rawTransitions)) {
+    return [];
+  }
+
+  return rawTransitions.flatMap((entry) => {
+    const transition = asRecord(entry);
+    if (!transition || typeof transition.transitionId !== "string") {
+      return [];
+    }
+
+    return [
+      {
+        transitionId: transition.transitionId,
+        workflowDefinitionIds: Array.isArray(transition.workflowDefinitionIds)
+          ? transition.workflowDefinitionIds.filter(
+              (workflowDefinitionId): workflowDefinitionId is string =>
+                typeof workflowDefinitionId === "string",
+            )
+          : [],
+      },
+    ];
+  });
+}
+
+function toWorkflowInvokePayload(rawPayload: unknown): WorkflowInvokeStepPayload | null {
+  const payload = asRecord(rawPayload);
+  if (!payload || typeof payload.key !== "string") {
+    return null;
+  }
+
+  const base = {
+    key: payload.key,
+    ...(typeof payload.label === "string" ? { label: payload.label } : {}),
+    ...(readMarkdown(payload.descriptionJson)
+      ? { descriptionJson: { markdown: readMarkdown(payload.descriptionJson) } }
+      : {}),
+    guidance: {
+      human: { markdown: readMarkdown(asRecord(payload.guidanceJson ?? payload.guidance)?.human) },
+      agent: { markdown: readMarkdown(asRecord(payload.guidanceJson ?? payload.guidance)?.agent) },
+    },
+  };
+
+  if (payload.targetKind === "workflow" && payload.sourceMode === "fixed_set") {
+    return {
+      ...base,
+      targetKind: "workflow",
+      sourceMode: "fixed_set",
+      workflowDefinitionIds: Array.isArray(payload.workflowDefinitionIds)
+        ? payload.workflowDefinitionIds.filter(
+            (workflowDefinitionId): workflowDefinitionId is string =>
+              typeof workflowDefinitionId === "string",
+          )
+        : [],
+    };
+  }
+
+  if (
+    payload.targetKind === "workflow" &&
+    payload.sourceMode === "context_fact_backed" &&
+    typeof payload.contextFactDefinitionId === "string"
+  ) {
+    return {
+      ...base,
+      targetKind: "workflow",
+      sourceMode: "context_fact_backed",
+      contextFactDefinitionId: payload.contextFactDefinitionId,
+    };
+  }
+
+  if (
+    payload.targetKind === "work_unit" &&
+    payload.sourceMode === "fixed_set" &&
+    typeof payload.workUnitDefinitionId === "string"
+  ) {
+    return {
+      ...base,
+      targetKind: "work_unit",
+      sourceMode: "fixed_set",
+      workUnitDefinitionId: payload.workUnitDefinitionId,
+      bindings: toInvokeBindings(payload.bindings),
+      activationTransitions: toInvokeActivationTransitions(payload.activationTransitions),
+    };
+  }
+
+  if (
+    payload.targetKind === "work_unit" &&
+    payload.sourceMode === "context_fact_backed" &&
+    typeof payload.contextFactDefinitionId === "string"
+  ) {
+    return {
+      ...base,
+      targetKind: "work_unit",
+      sourceMode: "context_fact_backed",
+      contextFactDefinitionId: payload.contextFactDefinitionId,
+      bindings: toInvokeBindings(payload.bindings),
+      activationTransitions: toInvokeActivationTransitions(payload.activationTransitions),
+    };
+  }
+
+  return null;
+}
+
+function toWorkflowBranchPayload(rawPayload: unknown): WorkflowBranchStepPayload | null {
+  const payload = asRecord(rawPayload);
+  if (!payload || typeof payload.key !== "string") {
+    return null;
+  }
+
+  const guidance = readGuidance(payload.guidanceJson ?? payload.guidance);
+
+  return {
+    key: payload.key,
+    ...(typeof payload.label === "string" ? { label: payload.label } : {}),
+    ...(readMarkdown(payload.descriptionJson)
+      ? { descriptionJson: { markdown: readMarkdown(payload.descriptionJson) } }
+      : {}),
+    guidance: {
+      human: { markdown: guidance.humanMarkdown },
+      agent: { markdown: guidance.agentMarkdown },
+    },
+    defaultTargetStepId:
+      typeof payload.defaultTargetStepId === "string" &&
+      payload.defaultTargetStepId.trim().length > 0
+        ? payload.defaultTargetStepId
+        : null,
+    routes: Array.isArray(payload.routes)
+      ? payload.routes.flatMap((rawRoute) => {
+          const route = asRecord(rawRoute);
+          if (
+            !route ||
+            typeof route.routeId !== "string" ||
+            typeof route.targetStepId !== "string" ||
+            (route.conditionMode !== "all" && route.conditionMode !== "any")
+          ) {
+            return [];
+          }
+
+          return [
+            {
+              routeId: route.routeId,
+              targetStepId: route.targetStepId,
+              conditionMode: route.conditionMode,
+              groups: Array.isArray(route.groups)
+                ? route.groups.flatMap((rawGroup) => {
+                    const group = asRecord(rawGroup);
+                    if (
+                      !group ||
+                      typeof group.groupId !== "string" ||
+                      (group.mode !== "all" && group.mode !== "any")
+                    ) {
+                      return [];
+                    }
+
+                    return [
+                      {
+                        groupId: group.groupId,
+                        mode: group.mode,
+                        conditions: Array.isArray(group.conditions)
+                          ? group.conditions.flatMap((rawCondition) => {
+                              const condition = asRecord(rawCondition);
+                              const kind = normalizeContextFactKind(condition?.contextFactKind);
+
+                              if (
+                                !condition ||
+                                typeof condition.conditionId !== "string" ||
+                                typeof condition.contextFactDefinitionId !== "string" ||
+                                !kind ||
+                                typeof condition.operator !== "string"
+                              ) {
+                                return [];
+                              }
+
+                              return [
+                                {
+                                  conditionId: condition.conditionId,
+                                  contextFactDefinitionId: condition.contextFactDefinitionId,
+                                  contextFactKind: kind,
+                                  operator: condition.operator,
+                                  isNegated: condition.isNegated === true,
+                                  comparisonJson:
+                                    typeof condition.comparisonJson === "undefined"
+                                      ? null
+                                      : condition.comparisonJson,
+                                },
+                              ];
+                            })
+                          : [],
+                      },
+                    ];
+                  })
+                : [],
+            },
+          ];
+        })
+      : [],
+  };
+}
+
 function toWorkflowSteps(
   rawSteps: unknown,
   rawFormDefinitions: unknown,
@@ -456,6 +831,32 @@ function toWorkflowSteps(
             };
           }
 
+          if (step.stepType === "invoke" || step.type === "invoke") {
+            const payload = toWorkflowInvokePayload(step.payload);
+            if (!payload) {
+              return null;
+            }
+
+            return {
+              stepId,
+              stepType: "invoke",
+              payload,
+            };
+          }
+
+          if (step.stepType === "branch" || step.type === "branch") {
+            const payload = toWorkflowBranchPayload(step.payload);
+            if (!payload) {
+              return null;
+            }
+
+            return {
+              stepId,
+              stepType: "branch",
+              payload,
+            };
+          }
+
           return null;
         })
         .filter((step): step is WorkflowEditorStep => step !== null)
@@ -488,6 +889,8 @@ function toWorkflowEdges(rawEdges: unknown): WorkflowEditorEdge[] {
         return null;
       }
 
+      const projectedMetadata = parseBranchProjectedEdgeMetadata(edge.descriptionJson);
+
       return {
         edgeId:
           typeof edge.edgeId === "string"
@@ -497,7 +900,8 @@ function toWorkflowEdges(rawEdges: unknown): WorkflowEditorEdge[] {
               : `edge-${index}`,
         fromStepKey: edge.fromStepKey,
         toStepKey: edge.toStepKey,
-        descriptionMarkdown: readMarkdown(edge.descriptionJson),
+        descriptionMarkdown: projectedMetadata ? "" : readMarkdown(edge.descriptionJson),
+        ...(projectedMetadata ?? {}),
       };
     })
     .filter((edge): edge is WorkflowEditorEdge => edge !== null);
@@ -559,6 +963,20 @@ function toContextFactDefinitions(
                 .map((field) => asRecord(field)?.id)
                 .filter((factId): factId is string => typeof factId === "string")
             : [],
+        selectedWorkUnitFactDefinitionIds: Array.isArray(value.selectedWorkUnitFactDefinitionIds)
+          ? value.selectedWorkUnitFactDefinitionIds.filter(
+              (factId): factId is string => typeof factId === "string",
+            )
+          : Array.isArray(value.includedFactDefinitionIds)
+            ? value.includedFactDefinitionIds.filter(
+                (factId): factId is string => typeof factId === "string",
+              )
+            : [],
+        selectedArtifactSlotDefinitionIds: Array.isArray(value.selectedArtifactSlotDefinitionIds)
+          ? value.selectedArtifactSlotDefinitionIds.filter(
+              (slotId): slotId is string => typeof slotId === "string",
+            )
+          : [],
         summary: typeof value.summary === "string" ? value.summary : "",
       };
 
@@ -583,10 +1001,18 @@ function toContextFactDefinitions(
       }
 
       if (kind === "work_unit_draft_spec_fact") {
-        item.workUnitTypeKey = inferWorkUnitTypeIdentifierFromDraftSpecFactDefinitionIds(
-          rawWorkUnits,
-          item.includedFactDefinitionIds,
-        );
+        const resolvedWorkUnitDefinitionId =
+          typeof value.workUnitDefinitionId === "string" &&
+          value.workUnitDefinitionId.trim().length > 0
+            ? value.workUnitDefinitionId.trim()
+            : inferWorkUnitTypeIdentifierFromDraftSpecFactDefinitionIds(
+                rawWorkUnits,
+                item.selectedWorkUnitFactDefinitionIds,
+              );
+
+        item.workUnitDefinitionId = resolvedWorkUnitDefinitionId;
+        item.workUnitTypeKey = resolvedWorkUnitDefinitionId;
+        item.includedFactDefinitionIds = item.selectedWorkUnitFactDefinitionIds;
       }
 
       return {
@@ -640,7 +1066,13 @@ function toContextFactMutationPayload(draft: WorkflowContextFactDraft) {
     case "work_unit_draft_spec_fact":
       return {
         ...base,
-        includedFactDefinitionIds: draft.includedFactDefinitionIds,
+        workUnitDefinitionId:
+          draft.workUnitDefinitionId?.trim() ?? draft.workUnitTypeKey?.trim() ?? "",
+        selectedWorkUnitFactDefinitionIds:
+          draft.selectedWorkUnitFactDefinitionIds.length > 0
+            ? draft.selectedWorkUnitFactDefinitionIds
+            : draft.includedFactDefinitionIds,
+        selectedArtifactSlotDefinitionIds: draft.selectedArtifactSlotDefinitionIds,
       };
   }
 }
@@ -677,6 +1109,83 @@ function toAgentStepMutationPayload(payload: WorkflowAgentStepPayload) {
     completionRequirements: payload.completionRequirements,
     runtimePolicy: payload.runtimePolicy,
     guidance: payload.guidance,
+  };
+}
+
+function toInvokeStepMutationPayload(payload: WorkflowInvokeStepPayload) {
+  const descriptionMarkdown = readMarkdown(payload.descriptionJson);
+
+  if (payload.targetKind === "workflow" && payload.sourceMode === "fixed_set") {
+    return {
+      key: payload.key,
+      ...(typeof payload.label === "string" && payload.label.trim().length > 0
+        ? { label: payload.label }
+        : {}),
+      ...(descriptionMarkdown ? { descriptionJson: { markdown: descriptionMarkdown } } : {}),
+      guidance: payload.guidance,
+      targetKind: "workflow",
+      sourceMode: "fixed_set",
+      workflowDefinitionIds: payload.workflowDefinitionIds,
+    };
+  }
+
+  if (payload.targetKind === "workflow") {
+    return {
+      key: payload.key,
+      ...(typeof payload.label === "string" && payload.label.trim().length > 0
+        ? { label: payload.label }
+        : {}),
+      ...(descriptionMarkdown ? { descriptionJson: { markdown: descriptionMarkdown } } : {}),
+      guidance: payload.guidance,
+      targetKind: "workflow",
+      sourceMode: "context_fact_backed",
+      contextFactDefinitionId: payload.contextFactDefinitionId,
+    };
+  }
+
+  if (payload.sourceMode === "fixed_set") {
+    return {
+      key: payload.key,
+      ...(typeof payload.label === "string" && payload.label.trim().length > 0
+        ? { label: payload.label }
+        : {}),
+      ...(descriptionMarkdown ? { descriptionJson: { markdown: descriptionMarkdown } } : {}),
+      guidance: payload.guidance,
+      targetKind: "work_unit",
+      sourceMode: "fixed_set",
+      workUnitDefinitionId: payload.workUnitDefinitionId,
+      bindings: payload.bindings,
+      activationTransitions: payload.activationTransitions,
+    };
+  }
+
+  return {
+    key: payload.key,
+    ...(typeof payload.label === "string" && payload.label.trim().length > 0
+      ? { label: payload.label }
+      : {}),
+    ...(descriptionMarkdown ? { descriptionJson: { markdown: descriptionMarkdown } } : {}),
+    guidance: payload.guidance,
+    targetKind: "work_unit",
+    sourceMode: "context_fact_backed",
+    contextFactDefinitionId: payload.contextFactDefinitionId,
+    bindings: payload.bindings,
+    activationTransitions: payload.activationTransitions,
+  };
+}
+
+function toBranchStepMutationPayload(payload: WorkflowBranchStepPayload) {
+  const descriptionMarkdown = readMarkdown(payload.descriptionJson);
+
+  return {
+    key: payload.key,
+    ...(typeof payload.label === "string" && payload.label.trim().length > 0
+      ? { label: payload.label }
+      : {}),
+    ...(descriptionMarkdown ? { descriptionJson: { markdown: descriptionMarkdown } } : {}),
+    guidance: payload.guidance,
+    defaultTargetStepId: payload.defaultTargetStepId,
+    routes: payload.routes,
   };
 }
 
@@ -755,6 +1264,25 @@ function getWorkUnitTypeLabel(rawWorkUnits: unknown, workUnitTypeIdentifier: str
   }
 
   return typeof workUnit.key === "string" && workUnit.key.trim().length > 0
+    ? workUnit.key.trim()
+    : null;
+}
+
+function resolveWorkUnitTypeKey(rawWorkUnits: unknown, workUnitTypeIdentifier: string) {
+  const normalizedIdentifier = workUnitTypeIdentifier.trim();
+  if (normalizedIdentifier.length === 0) {
+    return null;
+  }
+
+  const matchedWorkUnit = getWorkUnitEntries(rawWorkUnits).find((entry) => {
+    const workUnit = asRecord(entry);
+    return (
+      workUnit && (workUnit.key === normalizedIdentifier || workUnit.id === normalizedIdentifier)
+    );
+  });
+  const workUnit = asRecord(matchedWorkUnit);
+
+  return typeof workUnit?.key === "string" && workUnit.key.trim().length > 0
     ? workUnit.key.trim()
     : null;
 }
@@ -882,6 +1410,51 @@ function toWorkUnitDraftSpecFactOptions(rawWorkUnits: unknown, workUnitTypeIdent
   );
 }
 
+function toInvokeWorkUnitFactDefinitions(
+  rawWorkUnits: unknown,
+  workUnitTypeIdentifier: string,
+): WorkflowInvokeWorkUnitFactDefinition[] {
+  return getWorkUnitFactEntries(rawWorkUnits, workUnitTypeIdentifier)
+    .map((entry) => {
+      const fact = asRecord(entry);
+      if (!fact || typeof fact.key !== "string") {
+        return null;
+      }
+
+      const factType =
+        fact.factType === "string" ||
+        fact.factType === "number" ||
+        fact.factType === "boolean" ||
+        fact.factType === "json" ||
+        fact.factType === "work_unit"
+          ? fact.factType
+          : null;
+      if (!factType) {
+        return null;
+      }
+
+      return {
+        id:
+          typeof fact.id === "string" && fact.id.trim().length > 0
+            ? fact.id.trim()
+            : typeof fact.factDefinitionId === "string" && fact.factDefinitionId.trim().length > 0
+              ? fact.factDefinitionId.trim()
+              : fact.key,
+        key: fact.key,
+        label:
+          typeof fact.name === "string" && fact.name.trim().length > 0
+            ? fact.name.trim()
+            : typeof fact.label === "string" && fact.label.trim().length > 0
+              ? fact.label.trim()
+              : fact.key,
+        factType,
+        cardinality: fact.cardinality === "many" ? "many" : "one",
+        validationJson: fact.validationJson ?? fact.validation ?? null,
+      } satisfies WorkflowInvokeWorkUnitFactDefinition;
+    })
+    .filter((entry): entry is WorkflowInvokeWorkUnitFactDefinition => entry !== null);
+}
+
 function toWorkUnitTypeOptions(rawWorkUnits: unknown) {
   const workUnitTypes = getWorkUnitEntries(rawWorkUnits);
 
@@ -934,13 +1507,23 @@ function toArtifactSlotOptions(rawArtifactSlots: unknown) {
 
       const cardinality =
         typeof slot.cardinality === "string" ? slot.cardinality.replaceAll("_", " ") : null;
+      const slotDefinitionId =
+        typeof slot.id === "string" && slot.id.trim().length > 0
+          ? slot.id.trim()
+          : typeof slot.artifactSlotDefinitionId === "string" &&
+              slot.artifactSlotDefinitionId.trim().length > 0
+            ? slot.artifactSlotDefinitionId.trim()
+            : typeof slot.definitionId === "string" && slot.definitionId.trim().length > 0
+              ? slot.definitionId.trim()
+              : slot.key;
 
       return {
-        value: slot.key,
+        value: slotDefinitionId,
         label:
           typeof slot.displayName === "string" && slot.displayName.trim().length > 0
             ? slot.displayName.trim()
             : slot.key,
+        secondaryLabel: slot.key,
         description: readMarkdown(slot.description) || "Artifact slot",
         badges: cardinality ? [{ label: cardinality, tone: "cardinality" as const }] : [],
       };
@@ -955,6 +1538,19 @@ function toArtifactSlotOptions(rawArtifactSlots: unknown) {
         badges: { label: string; tone: "cardinality" }[];
       } => entry !== null,
     );
+}
+
+function toInvokeArtifactSlotDefinitions(
+  rawArtifactSlots: unknown,
+): WorkflowInvokeArtifactSlotDefinition[] {
+  return toArtifactSlotOptions(rawArtifactSlots).map((slot) => ({
+    id: slot.value,
+    key: slot.secondaryLabel ?? slot.value,
+    label: slot.label,
+    cardinality: slot.badges?.some((badge) => badge.label === "fileset")
+      ? ("fileset" as const)
+      : ("single" as const),
+  }));
 }
 
 function toWorkflowOptions(rawWorkflows: unknown) {
@@ -990,6 +1586,10 @@ function toWorkflowOptions(rawWorkflows: unknown) {
           typeof workflow.displayName === "string" && workflow.displayName.trim().length > 0
             ? workflow.displayName
             : value,
+        secondaryLabel:
+          typeof workflow.key === "string" && workflow.key.trim().length > 0
+            ? workflow.key
+            : undefined,
         description:
           readMarkdown(workflow.descriptionJson) ||
           readMarkdown(workflow.description) ||
@@ -1000,6 +1600,77 @@ function toWorkflowOptions(rawWorkflows: unknown) {
     .filter(
       (entry): entry is { value: string; label: string; description: string } => entry !== null,
     );
+}
+
+function toTransitionOptions(rawTransitions: unknown) {
+  const transitions = Array.isArray(rawTransitions) ? rawTransitions : [];
+
+  return transitions
+    .map((entry) => {
+      const transition = asRecord(entry);
+      const transitionIdentifier =
+        typeof transition?.transitionId === "string" && transition.transitionId.trim().length > 0
+          ? transition.transitionId
+          : typeof transition?.id === "string" && transition.id.trim().length > 0
+            ? transition.id
+            : null;
+      if (!transition || !transitionIdentifier) {
+        return null;
+      }
+
+      const label =
+        typeof transition.transitionName === "string" && transition.transitionName.trim().length > 0
+          ? transition.transitionName
+          : typeof transition.transitionKey === "string" &&
+              transition.transitionKey.trim().length > 0
+            ? transition.transitionKey
+            : (transition.transitionId ?? transition.id);
+
+      return {
+        value: transitionIdentifier,
+        label,
+        secondaryLabel:
+          typeof transition.transitionKey === "string" ? transition.transitionKey : undefined,
+        description:
+          typeof transition.transitionKey === "string" && transition.transitionKey.trim().length > 0
+            ? transition.transitionKey
+            : "Lifecycle transition",
+      };
+    })
+    .filter(
+      (
+        entry,
+      ): entry is {
+        value: string;
+        label: string;
+        secondaryLabel?: string;
+        description: string;
+      } => entry !== null,
+    );
+}
+
+function resolveTransitionKey(rawTransitions: unknown, transitionIdentifier: string) {
+  const normalizedIdentifier = transitionIdentifier.trim();
+  if (normalizedIdentifier.length === 0) {
+    return null;
+  }
+
+  const transitions = Array.isArray(rawTransitions) ? rawTransitions : [];
+  const matched = transitions
+    .map((entry) => asRecord(entry))
+    .find(
+      (transition) =>
+        transition &&
+        ((typeof transition.transitionId === "string" &&
+          transition.transitionId.trim() === normalizedIdentifier) ||
+          (typeof transition.id === "string" && transition.id.trim() === normalizedIdentifier)),
+    );
+
+  return matched &&
+    typeof matched.transitionKey === "string" &&
+    matched.transitionKey.trim().length > 0
+    ? matched.transitionKey.trim()
+    : null;
 }
 
 export function MethodologyWorkflowEditorRoute() {
@@ -1035,6 +1706,12 @@ export function MethodologyWorkflowEditorRoute() {
     createFormStep?: { mutationOptions: () => unknown };
     updateFormStep?: { mutationOptions: () => unknown };
     deleteFormStep?: { mutationOptions: () => unknown };
+    createInvokeStep?: { mutationOptions: () => unknown };
+    updateInvokeStep?: { mutationOptions: () => unknown };
+    deleteInvokeStep?: { mutationOptions: () => unknown };
+    createBranchStep?: { mutationOptions: () => unknown };
+    updateBranchStep?: { mutationOptions: () => unknown };
+    deleteBranchStep?: { mutationOptions: () => unknown };
     createAgentStep?: { mutationOptions: () => unknown };
     updateAgentStep?: { mutationOptions: () => unknown };
     deleteAgentStep?: { mutationOptions: () => unknown };
@@ -1116,6 +1793,17 @@ export function MethodologyWorkflowEditorRoute() {
       queryFn: () => Promise<unknown>;
     };
   const availableWorkflowsQuery = useQuery(availableWorkflowsQueryOptions);
+  const transitionsQueryOptions =
+    (orpc.methodology.version.workUnit.stateMachine?.transition?.list?.queryOptions?.({
+      input: { versionId, workUnitTypeKey: workUnitKey },
+    }) ?? {
+      queryKey: ["work-unit-state-machine-transitions", versionId, workUnitKey],
+      queryFn: async () => [],
+    }) as unknown as {
+      queryKey: unknown[];
+      queryFn: () => Promise<unknown>;
+    };
+  const transitionsQuery = useQuery(transitionsQueryOptions);
   const harnessMetadataQueryOptions =
     (workflowProcedures.discoverAgentStepHarnessMetadata?.queryOptions?.({
       input: {},
@@ -1142,6 +1830,16 @@ export function MethodologyWorkflowEditorRoute() {
       mutationFn: async () => null,
     }) as { mutationFn: (input: unknown) => Promise<unknown> },
   );
+  const createInvokeStepMutation = useMutation(
+    (workflowProcedures.createInvokeStep?.mutationOptions?.() ?? {
+      mutationFn: async () => null,
+    }) as { mutationFn: (input: unknown) => Promise<unknown> },
+  );
+  const createBranchStepMutation = useMutation(
+    (workflowProcedures.createBranchStep?.mutationOptions?.() ?? {
+      mutationFn: async () => null,
+    }) as { mutationFn: (input: unknown) => Promise<unknown> },
+  );
   const updateFormStepMutation = useMutation(
     (workflowProcedures.updateFormStep?.mutationOptions?.() ?? {
       mutationFn: async () => null,
@@ -1152,6 +1850,16 @@ export function MethodologyWorkflowEditorRoute() {
       mutationFn: async () => null,
     }) as { mutationFn: (input: unknown) => Promise<unknown> },
   );
+  const updateInvokeStepMutation = useMutation(
+    (workflowProcedures.updateInvokeStep?.mutationOptions?.() ?? {
+      mutationFn: async () => null,
+    }) as { mutationFn: (input: unknown) => Promise<unknown> },
+  );
+  const updateBranchStepMutation = useMutation(
+    (workflowProcedures.updateBranchStep?.mutationOptions?.() ?? {
+      mutationFn: async () => null,
+    }) as { mutationFn: (input: unknown) => Promise<unknown> },
+  );
   const deleteFormStepMutation = useMutation(
     (workflowProcedures.deleteFormStep?.mutationOptions?.() ?? {
       mutationFn: async () => null,
@@ -1159,6 +1867,16 @@ export function MethodologyWorkflowEditorRoute() {
   );
   const deleteAgentStepMutation = useMutation(
     (workflowProcedures.deleteAgentStep?.mutationOptions?.() ?? {
+      mutationFn: async () => null,
+    }) as { mutationFn: (input: unknown) => Promise<unknown> },
+  );
+  const deleteInvokeStepMutation = useMutation(
+    (workflowProcedures.deleteInvokeStep?.mutationOptions?.() ?? {
+      mutationFn: async () => null,
+    }) as { mutationFn: (input: unknown) => Promise<unknown> },
+  );
+  const deleteBranchStepMutation = useMutation(
+    (workflowProcedures.deleteBranchStep?.mutationOptions?.() ?? {
       mutationFn: async () => null,
     }) as { mutationFn: (input: unknown) => Promise<unknown> },
   );
@@ -1230,6 +1948,7 @@ export function MethodologyWorkflowEditorRoute() {
     editorDefinition?.formDefinitions,
     editorDefinition?.agentStepDefinitions,
   );
+  const conditionOperators = BUILT_IN_CONDITION_OPERATORS;
 
   return (
     <WorkflowEditorShell
@@ -1248,11 +1967,167 @@ export function MethodologyWorkflowEditorRoute() {
       artifactSlots={toArtifactSlotOptions(artifactSlotsQuery.data)}
       workUnitTypes={toWorkUnitTypeOptions(workUnitTypesQuery.data)}
       availableWorkflows={toWorkflowOptions(availableWorkflowsQuery.data)}
+      availableTransitions={toTransitionOptions(transitionsQuery.data)}
+      conditionOperators={conditionOperators}
       workUnitFactsQueryScope={versionId}
       loadWorkUnitFacts={async (selectedWorkUnitTypeKey) => {
         const data = await queryClient.fetchQuery(workUnitFactsQueryOptions);
 
         return toWorkUnitDraftSpecFactOptions(data, selectedWorkUnitTypeKey);
+      }}
+      loadWorkUnitArtifactSlots={async (selectedWorkUnitTypeIdentifier) => {
+        const selectedWorkUnitTypeKey = resolveWorkUnitTypeKey(
+          workUnitTypesQuery.data,
+          selectedWorkUnitTypeIdentifier,
+        );
+        if (!selectedWorkUnitTypeKey) {
+          return [];
+        }
+
+        const selectedWorkUnitArtifactSlotsQueryOptions =
+          (orpc.methodology.version.workUnit.artifactSlot?.list?.queryOptions?.({
+            input: { versionId, workUnitTypeKey: selectedWorkUnitTypeKey },
+          }) ?? {
+            queryKey: ["work-unit-artifact-slots", versionId, selectedWorkUnitTypeKey],
+            queryFn: async () => [],
+          }) as unknown as {
+            queryKey: unknown[];
+            queryFn: () => Promise<unknown>;
+          };
+        const data = await queryClient.fetchQuery(selectedWorkUnitArtifactSlotsQueryOptions);
+
+        return toArtifactSlotOptions(data);
+      }}
+      loadInvokeWorkUnitFacts={async (selectedWorkUnitTypeIdentifier) => {
+        const data = await queryClient.fetchQuery(workUnitFactsQueryOptions);
+
+        return toInvokeWorkUnitFactDefinitions(data, selectedWorkUnitTypeIdentifier);
+      }}
+      loadInvokeWorkUnitArtifactSlots={async (selectedWorkUnitTypeIdentifier) => {
+        const selectedWorkUnitTypeKey = resolveWorkUnitTypeKey(
+          workUnitTypesQuery.data,
+          selectedWorkUnitTypeIdentifier,
+        );
+        if (!selectedWorkUnitTypeKey) {
+          return [];
+        }
+
+        const selectedWorkUnitArtifactSlotsQueryOptions =
+          (orpc.methodology.version.workUnit.artifactSlot?.list?.queryOptions?.({
+            input: { versionId, workUnitTypeKey: selectedWorkUnitTypeKey },
+          }) ?? {
+            queryKey: ["work-unit-artifact-slots", versionId, selectedWorkUnitTypeKey],
+            queryFn: async () => [],
+          }) as unknown as {
+            queryKey: unknown[];
+            queryFn: () => Promise<unknown>;
+          };
+        const data = await queryClient.fetchQuery(selectedWorkUnitArtifactSlotsQueryOptions);
+
+        return toInvokeArtifactSlotDefinitions(data);
+      }}
+      loadInvokeWorkUnitTransitions={async (selectedWorkUnitTypeIdentifier) => {
+        const selectedWorkUnitTypeKey = resolveWorkUnitTypeKey(
+          workUnitTypesQuery.data,
+          selectedWorkUnitTypeIdentifier,
+        );
+        if (!selectedWorkUnitTypeKey) {
+          return [];
+        }
+
+        const selectedWorkUnitTransitionsQueryOptions =
+          (orpc.methodology.version.workUnit.stateMachine?.transition?.list?.queryOptions?.({
+            input: { versionId, workUnitTypeKey: selectedWorkUnitTypeKey },
+          }) ?? {
+            queryKey: ["work-unit-state-machine-transitions", versionId, selectedWorkUnitTypeKey],
+            queryFn: async () => [],
+          }) as unknown as {
+            queryKey: unknown[];
+            queryFn: () => Promise<unknown>;
+          };
+        const data = await queryClient.fetchQuery(selectedWorkUnitTransitionsQueryOptions);
+
+        return toTransitionOptions(data);
+      }}
+      loadInvokeWorkUnitWorkflows={async (selectedWorkUnitTypeIdentifier) => {
+        const selectedWorkUnitTypeKey = resolveWorkUnitTypeKey(
+          workUnitTypesQuery.data,
+          selectedWorkUnitTypeIdentifier,
+        );
+        if (!selectedWorkUnitTypeKey) {
+          return [];
+        }
+
+        const selectedWorkUnitWorkflowsQueryOptions =
+          (orpc.methodology.version.workUnit.workflow.list?.queryOptions?.({
+            input: { versionId, workUnitTypeKey: selectedWorkUnitTypeKey },
+          }) ?? {
+            queryKey: ["work-unit-workflows", versionId, selectedWorkUnitTypeKey],
+            queryFn: async () => [],
+          }) as unknown as {
+            queryKey: unknown[];
+            queryFn: () => Promise<unknown>;
+          };
+        const data = await queryClient.fetchQuery(selectedWorkUnitWorkflowsQueryOptions);
+
+        return toWorkflowOptions(data);
+      }}
+      loadInvokeTransitionBoundWorkflowKeys={async (
+        selectedWorkUnitTypeIdentifier,
+        transitionIdentifier,
+      ) => {
+        const selectedWorkUnitTypeKey = resolveWorkUnitTypeKey(
+          workUnitTypesQuery.data,
+          selectedWorkUnitTypeIdentifier,
+        );
+        if (!selectedWorkUnitTypeKey || transitionIdentifier.trim().length === 0) {
+          return [];
+        }
+
+        const selectedWorkUnitTransitionsQueryOptions =
+          (orpc.methodology.version.workUnit.stateMachine?.transition?.list?.queryOptions?.({
+            input: { versionId, workUnitTypeKey: selectedWorkUnitTypeKey },
+          }) ?? {
+            queryKey: ["work-unit-state-machine-transitions", versionId, selectedWorkUnitTypeKey],
+            queryFn: async () => [],
+          }) as unknown as {
+            queryKey: unknown[];
+            queryFn: () => Promise<unknown>;
+          };
+        const transitionsData = await queryClient.fetchQuery(
+          selectedWorkUnitTransitionsQueryOptions,
+        );
+        const transitionKey = resolveTransitionKey(transitionsData, transitionIdentifier);
+        if (!transitionKey) {
+          return [];
+        }
+
+        const transitionBindingsQueryOptions =
+          (orpc.methodology.version.workUnit.stateMachine?.transition?.binding?.list?.queryOptions?.(
+            {
+              input: {
+                versionId,
+                workUnitTypeKey: selectedWorkUnitTypeKey,
+                transitionKey,
+              },
+            },
+          ) ?? {
+            queryKey: [
+              "work-unit-transition-bindings",
+              versionId,
+              selectedWorkUnitTypeKey,
+              transitionKey,
+            ],
+            queryFn: async () => [],
+          }) as unknown as {
+            queryKey: unknown[];
+            queryFn: () => Promise<unknown>;
+          };
+        const data = await queryClient.fetchQuery(transitionBindingsQueryOptions);
+
+        return Array.isArray(data)
+          ? data.filter((entry): entry is string => typeof entry === "string")
+          : [];
       }}
       onSaveMetadata={async (metadata) => {
         await updateWorkflowMutation.mutateAsync({
@@ -1294,6 +2169,26 @@ export function MethodologyWorkflowEditorRoute() {
 
         await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
       }}
+      onCreateInvokeStep={async (payload) => {
+        await createInvokeStepMutation.mutateAsync({
+          versionId,
+          workUnitTypeKey: workUnitKey,
+          workflowDefinitionId: resolvedWorkflowDefinitionId,
+          payload: toInvokeStepMutationPayload(payload),
+        });
+
+        await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
+      }}
+      onCreateBranchStep={async (payload) => {
+        await createBranchStepMutation.mutateAsync({
+          versionId,
+          workUnitTypeKey: workUnitKey,
+          workflowDefinitionId: resolvedWorkflowDefinitionId,
+          payload: toBranchStepMutationPayload(payload),
+        });
+
+        await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
+      }}
       onUpdateFormStep={async (stepId, payload) => {
         await updateFormStepMutation.mutateAsync({
           versionId,
@@ -1316,6 +2211,28 @@ export function MethodologyWorkflowEditorRoute() {
 
         await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
       }}
+      onUpdateInvokeStep={async (stepId, payload) => {
+        await updateInvokeStepMutation.mutateAsync({
+          versionId,
+          workUnitTypeKey: workUnitKey,
+          workflowDefinitionId: resolvedWorkflowDefinitionId,
+          stepId,
+          payload: toInvokeStepMutationPayload(payload),
+        });
+
+        await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
+      }}
+      onUpdateBranchStep={async (stepId, payload) => {
+        await updateBranchStepMutation.mutateAsync({
+          versionId,
+          workUnitTypeKey: workUnitKey,
+          workflowDefinitionId: resolvedWorkflowDefinitionId,
+          stepId,
+          payload: toBranchStepMutationPayload(payload),
+        });
+
+        await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
+      }}
       onDeleteFormStep={async (stepId) => {
         await deleteFormStepMutation.mutateAsync({
           versionId,
@@ -1328,6 +2245,26 @@ export function MethodologyWorkflowEditorRoute() {
       }}
       onDeleteAgentStep={async (stepId) => {
         await deleteAgentStepMutation.mutateAsync({
+          versionId,
+          workUnitTypeKey: workUnitKey,
+          workflowDefinitionId: resolvedWorkflowDefinitionId,
+          stepId,
+        });
+
+        await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
+      }}
+      onDeleteInvokeStep={async (stepId) => {
+        await deleteInvokeStepMutation.mutateAsync({
+          versionId,
+          workUnitTypeKey: workUnitKey,
+          workflowDefinitionId: resolvedWorkflowDefinitionId,
+          stepId,
+        });
+
+        await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
+      }}
+      onDeleteBranchStep={async (stepId) => {
+        await deleteBranchStepMutation.mutateAsync({
           versionId,
           workUnitTypeKey: workUnitKey,
           workflowDefinitionId: resolvedWorkflowDefinitionId,

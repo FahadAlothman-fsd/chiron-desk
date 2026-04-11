@@ -11,8 +11,10 @@ import {
 } from "../../components/ui/dialog";
 
 import {
+  BranchStepDialog,
   EdgeDialog,
   FormStepDialog,
+  InvokeStepDialog,
   getPickerBadgeClassName,
   WorkflowContextFactDialog,
   WorkflowMetadataDialog,
@@ -21,6 +23,9 @@ import { AgentStepDialog } from "./agent-step-dialog";
 import { StepListInspector } from "./step-list-inspector";
 import { StepTypesGrid } from "./step-types-grid";
 import type {
+  WorkflowBranchStepMutationHandlers,
+  WorkflowBranchStepPayload,
+  WorkflowConditionOperator,
   WorkflowAgentStepMutationHandlers,
   WorkflowAgentStepPayload,
   WorkflowContextFactDefinitionItem,
@@ -33,7 +38,12 @@ import type {
   WorkflowEditorSelection,
   WorkflowEditorStep,
   WorkflowFormStepMutationHandlers,
+  WorkflowInvokeArtifactSlotDefinition,
+  WorkflowInvokeStepMutationHandlers,
+  WorkflowInvokeStepPayload,
+  WorkflowInvokeWorkUnitFactDefinition,
 } from "./types";
+import { STEP_TYPE_LABELS } from "./types";
 import { WorkflowCanvas } from "./workflow-canvas";
 
 type WorkflowEditorShellProps = {
@@ -46,14 +56,37 @@ type WorkflowEditorShellProps = {
   artifactSlots: readonly WorkflowEditorPickerOption[];
   workUnitTypes: readonly WorkflowEditorPickerOption[];
   availableWorkflows: readonly WorkflowEditorPickerOption[];
+  availableTransitions: readonly WorkflowEditorPickerOption[];
+  conditionOperators: readonly WorkflowConditionOperator[];
   workUnitFactsQueryScope: string;
   loadWorkUnitFacts: (workUnitTypeKey: string) => Promise<readonly WorkflowEditorPickerOption[]>;
+  loadWorkUnitArtifactSlots: (
+    workUnitTypeKey: string,
+  ) => Promise<readonly WorkflowEditorPickerOption[]>;
+  loadInvokeWorkUnitFacts: (
+    workUnitTypeKey: string,
+  ) => Promise<readonly WorkflowInvokeWorkUnitFactDefinition[]>;
+  loadInvokeWorkUnitArtifactSlots: (
+    workUnitTypeKey: string,
+  ) => Promise<readonly WorkflowInvokeArtifactSlotDefinition[]>;
+  loadInvokeWorkUnitTransitions?: (
+    workUnitTypeKey: string,
+  ) => Promise<readonly WorkflowEditorPickerOption[]>;
+  loadInvokeWorkUnitWorkflows?: (
+    workUnitTypeKey: string,
+  ) => Promise<readonly WorkflowEditorPickerOption[]>;
+  loadInvokeTransitionBoundWorkflowKeys?: (
+    workUnitTypeKey: string,
+    transitionId: string,
+  ) => Promise<readonly string[]>;
   onSaveMetadata: (metadata: WorkflowEditorMetadata) => Promise<void>;
   onCreateEdge?: (edge: WorkflowEditorEdge) => Promise<void>;
   onUpdateEdge?: (edgeId: string, descriptionMarkdown: string) => Promise<void>;
   onDeleteEdge?: (edgeId: string) => Promise<void>;
 } & WorkflowFormStepMutationHandlers &
   WorkflowAgentStepMutationHandlers &
+  WorkflowBranchStepMutationHandlers &
+  WorkflowInvokeStepMutationHandlers &
   WorkflowContextFactMutationHandlers;
 
 function createLocalId(prefix: string) {
@@ -61,6 +94,181 @@ function createLocalId(prefix: string) {
     return `${prefix}-${crypto.randomUUID()}`;
   }
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function updateEdgeStepKeys(
+  edges: readonly WorkflowEditorEdge[],
+  previousStepKey: string,
+  nextStepKey: string,
+) {
+  if (previousStepKey === nextStepKey) {
+    return [...edges];
+  }
+
+  return edges.map((edge) => ({
+    ...edge,
+    fromStepKey: edge.fromStepKey === previousStepKey ? nextStepKey : edge.fromStepKey,
+    toStepKey: edge.toStepKey === previousStepKey ? nextStepKey : edge.toStepKey,
+  }));
+}
+
+function updateInvokeStepContextFactReferences(
+  payload: WorkflowInvokeStepPayload,
+  previousContextFactDefinitionId: string,
+  nextContextFactDefinitionId: string,
+): WorkflowInvokeStepPayload {
+  const nextBindings =
+    payload.targetKind === "work_unit"
+      ? payload.bindings.map((binding) =>
+          binding.source.kind === "context_fact" &&
+          binding.source.contextFactDefinitionId === previousContextFactDefinitionId
+            ? {
+                ...binding,
+                source: {
+                  kind: "context_fact" as const,
+                  contextFactDefinitionId: nextContextFactDefinitionId,
+                },
+              }
+            : binding,
+        )
+      : undefined;
+
+  if (
+    payload.sourceMode === "context_fact_backed" &&
+    payload.contextFactDefinitionId === previousContextFactDefinitionId
+  ) {
+    return payload.targetKind === "work_unit"
+      ? {
+          ...payload,
+          contextFactDefinitionId: nextContextFactDefinitionId,
+          bindings: nextBindings ?? payload.bindings,
+        }
+      : { ...payload, contextFactDefinitionId: nextContextFactDefinitionId };
+  }
+
+  return payload.targetKind === "work_unit" && nextBindings
+    ? { ...payload, bindings: nextBindings }
+    : payload;
+}
+
+function updateBranchStepContextFactReferences(
+  payload: WorkflowBranchStepPayload,
+  previousContextFactDefinitionId: string,
+  nextContextFactDefinitionId: string,
+): WorkflowBranchStepPayload {
+  return {
+    ...payload,
+    routes: payload.routes.map((route) => ({
+      ...route,
+      groups: route.groups.map((group) => ({
+        ...group,
+        conditions: group.conditions.map((condition) =>
+          condition.contextFactDefinitionId === previousContextFactDefinitionId
+            ? { ...condition, contextFactDefinitionId: nextContextFactDefinitionId }
+            : condition,
+        ),
+      })),
+    })),
+  };
+}
+
+function buildBranchProjectedEdges(params: {
+  stepId: string;
+  stepKey: string;
+  payload: WorkflowBranchStepPayload;
+  steps: readonly WorkflowEditorStep[];
+}): WorkflowEditorEdge[] {
+  const stepById = new Map(params.steps.map((step) => [step.stepId, step]));
+  const edges: WorkflowEditorEdge[] = [];
+
+  if (params.payload.defaultTargetStepId) {
+    const targetStep = stepById.get(params.payload.defaultTargetStepId);
+    if (targetStep) {
+      edges.push({
+        edgeId: `${params.stepId}:branch-default`,
+        fromStepKey: params.stepKey,
+        toStepKey: targetStep.payload.key,
+        descriptionMarkdown: "",
+        edgeOwner: "branch_default",
+        branchStepId: params.stepId,
+      });
+    }
+  }
+
+  params.payload.routes.forEach((route) => {
+    const targetStep = stepById.get(route.targetStepId);
+    if (!targetStep) {
+      return;
+    }
+
+    edges.push({
+      edgeId: `${params.stepId}:branch:${route.routeId}`,
+      fromStepKey: params.stepKey,
+      toStepKey: targetStep.payload.key,
+      descriptionMarkdown: "",
+      edgeOwner: "branch_conditional",
+      branchStepId: params.stepId,
+      routeId: route.routeId,
+    });
+  });
+
+  return edges;
+}
+
+function replaceBranchProjectedEdges(params: {
+  edges: readonly WorkflowEditorEdge[];
+  stepId: string;
+  stepKey: string;
+  payload: WorkflowBranchStepPayload;
+  steps: readonly WorkflowEditorStep[];
+}) {
+  const survivingEdges = params.edges.filter((edge) => edge.branchStepId !== params.stepId);
+  return [...survivingEdges, ...buildBranchProjectedEdges(params)];
+}
+
+function stepReferencesContextFact(
+  step: WorkflowEditorStep,
+  contextFactDefinitionId: string,
+): boolean {
+  switch (step.stepType) {
+    case "form":
+      return step.payload.fields.some(
+        (field) => field.contextFactDefinitionId === contextFactDefinitionId,
+      );
+    case "agent":
+      return (
+        step.payload.explicitReadGrants.some(
+          (grant) => grant.contextFactDefinitionId === contextFactDefinitionId,
+        ) ||
+        step.payload.writeItems.some(
+          (writeItem) =>
+            writeItem.contextFactDefinitionId === contextFactDefinitionId ||
+            writeItem.requirementContextFactDefinitionIds.includes(contextFactDefinitionId),
+        ) ||
+        step.payload.completionRequirements.some(
+          (requirement) => requirement.contextFactDefinitionId === contextFactDefinitionId,
+        )
+      );
+    case "invoke":
+      return (
+        (step.payload.sourceMode === "context_fact_backed" &&
+          step.payload.contextFactDefinitionId === contextFactDefinitionId) ||
+        (step.payload.targetKind === "work_unit" &&
+          step.payload.bindings.some(
+            (binding) => binding.contextFactDefinitionId === contextFactDefinitionId,
+          ))
+      );
+    case "branch":
+      return step.payload.routes.some((route) =>
+        route.groups.some((group) =>
+          group.conditions.some(
+            (condition) => condition.contextFactDefinitionId === contextFactDefinitionId,
+          ),
+        ),
+      );
+    default:
+      return false;
+  }
 }
 
 function summarizeContextFact(fact: WorkflowContextFactDraft | WorkflowContextFactDefinitionItem) {
@@ -231,6 +439,14 @@ function toContextFactDefinitionItem(
     ...(draft.artifactSlotDefinitionId?.trim()
       ? { artifactSlotDefinitionId: draft.artifactSlotDefinitionId.trim() }
       : {}),
+    ...(draft.workUnitDefinitionId?.trim()
+      ? { workUnitDefinitionId: draft.workUnitDefinitionId.trim() }
+      : {}),
+    selectedWorkUnitFactDefinitionIds:
+      draft.selectedWorkUnitFactDefinitionIds.length > 0
+        ? draft.selectedWorkUnitFactDefinitionIds
+        : draft.includedFactDefinitionIds,
+    selectedArtifactSlotDefinitionIds: draft.selectedArtifactSlotDefinitionIds,
     ...(draft.workUnitTypeKey?.trim() ? { workUnitTypeKey: draft.workUnitTypeKey.trim() } : {}),
     includedFactDefinitionIds: draft.includedFactDefinitionIds,
     summary: summarizeContextFact(draft),
@@ -247,8 +463,16 @@ export function WorkflowEditorShell({
   artifactSlots,
   workUnitTypes,
   availableWorkflows,
+  availableTransitions,
+  conditionOperators,
   workUnitFactsQueryScope,
   loadWorkUnitFacts,
+  loadWorkUnitArtifactSlots,
+  loadInvokeWorkUnitFacts,
+  loadInvokeWorkUnitArtifactSlots,
+  loadInvokeWorkUnitTransitions,
+  loadInvokeWorkUnitWorkflows,
+  loadInvokeTransitionBoundWorkflowKeys,
   onSaveMetadata,
   onCreateFormStep,
   onUpdateFormStep,
@@ -256,6 +480,12 @@ export function WorkflowEditorShell({
   onCreateAgentStep,
   onUpdateAgentStep,
   onDeleteAgentStep,
+  onCreateInvokeStep,
+  onUpdateInvokeStep,
+  onDeleteInvokeStep,
+  onCreateBranchStep,
+  onUpdateBranchStep,
+  onDeleteBranchStep,
   discoverHarnessMetadata,
   onCreateContextFact,
   onUpdateContextFact,
@@ -276,6 +506,10 @@ export function WorkflowEditorShell({
   const [formDialogMode, setFormDialogMode] = useState<"create" | "edit">("create");
   const [isAgentDialogOpen, setAgentDialogOpen] = useState(false);
   const [agentDialogMode, setAgentDialogMode] = useState<"create" | "edit">("create");
+  const [isInvokeDialogOpen, setInvokeDialogOpen] = useState(false);
+  const [invokeDialogMode, setInvokeDialogMode] = useState<"create" | "edit">("create");
+  const [isBranchDialogOpen, setBranchDialogOpen] = useState(false);
+  const [branchDialogMode, setBranchDialogMode] = useState<"create" | "edit">("create");
   const [isContextFactDialogOpen, setContextFactDialogOpen] = useState(false);
   const [contextFactDialogMode, setContextFactDialogMode] = useState<"create" | "edit">("create");
   const [editingContextFactId, setEditingContextFactId] = useState<string | null>(null);
@@ -353,6 +587,16 @@ export function WorkflowEditorShell({
 
     return optionsByValue;
   }, [workUnitTypes]);
+  const stepOptions = useMemo<WorkflowEditorPickerOption[]>(
+    () =>
+      steps.map((step) => ({
+        value: step.stepId,
+        label: step.payload.label?.trim() || step.payload.key,
+        secondaryLabel: step.payload.key,
+        description: STEP_TYPE_LABELS[step.stepType],
+      })),
+    [steps],
+  );
 
   const openCreateFormDialog = () => {
     setStatusMessage(null);
@@ -364,6 +608,18 @@ export function WorkflowEditorShell({
     setStatusMessage(null);
     setAgentDialogMode("create");
     setAgentDialogOpen(true);
+  };
+
+  const openCreateInvokeDialog = () => {
+    setStatusMessage(null);
+    setInvokeDialogMode("create");
+    setInvokeDialogOpen(true);
+  };
+
+  const openCreateBranchDialog = () => {
+    setStatusMessage(null);
+    setBranchDialogMode("create");
+    setBranchDialogOpen(true);
   };
 
   const openEditFormDialog = () => {
@@ -384,6 +640,24 @@ export function WorkflowEditorShell({
     setAgentDialogOpen(true);
   };
 
+  const openEditInvokeDialog = () => {
+    if (!selectedStep) {
+      return;
+    }
+    setStatusMessage(null);
+    setInvokeDialogMode("edit");
+    setInvokeDialogOpen(true);
+  };
+
+  const openEditBranchDialog = () => {
+    if (!selectedStep) {
+      return;
+    }
+    setStatusMessage(null);
+    setBranchDialogMode("edit");
+    setBranchDialogOpen(true);
+  };
+
   const openSelectedStepDialog = () => {
     if (!selectedStep) {
       return;
@@ -391,6 +665,16 @@ export function WorkflowEditorShell({
 
     if (selectedStep.stepType === "agent") {
       openEditAgentDialog();
+      return;
+    }
+
+    if (selectedStep.stepType === "invoke") {
+      openEditInvokeDialog();
+      return;
+    }
+
+    if (selectedStep.stepType === "branch") {
+      openEditBranchDialog();
       return;
     }
 
@@ -420,6 +704,14 @@ export function WorkflowEditorShell({
   }) => {
     if (sourceStepKey === targetStepKey) {
       setStatusMessage("A step cannot connect to itself.");
+      return;
+    }
+
+    const sourceStep = steps.find((step) => step.payload.key === sourceStepKey);
+    if (sourceStep?.stepType === "branch") {
+      setStatusMessage(
+        "Branch topology is authored in the Branch dialog, not through generic edge creation.",
+      );
       return;
     }
 
@@ -472,6 +764,8 @@ export function WorkflowEditorShell({
           <StepTypesGrid
             onCreateFormStep={openCreateFormDialog}
             onCreateAgentStep={openCreateAgentDialog}
+            onCreateInvokeStep={openCreateInvokeDialog}
+            onCreateBranchStep={openCreateBranchDialog}
           />
 
           <StepListInspector
@@ -484,8 +778,17 @@ export function WorkflowEditorShell({
               setSelection({ kind: "step", stepId });
             }}
             onSelectEdge={(edgeId) => {
+              const edge = edges.find((entry) => entry.edgeId === edgeId);
               setStatusMessage(null);
+              if (edge?.branchStepId) {
+                setSelection({ kind: "step", stepId: edge.branchStepId });
+                return;
+              }
               setSelection({ kind: "edge", edgeId });
+            }}
+            onFocusBranchStep={(branchStepId) => {
+              setStatusMessage(null);
+              setSelection({ kind: "step", stepId: branchStepId });
             }}
             onClearSelection={() => {
               setStatusMessage(null);
@@ -587,7 +890,17 @@ export function WorkflowEditorShell({
             setStatusMessage(null);
           }}
           onSelectEdge={(edgeId) => {
+            const edge = edges.find((entry) => entry.edgeId === edgeId);
+            if (edge?.branchStepId) {
+              setSelection({ kind: "step", stepId: edge.branchStepId });
+              setStatusMessage(null);
+              return;
+            }
             setSelection({ kind: "edge", edgeId });
+            setStatusMessage(null);
+          }}
+          onFocusBranchStep={(branchStepId) => {
+            setSelection({ kind: "step", stepId: branchStepId });
             setStatusMessage(null);
           }}
           onConnect={tryCreateEdge}
@@ -604,7 +917,7 @@ export function WorkflowEditorShell({
         onOpenChange={setFormDialogOpen}
         onSave={async (payload) => {
           setStatusMessage(null);
-          if (formDialogMode === "edit" && selectedStep) {
+          if (formDialogMode === "edit" && selectedStep?.stepType === "form") {
             const previousStepKey = selectedStep.payload.key;
             setSteps((previous) =>
               previous.map((entry) =>
@@ -617,14 +930,7 @@ export function WorkflowEditorShell({
               ),
             );
             if (previousStepKey !== payload.key) {
-              setEdges((previous) =>
-                previous.map((edge) => ({
-                  ...edge,
-                  fromStepKey:
-                    edge.fromStepKey === previousStepKey ? payload.key : edge.fromStepKey,
-                  toStepKey: edge.toStepKey === previousStepKey ? payload.key : edge.toStepKey,
-                })),
-              );
+              setEdges((previous) => updateEdgeStepKeys(previous, previousStepKey, payload.key));
             }
             await onUpdateFormStep?.(selectedStep.stepId, payload);
           } else {
@@ -729,6 +1035,158 @@ export function WorkflowEditorShell({
         }
       />
 
+      <InvokeStepDialog
+        open={isInvokeDialogOpen}
+        mode={invokeDialogMode}
+        step={
+          invokeDialogMode === "edit" && selectedStep?.stepType === "invoke"
+            ? selectedStep
+            : undefined
+        }
+        availableWorkflows={availableWorkflows}
+        availableWorkUnits={workUnitTypes}
+        availableTransitions={availableTransitions}
+        availableContextFacts={localContextFacts}
+        workUnitFactsQueryScope={workUnitFactsQueryScope}
+        loadWorkUnitFacts={loadInvokeWorkUnitFacts}
+        loadWorkUnitArtifactSlots={loadInvokeWorkUnitArtifactSlots}
+        loadWorkUnitTransitions={loadInvokeWorkUnitTransitions}
+        loadWorkUnitWorkflows={loadInvokeWorkUnitWorkflows}
+        loadTransitionBoundWorkflowKeys={loadInvokeTransitionBoundWorkflowKeys}
+        onOpenChange={setInvokeDialogOpen}
+        onSave={async (payload) => {
+          setStatusMessage(null);
+          if (invokeDialogMode === "edit" && selectedStep?.stepType === "invoke") {
+            const previousStepKey = selectedStep.payload.key;
+            setSteps((previous) =>
+              previous.map((entry) =>
+                entry.stepId === selectedStep.stepId
+                  ? {
+                      ...entry,
+                      payload,
+                    }
+                  : entry,
+              ),
+            );
+            if (previousStepKey !== payload.key) {
+              setEdges((previous) => updateEdgeStepKeys(previous, previousStepKey, payload.key));
+            }
+            await onUpdateInvokeStep?.(selectedStep.stepId, payload);
+          } else {
+            const nextStep: WorkflowEditorStep = {
+              stepId: createLocalId("step"),
+              stepType: "invoke",
+              payload,
+            };
+            setSteps((previous) => [...previous, nextStep]);
+            setSelection({ kind: "step", stepId: nextStep.stepId });
+            await onCreateInvokeStep?.(payload);
+          }
+          setInvokeDialogOpen(false);
+        }}
+        onDelete={
+          invokeDialogMode === "edit" && selectedStep?.stepType === "invoke"
+            ? async () => {
+                setSteps((previous) =>
+                  previous.filter((entry) => entry.stepId !== selectedStep.stepId),
+                );
+                setEdges((previous) =>
+                  previous.filter(
+                    (edge) =>
+                      edge.fromStepKey !== selectedStep.payload.key &&
+                      edge.toStepKey !== selectedStep.payload.key,
+                  ),
+                );
+                setSelection(null);
+                setInvokeDialogOpen(false);
+                await onDeleteInvokeStep?.(selectedStep.stepId);
+              }
+            : undefined
+        }
+      />
+
+      <BranchStepDialog
+        open={isBranchDialogOpen}
+        mode={branchDialogMode}
+        step={
+          branchDialogMode === "edit" && selectedStep?.stepType === "branch"
+            ? selectedStep
+            : undefined
+        }
+        availableSteps={stepOptions}
+        availableContextFacts={localContextFacts}
+        conditionOperators={conditionOperators}
+        onOpenChange={setBranchDialogOpen}
+        onSave={async (payload) => {
+          setStatusMessage(null);
+          if (branchDialogMode === "edit" && selectedStep?.stepType === "branch") {
+            const previousStepKey = selectedStep.payload.key;
+            const nextSteps = steps.map((entry) =>
+              entry.stepId === selectedStep.stepId
+                ? {
+                    ...entry,
+                    payload,
+                  }
+                : entry,
+            );
+
+            setSteps(nextSteps);
+            const nextEdges = replaceBranchProjectedEdges({
+              edges:
+                previousStepKey !== payload.key
+                  ? updateEdgeStepKeys(edges, previousStepKey, payload.key)
+                  : edges,
+              stepId: selectedStep.stepId,
+              stepKey: payload.key,
+              payload,
+              steps: nextSteps,
+            });
+            setEdges(nextEdges);
+            await onUpdateBranchStep?.(selectedStep.stepId, payload);
+          } else {
+            const nextStep: WorkflowEditorStep = {
+              stepId: createLocalId("step"),
+              stepType: "branch",
+              payload,
+            };
+            const nextSteps = [...steps, nextStep];
+            setSteps(nextSteps);
+            setEdges((previous) => [
+              ...previous,
+              ...buildBranchProjectedEdges({
+                stepId: nextStep.stepId,
+                stepKey: payload.key,
+                payload,
+                steps: nextSteps,
+              }),
+            ]);
+            setSelection({ kind: "step", stepId: nextStep.stepId });
+            await onCreateBranchStep?.(payload);
+          }
+          setBranchDialogOpen(false);
+        }}
+        onDelete={
+          branchDialogMode === "edit" && selectedStep?.stepType === "branch"
+            ? async () => {
+                setSteps((previous) =>
+                  previous.filter((entry) => entry.stepId !== selectedStep.stepId),
+                );
+                setEdges((previous) =>
+                  previous.filter(
+                    (edge) =>
+                      edge.branchStepId !== selectedStep.stepId &&
+                      edge.fromStepKey !== selectedStep.payload.key &&
+                      edge.toStepKey !== selectedStep.payload.key,
+                  ),
+                );
+                setSelection(null);
+                setBranchDialogOpen(false);
+                await onDeleteBranchStep?.(selectedStep.stepId);
+              }
+            : undefined
+        }
+      />
+
       <WorkflowContextFactDialog
         open={isContextFactDialogOpen}
         mode={contextFactDialogMode}
@@ -740,6 +1198,7 @@ export function WorkflowEditorShell({
         availableWorkflows={availableWorkflows}
         workUnitFactsQueryScope={workUnitFactsQueryScope}
         loadWorkUnitFacts={loadWorkUnitFacts}
+        loadWorkUnitArtifactSlots={loadWorkUnitArtifactSlots}
         onOpenChange={setContextFactDialogOpen}
         onSave={async (draft) => {
           setStatusMessage(null);
@@ -756,49 +1215,81 @@ export function WorkflowEditorShell({
             );
             if (previousBindingId !== nextFact.contextFactDefinitionId) {
               setSteps((previous) =>
-                previous.map((step) => ({
-                  ...step,
-                  payload:
-                    step.stepType === "form"
-                      ? {
-                          ...step.payload,
-                          fields: step.payload.fields.map((field) =>
-                            field.contextFactDefinitionId === previousBindingId
-                              ? {
-                                  ...field,
-                                  contextFactDefinitionId: nextFact.contextFactDefinitionId,
-                                }
-                              : field,
-                          ),
-                        }
-                      : {
-                          ...step.payload,
-                          explicitReadGrants: step.payload.explicitReadGrants.map((grant) =>
-                            grant.contextFactDefinitionId === previousBindingId
-                              ? { contextFactDefinitionId: nextFact.contextFactDefinitionId }
-                              : grant,
-                          ),
-                          writeItems: step.payload.writeItems.map((writeItem) => ({
-                            ...writeItem,
-                            contextFactDefinitionId:
-                              writeItem.contextFactDefinitionId === previousBindingId
+                previous.map((step) => {
+                  if (step.stepType === "form") {
+                    return {
+                      ...step,
+                      payload: {
+                        ...step.payload,
+                        fields: step.payload.fields.map((field) =>
+                          field.contextFactDefinitionId === previousBindingId
+                            ? {
+                                ...field,
+                                contextFactDefinitionId: nextFact.contextFactDefinitionId,
+                              }
+                            : field,
+                        ),
+                      },
+                    };
+                  }
+
+                  if (step.stepType === "agent") {
+                    return {
+                      ...step,
+                      payload: {
+                        ...step.payload,
+                        explicitReadGrants: step.payload.explicitReadGrants.map((grant) =>
+                          grant.contextFactDefinitionId === previousBindingId
+                            ? { contextFactDefinitionId: nextFact.contextFactDefinitionId }
+                            : grant,
+                        ),
+                        writeItems: step.payload.writeItems.map((writeItem) => ({
+                          ...writeItem,
+                          contextFactDefinitionId:
+                            writeItem.contextFactDefinitionId === previousBindingId
+                              ? nextFact.contextFactDefinitionId
+                              : writeItem.contextFactDefinitionId,
+                          requirementContextFactDefinitionIds:
+                            writeItem.requirementContextFactDefinitionIds.map((requirementId) =>
+                              requirementId === previousBindingId
                                 ? nextFact.contextFactDefinitionId
-                                : writeItem.contextFactDefinitionId,
-                            requirementContextFactDefinitionIds:
-                              writeItem.requirementContextFactDefinitionIds.map((requirementId) =>
-                                requirementId === previousBindingId
-                                  ? nextFact.contextFactDefinitionId
-                                  : requirementId,
-                              ),
-                          })),
-                          completionRequirements: step.payload.completionRequirements.map(
-                            (requirement) =>
-                              requirement.contextFactDefinitionId === previousBindingId
-                                ? { contextFactDefinitionId: nextFact.contextFactDefinitionId }
-                                : requirement,
-                          ),
-                        },
-                })),
+                                : requirementId,
+                            ),
+                        })),
+                        completionRequirements: step.payload.completionRequirements.map(
+                          (requirement) =>
+                            requirement.contextFactDefinitionId === previousBindingId
+                              ? { contextFactDefinitionId: nextFact.contextFactDefinitionId }
+                              : requirement,
+                        ),
+                      },
+                    };
+                  }
+
+                  if (step.stepType === "invoke") {
+                    return {
+                      ...step,
+                      payload: updateInvokeStepContextFactReferences(
+                        step.payload,
+                        previousBindingId,
+                        nextFact.contextFactDefinitionId,
+                      ),
+                    };
+                  }
+
+                  if (step.stepType === "branch") {
+                    return {
+                      ...step,
+                      payload: updateBranchStepContextFactReferences(
+                        step.payload,
+                        previousBindingId,
+                        nextFact.contextFactDefinitionId,
+                      ),
+                    };
+                  }
+
+                  return step;
+                }),
               );
             }
           } else {
@@ -847,30 +1338,7 @@ export function WorkflowEditorShell({
                 }
 
                 const isBound = steps.some((step) =>
-                  step.stepType === "form"
-                    ? step.payload.fields.some(
-                        (field) =>
-                          field.contextFactDefinitionId ===
-                          deletingContextFact.contextFactDefinitionId,
-                      )
-                    : step.payload.explicitReadGrants.some(
-                        (grant) =>
-                          grant.contextFactDefinitionId ===
-                          deletingContextFact.contextFactDefinitionId,
-                      ) ||
-                      step.payload.writeItems.some(
-                        (writeItem) =>
-                          writeItem.contextFactDefinitionId ===
-                            deletingContextFact.contextFactDefinitionId ||
-                          writeItem.requirementContextFactDefinitionIds.includes(
-                            deletingContextFact.contextFactDefinitionId,
-                          ),
-                      ) ||
-                      step.payload.completionRequirements.some(
-                        (requirement) =>
-                          requirement.contextFactDefinitionId ===
-                          deletingContextFact.contextFactDefinitionId,
-                      ),
+                  stepReferencesContextFact(step, deletingContextFact.contextFactDefinitionId),
                 );
 
                 if (isBound) {

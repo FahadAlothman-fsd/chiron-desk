@@ -169,6 +169,7 @@ export const WorkUnitStateMachineServiceLive = Layer.effect(
           const fromState =
             row.fromStateId === null ? undefined : stateKeyById.get(row.fromStateId);
           const transition: LifecycleTransition = {
+            transitionId: row.id,
             transitionKey: row.transitionKey,
             toState,
             conditionSets,

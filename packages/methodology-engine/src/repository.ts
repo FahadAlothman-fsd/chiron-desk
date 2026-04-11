@@ -9,7 +9,9 @@ import type {
   WorkflowDefinition,
 } from "@chiron/contracts/methodology/version";
 import type {
+  BranchStepPayload,
   FormStepPayload,
+  InvokeStepPayload,
   WorkflowContextFactDto,
   WorkflowEdgeDto,
   WorkflowStepReadModel,
@@ -127,6 +129,28 @@ export interface WorkflowAgentStepDefinitionReadModel {
   readonly payload: AgentStepDesignTimePayload;
 }
 
+export interface InvokeStepDefinitionReadModel {
+  readonly stepId: string;
+  readonly payload: InvokeStepPayload;
+}
+
+export interface BranchStepDefinitionReadModel {
+  readonly stepId: string;
+  readonly payload: BranchStepPayload;
+}
+
+export type WorkflowEditorEdgeOwner = "normal" | "branch_conditional" | "branch_default";
+
+export interface WorkflowEditorEdgeReadModel {
+  readonly edgeId: string;
+  readonly fromStepKey: string | null;
+  readonly toStepKey: string | null;
+  readonly descriptionJson?: unknown;
+  readonly edgeOwner: WorkflowEditorEdgeOwner;
+  readonly routeId?: string;
+  readonly isDefault?: boolean;
+}
+
 export interface WorkflowEditorDefinitionReadModel {
   readonly workflow: {
     readonly workflowDefinitionId: string;
@@ -136,7 +160,7 @@ export interface WorkflowEditorDefinitionReadModel {
     readonly metadata?: unknown;
   };
   readonly steps: readonly WorkflowStepReadModel[];
-  readonly edges: readonly WorkflowEdgeDto[];
+  readonly edges: readonly WorkflowEditorEdgeReadModel[];
   readonly contextFacts: readonly WorkflowContextFactDto[];
   readonly formDefinitions: readonly WorkflowFormDefinitionReadModel[];
 }
@@ -176,6 +200,56 @@ export interface UpdateAgentStepDefinitionParams {
 }
 
 export interface DeleteAgentStepDefinitionParams {
+  readonly versionId: string;
+  readonly workflowDefinitionId: string;
+  readonly stepId: string;
+}
+
+export interface CreateInvokeStepDefinitionParams {
+  readonly versionId: string;
+  readonly workflowDefinitionId: string;
+  readonly payload: InvokeStepPayload;
+}
+
+export interface UpdateInvokeStepDefinitionParams {
+  readonly versionId: string;
+  readonly workflowDefinitionId: string;
+  readonly stepId: string;
+  readonly payload: InvokeStepPayload;
+}
+
+export interface DeleteInvokeStepDefinitionParams {
+  readonly versionId: string;
+  readonly workflowDefinitionId: string;
+  readonly stepId: string;
+}
+
+export interface GetInvokeStepDefinitionParams {
+  readonly versionId: string;
+  readonly workflowDefinitionId: string;
+  readonly stepId: string;
+}
+
+export interface CreateBranchStepDefinitionParams {
+  readonly versionId: string;
+  readonly workflowDefinitionId: string;
+  readonly payload: BranchStepPayload;
+}
+
+export interface UpdateBranchStepDefinitionParams {
+  readonly versionId: string;
+  readonly workflowDefinitionId: string;
+  readonly stepId: string;
+  readonly payload: BranchStepPayload;
+}
+
+export interface DeleteBranchStepDefinitionParams {
+  readonly versionId: string;
+  readonly workflowDefinitionId: string;
+  readonly stepId: string;
+}
+
+export interface GetBranchStepDefinitionParams {
   readonly versionId: string;
   readonly workflowDefinitionId: string;
   readonly stepId: string;
@@ -348,12 +422,29 @@ export interface ArtifactSlotTemplateDefinitionRow {
 export interface ArtifactSlotDefinitionRow {
   id: string;
   key: string;
+  workUnitTypeId?: string;
   displayName: string | null;
   descriptionJson: unknown;
   guidanceJson: unknown;
   cardinality: "single" | "fileset";
   rulesJson: unknown;
   templates: readonly ArtifactSlotTemplateDefinitionRow[];
+}
+
+export interface InvokeBindingWorkUnitFactDefinitionRow {
+  id: string;
+  workUnitTypeId: string;
+  key: string;
+  factType: string;
+  cardinality: string;
+  validationJson: unknown;
+}
+
+export interface InvokeBindingArtifactSlotDefinitionRow {
+  id: string;
+  workUnitTypeId: string;
+  key: string;
+  cardinality: "single" | "fileset";
 }
 
 export interface ReplaceArtifactSlotsForWorkUnitTypeParams {
@@ -479,6 +570,30 @@ export class MethodologyRepository extends Context.Tag("MethodologyRepository")<
     readonly deleteAgentStepDefinition: (
       params: DeleteAgentStepDefinitionParams,
     ) => Effect.Effect<void, RepositoryError>;
+    readonly createInvokeStepDefinition: (
+      params: CreateInvokeStepDefinitionParams,
+    ) => Effect.Effect<InvokeStepDefinitionReadModel, RepositoryError>;
+    readonly updateInvokeStepDefinition: (
+      params: UpdateInvokeStepDefinitionParams,
+    ) => Effect.Effect<InvokeStepDefinitionReadModel, RepositoryError>;
+    readonly deleteInvokeStepDefinition: (
+      params: DeleteInvokeStepDefinitionParams,
+    ) => Effect.Effect<void, RepositoryError>;
+    readonly getInvokeStepDefinition: (
+      params: GetInvokeStepDefinitionParams,
+    ) => Effect.Effect<InvokeStepDefinitionReadModel | null, RepositoryError>;
+    readonly createBranchStepDefinition: (
+      params: CreateBranchStepDefinitionParams,
+    ) => Effect.Effect<BranchStepDefinitionReadModel, RepositoryError>;
+    readonly updateBranchStepDefinition: (
+      params: UpdateBranchStepDefinitionParams,
+    ) => Effect.Effect<BranchStepDefinitionReadModel, RepositoryError>;
+    readonly deleteBranchStepDefinition: (
+      params: DeleteBranchStepDefinitionParams,
+    ) => Effect.Effect<void, RepositoryError>;
+    readonly getBranchStepDefinition: (
+      params: GetBranchStepDefinitionParams,
+    ) => Effect.Effect<BranchStepDefinitionReadModel | null, RepositoryError>;
     readonly listWorkflowEdgesByDefinitionId?: (
       params: ListWorkflowEdgesByDefinitionIdParams,
     ) => Effect.Effect<readonly WorkflowEdgeDto[], RepositoryError>;
@@ -562,6 +677,14 @@ export class MethodologyRepository extends Context.Tag("MethodologyRepository")<
     readonly findArtifactSlotsByWorkUnitType: (
       params: FindArtifactSlotsByWorkUnitTypeParams,
     ) => Effect.Effect<readonly ArtifactSlotDefinitionRow[], RepositoryError>;
+    readonly findInvokeBindingWorkUnitFactDefinitionsByIds: (params: {
+      versionId: string;
+      ids: readonly string[];
+    }) => Effect.Effect<readonly InvokeBindingWorkUnitFactDefinitionRow[], RepositoryError>;
+    readonly findInvokeBindingArtifactSlotDefinitionsByIds: (params: {
+      versionId: string;
+      ids: readonly string[];
+    }) => Effect.Effect<readonly InvokeBindingArtifactSlotDefinitionRow[], RepositoryError>;
     readonly publishDraftVersion: (params: PublishDraftVersionParams) => Effect.Effect<
       {
         version: MethodologyVersionRow;

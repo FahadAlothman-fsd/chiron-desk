@@ -3,8 +3,14 @@ import type {
   AgentStepRuntimePolicy,
 } from "@chiron/contracts/agent-step";
 import type {
+  BranchRouteConditionPayload,
+  BranchRouteGroupPayload,
+  BranchRoutePayload,
+  BranchStepPayload,
   FormFieldValueType,
   FormStepFieldPayload,
+  InvokeActivationTransitionPayload,
+  InvokeBindingPayload,
   WorkflowContextFactCardinality,
   WorkflowContextFactKind,
 } from "@chiron/contracts/methodology/workflow";
@@ -36,6 +42,76 @@ export type WorkflowAgentStepPayload = Omit<AgentStepDesignTimePayload, "guidanc
     human: { markdown: string };
     agent: { markdown: string };
   };
+};
+
+export type WorkflowBranchStepPayload = BranchStepPayload;
+
+export type WorkflowBranchRoutePayload = BranchRoutePayload;
+
+export type WorkflowBranchRouteGroupPayload = BranchRouteGroupPayload;
+
+export type WorkflowBranchRouteConditionPayload = BranchRouteConditionPayload;
+
+export type WorkflowConditionOperator = {
+  key: string;
+  label: string;
+  supportedFactKinds: readonly WorkflowContextFactKind[];
+  requiresComparison: boolean;
+  validateComparison: (comparison: unknown) => boolean;
+};
+
+export type WorkflowProjectedEdgeOwner = "branch_default" | "branch_conditional";
+
+type WorkflowInvokeStepShared = {
+  key: string;
+  label?: string;
+  descriptionJson?: { markdown: string };
+  guidance?: {
+    human: { markdown: string };
+    agent: { markdown: string };
+  };
+};
+
+export type WorkflowInvokeStepPayload =
+  | (WorkflowInvokeStepShared & {
+      targetKind: "workflow";
+      sourceMode: "fixed_set";
+      workflowDefinitionIds: string[];
+    })
+  | (WorkflowInvokeStepShared & {
+      targetKind: "workflow";
+      sourceMode: "context_fact_backed";
+      contextFactDefinitionId: string;
+    })
+  | (WorkflowInvokeStepShared & {
+      targetKind: "work_unit";
+      sourceMode: "fixed_set";
+      workUnitDefinitionId: string;
+      bindings: InvokeBindingPayload[];
+      activationTransitions: InvokeActivationTransitionPayload[];
+    })
+  | (WorkflowInvokeStepShared & {
+      targetKind: "work_unit";
+      sourceMode: "context_fact_backed";
+      contextFactDefinitionId: string;
+      bindings: InvokeBindingPayload[];
+      activationTransitions: InvokeActivationTransitionPayload[];
+    });
+
+export type WorkflowInvokeWorkUnitFactDefinition = {
+  id: string;
+  key: string;
+  label: string;
+  factType: "string" | "number" | "boolean" | "json" | "work_unit";
+  cardinality: "one" | "many";
+  validationJson?: unknown;
+};
+
+export type WorkflowInvokeArtifactSlotDefinition = {
+  id: string;
+  key: string;
+  label: string;
+  cardinality: "single" | "fileset";
 };
 
 export type WorkflowHarnessDiscoveryModel = {
@@ -127,7 +203,17 @@ export type WorkflowEditorStep =
     }
   | {
       stepId: string;
-      stepType: Exclude<WorkflowEditorStepType, "form" | "agent">;
+      stepType: "invoke";
+      payload: WorkflowInvokeStepPayload;
+    }
+  | {
+      stepId: string;
+      stepType: "branch";
+      payload: WorkflowBranchStepPayload;
+    }
+  | {
+      stepId: string;
+      stepType: Exclude<WorkflowEditorStepType, "form" | "agent" | "invoke" | "branch">;
       payload: WorkflowFormStepPayload;
     };
 
@@ -136,6 +222,9 @@ export type WorkflowEditorEdge = {
   fromStepKey: string;
   toStepKey: string;
   descriptionMarkdown: string;
+  edgeOwner?: WorkflowProjectedEdgeOwner;
+  branchStepId?: string;
+  routeId?: string;
 };
 
 export type WorkflowEditorGuidance = {
@@ -149,6 +238,8 @@ export type WorkflowEditorPickerOption = {
   secondaryLabel?: string;
   description?: string;
   searchText?: string;
+  disabled?: boolean;
+  disabledReason?: string;
   badges?: readonly WorkflowEditorPickerBadge[];
 };
 
@@ -185,6 +276,10 @@ export type WorkflowContextFactDraft = {
   externalFactDefinitionId?: string;
   allowedWorkflowDefinitionIds: string[];
   artifactSlotDefinitionId?: string;
+  workUnitDefinitionId?: string;
+  selectedWorkUnitFactDefinitionIds: string[];
+  selectedArtifactSlotDefinitionIds: string[];
+  // Legacy compatibility fields (to be removed after migration)
   workUnitTypeKey?: string;
   includedFactDefinitionIds: string[];
 };
@@ -201,6 +296,10 @@ export type WorkflowContextFactDefinitionItem = {
   externalFactDefinitionId?: string;
   allowedWorkflowDefinitionIds: string[];
   artifactSlotDefinitionId?: string;
+  workUnitDefinitionId?: string;
+  selectedWorkUnitFactDefinitionIds: string[];
+  selectedArtifactSlotDefinitionIds: string[];
+  // Legacy compatibility fields (to be removed after migration)
   workUnitTypeKey?: string;
   includedFactDefinitionIds: string[];
   summary: string;
@@ -228,6 +327,18 @@ export type WorkflowAgentStepMutationHandlers = {
   onUpdateAgentStep?: (stepId: string, payload: WorkflowAgentStepPayload) => Promise<void>;
   onDeleteAgentStep?: (stepId: string) => Promise<void>;
   discoverHarnessMetadata?: () => Promise<WorkflowHarnessDiscoveryMetadata>;
+};
+
+export type WorkflowInvokeStepMutationHandlers = {
+  onCreateInvokeStep?: (payload: WorkflowInvokeStepPayload) => Promise<void>;
+  onUpdateInvokeStep?: (stepId: string, payload: WorkflowInvokeStepPayload) => Promise<void>;
+  onDeleteInvokeStep?: (stepId: string) => Promise<void>;
+};
+
+export type WorkflowBranchStepMutationHandlers = {
+  onCreateBranchStep?: (payload: WorkflowBranchStepPayload) => Promise<void>;
+  onUpdateBranchStep?: (stepId: string, payload: WorkflowBranchStepPayload) => Promise<void>;
+  onDeleteBranchStep?: (stepId: string) => Promise<void>;
 };
 
 export type WorkflowEditorSelection =

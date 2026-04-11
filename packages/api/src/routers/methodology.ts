@@ -6,10 +6,14 @@ import {
   WorkflowEditorDefinitionService,
   WorkflowTopologyMutationService,
   FormStepDefinitionService,
+  InvokeStepDefinitionService,
+  BranchStepDefinitionService,
   WorkflowContextFactDefinitionService,
   type MethodologyVersionRow,
   type MethodologyVersionEventRow,
   type MethodologyError,
+  RepositoryError,
+  ValidationDecodeError,
 } from "@chiron/methodology-engine";
 
 import { EligibilityService, type LifecycleError } from "@chiron/methodology-engine";
@@ -58,8 +62,10 @@ import type {
 } from "@chiron/contracts/methodology/artifact-slot";
 import type {
   CreateWorkUnitWorkflowInput,
+  BranchStepPayload as BranchStepPayloadContract,
   DeleteWorkUnitWorkflowInput,
   FormStepPayload as FormStepPayloadContract,
+  InvokeStepPayload as InvokeStepPayloadContract,
   WorkflowContextFactDto as WorkflowContextFactDtoContract,
   WorkflowEditorRouteIdentity as WorkflowEditorRouteIdentityContract,
   WorkflowMetadataDialogInput as WorkflowMetadataDialogInputContract,
@@ -76,6 +82,8 @@ import {
   AgentStepEditorDefinitionService,
   AgentStepEditorDefinitionServiceLive,
 } from "../../../methodology-engine/src/services/agent-step-editor-definition-service";
+import { BranchStepDefinitionServiceLive } from "../../../methodology-engine/src/services/branch-step-definition-service";
+import { InvokeStepDefinitionServiceLive } from "../../../methodology-engine/src/services/invoke-step-definition-service";
 import { HarnessService } from "../../../agent-runtime/src/index";
 import { protectedProcedure, publicProcedure } from "../index";
 
@@ -228,6 +236,124 @@ const formStepPayloadSchema: z.ZodType<FormStepPayloadContract> = z.object({
   ),
 });
 
+const invokeBindingSchema = z
+  .object({
+    destination: z.discriminatedUnion("kind", [
+      z
+        .object({
+          kind: z.literal("work_unit_fact"),
+          workUnitFactDefinitionId: z.string().min(1),
+        })
+        .strict(),
+      z
+        .object({
+          kind: z.literal("artifact_slot"),
+          artifactSlotDefinitionId: z.string().min(1),
+        })
+        .strict(),
+    ]),
+    source: z.discriminatedUnion("kind", [
+      z
+        .object({
+          kind: z.literal("context_fact"),
+          contextFactDefinitionId: z.string().min(1),
+        })
+        .strict(),
+      z
+        .object({
+          kind: z.literal("literal"),
+          value: z.union([z.string(), z.number(), z.boolean()]),
+        })
+        .strict(),
+      z.object({ kind: z.literal("runtime") }).strict(),
+    ]),
+  })
+  .strict();
+
+const invokeActivationTransitionSchema = z
+  .object({
+    transitionId: z.string().min(1),
+    workflowDefinitionIds: z.array(z.string().min(1)),
+  })
+  .strict();
+
+const invokePayloadMetadataSchema = z.object({
+  key: z.string().min(1),
+  label: z.string().optional(),
+  descriptionJson: z.object({ markdown: z.string() }).optional(),
+  guidance: workflowMetadataSchema.shape.guidance,
+});
+
+const invokeStepPayloadSchema: z.ZodType<InvokeStepPayloadContract> = z.union([
+  invokePayloadMetadataSchema
+    .extend({
+      targetKind: z.literal("workflow"),
+      sourceMode: z.literal("fixed_set"),
+      workflowDefinitionIds: z.array(z.string().min(1)),
+    })
+    .strict(),
+  invokePayloadMetadataSchema
+    .extend({
+      targetKind: z.literal("workflow"),
+      sourceMode: z.literal("context_fact_backed"),
+      contextFactDefinitionId: z.string().min(1),
+    })
+    .strict(),
+  invokePayloadMetadataSchema
+    .extend({
+      targetKind: z.literal("work_unit"),
+      sourceMode: z.literal("fixed_set"),
+      workUnitDefinitionId: z.string().min(1),
+      bindings: z.array(invokeBindingSchema),
+      activationTransitions: z.array(invokeActivationTransitionSchema),
+    })
+    .strict(),
+  invokePayloadMetadataSchema
+    .extend({
+      targetKind: z.literal("work_unit"),
+      sourceMode: z.literal("context_fact_backed"),
+      contextFactDefinitionId: z.string().min(1),
+      bindings: z.array(invokeBindingSchema),
+      activationTransitions: z.array(invokeActivationTransitionSchema),
+    })
+    .strict(),
+]);
+
+const branchRouteConditionSchema = z
+  .object({
+    conditionId: z.string().min(1),
+    contextFactDefinitionId: z.string().min(1),
+    contextFactKind: workflowContextFactKindValueSchema,
+    operator: z.string().min(1),
+    isNegated: z.boolean().optional().default(false),
+    comparisonJson: z.unknown(),
+  })
+  .strict();
+
+const branchRouteGroupSchema = z
+  .object({
+    groupId: z.string().min(1),
+    mode: z.enum(["all", "any"]),
+    conditions: z.array(branchRouteConditionSchema),
+  })
+  .strict();
+
+const branchRouteSchema = z
+  .object({
+    routeId: z.string().min(1),
+    targetStepId: z.string().min(1),
+    conditionMode: z.enum(["all", "any"]),
+    groups: z.array(branchRouteGroupSchema),
+  })
+  .strict();
+
+const branchStepPayloadSchema: z.ZodType<BranchStepPayloadContract> = invokePayloadMetadataSchema
+  .extend({
+    defaultTargetStepId: z.string().min(1).nullable().optional().default(null),
+    routes: z.array(branchRouteSchema),
+  })
+  .strict();
+
 const agentStepModelReferenceSchema = z.object({
   provider: z.string().min(1),
   model: z.string().min(1),
@@ -361,6 +487,50 @@ const updateFormStepSchema = z.object({
 });
 
 const deleteFormStepSchema = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  workflowDefinitionId: z.string().min(1),
+  stepId: z.string().min(1),
+});
+
+const createInvokeStepSchema = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  workflowDefinitionId: z.string().min(1),
+  payload: invokeStepPayloadSchema,
+});
+
+const updateInvokeStepSchema = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  workflowDefinitionId: z.string().min(1),
+  stepId: z.string().min(1),
+  payload: invokeStepPayloadSchema,
+});
+
+const deleteInvokeStepSchema = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  workflowDefinitionId: z.string().min(1),
+  stepId: z.string().min(1),
+});
+
+const createBranchStepSchema = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  workflowDefinitionId: z.string().min(1),
+  payload: branchStepPayloadSchema,
+});
+
+const updateBranchStepSchema = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  workflowDefinitionId: z.string().min(1),
+  stepId: z.string().min(1),
+  payload: branchStepPayloadSchema,
+});
+
+const deleteBranchStepSchema = z.object({
   versionId: z.string().min(1),
   workUnitTypeKey: z.string().min(1),
   workflowDefinitionId: z.string().min(1),
@@ -1137,6 +1307,110 @@ function runEffect<A>(
     ) as Effect.Effect<A, never, never>,
   );
 }
+
+type BranchProjectedEdgeMetadata = {
+  readonly edgeOwner: "branch_default" | "branch_conditional";
+  readonly branchStepId: string;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const parseBranchProjectedEdgeMetadata = (value: unknown): BranchProjectedEdgeMetadata | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  if (value.edgeOwner !== "branch_default" && value.edgeOwner !== "branch_conditional") {
+    return null;
+  }
+
+  if (typeof value.branchStepId !== "string" || value.branchStepId.length === 0) {
+    return null;
+  }
+
+  return {
+    edgeOwner: value.edgeOwner,
+    branchStepId: value.branchStepId,
+  };
+};
+
+const assertGenericEdgeCreateAllowed = (input: {
+  readonly versionId: string;
+  readonly workUnitTypeKey: string;
+  readonly workflowDefinitionId: string;
+  readonly fromStepKey: string | null;
+}) =>
+  Effect.gen(function* () {
+    if (input.fromStepKey === null) {
+      return;
+    }
+
+    const repo = yield* MethodologyRepository;
+    const definition = yield* repo.getWorkflowEditorDefinition({
+      versionId: input.versionId,
+      workUnitTypeKey: input.workUnitTypeKey,
+      workflowDefinitionId: input.workflowDefinitionId,
+    });
+
+    const sourceStep = definition.steps.find((step) => {
+      if (step.stepType !== "branch") {
+        return false;
+      }
+
+      return step.payload.key === input.fromStepKey;
+    });
+
+    if (sourceStep) {
+      return yield* new ValidationDecodeError({
+        message: "Generic edge mutations cannot author outgoing topology for branch steps",
+      });
+    }
+  });
+
+const assertGenericEdgeMutationAllowed = (input: {
+  readonly versionId: string;
+  readonly workUnitTypeKey: string;
+  readonly workflowDefinitionId: string;
+  readonly edgeId: string;
+  readonly fromStepKey?: string | null;
+}) =>
+  Effect.gen(function* () {
+    const repo = yield* MethodologyRepository;
+    if (!repo.listWorkflowEdgesByDefinitionId) {
+      return yield* new RepositoryError({
+        operation: "workflowTopology.edgeMutations",
+        cause: new Error("Workflow topology repository capability is not configured"),
+      });
+    }
+
+    const edges = yield* repo.listWorkflowEdgesByDefinitionId({
+      versionId: input.versionId,
+      workflowDefinitionId: input.workflowDefinitionId,
+    });
+    const edge = edges.find((candidate) => candidate.edgeId === input.edgeId);
+
+    if (!edge) {
+      return;
+    }
+
+    if (parseBranchProjectedEdgeMetadata(edge.descriptionJson)) {
+      return yield* new ValidationDecodeError({
+        message: "Generic edge mutations cannot modify projected branch-owned edges",
+      });
+    }
+
+    if (input.fromStepKey === null || input.fromStepKey === undefined) {
+      return;
+    }
+
+    yield* assertGenericEdgeCreateAllowed({
+      versionId: input.versionId,
+      workUnitTypeKey: input.workUnitTypeKey,
+      workflowDefinitionId: input.workflowDefinitionId,
+      fromStepKey: input.fromStepKey,
+    });
+  });
 
 type ValidationEnvelope = {
   valid: boolean;
@@ -2101,6 +2375,152 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
         );
       }),
 
+    createInvokeStep: protectedProcedure
+      .input(createInvokeStepSchema)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        return runEffect(
+          Layer.mergeAll(
+            serviceLayer,
+            Layer.provide(InvokeStepDefinitionServiceLive, serviceLayer),
+          ),
+          Effect.gen(function* () {
+            const svc = yield* InvokeStepDefinitionService;
+            return yield* svc.createInvokeStep(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+                workflowDefinitionId: input.workflowDefinitionId,
+                payload: input.payload,
+              },
+              actorId,
+            );
+          }),
+        );
+      }),
+
+    updateInvokeStep: protectedProcedure
+      .input(updateInvokeStepSchema)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        return runEffect(
+          Layer.mergeAll(
+            serviceLayer,
+            Layer.provide(InvokeStepDefinitionServiceLive, serviceLayer),
+          ),
+          Effect.gen(function* () {
+            const svc = yield* InvokeStepDefinitionService;
+            return yield* svc.updateInvokeStep(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+                workflowDefinitionId: input.workflowDefinitionId,
+                stepId: input.stepId,
+                payload: input.payload,
+              },
+              actorId,
+            );
+          }),
+        );
+      }),
+
+    deleteInvokeStep: protectedProcedure
+      .input(deleteInvokeStepSchema)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        return runEffect(
+          Layer.mergeAll(
+            serviceLayer,
+            Layer.provide(InvokeStepDefinitionServiceLive, serviceLayer),
+          ),
+          Effect.gen(function* () {
+            const svc = yield* InvokeStepDefinitionService;
+            return yield* svc.deleteInvokeStep(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+                workflowDefinitionId: input.workflowDefinitionId,
+                stepId: input.stepId,
+              },
+              actorId,
+            );
+          }),
+        );
+      }),
+
+    createBranchStep: protectedProcedure
+      .input(createBranchStepSchema)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        return runEffect(
+          Layer.mergeAll(
+            serviceLayer,
+            Layer.provide(BranchStepDefinitionServiceLive, serviceLayer),
+          ),
+          Effect.gen(function* () {
+            const svc = yield* BranchStepDefinitionService;
+            return yield* svc.createBranchStep(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+                workflowDefinitionId: input.workflowDefinitionId,
+                payload: input.payload,
+              },
+              actorId,
+            );
+          }),
+        );
+      }),
+
+    updateBranchStep: protectedProcedure
+      .input(updateBranchStepSchema)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        return runEffect(
+          Layer.mergeAll(
+            serviceLayer,
+            Layer.provide(BranchStepDefinitionServiceLive, serviceLayer),
+          ),
+          Effect.gen(function* () {
+            const svc = yield* BranchStepDefinitionService;
+            return yield* svc.updateBranchStep(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+                workflowDefinitionId: input.workflowDefinitionId,
+                stepId: input.stepId,
+                payload: input.payload,
+              },
+              actorId,
+            );
+          }),
+        );
+      }),
+
+    deleteBranchStep: protectedProcedure
+      .input(deleteBranchStepSchema)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        return runEffect(
+          Layer.mergeAll(
+            serviceLayer,
+            Layer.provide(BranchStepDefinitionServiceLive, serviceLayer),
+          ),
+          Effect.gen(function* () {
+            const svc = yield* BranchStepDefinitionService;
+            return yield* svc.deleteBranchStep(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+                workflowDefinitionId: input.workflowDefinitionId,
+                stepId: input.stepId,
+              },
+              actorId,
+            );
+          }),
+        );
+      }),
+
     createAgentStep: protectedProcedure
       .input(createAgentStepSchema)
       .handler(async ({ input, context }) => {
@@ -2171,6 +2591,12 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
       return runEffect(
         serviceLayer,
         Effect.gen(function* () {
+          yield* assertGenericEdgeCreateAllowed({
+            versionId: input.versionId,
+            workUnitTypeKey: input.workUnitTypeKey,
+            workflowDefinitionId: input.workflowDefinitionId,
+            fromStepKey: input.fromStepKey,
+          });
           const svc = yield* WorkflowTopologyMutationService;
           return yield* svc.createEdge(
             {
@@ -2192,6 +2618,13 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
       return runEffect(
         serviceLayer,
         Effect.gen(function* () {
+          yield* assertGenericEdgeMutationAllowed({
+            versionId: input.versionId,
+            workUnitTypeKey: input.workUnitTypeKey,
+            workflowDefinitionId: input.workflowDefinitionId,
+            edgeId: input.edgeId,
+            fromStepKey: input.fromStepKey,
+          });
           const svc = yield* WorkflowTopologyMutationService;
           return yield* svc.updateEdge(
             {
@@ -2214,6 +2647,12 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
       return runEffect(
         serviceLayer,
         Effect.gen(function* () {
+          yield* assertGenericEdgeMutationAllowed({
+            versionId: input.versionId,
+            workUnitTypeKey: input.workUnitTypeKey,
+            workflowDefinitionId: input.workflowDefinitionId,
+            edgeId: input.edgeId,
+          });
           const svc = yield* WorkflowTopologyMutationService;
           return yield* svc.deleteEdge(
             {
@@ -3017,6 +3456,9 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
                   typeof transition.toState === "string",
               )
               .map((transition) => ({
+                ...(typeof transition.transitionId === "string"
+                  ? { transitionId: transition.transitionId as string }
+                  : {}),
                 transitionKey: transition.transitionKey as string,
                 ...(typeof transition.fromState === "string"
                   ? { fromState: transition.fromState }
@@ -3482,6 +3924,12 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
           createFormStep: router.createFormStep,
           updateFormStep: router.updateFormStep,
           deleteFormStep: router.deleteFormStep,
+          createInvokeStep: router.createInvokeStep,
+          updateInvokeStep: router.updateInvokeStep,
+          deleteInvokeStep: router.deleteInvokeStep,
+          createBranchStep: router.createBranchStep,
+          updateBranchStep: router.updateBranchStep,
+          deleteBranchStep: router.deleteBranchStep,
           createAgentStep: router.createAgentStep,
           updateAgentStep: router.updateAgentStep,
           deleteAgentStep: router.deleteAgentStep,

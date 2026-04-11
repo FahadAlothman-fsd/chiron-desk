@@ -47,6 +47,14 @@ export {
   FormStepDefinitionServiceLive,
 } from "./services/form-step-definition-service";
 export {
+  InvokeStepDefinitionService,
+  InvokeStepDefinitionServiceLive,
+} from "./services/invoke-step-definition-service";
+export {
+  BranchStepDefinitionService,
+  BranchStepDefinitionServiceLive,
+} from "./services/branch-step-definition-service";
+export {
   WorkflowContextFactDefinitionService,
   WorkflowContextFactDefinitionServiceLive,
 } from "./services/workflow-context-fact-definition-service";
@@ -54,6 +62,13 @@ export {
   WorkflowAuthoringTransactionService,
   WorkflowAuthoringTransactionServiceLive,
 } from "./services/workflow-authoring-transaction-service";
+export {
+  BuiltInConditionOperators,
+  ConditionRegistry,
+  ConditionRegistryLive,
+  ConditionValidator,
+  ConditionValidatorLive,
+} from "./services/condition-engine";
 export {
   MethodologyRuntimeResolver,
   WorkUnitRuntimeResolver,

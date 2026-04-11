@@ -66,6 +66,7 @@ type WorkflowCanvasProps = {
   errorMessage: string | null;
   onSelectStep: (stepId: string) => void;
   onSelectEdge: (edgeId: string) => void;
+  onFocusBranchStep: (branchStepId: string) => void;
   onConnect: (connection: { sourceStepKey: string; targetStepKey: string }) => void;
 };
 
@@ -325,6 +326,7 @@ export function WorkflowCanvas({
   selection,
   onSelectStep,
   onSelectEdge,
+  onFocusBranchStep,
   onConnect,
 }: WorkflowCanvasProps) {
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance<
@@ -378,6 +380,9 @@ export function WorkflowCanvas({
           return [];
         }
 
+        const isBranchOwnedEdge =
+          edge.edgeOwner === "branch_conditional" || edge.edgeOwner === "branch_default";
+
         return [
           {
             id: edge.edgeId,
@@ -385,14 +390,17 @@ export function WorkflowCanvas({
             target: targetNode.stepId,
             type: "smoothstep",
             markerEnd: { type: MarkerType.ArrowClosed },
+            animated: isBranchOwnedEdge,
             style: {
               stroke:
                 selection?.kind === "edge" && selection.edgeId === edge.edgeId
                   ? "var(--primary)"
-                  : "color-mix(in oklab, var(--foreground) 52%, transparent)",
-              strokeWidth: 1.5,
+                  : isBranchOwnedEdge
+                    ? "color-mix(in oklab, var(--color-dawn) 72%, var(--color-alert))"
+                    : "color-mix(in oklab, var(--foreground) 52%, transparent)",
+              strokeWidth: isBranchOwnedEdge ? 2 : 1.5,
+              strokeDasharray: isBranchOwnedEdge ? "7 5" : undefined,
             },
-            labelStyle: { fill: "var(--muted-foreground)", fontSize: 11 },
           } satisfies Edge,
         ];
       }),
@@ -499,7 +507,15 @@ export function WorkflowCanvas({
           onNodesChange={onNodesChange}
           onConnect={onConnectRequest}
           onNodeClick={(_event, node) => onSelectStep(node.id)}
-          onEdgeClick={(_event, edge) => onSelectEdge(edge.id)}
+          onEdgeClick={(_event, edge) => {
+            const selectedEdge = edges.find((candidate) => candidate.edgeId === edge.id);
+            if (selectedEdge?.branchStepId) {
+              onFocusBranchStep(selectedEdge.branchStepId);
+              return;
+            }
+
+            onSelectEdge(edge.id);
+          }}
           proOptions={{ hideAttribution: true }}
         >
           <Panel position="top-left">

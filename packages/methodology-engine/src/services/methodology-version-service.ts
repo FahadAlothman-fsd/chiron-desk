@@ -331,6 +331,7 @@ function loadPreviousLifecycleDefinition(
           }
 
           return {
+            transitionId: transitionRow.id,
             transitionKey: transitionRow.transitionKey,
             fromState:
               transitionRow.fromStateId === null

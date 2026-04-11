@@ -50,6 +50,7 @@ export const TransitionConditionSet = Schema.Struct({
 export type TransitionConditionSet = typeof TransitionConditionSet.Type;
 
 export const LifecycleTransition = Schema.Struct({
+  transitionId: Schema.optional(Schema.NonEmptyString),
   transitionKey: Schema.NonEmptyString,
   fromState: Schema.optional(Schema.String), // null/undefined = __absent__
   toState: Schema.NonEmptyString,
