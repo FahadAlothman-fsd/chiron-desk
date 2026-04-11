@@ -61,7 +61,8 @@ type OpencodeManagedServer = {
   readonly stepExecutionId?: string;
   readonly baseUrl: string;
   readonly client: OpencodeClientPort;
-  readonly close: () => void;
+  readonly owned: boolean;
+  readonly close: () => void | Promise<void>;
 };
 
 type SessionRecord = {
@@ -84,11 +85,16 @@ type OpencodeClientFactoryServiceShape = {
 type OpencodeServerManagerServiceShape = {
   readonly connectExistingServer: (
     baseUrl: string,
+    options?: {
+      readonly directory?: string;
+      readonly stepExecutionId?: string;
+    },
   ) => Effect.Effect<OpencodeManagedServer, HarnessDiscoveryError>;
   readonly startDiscoveryServer: () => Effect.Effect<OpencodeManagedServer, HarnessDiscoveryError>;
   readonly startManagedServer: (
     stepExecutionId: string,
     directory: string,
+    preferredBaseUrl?: string,
   ) => Effect.Effect<OpencodeManagedServer, OpenCodeExecutionError>;
   readonly stopServer: (server: OpencodeManagedServer) => Effect.Effect<void, never>;
 };
@@ -249,6 +255,26 @@ function buildPromptInput(input: {
     ...(input.model ? { model: input.model } : {}),
     ...(input.noReply ? { noReply: true } : {}),
   };
+}
+
+async function waitForClientShutdown(
+  client: OpencodeClientPort,
+  options: { readonly timeoutMs?: number; readonly pollIntervalMs?: number } = {},
+): Promise<void> {
+  const timeoutMs = options.timeoutMs ?? 2_000;
+  const pollIntervalMs = options.pollIntervalMs ?? 50;
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    try {
+      await client.healthCheck();
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, pollIntervalMs);
+      });
+    } catch {
+      return;
+    }
+  }
 }
 
 function buildBootstrapContent(config: HarnessSessionConfig): string {
@@ -529,9 +555,15 @@ export function makeOpencodeServerManagerService(
   const managedServers = new Map<string, OpencodeManagedServer>();
 
   const stopServer = (server: OpencodeManagedServer) =>
-    Effect.sync(() => {
-      managedServers.delete(server.stepExecutionId ?? server.serverInstanceId);
-      server.close();
+    Effect.tryPromise({
+      try: async () => {
+        managedServers.delete(server.stepExecutionId ?? server.serverInstanceId);
+        await server.close();
+        if (server.owned) {
+          await waitForClientShutdown(server.client);
+        }
+      },
+      catch: () => undefined,
     }).pipe(Effect.orDie);
 
   const spawnServer = <E>(input: {
@@ -567,6 +599,7 @@ export function makeOpencodeServerManagerService(
           serverInstanceId: createId("opencode-server"),
           ...(input.stepExecutionId ? { stepExecutionId: input.stepExecutionId } : {}),
           baseUrl,
+          owned: true,
           client:
             baseUrl.length > 0 && input.directory
               ? await Effect.runPromise(
@@ -596,38 +629,49 @@ export function makeOpencodeServerManagerService(
       catch: (error) => input.onError("Failed to start OpenCode server", error),
     });
 
-  return OpencodeServerManagerService.of({
-    connectExistingServer: (baseUrl) =>
-      clientFactoryService
-        .createClient({
-          baseUrl,
-        })
-        .pipe(
-          Effect.flatMap((client) =>
-            Effect.tryPromise({
-              try: () => client.healthCheck(),
-              catch: (error) =>
-                discoveryError(
-                  error instanceof Error
-                    ? error.message
-                    : "Unable to connect to existing OpenCode server.",
-                  error,
-                ),
-            }).pipe(
-              Effect.as({
-                serverInstanceId: createId("opencode-server"),
-                baseUrl,
-                client,
-                close: () => undefined,
-              } satisfies OpencodeManagedServer),
-            ),
-          ),
-          Effect.catchTag("OpenCodeExecutionError", (error) =>
-            Effect.fail(discoveryError(error.message)),
+  const connectExistingServer = (
+    baseUrl: string,
+    options?: {
+      readonly directory?: string;
+      readonly stepExecutionId?: string;
+    },
+  ) =>
+    clientFactoryService
+      .createClient({
+        baseUrl,
+        ...(options?.directory ? { directory: options.directory } : {}),
+      })
+      .pipe(
+        Effect.flatMap((client) =>
+          Effect.tryPromise({
+            try: () => client.healthCheck(),
+            catch: (error) =>
+              discoveryError(
+                error instanceof Error
+                  ? error.message
+                  : "Unable to connect to existing OpenCode server.",
+                error,
+              ),
+          }).pipe(
+            Effect.as({
+              serverInstanceId: createId("opencode-server"),
+              ...(options?.stepExecutionId ? { stepExecutionId: options.stepExecutionId } : {}),
+              baseUrl,
+              owned: false,
+              client,
+              close: () => undefined,
+            } satisfies OpencodeManagedServer),
           ),
         ),
+        Effect.catchTag("OpenCodeExecutionError", (error) =>
+          Effect.fail(discoveryError(error.message)),
+        ),
+      );
+
+  return OpencodeServerManagerService.of({
+    connectExistingServer,
     startDiscoveryServer: () => spawnServer({ onError: discoveryError }),
-    startManagedServer: (stepExecutionId, directory) =>
+    startManagedServer: (stepExecutionId, directory, preferredBaseUrl) =>
       Effect.gen(function* () {
         if (directory.trim().length === 0) {
           return yield* opencodeError(
@@ -655,6 +699,21 @@ export function makeOpencodeServerManagerService(
           }
 
           yield* stopServer(existing);
+        }
+
+        if (preferredBaseUrl?.trim()) {
+          const attached = yield* Effect.either(
+            connectExistingServer(preferredBaseUrl, { stepExecutionId, directory }).pipe(
+              Effect.map((server) => {
+                managedServers.set(stepExecutionId, server);
+                return server;
+              }),
+            ),
+          );
+
+          if (attached._tag === "Right") {
+            return attached.right;
+          }
         }
 
         return yield* spawnServer({
@@ -1259,6 +1318,7 @@ export function makeOpencodeHarnessService(
           const server = yield* serverManager.startManagedServer(
             config.stepExecutionId,
             config.projectRootPath,
+            config.serverBaseUrl,
           );
           const promptSelections = yield* resolvePromptSelections(
             server.client,
@@ -1398,6 +1458,7 @@ export function makeOpencodeHarnessService(
           const server = yield* serverManager.startManagedServer(
             config.stepExecutionId,
             config.projectRootPath,
+            config.serverBaseUrl,
           );
 
           const promptSelections = yield* resolvePromptSelections(

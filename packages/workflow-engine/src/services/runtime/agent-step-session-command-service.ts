@@ -247,6 +247,9 @@ export const AgentStepSessionCommandServiceLive = Layer.effect(
             stepExecutionId: context.stepExecution.id,
             projectRootPath,
             resumeSessionId: sessionId,
+            ...(context.bindingRow?.serverBaseUrl
+              ? { serverBaseUrl: context.bindingRow.serverBaseUrl }
+              : {}),
             ...harnessSelection,
             objective: context.agentPayload.objective,
             instructionsMarkdown: context.agentPayload.instructionsMarkdown,
@@ -484,6 +487,9 @@ export const AgentStepSessionCommandServiceLive = Layer.effect(
             stepExecutionId: context.stepExecution.id,
             projectRootPath,
             resumeSessionId: sessionId,
+            ...(context.bindingRow?.serverBaseUrl
+              ? { serverBaseUrl: context.bindingRow.serverBaseUrl }
+              : {}),
             agent:
               context.bindingRow?.selectedAgentKey ?? context.agentPayload.harnessSelection.agent,
             model:

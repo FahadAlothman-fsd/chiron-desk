@@ -438,6 +438,155 @@ describe("OpencodeHarnessService runtime", () => {
     ]);
   });
 
+  it("reconnects through a saved server base url before spawning a new managed server", async () => {
+    const resumeMessages: unknown[] = [
+      {
+        info: {
+          id: "resume-user-msg",
+          role: "user",
+          time: { created: 1_744_193_210_000 },
+        },
+        parts: [{ type: "text", text: "existing conversation" }],
+      },
+    ];
+
+    const attachedClient = {
+      app: {
+        agents: vi.fn(async () => []),
+      },
+      config: {
+        providers: vi.fn(async () => ({ providers: [], default: {} })),
+      },
+      session: {
+        create: vi.fn(async () => ({
+          id: "should-not-create",
+          time: { created: 1_744_193_220_000 },
+        })),
+        prompt: vi.fn(async () => ({ ok: true })),
+        messages: vi.fn(async ({ path }: { path: { id: string } }) => {
+          expect(path.id).toBe("resume-session-1");
+          return resumeMessages;
+        }),
+      },
+      event: {
+        subscribe: vi.fn(async () => ({ [Symbol.asyncIterator]: async function* () {} })),
+      },
+    };
+
+    const clientFactory = vi.fn(() => attachedClient);
+    const spawnSpy = vi.fn(async () => {
+      throw new Error("should not spawn");
+    });
+
+    const service = makeOpencodeHarnessService(spawnSpy as never, clientFactory as never);
+
+    const reconnected = await Effect.runPromise(
+      service.reconnectSession({
+        stepExecutionId: "step-1",
+        projectRootPath: "/tmp/chiron",
+        resumeSessionId: "resume-session-1",
+        serverBaseUrl: "http://127.0.0.1:4010",
+        objective: "Reuse the existing session.",
+        instructionsMarkdown: "Do not fork history.",
+      }),
+    );
+
+    expect(spawnSpy).not.toHaveBeenCalled();
+    expect(clientFactory).toHaveBeenCalledWith({
+      baseUrl: "http://127.0.0.1:4010",
+      directory: "/tmp/chiron",
+    });
+    expect(reconnected.serverBaseUrl).toBe("http://127.0.0.1:4010");
+    expect(reconnected.session.sessionId).toBe("resume-session-1");
+    expect(reconnected.timeline).toEqual([
+      expect.objectContaining({
+        itemType: "message",
+        role: "user",
+        content: "existing conversation",
+      }),
+    ]);
+  });
+
+  it("falls back to spawning a managed server when the saved server base url is unreachable", async () => {
+    const resumeMessages: unknown[] = [
+      {
+        info: {
+          id: "resume-user-msg",
+          role: "user",
+          time: { created: 1_744_193_210_000 },
+        },
+        parts: [{ type: "text", text: "existing conversation" }],
+      },
+    ];
+
+    const managedClient = {
+      app: {
+        agents: vi.fn(async () => []),
+      },
+      config: {
+        providers: vi.fn(async () => ({ providers: [], default: {} })),
+      },
+      session: {
+        create: vi.fn(async () => ({
+          id: "should-not-create",
+          time: { created: 1_744_193_220_000 },
+        })),
+        prompt: vi.fn(async () => ({ ok: true })),
+        messages: vi.fn(async ({ path }: { path: { id: string } }) => {
+          expect(path.id).toBe("resume-session-1");
+          return resumeMessages;
+        }),
+      },
+      event: {
+        subscribe: vi.fn(async () => ({ [Symbol.asyncIterator]: async function* () {} })),
+      },
+    };
+
+    const clientFactory = vi.fn((config?: { baseUrl?: string; directory?: string }) => {
+      if (config?.baseUrl === "http://127.0.0.1:4011") {
+        throw new Error("connect failed");
+      }
+
+      if (config?.baseUrl === "http://127.0.0.1:4010") {
+        return managedClient;
+      }
+
+      throw new Error(`unexpected client config: ${JSON.stringify(config)}`);
+    });
+    const spawnSpy = vi.fn(async () => ({
+      client: managedClient,
+      server: {
+        url: "http://127.0.0.1:4010",
+        close: vi.fn(() => undefined),
+      },
+    }));
+
+    const service = makeOpencodeHarnessService(spawnSpy as never, clientFactory as never);
+
+    const reconnected = await Effect.runPromise(
+      service.reconnectSession({
+        stepExecutionId: "step-1",
+        projectRootPath: "/tmp/chiron",
+        resumeSessionId: "resume-session-1",
+        serverBaseUrl: "http://127.0.0.1:4011",
+        objective: "Reuse the existing session.",
+        instructionsMarkdown: "Do not fork history.",
+      }),
+    );
+
+    expect(spawnSpy).toHaveBeenCalledTimes(1);
+    expect(clientFactory).toHaveBeenCalledWith({
+      baseUrl: "http://127.0.0.1:4011",
+      directory: "/tmp/chiron",
+    });
+    expect(clientFactory).toHaveBeenCalledWith({
+      baseUrl: "http://127.0.0.1:4010",
+      directory: "/tmp/chiron",
+    });
+    expect(reconnected.serverBaseUrl).toBe("http://127.0.0.1:4010");
+    expect(reconnected.session.sessionId).toBe("resume-session-1");
+  });
+
   it("normalizes raw OpenCode session errors at the adapter boundary", async () => {
     const eventFeed = makeEventFeed();
 

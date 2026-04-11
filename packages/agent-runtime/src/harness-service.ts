@@ -77,6 +77,7 @@ export const HarnessReconnectSessionConfig = Schema.Struct({
   stepExecutionId: Schema.NonEmptyString,
   projectRootPath: Schema.NonEmptyString,
   resumeSessionId: Schema.NonEmptyString,
+  serverBaseUrl: Schema.optional(Schema.NonEmptyString),
   agent: Schema.optional(Schema.NonEmptyString),
   model: Schema.optional(ModelReference),
   objective: Schema.NonEmptyString,
