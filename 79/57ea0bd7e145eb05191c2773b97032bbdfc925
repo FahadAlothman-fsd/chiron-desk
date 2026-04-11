@@ -1,0 +1,29 @@
+packages/workflow-engine/src/services/runtime/agent-step-session-command-service.ts
+  5bcefd2e09c0df96 250-252,490-492
+packages/agent-runtime/src/opencode-harness-service.ts
+  5bcefd2e09c0df96 64-65,88-91,97,260-279,558-566,602,632-663,666-672,674,704-716,1321,1461
+packages/agent-runtime/src/harness-service.ts
+  5bcefd2e09c0df96 80
+packages/agent-runtime/src/tests/opencode/opencode-harness-service.test.ts
+  5bcefd2e09c0df96 441-589
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "7957ea0bd7e145eb05191c2773b97032bbdfc925",
+  "prompts": {
+    "5bcefd2e09c0df96": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_290ca60e8ffeOFobgL3ZePtRb4",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "TaskFlow Setup",
+      "messages": [],
+      "total_additions": 427,
+      "total_deletions": 122,
+      "accepted_lines": 339,
+      "overriden_lines": 0
+    }
+  }
+}
