@@ -65,6 +65,10 @@
     - `methodologyWorkflowAgentStepExplicitReadGrants`
     - `methodologyWorkflowAgentStepWriteItems`
     - `methodologyWorkflowAgentStepWriteItemRequirements`
+- ✅ **Additional runtime fixes and enhancements completed**:
+  - **Git service commit metadata**: Extended `SandboxGitService` to capture and persist `gitCommitSubject` and `gitCommitBody` alongside `gitCommitHash` and `gitBlobHash` for artifact reference facts, providing full commit context for agent step artifact tracking.
+  - **Reconnect session attach-first behavior**: Fixed `reconnectSession` to probe persisted `serverBaseUrl` before spawning new servers. If saved URL is reachable, reconnects to existing server; only spawns new managed server if attach fails. Prevents unnecessary server proliferation on retry.
+  - **Discovery server ephemeral cleanup**: Fixed `discoverMetadata()` to properly await shutdown of spawned discovery servers. Changed `stopServer` from synchronous fire-and-forget to async await pattern with health-check polling, ensuring ephemeral discovery servers are fully terminated before returning metadata.
 
 ## Work Objectives
 ### Core Objective
