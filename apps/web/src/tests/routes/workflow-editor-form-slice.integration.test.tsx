@@ -676,6 +676,7 @@ describe("workflow editor form slice route", () => {
         availableWorkflows={[]}
         workUnitFactsQueryScope="WU.SETUP"
         loadWorkUnitFacts={async () => []}
+        loadWorkUnitArtifactSlots={async () => []}
         onOpenChange={onOpenChange}
         onSave={vi.fn()}
       />,
@@ -714,7 +715,14 @@ describe("workflow editor form slice route", () => {
         mode="create"
         methodologyFacts={[]}
         currentWorkUnitFacts={[]}
-        artifactSlots={[]}
+        artifactSlots={[
+          {
+            value: "setup-slot-project-overview",
+            label: "Project Overview",
+            secondaryLabel: "project_overview",
+            description: "Setup artifact slot",
+          },
+        ]}
         workUnitTypes={[
           {
             value: "wut-brainstorming",
@@ -748,6 +756,18 @@ describe("workflow editor form slice route", () => {
             ],
           },
         ]}
+        loadWorkUnitArtifactSlots={async (workUnitTypeKey) =>
+          workUnitTypeKey === "wut-brainstorming"
+            ? [
+                {
+                  value: "brainstorm-slot-directions",
+                  label: "Directions Board",
+                  secondaryLabel: "directions_board",
+                  description: "Brainstorming artifact slot",
+                },
+              ]
+            : []
+        }
         onOpenChange={vi.fn()}
         onSave={onSave}
       />,
@@ -764,12 +784,23 @@ describe("workflow editor form slice route", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Value Semantics" }));
 
-    fireEvent.click(screen.getByRole("combobox", { name: "Work Unit Type Key" }));
+    const preSelectionArtifactSlotCombobox = screen.getByRole("combobox", {
+      name: "Artifact Slot Definition",
+    }) as HTMLButtonElement;
+    expect(preSelectionArtifactSlotCombobox.disabled).toBe(true);
+    expect(preSelectionArtifactSlotCombobox.textContent).toContain("Select a work unit type first");
+    expect(screen.queryByText("Project Overview")).toBeNull();
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Work Unit Definition" }));
     fireEvent.click((await screen.findAllByText("Brainstorming"))[0]!);
 
     await waitFor(() => {
       expect(screen.queryByText("Loading facts for the selected work unit...")).toBeNull();
     });
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Artifact Slot Definition" }));
+    expect(await screen.findByText("Directions Board")).toBeTruthy();
+    expect(screen.queryByText("Project Overview")).toBeNull();
 
     fireEvent.click(screen.getByRole("combobox", { name: "Fact Definition" }));
     fireEvent.click((await screen.findAllByText("Selected Directions"))[0]!);
@@ -826,6 +857,7 @@ describe("workflow editor form slice route", () => {
         availableWorkflows={[]}
         workUnitFactsQueryScope="WU.SETUP"
         loadWorkUnitFacts={async () => []}
+        loadWorkUnitArtifactSlots={async () => []}
         onOpenChange={onOpenChange}
         onSave={vi.fn()}
       />,

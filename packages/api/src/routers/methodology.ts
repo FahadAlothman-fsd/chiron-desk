@@ -193,7 +193,9 @@ const workflowContextFactSchema: z.ZodType<WorkflowContextFactDtoContract> = z.d
       descriptionJson: z.object({ markdown: z.string() }).optional(),
       guidance: workflowMetadataSchema.shape.guidance,
       cardinality: z.enum(["one", "many"]),
-      includedFactDefinitionIds: z.array(z.string().min(1)),
+      workUnitDefinitionId: z.string().min(1),
+      selectedWorkUnitFactDefinitionIds: z.array(z.string().min(1)),
+      selectedArtifactSlotDefinitionIds: z.array(z.string().min(1)),
     }),
   ],
 );
