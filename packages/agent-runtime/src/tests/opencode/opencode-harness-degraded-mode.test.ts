@@ -83,6 +83,94 @@ describe("OpencodeHarnessService degraded modes", () => {
     expect(closeSpy).toHaveBeenCalledTimes(1);
   });
 
+  it("waits for the ephemeral discovery server to fully close before returning metadata", async () => {
+    let closed = false;
+    let closeCalled = false;
+
+    const spawnSpy = vi.fn(async () => ({
+      client: {
+        app: {
+          agents: async () => {
+            if (closed) {
+              throw new Error("server offline");
+            }
+
+            return [
+              {
+                name: "explore",
+                description: "Explore the codebase",
+                mode: "subagent",
+                model: { providerID: "anthropic", modelID: "claude-sonnet-4" },
+              },
+            ];
+          },
+        },
+        config: {
+          providers: async () => ({
+            providers: [
+              {
+                id: "anthropic",
+                name: "Anthropic",
+                models: {
+                  "claude-sonnet-4": {
+                    id: "claude-sonnet-4",
+                    name: "Claude Sonnet 4",
+                    capabilities: {
+                      reasoning: true,
+                      toolcall: true,
+                      attachment: true,
+                    },
+                  },
+                },
+              },
+            ],
+            default: { anthropic: "claude-sonnet-4" },
+          }),
+        },
+        session: {
+          create: vi.fn(),
+          prompt: vi.fn(),
+          messages: vi.fn(),
+        },
+        event: {
+          subscribe: vi.fn(),
+        },
+      },
+      server: {
+        close: vi.fn(() => {
+          closeCalled = true;
+          setTimeout(() => {
+            closed = true;
+          }, 20);
+        }),
+      },
+    }));
+    const clientFactory = vi.fn(() => {
+      throw new Error("connect failed");
+    });
+
+    const service = makeOpencodeHarnessService(spawnSpy as never, clientFactory as never);
+
+    const metadataPromise = Effect.runPromise(service.discoverMetadata());
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 5);
+    });
+
+    expect(closeCalled).toBe(true);
+    expect(closed).toBe(false);
+
+    const pendingBeforeShutdown = await Promise.race([
+      metadataPromise.then(() => "resolved" as const),
+      Promise.resolve("pending" as const),
+    ]);
+
+    expect(pendingBeforeShutdown).toBe("pending");
+
+    const metadata = await metadataPromise;
+    expect(metadata.harness).toBe("opencode");
+    expect(closed).toBe(true);
+  });
+
   it("cleans up the managed server when bootstrap initialization fails", async () => {
     const closeSpy = vi.fn(() => undefined);
     const managedClient = {
