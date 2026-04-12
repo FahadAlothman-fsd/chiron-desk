@@ -56,6 +56,7 @@ playwright-report
 test-results
 blob-report
 tests/.auth
+.playwright-mcp/
 
 # Misc
 *.tgz
