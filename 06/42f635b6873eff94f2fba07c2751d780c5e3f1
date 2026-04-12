@@ -1,0 +1,40 @@
+packages/db/src/methodology-repository.ts
+  8136de777cfb9dfa 1874,2061,2075
+  16df42013de6e9ee 949-950,991-1010,1048-1059,1094-1101,1109-1112,1875-1876,5619
+packages/db/src/tests/repository/l3-design-time-invoke-branch-repositories.test.ts
+  8136de777cfb9dfa 235,472,480,501,541
+  16df42013de6e9ee 481,502,613-623,629-639,646-656
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "0642f635b6873eff94f2fba07c2751d780c5e3f1",
+  "prompts": {
+    "16df42013de6e9ee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_285c21e1fffe2TVLsiZ644kgK7",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 33,
+      "total_deletions": 24,
+      "accepted_lines": 759,
+      "overriden_lines": 0
+    },
+    "8136de777cfb9dfa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_27e2bb54effersvgII5ol2eDuS",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 438,
+      "overriden_lines": 0
+    }
+  }
+}
