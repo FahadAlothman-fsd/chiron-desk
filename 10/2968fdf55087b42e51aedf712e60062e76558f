@@ -1,0 +1,44 @@
+packages/contracts/src/methodology/workflow.ts
+  16df42013de6e9ee 59,74,81,202-204,332
+packages/db/src/tests/schema/l3-design-time-invoke-branch-schema.test.ts
+  16df42013de6e9ee 336
+  8136de777cfb9dfa 159,523,533
+packages/db/src/schema/methodology.ts
+  8136de777cfb9dfa 842
+packages/contracts/src/tests/l3-design-time-invoke-branch-contracts.test.ts
+  16df42013de6e9ee 432,464
+  8136de777cfb9dfa 245,250,253,276,309,334,337,348,369,372,400,526,538,688
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "102968fdf55087b42e51aedf712e60062e76558f",
+  "prompts": {
+    "16df42013de6e9ee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_285c21e1fffe2TVLsiZ644kgK7",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 2338,
+      "total_deletions": 3742,
+      "accepted_lines": 744,
+      "overriden_lines": 0
+    },
+    "8136de777cfb9dfa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_27e2bb54effersvgII5ol2eDuS",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 479,
+      "total_deletions": 164,
+      "accepted_lines": 465,
+      "overriden_lines": 0
+    }
+  }
+}
