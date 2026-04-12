@@ -409,13 +409,13 @@ export function WorkflowCanvas({
 
   const layoutNodePositionsSignature = useMemo(
     () =>
-      baseNodes
-        .map((node) => {
-          const position = node.position;
-          return `${node.id}:${position.x}:${position.y}`;
+      steps
+        .map((step) => {
+          const position = layoutPositions[step.stepId] ?? null;
+          return position ? `${step.stepId}:${position.x}:${position.y}` : `${step.stepId}:missing`;
         })
         .join("|"),
-    [baseNodes],
+    [layoutPositions, steps],
   );
 
   useEffect(() => {
