@@ -1,0 +1,168 @@
+apps/web/src/tests/routes/workflow-editor-invoke-branch.integration.test.tsx
+  16df42013de6e9ee 1003-1027
+apps/web/src/features/workflow-editor/dialogs.tsx
+  16df42013de6e9ee 1249,1441,1494,1820,1824-1836,2689,2734-2761
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "dbd8fea9749cd11efbaf9ce61b3eeae52e1b5647",
+  "prompts": {
+    "16df42013de6e9ee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_285c21e1fffe2TVLsiZ644kgK7",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "TaskFlow Setup",
+      "messages": [],
+      "total_additions": 98,
+      "total_deletions": 24,
+      "accepted_lines": 92,
+      "overriden_lines": 0
+    },
+    "3dabb9a0327eb98a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_285bc1903ffeVoXbCN7T0QxkLL",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "TaskFlow Setup",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 30,
+      "overriden_lines": 0
+    },
+    "467f2232cda4360f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2855c1279ffeOQesYth0dUvStk",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "TaskFlow Setup",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 422,
+      "overriden_lines": 0
+    },
+    "8324fac1e66f4c94": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_28562bbecffeYrUzRdES2Y6Pv5",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "TaskFlow Setup",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1149,
+      "overriden_lines": 0
+    },
+    "83a70d0ba3ae44a4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2859286a9ffe3EEx23ZfdZEu83",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "TaskFlow Setup",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 25,
+      "overriden_lines": 0
+    },
+    "99b8daa454ffa2ce": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_285c159deffeBpdljnZvhgJQZG",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "TaskFlow Setup",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 21,
+      "overriden_lines": 0
+    },
+    "a9f4b6dc70542142": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_285a63dd3ffel0PTRm6KA5fj57",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "TaskFlow Setup",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 24,
+      "overriden_lines": 0
+    },
+    "b1826743fb192e64": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2859e8799ffew45wWUQ08TXcdf",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "TaskFlow Setup",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 36,
+      "overriden_lines": 0
+    },
+    "b7c45c027c042f93": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2835f10e8ffeevBLVlHWqssEHd",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "TaskFlow Setup",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "bb9b2338584fddef": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2858028bbffefFUE79nZpefJId",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "TaskFlow Setup",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 27,
+      "overriden_lines": 0
+    },
+    "cb823d1dc99ad0b9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2856b0f15ffes67HuDqtuJF91X",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "TaskFlow Setup",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 28,
+      "overriden_lines": 0
+    },
+    "ef4c811c10a537b6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_285b3ac6effeJPKC4K5LkXVkxZ",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "TaskFlow Setup",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 18,
+      "overriden_lines": 0
+    }
+  }
+}
