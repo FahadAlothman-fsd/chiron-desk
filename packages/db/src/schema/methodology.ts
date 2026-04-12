@@ -839,7 +839,7 @@ export const methodologyWorkflowBranchRouteConditions = sqliteTable(
     contextFactDefinitionId: text("context_fact_definition_id")
       .notNull()
       .references(() => methodologyWorkflowContextFactDefinitions.id, { onDelete: "cascade" }),
-    contextFactKind: text("context_fact_kind").notNull(),
+    subFieldKey: text("sub_field_key"),
     operator: text("operator").notNull(),
     isNegated: integer("is_negated", { mode: "boolean" }).notNull().default(false),
     comparisonJson: text("comparison_json", { mode: "json" }),

@@ -56,6 +56,7 @@ const WorkflowContextFactMetadata = Schema.Struct({
   label: Schema.optional(Schema.String),
   descriptionJson: Schema.optional(DescriptionJson),
   guidance: Schema.optional(AudienceGuidance),
+  validationJson: Schema.optional(Schema.Unknown),
 });
 
 export const WorkflowContextFactDto = Schema.Union(
@@ -70,12 +71,14 @@ export const WorkflowContextFactDto = Schema.Union(
     key: Schema.NonEmptyString,
     cardinality: WorkflowContextFactCardinality,
     externalFactDefinitionId: Schema.NonEmptyString,
+    valueType: Schema.optional(FormFieldValueType),
   }).pipe(Schema.extend(WorkflowContextFactMetadata)),
   Schema.Struct({
     kind: Schema.Literal("bound_external_fact"),
     key: Schema.NonEmptyString,
     cardinality: WorkflowContextFactCardinality,
     externalFactDefinitionId: Schema.NonEmptyString,
+    valueType: Schema.optional(FormFieldValueType),
   }).pipe(Schema.extend(WorkflowContextFactMetadata)),
   Schema.Struct({
     kind: Schema.Literal("workflow_reference_fact"),
@@ -196,7 +199,9 @@ export type BranchConditionMode = typeof BranchConditionMode.Type;
 export const BranchRouteConditionPayload = Schema.Struct({
   conditionId: Schema.NonEmptyString,
   contextFactDefinitionId: Schema.NonEmptyString,
-  contextFactKind: WorkflowContextFactKind,
+  subFieldKey: Schema.optionalWith(Schema.NullOr(Schema.NonEmptyString), {
+    default: () => null,
+  }),
   operator: Schema.NonEmptyString,
   isNegated: Schema.optionalWith(Schema.Boolean, { default: () => false }),
   comparisonJson: Schema.Unknown,
@@ -324,6 +329,7 @@ export const WorkflowStepReadModel = Schema.Union(
   Schema.Struct({
     stepId: Schema.NonEmptyString,
     stepType: DeferredWorkflowStepType,
+    stepKey: Schema.optional(Schema.NonEmptyString),
     mode: Schema.Literal("deferred"),
     defaultMessage: Schema.String,
   }),

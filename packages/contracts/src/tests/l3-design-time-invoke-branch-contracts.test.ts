@@ -241,17 +241,16 @@ describe("l3 design-time invoke/branch contracts", () => {
       decodeCondition({
         conditionId: "condition-priority",
         contextFactDefinitionId: "fact-priority",
-        contextFactKind: "plain_value_fact",
         operator: "equals",
-        comparisonJson: { expected: "high" },
+        comparisonJson: { value: "high" },
       }),
     ).toEqual({
       conditionId: "condition-priority",
       contextFactDefinitionId: "fact-priority",
-      contextFactKind: "plain_value_fact",
+      subFieldKey: null,
       operator: "equals",
       isNegated: false,
-      comparisonJson: { expected: "high" },
+      comparisonJson: { value: "high" },
     });
 
     expect(
@@ -272,10 +271,9 @@ describe("l3 design-time invoke/branch contracts", () => {
                   {
                     conditionId: "condition-project-type",
                     contextFactDefinitionId: "fact-project-type",
-                    contextFactKind: "plain_value_fact",
                     operator: "equals",
                     isNegated: false,
-                    comparisonJson: { expected: "greenfield" },
+                    comparisonJson: { value: "greenfield" },
                   },
                 ],
               },
@@ -286,7 +284,6 @@ describe("l3 design-time invoke/branch contracts", () => {
                   {
                     conditionId: "condition-has-prd",
                     contextFactDefinitionId: "fact-prd",
-                    contextFactKind: "artifact_reference_fact",
                     operator: "exists",
                     isNegated: false,
                     comparisonJson: null,
@@ -307,10 +304,9 @@ describe("l3 design-time invoke/branch contracts", () => {
                   {
                     conditionId: "condition-existing-code",
                     contextFactDefinitionId: "fact-existing-code",
-                    contextFactKind: "bound_external_fact",
                     operator: "equals",
                     isNegated: true,
-                    comparisonJson: { expected: false },
+                    comparisonJson: { value: false },
                   },
                 ],
               },
@@ -335,10 +331,10 @@ describe("l3 design-time invoke/branch contracts", () => {
                 {
                   conditionId: "condition-project-type",
                   contextFactDefinitionId: "fact-project-type",
-                  contextFactKind: "plain_value_fact",
+                  subFieldKey: null,
                   operator: "equals",
                   isNegated: false,
-                  comparisonJson: { expected: "greenfield" },
+                  comparisonJson: { value: "greenfield" },
                 },
               ],
             },
@@ -349,7 +345,7 @@ describe("l3 design-time invoke/branch contracts", () => {
                 {
                   conditionId: "condition-has-prd",
                   contextFactDefinitionId: "fact-prd",
-                  contextFactKind: "artifact_reference_fact",
+                  subFieldKey: null,
                   operator: "exists",
                   isNegated: false,
                   comparisonJson: null,
@@ -370,10 +366,10 @@ describe("l3 design-time invoke/branch contracts", () => {
                 {
                   conditionId: "condition-existing-code",
                   contextFactDefinitionId: "fact-existing-code",
-                  contextFactKind: "bound_external_fact",
+                  subFieldKey: null,
                   operator: "equals",
                   isNegated: true,
-                  comparisonJson: { expected: false },
+                  comparisonJson: { value: false },
                 },
               ],
             },
@@ -400,9 +396,8 @@ describe("l3 design-time invoke/branch contracts", () => {
                 {
                   conditionId: "condition-1",
                   contextFactDefinitionId: "fact-1",
-                  contextFactKind: "plain_value_fact",
                   operator: "equals",
-                  comparisonJson: { expected: true },
+                  comparisonJson: { value: true },
                 },
               ],
             },
@@ -434,6 +429,7 @@ describe("l3 design-time invoke/branch contracts", () => {
                 conditions: [
                   {
                     ...payload.routes[0].groups[0].conditions[0],
+                    subFieldKey: null,
                     isNegated: false,
                   },
                 ],
@@ -465,6 +461,7 @@ describe("l3 design-time invoke/branch contracts", () => {
                 conditions: [
                   {
                     ...payload.routes[0].groups[0].conditions[0],
+                    subFieldKey: null,
                     isNegated: false,
                   },
                 ],
@@ -525,9 +522,8 @@ describe("l3 design-time invoke/branch contracts", () => {
                   {
                     conditionId: "condition-1",
                     contextFactDefinitionId: "fact-1",
-                    contextFactKind: "plain_value_fact",
                     operator: "equals",
-                    comparisonJson: { expected: 1 },
+                    comparisonJson: { value: 1 },
                   },
                 ],
               },
@@ -538,9 +534,8 @@ describe("l3 design-time invoke/branch contracts", () => {
                   {
                     conditionId: "condition-1",
                     contextFactDefinitionId: "fact-2",
-                    contextFactKind: "plain_value_fact",
                     operator: "equals",
-                    comparisonJson: { expected: 2 },
+                    comparisonJson: { value: 2 },
                   },
                 ],
               },
@@ -689,9 +684,8 @@ describe("l3 design-time invoke/branch contracts", () => {
                 {
                   conditionId: "condition-1",
                   contextFactDefinitionId: "fact-project-type",
-                  contextFactKind: "plain_value_fact",
                   operator: "equals",
-                  comparisonJson: { expected: "greenfield" },
+                  comparisonJson: { value: "greenfield" },
                 },
               ],
             },

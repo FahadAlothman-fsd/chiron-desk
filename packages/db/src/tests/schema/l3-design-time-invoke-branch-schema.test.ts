@@ -156,7 +156,7 @@ const SCHEMA_SQL = [
     group_id TEXT NOT NULL,
     condition_id TEXT NOT NULL,
     context_fact_definition_id TEXT NOT NULL,
-    context_fact_kind TEXT NOT NULL,
+    sub_field_key TEXT,
     operator TEXT NOT NULL,
     is_negated INTEGER NOT NULL DEFAULT 0,
     comparison_json TEXT,
@@ -333,9 +333,7 @@ describe("l3 design-time invoke + branch schema", () => {
     expect(
       methodologySchema.methodologyWorkflowBranchRouteConditions.contextFactDefinitionId,
     ).toBeDefined();
-    expect(
-      methodologySchema.methodologyWorkflowBranchRouteConditions.contextFactKind,
-    ).toBeDefined();
+    expect(methodologySchema.methodologyWorkflowBranchRouteConditions.subFieldKey).toBeDefined();
     expect(methodologySchema.methodologyWorkflowBranchRouteConditions.operator).toBeDefined();
     expect(methodologySchema.methodologyWorkflowBranchRouteConditions.isNegated).toBeDefined();
     expect(methodologySchema.methodologyWorkflowBranchRouteConditions.comparisonJson).toBeDefined();
@@ -522,7 +520,7 @@ describe("l3 design-time invoke + branch schema", () => {
         group_id,
         condition_id,
         context_fact_definition_id,
-        context_fact_kind,
+        sub_field_key,
         operator,
         is_negated,
         comparison_json,
@@ -532,7 +530,7 @@ describe("l3 design-time invoke + branch schema", () => {
         'branch-group-1',
         'condition-review',
         'ctx-branch-input',
-        'plain_value_fact',
+        null,
         'equals',
         0,
         '{"value":"needs_review"}',
