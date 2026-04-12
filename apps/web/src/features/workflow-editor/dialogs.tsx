@@ -850,6 +850,7 @@ function TabButton(props: {
   children: React.ReactNode;
   isDirty?: boolean;
   dirtyIndicatorTestId?: string;
+  disabled?: boolean;
 }) {
   return (
     <Button
@@ -858,6 +859,7 @@ function TabButton(props: {
       variant={props.active ? "default" : "outline"}
       className="rounded-none"
       onClick={props.onClick}
+      disabled={props.disabled}
     >
       {props.children}
       {props.isDirty ? (
@@ -1599,12 +1601,17 @@ export function InvokeStepDialog({
           return transition;
         }
 
-        const boundWorkflowKeys = boundWorkflowKeysByTransition[transitionId] ?? [];
+        const boundWorkflowKeys = boundWorkflowKeysByTransition[transitionId];
+        if (!boundWorkflowKeys) {
+          return transition;
+        }
         const allowedWorkflowValues = new Set(
           availableInvokeWorkflowOptions
             .filter((option) => {
               const workflowKey = option.secondaryLabel ?? option.value;
-              return boundWorkflowKeys.includes(workflowKey);
+              return (
+                boundWorkflowKeys.includes(workflowKey) || boundWorkflowKeys.includes(option.value)
+              );
             })
             .map((option) => option.value),
         );
@@ -1671,6 +1678,16 @@ export function InvokeStepDialog({
       ? !areDialogSnapshotSectionsEqual(currentSnapshot.guidance, initialSnapshot.guidance)
       : false;
   const isDialogDirty = isContractDirty || isTargetDirty || isBindingsDirty || isGuidanceDirty;
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    if (targetKind === "workflow" && activeTab === "bindings") {
+      setActiveTab("target");
+    }
+  }, [activeTab, open, targetKind]);
 
   const validationErrors = useMemo(() => {
     const errors: string[] = [];
@@ -1880,6 +1897,7 @@ export function InvokeStepDialog({
                   onClick={() => setActiveTab("bindings")}
                   isDirty={isBindingsDirty}
                   dirtyIndicatorTestId="workflow-invoke-step-bindings-modified-indicator"
+                  disabled={targetKind === "workflow"}
                 >
                   Bindings
                 </TabButton>
@@ -2507,14 +2525,19 @@ export function InvokeStepDialog({
                               );
                               const boundWorkflowKeys =
                                 selectedTransitionId.length > 0
-                                  ? (boundWorkflowKeysByTransition[selectedTransitionId] ?? [])
-                                  : [];
+                                  ? boundWorkflowKeysByTransition[selectedTransitionId]
+                                  : undefined;
                               const transitionWorkflowOptions =
                                 selectedTransitionId.length > 0
-                                  ? availableInvokeWorkflowOptions.filter((option) => {
-                                      const workflowKey = option.secondaryLabel ?? option.value;
-                                      return boundWorkflowKeys.includes(workflowKey);
-                                    })
+                                  ? boundWorkflowKeys
+                                    ? availableInvokeWorkflowOptions.filter((option) => {
+                                        const workflowKey = option.secondaryLabel ?? option.value;
+                                        return (
+                                          boundWorkflowKeys.includes(workflowKey) ||
+                                          boundWorkflowKeys.includes(option.value)
+                                        );
+                                      })
+                                    : availableInvokeWorkflowOptions
                                   : [];
 
                               return (

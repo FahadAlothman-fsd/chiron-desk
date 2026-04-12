@@ -411,6 +411,39 @@ export const InvokeStepDefinitionServiceLive = Layer.effect(
         yield* validateInvokePayload(repo, versionId, payload, facts);
       });
 
+    const validateStepKeyUniqueness = (params: {
+      readonly versionId: string;
+      readonly workUnitTypeKey: string;
+      readonly workflowDefinitionId: string;
+      readonly stepKey: string;
+      readonly excludeStepId?: string;
+    }) =>
+      Effect.gen(function* () {
+        const editor = yield* repo.getWorkflowEditorDefinition({
+          versionId: params.versionId,
+          workUnitTypeKey: params.workUnitTypeKey,
+          workflowDefinitionId: params.workflowDefinitionId,
+        });
+
+        const normalizedKey = params.stepKey.trim();
+        const duplicate = editor.steps.find((step) => {
+          if (step.stepId === params.excludeStepId) {
+            return false;
+          }
+
+          const payload = isRecord(step.payload) ? step.payload : null;
+          const stepKey =
+            payload && typeof payload.key === "string" ? payload.key.trim() : undefined;
+
+          return stepKey === normalizedKey;
+        });
+        if (duplicate) {
+          return yield* new ValidationDecodeError({
+            message: `Step key '${normalizedKey}' already exists in this workflow`,
+          });
+        }
+      });
+
     const createInvokeStep = (
       input: {
         readonly versionId: string;
@@ -423,6 +456,12 @@ export const InvokeStepDefinitionServiceLive = Layer.effect(
       Effect.gen(function* () {
         yield* ensureDraft(input.versionId);
         yield* validatePayload(input.workflowDefinitionId, input.versionId, input.payload);
+        yield* validateStepKeyUniqueness({
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+          workflowDefinitionId: input.workflowDefinitionId,
+          stepKey: input.payload.key,
+        });
 
         const created = yield* repo.createInvokeStepDefinition({
           versionId: input.versionId,
@@ -459,6 +498,13 @@ export const InvokeStepDefinitionServiceLive = Layer.effect(
       Effect.gen(function* () {
         yield* ensureDraft(input.versionId);
         yield* validatePayload(input.workflowDefinitionId, input.versionId, input.payload);
+        yield* validateStepKeyUniqueness({
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitTypeKey,
+          workflowDefinitionId: input.workflowDefinitionId,
+          stepKey: input.payload.key,
+          excludeStepId: input.stepId,
+        });
 
         const updated = yield* repo.updateInvokeStepDefinition({
           versionId: input.versionId,

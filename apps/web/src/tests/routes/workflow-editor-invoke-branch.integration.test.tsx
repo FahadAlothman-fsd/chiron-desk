@@ -733,10 +733,9 @@ describe("workflow editor invoke route", () => {
     fireEvent.change(screen.getByLabelText("Step Title"), {
       target: { value: "Invoke Review Work" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /Bindings/i }));
-
-    expect(screen.getByText("Bindings Unavailable")).toBeTruthy();
-    expect(screen.getByText(/Bindings are only available when Target Kind is/i)).toBeTruthy();
+    expect((screen.getByRole("button", { name: /Bindings/i }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Target" }));
 
@@ -948,8 +947,11 @@ describe("workflow editor invoke route", () => {
     if (screen.queryByText(/Complete invoke binding 2 before saving/i)) {
       fireEvent.click(screen.getAllByRole("button", { name: "Remove" })[1]!);
     }
-    fireEvent.click(screen.getByRole("combobox", { name: /Workflows/i }));
-    fireEvent.click(await screen.findByText("Implementation Child Workflow"));
+    const workflowsCombobox = screen.getByRole("combobox", { name: /Workflows/i });
+    if (workflowsCombobox.textContent?.includes("Select workflows")) {
+      fireEvent.click(workflowsCombobox);
+      fireEvent.click((await screen.findAllByText("Implementation Child Workflow")).at(-1)!);
+    }
     fireEvent.click(screen.getByRole("button", { name: /Guidance/i }));
 
     await waitFor(() => {

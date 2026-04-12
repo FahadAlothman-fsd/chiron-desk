@@ -151,7 +151,10 @@ const branchPayload: BranchStepPayload = {
   ],
 };
 
-function makeLayer(options?: { readonly versionStatus?: string }) {
+function makeLayer(options?: {
+  readonly versionStatus?: string;
+  readonly includeMalformedStepWithoutKey?: boolean;
+}) {
   const createdPayloads: Array<InvokeStepPayload> = [];
   const updatedPayloads: Array<InvokeStepPayload> = [];
   const deletedStepIds: Array<string> = [];
@@ -172,6 +175,46 @@ function makeLayer(options?: { readonly versionStatus?: string }) {
     descriptionJson?: unknown;
   }> = [];
   let edgeCounter = 0;
+
+  const editorSteps = [
+    {
+      stepId: "step-default",
+      stepType: "form",
+      payload: { key: "default-step", fields: [] },
+    },
+    {
+      stepId: "step-route-a",
+      stepType: "invoke",
+      payload: {
+        key: "route-a-step",
+        targetKind: "workflow",
+        sourceMode: "fixed_set",
+        workflowDefinitionIds: ["wf-1"],
+      },
+    },
+    {
+      stepId: "step-route-b",
+      stepType: "form",
+      payload: { key: "route-b-step", fields: [] },
+    },
+    {
+      stepId: "step-branch-1",
+      stepType: "branch",
+      payload: {
+        key: "branch-existing",
+        defaultTargetStepId: "step-default",
+        routes: [],
+      },
+    },
+  ];
+
+  if (options?.includeMalformedStepWithoutKey) {
+    editorSteps.push({
+      stepId: "step-malformed",
+      stepType: "agent",
+      payload: {},
+    } as unknown as (typeof editorSteps)[number]);
+  }
 
   const repo = {
     findVersionById: () =>
@@ -244,37 +287,7 @@ function makeLayer(options?: { readonly versionStatus?: string }) {
           displayName: "Workflow",
           descriptionJson: null,
         },
-        steps: [
-          {
-            stepId: "step-default",
-            stepType: "form",
-            payload: { key: "default-step", fields: [] },
-          },
-          {
-            stepId: "step-route-a",
-            stepType: "invoke",
-            payload: {
-              key: "route-a-step",
-              targetKind: "workflow",
-              sourceMode: "fixed_set",
-              workflowDefinitionIds: ["wf-1"],
-            },
-          },
-          {
-            stepId: "step-route-b",
-            stepType: "form",
-            payload: { key: "route-b-step", fields: [] },
-          },
-          {
-            stepId: "step-branch-1",
-            stepType: "branch",
-            payload: {
-              key: "branch-existing",
-              defaultTargetStepId: "step-default",
-              routes: [],
-            },
-          },
-        ],
+        steps: editorSteps,
         edges: [],
         contextFacts: [
           ...contextFacts,
@@ -673,6 +686,28 @@ describe("l3 invoke step definition service", () => {
       "update_invoke_step",
       "delete_invoke_step",
     ]);
+  });
+
+  it("invoke create tolerates editor steps without payload.key", async () => {
+    const { layer } = makeLayer({ includeMalformedStepWithoutKey: true });
+
+    const created = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* InvokeStepDefinitionService;
+
+        return yield* service.createInvokeStep(
+          {
+            versionId: "ver-1",
+            workUnitTypeKey: "WU.STORY",
+            workflowDefinitionId: "wf-1",
+            payload: workUnitPayload,
+          },
+          "user-1",
+        );
+      }).pipe(Effect.provide(layer)),
+    );
+
+    expect(created.stepId).toBe("step-invoke-1");
   });
 
   it("invoke rejects workflow-target authored bindings and activation transitions", async () => {
