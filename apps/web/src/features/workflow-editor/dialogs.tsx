@@ -1246,6 +1246,7 @@ export function InvokeStepDialog({
   const [initialSnapshot, setInitialSnapshot] = useState<InvokeStepDialogSnapshot | null>(null);
   const [activeTab, setActiveTab] = useState<InvokeStepDialogTab>("contract");
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [boundWorkflowKeysByTransition, setBoundWorkflowKeysByTransition] = useState<
     Record<string, readonly string[]>
@@ -1437,6 +1438,7 @@ export function InvokeStepDialog({
   useEffect(() => {
     if (!open) {
       setIsDiscardDialogOpen(false);
+      setIsDeleteDialogOpen(false);
       setStatusMessage(null);
       return;
     }
@@ -1489,6 +1491,7 @@ export function InvokeStepDialog({
     );
     setActiveTab("contract");
     setIsDiscardDialogOpen(false);
+    setIsDeleteDialogOpen(false);
     setStatusMessage(null);
   }, [invokeStep, open]);
 
@@ -1814,7 +1817,21 @@ export function InvokeStepDialog({
 
   const closeDialog = () => {
     setIsDiscardDialogOpen(false);
+    setIsDeleteDialogOpen(false);
     onOpenChange(false);
+  };
+
+  const requestDeleteDialog = () => {
+    if (!onDelete) {
+      return;
+    }
+
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    setIsDeleteDialogOpen(false);
+    void onDelete?.();
   };
 
   const requestCloseDialog = () => {
@@ -2669,7 +2686,7 @@ export function InvokeStepDialog({
                     type="button"
                     variant="destructive"
                     className="rounded-none"
-                    onClick={() => void onDelete?.()}
+                    onClick={requestDeleteDialog}
                   >
                     Delete
                   </Button>
@@ -2710,6 +2727,38 @@ export function InvokeStepDialog({
               onClick={closeDialog}
             >
               Discard Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="chiron-cut-frame-thick w-[min(28rem,calc(100vw-2rem))] p-8 sm:max-w-none">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold uppercase tracking-[0.08em]">
+              Delete invoke step?
+            </DialogTitle>
+            <DialogDescription>
+              This action is destructive and cannot be undone. The invoke step and its authored
+              bindings and activation transitions will be removed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-none"
+              onClick={() => setIsDeleteDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              className="rounded-none"
+              onClick={confirmDelete}
+            >
+              Delete Invoke Step
             </Button>
           </DialogFooter>
         </DialogContent>

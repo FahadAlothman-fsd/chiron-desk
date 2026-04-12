@@ -1000,6 +1000,31 @@ describe("workflow editor invoke route", () => {
     );
   });
 
+  it("invoke route requires confirmation before deleting invoke steps", async () => {
+    const { MethodologyWorkflowEditorRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId");
+
+    renderRoute(<MethodologyWorkflowEditorRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Inspect Step invoke-story-work/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit invoke step" }));
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Delete" }).at(-1)!);
+    expect(await screen.findByText("Delete invoke step?")).toBeTruthy();
+    expect(deleteInvokeStepMutationSpy).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Cancel" }).at(-1)!);
+    expect(screen.queryByText("Delete invoke step?")).toBeNull();
+    expect(deleteInvokeStepMutationSpy).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Delete" }).at(-1)!);
+    fireEvent.click(screen.getByRole("button", { name: "Delete Invoke Step" }));
+
+    await waitFor(() => {
+      expect(deleteInvokeStepMutationSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("invoke dialog blocks invalid invoke states and preserves dirty cancel behavior", async () => {
     const { InvokeStepDialog } = await import("../../features/workflow-editor/dialogs");
     const onOpenChange = vi.fn();
