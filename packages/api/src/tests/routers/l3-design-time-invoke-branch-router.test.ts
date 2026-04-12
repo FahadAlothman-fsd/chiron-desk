@@ -76,8 +76,8 @@ const branchPayload: BranchStepPayload = {
             {
               conditionId: "cond-ready",
               contextFactDefinitionId: "ctx-summary",
-              contextFactKind: "plain_value_fact",
-              operator: "isNotEmpty",
+              subFieldKey: null,
+              operator: "exists",
               isNegated: false,
               comparisonJson: null,
             },

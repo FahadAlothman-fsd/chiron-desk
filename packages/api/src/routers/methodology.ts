@@ -150,6 +150,7 @@ const workflowContextFactSchema: z.ZodType<WorkflowContextFactDtoContract> = z.d
       label: z.string().optional(),
       descriptionJson: z.object({ markdown: z.string() }).optional(),
       guidance: workflowMetadataSchema.shape.guidance,
+      validationJson: z.unknown().optional(),
       cardinality: z.enum(["one", "many"]),
       valueType: z.enum(["string", "number", "boolean", "json"]),
     }),
@@ -160,8 +161,10 @@ const workflowContextFactSchema: z.ZodType<WorkflowContextFactDtoContract> = z.d
       label: z.string().optional(),
       descriptionJson: z.object({ markdown: z.string() }).optional(),
       guidance: workflowMetadataSchema.shape.guidance,
+      validationJson: z.unknown().optional(),
       cardinality: z.enum(["one", "many"]),
       externalFactDefinitionId: z.string().min(1),
+      valueType: z.enum(["string", "number", "boolean", "json"]).optional(),
     }),
     z.object({
       kind: z.literal("bound_external_fact"),
@@ -170,8 +173,10 @@ const workflowContextFactSchema: z.ZodType<WorkflowContextFactDtoContract> = z.d
       label: z.string().optional(),
       descriptionJson: z.object({ markdown: z.string() }).optional(),
       guidance: workflowMetadataSchema.shape.guidance,
+      validationJson: z.unknown().optional(),
       cardinality: z.enum(["one", "many"]),
       externalFactDefinitionId: z.string().min(1),
+      valueType: z.enum(["string", "number", "boolean", "json"]).optional(),
     }),
     z.object({
       kind: z.literal("workflow_reference_fact"),
@@ -180,6 +185,7 @@ const workflowContextFactSchema: z.ZodType<WorkflowContextFactDtoContract> = z.d
       label: z.string().optional(),
       descriptionJson: z.object({ markdown: z.string() }).optional(),
       guidance: workflowMetadataSchema.shape.guidance,
+      validationJson: z.unknown().optional(),
       cardinality: z.enum(["one", "many"]),
       allowedWorkflowDefinitionIds: z.array(z.string().min(1)),
     }),
@@ -190,6 +196,7 @@ const workflowContextFactSchema: z.ZodType<WorkflowContextFactDtoContract> = z.d
       label: z.string().optional(),
       descriptionJson: z.object({ markdown: z.string() }).optional(),
       guidance: workflowMetadataSchema.shape.guidance,
+      validationJson: z.unknown().optional(),
       cardinality: z.enum(["one", "many"]),
       artifactSlotDefinitionId: z.string().min(1),
     }),
@@ -200,6 +207,7 @@ const workflowContextFactSchema: z.ZodType<WorkflowContextFactDtoContract> = z.d
       label: z.string().optional(),
       descriptionJson: z.object({ markdown: z.string() }).optional(),
       guidance: workflowMetadataSchema.shape.guidance,
+      validationJson: z.unknown().optional(),
       cardinality: z.enum(["one", "many"]),
       workUnitDefinitionId: z.string().min(1),
       selectedWorkUnitFactDefinitionIds: z.array(z.string().min(1)),
@@ -323,7 +331,7 @@ const branchRouteConditionSchema = z
   .object({
     conditionId: z.string().min(1),
     contextFactDefinitionId: z.string().min(1),
-    contextFactKind: workflowContextFactKindValueSchema,
+    subFieldKey: z.string().min(1).nullable().optional().default(null),
     operator: z.string().min(1),
     isNegated: z.boolean().optional().default(false),
     comparisonJson: z.unknown(),
@@ -1335,6 +1343,25 @@ const parseBranchProjectedEdgeMetadata = (value: unknown): BranchProjectedEdgeMe
   };
 };
 
+const readWorkflowStepKey = (step: Record<string, unknown>) => {
+  if (
+    "payload" in step &&
+    typeof step.payload === "object" &&
+    step.payload !== null &&
+    "key" in step.payload &&
+    typeof step.payload.key === "string" &&
+    step.payload.key.length > 0
+  ) {
+    return step.payload.key;
+  }
+
+  if (typeof step.stepKey === "string" && step.stepKey.length > 0) {
+    return step.stepKey;
+  }
+
+  return null;
+};
+
 const assertGenericEdgeCreateAllowed = (input: {
   readonly versionId: string;
   readonly workUnitTypeKey: string;
@@ -1358,7 +1385,7 @@ const assertGenericEdgeCreateAllowed = (input: {
         return false;
       }
 
-      return step.payload.key === input.fromStepKey;
+      return readWorkflowStepKey(step as Record<string, unknown>) === input.fromStepKey;
     });
 
     if (sourceStep) {
