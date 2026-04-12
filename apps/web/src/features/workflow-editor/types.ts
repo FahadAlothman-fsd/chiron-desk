@@ -52,12 +52,24 @@ export type WorkflowBranchRouteGroupPayload = BranchRouteGroupPayload;
 
 export type WorkflowBranchRouteConditionPayload = BranchRouteConditionPayload;
 
+export type WorkflowConditionOperand = {
+  operandType:
+    | "string"
+    | "number"
+    | "boolean"
+    | "workflow_reference"
+    | "artifact_reference"
+    | "json_object";
+  cardinality: "one" | "many";
+  freshnessCapable: boolean;
+};
+
 export type WorkflowConditionOperator = {
   key: string;
   label: string;
-  supportedFactKinds: readonly WorkflowContextFactKind[];
   requiresComparison: boolean;
-  validateComparison: (comparison: unknown) => boolean;
+  supportsOperand: (operand: WorkflowConditionOperand) => boolean;
+  validateComparison: (comparison: unknown, operand: WorkflowConditionOperand) => boolean;
 };
 
 export type WorkflowProjectedEdgeOwner = "branch_default" | "branch_conditional";
@@ -279,6 +291,7 @@ export type WorkflowContextFactDraft = {
   workUnitDefinitionId?: string;
   selectedWorkUnitFactDefinitionIds: string[];
   selectedArtifactSlotDefinitionIds: string[];
+  validationJson?: unknown;
   // Legacy compatibility fields (to be removed after migration)
   workUnitTypeKey?: string;
   includedFactDefinitionIds: string[];
@@ -299,6 +312,7 @@ export type WorkflowContextFactDefinitionItem = {
   workUnitDefinitionId?: string;
   selectedWorkUnitFactDefinitionIds: string[];
   selectedArtifactSlotDefinitionIds: string[];
+  validationJson?: unknown;
   // Legacy compatibility fields (to be removed after migration)
   workUnitTypeKey?: string;
   includedFactDefinitionIds: string[];

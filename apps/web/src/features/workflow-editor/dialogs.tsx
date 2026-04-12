@@ -42,12 +42,14 @@ import {
 } from "../../components/ui/select";
 import { RadioGroup, RadioGroupItem } from "../../components/ui/radio-group";
 import { Textarea } from "../../components/ui/textarea";
+import { getAllowedValues } from "../methodologies/fact-validation";
 
 import type {
   WorkflowBranchRouteConditionPayload,
   WorkflowBranchRouteGroupPayload,
   WorkflowBranchRoutePayload,
   WorkflowBranchStepPayload,
+  WorkflowConditionOperand,
   WorkflowConditionOperator,
   WorkflowContextFactDefinitionItem,
   WorkflowContextFactDraft,
@@ -4929,11 +4931,205 @@ function createEmptyBranchRouteCondition(
   return {
     conditionId: createLocalId("branch-condition"),
     contextFactDefinitionId: fact?.contextFactDefinitionId ?? "",
-    contextFactKind: fact?.kind ?? "plain_value_fact",
-    operator: "equals",
+    subFieldKey: null,
+    operator: "exists",
     isNegated: false,
-    comparisonJson: { value: "" },
+    comparisonJson: null,
   };
+}
+
+function normalizeConditionSubFieldKey(value: string | null | undefined) {
+  const normalized = value?.trim() ?? "";
+  return normalized.length > 0 ? normalized : null;
+}
+
+function resolveConditionOperandForEditor(
+  fact: WorkflowContextFactDefinitionItem | undefined,
+  subFieldKey: string | null | undefined,
+) {
+  if (!fact) {
+    return null;
+  }
+
+  const scalarValueType =
+    fact.valueType === "number" || fact.valueType === "boolean" || fact.valueType === "json"
+      ? fact.valueType
+      : "string";
+
+  const normalizedSubFieldKey = normalizeConditionSubFieldKey(subFieldKey);
+  if (normalizedSubFieldKey) {
+    if (fact.kind !== "work_unit_draft_spec_fact") {
+      return null;
+    }
+
+    if (normalizedSubFieldKey.startsWith("artifact:")) {
+      const artifactSlotDefinitionId = normalizedSubFieldKey.slice("artifact:".length);
+      return fact.selectedArtifactSlotDefinitionIds.includes(artifactSlotDefinitionId)
+        ? {
+            operandType: "artifact_reference" as const,
+            cardinality: "one" as const,
+            freshnessCapable: true,
+          }
+        : null;
+    }
+
+    if (normalizedSubFieldKey.startsWith("fact:")) {
+      const workUnitFactDefinitionId = normalizedSubFieldKey.slice("fact:".length);
+      return fact.selectedWorkUnitFactDefinitionIds.includes(workUnitFactDefinitionId)
+        ? {
+            operandType: "json_object" as const,
+            cardinality: "one" as const,
+            freshnessCapable: false,
+          }
+        : null;
+    }
+
+    return null;
+  }
+
+  switch (fact.kind) {
+    case "plain_value_fact":
+      return {
+        operandType: fact.valueType === "json" ? "json_object" : (fact.valueType ?? "string"),
+        cardinality: fact.cardinality,
+        freshnessCapable: false,
+      } as const;
+    case "workflow_reference_fact":
+      return {
+        operandType: "workflow_reference" as const,
+        cardinality: fact.cardinality,
+        freshnessCapable: false,
+      };
+    case "artifact_reference_fact":
+      return {
+        operandType: "artifact_reference" as const,
+        cardinality: fact.cardinality,
+        freshnessCapable: true,
+      };
+    case "work_unit_draft_spec_fact":
+      return {
+        operandType: "json_object" as const,
+        cardinality: fact.cardinality,
+        freshnessCapable: true,
+      };
+    case "definition_backed_external_fact":
+    case "bound_external_fact":
+      return {
+        operandType: scalarValueType === "json" ? "json_object" : scalarValueType,
+        cardinality: fact.cardinality,
+        freshnessCapable: false,
+      };
+  }
+}
+
+function getCompatibleConditionOperators(
+  conditionOperators: readonly WorkflowConditionOperator[],
+  operand: WorkflowConditionOperand | null,
+) {
+  if (!operand) {
+    return [];
+  }
+
+  return conditionOperators.filter((operator) => operator.supportsOperand(operand));
+}
+
+function createDefaultComparisonJson(
+  operator: WorkflowConditionOperator | undefined,
+  operand: WorkflowConditionOperand | null,
+  fact?: WorkflowContextFactDefinitionItem,
+) {
+  if (!operator?.requiresComparison) {
+    return null;
+  }
+
+  if (operator.key === "between") {
+    return { min: 0, max: 0 };
+  }
+
+  if (operand?.operandType === "number") {
+    return { value: 0 };
+  }
+
+  if (operand?.operandType === "boolean") {
+    return { value: false };
+  }
+
+  const allowedValues = getAllowedValues(fact?.validationJson);
+  if (operator.key === "equals" && allowedValues.length > 0) {
+    return { value: allowedValues[0] ?? "" };
+  }
+
+  if (operand?.operandType === "workflow_reference" && fact?.kind === "workflow_reference_fact") {
+    return { value: fact.allowedWorkflowDefinitionIds[0] ?? "" };
+  }
+
+  return { value: "" };
+}
+
+function getConditionAllowedValues(fact: WorkflowContextFactDefinitionItem | undefined) {
+  return getAllowedValues(fact?.validationJson);
+}
+
+function getConditionReferenceValues(fact: WorkflowContextFactDefinitionItem | undefined) {
+  if (fact?.kind !== "workflow_reference_fact") {
+    return [];
+  }
+
+  return fact.allowedWorkflowDefinitionIds
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+}
+
+function reconcileBranchConditionDraft(params: {
+  condition: WorkflowBranchRouteConditionPayload;
+  fact: WorkflowContextFactDefinitionItem | undefined;
+  nextContextFactDefinitionId?: string;
+  nextSubFieldKey?: string | null;
+  conditionOperators: readonly WorkflowConditionOperator[];
+}) {
+  const normalizedSubFieldKey =
+    params.fact?.kind === "work_unit_draft_spec_fact"
+      ? normalizeConditionSubFieldKey(params.nextSubFieldKey ?? params.condition.subFieldKey)
+      : null;
+  const operand = resolveConditionOperandForEditor(params.fact, normalizedSubFieldKey);
+  const compatibleOperators = getCompatibleConditionOperators(params.conditionOperators, operand);
+  const nextOperator =
+    compatibleOperators.find((operator) => operator.key === params.condition.operator) ??
+    compatibleOperators[0];
+  const nextComparisonJson =
+    nextOperator &&
+    operand &&
+    nextOperator.validateComparison(params.condition.comparisonJson, operand)
+      ? params.condition.comparisonJson
+      : createDefaultComparisonJson(nextOperator, operand, params.fact);
+
+  return {
+    ...params.condition,
+    contextFactDefinitionId:
+      params.nextContextFactDefinitionId ?? params.condition.contextFactDefinitionId,
+    subFieldKey: normalizedSubFieldKey,
+    operator: nextOperator?.key ?? "exists",
+    comparisonJson: nextComparisonJson,
+  } satisfies WorkflowBranchRouteConditionPayload;
+}
+
+function getDraftSpecSubFieldOptions(fact: WorkflowContextFactDefinitionItem | undefined) {
+  if (fact?.kind !== "work_unit_draft_spec_fact") {
+    return [];
+  }
+
+  return [
+    ...fact.selectedWorkUnitFactDefinitionIds.map((definitionId) => ({
+      value: `fact:${definitionId}`,
+      label: titleizeKey(definitionId),
+      description: `Fact · ${definitionId}`,
+    })),
+    ...fact.selectedArtifactSlotDefinitionIds.map((definitionId) => ({
+      value: `artifact:${definitionId}`,
+      label: titleizeKey(definitionId),
+      description: `Artifact · ${definitionId}`,
+    })),
+  ];
 }
 
 function createEmptyBranchRouteGroup(): WorkflowBranchRouteGroupPayload {
@@ -5043,13 +5239,6 @@ function toWorkflowBranchStepPayload(params: {
 }
 
 function getConditionComparisonDisplayValue(condition: WorkflowBranchRouteConditionPayload) {
-  if (condition.operator === "in") {
-    const record = condition.comparisonJson as { values?: unknown } | null;
-    return Array.isArray(record?.values)
-      ? record.values.map((value) => String(value)).join(", ")
-      : "";
-  }
-
   const record = condition.comparisonJson as { value?: unknown } | null;
   if (typeof record?.value === "boolean") {
     return record.value ? "true" : "false";
@@ -5058,16 +5247,13 @@ function getConditionComparisonDisplayValue(condition: WorkflowBranchRouteCondit
   return typeof record?.value === "undefined" ? "" : String(record.value);
 }
 
-function toComparisonScalar(
-  rawValue: string,
-  fact: WorkflowContextFactDefinitionItem | undefined,
-): unknown {
-  if (fact?.kind === "plain_value_fact" && fact.valueType === "number") {
+function toComparisonScalar(rawValue: string, operand: WorkflowConditionOperand | null): unknown {
+  if (operand?.operandType === "number") {
     const parsed = Number(rawValue);
     return Number.isFinite(parsed) ? parsed : rawValue;
   }
 
-  if (fact?.kind === "plain_value_fact" && fact.valueType === "boolean") {
+  if (operand?.operandType === "boolean") {
     return rawValue === "true";
   }
 
@@ -5076,24 +5262,23 @@ function toComparisonScalar(
 
 function createComparisonJsonForCondition(params: {
   operator: WorkflowConditionOperator | undefined;
-  rawValue: string;
-  fact: WorkflowContextFactDefinitionItem | undefined;
+  operand: WorkflowConditionOperand | null;
+  rawValue?: string;
+  minRawValue?: string;
+  maxRawValue?: string;
 }): unknown {
   if (!params.operator || !params.operator.requiresComparison) {
     return null;
   }
 
-  if (params.operator.key === "in") {
+  if (params.operator.key === "between") {
     return {
-      values: params.rawValue
-        .split(",")
-        .map((value) => value.trim())
-        .filter((value) => value.length > 0)
-        .map((value) => toComparisonScalar(value, params.fact)),
+      min: toComparisonScalar(params.minRawValue ?? "", params.operand),
+      max: toComparisonScalar(params.maxRawValue ?? "", params.operand),
     };
   }
 
-  return { value: toComparisonScalar(params.rawValue, params.fact) };
+  return { value: toComparisonScalar(params.rawValue ?? "", params.operand) };
 }
 
 function RouteModeRadioGroup(props: {
@@ -5127,6 +5312,7 @@ function RouteModeRadioGroup(props: {
 function RouteConditionComparisonField(props: {
   condition: WorkflowBranchRouteConditionPayload;
   fact: WorkflowContextFactDefinitionItem | undefined;
+  operand: WorkflowConditionOperand | null;
   operator: WorkflowConditionOperator | undefined;
   onChange: (comparisonJson: unknown) => void;
 }) {
@@ -5139,28 +5325,109 @@ function RouteConditionComparisonField(props: {
   }
 
   const value = getConditionComparisonDisplayValue(props.condition);
+  const allowedValues = getConditionAllowedValues(props.fact);
 
-  if (props.operator.key === "in") {
+  if (props.operator.key === "equals" && allowedValues.length > 0) {
     return (
-      <Textarea
-        aria-label="Comparison Values"
-        className="min-h-24 resize-none rounded-none border-border/70 bg-background/50"
-        value={value}
-        onChange={(event) =>
+      <Select
+        value={allowedValues.includes(value) ? value : undefined}
+        onValueChange={(nextValue) =>
           props.onChange(
             createComparisonJsonForCondition({
               operator: props.operator,
-              rawValue: event.target.value,
-              fact: props.fact,
+              operand: props.operand,
+              rawValue: nextValue ?? "",
             }),
           )
         }
-        placeholder="value-a, value-b"
-      />
+      >
+        <SelectTrigger className="w-full rounded-none border-border/70 bg-background/50">
+          <SelectValue placeholder="Select a value" />
+        </SelectTrigger>
+        <SelectContent className="rounded-none">
+          {allowedValues.map((entry) => (
+            <SelectItem key={entry} value={entry}>
+              {entry}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     );
   }
 
-  if (props.fact?.kind === "plain_value_fact" && props.fact.valueType === "boolean") {
+  const workflowReferenceValues = getConditionReferenceValues(props.fact);
+  if (workflowReferenceValues.length > 0) {
+    return (
+      <Select
+        value={workflowReferenceValues.includes(value) ? value : undefined}
+        onValueChange={(nextValue) =>
+          props.onChange(
+            createComparisonJsonForCondition({
+              operator: props.operator,
+              operand: props.operand,
+              rawValue: nextValue ?? "",
+            }),
+          )
+        }
+      >
+        <SelectTrigger className="w-full rounded-none border-border/70 bg-background/50">
+          <SelectValue placeholder="Select a workflow" />
+        </SelectTrigger>
+        <SelectContent className="rounded-none">
+          {workflowReferenceValues.map((entry) => (
+            <SelectItem key={entry} value={entry}>
+              {entry}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  }
+
+  if (props.operator.key === "between") {
+    const record = props.condition.comparisonJson as { min?: unknown; max?: unknown } | null;
+
+    return (
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Input
+          aria-label="Comparison Minimum"
+          type="number"
+          className="rounded-none border-border/70 bg-background/50"
+          value={typeof record?.min === "undefined" ? "" : String(record.min)}
+          onChange={(event) =>
+            props.onChange(
+              createComparisonJsonForCondition({
+                operator: props.operator,
+                operand: props.operand,
+                minRawValue: event.target.value,
+                maxRawValue: typeof record?.max === "undefined" ? "" : String(record.max),
+              }),
+            )
+          }
+          placeholder="Minimum"
+        />
+        <Input
+          aria-label="Comparison Maximum"
+          type="number"
+          className="rounded-none border-border/70 bg-background/50"
+          value={typeof record?.max === "undefined" ? "" : String(record.max)}
+          onChange={(event) =>
+            props.onChange(
+              createComparisonJsonForCondition({
+                operator: props.operator,
+                operand: props.operand,
+                minRawValue: typeof record?.min === "undefined" ? "" : String(record.min),
+                maxRawValue: event.target.value,
+              }),
+            )
+          }
+          placeholder="Maximum"
+        />
+      </div>
+    );
+  }
+
+  if (props.operand?.operandType === "boolean") {
     return (
       <Select
         value={value}
@@ -5168,8 +5435,8 @@ function RouteConditionComparisonField(props: {
           props.onChange(
             createComparisonJsonForCondition({
               operator: props.operator,
+              operand: props.operand,
               rawValue: nextValue ?? "false",
-              fact: props.fact,
             }),
           )
         }
@@ -5188,19 +5455,15 @@ function RouteConditionComparisonField(props: {
   return (
     <Input
       aria-label="Comparison Value"
-      type={
-        props.fact?.kind === "plain_value_fact" && props.fact.valueType === "number"
-          ? "number"
-          : "text"
-      }
+      type={props.operand?.operandType === "number" ? "number" : "text"}
       className="rounded-none border-border/70 bg-background/50"
       value={value}
       onChange={(event) =>
         props.onChange(
           createComparisonJsonForCondition({
             operator: props.operator,
+            operand: props.operand,
             rawValue: event.target.value,
-            fact: props.fact,
           }),
         )
       }
@@ -5282,9 +5545,18 @@ export function RouteDialog({
 
       group.conditions.forEach((condition, conditionIndex) => {
         const operator = conditionOperators.find((entry) => entry.key === condition.operator);
+        const fact = factsById.get(condition.contextFactDefinitionId);
+        const operand = resolveConditionOperandForEditor(fact, condition.subFieldKey);
         if (condition.contextFactDefinitionId.trim().length === 0) {
           errors.push(
             `Select a context fact for condition ${conditionIndex + 1} in group ${groupIndex + 1}.`,
+          );
+          return;
+        }
+
+        if (!operand) {
+          errors.push(
+            `Select a valid operand for condition ${conditionIndex + 1} in group ${groupIndex + 1}.`,
           );
           return;
         }
@@ -5296,7 +5568,14 @@ export function RouteDialog({
           return;
         }
 
-        if (!operator.validateComparison(condition.comparisonJson)) {
+        if (!operator.supportsOperand(operand)) {
+          errors.push(
+            `Select a compatible operator for condition ${conditionIndex + 1} in group ${groupIndex + 1}.`,
+          );
+          return;
+        }
+
+        if (!operator.validateComparison(condition.comparisonJson, operand)) {
           errors.push(
             `Provide a valid comparison for condition ${conditionIndex + 1} in group ${groupIndex + 1}.`,
           );
@@ -5305,7 +5584,7 @@ export function RouteDialog({
     });
 
     return errors;
-  }, [conditionOperators, draft]);
+  }, [conditionOperators, draft, factsById]);
 
   const canSave = validationErrors.length === 0;
 
@@ -5498,14 +5777,18 @@ export function RouteDialog({
                             <div className="grid gap-3">
                               {group.conditions.map((condition, conditionIndex) => {
                                 const fact = factsById.get(condition.contextFactDefinitionId);
-                                const compatibleOperators = conditionOperators.filter((operator) =>
-                                  operator.supportedFactKinds.includes(
-                                    fact?.kind ?? condition.contextFactKind,
-                                  ),
+                                const operand = resolveConditionOperandForEditor(
+                                  fact,
+                                  condition.subFieldKey,
+                                );
+                                const compatibleOperators = getCompatibleConditionOperators(
+                                  conditionOperators,
+                                  operand,
                                 );
                                 const selectedOperator = compatibleOperators.find(
                                   (operator) => operator.key === condition.operator,
                                 );
+                                const draftSpecSubFieldOptions = getDraftSpecSubFieldOptions(fact);
 
                                 return (
                                   <div
@@ -5565,22 +5848,13 @@ export function RouteDialog({
                                                         (candidate) =>
                                                           candidate.conditionId ===
                                                           condition.conditionId
-                                                            ? {
-                                                                ...candidate,
-                                                                contextFactDefinitionId: value,
-                                                                contextFactKind:
-                                                                  nextFact?.kind ??
-                                                                  candidate.contextFactKind,
-                                                                operator:
-                                                                  conditionOperators.find(
-                                                                    (operator) =>
-                                                                      operator.supportedFactKinds.includes(
-                                                                        nextFact?.kind ??
-                                                                          candidate.contextFactKind,
-                                                                      ),
-                                                                  )?.key ?? "equals",
-                                                                comparisonJson: { value: "" },
-                                                              }
+                                                            ? reconcileBranchConditionDraft({
+                                                                condition: candidate,
+                                                                fact: nextFact,
+                                                                nextContextFactDefinitionId: value,
+                                                                nextSubFieldKey: null,
+                                                                conditionOperators,
+                                                              })
                                                             : candidate,
                                                       ),
                                                     }
@@ -5595,15 +5869,72 @@ export function RouteDialog({
                                         />
                                       </div>
 
-                                      <div className="grid gap-2">
-                                        <Label>Fact Kind</Label>
-                                        <p className="rounded-none border border-border/70 bg-background/40 px-3 py-2 text-xs uppercase tracking-[0.12em] text-muted-foreground">
-                                          {(fact?.kind ?? condition.contextFactKind).replaceAll(
-                                            "_",
-                                            " ",
-                                          )}
-                                        </p>
-                                      </div>
+                                      {fact?.kind === "work_unit_draft_spec_fact" ? (
+                                        <div className="grid gap-2 lg:col-span-2">
+                                          <Label
+                                            htmlFor={`workflow-editor-branch-condition-sub-field-${condition.conditionId}`}
+                                          >
+                                            Draft-spec Sub-field
+                                          </Label>
+                                          <Select
+                                            value={condition.subFieldKey ?? "__root__"}
+                                            onValueChange={(value) =>
+                                              setDraft((previous) => ({
+                                                ...previous,
+                                                groups: previous.groups.map((entry) =>
+                                                  entry.groupId === group.groupId
+                                                    ? {
+                                                        ...entry,
+                                                        conditions: entry.conditions.map(
+                                                          (candidate) =>
+                                                            candidate.conditionId ===
+                                                            condition.conditionId
+                                                              ? reconcileBranchConditionDraft({
+                                                                  condition: candidate,
+                                                                  fact,
+                                                                  nextSubFieldKey:
+                                                                    value === "__root__"
+                                                                      ? null
+                                                                      : value,
+                                                                  conditionOperators,
+                                                                })
+                                                              : candidate,
+                                                        ),
+                                                      }
+                                                    : entry,
+                                                ),
+                                              }))
+                                            }
+                                          >
+                                            <SelectTrigger
+                                              id={`workflow-editor-branch-condition-sub-field-${condition.conditionId}`}
+                                              className="w-full rounded-none border-border/70 bg-background/50"
+                                            >
+                                              <SelectValue placeholder="Use whole draft spec" />
+                                            </SelectTrigger>
+                                            <SelectContent className="rounded-none">
+                                              <SelectItem value="__root__">
+                                                Whole draft spec
+                                              </SelectItem>
+                                              {draftSpecSubFieldOptions.map((option) => (
+                                                <SelectItem key={option.value} value={option.value}>
+                                                  {option.label}
+                                                </SelectItem>
+                                              ))}
+                                            </SelectContent>
+                                          </Select>
+                                          {condition.subFieldKey ? (
+                                            <p className="text-[0.68rem] uppercase tracking-[0.08em] text-muted-foreground">
+                                              {
+                                                draftSpecSubFieldOptions.find(
+                                                  (option) =>
+                                                    option.value === condition.subFieldKey,
+                                                )?.description
+                                              }
+                                            </p>
+                                          ) : null}
+                                        </div>
+                                      ) : null}
 
                                       <div className="grid gap-2">
                                         <Label
@@ -5629,17 +5960,16 @@ export function RouteDialog({
                                                                 operator:
                                                                   value ?? candidate.operator,
                                                                 comparisonJson:
-                                                                  createComparisonJsonForCondition({
-                                                                    operator:
-                                                                      compatibleOperators.find(
-                                                                        (operator) =>
-                                                                          operator.key ===
-                                                                          (value ??
-                                                                            candidate.operator),
-                                                                      ),
-                                                                    rawValue: "",
+                                                                  createDefaultComparisonJson(
+                                                                    compatibleOperators.find(
+                                                                      (operator) =>
+                                                                        operator.key ===
+                                                                        (value ??
+                                                                          candidate.operator),
+                                                                    ),
+                                                                    operand,
                                                                     fact,
-                                                                  }),
+                                                                  ),
                                                               }
                                                             : candidate,
                                                       ),
@@ -5670,6 +6000,7 @@ export function RouteDialog({
                                         <RouteConditionComparisonField
                                           condition={condition}
                                           fact={fact}
+                                          operand={operand}
                                           operator={selectedOperator}
                                           onChange={(comparisonJson) =>
                                             setDraft((previous) => ({

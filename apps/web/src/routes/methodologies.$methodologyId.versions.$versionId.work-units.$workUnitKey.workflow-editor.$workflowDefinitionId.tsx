@@ -8,6 +8,7 @@ import type {
   WorkflowContextFactDefinitionItem,
   WorkflowContextFactDraft,
   WorkflowConditionOperator,
+  WorkflowConditionOperand,
   WorkflowEditorEdge,
   WorkflowEditorGuidance,
   WorkflowHarnessDiscoveryMetadata,
@@ -114,89 +115,165 @@ function parseBranchProjectedEdgeMetadata(value: unknown): {
 const hasComparisonValue = (comparison: unknown) =>
   typeof comparison === "object" && comparison !== null && "value" in comparison;
 
-const hasComparisonValues = (comparison: unknown) =>
-  typeof comparison === "object" &&
-  comparison !== null &&
-  Array.isArray((comparison as { values?: unknown }).values);
+const hasStringComparisonValue = (comparison: unknown) => {
+  if (!hasComparisonValue(comparison)) {
+    return false;
+  }
+
+  return typeof (comparison as { value?: unknown }).value === "string";
+};
+
+const hasBooleanComparisonValue = (comparison: unknown) => {
+  if (!hasComparisonValue(comparison)) {
+    return false;
+  }
+
+  return typeof (comparison as { value?: unknown }).value === "boolean";
+};
+
+const hasNumericComparisonValue = (comparison: unknown) => {
+  if (!hasComparisonValue(comparison)) {
+    return false;
+  }
+
+  const value = (comparison as { value?: unknown }).value;
+  return typeof value === "number" && Number.isFinite(value);
+};
+
+const hasNumericRangeComparison = (comparison: unknown) => {
+  if (typeof comparison !== "object" || comparison === null) {
+    return false;
+  }
+
+  if (!("min" in comparison) || !("max" in comparison)) {
+    return false;
+  }
+
+  const min = (comparison as { min?: unknown }).min;
+  const max = (comparison as { max?: unknown }).max;
+
+  return (
+    typeof min === "number" &&
+    typeof max === "number" &&
+    Number.isFinite(min) &&
+    Number.isFinite(max) &&
+    min <= max
+  );
+};
+
+const hasNoComparison = (comparison: unknown) =>
+  typeof comparison === "undefined" || comparison === null;
+
+const isScalarOperand = (operand: WorkflowConditionOperand) => operand.cardinality === "one";
+const isManyOperand = (operand: WorkflowConditionOperand) => operand.cardinality === "many";
+const isStringOperand = (operand: WorkflowConditionOperand) => operand.operandType === "string";
+const isNumberOperand = (operand: WorkflowConditionOperand) => operand.operandType === "number";
+const isWorkflowReferenceOperand = (operand: WorkflowConditionOperand) =>
+  operand.operandType === "workflow_reference";
+const isArtifactReferenceOperand = (operand: WorkflowConditionOperand) =>
+  operand.operandType === "artifact_reference";
+
+const hasComparableValueForOperand = (
+  comparison: unknown,
+  operand: WorkflowConditionOperand,
+): boolean => {
+  if (!hasComparisonValue(comparison)) {
+    return false;
+  }
+
+  if (operand.operandType === "number") {
+    return hasNumericComparisonValue(comparison);
+  }
+
+  if (operand.operandType === "boolean") {
+    return hasBooleanComparisonValue(comparison);
+  }
+
+  return true;
+};
 
 const BUILT_IN_CONDITION_OPERATORS: readonly WorkflowConditionOperator[] = [
   {
-    key: "equals",
-    label: "Equals",
-    supportedFactKinds: [
-      "plain_value_fact",
-      "definition_backed_external_fact",
-      "bound_external_fact",
-      "workflow_reference_fact",
-      "artifact_reference_fact",
-      "work_unit_draft_spec_fact",
-    ],
-    requiresComparison: true,
-    validateComparison: hasComparisonValue,
+    key: "exists",
+    label: "Exists",
+    requiresComparison: false,
+    supportsOperand: () => true,
+    validateComparison: (comparison) => hasNoComparison(comparison),
   },
   {
-    key: "notEquals",
-    label: "Not Equals",
-    supportedFactKinds: [
-      "plain_value_fact",
-      "definition_backed_external_fact",
-      "bound_external_fact",
-      "workflow_reference_fact",
-      "artifact_reference_fact",
-      "work_unit_draft_spec_fact",
-    ],
+    key: "equals",
+    label: "Equals",
     requiresComparison: true,
-    validateComparison: hasComparisonValue,
+    supportsOperand: (operand) =>
+      (isScalarOperand(operand) && !isArtifactReferenceOperand(operand)) ||
+      isWorkflowReferenceOperand(operand),
+    validateComparison: (comparison, operand) => hasComparableValueForOperand(comparison, operand),
   },
   {
     key: "contains",
     label: "Contains",
-    supportedFactKinds: [
-      "plain_value_fact",
-      "workflow_reference_fact",
-      "artifact_reference_fact",
-      "work_unit_draft_spec_fact",
-    ],
     requiresComparison: true,
-    validateComparison: hasComparisonValue,
+    supportsOperand: (operand) => isStringOperand(operand) || isManyOperand(operand),
+    validateComparison: (comparison, operand) =>
+      isManyOperand(operand)
+        ? hasComparisonValue(comparison)
+        : hasStringComparisonValue(comparison),
   },
   {
-    key: "in",
-    label: "In",
-    supportedFactKinds: [
-      "plain_value_fact",
-      "definition_backed_external_fact",
-      "bound_external_fact",
-      "workflow_reference_fact",
-      "artifact_reference_fact",
-      "work_unit_draft_spec_fact",
-    ],
+    key: "starts_with",
+    label: "Starts With",
     requiresComparison: true,
-    validateComparison: hasComparisonValues,
+    supportsOperand: (operand) => isScalarOperand(operand) && isStringOperand(operand),
+    validateComparison: (comparison) => hasStringComparisonValue(comparison),
   },
   {
-    key: "isEmpty",
-    label: "Is Empty",
-    supportedFactKinds: [
-      "plain_value_fact",
-      "workflow_reference_fact",
-      "artifact_reference_fact",
-      "work_unit_draft_spec_fact",
-    ],
-    requiresComparison: false,
-    validateComparison: () => true,
+    key: "ends_with",
+    label: "Ends With",
+    requiresComparison: true,
+    supportsOperand: (operand) => isScalarOperand(operand) && isStringOperand(operand),
+    validateComparison: (comparison) => hasStringComparisonValue(comparison),
   },
   {
-    key: "isNotEmpty",
-    label: "Is Not Empty",
-    supportedFactKinds: [
-      "plain_value_fact",
-      "workflow_reference_fact",
-      "artifact_reference_fact",
-      "work_unit_draft_spec_fact",
-    ],
+    key: "gt",
+    label: "Greater Than",
+    requiresComparison: true,
+    supportsOperand: (operand) => isScalarOperand(operand) && isNumberOperand(operand),
+    validateComparison: (comparison) => hasNumericComparisonValue(comparison),
+  },
+  {
+    key: "gte",
+    label: "Greater Than Or Equal",
+    requiresComparison: true,
+    supportsOperand: (operand) => isScalarOperand(operand) && isNumberOperand(operand),
+    validateComparison: (comparison) => hasNumericComparisonValue(comparison),
+  },
+  {
+    key: "lt",
+    label: "Less Than",
+    requiresComparison: true,
+    supportsOperand: (operand) => isScalarOperand(operand) && isNumberOperand(operand),
+    validateComparison: (comparison) => hasNumericComparisonValue(comparison),
+  },
+  {
+    key: "lte",
+    label: "Less Than Or Equal",
+    requiresComparison: true,
+    supportsOperand: (operand) => isScalarOperand(operand) && isNumberOperand(operand),
+    validateComparison: (comparison) => hasNumericComparisonValue(comparison),
+  },
+  {
+    key: "between",
+    label: "Between",
+    requiresComparison: true,
+    supportsOperand: (operand) => isScalarOperand(operand) && isNumberOperand(operand),
+    validateComparison: (comparison) => hasNumericRangeComparison(comparison),
+  },
+  {
+    key: "fresh",
+    label: "Fresh",
+    supportsOperand: (operand) => operand.freshnessCapable,
     requiresComparison: false,
-    validateComparison: () => true,
+    validateComparison: (comparison) => hasNoComparison(comparison),
   },
 ];
 
@@ -693,13 +770,11 @@ function toWorkflowBranchPayload(rawPayload: unknown): WorkflowBranchStepPayload
                         conditions: Array.isArray(group.conditions)
                           ? group.conditions.flatMap((rawCondition) => {
                               const condition = asRecord(rawCondition);
-                              const kind = normalizeContextFactKind(condition?.contextFactKind);
 
                               if (
                                 !condition ||
                                 typeof condition.conditionId !== "string" ||
                                 typeof condition.contextFactDefinitionId !== "string" ||
-                                !kind ||
                                 typeof condition.operator !== "string"
                               ) {
                                 return [];
@@ -709,9 +784,17 @@ function toWorkflowBranchPayload(rawPayload: unknown): WorkflowBranchStepPayload
                                 {
                                   conditionId: condition.conditionId,
                                   contextFactDefinitionId: condition.contextFactDefinitionId,
-                                  contextFactKind: kind,
-                                  operator: condition.operator,
-                                  isNegated: condition.isNegated === true,
+                                  subFieldKey:
+                                    typeof condition.subFieldKey === "string" &&
+                                    condition.subFieldKey.trim().length > 0
+                                      ? condition.subFieldKey
+                                      : null,
+                                  operator:
+                                    condition.operator === "stale" ? "fresh" : condition.operator,
+                                  isNegated:
+                                    condition.operator === "stale"
+                                      ? true
+                                      : condition.isNegated === true,
                                   comparisonJson:
                                     typeof condition.comparisonJson === "undefined"
                                       ? null
@@ -977,15 +1060,16 @@ function toContextFactDefinitions(
               (slotId): slotId is string => typeof slotId === "string",
             )
           : [],
+        validationJson:
+          typeof value.validationJson === "undefined" ? value.validation : value.validationJson,
         summary: typeof value.summary === "string" ? value.summary : "",
       };
 
       if (
-        kind === "plain_value_fact" &&
-        (value.valueType === "string" ||
-          value.valueType === "number" ||
-          value.valueType === "boolean" ||
-          value.valueType === "json")
+        value.valueType === "string" ||
+        value.valueType === "number" ||
+        value.valueType === "boolean" ||
+        value.valueType === "json"
       ) {
         item.valueType = value.valueType;
       }
@@ -1185,7 +1269,19 @@ function toBranchStepMutationPayload(payload: WorkflowBranchStepPayload) {
     ...(descriptionMarkdown ? { descriptionJson: { markdown: descriptionMarkdown } } : {}),
     guidance: payload.guidance,
     defaultTargetStepId: payload.defaultTargetStepId,
-    routes: payload.routes,
+    routes: payload.routes.map((route) => ({
+      ...route,
+      groups: route.groups.map((group) => ({
+        ...group,
+        conditions: group.conditions.map((condition) => ({
+          ...condition,
+          subFieldKey:
+            typeof condition.subFieldKey === "string" && condition.subFieldKey.trim().length > 0
+              ? condition.subFieldKey.trim()
+              : null,
+        })),
+      })),
+    })),
   };
 }
 

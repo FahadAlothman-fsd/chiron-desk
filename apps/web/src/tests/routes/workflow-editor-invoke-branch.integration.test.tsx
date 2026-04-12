@@ -429,7 +429,7 @@ function createEditorDefinition() {
                     {
                       conditionId: "condition-summary",
                       contextFactDefinitionId: "ctx-summary",
-                      contextFactKind: "plain_value_fact",
+                      subFieldKey: null,
                       operator: "equals",
                       isNegated: false,
                       comparisonJson: { value: "ship it" },
@@ -1147,16 +1147,16 @@ describe("workflow editor invoke route", () => {
           {
             key: "equals",
             label: "Equals",
-            supportedFactKinds: ["plain_value_fact"],
             requiresComparison: true,
+            supportsOperand: (operand) => operand.operandType === "string",
             validateComparison: (comparison: unknown) =>
               typeof comparison === "object" && comparison !== null && "value" in comparison,
           },
           {
             key: "isEmpty",
             label: "Is Empty",
-            supportedFactKinds: ["plain_value_fact"],
             requiresComparison: false,
+            supportsOperand: () => true,
             validateComparison: () => true,
           },
         ]}
@@ -1198,7 +1198,7 @@ describe("workflow editor invoke route", () => {
                   conditions: [
                     expect.objectContaining({
                       contextFactDefinitionId: "ctx-summary",
-                      contextFactKind: "plain_value_fact",
+                      subFieldKey: null,
                       operator: "equals",
                       comparisonJson: { value: "ship it" },
                     }),
@@ -1310,5 +1310,41 @@ describe("workflow editor invoke route", () => {
 
     fireEvent.click(branchEdgeButton);
     expect(await screen.findByText(/Branch routing/i)).toBeTruthy();
+  });
+
+  it("artifact reference branch conditions do not offer equals", async () => {
+    const { MethodologyWorkflowEditorRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId");
+
+    const editorDefinition = createEditorDefinition();
+    editorDefinition.contextFacts = [
+      ...editorDefinition.contextFacts,
+      {
+        contextFactDefinitionId: "ctx-project-overview",
+        key: "project_overview",
+        label: "Project Overview Artifact",
+        descriptionJson: { markdown: "Seeded project overview artifact." },
+        kind: "artifact_reference_fact",
+        cardinality: "one",
+        artifactSlotDefinitionId: "PROJECT_OVERVIEW",
+      },
+    ];
+
+    useRouteContextMock.mockReturnValue(createRouteContext(editorDefinition));
+
+    renderRoute(<MethodologyWorkflowEditorRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Inspect Step branch-on-summary/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit branch step" }));
+    fireEvent.click(screen.getByRole("button", { name: "Routes" }));
+    fireEvent.click(screen.getByRole("button", { name: /Edit Route/i }));
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Context Fact" }));
+    fireEvent.click(screen.getByRole("button", { name: /Project Overview Artifact/i }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Operator" }));
+
+    expect(screen.getByRole("button", { name: /^Exists$/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Fresh$/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Equals$/i })).toBeNull();
   });
 });
