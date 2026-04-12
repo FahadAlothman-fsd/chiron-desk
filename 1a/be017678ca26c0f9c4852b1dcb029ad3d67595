@@ -1,0 +1,45 @@
+packages/methodology-engine/src/tests/l3/l3-design-time-invoke-branch-services.test.ts
+  8136de777cfb9dfa 121,142,514
+  16df42013de6e9ee 122,143,515
+packages/methodology-engine/src/services/workflow-editor-definition-service.ts
+  16df42013de6e9ee 94-96
+packages/methodology-engine/src/services/branch-step-definition-service.ts
+  8136de777cfb9dfa 200
+  16df42013de6e9ee 17-21,136,139-199,201-239,265-266,270-271,323,325-331,334-340,342-347,450-454,535-550,553
+packages/methodology-engine/src/services/condition-engine.ts
+  8136de777cfb9dfa 34-49,92-106,123,130-133,140,147
+  16df42013de6e9ee 1,10-11,14-27,50-91,110-114,120-122,129,136-137,139,143-144,146,150-161,164-186,188-189,197-198,209-210,222,225-228,238-241,255,257,261-264,272,280-292
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "1abe017678ca26c0f9c4852b1dcb029ad3d67595",
+  "prompts": {
+    "16df42013de6e9ee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_285c21e1fffe2TVLsiZ644kgK7",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 20,
+      "total_deletions": 19,
+      "accepted_lines": 676,
+      "overriden_lines": 0
+    },
+    "8136de777cfb9dfa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_27e2bb54effersvgII5ol2eDuS",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 430,
+      "overriden_lines": 0
+    }
+  }
+}
