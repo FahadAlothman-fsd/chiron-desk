@@ -91,7 +91,9 @@ const getWorkflowStepKey = (step: LegacyWorkflowStepReadModel): string => {
     case "branch":
       return "payload" in step ? step.payload.key : step.stepId;
     default:
-      return step.stepId;
+      return "stepKey" in step && typeof step.stepKey === "string" && step.stepKey.length > 0
+        ? step.stepKey
+        : step.stepId;
   }
 };
 

@@ -1,7 +1,4 @@
-import type {
-  BranchRouteConditionPayload,
-  WorkflowContextFactKind,
-} from "@chiron/contracts/methodology/workflow";
+import type { BranchRouteConditionPayload } from "@chiron/contracts/methodology/workflow";
 import { Context, Effect, Layer, Option } from "effect";
 
 import { ValidationDecodeError } from "../errors";
@@ -9,10 +6,24 @@ import { ValidationDecodeError } from "../errors";
 export interface ConditionOperator {
   readonly key: string;
   readonly label: string;
-  readonly supportedFactKinds: readonly WorkflowContextFactKind[];
   readonly requiresComparison: boolean;
-  readonly validateComparison: (comparison: unknown) => boolean;
+  readonly supportsOperand: (operand: ResolvedConditionOperand) => boolean;
+  readonly validateComparison: (comparison: unknown, operand: ResolvedConditionOperand) => boolean;
 }
+
+export type ResolvedConditionOperandType =
+  | "string"
+  | "number"
+  | "boolean"
+  | "workflow_reference"
+  | "artifact_reference"
+  | "json_object";
+
+export type ResolvedConditionOperand = {
+  readonly operandType: ResolvedConditionOperandType;
+  readonly cardinality: "one" | "many";
+  readonly freshnessCapable: boolean;
+};
 
 const hasComparableValue = (comparison: unknown): boolean =>
   typeof comparison === "object" &&
@@ -20,90 +31,162 @@ const hasComparableValue = (comparison: unknown): boolean =>
   "value" in comparison &&
   typeof (comparison as { value?: unknown }).value !== "undefined";
 
-const hasComparableValues = (comparison: unknown): boolean =>
-  typeof comparison === "object" &&
-  comparison !== null &&
-  "values" in comparison &&
-  Array.isArray((comparison as { values?: unknown }).values);
+const hasStringComparableValue = (comparison: unknown): boolean => {
+  if (!hasComparableValue(comparison)) {
+    return false;
+  }
+
+  return typeof (comparison as { value?: unknown }).value === "string";
+};
+
+const hasBooleanComparableValue = (comparison: unknown): boolean => {
+  if (!hasComparableValue(comparison)) {
+    return false;
+  }
+
+  return typeof (comparison as { value?: unknown }).value === "boolean";
+};
+
+const hasNumericComparableValue = (comparison: unknown): boolean => {
+  if (typeof comparison !== "object" || comparison === null || !("value" in comparison)) {
+    return false;
+  }
+
+  const value = (comparison as { value?: unknown }).value;
+  return typeof value === "number" && Number.isFinite(value);
+};
+
+const hasNumericRange = (comparison: unknown): boolean => {
+  if (typeof comparison !== "object" || comparison === null) {
+    return false;
+  }
+
+  if (!("min" in comparison && "max" in comparison)) {
+    return false;
+  }
+
+  const min = (comparison as { min?: unknown }).min;
+  const max = (comparison as { max?: unknown }).max;
+
+  return (
+    typeof min === "number" &&
+    typeof max === "number" &&
+    Number.isFinite(min) &&
+    Number.isFinite(max) &&
+    min <= max
+  );
+};
+
+const hasNoComparison = (comparison: unknown): boolean =>
+  typeof comparison === "undefined" || comparison === null;
+
+const isScalarOperand = (operand: ResolvedConditionOperand) => operand.cardinality === "one";
+const isManyOperand = (operand: ResolvedConditionOperand) => operand.cardinality === "many";
+const isStringOperand = (operand: ResolvedConditionOperand) => operand.operandType === "string";
+const isNumberOperand = (operand: ResolvedConditionOperand) => operand.operandType === "number";
+const isWorkflowReferenceOperand = (operand: ResolvedConditionOperand) =>
+  operand.operandType === "workflow_reference";
+const isArtifactReferenceOperand = (operand: ResolvedConditionOperand) =>
+  operand.operandType === "artifact_reference";
+const supportsFreshness = (operand: ResolvedConditionOperand) => operand.freshnessCapable;
+
+const hasComparableValueForOperand = (
+  comparison: unknown,
+  operand: ResolvedConditionOperand,
+): boolean => {
+  if (operand.operandType === "number") {
+    return hasNumericComparableValue(comparison);
+  }
+
+  if (operand.operandType === "boolean") {
+    return hasBooleanComparableValue(comparison);
+  }
+
+  return hasComparableValue(comparison);
+};
 
 export const BuiltInConditionOperators: readonly ConditionOperator[] = [
   {
-    key: "equals",
-    label: "Equals",
-    supportedFactKinds: [
-      "plain_value_fact",
-      "definition_backed_external_fact",
-      "bound_external_fact",
-      "workflow_reference_fact",
-      "artifact_reference_fact",
-      "work_unit_draft_spec_fact",
-    ],
-    requiresComparison: true,
-    validateComparison: hasComparableValue,
+    key: "exists",
+    label: "Exists",
+    requiresComparison: false,
+    supportsOperand: () => true,
+    validateComparison: (comparison) => hasNoComparison(comparison),
   },
   {
-    key: "notEquals",
-    label: "Not Equals",
-    supportedFactKinds: [
-      "plain_value_fact",
-      "definition_backed_external_fact",
-      "bound_external_fact",
-      "workflow_reference_fact",
-      "artifact_reference_fact",
-      "work_unit_draft_spec_fact",
-    ],
+    key: "equals",
+    label: "Equals",
     requiresComparison: true,
-    validateComparison: hasComparableValue,
+    supportsOperand: (operand) =>
+      (isScalarOperand(operand) && !isArtifactReferenceOperand(operand)) ||
+      isWorkflowReferenceOperand(operand),
+    validateComparison: (comparison, operand) => hasComparableValueForOperand(comparison, operand),
   },
   {
     key: "contains",
     label: "Contains",
-    supportedFactKinds: [
-      "plain_value_fact",
-      "workflow_reference_fact",
-      "artifact_reference_fact",
-      "work_unit_draft_spec_fact",
-    ],
     requiresComparison: true,
-    validateComparison: hasComparableValue,
+    supportsOperand: (operand) => isManyOperand(operand) || isStringOperand(operand),
+    validateComparison: (comparison, operand) =>
+      isManyOperand(operand)
+        ? hasComparableValue(comparison)
+        : hasStringComparableValue(comparison),
   },
   {
-    key: "in",
-    label: "In",
-    supportedFactKinds: [
-      "plain_value_fact",
-      "definition_backed_external_fact",
-      "bound_external_fact",
-      "workflow_reference_fact",
-      "artifact_reference_fact",
-      "work_unit_draft_spec_fact",
-    ],
+    key: "starts_with",
+    label: "Starts With",
     requiresComparison: true,
-    validateComparison: hasComparableValues,
+    supportsOperand: (operand) => isScalarOperand(operand) && isStringOperand(operand),
+    validateComparison: (comparison) => hasStringComparableValue(comparison),
   },
   {
-    key: "isEmpty",
-    label: "Is Empty",
-    supportedFactKinds: [
-      "plain_value_fact",
-      "workflow_reference_fact",
-      "artifact_reference_fact",
-      "work_unit_draft_spec_fact",
-    ],
-    requiresComparison: false,
-    validateComparison: () => true,
+    key: "ends_with",
+    label: "Ends With",
+    requiresComparison: true,
+    supportsOperand: (operand) => isScalarOperand(operand) && isStringOperand(operand),
+    validateComparison: (comparison) => hasStringComparableValue(comparison),
   },
   {
-    key: "isNotEmpty",
-    label: "Is Not Empty",
-    supportedFactKinds: [
-      "plain_value_fact",
-      "workflow_reference_fact",
-      "artifact_reference_fact",
-      "work_unit_draft_spec_fact",
-    ],
+    key: "gt",
+    label: "Greater Than",
+    requiresComparison: true,
+    supportsOperand: (operand) => isScalarOperand(operand) && isNumberOperand(operand),
+    validateComparison: (comparison) => hasNumericComparableValue(comparison),
+  },
+  {
+    key: "gte",
+    label: "Greater Than Or Equal",
+    requiresComparison: true,
+    supportsOperand: (operand) => isScalarOperand(operand) && isNumberOperand(operand),
+    validateComparison: (comparison) => hasNumericComparableValue(comparison),
+  },
+  {
+    key: "lt",
+    label: "Less Than",
+    requiresComparison: true,
+    supportsOperand: (operand) => isScalarOperand(operand) && isNumberOperand(operand),
+    validateComparison: (comparison) => hasNumericComparableValue(comparison),
+  },
+  {
+    key: "lte",
+    label: "Less Than Or Equal",
+    requiresComparison: true,
+    supportsOperand: (operand) => isScalarOperand(operand) && isNumberOperand(operand),
+    validateComparison: (comparison) => hasNumericComparableValue(comparison),
+  },
+  {
+    key: "between",
+    label: "Between",
+    requiresComparison: true,
+    supportsOperand: (operand) => isScalarOperand(operand) && isNumberOperand(operand),
+    validateComparison: (comparison) => hasNumericRange(comparison),
+  },
+  {
+    key: "fresh",
+    label: "Fresh",
     requiresComparison: false,
-    validateComparison: () => true,
+    supportsOperand: (operand) => supportsFreshness(operand),
+    validateComparison: (comparison) => hasNoComparison(comparison),
   },
 ];
 
@@ -111,8 +194,8 @@ export class ConditionRegistry extends Context.Tag("ConditionRegistry")<
   ConditionRegistry,
   {
     readonly getOperator: (key: string) => Option.Option<ConditionOperator>;
-    readonly listOperatorsForFactKind: (
-      factKind: WorkflowContextFactKind,
+    readonly listOperatorsForOperand: (
+      operand: ResolvedConditionOperand,
     ) => readonly ConditionOperator[];
     readonly registerOperator: (operator: ConditionOperator) => void;
   }
@@ -123,8 +206,8 @@ export const ConditionRegistryLive = Layer.sync(ConditionRegistry, () => {
 
   return ConditionRegistry.of({
     getOperator: (key) => Option.fromNullable(operators.get(key)),
-    listOperatorsForFactKind: (factKind) =>
-      [...operators.values()].filter((operator) => operator.supportedFactKinds.includes(factKind)),
+    listOperatorsForOperand: (operand) =>
+      [...operators.values()].filter((operator) => operator.supportsOperand(operand)),
     registerOperator: (operator) => {
       operators.set(operator.key, operator);
     },
@@ -136,9 +219,13 @@ export class ConditionValidator extends Context.Tag("ConditionValidator")<
   {
     readonly validateCondition: (
       condition: BranchRouteConditionPayload,
+      operand: ResolvedConditionOperand,
     ) => Effect.Effect<void, ValidationDecodeError>;
     readonly validateConditionSet: (
-      conditions: readonly BranchRouteConditionPayload[],
+      conditions: ReadonlyArray<{
+        readonly condition: BranchRouteConditionPayload;
+        readonly operand: ResolvedConditionOperand;
+      }>,
     ) => Effect.Effect<void, ValidationDecodeError>;
   }
 >() {}
@@ -148,7 +235,10 @@ export const ConditionValidatorLive = Layer.effect(
   Effect.gen(function* () {
     const registry = yield* ConditionRegistry;
 
-    const validateCondition = (condition: BranchRouteConditionPayload) =>
+    const validateCondition = (
+      condition: BranchRouteConditionPayload,
+      operand: ResolvedConditionOperand,
+    ) =>
       Effect.gen(function* () {
         const operator = yield* registry.getOperator(condition.operator).pipe(
           Option.match({
@@ -162,15 +252,16 @@ export const ConditionValidatorLive = Layer.effect(
           }),
         );
 
-        if (!operator.supportedFactKinds.includes(condition.contextFactKind)) {
+        if (!operator.supportsOperand(operand)) {
           return yield* new ValidationDecodeError({
-            message:
-              `Branch condition operator '${condition.operator}' does not support fact kind ` +
-              `'${condition.contextFactKind}'`,
+            message: `Branch condition operator '${condition.operator}' does not support the selected operand`,
           });
         }
 
-        if (operator.requiresComparison && !operator.validateComparison(condition.comparisonJson)) {
+        if (
+          operator.requiresComparison &&
+          !operator.validateComparison(condition.comparisonJson, operand)
+        ) {
           return yield* new ValidationDecodeError({
             message: `Branch condition operator '${condition.operator}' requires valid comparison data`,
           });
@@ -178,7 +269,7 @@ export const ConditionValidatorLive = Layer.effect(
 
         if (
           !operator.requiresComparison &&
-          !operator.validateComparison(condition.comparisonJson)
+          !operator.validateComparison(condition.comparisonJson, operand)
         ) {
           return yield* new ValidationDecodeError({
             message: `Branch condition operator '${condition.operator}' received invalid comparison data`,
@@ -186,8 +277,19 @@ export const ConditionValidatorLive = Layer.effect(
         }
       });
 
-    const validateConditionSet = (conditions: readonly BranchRouteConditionPayload[]) =>
-      Effect.forEach(conditions, validateCondition, { discard: true });
+    const validateConditionSet = (
+      conditions: ReadonlyArray<{
+        readonly condition: BranchRouteConditionPayload;
+        readonly operand: ResolvedConditionOperand;
+      }>,
+    ) =>
+      Effect.forEach(
+        conditions,
+        ({ condition, operand }) => validateCondition(condition, operand),
+        {
+          discard: true,
+        },
+      );
 
     return ConditionValidator.of({ validateCondition, validateConditionSet });
   }),

@@ -14,7 +14,11 @@ import {
   VersionNotFoundError,
 } from "../errors";
 import { MethodologyRepository, type MethodologyVersionRow } from "../repository";
-import { ConditionValidator, ConditionValidatorLive } from "./condition-engine";
+import {
+  ConditionValidator,
+  ConditionValidatorLive,
+  type ResolvedConditionOperand,
+} from "./condition-engine";
 
 type BranchProjectedEdgeOwner = "branch_default" | "branch_conditional";
 type ConditionValidatorService = ConditionValidator["Type"];
@@ -129,9 +133,110 @@ const parseBranchProjectedEdgeMetadata = (value: unknown): BranchProjectedEdgeMe
 const validateConditionReferences = (
   payload: BranchStepPayload,
   facts: readonly WorkflowContextFactDto[],
-): Effect.Effect<void, ValidationDecodeError> =>
+): Effect.Effect<ReadonlyMap<string, ResolvedConditionOperand>, ValidationDecodeError> =>
   Effect.gen(function* () {
     const factByIdentifier = createContextFactIndex(facts);
+    const operandByConditionId = new Map<string, ResolvedConditionOperand>();
+
+    const resolveOperand = (
+      condition: BranchRouteConditionPayload,
+      fact: WorkflowContextFactDto,
+    ): Effect.Effect<ResolvedConditionOperand, ValidationDecodeError> =>
+      Effect.gen(function* () {
+        const subFieldKey = condition.subFieldKey?.trim() ?? "";
+        if (subFieldKey.length > 0) {
+          if (fact.kind !== "work_unit_draft_spec_fact") {
+            return yield* new ValidationDecodeError({
+              message:
+                `Branch condition '${condition.conditionId}' uses subFieldKey on unsupported ` +
+                `fact kind '${fact.kind}'`,
+            });
+          }
+
+          if (subFieldKey.startsWith("artifact:")) {
+            const artifactSlotDefinitionId = subFieldKey.slice("artifact:".length);
+            if (!fact.selectedArtifactSlotDefinitionIds.includes(artifactSlotDefinitionId)) {
+              return yield* new ValidationDecodeError({
+                message:
+                  `Branch condition '${condition.conditionId}' references unknown draft-spec ` +
+                  `artifact subfield '${artifactSlotDefinitionId}'`,
+              });
+            }
+
+            return {
+              operandType: "artifact_reference",
+              cardinality: "one",
+              freshnessCapable: true,
+            } as const;
+          }
+
+          if (subFieldKey.startsWith("fact:")) {
+            const workUnitFactDefinitionId = subFieldKey.slice("fact:".length);
+            if (!fact.selectedWorkUnitFactDefinitionIds.includes(workUnitFactDefinitionId)) {
+              return yield* new ValidationDecodeError({
+                message:
+                  `Branch condition '${condition.conditionId}' references unknown draft-spec ` +
+                  `fact subfield '${workUnitFactDefinitionId}'`,
+              });
+            }
+
+            return {
+              operandType: "json_object",
+              cardinality: "one",
+              freshnessCapable: false,
+            } as const;
+          }
+
+          return yield* new ValidationDecodeError({
+            message:
+              `Branch condition '${condition.conditionId}' has invalid subFieldKey '${subFieldKey}'. ` +
+              "Expected 'fact:<id>' or 'artifact:<id>'.",
+          });
+        }
+
+        switch (fact.kind) {
+          case "plain_value_fact":
+            return {
+              operandType: fact.valueType === "json" ? "json_object" : fact.valueType,
+              cardinality: fact.cardinality,
+              freshnessCapable: false,
+            } as const;
+          case "workflow_reference_fact":
+            return {
+              operandType: "workflow_reference",
+              cardinality: fact.cardinality,
+              freshnessCapable: false,
+            } as const;
+          case "artifact_reference_fact":
+            return {
+              operandType: "artifact_reference",
+              cardinality: fact.cardinality,
+              freshnessCapable: true,
+            } as const;
+          case "work_unit_draft_spec_fact":
+            return {
+              operandType: "json_object",
+              cardinality: fact.cardinality,
+              freshnessCapable: true,
+            } as const;
+          case "definition_backed_external_fact":
+          case "bound_external_fact": {
+            const valueType =
+              "valueType" in fact &&
+              (fact.valueType === "number" ||
+                fact.valueType === "boolean" ||
+                fact.valueType === "json")
+                ? fact.valueType
+                : "string";
+
+            return {
+              operandType: valueType === "json" ? "json_object" : valueType,
+              cardinality: fact.cardinality,
+              freshnessCapable: false,
+            } as const;
+          }
+        }
+      });
 
     for (const route of payload.routes) {
       if (route.groups.length === 0) {
@@ -157,16 +262,13 @@ const validateConditionReferences = (
             });
           }
 
-          if (fact.kind !== condition.contextFactKind) {
-            return yield* new ValidationDecodeError({
-              message:
-                `Branch condition '${condition.conditionId}' fact kind mismatch: expected ` +
-                `'${fact.kind}' but received '${condition.contextFactKind}'`,
-            });
-          }
+          const operand = yield* resolveOperand(condition, fact);
+          operandByConditionId.set(condition.conditionId, operand);
         }
       }
     }
+
+    return operandByConditionId;
   });
 
 const validateBranchTargets = (
@@ -218,12 +320,31 @@ const validateBranchTargets = (
 const validateConditions = (
   payload: BranchStepPayload,
   validator: ConditionValidatorService,
+  operandByConditionId: ReadonlyMap<string, ResolvedConditionOperand>,
 ): Effect.Effect<void, ValidationDecodeError> => {
-  const conditions: BranchRouteConditionPayload[] = payload.routes.flatMap((route) =>
-    route.groups.flatMap((group) => group.conditions),
+  const conditions = payload.routes.flatMap((route) =>
+    route.groups.flatMap((group) =>
+      group.conditions.map((condition) => ({
+        condition,
+        operand: operandByConditionId.get(condition.conditionId),
+      })),
+    ),
   );
 
-  return validator.validateConditionSet(conditions);
+  if (conditions.some((entry) => !entry.operand)) {
+    return Effect.fail(
+      new ValidationDecodeError({
+        message: "Failed to resolve one or more branch condition operands",
+      }),
+    );
+  }
+
+  return validator.validateConditionSet(
+    conditions.map((entry) => ({
+      condition: entry.condition,
+      operand: entry.operand as ResolvedConditionOperand,
+    })),
+  );
 };
 
 export class BranchStepDefinitionService extends Context.Tag("BranchStepDefinitionService")<
@@ -326,8 +447,11 @@ export const BranchStepDefinitionServiceLive = Layer.effect(
         const workflowSteps = workflow.steps as readonly LegacyWorkflowStepReadModel[];
 
         yield* validateBranchTargets(input.payload, workflowSteps, branchStepId);
-        yield* validateConditionReferences(input.payload, workflow.contextFacts);
-        yield* validateConditions(input.payload, conditionValidator);
+        const operandByConditionId = yield* validateConditionReferences(
+          input.payload,
+          workflow.contextFacts,
+        );
+        yield* validateConditions(input.payload, conditionValidator, operandByConditionId);
 
         const workflowStepById = new Map(workflowSteps.map((step) => [step.stepId, step]));
         const stepKeyById = new Map<string, string>();
@@ -408,9 +532,25 @@ export const BranchStepDefinitionServiceLive = Layer.effect(
                 stepKeyById.set(stepId, resolvedKey);
                 return resolvedKey;
               }
-              default:
+              default: {
+                const deferredStepKey = "stepKey" in step && readNonEmptyKey(step.stepKey);
+                if (deferredStepKey) {
+                  stepKeyById.set(stepId, deferredStepKey);
+                  return deferredStepKey;
+                }
+
+                if ("payload" in step) {
+                  const payload = isRecord(step.payload) ? step.payload : null;
+                  const inlineKey = payload ? readNonEmptyKey(payload.key) : null;
+                  if (inlineKey) {
+                    stepKeyById.set(stepId, inlineKey);
+                    return inlineKey;
+                  }
+                }
+
                 stepKeyById.set(stepId, stepId);
                 return stepId;
+              }
             }
           });
 
