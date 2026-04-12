@@ -232,7 +232,7 @@ const SCHEMA_SQL = [
     group_id TEXT NOT NULL,
     condition_id TEXT NOT NULL,
     context_fact_definition_id TEXT NOT NULL,
-    context_fact_kind TEXT NOT NULL,
+    sub_field_key TEXT,
     operator TEXT NOT NULL,
     is_negated INTEGER NOT NULL DEFAULT 0,
     comparison_json TEXT,
@@ -469,7 +469,7 @@ describe("l3 design-time invoke/branch methodology repository", () => {
                     {
                       conditionId: "cond-a1",
                       contextFactDefinitionId: "ctx-status",
-                      contextFactKind: "plain_value_fact",
+                      subFieldKey: null,
                       operator: "equals",
                       isNegated: false,
                       comparisonJson: { value: "ready" },
@@ -477,8 +477,8 @@ describe("l3 design-time invoke/branch methodology repository", () => {
                     {
                       conditionId: "cond-a2",
                       contextFactDefinitionId: "ctx-summary",
-                      contextFactKind: "plain_value_fact",
-                      operator: "isNotEmpty",
+                      subFieldKey: null,
+                      operator: "exists",
                       isNegated: false,
                       comparisonJson: null,
                     },
@@ -498,8 +498,8 @@ describe("l3 design-time invoke/branch methodology repository", () => {
                     {
                       conditionId: "cond-b1",
                       contextFactDefinitionId: "ctx-artifact",
-                      contextFactKind: "artifact_reference_fact",
-                      operator: "isNotEmpty",
+                      subFieldKey: null,
+                      operator: "exists",
                       isNegated: false,
                       comparisonJson: null,
                     },
@@ -538,7 +538,7 @@ describe("l3 design-time invoke/branch methodology repository", () => {
                     {
                       conditionId: "cond-a1",
                       contextFactDefinitionId: "ctx-status",
-                      contextFactKind: "plain_value_fact",
+                      subFieldKey: null,
                       operator: "equals",
                       isNegated: false,
                       comparisonJson: { value: "ready" },
@@ -610,41 +610,50 @@ describe("l3 design-time invoke/branch methodology repository", () => {
   it("validates branch condition operators for workflow-context-fact conditions only", async () => {
     await expect(
       runConditionValidator((validator) =>
-        validator.validateCondition({
-          conditionId: "cond-valid",
-          contextFactDefinitionId: "ctx-status",
-          contextFactKind: "plain_value_fact",
-          operator: "equals",
-          isNegated: false,
-          comparisonJson: { value: "ready" },
-        }),
+        validator.validateCondition(
+          {
+            conditionId: "cond-valid",
+            contextFactDefinitionId: "ctx-status",
+            subFieldKey: null,
+            operator: "equals",
+            isNegated: false,
+            comparisonJson: { value: "ready" },
+          },
+          { operandType: "string", cardinality: "one", freshnessCapable: false },
+        ),
       ),
     ).resolves.toBeUndefined();
 
     const unsupportedOperator = await runConditionValidator((validator) =>
       Effect.either(
-        validator.validateCondition({
-          conditionId: "cond-invalid-op",
-          contextFactDefinitionId: "ctx-status",
-          contextFactKind: "plain_value_fact",
-          operator: "regex",
-          isNegated: false,
-          comparisonJson: { value: "ready" },
-        }),
+        validator.validateCondition(
+          {
+            conditionId: "cond-invalid-op",
+            contextFactDefinitionId: "ctx-status",
+            subFieldKey: null,
+            operator: "regex",
+            isNegated: false,
+            comparisonJson: { value: "ready" },
+          },
+          { operandType: "string", cardinality: "one", freshnessCapable: false },
+        ),
       ),
     );
     expect(unsupportedOperator._tag).toBe("Left");
 
     const unsupportedFactKind = await runConditionValidator((validator) =>
       Effect.either(
-        validator.validateCondition({
-          conditionId: "cond-invalid-kind",
-          contextFactDefinitionId: "ctx-status",
-          contextFactKind: "definition_backed_external_fact",
-          operator: "isEmpty",
-          isNegated: false,
-          comparisonJson: null,
-        }),
+        validator.validateCondition(
+          {
+            conditionId: "cond-invalid-kind",
+            contextFactDefinitionId: "ctx-status",
+            subFieldKey: null,
+            operator: "fresh",
+            isNegated: false,
+            comparisonJson: null,
+          },
+          { operandType: "json_object", cardinality: "one", freshnessCapable: false },
+        ),
       ),
     );
     expect(unsupportedFactKind._tag).toBe("Left");

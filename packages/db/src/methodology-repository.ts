@@ -44,7 +44,6 @@ import type {
   InvokeStepPayload,
   WorkflowContextFactDto,
   WorkflowEdgeDto,
-  WorkflowContextFactKind,
   WorkflowStepReadModel,
 } from "@chiron/contracts/methodology/workflow";
 import type { AgentStepDesignTimePayload } from "@chiron/contracts/agent-step/design-time";
@@ -947,6 +946,8 @@ async function readWorkflowContextFacts(
     workflowReferenceRows,
     artifactReferenceRows,
     draftSpecRows,
+    methodologyFactRows,
+    workUnitFactRows,
   ] = await Promise.all([
     db
       .select()
@@ -987,6 +988,26 @@ async function readWorkflowContextFacts(
       .where(
         inArray(methodologyWorkflowContextFactDraftSpecs.contextFactDefinitionId, definitionIds),
       ),
+    db
+      .select({
+        id: methodologyFactDefinitions.id,
+        key: methodologyFactDefinitions.key,
+        factType: methodologyFactDefinitions.valueType,
+        validationJson: methodologyFactDefinitions.validationJson,
+      })
+      .from(methodologyFactDefinitions)
+      .where(eq(methodologyFactDefinitions.methodologyVersionId, versionId))
+      .catch(() => []),
+    db
+      .select({
+        id: workUnitFactDefinitions.id,
+        key: workUnitFactDefinitions.key,
+        factType: workUnitFactDefinitions.factType,
+        validationJson: workUnitFactDefinitions.validationJson,
+      })
+      .from(workUnitFactDefinitions)
+      .where(eq(workUnitFactDefinitions.methodologyVersionId, versionId))
+      .catch(() => []),
   ]);
 
   const draftSpecIds = draftSpecRows.map((row) => row.id);
@@ -1024,6 +1045,18 @@ async function readWorkflowContextFacts(
     draftSelectionsByDraftSpecId.set(row.draftSpecId, entries);
   }
 
+  const externalDefinitionByBindingKey = new Map<
+    string,
+    {
+      readonly factType: string;
+      readonly validationJson: unknown;
+    }
+  >();
+  for (const definition of [...methodologyFactRows, ...workUnitFactRows]) {
+    externalDefinitionByBindingKey.set(definition.id, definition);
+    externalDefinitionByBindingKey.set(definition.key, definition);
+  }
+
   return definitionRows.map((definition): WorkflowContextFactDto => {
     const metadata = {
       contextFactDefinitionId: definition.id,
@@ -1058,12 +1091,25 @@ async function readWorkflowContextFacts(
           throw new Error(`Missing external fact payload for '${definition.factKey}'`);
         }
 
+        const externalDefinition = externalDefinitionByBindingKey.get(row.bindingKey);
+        const valueType =
+          externalDefinition?.factType === "string" ||
+          externalDefinition?.factType === "number" ||
+          externalDefinition?.factType === "boolean" ||
+          externalDefinition?.factType === "json"
+            ? (externalDefinition.factType as FactValueType)
+            : undefined;
+
         return {
           kind: definition.factKind,
           key: definition.factKey,
           ...metadata,
           cardinality: definition.cardinality as "one" | "many",
           externalFactDefinitionId: row.bindingKey,
+          ...(valueType ? { valueType } : {}),
+          ...(typeof externalDefinition?.validationJson !== "undefined"
+            ? { validationJson: externalDefinition.validationJson }
+            : {}),
         };
       }
       case "workflow_reference_fact": {
@@ -1825,9 +1871,9 @@ function buildBranchPayload(
         conditions: (conditionsByGroupDbId.get(group.id) ?? []).map((condition) => ({
           conditionId: condition.conditionId,
           contextFactDefinitionId: condition.contextFactDefinitionId,
-          contextFactKind: condition.contextFactKind as WorkflowContextFactKind,
-          operator: condition.operator,
-          isNegated: condition.isNegated,
+          subFieldKey: condition.subFieldKey,
+          operator: condition.operator === "stale" ? "fresh" : condition.operator,
+          isNegated: condition.operator === "stale" ? true : condition.isNegated,
           comparisonJson: condition.comparisonJson,
         })),
       })),
@@ -2012,7 +2058,7 @@ async function syncBranchStepDefinition(
             .update(methodologyWorkflowBranchRouteConditions)
             .set({
               contextFactDefinitionId: condition.contextFactDefinitionId,
-              contextFactKind: condition.contextFactKind,
+              subFieldKey: condition.subFieldKey,
               operator: condition.operator,
               isNegated: condition.isNegated,
               comparisonJson: condition.comparisonJson,
@@ -2026,7 +2072,7 @@ async function syncBranchStepDefinition(
           groupId: groupDbId,
           conditionId: condition.conditionId,
           contextFactDefinitionId: condition.contextFactDefinitionId,
-          contextFactKind: condition.contextFactKind,
+          subFieldKey: condition.subFieldKey,
           operator: condition.operator,
           isNegated: condition.isNegated,
           comparisonJson: condition.comparisonJson,
@@ -5570,6 +5616,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           return {
             stepId: step.id,
             stepType,
+            stepKey: step.key,
             mode: "deferred",
             defaultMessage: DEFERRED_STEP_MESSAGE,
           };
