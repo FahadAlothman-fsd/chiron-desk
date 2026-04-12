@@ -431,7 +431,7 @@ export const InvokeStepDefinitionServiceLive = Layer.effect(
             return false;
           }
 
-          const payload = isRecord(step.payload) ? step.payload : null;
+          const payload = "payload" in step && isRecord(step.payload) ? step.payload : null;
           const stepKey =
             payload && typeof payload.key === "string" ? payload.key.trim() : undefined;
 

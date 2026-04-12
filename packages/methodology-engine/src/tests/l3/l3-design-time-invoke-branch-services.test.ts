@@ -154,6 +154,8 @@ const branchPayload: BranchStepPayload = {
 function makeLayer(options?: {
   readonly versionStatus?: string;
   readonly includeMalformedStepWithoutKey?: boolean;
+  readonly includeMalformedInvokeStepWithoutKey?: boolean;
+  readonly includeDeferredInvokeTargetShell?: boolean;
 }) {
   const createdPayloads: Array<InvokeStepPayload> = [];
   const updatedPayloads: Array<InvokeStepPayload> = [];
@@ -176,22 +178,31 @@ function makeLayer(options?: {
   }> = [];
   let edgeCounter = 0;
 
+  const routeAInvokeStep = options?.includeDeferredInvokeTargetShell
+    ? ({
+        stepId: "step-route-a",
+        stepType: "invoke",
+        mode: "deferred",
+        defaultMessage: "Deferred in slice-1",
+      } as const)
+    : ({
+        stepId: "step-route-a",
+        stepType: "invoke",
+        payload: {
+          key: "route-a-step",
+          targetKind: "workflow",
+          sourceMode: "fixed_set",
+          workflowDefinitionIds: ["wf-1"],
+        },
+      } as const);
+
   const editorSteps = [
     {
       stepId: "step-default",
       stepType: "form",
       payload: { key: "default-step", fields: [] },
     },
-    {
-      stepId: "step-route-a",
-      stepType: "invoke",
-      payload: {
-        key: "route-a-step",
-        targetKind: "workflow",
-        sourceMode: "fixed_set",
-        workflowDefinitionIds: ["wf-1"],
-      },
-    },
+    routeAInvokeStep,
     {
       stepId: "step-route-b",
       stepType: "form",
@@ -212,6 +223,14 @@ function makeLayer(options?: {
     editorSteps.push({
       stepId: "step-malformed",
       stepType: "agent",
+      payload: {},
+    } as unknown as (typeof editorSteps)[number]);
+  }
+
+  if (options?.includeMalformedInvokeStepWithoutKey) {
+    editorSteps.push({
+      stepId: "step-malformed-invoke",
+      stepType: "invoke",
       payload: {},
     } as unknown as (typeof editorSteps)[number]);
   }
@@ -302,6 +321,21 @@ function makeLayer(options?: {
         ],
         formDefinitions: [],
       }),
+    getInvokeStepDefinition: (input: { stepId: string }) =>
+      Effect.succeed(
+        input.stepId === "step-route-a"
+          ? {
+              stepId: "step-route-a",
+              payload: {
+                key: "route-a-step",
+                targetKind: "workflow",
+                sourceMode: "fixed_set",
+                workflowDefinitionIds: ["wf-1"],
+              },
+            }
+          : null,
+      ),
+    getBranchStepDefinition: () => Effect.succeed(null),
     listWorkflowEdgesByDefinitionId: () =>
       Effect.sync(() => currentEdges.map((edge) => ({ ...edge }))),
     createWorkflowEdgeByDefinitionId: (input: {
@@ -1019,5 +1053,54 @@ describe("l3 invoke step definition service", () => {
     if (draftError._tag === "Failure") {
       expect(draftError.cause.error).toBeInstanceOf(VersionNotDraftError);
     }
+  });
+
+  it("branch create tolerates unrelated malformed keyed steps without payload.key", async () => {
+    const { layer } = makeLayer({ includeMalformedInvokeStepWithoutKey: true });
+
+    const created = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* BranchStepDefinitionService;
+
+        return yield* service.createBranchStep(
+          {
+            versionId: "ver-1",
+            workUnitTypeKey: "WU.STORY",
+            workflowDefinitionId: "wf-1",
+            payload: branchPayload,
+          },
+          "user-1",
+        );
+      }).pipe(Effect.provide(layer)),
+    );
+
+    expect(created.stepId).toBe("step-branch-1");
+  });
+
+  it("branch create resolves deferred invoke targets by step definition id", async () => {
+    const { layer, createdProjectedEdges } = makeLayer({ includeDeferredInvokeTargetShell: true });
+
+    const created = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* BranchStepDefinitionService;
+
+        return yield* service.createBranchStep(
+          {
+            versionId: "ver-1",
+            workUnitTypeKey: "WU.STORY",
+            workflowDefinitionId: "wf-1",
+            payload: branchPayload,
+          },
+          "user-1",
+        );
+      }).pipe(Effect.provide(layer)),
+    );
+
+    expect(created.stepId).toBe("step-branch-1");
+    expect(createdProjectedEdges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ fromStepKey: "branch-on-status", toStepKey: "route-a-step" }),
+      ]),
+    );
   });
 });

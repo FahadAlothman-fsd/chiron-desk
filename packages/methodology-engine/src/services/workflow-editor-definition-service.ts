@@ -44,6 +44,7 @@ type BranchProjectedEdgeMetadata = {
   readonly edgeOwner: BranchProjectedEdgeOwner;
   readonly branchStepId: string;
   readonly routeId?: string;
+  readonly targetStepId?: string;
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -72,6 +73,7 @@ const parseBranchProjectedEdgeMetadata = (value: unknown): BranchProjectedEdgeMe
     markdown: "",
     edgeOwner: value.edgeOwner,
     branchStepId: value.branchStepId,
+    ...(typeof value.targetStepId === "string" ? { targetStepId: value.targetStepId } : {}),
     ...(typeof value.routeId === "string" ? { routeId: value.routeId } : {}),
   };
 };
@@ -96,11 +98,13 @@ const getWorkflowStepKey = (step: LegacyWorkflowStepReadModel): string => {
 const buildProjectedEdgeDescription = (
   branchStepId: string,
   edgeOwner: BranchProjectedEdgeOwner,
+  targetStepId: string,
   routeId?: string,
 ): BranchProjectedEdgeMetadata => ({
   markdown: "",
   edgeOwner,
   branchStepId,
+  targetStepId,
   ...(routeId ? { routeId } : {}),
 });
 
@@ -209,7 +213,11 @@ export const WorkflowEditorDefinitionServiceLive = Layer.effect(
               edgeId: `branch-${step.stepId}-default`,
               fromStepKey: step.payload.key,
               toStepKey: getWorkflowStepKey(targetStep),
-              descriptionJson: buildProjectedEdgeDescription(step.stepId, "branch_default"),
+              descriptionJson: buildProjectedEdgeDescription(
+                step.stepId,
+                "branch_default",
+                step.payload.defaultTargetStepId,
+              ),
               edgeOwner: "branch_default",
               isDefault: true,
             });
@@ -230,6 +238,7 @@ export const WorkflowEditorDefinitionServiceLive = Layer.effect(
               descriptionJson: buildProjectedEdgeDescription(
                 step.stepId,
                 "branch_conditional",
+                route.targetStepId,
                 route.routeId,
               ),
               edgeOwner: "branch_conditional",

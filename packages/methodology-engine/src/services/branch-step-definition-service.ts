@@ -24,7 +24,27 @@ type BranchProjectedEdgeMetadata = {
   readonly edgeOwner: BranchProjectedEdgeOwner;
   readonly branchStepId: string;
   readonly routeId?: string;
+  readonly targetStepId?: string;
 };
+
+type DeferredInvokeShell = {
+  readonly stepId: string;
+  readonly stepType: "invoke";
+  readonly mode: "deferred";
+  readonly defaultMessage: string;
+};
+
+type DeferredBranchShell = {
+  readonly stepId: string;
+  readonly stepType: "branch";
+  readonly mode: "deferred";
+  readonly defaultMessage: string;
+};
+
+type LegacyWorkflowStepReadModel =
+  | WorkflowStepReadModel
+  | DeferredInvokeShell
+  | DeferredBranchShell;
 
 type BranchEdgeRepository = {
   readonly listWorkflowEdgesByDefinitionId?: (input: {
@@ -65,17 +85,6 @@ const missingCapability = (operation: string) =>
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
-
-const getStepPayloadKey = (step: WorkflowStepReadModel): string => {
-  switch (step.stepType) {
-    case "form":
-    case "invoke":
-    case "branch":
-      return step.payload.key;
-    default:
-      return step.stepId;
-  }
-};
 
 const createContextFactIndex = (facts: readonly WorkflowContextFactDto[]) => {
   const factByIdentifier = new Map<string, WorkflowContextFactDto>();
@@ -162,7 +171,7 @@ const validateConditionReferences = (
 
 const validateBranchTargets = (
   payload: BranchStepPayload,
-  existingSteps: readonly WorkflowStepReadModel[],
+  existingSteps: readonly { readonly stepId: string }[],
   branchStepId: string | null,
 ): Effect.Effect<void, ValidationDecodeError> =>
   Effect.gen(function* () {
@@ -311,14 +320,110 @@ export const BranchStepDefinitionServiceLive = Layer.effect(
         readonly payload: BranchStepPayload;
       },
       branchStepId: string | null,
-    ) =>
+    ): Effect.Effect<ReadonlyMap<string, string>, ValidationDecodeError | RepositoryError> =>
       Effect.gen(function* () {
         const workflow = yield* getWorkflowShape(input);
-        yield* validateBranchTargets(input.payload, workflow.steps, branchStepId);
+        const workflowSteps = workflow.steps as readonly LegacyWorkflowStepReadModel[];
+
+        yield* validateBranchTargets(input.payload, workflowSteps, branchStepId);
         yield* validateConditionReferences(input.payload, workflow.contextFacts);
         yield* validateConditions(input.payload, conditionValidator);
 
-        return new Map(workflow.steps.map((step) => [step.stepId, getStepPayloadKey(step)]));
+        const workflowStepById = new Map(workflowSteps.map((step) => [step.stepId, step]));
+        const stepKeyById = new Map<string, string>();
+
+        const resolveStepKey = (
+          stepId: string,
+        ): Effect.Effect<string, ValidationDecodeError | RepositoryError> =>
+          Effect.gen(function* () {
+            const cached = stepKeyById.get(stepId);
+            if (cached) {
+              return cached;
+            }
+
+            const step = workflowStepById.get(stepId);
+            if (!step) {
+              return yield* new ValidationDecodeError({
+                message: `Branch target '${stepId}' does not exist in the workflow`,
+              });
+            }
+
+            const readNonEmptyKey = (value: unknown): string | null =>
+              typeof value === "string" && value.length > 0 ? value : null;
+
+            switch (step.stepType) {
+              case "form": {
+                const key = readNonEmptyKey(step.payload.key);
+                if (!key) {
+                  return yield* new ValidationDecodeError({
+                    message: `Workflow step '${step.stepId}' of type '${step.stepType}' is missing payload.key`,
+                  });
+                }
+                stepKeyById.set(stepId, key);
+                return key;
+              }
+              case "invoke": {
+                const inlineKey = "payload" in step ? readNonEmptyKey(step.payload.key) : null;
+                if (inlineKey) {
+                  stepKeyById.set(stepId, inlineKey);
+                  return inlineKey;
+                }
+
+                const definition = yield* repo.getInvokeStepDefinition({
+                  versionId: input.versionId,
+                  workflowDefinitionId: input.workflowDefinitionId,
+                  stepId,
+                });
+                const resolvedKey = definition ? readNonEmptyKey(definition.payload.key) : null;
+
+                if (!resolvedKey) {
+                  return yield* new ValidationDecodeError({
+                    message: `Workflow step '${stepId}' of type 'invoke' is missing payload.key`,
+                  });
+                }
+
+                stepKeyById.set(stepId, resolvedKey);
+                return resolvedKey;
+              }
+              case "branch": {
+                const inlineKey = "payload" in step ? readNonEmptyKey(step.payload.key) : null;
+                if (inlineKey) {
+                  stepKeyById.set(stepId, inlineKey);
+                  return inlineKey;
+                }
+
+                const definition = yield* repo.getBranchStepDefinition({
+                  versionId: input.versionId,
+                  workflowDefinitionId: input.workflowDefinitionId,
+                  stepId,
+                });
+                const resolvedKey = definition ? readNonEmptyKey(definition.payload.key) : null;
+
+                if (!resolvedKey) {
+                  return yield* new ValidationDecodeError({
+                    message: `Workflow step '${stepId}' of type 'branch' is missing payload.key`,
+                  });
+                }
+
+                stepKeyById.set(stepId, resolvedKey);
+                return resolvedKey;
+              }
+              default:
+                stepKeyById.set(stepId, stepId);
+                return stepId;
+            }
+          });
+
+        if (input.payload.defaultTargetStepId !== null) {
+          yield* resolveStepKey(input.payload.defaultTargetStepId);
+        }
+        for (const route of input.payload.routes) {
+          if (!stepKeyById.has(route.targetStepId)) {
+            yield* resolveStepKey(route.targetStepId);
+          }
+        }
+
+        return stepKeyById;
       });
 
     const deleteProjectedEdges = (input: {
@@ -380,6 +485,7 @@ export const BranchStepDefinitionServiceLive = Layer.effect(
               markdown: "",
               edgeOwner: "branch_default",
               branchStepId: input.branchStepId,
+              targetStepId: input.payload.defaultTargetStepId,
             } satisfies BranchProjectedEdgeMetadata,
           });
         }
@@ -403,6 +509,7 @@ export const BranchStepDefinitionServiceLive = Layer.effect(
                 edgeOwner: "branch_conditional",
                 branchStepId: input.branchStepId,
                 routeId: route.routeId,
+                targetStepId: route.targetStepId,
               } satisfies BranchProjectedEdgeMetadata,
             });
           }),
