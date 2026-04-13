@@ -1,0 +1,25 @@
+packages/scripts/src/seed/methodology/setup/setup-bmad-mapping.ts
+  16df42013de6e9ee 80-86,407,479,495,1997
+packages/scripts/src/tests/seeding/methodology-seed-integrity.test.ts
+  16df42013de6e9ee 107,121,148,158-159,868-869,1303-1304,1346-1347,1357-1358
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "4c82af9543ce329a857c38de96dc274e3461653f",
+  "prompts": {
+    "16df42013de6e9ee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_285c21e1fffe2TVLsiZ644kgK7",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1953,
+      "overriden_lines": 0
+    }
+  }
+}
