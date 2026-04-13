@@ -1,0 +1,27 @@
+packages/scripts/src/seed/methodology/setup/slice-1-demo-fixture.ts
+  16df42013de6e9ee 43-50,101,110-112,243-244,393-397
+packages/scripts/src/manual-seed.mjs
+  16df42013de6e9ee 11,108-111,124-126,165,168-169,178-180,188-206,226-229,291,395
+packages/scripts/src/tests/seeding/l3-slice-1-demo-fixture.test.ts
+  16df42013de6e9ee 30-31,36,62,76-77,79-82,86,97,105-109,116,120-123,143-145,159-161
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "4f5014f3f2ec77a481626c3d60ca0bd21ab84b48",
+  "prompts": {
+    "16df42013de6e9ee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_285c21e1fffe2TVLsiZ644kgK7",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 13,
+      "total_deletions": 12,
+      "accepted_lines": 145,
+      "overriden_lines": 0
+    }
+  }
+}
