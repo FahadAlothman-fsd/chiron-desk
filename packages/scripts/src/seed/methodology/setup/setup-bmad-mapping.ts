@@ -77,6 +77,13 @@ function toGuidanceJson(humanMarkdown: string, agentMarkdown = humanMarkdown) {
   };
 }
 
+function toAllowedValuesValidation(values: readonly string[]) {
+  return {
+    kind: "allowed-values" as const,
+    values: [...values],
+  };
+}
+
 const canonicalAgentDefinitions = [
   {
     idSuffix: "bmad-analyst",
@@ -397,14 +404,7 @@ const canonicalSetupFactDefinitions = [
       "Allowed values: `greenfield`, `brownfield`.",
       "Use this fact to choose the setup path.",
     ),
-    validationJson: {
-      kind: "json-schema" as const,
-      schemaDialect: "draft-2020-12",
-      schema: {
-        type: "string",
-        enum: ["greenfield", "brownfield"],
-      },
-    },
+    validationJson: toAllowedValuesValidation(["greenfield", "brownfield"]),
   },
   {
     idSuffix: "project-knowledge-directory",
@@ -476,14 +476,7 @@ const canonicalSetupFactDefinitions = [
       "Use this to declare the intended setup scan mode before discovery begins.",
       "Treat this as the authoritative design-time setup contract for scan-mode selection.",
     ),
-    validationJson: {
-      kind: "json-schema" as const,
-      schemaDialect: "draft-2020-12",
-      schema: {
-        type: "string",
-        enum: ["initial_scan", "full_rescan", "deep_dive"],
-      },
-    },
+    validationJson: toAllowedValuesValidation(["initial_scan", "full_rescan", "deep_dive"]),
   },
   {
     idSuffix: "scan-level",
@@ -499,14 +492,7 @@ const canonicalSetupFactDefinitions = [
       "Select the discovery depth required for this setup run.",
       "Use this to tune setup breadth and effort while keeping the workflow contract explicit.",
     ),
-    validationJson: {
-      kind: "json-schema" as const,
-      schemaDialect: "draft-2020-12",
-      schema: {
-        type: "string",
-        enum: ["quick", "deep", "exhaustive"],
-      },
-    },
+    validationJson: toAllowedValuesValidation(["quick", "deep", "exhaustive"]),
   },
   {
     idSuffix: "requires-brainstorming",
@@ -2008,14 +1994,7 @@ const canonicalMethodologyFactDefinitions = [
       "Treat this as a reusable design-time methodology fact definition that later bindings can point at without seeding runtime rows.",
     ),
     defaultValueJson: null,
-    validationJson: {
-      kind: "json-schema" as const,
-      schemaDialect: "draft-2020-12",
-      schema: {
-        type: "string",
-        enum: ["monolith", "monorepo", "multi_part"],
-      },
-    },
+    validationJson: toAllowedValuesValidation(["monolith", "monorepo", "multi_part"]),
   },
   {
     idSuffix: "project-parts",

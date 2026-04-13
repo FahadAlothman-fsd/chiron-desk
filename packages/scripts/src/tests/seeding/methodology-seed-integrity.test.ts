@@ -104,6 +104,7 @@ describe("methodology seed integrity", () => {
         "workflow_mode",
         "scan_level",
         "requires_brainstorming",
+        "requires_product_brief",
         "deep_dive_target",
       ],
       methodologyFactDefinitionKeys: [
@@ -117,6 +118,7 @@ describe("methodology seed integrity", () => {
         "workflow_mode",
         "scan_level",
         "requires_brainstorming",
+        "requires_product_brief",
         "deep_dive_target",
         "repository_type",
         "project_parts",
@@ -143,6 +145,7 @@ describe("methodology seed integrity", () => {
     );
 
     for (const agent of methodologyAgents) {
+      const promptMarkdown = agent.promptTemplateJson?.markdown ?? "";
       expect(agent.descriptionJson).toMatchObject({ markdown: expect.any(String) });
       expect(agent.guidanceJson).toMatchObject({
         human: { markdown: expect.any(String) },
@@ -152,8 +155,8 @@ describe("methodology seed integrity", () => {
       expect(agent.promptTemplateJson).toMatchObject({ markdown: expect.any(String) });
       expect(agent.persona).not.toMatch(/_bmad\//i);
       expect(agent.persona).not.toMatch(/\.md\b/i);
-      expect(agent.promptTemplateJson?.markdown).not.toMatch(/_bmad\//i);
-      expect(agent.promptTemplateJson?.markdown).not.toMatch(/\.md\b/i);
+      expect(promptMarkdown).not.toMatch(/_bmad\//i);
+      expect(promptMarkdown).not.toMatch(/\.md\b/i);
     }
 
     const draftAgentRows = methodologyAgents
@@ -862,12 +865,8 @@ describe("methodology seed integrity", () => {
     expect(repositoryTypeFactRows).toHaveLength(2);
     for (const repositoryTypeFact of repositoryTypeFactRows) {
       expect(repositoryTypeFact.validationJson).toEqual({
-        kind: "json-schema",
-        schemaDialect: "draft-2020-12",
-        schema: {
-          type: "string",
-          enum: ["monolith", "monorepo", "multi_part"],
-        },
+        kind: "allowed-values",
+        values: ["monolith", "monorepo", "multi_part"],
       });
     }
 
@@ -1301,12 +1300,8 @@ describe("methodology seed integrity", () => {
     expect(projectKindFactRows).toHaveLength(2);
     for (const projectKindFact of projectKindFactRows) {
       expect(projectKindFact.validationJson).toEqual({
-        kind: "json-schema",
-        schemaDialect: "draft-2020-12",
-        schema: {
-          type: "string",
-          enum: ["greenfield", "brownfield"],
-        },
+        kind: "allowed-values",
+        values: ["greenfield", "brownfield"],
       });
     }
 
@@ -1348,12 +1343,8 @@ describe("methodology seed integrity", () => {
       expect(workflowModeFact.factType).toBe("string");
       expect(workflowModeFact.cardinality).toBe("one");
       expect(workflowModeFact.validationJson).toEqual({
-        kind: "json-schema",
-        schemaDialect: "draft-2020-12",
-        schema: {
-          type: "string",
-          enum: ["initial_scan", "full_rescan", "deep_dive"],
-        },
+        kind: "allowed-values",
+        values: ["initial_scan", "full_rescan", "deep_dive"],
       });
     }
 
@@ -1363,12 +1354,8 @@ describe("methodology seed integrity", () => {
       expect(scanLevelFact.factType).toBe("string");
       expect(scanLevelFact.cardinality).toBe("one");
       expect(scanLevelFact.validationJson).toEqual({
-        kind: "json-schema",
-        schemaDialect: "draft-2020-12",
-        schema: {
-          type: "string",
-          enum: ["quick", "deep", "exhaustive"],
-        },
+        kind: "allowed-values",
+        values: ["quick", "deep", "exhaustive"],
       });
     }
 
