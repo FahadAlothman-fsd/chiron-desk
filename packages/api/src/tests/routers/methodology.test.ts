@@ -1042,6 +1042,7 @@ function makeServiceLayer() {
       facts: readonly {
         key: string;
         factType: string;
+        cardinality?: "one" | "many";
         name?: string;
         description?: string;
         defaultValue?: unknown;
@@ -1067,6 +1068,7 @@ function makeServiceLayer() {
           name: fact.name ?? null,
           key: fact.key,
           factType: fact.factType,
+          cardinality: fact.cardinality ?? "one",
           description: fact.description ?? null,
           defaultValueJson: fact.defaultValue ?? null,
           guidanceJson: fact.guidance ?? null,
@@ -3425,6 +3427,7 @@ describe("methodology router", () => {
             key: "task_owner",
             name: "Task Owner",
             factType: "string",
+            cardinality: "many",
           },
         },
         AUTHENTICATED_CTX,
@@ -3446,6 +3449,7 @@ describe("methodology router", () => {
             key: "task_owner",
             name: "Task Owner",
             factType: "string",
+            cardinality: "many",
           }),
         ]),
       );
