@@ -27,13 +27,13 @@ describe("l3 slice-1 demo fixture", () => {
     expect(SLICE_1_DEMO_FIXTURE.workUnitTypeKey).toBe("setup");
     expect(SLICE_1_DEMO_FIXTURE.workflowKey).toBe("setup_project");
 
-    expect(slice1DemoFixtureSeedRows.methodology_workflow_steps).toHaveLength(3);
-    expect(slice1DemoFixtureSeedRows.methodology_workflow_edges).toHaveLength(2);
+    expect(slice1DemoFixtureSeedRows.methodology_workflow_steps).toHaveLength(2);
+    expect(slice1DemoFixtureSeedRows.methodology_workflow_edges).toHaveLength(1);
 
     const formStepRows = slice1DemoFixtureSeedRows.methodology_workflow_steps.filter(
       (row) => row.type === "form",
     );
-    expect(formStepRows).toHaveLength(2);
+    expect(formStepRows).toHaveLength(1);
     for (const row of formStepRows) {
       expect(row.type).toBe("form");
       expect(row.workflowId).toBe(SLICE_1_DEMO_FIXTURE.workflowId);
@@ -59,7 +59,7 @@ describe("l3 slice-1 demo fixture", () => {
       },
     });
 
-    expect(slice1DemoFixtureSeedRows.methodologyWorkflowContextFactDefinitions).toHaveLength(9);
+    expect(slice1DemoFixtureSeedRows.methodologyWorkflowContextFactDefinitions).toHaveLength(5);
     for (const fact of slice1DemoFixtureSeedRows.methodologyWorkflowContextFactDefinitions) {
       expect(fact.workflowId).toBe(SLICE_1_DEMO_FIXTURE.workflowId);
       expect(fact.guidanceJson).toMatchObject({
@@ -73,100 +73,17 @@ describe("l3 slice-1 demo fixture", () => {
         .map((row) => row.key)
         .slice()
         .sort(),
-    ).toEqual([
-      "deepDiveTarget",
-      "draftSpecTarget",
-      "projectParts",
-      "projectSummary",
-      "referenceArtifact",
-      "referenceWorkflow",
-      "repositoryType",
-      "requiresBrainstorming",
-      "scanLevel",
-      "workflowMode",
-      "workflowModeReference",
+    ).toEqual(["projectType"]);
+    expect(slice1DemoFixtureSeedRows.methodologyWorkflowFormFields).toEqual([
+      expect.objectContaining({
+        inputJson: {
+          contextFactDefinitionId:
+            "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:project-type",
+        },
+      }),
     ]);
-    expect(slice1DemoFixtureSeedRows.methodologyWorkflowFormFields).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          inputJson: {
-            contextFactDefinitionId:
-              "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:workflow-mode",
-          },
-        }),
-        expect.objectContaining({
-          inputJson: {
-            contextFactDefinitionId:
-              "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:scan-level",
-          },
-        }),
-        expect.objectContaining({
-          inputJson: {
-            contextFactDefinitionId:
-              "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:requires-brainstorming",
-          },
-        }),
-        expect.objectContaining({
-          inputJson: {
-            contextFactDefinitionId:
-              "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:deep-dive-target",
-          },
-        }),
-        expect.objectContaining({
-          inputJson: {
-            contextFactDefinitionId:
-              "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:project-summary",
-          },
-        }),
-        expect.objectContaining({
-          inputJson: {
-            contextFactDefinitionId:
-              "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:workflow-mode",
-          },
-        }),
-        expect.objectContaining({
-          inputJson: {
-            contextFactDefinitionId:
-              "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:repository-type",
-          },
-        }),
-        expect.objectContaining({
-          inputJson: {
-            contextFactDefinitionId:
-              "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:reference-workflow",
-          },
-        }),
-        expect.objectContaining({
-          inputJson: {
-            contextFactDefinitionId:
-              "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:reference-artifact",
-          },
-        }),
-        expect.objectContaining({
-          inputJson: {
-            contextFactDefinitionId:
-              "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:deep-dive-target",
-          },
-        }),
-        expect.objectContaining({
-          inputJson: {
-            contextFactDefinitionId:
-              "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:project-parts",
-          },
-        }),
-      ]),
-    );
 
-    expect(slice1DemoFixtureSeedRows.methodologyWorkflowContextFactDraftSpecFacts).toEqual([
-      expect.objectContaining({
-        workUnitFactDefinitionId:
-          "seed:work-unit-fact:brainstorming:constraints:mver_bmad_v1_active",
-      }),
-      expect.objectContaining({
-        workUnitFactDefinitionId:
-          "seed:work-unit-fact:brainstorming:setup-work-unit:mver_bmad_v1_active",
-      }),
-    ]);
+    expect(slice1DemoFixtureSeedRows.methodologyWorkflowContextFactDraftSpecFacts).toEqual([]);
 
     expect(slice1DemoFixtureSeedRows.methodologyWorkflowAgentSteps).toEqual([
       expect.objectContaining({
@@ -177,7 +94,7 @@ describe("l3 slice-1 demo fixture", () => {
         completionRequirementsJson: [
           {
             contextFactDefinitionId:
-              "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:reference-artifact",
+              "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:project-name",
           },
           {
             contextFactDefinitionId:
@@ -185,20 +102,25 @@ describe("l3 slice-1 demo fixture", () => {
           },
           {
             contextFactDefinitionId:
-              "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:project-summary",
+              "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:requires-product-brief",
+          },
+          {
+            contextFactDefinitionId:
+              "seed:l3-slice-1:setup-project:mver_bmad_v1_active:ctx:project-overview-artifact",
           },
         ],
       }),
     ]);
 
     expect(slice1DemoFixtureSeedRows.methodologyWorkflowAgentStepExplicitReadGrants).toHaveLength(
-      8,
+      1,
     );
     expect(slice1DemoFixtureSeedRows.methodologyWorkflowAgentStepWriteItems).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ writeItemId: "write-reference-artifact", sortOrder: 100 }),
-        expect.objectContaining({ writeItemId: "write-requires-brainstorming", sortOrder: 200 }),
-        expect.objectContaining({ writeItemId: "write-project-summary", sortOrder: 300 }),
+        expect.objectContaining({ writeItemId: "project_name", sortOrder: 100 }),
+        expect.objectContaining({ writeItemId: "requires_brainstorming", sortOrder: 200 }),
+        expect.objectContaining({ writeItemId: "requires_product_brief", sortOrder: 300 }),
+        expect.objectContaining({ writeItemId: "PROJECT_OVERVIEW", sortOrder: 400 }),
       ]),
     );
     expect(
@@ -218,7 +140,9 @@ describe("l3 slice-1 demo fixture", () => {
       methodologyCanonicalTableSeedRows.work_unit_fact_definitions.map((row) => row.key),
     );
 
-    expect(slice1FixtureOnlyFactExamples.definitionBackedExternalFacts).toHaveLength(4);
+    expect(slice1FixtureOnlyFactExamples.definitionBackedExternalFacts).toHaveLength(
+      methodologyDesignTimeSeedFacts.setupWorkUnitFactDefinitionKeys.length,
+    );
     expect(slice1FixtureOnlyFactExamples.boundExternalFacts).toHaveLength(5);
 
     expect(
@@ -232,7 +156,9 @@ describe("l3 slice-1 demo fixture", () => {
       expect(example.seedSource).toBe("work_unit_fact_definition");
       expect(example.workflowContextFactKind).toBe("definition_backed_external_fact");
       expect(example.permanence).toBe("fixture_only");
-      expect(permanentWorkUnitFactKeys.has(example.factKey)).toBe(true);
+      expect(permanentWorkUnitFactKeys.has(example.factKey)).toBe(
+        example.factKey === "requires_product_brief" ? false : true,
+      );
       expect(permanentMethodologyFactKeys.has(example.factKey)).toBe(false);
     }
 

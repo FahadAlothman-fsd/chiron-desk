@@ -8,6 +8,7 @@ import {
   METHODOLOGY_CANONICAL_TABLE_SEED_ORDER,
   methodologyCanonicalTableSeedRows,
 } from "./seed/methodology/index.ts";
+import { brainstormingDemoFixtureSeedRowsAllVersions } from "./seed/methodology/setup/brainstorming-demo-fixture.ts";
 import { slice1DemoFixtureSeedRowsAllVersions } from "./seed/methodology/setup/slice-1-demo-fixture.ts";
 import { classifySeedError, shouldSkipSeedError } from "./seed-error-handling.ts";
 import { BASELINE_MANUAL_SEED_PLAN } from "./manual-seed-fixtures.ts";
@@ -104,6 +105,10 @@ const RUNTIME_FIXTURE_TABLE_INSERTIONS = [
   ["methodologyWorkflowContextFactWorkflowReferences", schema.methodologyWorkflowContextFactWorkflowReferences],
   ["methodologyWorkflowContextFactArtifactReferences", schema.methodologyWorkflowContextFactArtifactReferences],
   ["methodologyWorkflowContextFactDraftSpecs", schema.methodologyWorkflowContextFactDraftSpecs],
+  [
+    "methodologyWorkflowContextFactDraftSpecSelections",
+    schema.methodologyWorkflowContextFactDraftSpecSelections,
+  ],
   ["methodologyWorkflowContextFactDraftSpecFacts", schema.methodologyWorkflowContextFactDraftSpecFields],
   ["methodology_workflow_steps", schema.methodologyWorkflowSteps],
   ["methodologyWorkflowAgentSteps", schema.methodologyWorkflowAgentSteps],
@@ -116,6 +121,9 @@ const RUNTIME_FIXTURE_TABLE_INSERTIONS = [
     "methodologyWorkflowAgentStepWriteItemRequirements",
     schema.methodologyWorkflowAgentStepWriteItemRequirements,
   ],
+  ["methodologyWorkflowInvokeSteps", schema.methodologyWorkflowInvokeSteps],
+  ["methodologyWorkflowInvokeBindings", schema.methodologyWorkflowInvokeBindings],
+  ["methodologyWorkflowInvokeTransitions", schema.methodologyWorkflowInvokeTransitions],
   ["methodology_workflow_edges", schema.methodologyWorkflowEdges],
   ["methodologyWorkflowFormFields", schema.methodologyWorkflowFormFields],
 ];
@@ -154,11 +162,11 @@ const seedCanonicalMethodologyTables = (plan) =>
     );
   });
 
-const seedSetupRuntimeWorkflowFixtures = (plan) =>
+const seedRuntimeWorkflowFixtures = (plan) =>
   Effect.gen(function* () {
     const versionIds = new Set(plan.methodologyVersions.map((version) => version.id));
-    const bundles = slice1DemoFixtureSeedRowsAllVersions.filter((bundle) =>
-      versionIds.has(bundle.methodologyVersionId),
+    const bundles = [...slice1DemoFixtureSeedRowsAllVersions, ...brainstormingDemoFixtureSeedRowsAllVersions].filter(
+      (bundle) => versionIds.has(bundle.methodologyVersionId),
     );
 
     if (bundles.length === 0) {
@@ -167,12 +175,35 @@ const seedSetupRuntimeWorkflowFixtures = (plan) =>
 
     const workflowIds = bundles.map((bundle) => bundle.workflowId);
     const stepIds = bundles.flatMap((bundle) => bundle.methodology_workflow_steps.map((row) => row.id));
+    const invokeStepIds = bundles.flatMap((bundle) =>
+      (bundle.methodologyWorkflowInvokeSteps ?? []).map((row) => row.stepId),
+    );
     const contextFactDefinitionIds = bundles.flatMap((bundle) =>
       bundle.methodologyWorkflowContextFactDefinitions.map((row) => row.id),
     );
     const draftSpecIds = bundles.flatMap((bundle) =>
       bundle.methodologyWorkflowContextFactDraftSpecs.map((row) => row.id),
     );
+
+    if (invokeStepIds.length > 0) {
+      yield* tryDb("clear_fixture_invoke_transitions", () =>
+        db
+          .delete(schema.methodologyWorkflowInvokeTransitions)
+          .where(inArray(schema.methodologyWorkflowInvokeTransitions.invokeStepId, invokeStepIds)),
+      ).pipe(Effect.asVoid);
+
+      yield* tryDb("clear_fixture_invoke_bindings", () =>
+        db
+          .delete(schema.methodologyWorkflowInvokeBindings)
+          .where(inArray(schema.methodologyWorkflowInvokeBindings.invokeStepId, invokeStepIds)),
+      ).pipe(Effect.asVoid);
+
+      yield* tryDb("clear_fixture_invoke_steps", () =>
+        db
+          .delete(schema.methodologyWorkflowInvokeSteps)
+          .where(inArray(schema.methodologyWorkflowInvokeSteps.stepId, invokeStepIds)),
+      ).pipe(Effect.asVoid);
+    }
 
     yield* tryDb("clear_fixture_workflow_form_fields", () =>
       db.delete(schema.methodologyWorkflowFormFields).where(inArray(schema.methodologyWorkflowFormFields.formStepId, stepIds)),
@@ -190,6 +221,12 @@ const seedSetupRuntimeWorkflowFixtures = (plan) =>
       db
         .delete(schema.methodologyWorkflowContextFactDraftSpecFields)
         .where(inArray(schema.methodologyWorkflowContextFactDraftSpecFields.draftSpecId, draftSpecIds)),
+    ).pipe(Effect.asVoid);
+
+    yield* tryDb("clear_fixture_draft_spec_selections", () =>
+      db
+        .delete(schema.methodologyWorkflowContextFactDraftSpecSelections)
+        .where(inArray(schema.methodologyWorkflowContextFactDraftSpecSelections.draftSpecId, draftSpecIds)),
     ).pipe(Effect.asVoid);
 
     yield* tryDb("clear_fixture_draft_specs", () =>
@@ -251,7 +288,7 @@ const seedSetupRuntimeWorkflowFixtures = (plan) =>
     ).pipe(Effect.asVoid);
 
     for (const [rowsKey, table] of RUNTIME_FIXTURE_TABLE_INSERTIONS) {
-      const rows = bundles.flatMap((bundle) => bundle[rowsKey]);
+      const rows = bundles.flatMap((bundle) => bundle[rowsKey] ?? []);
       if (rows.length === 0) {
         continue;
       }
@@ -355,7 +392,7 @@ const program = Effect.gen(function* () {
   yield* upsertMethodologyDefinitions(plan);
   yield* upsertMethodologyVersions(plan);
   yield* seedCanonicalMethodologyTables(plan);
-  yield* seedSetupRuntimeWorkflowFixtures(plan);
+  yield* seedRuntimeWorkflowFixtures(plan);
   yield* seedUsers(plan);
 
   yield* Console.log("Manual baseline seed applied successfully.");

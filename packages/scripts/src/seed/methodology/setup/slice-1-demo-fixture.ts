@@ -40,6 +40,14 @@ export type MethodologyWorkflowAgentStepWriteItemSeedRow =
   typeof schema.methodologyWorkflowAgentStepWriteItems.$inferInsert;
 export type MethodologyWorkflowAgentStepWriteItemRequirementSeedRow =
   typeof schema.methodologyWorkflowAgentStepWriteItemRequirements.$inferInsert;
+export type MethodologyWorkflowContextFactDraftSpecSelectionSeedRow =
+  typeof schema.methodologyWorkflowContextFactDraftSpecSelections.$inferInsert;
+export type MethodologyWorkflowInvokeStepSeedRow =
+  typeof schema.methodologyWorkflowInvokeSteps.$inferInsert;
+export type MethodologyWorkflowInvokeBindingSeedRow =
+  typeof schema.methodologyWorkflowInvokeBindings.$inferInsert;
+export type MethodologyWorkflowInvokeTransitionSeedRow =
+  typeof schema.methodologyWorkflowInvokeTransitions.$inferInsert;
 
 export type Slice1FixtureOnlyFactExample = {
   readonly factKey: string;
@@ -90,6 +98,7 @@ export type Slice1DemoFixtureSeedRows = {
   readonly methodologyWorkflowContextFactWorkflowReferences: readonly MethodologyWorkflowContextFactWorkflowReferenceSeedRow[];
   readonly methodologyWorkflowContextFactArtifactReferences: readonly MethodologyWorkflowContextFactArtifactReferenceSeedRow[];
   readonly methodologyWorkflowContextFactDraftSpecs: readonly MethodologyWorkflowContextFactDraftSpecSeedRow[];
+  readonly methodologyWorkflowContextFactDraftSpecSelections: readonly MethodologyWorkflowContextFactDraftSpecSelectionSeedRow[];
   readonly methodologyWorkflowContextFactDraftSpecFacts: readonly MethodologyWorkflowContextFactDraftSpecFactSeedRow[];
   readonly methodology_workflow_steps: readonly MethodologyWorkflowStepSeedRow[];
   readonly methodology_workflow_edges: readonly MethodologyWorkflowEdgeSeedRow[];
@@ -98,6 +107,9 @@ export type Slice1DemoFixtureSeedRows = {
   readonly methodologyWorkflowAgentStepExplicitReadGrants: readonly MethodologyWorkflowAgentStepExplicitReadGrantSeedRow[];
   readonly methodologyWorkflowAgentStepWriteItems: readonly MethodologyWorkflowAgentStepWriteItemSeedRow[];
   readonly methodologyWorkflowAgentStepWriteItemRequirements: readonly MethodologyWorkflowAgentStepWriteItemRequirementSeedRow[];
+  readonly methodologyWorkflowInvokeSteps: readonly MethodologyWorkflowInvokeStepSeedRow[];
+  readonly methodologyWorkflowInvokeBindings: readonly MethodologyWorkflowInvokeBindingSeedRow[];
+  readonly methodologyWorkflowInvokeTransitions: readonly MethodologyWorkflowInvokeTransitionSeedRow[];
 };
 
 function buildSlice1DemoFixtureSeedRows(methodologyVersionId: string): Slice1DemoFixtureSeedRows {
@@ -228,6 +240,8 @@ function buildSlice1DemoFixtureSeedRows(methodologyVersionId: string): Slice1Dem
     ] satisfies readonly MethodologyWorkflowContextFactArtifactReferenceSeedRow[],
     methodologyWorkflowContextFactDraftSpecs:
       [] satisfies readonly MethodologyWorkflowContextFactDraftSpecSeedRow[],
+    methodologyWorkflowContextFactDraftSpecSelections:
+      [] satisfies readonly MethodologyWorkflowContextFactDraftSpecSelectionSeedRow[],
     methodologyWorkflowContextFactDraftSpecFacts:
       [] satisfies readonly MethodologyWorkflowContextFactDraftSpecFactSeedRow[],
     methodology_workflow_steps: [
@@ -376,6 +390,11 @@ function buildSlice1DemoFixtureSeedRows(methodologyVersionId: string): Slice1Dem
         contextFactDefinitionId: `${baseId}:ctx:project-overview-artifact`,
       },
     ] satisfies readonly MethodologyWorkflowAgentStepWriteItemRequirementSeedRow[],
+    methodologyWorkflowInvokeSteps: [] satisfies readonly MethodologyWorkflowInvokeStepSeedRow[],
+    methodologyWorkflowInvokeBindings:
+      [] satisfies readonly MethodologyWorkflowInvokeBindingSeedRow[],
+    methodologyWorkflowInvokeTransitions:
+      [] satisfies readonly MethodologyWorkflowInvokeTransitionSeedRow[],
   } as const;
 }
 
