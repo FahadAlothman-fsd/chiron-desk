@@ -163,14 +163,19 @@ const getExternalStringValidationKind = (
   return kind === "path" || kind === "allowed-values" ? kind : "none";
 };
 
-const getPlainJsonSubFieldMetadata = (
+const getJsonSubFieldMetadata = (
   fact: WorkflowContextFactDto,
   subFieldKey: string,
 ): {
   operandType: "string" | "number" | "boolean";
   validationKind: "none" | "path" | "allowed-values";
 } | null => {
-  if (fact.kind !== "plain_value_fact" || fact.valueType !== "json") {
+  if (
+    fact.valueType !== "json" ||
+    (fact.kind !== "plain_value_fact" &&
+      fact.kind !== "definition_backed_external_fact" &&
+      fact.kind !== "bound_external_fact")
+  ) {
     return null;
   }
 
@@ -179,7 +184,24 @@ const getPlainJsonSubFieldMetadata = (
   }
 
   const subSchema = isRecord(fact.validationJson.subSchema) ? fact.validationJson.subSchema : null;
-  const fields = Array.isArray(subSchema?.fields) ? subSchema.fields : [];
+  const schema = isRecord(fact.validationJson.schema) ? fact.validationJson.schema : null;
+  const subSchemaFields = Array.isArray(subSchema?.fields) ? subSchema.fields : [];
+  const legacyPropertyFields = isRecord(schema?.properties)
+    ? Object.entries(schema.properties).map(([key, property]) => {
+        const record = isRecord(property) ? property : null;
+        return {
+          key,
+          type: record?.type,
+          validation:
+            record && typeof record.validation !== "undefined"
+              ? record.validation
+              : record && typeof record["x-validation"] !== "undefined"
+                ? record["x-validation"]
+                : undefined,
+        };
+      })
+    : [];
+  const fields = subSchemaFields.length > 0 ? subSchemaFields : legacyPropertyFields;
   const matchedField = fields.find((entry) => isRecord(entry) && entry.key === subFieldKey);
   if (!isRecord(matchedField)) {
     return null;
@@ -220,12 +242,17 @@ const validateConditionReferences = (
       Effect.gen(function* () {
         const subFieldKey = condition.subFieldKey?.trim() ?? "";
         if (subFieldKey.length > 0) {
-          if (fact.kind === "plain_value_fact" && fact.valueType === "json") {
-            const subField = getPlainJsonSubFieldMetadata(fact, subFieldKey);
+          if (
+            fact.valueType === "json" &&
+            (fact.kind === "plain_value_fact" ||
+              fact.kind === "definition_backed_external_fact" ||
+              fact.kind === "bound_external_fact")
+          ) {
+            const subField = getJsonSubFieldMetadata(fact, subFieldKey);
             if (!subField) {
               return yield* new ValidationDecodeError({
                 message:
-                  `Branch condition '${condition.conditionId}' references unknown plain-json ` +
+                  `Branch condition '${condition.conditionId}' references unknown json ` +
                   `subfield '${subFieldKey}'`,
               });
             }
@@ -357,7 +384,7 @@ const validateConditionReferences = (
             }
 
             if (operand.operandType === "string") {
-              const subField = getPlainJsonSubFieldMetadata(fact, subFieldKey);
+              const subField = getJsonSubFieldMetadata(fact, subFieldKey);
               if (subField?.validationKind === "path") {
                 return new Set(["exists", "exists_in_repo"]);
               }
