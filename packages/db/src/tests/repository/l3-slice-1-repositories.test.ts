@@ -90,7 +90,8 @@ const SCHEMA_SQL = [
   `CREATE TABLE methodology_workflow_context_fact_plain_values (
     id TEXT PRIMARY KEY,
     context_fact_definition_id TEXT NOT NULL,
-    value_type TEXT NOT NULL
+    value_type TEXT NOT NULL,
+    validation_json TEXT
   )`,
   `CREATE TABLE methodology_workflow_context_fact_external_bindings (
     id TEXT PRIMARY KEY,
@@ -110,12 +111,15 @@ const SCHEMA_SQL = [
   )`,
   `CREATE TABLE methodology_workflow_context_fact_draft_specs (
     id TEXT PRIMARY KEY,
-    context_fact_definition_id TEXT NOT NULL
+    context_fact_definition_id TEXT NOT NULL,
+    work_unit_definition_id TEXT NOT NULL
   )`,
-  `CREATE TABLE methodology_workflow_context_fact_draft_spec_fields (
+  `CREATE TABLE methodology_workflow_context_fact_draft_spec_selections (
     id TEXT PRIMARY KEY,
     draft_spec_id TEXT NOT NULL,
-    work_unit_fact_definition_id TEXT NOT NULL
+    selection_type TEXT NOT NULL,
+    definition_id TEXT NOT NULL,
+    sort_order INTEGER NOT NULL
   )`,
 ];
 
@@ -232,7 +236,9 @@ describe("l3 slice-1 methodology repository", () => {
             kind: "work_unit_draft_spec_fact",
             key: "story_draft",
             cardinality: "many",
-            includedFactDefinitionIds: ["fact-title", "fact-acceptance-criteria"],
+            workUnitDefinitionId: "wut-1",
+            selectedWorkUnitFactDefinitionIds: ["fact-title", "fact-acceptance-criteria"],
+            selectedArtifactSlotDefinitionIds: [],
           },
         });
 

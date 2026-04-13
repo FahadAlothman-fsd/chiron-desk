@@ -120,7 +120,8 @@ const SCHEMA_SQL = [
   `CREATE TABLE methodology_workflow_context_fact_plain_values (
     id TEXT PRIMARY KEY,
     context_fact_definition_id TEXT NOT NULL,
-    value_type TEXT NOT NULL
+    value_type TEXT NOT NULL,
+    validation_json TEXT
   )`,
   `CREATE TABLE methodology_workflow_context_fact_external_bindings (
     id TEXT PRIMARY KEY,
@@ -311,10 +312,10 @@ describe("l3 design-time invoke/branch methodology repository", () => {
         ('ctx-artifact', 'workflow-1', 'prd_artifact', 'artifact_reference_fact', 'PRD artifact', 'many')
     `);
     await client.execute(`
-      INSERT INTO methodology_workflow_context_fact_plain_values (id, context_fact_definition_id, value_type)
+      INSERT INTO methodology_workflow_context_fact_plain_values (id, context_fact_definition_id, value_type, validation_json)
       VALUES
-        ('plain-status', 'ctx-status', 'string'),
-        ('plain-summary', 'ctx-summary', 'string')
+        ('plain-status', 'ctx-status', 'string', NULL),
+        ('plain-summary', 'ctx-summary', 'string', NULL)
     `);
     await client.execute(`
       INSERT INTO methodology_workflow_context_fact_artifact_refs (id, context_fact_definition_id, artifact_slot_key)

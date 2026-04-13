@@ -67,7 +67,8 @@ const SCHEMA_SQL = [
   `CREATE TABLE methodology_workflow_context_fact_plain_values (
     id TEXT PRIMARY KEY,
     context_fact_definition_id TEXT NOT NULL,
-    value_type TEXT NOT NULL
+    value_type TEXT NOT NULL,
+    validation_json TEXT
   )`,
   `CREATE TABLE methodology_workflow_context_fact_external_bindings (
     id TEXT PRIMARY KEY,
@@ -87,12 +88,15 @@ const SCHEMA_SQL = [
   )`,
   `CREATE TABLE methodology_workflow_context_fact_draft_specs (
     id TEXT PRIMARY KEY,
-    context_fact_definition_id TEXT NOT NULL
+    context_fact_definition_id TEXT NOT NULL,
+    work_unit_definition_id TEXT NOT NULL
   )`,
-  `CREATE TABLE methodology_workflow_context_fact_draft_spec_fields (
+  `CREATE TABLE methodology_workflow_context_fact_draft_spec_selections (
     id TEXT PRIMARY KEY,
     draft_spec_id TEXT NOT NULL,
-    work_unit_fact_definition_id TEXT NOT NULL
+    selection_type TEXT NOT NULL,
+    definition_id TEXT NOT NULL,
+    sort_order INTEGER NOT NULL
   )`,
   `CREATE TABLE methodology_workflow_agent_steps (
      step_id TEXT PRIMARY KEY,
@@ -173,10 +177,10 @@ describe("l3 agent-step design repository", () => {
         ('ctx-review-notes', 'workflow-1', 'review_notes', 'plain_value_fact', 'Review notes', 'many')
     `);
     await client.execute(`
-      INSERT INTO methodology_workflow_context_fact_plain_values (id, context_fact_definition_id, value_type)
+      INSERT INTO methodology_workflow_context_fact_plain_values (id, context_fact_definition_id, value_type, validation_json)
       VALUES
-        ('plain-project-context', 'ctx-project-context', 'json'),
-        ('plain-review-notes', 'ctx-review-notes', 'string')
+        ('plain-project-context', 'ctx-project-context', 'json', NULL),
+        ('plain-review-notes', 'ctx-review-notes', 'string', NULL)
     `);
     await client.execute(`
       INSERT INTO methodology_workflow_context_fact_artifact_refs (id, context_fact_definition_id, artifact_slot_key)
