@@ -13,6 +13,7 @@ import type {
   InvokeBindingPayload,
   WorkflowContextFactCardinality,
   WorkflowContextFactKind,
+  WorkflowContextFactValueType,
 } from "@chiron/contracts/methodology/workflow";
 
 export type WorkflowEditorMetadata = {
@@ -57,6 +58,7 @@ export type WorkflowConditionOperand = {
     | "string"
     | "number"
     | "boolean"
+    | "work_unit"
     | "workflow_reference"
     | "artifact_reference"
     | "json_object";
@@ -284,8 +286,9 @@ export type WorkflowContextFactDraft = {
   kind: WorkflowContextFactKind;
   cardinality: WorkflowContextFactCardinality;
   guidance: WorkflowEditorGuidance;
-  valueType?: FormFieldValueType;
+  valueType?: WorkflowContextFactValueType;
   externalFactDefinitionId?: string;
+  workUnitStateOptions?: readonly WorkflowEditorPickerOption[];
   allowedWorkflowDefinitionIds: string[];
   artifactSlotDefinitionId?: string;
   workUnitDefinitionId?: string;
@@ -305,8 +308,9 @@ export type WorkflowContextFactDefinitionItem = {
   kind: WorkflowContextFactKind;
   cardinality: WorkflowContextFactCardinality;
   guidance: WorkflowEditorGuidance;
-  valueType?: FormFieldValueType;
+  valueType?: WorkflowContextFactValueType;
   externalFactDefinitionId?: string;
+  workUnitStateOptions?: readonly WorkflowEditorPickerOption[];
   allowedWorkflowDefinitionIds: string[];
   artifactSlotDefinitionId?: string;
   workUnitDefinitionId?: string;

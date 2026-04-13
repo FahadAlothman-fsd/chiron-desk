@@ -507,6 +507,16 @@ function createEditorDefinition() {
         selectedWorkUnitFactDefinitionIds: ["wuf-story-title"],
         selectedArtifactSlotDefinitionIds: [],
       },
+      {
+        contextFactDefinitionId: "ctx-current-story",
+        key: "current_story",
+        label: "Current Story",
+        descriptionJson: { markdown: "Definition-backed external work unit reference." },
+        kind: "definition_backed_external_fact",
+        cardinality: "one",
+        externalFactDefinitionId: "ext-current-story",
+        workUnitDefinitionId: "wut-story",
+      },
     ],
     formDefinitions: [],
     agentStepDefinitions: [],
@@ -541,12 +551,23 @@ function createRouteContext(editorDefinition = createEditorDefinition()) {
                       id: "wut-story",
                       key: "story",
                       displayName: "Story",
+                      lifecycleStates: [
+                        { key: "draft", displayName: "Draft" },
+                        { key: "ready", displayName: "Ready" },
+                      ],
                       factSchemas: [
                         {
                           id: "wuf-story-title",
                           key: "story_title",
                           name: "Story Title",
                           factType: "string",
+                          cardinality: "one",
+                        },
+                        {
+                          id: "ext-current-story",
+                          key: "current_story_ref",
+                          name: "Current Story Ref",
+                          factType: "work_unit",
                           cardinality: "one",
                         },
                       ],
@@ -576,6 +597,13 @@ function createRouteContext(editorDefinition = createEditorDefinition()) {
                             key: "story_title",
                             name: "Story Title",
                             factType: "string",
+                            cardinality: "one",
+                          },
+                          {
+                            id: "ext-current-story",
+                            key: "current_story_ref",
+                            name: "Current Story Ref",
+                            factType: "work_unit",
                             cardinality: "one",
                           },
                         ],
@@ -1342,6 +1370,85 @@ describe("workflow editor invoke route", () => {
             ],
           }),
         ],
+      }),
+    );
+  });
+
+  it("branch route derives current_state comparison options from the referenced work unit type", async () => {
+    const { MethodologyWorkflowEditorRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId");
+
+    renderRoute(<MethodologyWorkflowEditorRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Branch step type 61/i }));
+    expect(await screen.findByText("Create Branch Step")).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("Step Key"), {
+      target: { value: "branch-on-current-story-state" },
+    });
+    fireEvent.change(screen.getByLabelText("Step Title"), {
+      target: { value: "Branch On Current Story State" },
+    });
+    fireEvent.click(screen.getByRole("combobox", { name: "Default Target Step" }));
+    fireEvent.click(screen.getByRole("button", { name: /Invoke Story Work/i }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Routes" }));
+    fireEvent.click(screen.getByRole("button", { name: /Add Route/i }));
+
+    expect(await screen.findByRole("heading", { name: "Add Route" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Target Step" }));
+    fireEvent.click(screen.getByRole("button", { name: /Capture Context/i }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Context Fact" }));
+    fireEvent.click(screen.getByRole("button", { name: /Current Story/i }));
+
+    fireEvent.change(screen.getByLabelText("Operator"), {
+      target: { value: "current_state" },
+    });
+
+    expect(screen.queryByLabelText("Comparison Value")).toBeNull();
+    expect(screen.getByRole("option", { name: "Activation" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Draft" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Ready" })).toBeTruthy();
+    expect(
+      screen.getByText(
+        /Comparison options come from the lifecycle states defined on the referenced work unit type, plus Activation for the pre-state before first activation\./i,
+      ),
+    ).toBeTruthy();
+
+    const comparisonSelect = screen.getAllByRole("combobox").at(-1);
+    expect(comparisonSelect).toBeTruthy();
+    fireEvent.change(comparisonSelect!, { target: { value: "ready" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Route" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() => {
+      expect(createBranchStepMutationSpy).toHaveBeenCalledTimes(1);
+    });
+
+    expect((createBranchStepMutationSpy.mock.calls as unknown[][])[0]?.[0]).toEqual(
+      expect.objectContaining({
+        versionId: "v1",
+        workUnitTypeKey: "WU.SETUP",
+        workflowDefinitionId: "wf-def-001",
+        payload: expect.objectContaining({
+          key: "branch-on-current-story-state",
+          routes: expect.arrayContaining([
+            expect.objectContaining({
+              groups: expect.arrayContaining([
+                expect.objectContaining({
+                  conditions: expect.arrayContaining([
+                    expect.objectContaining({
+                      contextFactDefinitionId: "ctx-current-story",
+                      operator: "current_state",
+                      comparisonJson: { value: "ready" },
+                    }),
+                  ]),
+                }),
+              ]),
+            }),
+          ]),
+        }),
       }),
     );
   });

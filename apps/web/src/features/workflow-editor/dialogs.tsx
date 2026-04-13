@@ -5514,6 +5514,30 @@ function getPlainStringValidationKind(
   return "none";
 }
 
+function getExternalStringValidationKind(
+  fact: WorkflowContextFactDefinitionItem | undefined,
+): "none" | "path" | "allowed-values" {
+  if (
+    !fact ||
+    (fact.kind !== "definition_backed_external_fact" && fact.kind !== "bound_external_fact") ||
+    fact.valueType !== "string"
+  ) {
+    return "none";
+  }
+
+  const validation = fact.validationJson;
+  if (typeof validation !== "object" || validation === null) {
+    return "none";
+  }
+
+  const kind = "kind" in validation ? (validation as { kind?: unknown }).kind : undefined;
+  if (kind === "path" || kind === "allowed-values") {
+    return kind;
+  }
+
+  return "none";
+}
+
 function getPlainJsonSubFieldOptions(fact: WorkflowContextFactDefinitionItem | undefined) {
   if (!isPlainJsonFact(fact)) {
     return [];
@@ -5655,6 +5679,50 @@ function getPlainValueFactAllowedOperatorKeys(params: {
   return null;
 }
 
+function getExternalFactAllowedOperatorKeys(params: {
+  fact: WorkflowContextFactDefinitionItem;
+  subFieldKey: string | null;
+}) {
+  const { fact, subFieldKey } = params;
+  if (
+    (fact.kind !== "definition_backed_external_fact" && fact.kind !== "bound_external_fact") ||
+    subFieldKey
+  ) {
+    return null;
+  }
+
+  if (fact.valueType === "work_unit") {
+    return new Set(["exists", "current_state"]);
+  }
+
+  if (fact.valueType === "string") {
+    const validationKind = getExternalStringValidationKind(fact);
+    if (validationKind === "path") {
+      return new Set(["exists", "exists_in_repo"]);
+    }
+
+    if (validationKind === "allowed-values") {
+      return new Set(["exists", "equals"]);
+    }
+
+    return new Set(["exists", "equals", "contains", "starts_with", "ends_with"]);
+  }
+
+  if (fact.valueType === "number") {
+    return new Set(["exists", "equals", "gt", "gte", "lt", "lte", "between"]);
+  }
+
+  if (fact.valueType === "boolean") {
+    return new Set(["exists", "equals"]);
+  }
+
+  if (fact.valueType === "json") {
+    return new Set(["exists"]);
+  }
+
+  return null;
+}
+
 function resolveConditionOperandForEditor(
   fact: WorkflowContextFactDefinitionItem | undefined,
   subFieldKey: string | null | undefined,
@@ -5666,7 +5734,13 @@ function resolveConditionOperandForEditor(
   const scalarValueType =
     fact.valueType === "number" || fact.valueType === "boolean" || fact.valueType === "json"
       ? fact.valueType
-      : "string";
+      : fact.valueType === "work_unit" ||
+          ((fact.kind === "definition_backed_external_fact" ||
+            fact.kind === "bound_external_fact") &&
+            typeof fact.workUnitDefinitionId === "string" &&
+            fact.workUnitDefinitionId.trim().length > 0)
+        ? "work_unit"
+        : "string";
 
   const normalizedSubFieldKey = normalizeConditionSubFieldKey(subFieldKey);
   if (normalizedSubFieldKey) {
@@ -5765,7 +5839,10 @@ function getCompatibleConditionOperators(
 
   const allowedForPlainFact = getPlainValueFactAllowedOperatorKeys({ fact, subFieldKey, operand });
   if (!allowedForPlainFact) {
-    return base;
+    const allowedForExternalFact = getExternalFactAllowedOperatorKeys({ fact, subFieldKey });
+    return allowedForExternalFact
+      ? base.filter((operator) => allowedForExternalFact.has(operator.key))
+      : base;
   }
 
   return base.filter((operator) => allowedForPlainFact.has(operator.key));
@@ -5802,6 +5879,10 @@ function createDefaultComparisonJson(
     return { value: fact.allowedWorkflowDefinitionIds[0] ?? "" };
   }
 
+  if (operator.key === "current_state") {
+    return { value: getConditionCurrentStateValues(fact)[0]?.value ?? "" };
+  }
+
   return { value: "" };
 }
 
@@ -5828,6 +5909,17 @@ function getConditionReferenceValues(fact: WorkflowContextFactDefinitionItem | u
   return fact.allowedWorkflowDefinitionIds
     .map((value) => value.trim())
     .filter((value) => value.length > 0);
+}
+
+function getConditionCurrentStateValues(fact: WorkflowContextFactDefinitionItem | undefined) {
+  if (
+    !fact ||
+    (fact.kind !== "definition_backed_external_fact" && fact.kind !== "bound_external_fact")
+  ) {
+    return [];
+  }
+
+  return fact.workUnitStateOptions ?? [];
 }
 
 function getConditionNoteText(params: {
@@ -5889,6 +5981,20 @@ function getConditionNoteText(params: {
         return `${valueScopeLead} Numeric operators compare the selected runtime number against the authored threshold.`;
       default:
         return null;
+    }
+  }
+
+  if (fact.kind === "definition_backed_external_fact" || fact.kind === "bound_external_fact") {
+    if (fact.valueType === "work_unit" && operator.key === "current_state") {
+      return `${valueScopeLead} Comparison options come from the lifecycle states defined on the referenced work unit type, plus Activation for the pre-state before first activation.`;
+    }
+
+    if (operator.key === "exists_in_repo") {
+      return `${valueScopeLead} Paths are treated as repo-relative when checking repository existence.`;
+    }
+
+    if (fact.valueType === "string" && getExternalStringValidationKind(fact) === "allowed-values") {
+      return `${valueScopeLead} Comparison options come from the allowed values defined for the referenced external fact.`;
     }
   }
 
@@ -6201,6 +6307,35 @@ function RouteConditionComparisonField(props: {
           {workflowReferenceValues.map((entry) => (
             <SelectItem key={entry} value={entry}>
               {entry}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  }
+
+  const currentStateValues = getConditionCurrentStateValues(props.fact);
+  if (props.operator.key === "current_state" && currentStateValues.length > 0) {
+    return (
+      <Select
+        value={currentStateValues.some((entry) => entry.value === value) ? value : undefined}
+        onValueChange={(nextValue) =>
+          props.onChange(
+            createComparisonJsonForCondition({
+              operator: props.operator,
+              operand: props.operand,
+              rawValue: nextValue ?? "",
+            }),
+          )
+        }
+      >
+        <SelectTrigger className="w-full rounded-none border-border/70 bg-background/50">
+          <SelectValue placeholder="Select a state" />
+        </SelectTrigger>
+        <SelectContent className="rounded-none" align="start" sideOffset={6}>
+          {currentStateValues.map((entry) => (
+            <SelectItem key={entry.value} value={entry.value}>
+              {entry.label}
             </SelectItem>
           ))}
         </SelectContent>

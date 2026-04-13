@@ -168,6 +168,8 @@ const isScalarOperand = (operand: WorkflowConditionOperand) => operand.cardinali
 const isManyOperand = (operand: WorkflowConditionOperand) => operand.cardinality === "many";
 const isStringOperand = (operand: WorkflowConditionOperand) => operand.operandType === "string";
 const isNumberOperand = (operand: WorkflowConditionOperand) => operand.operandType === "number";
+const isWorkUnitOperand = (operand: WorkflowConditionOperand) =>
+  operand.operandType === "work_unit";
 const isArtifactReferenceOperand = (operand: WorkflowConditionOperand) =>
   operand.operandType === "artifact_reference";
 const isJsonObjectOperand = (operand: WorkflowConditionOperand) =>
@@ -277,6 +279,13 @@ const BUILT_IN_CONDITION_OPERATORS: readonly WorkflowConditionOperator[] = [
     supportsOperand: (operand) => operand.freshnessCapable,
     requiresComparison: false,
     validateComparison: (comparison) => hasNoComparison(comparison),
+  },
+  {
+    key: "current_state",
+    label: "Current State",
+    supportsOperand: (operand) => isWorkUnitOperand(operand),
+    requiresComparison: true,
+    validateComparison: (comparison) => hasStringComparisonValue(comparison),
   },
 ];
 
@@ -995,7 +1004,8 @@ function toWorkflowEdges(rawEdges: unknown): WorkflowEditorEdge[] {
 
 function toContextFactDefinitions(
   rawFacts: unknown,
-  rawWorkUnits: unknown,
+  rawWorkUnitFacts: unknown,
+  rawWorkUnitTypes: unknown,
 ): WorkflowContextFactDefinitionItem[] {
   if (!Array.isArray(rawFacts)) {
     return [];
@@ -1072,13 +1082,29 @@ function toContextFactDefinitions(
         value.valueType === "string" ||
         value.valueType === "number" ||
         value.valueType === "boolean" ||
-        value.valueType === "json"
+        value.valueType === "json" ||
+        value.valueType === "work_unit"
       ) {
         item.valueType = value.valueType;
       }
 
       if (typeof value.externalFactDefinitionId === "string") {
         item.externalFactDefinitionId = value.externalFactDefinitionId;
+      }
+
+      if (
+        typeof value.workUnitDefinitionId === "string" &&
+        value.workUnitDefinitionId.trim().length > 0
+      ) {
+        item.workUnitDefinitionId = value.workUnitDefinitionId.trim();
+        item.workUnitTypeKey =
+          resolveWorkUnitTypeKey(rawWorkUnitTypes, value.workUnitDefinitionId.trim()) ?? undefined;
+        if (
+          !item.valueType &&
+          (kind === "definition_backed_external_fact" || kind === "bound_external_fact")
+        ) {
+          item.valueType = "work_unit";
+        }
       }
 
       if (typeof value.artifactSlotDefinitionId === "string") {
@@ -1093,13 +1119,35 @@ function toContextFactDefinitions(
           value.workUnitDefinitionId.trim().length > 0
             ? value.workUnitDefinitionId.trim()
             : inferWorkUnitTypeIdentifierFromDraftSpecFactDefinitionIds(
-                rawWorkUnits,
+                rawWorkUnitFacts,
                 item.selectedWorkUnitFactDefinitionIds,
               );
 
         item.workUnitDefinitionId = resolvedWorkUnitDefinitionId;
         item.workUnitTypeKey = resolvedWorkUnitDefinitionId;
         item.includedFactDefinitionIds = item.selectedWorkUnitFactDefinitionIds;
+      }
+
+      if (
+        (kind === "definition_backed_external_fact" || kind === "bound_external_fact") &&
+        item.valueType === "work_unit" &&
+        item.externalFactDefinitionId
+      ) {
+        const workUnitTypeIdentifier =
+          item.workUnitDefinitionId ??
+          getExternalFactWorkUnitTypeIdentifier(rawWorkUnitFacts, item.externalFactDefinitionId);
+        if (workUnitTypeIdentifier) {
+          item.workUnitDefinitionId = workUnitTypeIdentifier;
+          item.workUnitTypeKey =
+            resolveWorkUnitTypeKey(rawWorkUnitTypes, workUnitTypeIdentifier) ?? undefined;
+          if (!item.valueType) {
+            item.valueType = "work_unit";
+          }
+          item.workUnitStateOptions = getWorkUnitStateOptions(
+            rawWorkUnitTypes,
+            workUnitTypeIdentifier,
+          );
+        }
       }
 
       return {
@@ -1394,6 +1442,79 @@ function resolveWorkUnitTypeKey(rawWorkUnits: unknown, workUnitTypeIdentifier: s
     : null;
 }
 
+function getWorkUnitStateOptions(rawWorkUnits: unknown, workUnitTypeIdentifier: string) {
+  const activationOption = {
+    value: "__absent__",
+    label: "Activation",
+    secondaryLabel: "__absent__",
+    description: "Pseudo-state before the work unit enters its first authored lifecycle state.",
+  } satisfies WorkflowEditorPickerOption;
+  const normalizedWorkUnitTypeKey = resolveWorkUnitTypeKey(rawWorkUnits, workUnitTypeIdentifier);
+  if (!normalizedWorkUnitTypeKey) {
+    return [activationOption];
+  }
+
+  const matchedWorkUnit = getWorkUnitEntries(rawWorkUnits).find((entry) => {
+    const workUnit = asRecord(entry);
+    return workUnit && workUnit.key === normalizedWorkUnitTypeKey;
+  });
+  const workUnit = asRecord(matchedWorkUnit);
+  const states = Array.isArray(workUnit?.lifecycleStates) ? workUnit.lifecycleStates : [];
+
+  const stateOptions = states
+    .map((entry) => {
+      const state = asRecord(entry);
+      if (!state || typeof state.key !== "string" || state.key.trim().length === 0) {
+        return null;
+      }
+
+      return {
+        value: state.key,
+        label:
+          typeof state.displayName === "string" && state.displayName.trim().length > 0
+            ? state.displayName.trim()
+            : state.key,
+        secondaryLabel: state.key,
+        description: readMarkdown(state.description) || readMarkdown(state.descriptionJson),
+      } satisfies WorkflowEditorPickerOption;
+    })
+    .filter((entry): entry is WorkflowEditorPickerOption => entry !== null);
+
+  return stateOptions.some((entry) => entry.value === activationOption.value)
+    ? stateOptions
+    : [activationOption, ...stateOptions];
+}
+
+function getExternalFactWorkUnitTypeIdentifier(
+  rawWorkUnits: unknown,
+  externalFactDefinitionId: string,
+) {
+  for (const entry of getWorkUnitEntries(rawWorkUnits)) {
+    const workUnit = asRecord(entry);
+    if (!workUnit || typeof workUnit.key !== "string") {
+      continue;
+    }
+
+    const matchedFact = getWorkUnitFactEntries(rawWorkUnits, workUnit.key).find((rawFact) => {
+      const fact = asRecord(rawFact);
+      return (
+        fact &&
+        (fact.id === externalFactDefinitionId ||
+          fact.factDefinitionId === externalFactDefinitionId ||
+          fact.key === externalFactDefinitionId)
+      );
+    });
+
+    if (matchedFact) {
+      return typeof workUnit.id === "string" && workUnit.id.trim().length > 0
+        ? workUnit.id.trim()
+        : workUnit.key;
+    }
+  }
+
+  return null;
+}
+
 function getFactTypeBadgeTone(
   type: ReturnType<typeof normalizePickerFactType>,
 ): WorkflowEditorPickerBadge["tone"] {
@@ -1495,7 +1616,7 @@ function toFactOptions(
 }
 
 function toMethodologyFactOptions(rawFactDefinitions: unknown, rawWorkUnits: unknown) {
-  return toFactOptions(rawFactDefinitions, "Methodology fact", rawWorkUnits, "methodology");
+  return toFactOptions(rawFactDefinitions, "Methodology fact", rawWorkUnits, "methodology", "id");
 }
 
 function toWorkUnitFactOptions(rawWorkUnits: unknown, workUnitTypeKey: string) {
@@ -1504,6 +1625,7 @@ function toWorkUnitFactOptions(rawWorkUnits: unknown, workUnitTypeKey: string) {
     "Work unit fact",
     rawWorkUnits,
     "current_work_unit",
+    "id",
   );
 }
 
@@ -2065,6 +2187,7 @@ export function MethodologyWorkflowEditorRoute() {
       contextFactDefinitions={toContextFactDefinitions(
         editorDefinition?.contextFacts,
         workUnitFactsQuery.data,
+        workUnitTypesQuery.data,
       )}
       methodologyFacts={toMethodologyFactOptions(
         methodologyFactsQuery.data,
@@ -2393,7 +2516,11 @@ export function MethodologyWorkflowEditorRoute() {
             fact: toContextFactMutationPayload(draft),
           });
 
-          const nextFact = toContextFactDefinitions([created], workUnitFactsQuery.data)[0];
+          const nextFact = toContextFactDefinitions(
+            [created],
+            workUnitFactsQuery.data,
+            workUnitTypesQuery.data,
+          )[0];
           if (!nextFact) {
             throw new Error("Created context fact did not return an editor definition item.");
           }
