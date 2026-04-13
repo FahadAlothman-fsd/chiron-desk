@@ -1,0 +1,29 @@
+packages/contracts/src/methodology/fact.ts
+  16df42013de6e9ee 98
+packages/methodology-engine/src/services/methodology-version-service.ts
+  16df42013de6e9ee 192,203
+packages/methodology-engine/src/version-service.ts
+  16df42013de6e9ee 284,295
+packages/contracts/src/tests/methodology/version.test.ts
+  16df42013de6e9ee 225,241
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "9a6cc98b327374de87b3651a472cc83ef7ba40e4",
+  "prompts": {
+    "16df42013de6e9ee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_285c21e1fffe2TVLsiZ644kgK7",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 628,
+      "total_deletions": 104,
+      "accepted_lines": 654,
+      "overriden_lines": 0
+    }
+  }
+}
