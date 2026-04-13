@@ -1318,6 +1318,9 @@ describe("workflow editor invoke route", () => {
     expect(screen.queryByLabelText("Comparison Value")).toBeNull();
     expect(screen.getByRole("option", { name: "draft" })).toBeTruthy();
     expect(screen.getByRole("option", { name: "ready" })).toBeTruthy();
+    expect(
+      screen.getByText(/Comparison options come from the allowed values defined for this field\./i),
+    ).toBeTruthy();
 
     const comparisonSelect = screen.getAllByRole("combobox").at(-1);
     expect(comparisonSelect).toBeTruthy();
@@ -1523,6 +1526,17 @@ describe("workflow editor invoke route", () => {
     expect(screen.getByRole("option", { name: /^Exists$/i })).toBeTruthy();
     expect(screen.getByRole("option", { name: /^Exists In Repo$/i })).toBeTruthy();
     expect(screen.queryByRole("option", { name: /^Contains$/i })).toBeNull();
+
+    fireEvent.change(
+      screen.getByRole("combobox", {
+        name: /workflow-editor-branch-condition-operator-/i,
+      }),
+      {
+        target: { value: "exists_in_repo" },
+      },
+    );
+
+    expect(screen.getByText(/Paths are treated as repo-relative/i)).toBeTruthy();
   });
 
   it("artifact reference branch conditions do not offer equals", async () => {

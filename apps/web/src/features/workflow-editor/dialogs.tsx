@@ -5830,6 +5830,75 @@ function getConditionReferenceValues(fact: WorkflowContextFactDefinitionItem | u
     .filter((value) => value.length > 0);
 }
 
+function getConditionNoteText(params: {
+  fact: WorkflowContextFactDefinitionItem | undefined;
+  subFieldKey: string | null;
+  operator: WorkflowConditionOperator | undefined;
+  operand: WorkflowConditionOperand | null;
+}) {
+  const { fact, subFieldKey, operator, operand } = params;
+  if (!fact || !operator || !operand) {
+    return null;
+  }
+
+  const normalizedSubFieldKey = normalizeConditionSubFieldKey(subFieldKey);
+  const plainJsonSubField = normalizedSubFieldKey
+    ? getPlainJsonSubFieldOptions(fact).find((entry) => entry.value === normalizedSubFieldKey)
+    : null;
+  const targetLabel = plainJsonSubField?.label ?? normalizedSubFieldKey ?? fact.label ?? fact.key;
+  const valueScopeLead =
+    fact.cardinality === "many"
+      ? `Condition passes when at least one runtime value for ${targetLabel} satisfies this rule.`
+      : `Condition is evaluated against the runtime value for ${targetLabel}.`;
+
+  if (fact.kind === "plain_value_fact") {
+    if (fact.valueType === "json" && !normalizedSubFieldKey) {
+      return operator.key === "exists"
+        ? `${valueScopeLead} Root JSON conditions only check whether the container value exists.`
+        : "Root JSON conditions only support container-level existence. Select a JSON sub-field to compare scalar values.";
+    }
+
+    if (operator.key === "exists_in_repo") {
+      return `${valueScopeLead} Paths are treated as repo-relative when checking repository existence.`;
+    }
+
+    if (plainJsonSubField?.validationKind === "allowed-values" && operator.key === "equals") {
+      return `${valueScopeLead} Comparison options come from the allowed values defined for this field.`;
+    }
+
+    if (plainJsonSubField?.validationKind === "path") {
+      return `${valueScopeLead} This sub-field uses path semantics, so repository checks use normalized repo-relative paths.`;
+    }
+
+    switch (operator.key) {
+      case "exists":
+        return `${valueScopeLead} This checks whether a value is present at runtime.`;
+      case "equals":
+        return `${valueScopeLead} This checks for an exact match with the comparison value.`;
+      case "contains":
+        return `${valueScopeLead} This checks whether the runtime text contains the comparison text.`;
+      case "starts_with":
+        return `${valueScopeLead} This checks whether the runtime text starts with the comparison text.`;
+      case "ends_with":
+        return `${valueScopeLead} This checks whether the runtime text ends with the comparison text.`;
+      case "gt":
+      case "gte":
+      case "lt":
+      case "lte":
+      case "between":
+        return `${valueScopeLead} Numeric operators compare the selected runtime number against the authored threshold.`;
+      default:
+        return null;
+    }
+  }
+
+  if (fact.kind === "artifact_reference_fact" && operator.key === "fresh") {
+    return "Fresh checks whether the referenced artifact was produced recently enough for the current workflow state.";
+  }
+
+  return null;
+}
+
 function reconcileBranchConditionDraft(params: {
   condition: WorkflowBranchRouteConditionPayload;
   fact: WorkflowContextFactDefinitionItem | undefined;
@@ -6560,6 +6629,12 @@ export function RouteDialog({
                                 );
                                 const draftSpecSubFieldOptions = getDraftSpecSubFieldOptions(fact);
                                 const plainJsonSubFieldOptions = getPlainJsonSubFieldOptions(fact);
+                                const conditionNoteText = getConditionNoteText({
+                                  fact,
+                                  subFieldKey: normalizedSubFieldKey,
+                                  operator: selectedOperator,
+                                  operand,
+                                });
 
                                 return (
                                   <div
@@ -6813,6 +6888,17 @@ export function RouteDialog({
                                           }
                                         />
                                       </div>
+
+                                      {conditionNoteText ? (
+                                        <div className="lg:col-span-2">
+                                          <p className="border border-border/70 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                                            <span className="font-medium uppercase tracking-[0.12em] text-foreground">
+                                              Condition Note
+                                            </span>{" "}
+                                            {conditionNoteText}
+                                          </p>
+                                        </div>
+                                      ) : null}
 
                                       <div className="flex items-center gap-2 text-xs uppercase tracking-[0.12em]">
                                         <Checkbox
