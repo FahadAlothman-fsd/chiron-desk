@@ -138,7 +138,7 @@ Wave 3: workflow-editor UI + integrated verification + compatibility hardening
 > Implementation + Test = ONE task. Never separate.
 > Invoke ships first, branch second, but both are covered in one plan.
 
-- [ ] 1. Freeze invoke, branch, and draft-spec contracts
+- [x] 1. Freeze invoke, branch, and draft-spec contracts
 
   **What to do**: Update `packages/contracts/src/methodology/workflow.ts` and new/related test files so the design-time contracts match the locked invoke and branch models: invoke target/source variants, bindings shape, branch routes/groups/conditions, and `work_unit_draft_spec_fact` redesign with explicit work-unit identity and typed selected destinations.
   **Must NOT do**: Do not leave invoke/branch as deferred opaque payloads. Do not introduce runtime-only fields. Do not keep `work_unit_draft_spec_fact` as only `includedFactDefinitionIds: string[]`.
@@ -178,7 +178,7 @@ Wave 3: workflow-editor UI + integrated verification + compatibility hardening
 
   **Commit**: YES | Message: `feat(contracts): lock invoke branch and draft-spec authoring models` | Files: `packages/contracts/src/**`
 
-- [ ] 2. Normalize methodology schema for invoke, branch, and draft-spec redesign
+- [x] 2. Normalize methodology schema for invoke, branch, and draft-spec redesign
 
   **What to do**: Update `packages/db/src/schema/methodology.ts` with the full invoke table set, branch table set, and draft-spec redesign. Add constraints/indices for branch route uniqueness, route/group ordering, invoke transition/workflow invariants, and typed draft-spec selections.
   **Must NOT do**: Do not collapse branch conditions into `conditionJson`. Do not keep branch default route as a route row. Do not keep draft-spec work-unit identity inferred-only.
@@ -217,7 +217,7 @@ Wave 3: workflow-editor UI + integrated verification + compatibility hardening
 
   **Commit**: YES | Message: `feat(db): add invoke branch and draft-spec design-time schema` | Files: `packages/db/src/schema/**`, `packages/db/src/tests/schema/**`
 
-- [ ] 3. Add narrow repository seams and shared condition foundations
+- [x] 3. Add narrow repository seams and shared condition foundations
 
   **What to do**: Extend methodology repository interfaces/implementations to support narrow invoke/branch/draft-spec operations. Add shared condition registry/validation/evaluation architecture seams for workflow-context-fact conditions, but only wire branch as the consumer in this slice.
   **Must NOT do**: Do not create a god repository. Do not migrate transition-gate storage/UI. Do not put git/staleness implementation into methodology repos.
@@ -257,7 +257,7 @@ Wave 3: workflow-editor UI + integrated verification + compatibility hardening
 
   **Commit**: YES | Message: `feat(methodology): add invoke branch repos and condition foundations` | Files: `packages/db/src/**`, `packages/methodology-engine/src/**`
 
-- [ ] 4. Implement invoke step-definition service and thin API CRUD
+- [x] 4. Implement invoke step-definition service and thin API CRUD
 
   **What to do**: Add `InvokeStepDefinitionService` and wire thin methodology router procedures for create/update/delete invoke step. Persist workflow-target and work-unit-target variants exactly as locked, with full-state payload + identity-aware delta reconcile for child rows.
   **Must NOT do**: Do not add runtime invoke execution behavior. Do not expose authored bindings for workflow-target invoke. Do not make routers orchestrate multiple services.
@@ -297,7 +297,7 @@ Wave 3: workflow-editor UI + integrated verification + compatibility hardening
 
   **Commit**: YES | Message: `feat(methodology): add invoke authoring service and api` | Files: `packages/methodology-engine/src/**`, `packages/api/src/routers/**`, `packages/api/src/tests/routers/**`
 
-- [ ] 5. Implement branch step-definition service, CRUD, and projected-edge sync
+- [x] 5. Implement branch step-definition service, CRUD, and projected-edge sync
 
   **What to do**: Add `BranchStepDefinitionService` and wire branch CRUD procedures. Implement full-state payload + identity-aware delta reconcile for routes/groups/conditions, default-target validation, route target validation, and projected branch-owned edge sync into generic workflow edges.
   **Must NOT do**: Do not treat projected branch edges as generic editable topology. Do not persist a branch `else` row. Do not migrate transition-gate UI/storage.
@@ -337,7 +337,7 @@ Wave 3: workflow-editor UI + integrated verification + compatibility hardening
 
   **Commit**: YES | Message: `feat(methodology): add branch authoring service and api` | Files: `packages/methodology-engine/src/**`, `packages/api/src/routers/**`, `packages/api/src/tests/routers/**`
 
-- [ ] 6. Ship invoke workflow-editor authoring surfaces
+- [x] 6. Ship invoke workflow-editor authoring surfaces
 
   **What to do**: Enable invoke in the step grid, add the full create/edit invoke dialog, and wire all tab interactions to the invoke procedures/read model. Preserve the current workflow-editor shell and non-invoke behaviors.
   **Must NOT do**: Do not add a new page. Do not expose workflow-target invoke bindings. Do not weaken existing Form-step UX behavior.
@@ -378,7 +378,7 @@ Wave 3: workflow-editor UI + integrated verification + compatibility hardening
 
   **Commit**: YES | Message: `feat(web): add invoke design-time editor surfaces` | Files: `apps/web/src/features/workflow-editor/**`, `apps/web/src/tests/routes/**`
 
-- [ ] 7. Ship branch workflow-editor authoring surfaces and stacked route dialog
+- [x] 7. Ship branch workflow-editor authoring surfaces and stacked route dialog
 
   **What to do**: Enable branch in the step grid, add the create/edit branch dialog, implement the `Routes` tab, and implement the stacked route dialog for route + group + condition authoring. Wire branch-owned projected edge rendering and click behavior in the canvas/list/inspector.
   **Must NOT do**: Do not expose a generic edge editor for branch-owned edges. Do not add a top-level Conditions tab. Do not render labels directly on branch-owned edges.
@@ -419,7 +419,7 @@ Wave 3: workflow-editor UI + integrated verification + compatibility hardening
 
   **Commit**: YES | Message: `feat(web): add branch design-time editor surfaces` | Files: `apps/web/src/features/workflow-editor/**`, `apps/web/src/tests/routes/**`
 
-- [ ] 8. Expand `getEditorDefinition` and preserve non-branch compatibility
+- [x] 8. Expand `getEditorDefinition` and preserve non-branch compatibility
 
   **What to do**: Update the editor read-model assembly so invoke and branch steps are returned as typed steps, and the unified edge list includes normal edges plus branch-owned projected edges with the exact locked metadata and ownership semantics.
   **Must NOT do**: Do not introduce a second branch-only query. Do not let branch-owned projected edges look like user-authored generic edges. Do not break non-branch workflows or generic edge CRUD.
@@ -459,7 +459,7 @@ Wave 3: workflow-editor UI + integrated verification + compatibility hardening
 
   **Commit**: YES | Message: `feat(editor): unify invoke branch step and edge read models` | Files: `packages/methodology-engine/src/**`, `apps/web/src/routes/**`, `apps/web/src/tests/routes/**`
 
-- [ ] 9. Run integrated design-time verification and compatibility sweep
+- [x] 9. Run integrated design-time verification and compatibility sweep
 
   **What to do**: Run the full design-time suites, verify old non-branch workflows and generic edge CRUD remain stable, and confirm invoke/branch authoring and projected-edge behavior are the only functional changes in scope.
   **Must NOT do**: Do not mark complete if invoke/branch remain partially deferred in the editor. Do not let runtime git implementation leak into the branch design-time slice.
@@ -502,10 +502,10 @@ Wave 3: workflow-editor UI + integrated verification + compatibility hardening
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 > **Do NOT auto-proceed after verification. Wait for user's explicit approval before marking work complete.**
 > **Never mark F1-F4 as checked before getting user's okay.** Rejection or user feedback -> fix -> re-run -> present again -> wait for okay.
-- [ ] F1. Plan Compliance Audit — oracle
-- [ ] F2. Code Quality Review — unspecified-high
-- [ ] F3. Real Manual QA — unspecified-high (+ playwright if UI)
-- [ ] F4. Scope Fidelity Check — deep
+- [x] F1. Plan Compliance Audit — oracle
+- [x] F2. Code Quality Review — unspecified-high
+- [x] F3. Real Manual QA — unspecified-high (+ playwright if UI)
+- [x] F4. Scope Fidelity Check — deep
 
 ## Commit Strategy
 - Commit 1: lock contracts for invoke, branch, and draft-spec redesign.
@@ -513,6 +513,17 @@ Wave 3: workflow-editor UI + integrated verification + compatibility hardening
 - Commit 3: add invoke service/API and branch service/API.
 - Commit 4: add invoke and branch workflow-editor authoring surfaces.
 - Commit 5: expand `getEditorDefinition` and finish compatibility verification.
+
+## Implementation Outcomes
+- Design-time invoke and branch authoring shipped through contracts, schema, repositories, methodology-engine services, router procedures, workflow-editor UI, and unified `getEditorDefinition` read models.
+- Branch-owned topology is now authoritative in branch tables while the editor consumes one unified edge list with branch ownership metadata.
+- `work_unit_draft_spec_fact` was redesigned to store explicit work-unit identity plus typed fact/artifact selections.
+- Context-kind follow-up work was completed on top of this slice:
+  - `plain_value_fact` gained authorable JSON sub-schema/value-semantics support, operator handling, and validation persistence fixes.
+  - `definition_backed_external_fact` and `bound_external_fact` gained methodology/work-unit external metadata support, JSON-subfield compatibility fixes, and edit-mode selector hydration that tolerates legacy key-backed saved values while converging to canonical ids.
+  - `workflow_reference_fact`, `artifact_reference_fact`, and `work_unit_draft_spec_fact` were kept aligned with id-based persistence and design-time authoring expectations.
+- Seed/runtime follow-up work extended Brainstorming and Setup coverage so the primary Brainstorming runtime workflow now exercises the supported context-kind variations needed for design-time and seed validation.
+- Post-slice cleanup also fixed the workflow-editor external-fact edit path so methodology external picks now save by definition id instead of silently falling back to keys when the authoring snapshot provides ids.
 
 ## Success Criteria
 - Invoke is fully authorable at design time in the workflow editor.
