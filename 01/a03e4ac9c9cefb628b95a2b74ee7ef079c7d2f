@@ -1,0 +1,25 @@
+apps/web/src/tests/routes/workflow-editor-invoke-branch.integration.test.tsx
+  16df42013de6e9ee 1215-1345
+apps/web/src/features/workflow-editor/dialogs.tsx
+  16df42013de6e9ee 5561-5563,5571,5583,5778,5796,5808-5819,5858,6069,6083,6760,6792
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "01a03e4ac9c9cefb628b95a2b74ee7ef079c7d2f",
+  "prompts": {
+    "16df42013de6e9ee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_285c21e1fffe2TVLsiZ644kgK7",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 199,
+      "total_deletions": 50,
+      "accepted_lines": 206,
+      "overriden_lines": 0
+    }
+  }
+}
