@@ -1,0 +1,29 @@
+apps/web/src/features/workflow-editor/dialogs.tsx
+  16df42013de6e9ee 5517-5540,5682-5725,5737-5743,5842-5845,5882-5885,5914-5924,5987-6000,6317-6345
+apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId.tsx
+  16df42013de6e9ee 171-172,283-288,1007-1008,1085-1086,1095-1109,1122,1131-1150,1445-1517,1619,1628,2190,2519-2523
+apps/web/src/features/workflow-editor/types.ts
+  16df42013de6e9ee 16,61,289,291,311,313
+apps/web/src/tests/routes/workflow-editor-invoke-branch.integration.test.tsx
+  16df42013de6e9ee 510-519,554-557,566-570,602-606,1377-1455
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "587bab6a188c00db48a2e740f5b74887762bc38c",
+  "prompts": {
+    "16df42013de6e9ee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_285c21e1fffe2TVLsiZ644kgK7",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 17,
+      "total_deletions": 11,
+      "accepted_lines": 797,
+      "overriden_lines": 0
+    }
+  }
+}
