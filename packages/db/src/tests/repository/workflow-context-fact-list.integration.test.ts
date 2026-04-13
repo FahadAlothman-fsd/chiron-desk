@@ -27,6 +27,31 @@ const SCHEMA_SQL = [
     methodology_version_id TEXT NOT NULL,
     key TEXT NOT NULL
   )`,
+  `CREATE TABLE methodology_fact_definitions (
+    id TEXT PRIMARY KEY,
+    methodology_version_id TEXT NOT NULL,
+    name TEXT,
+    key TEXT NOT NULL,
+    value_type TEXT NOT NULL,
+    cardinality TEXT NOT NULL,
+    description_json TEXT,
+    guidance_json TEXT,
+    default_value_json TEXT,
+    validation_json TEXT
+  )`,
+  `CREATE TABLE work_unit_fact_definitions (
+    id TEXT PRIMARY KEY,
+    methodology_version_id TEXT NOT NULL,
+    work_unit_type_id TEXT NOT NULL,
+    name TEXT,
+    key TEXT NOT NULL,
+    fact_type TEXT NOT NULL,
+    cardinality TEXT NOT NULL,
+    description_json TEXT,
+    guidance_json TEXT,
+    default_value_json TEXT,
+    validation_json TEXT
+  )`,
   `CREATE TABLE methodology_workflow_context_fact_definitions (
     id TEXT PRIMARY KEY,
     workflow_definition_id TEXT NOT NULL,
@@ -264,6 +289,64 @@ describe("methodology repository context-fact list", () => {
               ]),
             }),
           }),
+        }),
+      ]),
+    );
+  });
+
+  it("hydrates definition-backed external work-unit facts with valueType and workUnitDefinitionId", async () => {
+    await client.execute(`
+      INSERT INTO methodology_work_unit_types (id, methodology_version_id, key)
+      VALUES ('wut-story', 'ver-1', 'story')
+    `);
+    await client.execute(`
+      INSERT INTO work_unit_fact_definitions (
+        id,
+        methodology_version_id,
+        work_unit_type_id,
+        name,
+        key,
+        fact_type,
+        cardinality,
+        validation_json
+      )
+      VALUES (
+        'ext-current-story',
+        'ver-1',
+        'wut-story',
+        'Current Story Ref',
+        'current_story_ref',
+        'work_unit',
+        'one',
+        NULL
+      )
+    `);
+    await client.execute(`
+      INSERT INTO methodology_workflow_context_fact_definitions (id, workflow_definition_id, fact_key, fact_kind, cardinality)
+      VALUES ('ctx-external-work-unit', 'wf-1', 'current_story', 'definition_backed_external_fact', 'one')
+    `);
+    await client.execute(`
+      INSERT INTO methodology_workflow_context_fact_external_bindings (id, context_fact_definition_id, provider, binding_key)
+      VALUES ('ctx-external-binding', 'ctx-external-work-unit', 'definition_backed_external_fact', 'ext-current-story')
+    `);
+
+    const facts = await runRepo((repo) =>
+      repo.listWorkflowContextFactsByDefinitionId!({
+        versionId: "ver-1",
+        workflowDefinitionId: "wf-1",
+      }),
+    );
+
+    expect(facts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "definition_backed_external_fact",
+          contextFactDefinitionId: "ctx-external-work-unit",
+          key: "current_story",
+          cardinality: "one",
+          externalFactDefinitionId: "ext-current-story",
+          valueType: "work_unit",
+          workUnitDefinitionId: "wut-story",
         }),
       ]),
     );

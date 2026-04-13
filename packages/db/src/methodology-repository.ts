@@ -114,7 +114,7 @@ function extractMarkdown(value: unknown): string | null {
 
 const DEFERRED_STEP_MESSAGE = "Deferred in slice-1";
 
-type FactValueType = "string" | "number" | "boolean" | "json";
+type FactValueType = "string" | "number" | "boolean" | "json" | "work_unit";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -1002,6 +1002,7 @@ async function readWorkflowContextFacts(
     db
       .select({
         id: workUnitFactDefinitions.id,
+        workUnitTypeId: workUnitFactDefinitions.workUnitTypeId,
         key: workUnitFactDefinitions.key,
         factType: workUnitFactDefinitions.factType,
         validationJson: workUnitFactDefinitions.validationJson,
@@ -1051,6 +1052,7 @@ async function readWorkflowContextFacts(
     {
       readonly factType: string;
       readonly validationJson: unknown;
+      readonly workUnitTypeId?: string;
     }
   >();
   for (const definition of [...methodologyFactRows, ...workUnitFactRows]) {
@@ -1100,7 +1102,8 @@ async function readWorkflowContextFacts(
           externalDefinition?.factType === "string" ||
           externalDefinition?.factType === "number" ||
           externalDefinition?.factType === "boolean" ||
-          externalDefinition?.factType === "json"
+          externalDefinition?.factType === "json" ||
+          externalDefinition?.factType === "work_unit"
             ? (externalDefinition.factType as FactValueType)
             : undefined;
 
@@ -1111,6 +1114,9 @@ async function readWorkflowContextFacts(
           cardinality: definition.cardinality as "one" | "many",
           externalFactDefinitionId: row.bindingKey,
           ...(valueType ? { valueType } : {}),
+          ...(externalDefinition?.workUnitTypeId
+            ? { workUnitDefinitionId: externalDefinition.workUnitTypeId }
+            : {}),
           ...(typeof externalDefinition?.validationJson !== "undefined"
             ? { validationJson: externalDefinition.validationJson }
             : {}),
