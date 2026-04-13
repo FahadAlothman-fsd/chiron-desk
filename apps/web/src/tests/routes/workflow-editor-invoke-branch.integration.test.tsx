@@ -1312,6 +1312,88 @@ describe("workflow editor invoke route", () => {
     expect(await screen.findByText(/Branch routing/i)).toBeTruthy();
   });
 
+  it("plain JSON subfields are selectable and expose string-path operators", async () => {
+    const { MethodologyWorkflowEditorRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId");
+
+    const editorDefinition = createEditorDefinition();
+    editorDefinition.contextFacts = [
+      ...editorDefinition.contextFacts,
+      {
+        contextFactDefinitionId: "ctx-json-plain",
+        key: "json_plain",
+        label: "json-plain",
+        descriptionJson: { markdown: "Nested JSON contract." },
+        kind: "plain_value_fact",
+        cardinality: "one",
+        valueType: "json",
+        validationJson: {
+          kind: "json-schema",
+          schemaDialect: "draft-2020-12",
+          schema: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              project_root: { type: "string" },
+              estimate_hours: { type: "number" },
+            },
+          },
+          subSchema: {
+            type: "object",
+            fields: [
+              {
+                key: "project_root",
+                displayName: "Project Root",
+                type: "string",
+                cardinality: "one",
+                validation: {
+                  kind: "path",
+                  pathKind: "directory",
+                  normalization: { mode: "posix", trimWhitespace: true },
+                  safety: { disallowAbsolute: true, preventTraversal: true },
+                },
+              },
+              {
+                key: "estimate_hours",
+                displayName: "Estimate Hours",
+                type: "number",
+                cardinality: "one",
+              },
+            ],
+          },
+        },
+      },
+    ];
+
+    useRouteContextMock.mockReturnValue(createRouteContext(editorDefinition));
+
+    renderRoute(<MethodologyWorkflowEditorRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Inspect Step branch-on-summary/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit branch step" }));
+    fireEvent.click(screen.getByRole("button", { name: "Routes" }));
+    fireEvent.click(screen.getByRole("button", { name: /Edit Route/i }));
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Context Fact" }));
+    fireEvent.click(screen.getByRole("button", { name: /json-plain/i }));
+
+    fireEvent.click(screen.getByRole("combobox", { name: /sub-field/i }));
+    expect(screen.getByRole("option", { name: /^Project Root$/i })).toBeTruthy();
+    expect(screen.getByRole("option", { name: /^Estimate Hours$/i })).toBeTruthy();
+    fireEvent.change(screen.getByRole("combobox", { name: /sub-field/i }), {
+      target: { value: "project_root" },
+    });
+
+    fireEvent.click(
+      screen.getByRole("combobox", {
+        name: /workflow-editor-branch-condition-operator-/i,
+      }),
+    );
+    expect(screen.getByRole("option", { name: /^Exists$/i })).toBeTruthy();
+    expect(screen.getByRole("option", { name: /^Exists In Repo$/i })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: /^Contains$/i })).toBeNull();
+  });
+
   it("artifact reference branch conditions do not offer equals", async () => {
     const { MethodologyWorkflowEditorRoute } =
       await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId");
@@ -1341,10 +1423,14 @@ describe("workflow editor invoke route", () => {
 
     fireEvent.click(screen.getByRole("combobox", { name: "Context Fact" }));
     fireEvent.click(screen.getByRole("button", { name: /Project Overview Artifact/i }));
-    fireEvent.click(screen.getByRole("combobox", { name: "Operator" }));
+    fireEvent.click(
+      screen.getByRole("combobox", {
+        name: /workflow-editor-branch-condition-operator-/i,
+      }),
+    );
 
-    expect(screen.getByRole("button", { name: /^Exists$/i })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /^Fresh$/i })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /^Equals$/i })).toBeNull();
+    expect(screen.getByRole("option", { name: /^Exists$/i })).toBeTruthy();
+    expect(screen.getByRole("option", { name: /^Fresh$/i })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: /^Equals$/i })).toBeNull();
   });
 });

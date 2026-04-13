@@ -956,7 +956,8 @@ describe("workflow editor form slice route", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
-    const contextFactsSection = screen.getByText("Context Fact Definitions").closest("section");
+    const contextFactsHeading = await screen.findByText("Context Fact Definitions");
+    const contextFactsSection = contextFactsHeading.closest("section");
     if (!contextFactsSection) {
       throw new Error("Expected context facts section to render.");
     }
@@ -996,6 +997,113 @@ describe("workflow editor form slice route", () => {
           workflowDefinitionId: "wf-def-001",
           versionId: "v1",
         }),
+      );
+    });
+  });
+
+  it("preserves JSON sub-schema keys and string validation when editing plain JSON context facts", async () => {
+    const { MethodologyWorkflowEditorRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId");
+
+    const editorDefinition = createEditorDefinition();
+    editorDefinition.contextFacts.push({
+      contextFactDefinitionId: "ctx-json-plain",
+      key: "json_plain",
+      label: "JSON Plain",
+      descriptionJson: { markdown: "Nested json contract." },
+      kind: "plain_value_fact",
+      cardinality: "one",
+      valueType: "json",
+      validationJson: {
+        kind: "json-schema",
+        schemaDialect: "draft-2020-12",
+        schema: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            field_1: { type: "string" },
+            field_2: { type: "number" },
+            field_3: { type: "boolean" },
+          },
+        },
+        subSchema: {
+          type: "object",
+          fields: [
+            {
+              key: "field_1",
+              displayName: "Project Root",
+              type: "string",
+              cardinality: "one",
+              validation: {
+                kind: "path",
+                pathKind: "directory",
+                normalization: { mode: "posix", trimWhitespace: true },
+                safety: { disallowAbsolute: true, preventTraversal: true },
+              },
+            },
+            { key: "field_2", displayName: "Estimate", type: "number", cardinality: "one" },
+            {
+              key: "field_3",
+              displayName: "Critical",
+              type: "boolean",
+              cardinality: "one",
+            },
+          ],
+        },
+      },
+    });
+
+    useRouteContextMock.mockReturnValue(createRouteContext(editorDefinition));
+
+    renderRoute(<MethodologyWorkflowEditorRoute />);
+
+    const contextFactsHeading = await screen.findByText("Context Fact Definitions");
+    const contextFactsSection = contextFactsHeading.closest("section");
+    if (!contextFactsSection) {
+      throw new Error("Expected context facts section to render.");
+    }
+
+    const jsonFactItem = await within(contextFactsSection).findByText("JSON Plain");
+    const jsonFactRow = jsonFactItem.closest("li");
+    if (!jsonFactRow) {
+      throw new Error("Expected JSON context fact row to render.");
+    }
+
+    fireEvent.click(within(jsonFactRow).getByRole("button", { name: "Edit" }));
+    await screen.findByText("Edit Context Fact Definition: JSON Plain");
+    fireEvent.click(screen.getByRole("button", { name: "Value Semantics" }));
+
+    expect(screen.getAllByLabelText("Key Name")).toHaveLength(3);
+    expect(screen.queryByLabelText("Default Value")).toBeNull();
+    expect(screen.getByLabelText("String Validation")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      const updatePayload = (updateContextFactMutationSpy.mock.calls as unknown[][])[0]?.[0] as
+        | {
+            fact?: {
+              validationJson?: {
+                kind?: string;
+                schemaDialect?: string;
+                subSchema?: {
+                  type?: string;
+                  fields?: Array<{ key?: string; type?: string; cardinality?: string }>;
+                };
+              };
+            };
+          }
+        | undefined;
+
+      expect(updatePayload?.fact?.validationJson?.kind).toBe("json-schema");
+      expect(updatePayload?.fact?.validationJson?.schemaDialect).toBe("draft-2020-12");
+      expect(updatePayload?.fact?.validationJson?.subSchema?.type).toBe("object");
+      expect(updatePayload?.fact?.validationJson?.subSchema?.fields).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ key: "field_1", type: "string", cardinality: "one" }),
+          expect.objectContaining({ key: "field_2", type: "number", cardinality: "one" }),
+          expect.objectContaining({ key: "field_3", type: "boolean", cardinality: "one" }),
+        ]),
       );
     });
   });
