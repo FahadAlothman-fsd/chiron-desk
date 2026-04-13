@@ -5558,8 +5558,9 @@ function getPlainJsonSubFieldOptions(fact: WorkflowContextFactDefinitionItem | u
         "displayName" in entry ? (entry as { displayName?: unknown }).displayName : undefined;
       const validation =
         "validation" in entry ? (entry as { validation?: unknown }).validation : undefined;
-      const validationKind =
-        normalizedType === "string" ? toStringValidationState(validation).kind : "none";
+      const stringValidation =
+        normalizedType === "string" ? toStringValidationState(validation) : null;
+      const validationKind = stringValidation?.kind ?? "none";
 
       return {
         value: key,
@@ -5567,6 +5568,7 @@ function getPlainJsonSubFieldOptions(fact: WorkflowContextFactDefinitionItem | u
         label: typeof displayName === "string" && displayName.trim().length > 0 ? displayName : key,
         description: `${normalizedType.toUpperCase()} · ${key}`,
         validationKind,
+        allowedValues: stringValidation?.allowedValues ?? [],
       };
     })
     .filter(
@@ -5578,6 +5580,7 @@ function getPlainJsonSubFieldOptions(fact: WorkflowContextFactDefinitionItem | u
         label: string;
         description: string;
         validationKind: PlainStringValidationType;
+        allowedValues: string[];
       } => entry !== null,
     );
 }
@@ -5772,6 +5775,7 @@ function createDefaultComparisonJson(
   operator: WorkflowConditionOperator | undefined,
   operand: WorkflowConditionOperand | null,
   fact?: WorkflowContextFactDefinitionItem,
+  subFieldKey?: string | null,
 ) {
   if (!operator?.requiresComparison) {
     return null;
@@ -5789,7 +5793,7 @@ function createDefaultComparisonJson(
     return { value: false };
   }
 
-  const allowedValues = getAllowedValues(fact?.validationJson);
+  const allowedValues = getConditionAllowedValues(fact, subFieldKey);
   if (operator.key === "equals" && allowedValues.length > 0) {
     return { value: allowedValues[0] ?? "" };
   }
@@ -5801,7 +5805,18 @@ function createDefaultComparisonJson(
   return { value: "" };
 }
 
-function getConditionAllowedValues(fact: WorkflowContextFactDefinitionItem | undefined) {
+function getConditionAllowedValues(
+  fact: WorkflowContextFactDefinitionItem | undefined,
+  subFieldKey?: string | null,
+) {
+  const normalizedSubFieldKey = normalizeConditionSubFieldKey(subFieldKey);
+  if (normalizedSubFieldKey && isPlainJsonFact(fact)) {
+    return (
+      getPlainJsonSubFieldOptions(fact).find((entry) => entry.value === normalizedSubFieldKey)
+        ?.allowedValues ?? []
+    );
+  }
+
   return getAllowedValues(fact?.validationJson);
 }
 
@@ -5840,7 +5855,7 @@ function reconcileBranchConditionDraft(params: {
     operand &&
     nextOperator.validateComparison(params.condition.comparisonJson, operand)
       ? params.condition.comparisonJson
-      : createDefaultComparisonJson(nextOperator, operand, params.fact);
+      : createDefaultComparisonJson(nextOperator, operand, params.fact, normalizedSubFieldKey);
 
   return {
     ...params.condition,
@@ -6051,6 +6066,7 @@ function RouteModeRadioGroup(props: {
 function RouteConditionComparisonField(props: {
   condition: WorkflowBranchRouteConditionPayload;
   fact: WorkflowContextFactDefinitionItem | undefined;
+  subFieldKey: string | null;
   operand: WorkflowConditionOperand | null;
   operator: WorkflowConditionOperator | undefined;
   onChange: (comparisonJson: unknown) => void;
@@ -6064,7 +6080,7 @@ function RouteConditionComparisonField(props: {
   }
 
   const value = getConditionComparisonDisplayValue(props.condition);
-  const allowedValues = getConditionAllowedValues(props.fact);
+  const allowedValues = getConditionAllowedValues(props.fact, props.subFieldKey);
 
   if (props.operator.key === "equals" && allowedValues.length > 0) {
     return (
@@ -6741,6 +6757,7 @@ export function RouteDialog({
                                                                     ),
                                                                     operand,
                                                                     fact,
+                                                                    condition.subFieldKey,
                                                                   ),
                                                               }
                                                             : candidate,
@@ -6772,6 +6789,7 @@ export function RouteDialog({
                                         <RouteConditionComparisonField
                                           condition={condition}
                                           fact={fact}
+                                          subFieldKey={condition.subFieldKey}
                                           operand={operand}
                                           operator={selectedOperator}
                                           onChange={(comparisonJson) =>

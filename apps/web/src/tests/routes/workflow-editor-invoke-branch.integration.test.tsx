@@ -1212,6 +1212,137 @@ describe("workflow editor invoke route", () => {
     });
   });
 
+  it("branch stacked route dialog uses a select for allowed-values JSON subfield comparisons", async () => {
+    const { RouteDialog } = await import("../../features/workflow-editor/dialogs");
+    const onSave = vi.fn();
+
+    renderRoute(
+      <RouteDialog
+        open
+        ownerStepId="step-branch-1"
+        route={{
+          routeId: "route-product-brief",
+          targetStepId: "",
+          conditionMode: "all",
+          groups: [
+            {
+              groupId: "group-product-brief",
+              mode: "all",
+              conditions: [
+                {
+                  conditionId: "condition-product-brief",
+                  contextFactDefinitionId: "",
+                  subFieldKey: null,
+                  operator: "exists",
+                  isNegated: false,
+                  comparisonJson: null,
+                },
+              ],
+            },
+          ],
+        }}
+        availableSteps={[
+          { value: "step-form-1", label: "Capture Context", secondaryLabel: "capture-context" },
+        ]}
+        availableContextFacts={[
+          {
+            contextFactDefinitionId: "ctx-product-brief",
+            key: "requires_product_brief",
+            label: "Requires Product Brief",
+            descriptionMarkdown: "Reusable JSON fact.",
+            kind: "plain_value_fact",
+            cardinality: "one",
+            guidance: { humanMarkdown: "", agentMarkdown: "" },
+            allowedWorkflowDefinitionIds: [],
+            includedFactDefinitionIds: [],
+            selectedWorkUnitFactDefinitionIds: [],
+            selectedArtifactSlotDefinitionIds: [],
+            summary: "plain value fact · one · json",
+            valueType: "json",
+            validationJson: {
+              kind: "json-schema",
+              subSchema: {
+                type: "object",
+                fields: [
+                  {
+                    key: "status",
+                    type: "string",
+                    cardinality: "one",
+                    validation: {
+                      kind: "allowed-values",
+                      values: ["draft", "ready"],
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        ]}
+        conditionOperators={[
+          {
+            key: "exists",
+            label: "Exists",
+            requiresComparison: false,
+            supportsOperand: () => true,
+            validateComparison: () => true,
+          },
+          {
+            key: "equals",
+            label: "Equals",
+            requiresComparison: true,
+            supportsOperand: (operand) => operand.operandType === "string",
+            validateComparison: (comparison: unknown) =>
+              typeof comparison === "object" && comparison !== null && "value" in comparison,
+          },
+        ]}
+        onOpenChange={vi.fn()}
+        onSave={onSave}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Target Step" }));
+    fireEvent.click(screen.getByRole("button", { name: /Capture Context/i }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Context Fact" }));
+    fireEvent.click(screen.getByRole("button", { name: /Requires Product Brief/i }));
+    await waitFor(() => {
+      expect(screen.getAllByRole("combobox").length).toBeGreaterThanOrEqual(4);
+    });
+
+    fireEvent.change(screen.getAllByRole("combobox")[2]!, {
+      target: { value: "status" },
+    });
+    fireEvent.change(screen.getAllByRole("combobox")[3]!, {
+      target: { value: "equals" },
+    });
+
+    expect(screen.queryByLabelText("Comparison Value")).toBeNull();
+    expect(screen.getByRole("option", { name: "draft" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "ready" })).toBeTruthy();
+
+    const comparisonSelect = screen.getAllByRole("combobox").at(-1);
+    expect(comparisonSelect).toBeTruthy();
+    fireEvent.change(comparisonSelect!, { target: { value: "ready" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Route" }));
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targetStepId: "step-form-1",
+        groups: [
+          expect.objectContaining({
+            conditions: [
+              expect.objectContaining({
+                contextFactDefinitionId: "ctx-product-brief",
+                subFieldKey: "status",
+                operator: "equals",
+                comparisonJson: { value: "ready" },
+              }),
+            ],
+          }),
+        ],
+      }),
+    );
+  });
+
   it("branch canvas renders projected edges differently and focuses the owner on click", async () => {
     const actualModule = await vi.importActual<
       typeof import("../../features/workflow-editor/workflow-canvas")
