@@ -189,6 +189,7 @@ function asStringArray(value: unknown): readonly string[] | undefined {
 }
 
 function mapFactDefinitionRowToInput(fact: {
+  id: string;
   name: string | null;
   key: string;
   valueType: string;
@@ -199,6 +200,7 @@ function mapFactDefinitionRowToInput(fact: {
   validationJson: unknown;
 }): MethodologyFactDefinitionInput {
   return {
+    id: fact.id,
     name: fact.name ?? undefined,
     key: fact.key,
     factType: asFactType(fact.valueType),

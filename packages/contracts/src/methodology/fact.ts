@@ -95,6 +95,7 @@ export const FactSchema = Schema.Struct({
 export type FactSchema = typeof FactSchema.Type;
 
 export const MethodologyFactDefinitionInput = Schema.Struct({
+  id: Schema.optional(Schema.NonEmptyString),
   name: Schema.optional(Schema.String),
   key: Schema.NonEmptyString,
   factType: FactType,

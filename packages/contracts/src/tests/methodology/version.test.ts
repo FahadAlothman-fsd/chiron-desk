@@ -222,6 +222,7 @@ describe("MethodologyFactDefinitionInput", () => {
   it("accepts fact definition with all optional fields", () => {
     const full = {
       ...validVar,
+      id: "fact-priority",
       description: {
         markdown: "Priority level",
       },
@@ -237,6 +238,7 @@ describe("MethodologyFactDefinitionInput", () => {
     expect(result.description).toEqual({
       markdown: "Priority level",
     });
+    expect(result.id).toBe("fact-priority");
     expect(result.cardinality).toBe("one");
   });
 
