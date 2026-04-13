@@ -1,0 +1,29 @@
+packages/db/src/schema/methodology.ts
+  16df42013de6e9ee 903
+packages/db/src/tests/schema/l3-slice-1-schema.test.ts
+  16df42013de6e9ee 69-71
+packages/db/src/methodology-repository.ts
+  16df42013de6e9ee 845,1086-1088
+packages/db/src/tests/repository/workflow-context-fact-list.integration.test.ts
+  16df42013de6e9ee 45-46,71-72,74,77-79,135-136,147-153,156-270
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "bf2a6254966d70cee489be2fb1393b86d07f5fc3",
+  "prompts": {
+    "16df42013de6e9ee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_285c21e1fffe2TVLsiZ644kgK7",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 1,
+      "accepted_lines": 2742,
+      "overriden_lines": 0
+    }
+  }
+}
