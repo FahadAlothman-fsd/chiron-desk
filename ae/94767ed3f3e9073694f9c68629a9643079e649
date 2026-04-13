@@ -1,0 +1,27 @@
+packages/db/src/tests/repository/l3-slice-1-repositories.test.ts
+  16df42013de6e9ee 93-94,114-115,117,120-122,239-241
+packages/db/src/tests/repository/l3-design-time-invoke-branch-repositories.test.ts
+  16df42013de6e9ee 123-124,315,317-318
+packages/db/src/tests/repository/l3-agent-step-design-repositories.test.ts
+  16df42013de6e9ee 70-71,91-92,94,97-99,180,182-183
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "ae94767ed3f3e9073694f9c68629a9643079e649",
+  "prompts": {
+    "16df42013de6e9ee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_285c21e1fffe2TVLsiZ644kgK7",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 2593,
+      "overriden_lines": 0
+    }
+  }
+}
