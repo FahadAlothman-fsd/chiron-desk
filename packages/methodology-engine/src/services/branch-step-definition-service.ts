@@ -145,6 +145,24 @@ const getPlainStringValidationKind = (
   return kind === "path" || kind === "allowed-values" ? kind : "none";
 };
 
+const getExternalStringValidationKind = (
+  fact: WorkflowContextFactDto,
+): "none" | "path" | "allowed-values" => {
+  if (
+    (fact.kind !== "definition_backed_external_fact" && fact.kind !== "bound_external_fact") ||
+    fact.valueType !== "string"
+  ) {
+    return "none";
+  }
+
+  if (!isRecord(fact.validationJson)) {
+    return "none";
+  }
+
+  const kind = fact.validationJson.kind;
+  return kind === "path" || kind === "allowed-values" ? kind : "none";
+};
+
 const getPlainJsonSubFieldMetadata = (
   fact: WorkflowContextFactDto,
   subFieldKey: string,
@@ -299,9 +317,13 @@ const validateConditionReferences = (
               "valueType" in fact &&
               (fact.valueType === "number" ||
                 fact.valueType === "boolean" ||
-                fact.valueType === "json")
+                fact.valueType === "json" ||
+                fact.valueType === "work_unit")
                 ? fact.valueType
-                : "string";
+                : typeof fact.workUnitDefinitionId === "string" &&
+                    fact.workUnitDefinitionId.length > 0
+                  ? "work_unit"
+                  : "string";
 
             return {
               operandType: valueType === "json" ? "json_object" : valueType,
@@ -318,7 +340,11 @@ const validateConditionReferences = (
       operand: ResolvedConditionOperand,
     ): Effect.Effect<void, ValidationDecodeError> =>
       Effect.gen(function* () {
-        if (fact.kind !== "plain_value_fact") {
+        if (
+          fact.kind !== "plain_value_fact" &&
+          fact.kind !== "definition_backed_external_fact" &&
+          fact.kind !== "bound_external_fact"
+        ) {
           return;
         }
 
@@ -356,6 +382,44 @@ const validateConditionReferences = (
 
           if (subFieldKey.length > 0) {
             return new Set<string>();
+          }
+
+          if (
+            fact.kind === "definition_backed_external_fact" ||
+            fact.kind === "bound_external_fact"
+          ) {
+            if (
+              fact.valueType === "work_unit" ||
+              (typeof fact.workUnitDefinitionId === "string" &&
+                fact.workUnitDefinitionId.length > 0)
+            ) {
+              return new Set(["exists", "current_state"]);
+            }
+
+            if (fact.valueType === "string") {
+              const validationKind = getExternalStringValidationKind(fact);
+              if (validationKind === "path") {
+                return new Set(["exists", "exists_in_repo"]);
+              }
+
+              if (validationKind === "allowed-values") {
+                return new Set(["exists", "equals"]);
+              }
+
+              return new Set(["exists", "equals", "contains", "starts_with", "ends_with"]);
+            }
+
+            if (fact.valueType === "number") {
+              return new Set(["exists", "equals", "gt", "gte", "lt", "lte", "between"]);
+            }
+
+            if (fact.valueType === "boolean") {
+              return new Set(["exists", "equals"]);
+            }
+
+            if (fact.valueType === "json") {
+              return new Set(["exists"]);
+            }
           }
 
           if (fact.valueType === "string") {

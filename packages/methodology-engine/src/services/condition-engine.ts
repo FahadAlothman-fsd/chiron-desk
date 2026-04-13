@@ -15,6 +15,7 @@ export type ResolvedConditionOperandType =
   | "string"
   | "number"
   | "boolean"
+  | "work_unit"
   | "workflow_reference"
   | "artifact_reference"
   | "json_object";
@@ -82,6 +83,8 @@ const hasNoComparison = (comparison: unknown): boolean =>
 
 const isStringOperand = (operand: ResolvedConditionOperand) => operand.operandType === "string";
 const isNumberOperand = (operand: ResolvedConditionOperand) => operand.operandType === "number";
+const isWorkUnitOperand = (operand: ResolvedConditionOperand) =>
+  operand.operandType === "work_unit";
 const isJsonObjectOperand = (operand: ResolvedConditionOperand) =>
   operand.operandType === "json_object";
 const isArtifactReferenceOperand = (operand: ResolvedConditionOperand) =>
@@ -188,6 +191,13 @@ export const BuiltInConditionOperators: readonly ConditionOperator[] = [
     requiresComparison: false,
     supportsOperand: (operand) => supportsFreshness(operand),
     validateComparison: (comparison) => hasNoComparison(comparison),
+  },
+  {
+    key: "current_state",
+    label: "Current State",
+    requiresComparison: true,
+    supportsOperand: (operand) => isWorkUnitOperand(operand),
+    validateComparison: (comparison) => hasStringComparableValue(comparison),
   },
 ];
 

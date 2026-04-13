@@ -101,6 +101,41 @@ const contextFacts = [
     artifactSlotDefinitionId: "artifact-prd",
   },
   {
+    contextFactDefinitionId: "ctx-external-path",
+    kind: "definition_backed_external_fact",
+    key: "repositoryRoot",
+    label: "Repository Root",
+    cardinality: "one",
+    externalFactDefinitionId: "ext-repository-root",
+    valueType: "string",
+    validationJson: {
+      kind: "path",
+      pathKind: "directory",
+      normalization: { mode: "posix", trimWhitespace: true },
+      safety: { disallowAbsolute: true, preventTraversal: true },
+    },
+  },
+  {
+    contextFactDefinitionId: "ctx-external-status",
+    kind: "definition_backed_external_fact",
+    key: "repositoryStatus",
+    label: "Repository Status",
+    cardinality: "one",
+    externalFactDefinitionId: "ext-repository-status",
+    valueType: "string",
+    validationJson: { kind: "allowed-values", values: ["draft", "ready"] },
+  },
+  {
+    contextFactDefinitionId: "ctx-external-work-unit",
+    kind: "definition_backed_external_fact",
+    key: "currentStory",
+    label: "Current Story",
+    cardinality: "one",
+    externalFactDefinitionId: "ext-current-story",
+    valueType: "work_unit",
+    workUnitDefinitionId: "wut-story",
+  },
+  {
     contextFactDefinitionId: "ctx-story-draft",
     kind: "work_unit_draft_spec_fact",
     key: "storyDraft",
@@ -1310,6 +1345,154 @@ describe("l3 invoke step definition service", () => {
                           subFieldKey: "status",
                           operator: "equals",
                           comparisonJson: { value: "ready" },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+          "user-1",
+        );
+      }).pipe(Effect.provide(layer)),
+    );
+
+    expect(created.stepId).toBe("step-branch-1");
+  });
+
+  it("branch accepts definition-backed external fact operators across string and work-unit variations", async () => {
+    const { layer } = makeLayer();
+
+    const created = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* BranchStepDefinitionService;
+        return yield* service.createBranchStep(
+          {
+            versionId: "ver-1",
+            workUnitTypeKey: "WU.STORY",
+            workflowDefinitionId: "wf-1",
+            payload: {
+              ...branchPayload,
+              routes: [
+                {
+                  ...branchPayload.routes[0]!,
+                  groups: [
+                    {
+                      ...branchPayload.routes[0]!.groups[0]!,
+                      conditions: [
+                        {
+                          ...branchPayload.routes[0]!.groups[0]!.conditions[0]!,
+                          contextFactDefinitionId: "ctx-external-path",
+                          subFieldKey: null,
+                          operator: "exists_in_repo",
+                          comparisonJson: null,
+                        },
+                        {
+                          ...branchPayload.routes[0]!.groups[0]!.conditions[0]!,
+                          conditionId: "cond-external-status",
+                          contextFactDefinitionId: "ctx-external-status",
+                          subFieldKey: null,
+                          operator: "equals",
+                          comparisonJson: { value: "ready" },
+                        },
+                        {
+                          ...branchPayload.routes[0]!.groups[0]!.conditions[0]!,
+                          conditionId: "cond-external-current-state",
+                          contextFactDefinitionId: "ctx-external-work-unit",
+                          subFieldKey: null,
+                          operator: "current_state",
+                          comparisonJson: { value: "ready" },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+          "user-1",
+        );
+      }).pipe(Effect.provide(layer)),
+    );
+
+    expect(created.stepId).toBe("step-branch-1");
+  });
+
+  it("branch infers work-unit external fact operators from workUnitDefinitionId when valueType is absent", async () => {
+    const { layer } = makeLayer({
+      contextFacts: contextFacts.map((fact) =>
+        fact.contextFactDefinitionId === "ctx-external-work-unit"
+          ? { ...fact, valueType: undefined }
+          : fact,
+      ),
+    });
+
+    const created = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* BranchStepDefinitionService;
+        return yield* service.createBranchStep(
+          {
+            versionId: "ver-1",
+            workUnitTypeKey: "WU.STORY",
+            workflowDefinitionId: "wf-1",
+            payload: {
+              ...branchPayload,
+              routes: [
+                {
+                  ...branchPayload.routes[0]!,
+                  groups: [
+                    {
+                      ...branchPayload.routes[0]!.groups[0]!,
+                      conditions: [
+                        {
+                          ...branchPayload.routes[0]!.groups[0]!.conditions[0]!,
+                          contextFactDefinitionId: "ctx-external-work-unit",
+                          subFieldKey: null,
+                          operator: "current_state",
+                          comparisonJson: { value: "ready" },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+          "user-1",
+        );
+      }).pipe(Effect.provide(layer)),
+    );
+
+    expect(created.stepId).toBe("step-branch-1");
+  });
+
+  it("branch accepts the activation pseudo-state for external work-unit current_state conditions", async () => {
+    const { layer } = makeLayer();
+
+    const created = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* BranchStepDefinitionService;
+        return yield* service.createBranchStep(
+          {
+            versionId: "ver-1",
+            workUnitTypeKey: "WU.STORY",
+            workflowDefinitionId: "wf-1",
+            payload: {
+              ...branchPayload,
+              routes: [
+                {
+                  ...branchPayload.routes[0]!,
+                  groups: [
+                    {
+                      ...branchPayload.routes[0]!.groups[0]!,
+                      conditions: [
+                        {
+                          ...branchPayload.routes[0]!.groups[0]!.conditions[0]!,
+                          contextFactDefinitionId: "ctx-external-work-unit",
+                          subFieldKey: null,
+                          operator: "current_state",
+                          comparisonJson: { value: "__absent__" },
                         },
                       ],
                     },
