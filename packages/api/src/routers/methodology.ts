@@ -164,7 +164,8 @@ const workflowContextFactSchema: z.ZodType<WorkflowContextFactDtoContract> = z.d
       validationJson: z.unknown().optional(),
       cardinality: z.enum(["one", "many"]),
       externalFactDefinitionId: z.string().min(1),
-      valueType: z.enum(["string", "number", "boolean", "json"]).optional(),
+      valueType: z.enum(["string", "number", "boolean", "json", "work_unit"]).optional(),
+      workUnitDefinitionId: z.string().min(1).optional(),
     }),
     z.object({
       kind: z.literal("bound_external_fact"),
@@ -176,7 +177,8 @@ const workflowContextFactSchema: z.ZodType<WorkflowContextFactDtoContract> = z.d
       validationJson: z.unknown().optional(),
       cardinality: z.enum(["one", "many"]),
       externalFactDefinitionId: z.string().min(1),
-      valueType: z.enum(["string", "number", "boolean", "json"]).optional(),
+      valueType: z.enum(["string", "number", "boolean", "json", "work_unit"]).optional(),
+      workUnitDefinitionId: z.string().min(1).optional(),
     }),
     z.object({
       kind: z.literal("workflow_reference_fact"),

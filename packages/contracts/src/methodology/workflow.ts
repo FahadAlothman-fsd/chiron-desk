@@ -2,6 +2,7 @@ import * as Schema from "effect/Schema";
 import { AudienceGuidance } from "./guidance.js";
 import { DescriptionJson } from "../shared/invariants.js";
 import { WorkflowDefinition } from "./version.js";
+import { FactType } from "./fact.js";
 
 export const WorkflowEditorRouteIdentity = Schema.Struct({
   methodologyId: Schema.NonEmptyString,
@@ -51,6 +52,9 @@ export type WorkflowContextFactKind = typeof WorkflowContextFactKind.Type;
 export const WorkflowContextFactCardinality = Schema.Literal("one", "many");
 export type WorkflowContextFactCardinality = typeof WorkflowContextFactCardinality.Type;
 
+export const WorkflowContextFactValueType = FactType;
+export type WorkflowContextFactValueType = typeof WorkflowContextFactValueType.Type;
+
 const WorkflowContextFactMetadata = Schema.Struct({
   contextFactDefinitionId: Schema.optional(Schema.NonEmptyString),
   label: Schema.optional(Schema.String),
@@ -71,14 +75,16 @@ export const WorkflowContextFactDto = Schema.Union(
     key: Schema.NonEmptyString,
     cardinality: WorkflowContextFactCardinality,
     externalFactDefinitionId: Schema.NonEmptyString,
-    valueType: Schema.optional(FormFieldValueType),
+    valueType: Schema.optional(WorkflowContextFactValueType),
+    workUnitDefinitionId: Schema.optional(Schema.NonEmptyString),
   }).pipe(Schema.extend(WorkflowContextFactMetadata)),
   Schema.Struct({
     kind: Schema.Literal("bound_external_fact"),
     key: Schema.NonEmptyString,
     cardinality: WorkflowContextFactCardinality,
     externalFactDefinitionId: Schema.NonEmptyString,
-    valueType: Schema.optional(FormFieldValueType),
+    valueType: Schema.optional(WorkflowContextFactValueType),
+    workUnitDefinitionId: Schema.optional(Schema.NonEmptyString),
   }).pipe(Schema.extend(WorkflowContextFactMetadata)),
   Schema.Struct({
     kind: Schema.Literal("workflow_reference_fact"),
