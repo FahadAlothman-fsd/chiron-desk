@@ -86,6 +86,14 @@ function toErrorMessage(error: unknown): string {
   return String(error);
 }
 
+function titleizeKey(value: string) {
+  return value
+    .split(/[_:\-.]+/)
+    .filter((segment) => segment.length > 0)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
+}
+
 function parseBranchProjectedEdgeMetadata(value: unknown): {
   edgeOwner: NonNullable<WorkflowEditorEdge["edgeOwner"]>;
   branchStepId: string;
@@ -215,21 +223,22 @@ const BUILT_IN_CONDITION_OPERATORS: readonly WorkflowConditionOperator[] = [
     key: "contains",
     label: "Contains",
     requiresComparison: true,
-    supportsOperand: (operand) => isStringOperand(operand),
+    supportsOperand: (operand) =>
+      isStringOperand(operand) && (isScalarOperand(operand) || isManyOperand(operand)),
     validateComparison: (comparison) => hasStringComparisonValue(comparison),
   },
   {
     key: "starts_with",
     label: "Starts With",
     requiresComparison: true,
-    supportsOperand: (operand) => isStringOperand(operand),
+    supportsOperand: (operand) => isStringOperand(operand) && isScalarOperand(operand),
     validateComparison: (comparison) => hasStringComparisonValue(comparison),
   },
   {
     key: "ends_with",
     label: "Ends With",
     requiresComparison: true,
-    supportsOperand: (operand) => isStringOperand(operand),
+    supportsOperand: (operand) => isStringOperand(operand) && isScalarOperand(operand),
     validateComparison: (comparison) => hasStringComparisonValue(comparison),
   },
   {
