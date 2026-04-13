@@ -1,0 +1,25 @@
+packages/scripts/src/tests/seeding/l3-brainstorming-demo-fixture.test.ts
+  16df42013de6e9ee 1-105
+packages/scripts/src/seed/methodology/setup/brainstorming-demo-fixture.ts
+  16df42013de6e9ee 1-1357
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "9f238764d65c1f2c47f0a8785d89b7788bfc60f7",
+  "prompts": {
+    "16df42013de6e9ee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_285c21e1fffe2TVLsiZ644kgK7",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 397,
+      "total_deletions": 99,
+      "accepted_lines": 1599,
+      "overriden_lines": 0
+    }
+  }
+}
