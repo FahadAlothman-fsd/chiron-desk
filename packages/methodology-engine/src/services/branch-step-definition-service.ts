@@ -145,10 +145,13 @@ const getPlainStringValidationKind = (
   return kind === "path" || kind === "allowed-values" ? kind : "none";
 };
 
-const getPlainJsonSubFieldType = (
+const getPlainJsonSubFieldMetadata = (
   fact: WorkflowContextFactDto,
   subFieldKey: string,
-): "string" | "number" | "boolean" | null => {
+): {
+  operandType: "string" | "number" | "boolean";
+  validationKind: "none" | "path" | "allowed-values";
+} | null => {
   if (fact.kind !== "plain_value_fact" || fact.valueType !== "json") {
     return null;
   }
@@ -164,11 +167,24 @@ const getPlainJsonSubFieldType = (
     return null;
   }
 
-  return matchedField.type === "string" ||
+  const operandType =
+    matchedField.type === "string" ||
     matchedField.type === "number" ||
     matchedField.type === "boolean"
-    ? matchedField.type
-    : null;
+      ? matchedField.type
+      : null;
+  if (!operandType) {
+    return null;
+  }
+
+  const validation = isRecord(matchedField.validation) ? matchedField.validation : null;
+  const validationKind =
+    operandType === "string" &&
+    (validation?.kind === "path" || validation?.kind === "allowed-values")
+      ? validation.kind
+      : "none";
+
+  return { operandType, validationKind };
 };
 
 const validateConditionReferences = (
@@ -187,8 +203,8 @@ const validateConditionReferences = (
         const subFieldKey = condition.subFieldKey?.trim() ?? "";
         if (subFieldKey.length > 0) {
           if (fact.kind === "plain_value_fact" && fact.valueType === "json") {
-            const subFieldType = getPlainJsonSubFieldType(fact, subFieldKey);
-            if (!subFieldType) {
+            const subField = getPlainJsonSubFieldMetadata(fact, subFieldKey);
+            if (!subField) {
               return yield* new ValidationDecodeError({
                 message:
                   `Branch condition '${condition.conditionId}' references unknown plain-json ` +
@@ -197,7 +213,7 @@ const validateConditionReferences = (
             }
 
             return {
-              operandType: subFieldType,
+              operandType: subField.operandType,
               cardinality: fact.cardinality,
               freshnessCapable: false,
             } as const;
@@ -315,6 +331,15 @@ const validateConditionReferences = (
             }
 
             if (operand.operandType === "string") {
+              const subField = getPlainJsonSubFieldMetadata(fact, subFieldKey);
+              if (subField?.validationKind === "path") {
+                return new Set(["exists", "exists_in_repo"]);
+              }
+
+              if (subField?.validationKind === "allowed-values") {
+                return new Set(["exists", "equals"]);
+              }
+
               return new Set(["equals", "contains", "starts_with", "ends_with"]);
             }
 

@@ -59,6 +59,7 @@ const contextFacts = [
         type: "object",
         additionalProperties: false,
         properties: {
+          title: { type: "string" },
           path: { type: "string" },
           estimatedHours: { type: "number" },
           isCritical: { type: "boolean" },
@@ -67,7 +68,24 @@ const contextFacts = [
       subSchema: {
         type: "object",
         fields: [
-          { key: "path", type: "string", cardinality: "one" },
+          { key: "title", type: "string", cardinality: "one" },
+          {
+            key: "path",
+            type: "string",
+            cardinality: "one",
+            validation: {
+              kind: "path",
+              pathKind: "directory",
+              normalization: { mode: "posix", trimWhitespace: true },
+              safety: { disallowAbsolute: true, preventTraversal: true },
+            },
+          },
+          {
+            key: "status",
+            type: "string",
+            cardinality: "one",
+            validation: { kind: "allowed-values", values: ["draft", "ready"] },
+          },
           { key: "estimatedHours", type: "number", cardinality: "one" },
           { key: "isCritical", type: "boolean", cardinality: "one" },
         ],
@@ -1231,9 +1249,9 @@ describe("l3 invoke step definition service", () => {
                         {
                           ...branchPayload.routes[0]!.groups[0]!.conditions[0]!,
                           contextFactDefinitionId: "ctx-json-metadata",
-                          subFieldKey: "path",
+                          subFieldKey: "title",
                           operator: "starts_with",
-                          comparisonJson: { value: "src/" },
+                          comparisonJson: { value: "Project" },
                         },
                         {
                           ...branchPayload.routes[0]!.groups[0]!.conditions[0]!,
@@ -1242,6 +1260,56 @@ describe("l3 invoke step definition service", () => {
                           subFieldKey: "estimatedHours",
                           operator: "between",
                           comparisonJson: { min: 1, max: 8 },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+          "user-1",
+        );
+      }).pipe(Effect.provide(layer)),
+    );
+
+    expect(created.stepId).toBe("step-branch-1");
+  });
+
+  it("branch accepts path and allowed-values operators for plain-json string subfields", async () => {
+    const { layer } = makeLayer();
+
+    const created = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* BranchStepDefinitionService;
+        return yield* service.createBranchStep(
+          {
+            versionId: "ver-1",
+            workUnitTypeKey: "WU.STORY",
+            workflowDefinitionId: "wf-1",
+            payload: {
+              ...branchPayload,
+              routes: [
+                {
+                  ...branchPayload.routes[0]!,
+                  groups: [
+                    {
+                      ...branchPayload.routes[0]!.groups[0]!,
+                      conditions: [
+                        {
+                          ...branchPayload.routes[0]!.groups[0]!.conditions[0]!,
+                          contextFactDefinitionId: "ctx-json-metadata",
+                          subFieldKey: "path",
+                          operator: "exists_in_repo",
+                          comparisonJson: null,
+                        },
+                        {
+                          ...branchPayload.routes[0]!.groups[0]!.conditions[0]!,
+                          conditionId: "cond-status-ready",
+                          contextFactDefinitionId: "ctx-json-metadata",
+                          subFieldKey: "status",
+                          operator: "equals",
+                          comparisonJson: { value: "ready" },
                         },
                       ],
                     },
