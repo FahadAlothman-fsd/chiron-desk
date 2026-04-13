@@ -231,16 +231,23 @@ const CONTEXT_FACT_KIND_OPTIONS = [
 const CARDINALITY_OPTIONS = ["one", "many"] as const;
 
 const VALUE_TYPE_OPTIONS = ["string", "number", "boolean", "json"] as const;
+const JSON_SUB_SCHEMA_VALUE_TYPE_OPTIONS = ["string", "number", "boolean"] as const;
 
 type JsonSubSchemaDraft = {
   localId: string;
   displayName: string;
   key: string;
-  defaultValue: string;
-  valueType: (typeof VALUE_TYPE_OPTIONS)[number];
+  valueType: (typeof JSON_SUB_SCHEMA_VALUE_TYPE_OPTIONS)[number];
+  stringValidationType: PlainStringValidationType;
+  stringAllowedValues: string[];
+  pendingStringAllowedValueTag: string;
+  stringPathKind: "file" | "directory";
+  stringTrimWhitespace: boolean;
+  stringDisallowAbsolute: boolean;
+  stringPreventTraversal: boolean;
 };
 
-type PlainStringValidationType = "none" | "path" | "regex" | "allowed-values";
+type PlainStringValidationType = "none" | "path" | "allowed-values";
 
 type WorkUnitDraftFactCard = {
   localId: string;
@@ -272,7 +279,6 @@ type WorkflowContextFactDialogSnapshot = {
     plainStringTrimWhitespace: boolean;
     plainStringDisallowAbsolute: boolean;
     plainStringPreventTraversal: boolean;
-    plainStringRegexPattern: string;
     pendingAllowedValueTag: string;
     allowedValueTags: string[];
     jsonSubSchemaDrafts: Array<Omit<JsonSubSchemaDraft, "localId">>;
@@ -329,6 +335,7 @@ function toContextFactDraft(
     selectedArtifactSlotDefinitionIds: fact?.selectedArtifactSlotDefinitionIds ?? [],
     workUnitTypeKey: fact?.workUnitTypeKey ?? "",
     includedFactDefinitionIds: fact?.includedFactDefinitionIds ?? [],
+    validationJson: fact?.validationJson,
   };
 }
 
@@ -340,7 +347,6 @@ function toWorkflowContextFactDialogSnapshot(params: {
   plainStringTrimWhitespace: boolean;
   plainStringDisallowAbsolute: boolean;
   plainStringPreventTraversal: boolean;
-  plainStringRegexPattern: string;
   pendingAllowedValueTag: string;
   allowedValueTags: readonly string[];
   jsonSubSchemaDrafts: readonly JsonSubSchemaDraft[];
@@ -371,7 +377,6 @@ function toWorkflowContextFactDialogSnapshot(params: {
       plainStringTrimWhitespace: params.plainStringTrimWhitespace,
       plainStringDisallowAbsolute: params.plainStringDisallowAbsolute,
       plainStringPreventTraversal: params.plainStringPreventTraversal,
-      plainStringRegexPattern: params.plainStringRegexPattern,
       pendingAllowedValueTag: params.pendingAllowedValueTag,
       allowedValueTags: [...params.allowedValueTags],
       jsonSubSchemaDrafts: params.jsonSubSchemaDrafts.map(({ localId: _localId, ...entry }) => ({
@@ -470,8 +475,278 @@ function createEmptyJsonSubSchemaDraft(
     localId: createLocalId("json-sub-schema"),
     displayName: "",
     key: nextKey,
-    defaultValue: "",
     valueType: "string",
+    stringValidationType: "none",
+    stringAllowedValues: [],
+    pendingStringAllowedValueTag: "",
+    stringPathKind: "file",
+    stringTrimWhitespace: true,
+    stringDisallowAbsolute: true,
+    stringPreventTraversal: true,
+  };
+}
+
+function toStringValidationState(validationJson: unknown): {
+  kind: PlainStringValidationType;
+  pathKind: "file" | "directory";
+  trimWhitespace: boolean;
+  disallowAbsolute: boolean;
+  preventTraversal: boolean;
+  allowedValues: string[];
+} {
+  const base = {
+    kind: "none" as PlainStringValidationType,
+    pathKind: "file" as const,
+    trimWhitespace: true,
+    disallowAbsolute: true,
+    preventTraversal: true,
+    allowedValues: [] as string[],
+  };
+
+  if (typeof validationJson !== "object" || validationJson === null) {
+    return base;
+  }
+
+  const kind = "kind" in validationJson ? (validationJson as { kind?: unknown }).kind : undefined;
+  if (kind === "allowed-values") {
+    const values =
+      "values" in validationJson && Array.isArray((validationJson as { values?: unknown }).values)
+        ? (validationJson as { values: unknown[] }).values
+            .filter((entry): entry is string => typeof entry === "string")
+            .map((entry) => entry.trim())
+            .filter((entry) => entry.length > 0)
+        : [];
+
+    return {
+      ...base,
+      kind: "allowed-values",
+      allowedValues: values,
+    };
+  }
+
+  if (kind !== "path") {
+    return base;
+  }
+
+  const pathKind =
+    "pathKind" in validationJson ? (validationJson as { pathKind?: unknown }).pathKind : undefined;
+  const normalization =
+    "normalization" in validationJson
+      ? (validationJson as { normalization?: unknown }).normalization
+      : undefined;
+  const safety =
+    "safety" in validationJson ? (validationJson as { safety?: unknown }).safety : undefined;
+
+  const trimWhitespace =
+    typeof normalization === "object" &&
+    normalization !== null &&
+    "trimWhitespace" in normalization &&
+    typeof (normalization as { trimWhitespace?: unknown }).trimWhitespace === "boolean"
+      ? (normalization as { trimWhitespace: boolean }).trimWhitespace
+      : true;
+  const disallowAbsolute =
+    typeof safety === "object" &&
+    safety !== null &&
+    "disallowAbsolute" in safety &&
+    typeof (safety as { disallowAbsolute?: unknown }).disallowAbsolute === "boolean"
+      ? (safety as { disallowAbsolute: boolean }).disallowAbsolute
+      : true;
+  const preventTraversal =
+    typeof safety === "object" &&
+    safety !== null &&
+    "preventTraversal" in safety &&
+    typeof (safety as { preventTraversal?: unknown }).preventTraversal === "boolean"
+      ? (safety as { preventTraversal: boolean }).preventTraversal
+      : true;
+
+  return {
+    ...base,
+    kind: "path",
+    pathKind: pathKind === "directory" ? "directory" : "file",
+    trimWhitespace,
+    disallowAbsolute,
+    preventTraversal,
+  };
+}
+
+function toJsonSubSchemaDraftsFromValidation(validationJson: unknown): JsonSubSchemaDraft[] {
+  if (typeof validationJson !== "object" || validationJson === null) {
+    return [];
+  }
+
+  const kind = "kind" in validationJson ? (validationJson as { kind?: unknown }).kind : undefined;
+  const subSchema =
+    "subSchema" in validationJson
+      ? (validationJson as { subSchema?: unknown }).subSchema
+      : undefined;
+  if (kind !== "json-schema" || typeof subSchema !== "object" || subSchema === null) {
+    return [];
+  }
+
+  const fields =
+    "fields" in subSchema && Array.isArray((subSchema as { fields?: unknown }).fields)
+      ? ((subSchema as { fields: unknown[] }).fields ?? [])
+      : [];
+
+  return fields
+    .map((field, index) => {
+      if (typeof field !== "object" || field === null) {
+        return null;
+      }
+
+      const key = "key" in field ? (field as { key?: unknown }).key : undefined;
+      const type = "type" in field ? (field as { type?: unknown }).type : undefined;
+      if (typeof key !== "string" || key.trim().length === 0) {
+        return null;
+      }
+
+      const valueType =
+        type === "string" || type === "number" || type === "boolean" ? type : "string";
+      const displayName =
+        "displayName" in field ? (field as { displayName?: unknown }).displayName : undefined;
+      const validation =
+        "validation" in field ? (field as { validation?: unknown }).validation : undefined;
+      const stringValidation = toStringValidationState(validation);
+
+      return {
+        localId: createLocalId(`json-sub-schema-${index + 1}`),
+        key,
+        valueType,
+        displayName: typeof displayName === "string" ? displayName : "",
+        stringValidationType: stringValidation.kind,
+        stringAllowedValues: stringValidation.allowedValues,
+        pendingStringAllowedValueTag: "",
+        stringPathKind: stringValidation.pathKind,
+        stringTrimWhitespace: stringValidation.trimWhitespace,
+        stringDisallowAbsolute: stringValidation.disallowAbsolute,
+        stringPreventTraversal: stringValidation.preventTraversal,
+      } satisfies JsonSubSchemaDraft;
+    })
+    .filter((entry): entry is JsonSubSchemaDraft => entry !== null);
+}
+
+function buildJsonSubSchemaStringValidation(entry: JsonSubSchemaDraft): unknown {
+  if (entry.valueType !== "string") {
+    return undefined;
+  }
+
+  if (entry.stringValidationType === "path") {
+    return {
+      kind: "path",
+      pathKind: entry.stringPathKind,
+      normalization: {
+        mode: "posix",
+        trimWhitespace: entry.stringTrimWhitespace,
+      },
+      safety: {
+        disallowAbsolute: entry.stringDisallowAbsolute,
+        preventTraversal: entry.stringPreventTraversal,
+      },
+    };
+  }
+
+  if (entry.stringValidationType === "allowed-values") {
+    const values = entry.stringAllowedValues;
+
+    return values.length > 0
+      ? {
+          kind: "allowed-values",
+          values,
+        }
+      : undefined;
+  }
+
+  return undefined;
+}
+
+function buildPlainValueValidationJson(params: {
+  valueType: "string" | "number" | "boolean" | "json";
+  plainStringValidationType: PlainStringValidationType;
+  plainStringPathKind: "file" | "directory";
+  plainStringTrimWhitespace: boolean;
+  plainStringDisallowAbsolute: boolean;
+  plainStringPreventTraversal: boolean;
+  allowedValueTags: readonly string[];
+  jsonSubSchemaDrafts: readonly JsonSubSchemaDraft[];
+}) {
+  if (params.valueType === "string") {
+    if (params.plainStringValidationType === "allowed-values") {
+      const values = params.allowedValueTags
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0);
+      return values.length > 0
+        ? {
+            kind: "allowed-values" as const,
+            values,
+          }
+        : undefined;
+    }
+
+    if (params.plainStringValidationType === "path") {
+      return {
+        kind: "path" as const,
+        pathKind: params.plainStringPathKind,
+        normalization: {
+          mode: "posix" as const,
+          trimWhitespace: params.plainStringTrimWhitespace,
+        },
+        safety: {
+          disallowAbsolute: params.plainStringDisallowAbsolute,
+          preventTraversal: params.plainStringPreventTraversal,
+        },
+      };
+    }
+
+    return undefined;
+  }
+
+  if (params.valueType !== "json") {
+    return undefined;
+  }
+
+  const fields = params.jsonSubSchemaDrafts
+    .map((entry) => {
+      const key = entry.key.trim();
+      if (key.length === 0) {
+        return null;
+      }
+
+      return {
+        key,
+        ...(entry.displayName.trim().length > 0 ? { displayName: entry.displayName.trim() } : {}),
+        type: entry.valueType,
+        cardinality: "one" as const,
+        ...(typeof buildJsonSubSchemaStringValidation(entry) === "undefined"
+          ? {}
+          : { validation: buildJsonSubSchemaStringValidation(entry) }),
+      };
+    })
+    .filter(
+      (
+        entry,
+      ): entry is {
+        key: string;
+        displayName?: string;
+        type: "string" | "number" | "boolean";
+        cardinality: "one";
+        validation?: unknown;
+      } => entry !== null,
+    );
+
+  const properties = Object.fromEntries(fields.map((entry) => [entry.key, { type: entry.type }]));
+
+  return {
+    kind: "json-schema" as const,
+    schemaDialect: "draft-2020-12",
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      properties,
+    },
+    subSchema: {
+      type: "object" as const,
+      fields,
+    },
   };
 }
 
@@ -3474,7 +3749,6 @@ export function WorkflowContextFactDialog({
   const [plainStringTrimWhitespace, setPlainStringTrimWhitespace] = useState(true);
   const [plainStringDisallowAbsolute, setPlainStringDisallowAbsolute] = useState(true);
   const [plainStringPreventTraversal, setPlainStringPreventTraversal] = useState(true);
-  const [plainStringRegexPattern, setPlainStringRegexPattern] = useState("");
   const [pendingAllowedValueTag, setPendingAllowedValueTag] = useState("");
   const [allowedValueTags, setAllowedValueTags] = useState<string[]>([]);
   const [jsonSubSchemaDrafts, setJsonSubSchemaDrafts] = useState<JsonSubSchemaDraft[]>([]);
@@ -3612,18 +3886,21 @@ export function WorkflowContextFactDialog({
     }
 
     const nextDraft = toContextFactDraft(fact);
+    const nextStringValidation = toStringValidationState(nextDraft.validationJson);
     const nextPlainStringDefaultValue = "";
-    const nextPlainStringValidationType = "none" as const;
-    const nextPlainStringPathKind = "file" as const;
-    const nextPlainStringTrimWhitespace = true;
-    const nextPlainStringDisallowAbsolute = true;
-    const nextPlainStringPreventTraversal = true;
-    const nextPlainStringRegexPattern = "";
+    const nextPlainStringValidationType = nextStringValidation.kind;
+    const nextPlainStringPathKind = nextStringValidation.pathKind;
+    const nextPlainStringTrimWhitespace = nextStringValidation.trimWhitespace;
+    const nextPlainStringDisallowAbsolute = nextStringValidation.disallowAbsolute;
+    const nextPlainStringPreventTraversal = nextStringValidation.preventTraversal;
     const nextPendingAllowedValueTag = "";
-    const nextAllowedValueTags: string[] = [];
+    const nextAllowedValueTags: string[] = [...nextStringValidation.allowedValues];
     const nextJsonSubSchemaDrafts =
       nextDraft.kind === "plain_value_fact" && nextDraft.valueType === "json"
-        ? [createEmptyJsonSubSchemaDraft([])]
+        ? (() => {
+            const parsed = toJsonSubSchemaDraftsFromValidation(nextDraft.validationJson);
+            return parsed.length > 0 ? parsed : [createEmptyJsonSubSchemaDraft([])];
+          })()
         : [];
     const nextPendingIncludedFactDefinitionId = "";
     const nextPendingIncludedArtifactSlotDefinitionId = "";
@@ -3640,7 +3917,6 @@ export function WorkflowContextFactDialog({
     setPlainStringTrimWhitespace(nextPlainStringTrimWhitespace);
     setPlainStringDisallowAbsolute(nextPlainStringDisallowAbsolute);
     setPlainStringPreventTraversal(nextPlainStringPreventTraversal);
-    setPlainStringRegexPattern(nextPlainStringRegexPattern);
     setPendingAllowedValueTag(nextPendingAllowedValueTag);
     setAllowedValueTags(nextAllowedValueTags);
     setJsonSubSchemaDrafts(nextJsonSubSchemaDrafts);
@@ -3656,7 +3932,6 @@ export function WorkflowContextFactDialog({
         plainStringTrimWhitespace: nextPlainStringTrimWhitespace,
         plainStringDisallowAbsolute: nextPlainStringDisallowAbsolute,
         plainStringPreventTraversal: nextPlainStringPreventTraversal,
-        plainStringRegexPattern: nextPlainStringRegexPattern,
         pendingAllowedValueTag: nextPendingAllowedValueTag,
         allowedValueTags: nextAllowedValueTags,
         jsonSubSchemaDrafts: nextJsonSubSchemaDrafts,
@@ -3719,7 +3994,6 @@ export function WorkflowContextFactDialog({
         plainStringTrimWhitespace,
         plainStringDisallowAbsolute,
         plainStringPreventTraversal,
-        plainStringRegexPattern,
         pendingAllowedValueTag,
         allowedValueTags,
         jsonSubSchemaDrafts,
@@ -3737,7 +4011,6 @@ export function WorkflowContextFactDialog({
       plainStringDisallowAbsolute,
       plainStringPathKind,
       plainStringPreventTraversal,
-      plainStringRegexPattern,
       plainStringTrimWhitespace,
       plainStringValidationType,
     ],
@@ -3806,8 +4079,23 @@ export function WorkflowContextFactDialog({
                 return;
               }
 
+              const nextValidationJson =
+                draft.kind === "plain_value_fact"
+                  ? buildPlainValueValidationJson({
+                      valueType: draft.valueType ?? "string",
+                      plainStringValidationType,
+                      plainStringPathKind,
+                      plainStringTrimWhitespace,
+                      plainStringDisallowAbsolute,
+                      plainStringPreventTraversal,
+                      allowedValueTags,
+                      jsonSubSchemaDrafts,
+                    })
+                  : draft.validationJson;
+
               void onSave({
                 ...draft,
+                validationJson: nextValidationJson,
                 key: draft.key.trim(),
                 label: draft.label.trim(),
                 descriptionMarkdown: draft.descriptionMarkdown.trim(),
@@ -3930,7 +4218,6 @@ export function WorkflowContextFactDialog({
                           setPlainStringTrimWhitespace(true);
                           setPlainStringDisallowAbsolute(true);
                           setPlainStringPreventTraversal(true);
-                          setPlainStringRegexPattern("");
                           setPendingAllowedValueTag("");
                           setAllowedValueTags([]);
                           setJsonSubSchemaDrafts([]);
@@ -4098,28 +4385,10 @@ export function WorkflowContextFactDialog({
                                 <SelectContent className="rounded-none">
                                   <SelectItem value="none">none</SelectItem>
                                   <SelectItem value="path">path</SelectItem>
-                                  <SelectItem value="regex">regex</SelectItem>
                                   <SelectItem value="allowed-values">allowed-values</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
-
-                            {plainStringValidationType === "regex" ? (
-                              <div className="grid gap-2">
-                                <Label htmlFor="workflow-editor-context-fact-string-regex-pattern">
-                                  Regex Pattern
-                                </Label>
-                                <Input
-                                  id="workflow-editor-context-fact-string-regex-pattern"
-                                  className="rounded-none border-border/70 bg-background/50"
-                                  value={plainStringRegexPattern}
-                                  onChange={(event) =>
-                                    setPlainStringRegexPattern(event.target.value)
-                                  }
-                                  placeholder="^src/.+\\.tsx$"
-                                />
-                              </div>
-                            ) : null}
 
                             {plainStringValidationType === "allowed-values" ? (
                               <div className="grid gap-3 lg:col-span-2">
@@ -4357,31 +4626,6 @@ export function WorkflowContextFactDialog({
                                     </div>
                                     <div className="grid gap-2">
                                       <Label
-                                        htmlFor={`workflow-editor-json-default-value-${entry.localId}`}
-                                      >
-                                        Default Value
-                                      </Label>
-                                      <Input
-                                        id={`workflow-editor-json-default-value-${entry.localId}`}
-                                        className="rounded-none border-border/70 bg-background/50"
-                                        value={entry.defaultValue}
-                                        onChange={(event) =>
-                                          setJsonSubSchemaDrafts((current) =>
-                                            current.map((currentEntry) =>
-                                              currentEntry.localId === entry.localId
-                                                ? {
-                                                    ...currentEntry,
-                                                    defaultValue: event.target.value,
-                                                  }
-                                                : currentEntry,
-                                            ),
-                                          )
-                                        }
-                                        placeholder="./docs"
-                                      />
-                                    </div>
-                                    <div className="grid gap-2">
-                                      <Label
                                         htmlFor={`workflow-editor-json-value-type-${entry.localId}`}
                                       >
                                         Value Type
@@ -4397,8 +4641,7 @@ export function WorkflowContextFactDialog({
                                                     valueType: (value ?? "string") as
                                                       | "string"
                                                       | "number"
-                                                      | "boolean"
-                                                      | "json",
+                                                      | "boolean",
                                                   }
                                                 : currentEntry,
                                             ),
@@ -4412,7 +4655,7 @@ export function WorkflowContextFactDialog({
                                           <SelectValue placeholder="Select value type" />
                                         </SelectTrigger>
                                         <SelectContent className="rounded-none">
-                                          {VALUE_TYPE_OPTIONS.map((valueType) => (
+                                          {JSON_SUB_SCHEMA_VALUE_TYPE_OPTIONS.map((valueType) => (
                                             <SelectItem key={valueType} value={valueType}>
                                               {valueType}
                                             </SelectItem>
@@ -4420,6 +4663,310 @@ export function WorkflowContextFactDialog({
                                         </SelectContent>
                                       </Select>
                                     </div>
+
+                                    {entry.valueType === "string" ? (
+                                      <div className="grid gap-3 lg:col-span-2">
+                                        <div className="grid gap-2 lg:max-w-sm">
+                                          <Label
+                                            htmlFor={`workflow-editor-json-string-validation-type-${entry.localId}`}
+                                          >
+                                            String Validation
+                                          </Label>
+                                          <Select
+                                            value={entry.stringValidationType}
+                                            onValueChange={(value) =>
+                                              setJsonSubSchemaDrafts((current) =>
+                                                current.map((currentEntry) =>
+                                                  currentEntry.localId === entry.localId
+                                                    ? {
+                                                        ...currentEntry,
+                                                        stringValidationType:
+                                                          value === "path" ||
+                                                          value === "allowed-values"
+                                                            ? value
+                                                            : "none",
+                                                      }
+                                                    : currentEntry,
+                                                ),
+                                              )
+                                            }
+                                          >
+                                            <SelectTrigger
+                                              id={`workflow-editor-json-string-validation-type-${entry.localId}`}
+                                              className="w-full rounded-none border-border/70 bg-background/50"
+                                            >
+                                              <SelectValue placeholder="Select string validation" />
+                                            </SelectTrigger>
+                                            <SelectContent className="rounded-none">
+                                              <SelectItem value="none">none</SelectItem>
+                                              <SelectItem value="path">path</SelectItem>
+                                              <SelectItem value="allowed-values">
+                                                allowed-values
+                                              </SelectItem>
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
+
+                                        {entry.stringValidationType === "allowed-values" ? (
+                                          <div className="grid gap-3">
+                                            <Label
+                                              htmlFor={`workflow-editor-json-string-allowed-value-input-${entry.localId}`}
+                                            >
+                                              Allowed Values
+                                            </Label>
+                                            <div className="flex flex-col gap-2 sm:flex-row">
+                                              <Input
+                                                id={`workflow-editor-json-string-allowed-value-input-${entry.localId}`}
+                                                className="rounded-none border-border/70 bg-background/50"
+                                                value={entry.pendingStringAllowedValueTag}
+                                                onChange={(event) =>
+                                                  setJsonSubSchemaDrafts((current) =>
+                                                    current.map((currentEntry) =>
+                                                      currentEntry.localId === entry.localId
+                                                        ? {
+                                                            ...currentEntry,
+                                                            pendingStringAllowedValueTag:
+                                                              event.target.value,
+                                                          }
+                                                        : currentEntry,
+                                                    ),
+                                                  )
+                                                }
+                                                onKeyDown={(event) => {
+                                                  if (event.key !== "Enter") {
+                                                    return;
+                                                  }
+
+                                                  event.preventDefault();
+                                                  setJsonSubSchemaDrafts((current) =>
+                                                    current.map((currentEntry) => {
+                                                      if (currentEntry.localId !== entry.localId) {
+                                                        return currentEntry;
+                                                      }
+
+                                                      const nextTag =
+                                                        currentEntry.pendingStringAllowedValueTag.trim();
+                                                      if (
+                                                        nextTag.length === 0 ||
+                                                        currentEntry.stringAllowedValues.includes(
+                                                          nextTag,
+                                                        )
+                                                      ) {
+                                                        return currentEntry;
+                                                      }
+
+                                                      return {
+                                                        ...currentEntry,
+                                                        pendingStringAllowedValueTag: "",
+                                                        stringAllowedValues: [
+                                                          ...currentEntry.stringAllowedValues,
+                                                          nextTag,
+                                                        ],
+                                                      };
+                                                    }),
+                                                  );
+                                                }}
+                                                placeholder="Enter an allowed value"
+                                              />
+                                              <Button
+                                                type="button"
+                                                variant="outline"
+                                                className="rounded-none"
+                                                onClick={() =>
+                                                  setJsonSubSchemaDrafts((current) =>
+                                                    current.map((currentEntry) => {
+                                                      if (currentEntry.localId !== entry.localId) {
+                                                        return currentEntry;
+                                                      }
+
+                                                      const nextTag =
+                                                        currentEntry.pendingStringAllowedValueTag.trim();
+                                                      if (
+                                                        nextTag.length === 0 ||
+                                                        currentEntry.stringAllowedValues.includes(
+                                                          nextTag,
+                                                        )
+                                                      ) {
+                                                        return currentEntry;
+                                                      }
+
+                                                      return {
+                                                        ...currentEntry,
+                                                        pendingStringAllowedValueTag: "",
+                                                        stringAllowedValues: [
+                                                          ...currentEntry.stringAllowedValues,
+                                                          nextTag,
+                                                        ],
+                                                      };
+                                                    }),
+                                                  )
+                                                }
+                                              >
+                                                Add allowed value
+                                              </Button>
+                                            </div>
+
+                                            {entry.stringAllowedValues.length > 0 ? (
+                                              <div className="flex flex-wrap gap-2">
+                                                {entry.stringAllowedValues.map((value) => (
+                                                  <span
+                                                    key={value}
+                                                    className="chiron-frame-flat inline-flex items-center gap-1 px-2 py-1 text-xs"
+                                                  >
+                                                    {value}
+                                                    <button
+                                                      type="button"
+                                                      aria-label={`Remove ${value}`}
+                                                      className="text-muted-foreground transition-colors hover:text-foreground"
+                                                      onClick={() =>
+                                                        setJsonSubSchemaDrafts((current) =>
+                                                          current.map((currentEntry) =>
+                                                            currentEntry.localId === entry.localId
+                                                              ? {
+                                                                  ...currentEntry,
+                                                                  stringAllowedValues:
+                                                                    currentEntry.stringAllowedValues.filter(
+                                                                      (item) => item !== value,
+                                                                    ),
+                                                                }
+                                                              : currentEntry,
+                                                          ),
+                                                        )
+                                                      }
+                                                    >
+                                                      <XIcon className="size-3" />
+                                                    </button>
+                                                  </span>
+                                                ))}
+                                              </div>
+                                            ) : null}
+                                          </div>
+                                        ) : null}
+
+                                        {entry.stringValidationType === "path" ? (
+                                          <div className="grid gap-3">
+                                            <div className="grid gap-2 lg:max-w-sm">
+                                              <Label
+                                                htmlFor={`workflow-editor-json-string-path-kind-${entry.localId}`}
+                                              >
+                                                Path Kind
+                                              </Label>
+                                              <Select
+                                                value={entry.stringPathKind}
+                                                onValueChange={(value) =>
+                                                  setJsonSubSchemaDrafts((current) =>
+                                                    current.map((currentEntry) =>
+                                                      currentEntry.localId === entry.localId
+                                                        ? {
+                                                            ...currentEntry,
+                                                            stringPathKind:
+                                                              value === "directory"
+                                                                ? "directory"
+                                                                : "file",
+                                                          }
+                                                        : currentEntry,
+                                                    ),
+                                                  )
+                                                }
+                                              >
+                                                <SelectTrigger
+                                                  id={`workflow-editor-json-string-path-kind-${entry.localId}`}
+                                                  className="w-full rounded-none border-border/70 bg-background/50"
+                                                >
+                                                  <SelectValue placeholder="Select path kind" />
+                                                </SelectTrigger>
+                                                <SelectContent className="rounded-none">
+                                                  <SelectItem value="file">file</SelectItem>
+                                                  <SelectItem value="directory">
+                                                    directory
+                                                  </SelectItem>
+                                                </SelectContent>
+                                              </Select>
+                                            </div>
+
+                                            <div className="grid gap-2 text-[0.68rem] uppercase tracking-[0.16em] text-muted-foreground md:grid-cols-3">
+                                              <div className="flex items-center gap-2">
+                                                <Checkbox
+                                                  id={`workflow-editor-json-string-trim-whitespace-${entry.localId}`}
+                                                  checked={entry.stringTrimWhitespace}
+                                                  onCheckedChange={(checked) =>
+                                                    setJsonSubSchemaDrafts((current) =>
+                                                      current.map((currentEntry) =>
+                                                        currentEntry.localId === entry.localId
+                                                          ? {
+                                                              ...currentEntry,
+                                                              stringTrimWhitespace:
+                                                                checked === true,
+                                                            }
+                                                          : currentEntry,
+                                                      ),
+                                                    )
+                                                  }
+                                                />
+                                                <Label
+                                                  htmlFor={`workflow-editor-json-string-trim-whitespace-${entry.localId}`}
+                                                  className="text-[0.68rem] uppercase tracking-[0.16em] text-muted-foreground"
+                                                >
+                                                  Trim Whitespace
+                                                </Label>
+                                              </div>
+
+                                              <div className="flex items-center gap-2">
+                                                <Checkbox
+                                                  id={`workflow-editor-json-string-disallow-absolute-${entry.localId}`}
+                                                  checked={entry.stringDisallowAbsolute}
+                                                  onCheckedChange={(checked) =>
+                                                    setJsonSubSchemaDrafts((current) =>
+                                                      current.map((currentEntry) =>
+                                                        currentEntry.localId === entry.localId
+                                                          ? {
+                                                              ...currentEntry,
+                                                              stringDisallowAbsolute:
+                                                                checked === true,
+                                                            }
+                                                          : currentEntry,
+                                                      ),
+                                                    )
+                                                  }
+                                                />
+                                                <Label
+                                                  htmlFor={`workflow-editor-json-string-disallow-absolute-${entry.localId}`}
+                                                  className="text-[0.68rem] uppercase tracking-[0.16em] text-muted-foreground"
+                                                >
+                                                  Disallow Absolute
+                                                </Label>
+                                              </div>
+
+                                              <div className="flex items-center gap-2">
+                                                <Checkbox
+                                                  id={`workflow-editor-json-string-prevent-traversal-${entry.localId}`}
+                                                  checked={entry.stringPreventTraversal}
+                                                  onCheckedChange={(checked) =>
+                                                    setJsonSubSchemaDrafts((current) =>
+                                                      current.map((currentEntry) =>
+                                                        currentEntry.localId === entry.localId
+                                                          ? {
+                                                              ...currentEntry,
+                                                              stringPreventTraversal:
+                                                                checked === true,
+                                                            }
+                                                          : currentEntry,
+                                                      ),
+                                                    )
+                                                  }
+                                                />
+                                                <Label
+                                                  htmlFor={`workflow-editor-json-string-prevent-traversal-${entry.localId}`}
+                                                  className="text-[0.68rem] uppercase tracking-[0.16em] text-muted-foreground"
+                                                >
+                                                  Prevent Traversal
+                                                </Label>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        ) : null}
+                                      </div>
+                                    ) : null}
                                   </CardContent>
                                   <CardFooter className="justify-end border-border/70">
                                     <Button
@@ -4943,6 +5490,168 @@ function normalizeConditionSubFieldKey(value: string | null | undefined) {
   return normalized.length > 0 ? normalized : null;
 }
 
+function isPlainJsonFact(fact: WorkflowContextFactDefinitionItem | undefined) {
+  return fact?.kind === "plain_value_fact" && fact.valueType === "json";
+}
+
+function getPlainStringValidationKind(
+  fact: WorkflowContextFactDefinitionItem | undefined,
+): "none" | "path" | "allowed-values" {
+  if (fact?.kind !== "plain_value_fact" || fact.valueType !== "string") {
+    return "none";
+  }
+
+  const validation = fact.validationJson;
+  if (typeof validation !== "object" || validation === null) {
+    return "none";
+  }
+
+  const kind = "kind" in validation ? (validation as { kind?: unknown }).kind : undefined;
+  if (kind === "path" || kind === "allowed-values") {
+    return kind;
+  }
+
+  return "none";
+}
+
+function getPlainJsonSubFieldOptions(fact: WorkflowContextFactDefinitionItem | undefined) {
+  if (!isPlainJsonFact(fact)) {
+    return [];
+  }
+
+  const validation = fact.validationJson;
+  if (typeof validation !== "object" || validation === null) {
+    return [];
+  }
+
+  const kind = "kind" in validation ? (validation as { kind?: unknown }).kind : undefined;
+  const subSchema =
+    "subSchema" in validation ? (validation as { subSchema?: unknown }).subSchema : undefined;
+  if (kind !== "json-schema" || typeof subSchema !== "object" || subSchema === null) {
+    return [];
+  }
+
+  const fields =
+    "fields" in subSchema && Array.isArray((subSchema as { fields?: unknown }).fields)
+      ? ((subSchema as { fields: unknown[] }).fields ?? [])
+      : [];
+
+  return fields
+    .map((entry) => {
+      if (typeof entry !== "object" || entry === null) {
+        return null;
+      }
+
+      const key = "key" in entry ? (entry as { key?: unknown }).key : undefined;
+      const type = "type" in entry ? (entry as { type?: unknown }).type : undefined;
+      if (typeof key !== "string" || key.trim().length === 0) {
+        return null;
+      }
+
+      const normalizedType =
+        type === "string" || type === "number" || type === "boolean" ? type : null;
+      if (!normalizedType) {
+        return null;
+      }
+
+      const displayName =
+        "displayName" in entry ? (entry as { displayName?: unknown }).displayName : undefined;
+      const validation =
+        "validation" in entry ? (entry as { validation?: unknown }).validation : undefined;
+      const validationKind =
+        normalizedType === "string" ? toStringValidationState(validation).kind : "none";
+
+      return {
+        value: key,
+        operandType: normalizedType,
+        label: typeof displayName === "string" && displayName.trim().length > 0 ? displayName : key,
+        description: `${normalizedType.toUpperCase()} · ${key}`,
+        validationKind,
+      };
+    })
+    .filter(
+      (
+        entry,
+      ): entry is {
+        value: string;
+        operandType: "string" | "number" | "boolean";
+        label: string;
+        description: string;
+        validationKind: PlainStringValidationType;
+      } => entry !== null,
+    );
+}
+
+function allowsConditionSubFieldTargeting(fact: WorkflowContextFactDefinitionItem | undefined) {
+  return fact?.kind === "work_unit_draft_spec_fact" || isPlainJsonFact(fact);
+}
+
+function getPlainValueFactAllowedOperatorKeys(params: {
+  fact: WorkflowContextFactDefinitionItem;
+  subFieldKey: string | null;
+  operand: WorkflowConditionOperand | null;
+}) {
+  const { fact, subFieldKey, operand } = params;
+  if (fact.kind !== "plain_value_fact") {
+    return null;
+  }
+
+  if (fact.valueType === "json") {
+    if (!subFieldKey) {
+      return new Set(["exists"]);
+    }
+
+    const matchedSubField = getPlainJsonSubFieldOptions(fact).find(
+      (entry) => entry.value === subFieldKey,
+    );
+
+    if (operand?.operandType === "string") {
+      if (matchedSubField?.validationKind === "path") {
+        return new Set(["exists", "exists_in_repo"]);
+      }
+
+      if (matchedSubField?.validationKind === "allowed-values") {
+        return new Set(["exists", "equals"]);
+      }
+
+      return new Set(["equals", "contains", "starts_with", "ends_with"]);
+    }
+
+    if (operand?.operandType === "number") {
+      return new Set(["equals", "gt", "gte", "lt", "lte", "between"]);
+    }
+
+    if (operand?.operandType === "boolean") {
+      return new Set(["equals"]);
+    }
+
+    return new Set<string>();
+  }
+
+  if (fact.valueType === "string") {
+    const validationKind = getPlainStringValidationKind(fact);
+    if (validationKind === "path") {
+      return new Set(["exists", "exists_in_repo"]);
+    }
+
+    if (validationKind === "allowed-values") {
+      return new Set(["exists", "equals"]);
+    }
+
+    return new Set(["exists", "equals", "contains", "starts_with", "ends_with"]);
+  }
+
+  if (fact.valueType === "number") {
+    return new Set(["exists", "equals", "gt", "gte", "lt", "lte", "between"]);
+  }
+
+  if (fact.valueType === "boolean") {
+    return new Set(["exists", "equals"]);
+  }
+
+  return null;
+}
+
 function resolveConditionOperandForEditor(
   fact: WorkflowContextFactDefinitionItem | undefined,
   subFieldKey: string | null | undefined,
@@ -4958,6 +5667,20 @@ function resolveConditionOperandForEditor(
 
   const normalizedSubFieldKey = normalizeConditionSubFieldKey(subFieldKey);
   if (normalizedSubFieldKey) {
+    if (isPlainJsonFact(fact)) {
+      const matchedField = getPlainJsonSubFieldOptions(fact).find(
+        (entry) => entry.value === normalizedSubFieldKey,
+      );
+
+      return matchedField
+        ? {
+            operandType: matchedField.operandType,
+            cardinality: fact.cardinality,
+            freshnessCapable: false,
+          }
+        : null;
+    }
+
     if (fact.kind !== "work_unit_draft_spec_fact") {
       return null;
     }
@@ -5025,12 +5748,24 @@ function resolveConditionOperandForEditor(
 function getCompatibleConditionOperators(
   conditionOperators: readonly WorkflowConditionOperator[],
   operand: WorkflowConditionOperand | null,
+  fact: WorkflowContextFactDefinitionItem | undefined,
+  subFieldKey: string | null,
 ) {
   if (!operand) {
     return [];
   }
 
-  return conditionOperators.filter((operator) => operator.supportsOperand(operand));
+  const base = conditionOperators.filter((operator) => operator.supportsOperand(operand));
+  if (!fact) {
+    return base;
+  }
+
+  const allowedForPlainFact = getPlainValueFactAllowedOperatorKeys({ fact, subFieldKey, operand });
+  if (!allowedForPlainFact) {
+    return base;
+  }
+
+  return base.filter((operator) => allowedForPlainFact.has(operator.key));
 }
 
 function createDefaultComparisonJson(
@@ -5087,12 +5822,16 @@ function reconcileBranchConditionDraft(params: {
   nextSubFieldKey?: string | null;
   conditionOperators: readonly WorkflowConditionOperator[];
 }) {
-  const normalizedSubFieldKey =
-    params.fact?.kind === "work_unit_draft_spec_fact"
-      ? normalizeConditionSubFieldKey(params.nextSubFieldKey ?? params.condition.subFieldKey)
-      : null;
+  const normalizedSubFieldKey = allowsConditionSubFieldTargeting(params.fact)
+    ? normalizeConditionSubFieldKey(params.nextSubFieldKey ?? params.condition.subFieldKey)
+    : null;
   const operand = resolveConditionOperandForEditor(params.fact, normalizedSubFieldKey);
-  const compatibleOperators = getCompatibleConditionOperators(params.conditionOperators, operand);
+  const compatibleOperators = getCompatibleConditionOperators(
+    params.conditionOperators,
+    operand,
+    params.fact,
+    normalizedSubFieldKey,
+  );
   const nextOperator =
     compatibleOperators.find((operator) => operator.key === params.condition.operator) ??
     compatibleOperators[0];
@@ -5546,7 +6285,10 @@ export function RouteDialog({
       group.conditions.forEach((condition, conditionIndex) => {
         const operator = conditionOperators.find((entry) => entry.key === condition.operator);
         const fact = factsById.get(condition.contextFactDefinitionId);
-        const operand = resolveConditionOperandForEditor(fact, condition.subFieldKey);
+        const normalizedSubFieldKey = allowsConditionSubFieldTargeting(fact)
+          ? normalizeConditionSubFieldKey(condition.subFieldKey)
+          : null;
+        const operand = resolveConditionOperandForEditor(fact, normalizedSubFieldKey);
         if (condition.contextFactDefinitionId.trim().length === 0) {
           errors.push(
             `Select a context fact for condition ${conditionIndex + 1} in group ${groupIndex + 1}.`,
@@ -5568,7 +6310,14 @@ export function RouteDialog({
           return;
         }
 
-        if (!operator.supportsOperand(operand)) {
+        if (
+          !getCompatibleConditionOperators(
+            conditionOperators,
+            operand,
+            fact,
+            normalizedSubFieldKey,
+          ).some((entry) => entry.key === operator.key)
+        ) {
           errors.push(
             `Select a compatible operator for condition ${conditionIndex + 1} in group ${groupIndex + 1}.`,
           );
@@ -5777,18 +6526,24 @@ export function RouteDialog({
                             <div className="grid gap-3">
                               {group.conditions.map((condition, conditionIndex) => {
                                 const fact = factsById.get(condition.contextFactDefinitionId);
+                                const normalizedSubFieldKey = allowsConditionSubFieldTargeting(fact)
+                                  ? normalizeConditionSubFieldKey(condition.subFieldKey)
+                                  : null;
                                 const operand = resolveConditionOperandForEditor(
                                   fact,
-                                  condition.subFieldKey,
+                                  normalizedSubFieldKey,
                                 );
                                 const compatibleOperators = getCompatibleConditionOperators(
                                   conditionOperators,
                                   operand,
+                                  fact,
+                                  normalizedSubFieldKey,
                                 );
                                 const selectedOperator = compatibleOperators.find(
                                   (operator) => operator.key === condition.operator,
                                 );
                                 const draftSpecSubFieldOptions = getDraftSpecSubFieldOptions(fact);
+                                const plainJsonSubFieldOptions = getPlainJsonSubFieldOptions(fact);
 
                                 return (
                                   <div
@@ -5869,15 +6624,18 @@ export function RouteDialog({
                                         />
                                       </div>
 
-                                      {fact?.kind === "work_unit_draft_spec_fact" ? (
+                                      {fact?.kind === "work_unit_draft_spec_fact" ||
+                                      isPlainJsonFact(fact) ? (
                                         <div className="grid gap-2 lg:col-span-2">
                                           <Label
                                             htmlFor={`workflow-editor-branch-condition-sub-field-${condition.conditionId}`}
                                           >
-                                            Draft-spec Sub-field
+                                            {fact?.kind === "work_unit_draft_spec_fact"
+                                              ? "Draft-spec Sub-field"
+                                              : "JSON Sub-field"}
                                           </Label>
                                           <Select
-                                            value={condition.subFieldKey ?? "__root__"}
+                                            value={normalizedSubFieldKey ?? "__root__"}
                                             onValueChange={(value) =>
                                               setDraft((previous) => ({
                                                 ...previous,
@@ -5910,13 +6668,24 @@ export function RouteDialog({
                                               id={`workflow-editor-branch-condition-sub-field-${condition.conditionId}`}
                                               className="w-full rounded-none border-border/70 bg-background/50"
                                             >
-                                              <SelectValue placeholder="Use whole draft spec" />
+                                              <SelectValue
+                                                placeholder={
+                                                  fact?.kind === "work_unit_draft_spec_fact"
+                                                    ? "Use whole draft spec"
+                                                    : "Use whole JSON value"
+                                                }
+                                              />
                                             </SelectTrigger>
                                             <SelectContent className="rounded-none">
                                               <SelectItem value="__root__">
-                                                Whole draft spec
+                                                {fact?.kind === "work_unit_draft_spec_fact"
+                                                  ? "Whole draft spec"
+                                                  : "Whole JSON value"}
                                               </SelectItem>
-                                              {draftSpecSubFieldOptions.map((option) => (
+                                              {(fact?.kind === "work_unit_draft_spec_fact"
+                                                ? draftSpecSubFieldOptions
+                                                : plainJsonSubFieldOptions
+                                              ).map((option) => (
                                                 <SelectItem key={option.value} value={option.value}>
                                                   {option.label}
                                                 </SelectItem>
@@ -5926,9 +6695,12 @@ export function RouteDialog({
                                           {condition.subFieldKey ? (
                                             <p className="text-[0.68rem] uppercase tracking-[0.08em] text-muted-foreground">
                                               {
-                                                draftSpecSubFieldOptions.find(
+                                                (fact?.kind === "work_unit_draft_spec_fact"
+                                                  ? draftSpecSubFieldOptions
+                                                  : plainJsonSubFieldOptions
+                                                ).find(
                                                   (option) =>
-                                                    option.value === condition.subFieldKey,
+                                                    option.value === normalizedSubFieldKey,
                                                 )?.description
                                               }
                                             </p>

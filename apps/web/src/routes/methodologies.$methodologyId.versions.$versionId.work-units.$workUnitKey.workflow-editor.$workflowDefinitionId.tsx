@@ -168,10 +168,10 @@ const isScalarOperand = (operand: WorkflowConditionOperand) => operand.cardinali
 const isManyOperand = (operand: WorkflowConditionOperand) => operand.cardinality === "many";
 const isStringOperand = (operand: WorkflowConditionOperand) => operand.operandType === "string";
 const isNumberOperand = (operand: WorkflowConditionOperand) => operand.operandType === "number";
-const isWorkflowReferenceOperand = (operand: WorkflowConditionOperand) =>
-  operand.operandType === "workflow_reference";
 const isArtifactReferenceOperand = (operand: WorkflowConditionOperand) =>
   operand.operandType === "artifact_reference";
+const isJsonObjectOperand = (operand: WorkflowConditionOperand) =>
+  operand.operandType === "json_object";
 
 const hasComparableValueForOperand = (
   comparison: unknown,
@@ -205,68 +205,71 @@ const BUILT_IN_CONDITION_OPERATORS: readonly WorkflowConditionOperator[] = [
     label: "Equals",
     requiresComparison: true,
     supportsOperand: (operand) =>
-      (isScalarOperand(operand) && !isArtifactReferenceOperand(operand)) ||
-      isWorkflowReferenceOperand(operand),
+      !isArtifactReferenceOperand(operand) && !isJsonObjectOperand(operand),
     validateComparison: (comparison, operand) => hasComparableValueForOperand(comparison, operand),
   },
   {
     key: "contains",
     label: "Contains",
     requiresComparison: true,
-    supportsOperand: (operand) => isStringOperand(operand) || isManyOperand(operand),
-    validateComparison: (comparison, operand) =>
-      isManyOperand(operand)
-        ? hasComparisonValue(comparison)
-        : hasStringComparisonValue(comparison),
+    supportsOperand: (operand) => isStringOperand(operand),
+    validateComparison: (comparison) => hasStringComparisonValue(comparison),
   },
   {
     key: "starts_with",
     label: "Starts With",
     requiresComparison: true,
-    supportsOperand: (operand) => isScalarOperand(operand) && isStringOperand(operand),
+    supportsOperand: (operand) => isStringOperand(operand),
     validateComparison: (comparison) => hasStringComparisonValue(comparison),
   },
   {
     key: "ends_with",
     label: "Ends With",
     requiresComparison: true,
-    supportsOperand: (operand) => isScalarOperand(operand) && isStringOperand(operand),
+    supportsOperand: (operand) => isStringOperand(operand),
     validateComparison: (comparison) => hasStringComparisonValue(comparison),
   },
   {
     key: "gt",
     label: "Greater Than",
     requiresComparison: true,
-    supportsOperand: (operand) => isScalarOperand(operand) && isNumberOperand(operand),
+    supportsOperand: (operand) => isNumberOperand(operand),
     validateComparison: (comparison) => hasNumericComparisonValue(comparison),
   },
   {
     key: "gte",
     label: "Greater Than Or Equal",
     requiresComparison: true,
-    supportsOperand: (operand) => isScalarOperand(operand) && isNumberOperand(operand),
+    supportsOperand: (operand) => isNumberOperand(operand),
     validateComparison: (comparison) => hasNumericComparisonValue(comparison),
   },
   {
     key: "lt",
     label: "Less Than",
     requiresComparison: true,
-    supportsOperand: (operand) => isScalarOperand(operand) && isNumberOperand(operand),
+    supportsOperand: (operand) => isNumberOperand(operand),
     validateComparison: (comparison) => hasNumericComparisonValue(comparison),
   },
   {
     key: "lte",
     label: "Less Than Or Equal",
     requiresComparison: true,
-    supportsOperand: (operand) => isScalarOperand(operand) && isNumberOperand(operand),
+    supportsOperand: (operand) => isNumberOperand(operand),
     validateComparison: (comparison) => hasNumericComparisonValue(comparison),
   },
   {
     key: "between",
     label: "Between",
     requiresComparison: true,
-    supportsOperand: (operand) => isScalarOperand(operand) && isNumberOperand(operand),
+    supportsOperand: (operand) => isNumberOperand(operand),
     validateComparison: (comparison) => hasNumericRangeComparison(comparison),
+  },
+  {
+    key: "exists_in_repo",
+    label: "Exists In Repo",
+    supportsOperand: (operand) => isStringOperand(operand),
+    requiresComparison: false,
+    validateComparison: (comparison) => hasNoComparison(comparison),
   },
   {
     key: "fresh",
@@ -984,7 +987,7 @@ function toWorkflowEdges(rawEdges: unknown): WorkflowEditorEdge[] {
         fromStepKey: edge.fromStepKey,
         toStepKey: edge.toStepKey,
         descriptionMarkdown: projectedMetadata ? "" : readMarkdown(edge.descriptionJson),
-        ...(projectedMetadata ?? {}),
+        ...projectedMetadata,
       };
     })
     .filter((edge): edge is WorkflowEditorEdge => edge !== null);
@@ -1130,7 +1133,15 @@ function toContextFactMutationPayload(draft: WorkflowContextFactDraft) {
 
   switch (draft.kind) {
     case "plain_value_fact":
-      return { ...base, valueType: draft.valueType ?? "string" };
+      return {
+        ...base,
+        valueType: draft.valueType ?? "string",
+        ...(typeof draft.validationJson === "undefined"
+          ? {}
+          : {
+              validationJson: draft.validationJson,
+            }),
+      };
     case "definition_backed_external_fact":
     case "bound_external_fact":
       return {

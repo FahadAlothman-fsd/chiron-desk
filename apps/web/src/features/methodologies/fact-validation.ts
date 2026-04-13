@@ -14,8 +14,6 @@ type FactValidationLike = {
   };
   values?: unknown[];
   rules?: LegacyAllowedValuesRule[];
-  schemaDialect?: string;
-  schema?: unknown;
 };
 
 function getLegacyAllowedValues(validation: FactValidationLike | undefined): string[] {
@@ -29,22 +27,6 @@ function getLegacyAllowedValues(validation: FactValidationLike | undefined): str
   );
 }
 
-function getJsonSchemaEnum(validation: FactValidationLike | undefined): string[] {
-  const schema = validation?.schema;
-  if (!schema || typeof schema !== "object" || !("enum" in schema)) {
-    return [];
-  }
-
-  const enumValues = (schema as { enum?: unknown[] }).enum;
-  if (!Array.isArray(enumValues)) {
-    return [];
-  }
-
-  return enumValues
-    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
-    .map((value) => value.trim());
-}
-
 export function getAllowedValues(validation: unknown): string[] {
   const normalized = validation as FactValidationLike | undefined;
 
@@ -53,12 +35,6 @@ export function getAllowedValues(validation: unknown): string[] {
     return normalized.values
       .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
       .map((value) => value.trim());
-  }
-
-  // Handle legacy json-schema enum format
-  const fromJsonSchema = getJsonSchemaEnum(normalized);
-  if (fromJsonSchema.length > 0) {
-    return fromJsonSchema;
   }
 
   // Handle legacy rules array format
@@ -77,13 +53,13 @@ export function getUiValidationKind(validation: unknown): UiFactValidationKind {
     return "allowed-values";
   }
 
-  if (normalized?.kind === "json-schema") {
-    return "json-schema";
-  }
-
   // Fallback: check for legacy formats
   if (getAllowedValues(normalized).length > 0) {
     return "allowed-values";
+  }
+
+  if (normalized?.kind === "json-schema") {
+    return "json-schema";
   }
 
   return "none";
@@ -91,12 +67,8 @@ export function getUiValidationKind(validation: unknown): UiFactValidationKind {
 
 export function createAllowedValuesValidation(values: string[]) {
   return {
-    kind: "json-schema" as const,
-    schemaDialect: "draft-2020-12",
-    schema: {
-      type: "string",
-      enum: values,
-    },
+    kind: "allowed-values" as const,
+    values,
   };
 }
 

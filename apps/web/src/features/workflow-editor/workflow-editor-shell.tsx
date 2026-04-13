@@ -449,6 +449,11 @@ function toContextFactDefinitionItem(
     selectedArtifactSlotDefinitionIds: draft.selectedArtifactSlotDefinitionIds,
     ...(draft.workUnitTypeKey?.trim() ? { workUnitTypeKey: draft.workUnitTypeKey.trim() } : {}),
     includedFactDefinitionIds: draft.includedFactDefinitionIds,
+    ...(typeof draft.validationJson === "undefined"
+      ? {}
+      : {
+          validationJson: draft.validationJson,
+        }),
     summary: summarizeContextFact(draft),
   };
 }
