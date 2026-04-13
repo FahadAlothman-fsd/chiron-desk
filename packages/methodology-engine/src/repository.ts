@@ -76,6 +76,7 @@ export interface UpdateDraftParams {
   version: string;
   definitionExtensions: unknown;
   workflows: readonly WorkflowDefinition[];
+  rewriteWorkflowGraph?: boolean;
   transitionWorkflowBindings: MethodologyVersionDefinition["transitionWorkflowBindings"];
   guidance?: LayeredGuidance;
   factDefinitions?: UpdateDraftVersionInput["factDefinitions"];

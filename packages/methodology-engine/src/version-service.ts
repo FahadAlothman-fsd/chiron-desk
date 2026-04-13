@@ -986,6 +986,9 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
   const updateDraftVersion = (
     input: UpdateDraftVersionInput,
     actorId: string | null,
+    options?: {
+      rewriteWorkflowGraph?: boolean;
+    },
   ): Effect.Effect<
     UpdateDraftResult,
     VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
@@ -1035,6 +1038,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
         version: input.version,
         definitionExtensions: toDefinitionExtensions(definition),
         workflows: definition.workflows,
+        rewriteWorkflowGraph: options?.rewriteWorkflowGraph ?? true,
         transitionWorkflowBindings: definition.transitionWorkflowBindings,
         ...(definition.guidance !== undefined ? { guidance: definition.guidance } : {}),
         ...(input.factDefinitions !== undefined ? { factDefinitions: input.factDefinitions } : {}),
@@ -1253,6 +1257,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
           factDefinitions: [...existingFacts.map(mapFactDefinitionRowToInput), input.fact],
         },
         actorId,
+        { rewriteWorkflowGraph: false },
       );
     });
 
@@ -1296,6 +1301,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
           ),
         },
         actorId,
+        { rewriteWorkflowGraph: false },
       );
     });
 
@@ -1339,6 +1345,7 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
             .map(mapFactDefinitionRowToInput),
         },
         actorId,
+        { rewriteWorkflowGraph: false },
       );
     });
 

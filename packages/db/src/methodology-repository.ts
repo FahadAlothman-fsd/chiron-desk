@@ -116,6 +116,83 @@ const DEFERRED_STEP_MESSAGE = "Deferred in slice-1";
 
 type FactValueType = "string" | "number" | "boolean" | "json" | "work_unit";
 
+function normalizeMethodologyFactValidationForStorage(validation: unknown): unknown {
+  if (!validation || typeof validation !== "object") {
+    return validation ?? null;
+  }
+
+  const record = validation as Record<string, unknown>;
+  if (record.kind !== "json-schema") {
+    return validation;
+  }
+
+  const existingSubSchema =
+    typeof record.subSchema === "object" && record.subSchema !== null
+      ? (record.subSchema as Record<string, unknown>)
+      : null;
+  if (existingSubSchema && Array.isArray(existingSubSchema.fields)) {
+    return validation;
+  }
+
+  const schema =
+    typeof record.schema === "object" && record.schema !== null
+      ? (record.schema as Record<string, unknown>)
+      : null;
+  const properties =
+    schema && typeof schema.properties === "object" && schema.properties !== null
+      ? (schema.properties as Record<string, unknown>)
+      : null;
+  if (!properties) {
+    return validation;
+  }
+
+  const fields = Object.entries(properties)
+    .map(([key, property]) => {
+      const propertyRecord =
+        typeof property === "object" && property !== null
+          ? (property as Record<string, unknown>)
+          : null;
+      const type = propertyRecord?.type;
+      if (type !== "string" && type !== "number" && type !== "boolean") {
+        return null;
+      }
+
+      const field: Record<string, unknown> = {
+        key,
+        type,
+        cardinality:
+          propertyRecord?.cardinality === "many" || propertyRecord?.cardinality === "one"
+            ? propertyRecord.cardinality
+            : "one",
+      };
+
+      if (typeof propertyRecord?.title === "string" && propertyRecord.title.trim().length > 0) {
+        field.displayName = propertyRecord.title.trim();
+      }
+
+      const fieldValidation =
+        typeof propertyRecord?.validation !== "undefined"
+          ? propertyRecord.validation
+          : propertyRecord && typeof propertyRecord["x-validation"] !== "undefined"
+            ? propertyRecord["x-validation"]
+            : undefined;
+      if (typeof fieldValidation !== "undefined") {
+        field.validation = fieldValidation;
+      }
+
+      return field;
+    })
+    .filter((field): field is Record<string, unknown> => field !== null);
+
+  return {
+    ...record,
+    subSchema: {
+      type: "object",
+      fields,
+    },
+  };
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -2590,13 +2667,15 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
 
           const ver = versionRows[0]!;
 
-          await syncWorkflowGraph(
-            tx,
-            ver.id,
-            params.workflows,
-            params.transitionWorkflowBindings,
-            params.guidance,
-          );
+          if (params.rewriteWorkflowGraph !== false) {
+            await syncWorkflowGraph(
+              tx,
+              ver.id,
+              params.workflows,
+              params.transitionWorkflowBindings,
+              params.guidance,
+            );
+          }
 
           if (params.factDefinitions?.length) {
             const factValues = params.factDefinitions.map((v) => ({
@@ -2608,7 +2687,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               descriptionJson: v.description ?? null,
               guidanceJson: v.guidance ?? null,
               defaultValueJson: v.defaultValue ?? null,
-              validationJson: v.validation ?? null,
+              validationJson: normalizeMethodologyFactValidationForStorage(v.validation),
             }));
 
             await tx.insert(methodologyFactDefinitions).values(factValues);
@@ -2684,13 +2763,15 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
 
           const ver = versionRows[0]!;
 
-          await syncWorkflowGraph(
-            tx,
-            ver.id,
-            params.workflows,
-            params.transitionWorkflowBindings,
-            params.guidance,
-          );
+          if (params.rewriteWorkflowGraph !== false) {
+            await syncWorkflowGraph(
+              tx,
+              ver.id,
+              params.workflows,
+              params.transitionWorkflowBindings,
+              params.guidance,
+            );
+          }
 
           if (params.factDefinitions !== undefined) {
             await tx
@@ -2707,7 +2788,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
                 descriptionJson: v.description ?? null,
                 guidanceJson: v.guidance ?? null,
                 defaultValueJson: v.defaultValue ?? null,
-                validationJson: v.validation ?? null,
+                validationJson: normalizeMethodologyFactValidationForStorage(v.validation),
               }));
 
               await tx.insert(methodologyFactDefinitions).values(factValues);

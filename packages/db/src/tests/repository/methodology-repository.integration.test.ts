@@ -160,11 +160,14 @@ const SCHEMA_SQL = [
   `CREATE TABLE methodology_fact_definitions (
     id TEXT PRIMARY KEY,
     methodology_version_id TEXT NOT NULL,
+    name TEXT,
     key TEXT NOT NULL,
-    fact_type TEXT NOT NULL,
+    value_type TEXT NOT NULL,
+    cardinality TEXT NOT NULL,
     default_value_json TEXT,
     description_json TEXT,
     guidance_json TEXT,
+    validation_json TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
     UNIQUE(methodology_version_id, key)
@@ -616,6 +619,140 @@ describe("methodology repository integration", () => {
       byTransition: {},
       byWorkflow: {},
     });
+  });
+
+  it("normalizes methodology fact json validation into subSchema fields on write", async () => {
+    const created = await runRepo((repo) =>
+      repo.createDraft({
+        methodologyKey: "fact-normalization-methodology",
+        displayName: "Fact Normalization Methodology",
+        version: "0.1.0",
+        definitionExtensions: {},
+        workflows: [],
+        transitionWorkflowBindings: {},
+        factDefinitions: [
+          {
+            key: "existing_documentation_inventory",
+            factType: "json",
+            cardinality: "many",
+            validation: {
+              kind: "json-schema",
+              schemaDialect: "draft-2020-12",
+              schema: {
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  doc_type: { type: "string", title: "doc_type" },
+                  path: {
+                    type: "string",
+                    title: "path",
+                    "x-validation": {
+                      kind: "path",
+                      path: {
+                        pathKind: "directory",
+                        normalization: { mode: "posix", trimWhitespace: true },
+                        safety: { disallowAbsolute: true, preventTraversal: true },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        ],
+        actorId: "user-1",
+        validationDiagnostics: VALIDATION_OK,
+      }),
+    );
+
+    const facts = await runRepo((repo) => repo.findFactDefinitionsByVersionId(created.version.id));
+    const jsonFact = facts.find((fact) => fact.key === "existing_documentation_inventory");
+    expect(jsonFact?.validationJson).toMatchObject({
+      kind: "json-schema",
+      subSchema: {
+        type: "object",
+        fields: expect.arrayContaining([
+          expect.objectContaining({ key: "doc_type", type: "string" }),
+          expect.objectContaining({
+            key: "path",
+            type: "string",
+            validation: expect.objectContaining({ kind: "path" }),
+          }),
+        ]),
+      },
+    });
+  });
+
+  it("updates fact definitions without rewriting workflow graph when rewriteWorkflowGraph is false", async () => {
+    const created = await runRepo((repo) =>
+      repo.createDraft({
+        methodologyKey: "fact-update-methodology",
+        displayName: "Fact Update Methodology",
+        version: "0.1.0",
+        definitionExtensions: {},
+        workflows: [
+          {
+            key: "wf-start",
+            displayName: "Workflow Start",
+            workUnitTypeKey: undefined,
+            steps: [{ key: "s-1", type: "action" }],
+            edges: [{ fromStepKey: null, toStepKey: "s-1", edgeKey: "entry" }],
+          },
+        ],
+        transitionWorkflowBindings: {},
+        factDefinitions: [
+          {
+            key: "existing_fact",
+            factType: "string",
+            cardinality: "one",
+            validation: { kind: "none" },
+          },
+        ],
+        actorId: "user-1",
+        validationDiagnostics: VALIDATION_OK,
+      }),
+    );
+
+    const beforeSnapshot = await runRepo((repo) => repo.findWorkflowSnapshot(created.version.id));
+
+    await runRepo((repo) =>
+      repo.updateDraft({
+        versionId: created.version.id,
+        displayName: "Fact Update Methodology",
+        version: "0.1.1",
+        definitionExtensions: {},
+        workflows: beforeSnapshot.workflows,
+        rewriteWorkflowGraph: false,
+        transitionWorkflowBindings: {},
+        actorId: "user-1",
+        changedFieldsJson: { factDefinitions: true },
+        validationDiagnostics: VALIDATION_OK,
+        factDefinitions: [
+          {
+            key: "existing_fact",
+            factType: "string",
+            cardinality: "one",
+            validation: { kind: "none" },
+          },
+          {
+            key: "new_fact",
+            factType: "json",
+            cardinality: "one",
+            validation: {
+              kind: "json-schema",
+              schemaDialect: "draft-2020-12",
+              schema: { type: "object", properties: { foo: { type: "string" } } },
+            },
+          },
+        ],
+      }),
+    );
+
+    const afterSnapshot = await runRepo((repo) => repo.findWorkflowSnapshot(created.version.id));
+    const facts = await runRepo((repo) => repo.findFactDefinitionsByVersionId(created.version.id));
+
+    expect(afterSnapshot).toEqual(beforeSnapshot);
+    expect(facts.map((fact) => fact.key)).toEqual(["existing_fact", "new_fact"]);
   });
 
   it("publishes a draft atomically and appends publication evidence", async () => {

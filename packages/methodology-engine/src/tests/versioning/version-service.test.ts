@@ -94,6 +94,7 @@ function makeTestRepo() {
       }>;
     }
   >();
+  const updateDraftCalls: UpdateDraftParams[] = [];
   let idCounter = 0;
 
   const nextId = () => {
@@ -434,6 +435,7 @@ function makeTestRepo() {
 
     updateDraft: (params: UpdateDraftParams) =>
       Effect.sync(() => {
+        updateDraftCalls.push(params);
         const idx = versions.findIndex((v) => v.id === params.versionId);
         const prev = versions[idx]!;
         if (prev.status !== "draft") {
@@ -785,7 +787,7 @@ function makeTestRepo() {
       ),
   });
 
-  return { repo, lifecycleRepo, lifecycleDataByVersion };
+  return { repo, lifecycleRepo, lifecycleDataByVersion, updateDraftCalls };
 }
 
 function makeServiceLayer() {
@@ -1298,6 +1300,66 @@ describe("MethodologyVersionService", () => {
       const eventTypes = events.map((e) => e.eventType);
       expect(eventTypes).toContain("created");
       expect(eventTypes).toContain("validated");
+    });
+  });
+
+  describe("fact mutations", () => {
+    it("updates draft facts without rewriting the workflow graph", async () => {
+      const { repo, lifecycleRepo, updateDraftCalls } = makeTestRepo();
+      const repoLayer = Layer.succeed(MethodologyRepository, repo);
+      const lifecycleRepoLayer = Layer.succeed(LifecycleRepository, lifecycleRepo);
+      const serviceLayer = Layer.effect(MethodologyVersionService, MethodologyVersionServiceLive);
+      const layer = Layer.mergeAll(
+        repoLayer,
+        lifecycleRepoLayer,
+        Layer.provide(serviceLayer, Layer.merge(repoLayer, lifecycleRepoLayer)),
+      );
+
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionService;
+          const created = yield* svc.createDraftVersion(
+            {
+              ...MINIMAL_INPUT,
+              methodologyKey: "facts-methodology",
+              version: "0.2.0-draft",
+              factDefinitions: [
+                {
+                  key: "existing_fact",
+                  factType: "string",
+                  cardinality: "one",
+                  validation: { kind: "none" as const },
+                },
+              ],
+            },
+            TEST_ACTOR_ID,
+          );
+
+          yield* svc.createFact(
+            {
+              versionId: created.version.id,
+              fact: {
+                key: "new_json_fact",
+                factType: "json",
+                cardinality: "one",
+                validation: {
+                  kind: "json-schema" as const,
+                  schemaDialect: "draft-2020-12",
+                  schema: { type: "object", properties: { foo: { type: "string" } } },
+                },
+              },
+            },
+            TEST_ACTOR_ID,
+          );
+        }).pipe(Effect.provide(layer)),
+      );
+
+      const lastCall = updateDraftCalls.at(-1);
+      expect(lastCall?.rewriteWorkflowGraph).toBe(false);
+      expect(lastCall?.factDefinitions?.map((fact) => fact.key)).toEqual([
+        "existing_fact",
+        "new_json_fact",
+      ]);
     });
   });
 
