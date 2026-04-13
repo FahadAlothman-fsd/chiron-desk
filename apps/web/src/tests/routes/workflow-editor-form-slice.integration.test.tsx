@@ -375,6 +375,14 @@ function createRouteContext(
     orpc: {
       methodology: {
         version: {
+          fact: {
+            list: {
+              queryOptions: () => ({
+                queryKey: ["methodology-facts", "v1"],
+                queryFn: async () => ({ factDefinitions: [] }),
+              }),
+            },
+          },
           workUnit: {
             list: {
               queryOptions: () => ({
@@ -782,7 +790,7 @@ describe("workflow editor form slice route", () => {
     fireEvent.change(screen.getByLabelText("workflow-editor-context-fact-kind"), {
       target: { value: "work_unit_draft_spec_fact" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Value Semantics" }));
+    fireEvent.click(screen.getByRole("button", { name: /Value Semantics/ }));
 
     const preSelectionArtifactSlotCombobox = screen.getByRole("combobox", {
       name: "Artifact Slot Definition",
@@ -876,6 +884,155 @@ describe("workflow editor form slice route", () => {
     fireEvent.click(screen.getByRole("button", { name: "Discard Changes" }));
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("preloads linked external fact selections when editing external context facts", async () => {
+    const { WorkflowContextFactDialog } = await import("../../features/workflow-editor/dialogs");
+
+    const methodologyFacts = [
+      {
+        value: "seed:fact-def:existing-documentation-inventory:mver_bmad_v1_draft",
+        label: "Existing Documentation Inventory",
+        secondaryLabel: "existing_documentation_inventory",
+        description: "Methodology fact",
+        valueType: "json" as const,
+      },
+    ];
+
+    const definitionBackedFact = {
+      contextFactDefinitionId: "ctx-methodology-docs",
+      key: "method_existing_documentation_inventory",
+      label: "Methodology Existing Documentation Inventory",
+      descriptionMarkdown: "Reusable methodology documentation inventory.",
+      kind: "definition_backed_external_fact" as const,
+      cardinality: "many" as const,
+      guidance: {
+        humanMarkdown: "Use the methodology inventory.",
+        agentMarkdown: "Use the methodology inventory.",
+      },
+      valueType: "json" as const,
+      externalFactDefinitionId: "existing_documentation_inventory",
+      allowedWorkflowDefinitionIds: [],
+      artifactSlotDefinitionId: "",
+      workUnitTypeKey: "",
+      includedFactDefinitionIds: [],
+      summary:
+        "definition backed external fact · many · seed:fact-def:existing-documentation-inventory:mver_bmad_v1_draft",
+    };
+
+    renderRoute(
+      <WorkflowContextFactDialog
+        open
+        mode="edit"
+        fact={definitionBackedFact}
+        methodologyFacts={methodologyFacts}
+        currentWorkUnitFacts={[]}
+        artifactSlots={[]}
+        workUnitTypes={[]}
+        availableWorkflows={[]}
+        workUnitFactsQueryScope="WU.SETUP"
+        loadWorkUnitFacts={async () => []}
+        loadWorkUnitArtifactSlots={async () => []}
+        onOpenChange={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Value Semantics/ }));
+    expect(
+      screen.getByRole("combobox", { name: "External Fact Definition Id" }).textContent,
+    ).toContain("Existing Documentation Inventory");
+
+    cleanup();
+
+    renderRoute(
+      <WorkflowContextFactDialog
+        open
+        mode="edit"
+        fact={{ ...definitionBackedFact, kind: "bound_external_fact", key: "bound_existing_docs" }}
+        methodologyFacts={methodologyFacts}
+        currentWorkUnitFacts={[]}
+        artifactSlots={[]}
+        workUnitTypes={[]}
+        availableWorkflows={[]}
+        workUnitFactsQueryScope="WU.SETUP"
+        loadWorkUnitFacts={async () => []}
+        loadWorkUnitArtifactSlots={async () => []}
+        onOpenChange={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Value Semantics/ }));
+    expect(
+      screen.getByRole("combobox", { name: "External Fact Definition Id" }).textContent,
+    ).toContain("Existing Documentation Inventory");
+  });
+
+  it("saves methodology external fact selections by definition id instead of key", async () => {
+    const { MethodologyWorkflowEditorRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId");
+
+    const editorDefinition = createEditorDefinition();
+    editorDefinition.contextFacts.push({
+      contextFactDefinitionId: "ctx-methodology-docs",
+      key: "bound_existing_docs",
+      label: "Bound Methodology Existing Documentation Inventory",
+      descriptionJson: { markdown: "Bound methodology documentation inventory." },
+      kind: "bound_external_fact",
+      cardinality: "many",
+      externalFactDefinitionId: "seed:fact-def:existing-documentation-inventory:mver_bmad_v1_draft",
+    });
+
+    const routeContext = createRouteContext(editorDefinition);
+    routeContext.orpc.methodology.version.fact.list.queryOptions = () => ({
+      queryKey: ["methodology-facts", "v1", "external-id-regression"],
+      queryFn: async () => ({
+        factDefinitions: [
+          {
+            id: "seed:fact-def:existing-documentation-inventory:mver_bmad_v1_draft",
+            key: "existing_documentation_inventory",
+            name: "Existing Documentation Inventory",
+            factType: "json",
+            cardinality: "many",
+          },
+          {
+            id: "seed:fact-def:communication-language:mver_bmad_v1_draft",
+            key: "communication_language",
+            name: "Communication Language",
+            factType: "string",
+            cardinality: "one",
+          },
+        ],
+      }),
+    });
+
+    useRouteContextMock.mockReturnValue(routeContext);
+
+    renderRoute(<MethodologyWorkflowEditorRoute />);
+
+    const externalFactItem = (
+      await screen.findByText("Bound Methodology Existing Documentation Inventory")
+    ).closest("li");
+    if (!externalFactItem) {
+      throw new Error("Expected external context fact row to render.");
+    }
+
+    fireEvent.click(within(externalFactItem).getByRole("button", { name: "Edit" }));
+    fireEvent.click(screen.getByRole("button", { name: /Value Semantics/ }));
+
+    fireEvent.click(screen.getByRole("combobox", { name: "External Fact Definition Id" }));
+    fireEvent.click(await screen.findByText("Communication Language"));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      const updatePayload = (updateContextFactMutationSpy.mock.calls as unknown[][]).at(-1)?.[0] as
+        | { fact?: { externalFactDefinitionId?: string } }
+        | undefined;
+      expect(updatePayload?.fact?.externalFactDefinitionId).toBe(
+        "seed:fact-def:communication-language:mver_bmad_v1_draft",
+      );
+    });
   });
 
   it("updates and deletes context facts by definition id when the key differs", async () => {

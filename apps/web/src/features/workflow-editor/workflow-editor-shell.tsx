@@ -568,10 +568,16 @@ export function WorkflowEditorShell({
 
     methodologyFacts.forEach((option) => {
       optionsByValue.set(option.value, option);
+      if (typeof option.secondaryLabel === "string" && option.secondaryLabel.length > 0) {
+        optionsByValue.set(option.secondaryLabel, option);
+      }
     });
 
     currentWorkUnitFacts.forEach((option) => {
       optionsByValue.set(option.value, option);
+      if (typeof option.secondaryLabel === "string" && option.secondaryLabel.length > 0) {
+        optionsByValue.set(option.secondaryLabel, option);
+      }
     });
 
     return optionsByValue;

@@ -66,6 +66,16 @@ export type WorkflowConditionOperand = {
   freshnessCapable: boolean;
 };
 
+export type WorkflowDraftSpecSubFieldOption = WorkflowEditorPickerOption & {
+  kind: "fact" | "artifact";
+  operandType: WorkflowConditionOperand["operandType"];
+  cardinality: "one" | "many";
+  freshnessCapable: boolean;
+  validationKind?: "none" | "path" | "allowed-values";
+  allowedValues?: readonly string[];
+  workUnitStateOptions?: readonly WorkflowEditorPickerOption[];
+};
+
 export type WorkflowConditionOperator = {
   key: string;
   label: string;
@@ -322,6 +332,7 @@ export type WorkflowContextFactDefinitionItem = {
   validationJson?: unknown;
   // Legacy compatibility fields (to be removed after migration)
   workUnitTypeKey?: string;
+  draftSpecSubFieldOptions?: readonly WorkflowDraftSpecSubFieldOption[];
   includedFactDefinitionIds: string[];
   summary: string;
 };

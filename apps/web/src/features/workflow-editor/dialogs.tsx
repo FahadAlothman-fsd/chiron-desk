@@ -899,7 +899,9 @@ function SearchableCombobox(props: {
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const selectedOption = props.options.find((option) => option.value === props.value);
+  const selectedOption = props.options.find(
+    (option) => option.value === props.value || option.secondaryLabel === props.value,
+  );
 
   useEffect(() => {
     if (props.disabled && open) {
@@ -989,7 +991,7 @@ function SearchableCombobox(props: {
                         </span>
                       ) : null}
                     </div>
-                    {props.value === option.value ? (
+                    {props.value === option.value || props.value === option.secondaryLabel ? (
                       <CheckIcon className="mt-0.5 size-3.5 shrink-0" />
                     ) : null}
                   </div>
@@ -3812,7 +3814,11 @@ export function WorkflowContextFactDialog({
   const selectedExternalFact = useMemo(
     () =>
       draft.kind === "definition_backed_external_fact" || draft.kind === "bound_external_fact"
-        ? externalFactOptions.find((option) => option.value === draft.externalFactDefinitionId)
+        ? externalFactOptions.find(
+            (option) =>
+              option.value === draft.externalFactDefinitionId ||
+              option.secondaryLabel === draft.externalFactDefinitionId,
+          )
         : undefined,
     [draft.externalFactDefinitionId, draft.kind, externalFactOptions],
   );
@@ -3965,6 +3971,40 @@ export function WorkflowContextFactDialog({
       }),
     );
   }, [open, selectedWorkUnitFacts]);
+
+  useEffect(() => {
+    if (
+      !open ||
+      (draft.kind !== "definition_backed_external_fact" && draft.kind !== "bound_external_fact") ||
+      draft.externalFactDefinitionId.trim().length === 0
+    ) {
+      return;
+    }
+
+    const matchedOption = externalFactOptions.find(
+      (option) =>
+        option.value === draft.externalFactDefinitionId ||
+        option.secondaryLabel === draft.externalFactDefinitionId,
+    );
+    if (!matchedOption || matchedOption.value === draft.externalFactDefinitionId) {
+      return;
+    }
+
+    setDraft((previous) => {
+      if (previous.externalFactDefinitionId === matchedOption.value) {
+        return previous;
+      }
+
+      return {
+        ...previous,
+        externalFactDefinitionId: matchedOption.value,
+        valueType: matchedOption.valueType,
+        validationJson: matchedOption.validationJson,
+        workUnitDefinitionId: matchedOption.workUnitDefinitionId ?? "",
+        workUnitTypeKey: matchedOption.workUnitDefinitionId ?? "",
+      };
+    });
+  }, [draft.externalFactDefinitionId, draft.kind, externalFactOptions, open]);
 
   useEffect(() => {
     if (!open || constrainedSourceCardinality !== "one" || draft.cardinality === "one") {
@@ -5839,29 +5879,14 @@ function resolveConditionOperandForEditor(
       return null;
     }
 
-    if (normalizedSubFieldKey.startsWith("artifact:")) {
-      const artifactSlotDefinitionId = normalizedSubFieldKey.slice("artifact:".length);
-      return fact.selectedArtifactSlotDefinitionIds.includes(artifactSlotDefinitionId)
-        ? {
-            operandType: "artifact_reference" as const,
-            cardinality: "one" as const,
-            freshnessCapable: true,
-          }
-        : null;
-    }
-
-    if (normalizedSubFieldKey.startsWith("fact:")) {
-      const workUnitFactDefinitionId = normalizedSubFieldKey.slice("fact:".length);
-      return fact.selectedWorkUnitFactDefinitionIds.includes(workUnitFactDefinitionId)
-        ? {
-            operandType: "json_object" as const,
-            cardinality: "one" as const,
-            freshnessCapable: false,
-          }
-        : null;
-    }
-
-    return null;
+    const matchedOption = getDraftSpecSubFieldOption(fact, normalizedSubFieldKey);
+    return matchedOption
+      ? {
+          operandType: matchedOption.operandType,
+          cardinality: matchedOption.cardinality,
+          freshnessCapable: matchedOption.freshnessCapable,
+        }
+      : null;
   }
 
   switch (fact.kind) {
@@ -5885,9 +5910,9 @@ function resolveConditionOperandForEditor(
       };
     case "work_unit_draft_spec_fact":
       return {
-        operandType: "json_object" as const,
+        operandType: "work_unit" as const,
         cardinality: fact.cardinality,
-        freshnessCapable: true,
+        freshnessCapable: false,
       };
     case "definition_backed_external_fact":
     case "bound_external_fact":
@@ -5911,6 +5936,25 @@ function getCompatibleConditionOperators(
 
   const base = conditionOperators.filter((operator) => operator.supportsOperand(operand));
   if (!fact) {
+    return base;
+  }
+
+  if (fact.kind === "work_unit_draft_spec_fact") {
+    const draftSpecOption = getDraftSpecSubFieldOption(fact, subFieldKey);
+    if (!draftSpecOption) {
+      return base.filter((operator) => new Set(["exists", "current_state"]).has(operator.key));
+    }
+
+    if (draftSpecOption?.operandType === "string") {
+      if (draftSpecOption.validationKind === "path") {
+        return base.filter((operator) => new Set(["exists", "exists_in_repo"]).has(operator.key));
+      }
+
+      if (draftSpecOption.validationKind === "allowed-values") {
+        return base.filter((operator) => new Set(["exists", "equals"]).has(operator.key));
+      }
+    }
+
     return base;
   }
 
@@ -5957,7 +6001,7 @@ function createDefaultComparisonJson(
   }
 
   if (operator.key === "current_state") {
-    return { value: getConditionCurrentStateValues(fact)[0]?.value ?? "" };
+    return { value: getConditionCurrentStateValues(fact, subFieldKey)[0]?.value ?? "" };
   }
 
   return { value: "" };
@@ -5968,6 +6012,10 @@ function getConditionAllowedValues(
   subFieldKey?: string | null,
 ) {
   const normalizedSubFieldKey = normalizeConditionSubFieldKey(subFieldKey);
+  if (fact?.kind === "work_unit_draft_spec_fact" && normalizedSubFieldKey) {
+    return getDraftSpecSubFieldOption(fact, normalizedSubFieldKey)?.allowedValues ?? [];
+  }
+
   if (normalizedSubFieldKey && isJsonScalarFact(fact)) {
     return (
       getPlainJsonSubFieldOptions(fact).find((entry) => entry.value === normalizedSubFieldKey)
@@ -5988,15 +6036,50 @@ function getConditionReferenceValues(fact: WorkflowContextFactDefinitionItem | u
     .filter((value) => value.length > 0);
 }
 
-function getConditionCurrentStateValues(fact: WorkflowContextFactDefinitionItem | undefined) {
-  if (
-    !fact ||
-    (fact.kind !== "definition_backed_external_fact" && fact.kind !== "bound_external_fact")
-  ) {
+function getConditionCurrentStateValues(
+  fact: WorkflowContextFactDefinitionItem | undefined,
+  subFieldKey?: string | null,
+) {
+  if (!fact) {
+    return [];
+  }
+
+  if (fact.kind === "work_unit_draft_spec_fact") {
+    const draftSpecSubField = getDraftSpecSubFieldOption(fact, subFieldKey);
+    if (draftSpecSubField) {
+      return draftSpecSubField.workUnitStateOptions ?? [];
+    }
+
+    return fact.workUnitStateOptions ?? [];
+  }
+
+  if (fact.kind !== "definition_backed_external_fact" && fact.kind !== "bound_external_fact") {
     return [];
   }
 
   return fact.workUnitStateOptions ?? [];
+}
+
+function getDraftSpecSubFieldOption(
+  fact: WorkflowContextFactDefinitionItem | undefined,
+  subFieldKey: string | null | undefined,
+) {
+  if (fact?.kind !== "work_unit_draft_spec_fact") {
+    return null;
+  }
+
+  const normalizedSubFieldKey = normalizeConditionSubFieldKey(subFieldKey);
+  if (!normalizedSubFieldKey) {
+    return null;
+  }
+
+  return (
+    fact.draftSpecSubFieldOptions?.find((option) => option.value === normalizedSubFieldKey) ?? null
+  );
+}
+
+function getDraftSpecRootTargetLabel() {
+  return "Targeting Work Unit Instance";
 }
 
 function getConditionNoteText(params: {
@@ -6014,7 +6097,13 @@ function getConditionNoteText(params: {
   const plainJsonSubField = normalizedSubFieldKey
     ? getPlainJsonSubFieldOptions(fact).find((entry) => entry.value === normalizedSubFieldKey)
     : null;
-  const targetLabel = plainJsonSubField?.label ?? normalizedSubFieldKey ?? fact.label ?? fact.key;
+  const draftSpecSubField = getDraftSpecSubFieldOption(fact, normalizedSubFieldKey);
+  const targetLabel =
+    draftSpecSubField?.label ??
+    plainJsonSubField?.label ??
+    (fact.kind === "work_unit_draft_spec_fact" && !normalizedSubFieldKey
+      ? getDraftSpecRootTargetLabel()
+      : (normalizedSubFieldKey ?? fact.label ?? fact.key));
   const valueScopeLead =
     fact.cardinality === "many"
       ? `Condition passes when at least one runtime value for ${targetLabel} satisfies this rule.`
@@ -6093,6 +6182,28 @@ function getConditionNoteText(params: {
     return "Fresh checks whether the referenced artifact was produced recently enough for the current workflow state.";
   }
 
+  if (fact.kind === "work_unit_draft_spec_fact") {
+    if (!normalizedSubFieldKey) {
+      return operator.key === "current_state"
+        ? `${valueScopeLead} Comparison options come from the lifecycle states defined on the targeted work unit.`
+        : `${valueScopeLead} Root draft-spec conditions evaluate the targeted work unit instance rather than a nested fact payload.`;
+    }
+
+    if (draftSpecSubField?.kind === "artifact" && operator.key === "fresh") {
+      return `${valueScopeLead} Fresh checks whether the targeted artifact instance was produced recently enough for the current workflow state.`;
+    }
+
+    if (draftSpecSubField?.validationKind === "allowed-values" && operator.key === "equals") {
+      return `${valueScopeLead} Comparison options come from the allowed values defined for the targeted fact.`;
+    }
+
+    if (draftSpecSubField?.validationKind === "path") {
+      return `${valueScopeLead} This targeted fact uses path semantics, so repository checks use normalized repo-relative paths.`;
+    }
+
+    return `${valueScopeLead} This rule evaluates the targeted draft-spec selection using its underlying fact type.`;
+  }
+
   return null;
 }
 
@@ -6134,22 +6245,7 @@ function reconcileBranchConditionDraft(params: {
 }
 
 function getDraftSpecSubFieldOptions(fact: WorkflowContextFactDefinitionItem | undefined) {
-  if (fact?.kind !== "work_unit_draft_spec_fact") {
-    return [];
-  }
-
-  return [
-    ...fact.selectedWorkUnitFactDefinitionIds.map((definitionId) => ({
-      value: `fact:${definitionId}`,
-      label: titleizeKey(definitionId),
-      description: `Fact · ${definitionId}`,
-    })),
-    ...fact.selectedArtifactSlotDefinitionIds.map((definitionId) => ({
-      value: `artifact:${definitionId}`,
-      label: titleizeKey(definitionId),
-      description: `Artifact · ${definitionId}`,
-    })),
-  ];
+  return fact?.kind === "work_unit_draft_spec_fact" ? (fact.draftSpecSubFieldOptions ?? []) : [];
 }
 
 function createEmptyBranchRouteGroup(): WorkflowBranchRouteGroupPayload {
@@ -6405,7 +6501,7 @@ function RouteConditionComparisonField(props: {
     );
   }
 
-  const currentStateValues = getConditionCurrentStateValues(props.fact);
+  const currentStateValues = getConditionCurrentStateValues(props.fact, props.subFieldKey);
   if (props.operator.key === "current_state" && currentStateValues.length > 0) {
     return (
       <Select
@@ -6988,7 +7084,7 @@ export function RouteDialog({
                                               <SelectValue
                                                 placeholder={
                                                   fact?.kind === "work_unit_draft_spec_fact"
-                                                    ? "Use whole draft spec"
+                                                    ? getDraftSpecRootTargetLabel()
                                                     : "Use whole JSON value"
                                                 }
                                               />
@@ -6996,7 +7092,7 @@ export function RouteDialog({
                                             <SelectContent className="rounded-none">
                                               <SelectItem value="__root__">
                                                 {fact?.kind === "work_unit_draft_spec_fact"
-                                                  ? "Whole draft spec"
+                                                  ? getDraftSpecRootTargetLabel()
                                                   : "Whole JSON value"}
                                               </SelectItem>
                                               {(fact?.kind === "work_unit_draft_spec_fact"
@@ -7009,17 +7105,20 @@ export function RouteDialog({
                                               ))}
                                             </SelectContent>
                                           </Select>
-                                          {condition.subFieldKey ? (
+                                          {fact?.kind === "work_unit_draft_spec_fact" ||
+                                          condition.subFieldKey ? (
                                             <p className="text-[0.68rem] uppercase tracking-[0.08em] text-muted-foreground">
-                                              {
-                                                (fact?.kind === "work_unit_draft_spec_fact"
-                                                  ? draftSpecSubFieldOptions
-                                                  : plainJsonSubFieldOptions
-                                                ).find(
-                                                  (option) =>
-                                                    option.value === normalizedSubFieldKey,
-                                                )?.description
-                                              }
+                                              {fact?.kind === "work_unit_draft_spec_fact"
+                                                ? normalizedSubFieldKey
+                                                  ? draftSpecSubFieldOptions.find(
+                                                      (option) =>
+                                                        option.value === normalizedSubFieldKey,
+                                                    )?.description
+                                                  : getDraftSpecRootTargetLabel()
+                                                : plainJsonSubFieldOptions.find(
+                                                    (option) =>
+                                                      option.value === normalizedSubFieldKey,
+                                                  )?.description}
                                             </p>
                                           ) : null}
                                         </div>

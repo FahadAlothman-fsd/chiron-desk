@@ -1511,6 +1511,49 @@ describe("workflow editor invoke route", () => {
     );
   });
 
+  it("branch route infers draft-spec target labels and operators from the selected target metadata", async () => {
+    const { MethodologyWorkflowEditorRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId");
+
+    renderRoute(<MethodologyWorkflowEditorRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Branch step type 61/i }));
+    expect(await screen.findByText("Create Branch Step")).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("Step Key"), {
+      target: { value: "branch-on-story-draft" },
+    });
+    fireEvent.change(screen.getByLabelText("Step Title"), {
+      target: { value: "Branch On Story Draft" },
+    });
+    fireEvent.click(screen.getByRole("combobox", { name: "Default Target Step" }));
+    fireEvent.click(screen.getByRole("button", { name: /Invoke Story Work/i }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Routes" }));
+    fireEvent.click(screen.getByRole("button", { name: /Add Route/i }));
+
+    expect(await screen.findByRole("heading", { name: "Add Route" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Target Step" }));
+    fireEvent.click(screen.getByRole("button", { name: /Capture Context/i }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Context Fact" }));
+    fireEvent.click(screen.getByRole("button", { name: /Story Draft/i }));
+
+    expect(screen.getAllByText(/Targeting Work Unit Instance/i).length).toBeGreaterThan(0);
+    expect(screen.getByRole("option", { name: /^Current State$/i })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: /^Fresh$/i })).toBeNull();
+    expect(screen.queryByRole("option", { name: /^Equals$/i })).toBeNull();
+
+    fireEvent.change(screen.getByLabelText("Draft-spec Sub-field"), {
+      target: { value: "fact:wuf-story-title" },
+    });
+
+    expect(screen.getAllByText(/Targeting String Fact Instance/i).length).toBeGreaterThan(0);
+    expect(screen.getByRole("option", { name: /^Equals$/i })).toBeTruthy();
+    expect(screen.getByRole("option", { name: /^Contains$/i })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: /^Current State$/i })).toBeNull();
+  });
+
   it("branch route targets external JSON subfields with the same operators as plain JSON facts", async () => {
     const { MethodologyWorkflowEditorRoute } =
       await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId");

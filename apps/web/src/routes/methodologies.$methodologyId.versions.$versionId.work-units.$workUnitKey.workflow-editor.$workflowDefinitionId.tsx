@@ -7,6 +7,7 @@ import type {
   WorkflowAgentStepPayload,
   WorkflowContextFactDefinitionItem,
   WorkflowContextFactDraft,
+  WorkflowDraftSpecSubFieldOption,
   WorkflowConditionOperator,
   WorkflowConditionOperand,
   WorkflowEditorEdge,
@@ -1158,6 +1159,17 @@ function toContextFactDefinitions(
         item.workUnitDefinitionId = resolvedWorkUnitDefinitionId;
         item.workUnitTypeKey = resolvedWorkUnitDefinitionId;
         item.includedFactDefinitionIds = item.selectedWorkUnitFactDefinitionIds;
+        if (resolvedWorkUnitDefinitionId) {
+          item.workUnitStateOptions = getWorkUnitStateOptions(
+            rawWorkUnitTypes,
+            resolvedWorkUnitDefinitionId,
+          );
+        }
+        item.draftSpecSubFieldOptions = getDraftSpecSubFieldOptions({
+          fact: item,
+          rawWorkUnitFacts,
+          rawWorkUnitTypes,
+        });
       }
 
       if (
@@ -1385,6 +1397,199 @@ function getFactDefinitionEntries(rawFactDefinitions: unknown) {
       : Array.isArray(rawFactDefinitions)
         ? rawFactDefinitions
         : [];
+}
+
+function getFactDefinitionIdentifier(value: Record<string, unknown>) {
+  const candidates = [
+    value.id,
+    value.factDefinitionId,
+    value.definitionId,
+    value.contextFactDefinitionId,
+    value.methodologyFactDefinitionId,
+    value.workUnitFactDefinitionId,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim().length > 0) {
+      return candidate.trim();
+    }
+  }
+
+  return null;
+}
+
+function mapPickerValueTypeToOperandType(
+  valueType: WorkflowEditorPickerOption["valueType"],
+): WorkflowConditionOperand["operandType"] {
+  switch (valueType) {
+    case "number":
+      return "number";
+    case "boolean":
+      return "boolean";
+    case "json":
+      return "json_object";
+    case "work_unit":
+      return "work_unit";
+    case "string":
+    default:
+      return "string";
+  }
+}
+
+function getDraftSpecTargetDescription(
+  operandType: WorkflowConditionOperand["operandType"],
+  kind: WorkflowDraftSpecSubFieldOption["kind"],
+) {
+  if (kind === "artifact") {
+    return "Targeting Artifact Instance";
+  }
+
+  switch (operandType) {
+    case "work_unit":
+      return "Targeting Work Unit Fact Instance";
+    case "json_object":
+      return "Targeting JSON Fact Instance";
+    case "number":
+      return "Targeting Number Fact Instance";
+    case "boolean":
+      return "Targeting Boolean Fact Instance";
+    case "string":
+    default:
+      return "Targeting String Fact Instance";
+  }
+}
+
+function formatDraftSpecTargetLabel(params: {
+  label: string;
+  cardinality: "one" | "many";
+  operandType: WorkflowConditionOperand["operandType"];
+  kind: WorkflowDraftSpecSubFieldOption["kind"];
+}) {
+  const typeLabel =
+    params.kind === "artifact"
+      ? "artifact"
+      : params.operandType === "json_object"
+        ? "json"
+        : params.operandType.replaceAll("_", " ");
+  return `${params.label} · ${params.cardinality} · ${typeLabel}`;
+}
+
+function readStringValidationMetadata(validation: unknown): {
+  kind: "none" | "path" | "allowed-values";
+  allowedValues: readonly string[];
+} {
+  if (typeof validation !== "object" || validation === null) {
+    return { kind: "none", allowedValues: [] };
+  }
+
+  const kind = "kind" in validation ? (validation as { kind?: unknown }).kind : undefined;
+  if (kind === "path") {
+    return { kind, allowedValues: [] };
+  }
+
+  if (kind === "allowed-values") {
+    const values = "values" in validation ? (validation as { values?: unknown }).values : undefined;
+    return {
+      kind,
+      allowedValues: Array.isArray(values)
+        ? values.filter((entry): entry is string => typeof entry === "string")
+        : [],
+    };
+  }
+
+  return { kind: "none", allowedValues: [] };
+}
+
+function getDraftSpecSubFieldOptions(params: {
+  fact: WorkflowContextFactDefinitionItem;
+  rawWorkUnitFacts: unknown;
+  rawWorkUnitTypes: unknown;
+}): readonly WorkflowDraftSpecSubFieldOption[] {
+  const { fact, rawWorkUnitFacts, rawWorkUnitTypes } = params;
+  if (fact.kind !== "work_unit_draft_spec_fact") {
+    return [];
+  }
+
+  const workUnitDefinitionId = fact.workUnitDefinitionId?.trim();
+  const workUnitFactOptions = workUnitDefinitionId
+    ? toWorkUnitDraftSpecFactOptions(rawWorkUnitFacts, workUnitDefinitionId)
+    : [];
+  const selectedFactIds = new Set(fact.selectedWorkUnitFactDefinitionIds);
+  const selectedArtifactIds = new Set(fact.selectedArtifactSlotDefinitionIds);
+
+  const factOptions = workUnitFactOptions
+    .filter((option) => selectedFactIds.has(option.value))
+    .map((option) => {
+      const stringValidation =
+        option.valueType === "string"
+          ? readStringValidationMetadata(option.validationJson)
+          : { kind: "none" as const, allowedValues: [] as readonly string[] };
+      const validationKind = stringValidation.kind;
+      const operandType = mapPickerValueTypeToOperandType(option.valueType);
+
+      return {
+        value: `fact:${option.value}`,
+        label: formatDraftSpecTargetLabel({
+          label: option.label,
+          cardinality: option.cardinality ?? "one",
+          operandType,
+          kind: "fact",
+        }),
+        secondaryLabel: option.secondaryLabel,
+        description: getDraftSpecTargetDescription(operandType, "fact"),
+        searchText: option.searchText,
+        badges: (option.badges ?? []).filter(
+          (badge) =>
+            badge.tone === "cardinality" ||
+            badge.tone === "type-string" ||
+            badge.tone === "type-number" ||
+            badge.tone === "type-boolean" ||
+            badge.tone === "type-json" ||
+            badge.tone === "type-work-unit" ||
+            badge.tone === "work-unit-definition",
+        ),
+        valueType: option.valueType,
+        validationJson: option.validationJson,
+        workUnitDefinitionId: option.workUnitDefinitionId,
+        kind: "fact" as const,
+        operandType,
+        cardinality: option.cardinality ?? "one",
+        freshnessCapable: false,
+        validationKind,
+        allowedValues: stringValidation.allowedValues,
+        workUnitStateOptions:
+          operandType === "work_unit" && option.workUnitDefinitionId
+            ? getWorkUnitStateOptions(rawWorkUnitTypes, option.workUnitDefinitionId)
+            : [],
+      } satisfies WorkflowDraftSpecSubFieldOption;
+    });
+
+  const artifactOptions = fact.selectedArtifactSlotDefinitionIds
+    .filter((definitionId) => selectedArtifactIds.has(definitionId))
+    .map(
+      (definitionId) =>
+        ({
+          value: `artifact:${definitionId}`,
+          label: formatDraftSpecTargetLabel({
+            label: titleizeKey(definitionId),
+            cardinality: "one",
+            operandType: "artifact_reference",
+            kind: "artifact",
+          }),
+          description: getDraftSpecTargetDescription("artifact_reference", "artifact"),
+          badges: [
+            { label: "one", tone: "cardinality" as const },
+            { label: "artifact", tone: "artifact-reference" as const },
+          ],
+          kind: "artifact" as const,
+          operandType: "artifact_reference" as const,
+          cardinality: "one" as const,
+          freshnessCapable: true,
+          workUnitStateOptions: [],
+        }) satisfies WorkflowDraftSpecSubFieldOption,
+    );
+
+  return [...factOptions, ...artifactOptions];
 }
 
 function getWorkUnitEntries(rawWorkUnits: unknown) {
@@ -1678,15 +1883,7 @@ function toFactOptions(
               ? value.displayName.trim()
               : value.key;
       const optionValue =
-        mode === "id"
-          ? typeof value.id === "string" && value.id.trim().length > 0
-            ? value.id.trim()
-            : typeof value.factDefinitionId === "string" && value.factDefinitionId.trim().length > 0
-              ? value.factDefinitionId.trim()
-              : typeof value.definitionId === "string" && value.definitionId.trim().length > 0
-                ? value.definitionId.trim()
-                : value.key
-          : value.key;
+        mode === "id" ? (getFactDefinitionIdentifier(value) ?? value.key) : value.key;
 
       const description = readMarkdown(value.descriptionJson) || readMarkdown(value.description);
       const cardinality =
