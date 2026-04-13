@@ -533,6 +533,7 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
               name: fact.name,
               key: fact.key ?? "",
               factType: fact.factType === "work unit" ? "work_unit" : fact.factType,
+              cardinality: fact.cardinality,
               defaultValue: fact.defaultValue,
               guidance:
                 humanGuidance.length > 0 || agentGuidance.length > 0
@@ -600,6 +601,7 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
               name: fact.name,
               key: fact.key ?? "",
               factType: fact.factType === "work unit" ? "work_unit" : fact.factType,
+              cardinality: fact.cardinality,
               defaultValue: fact.defaultValue,
               guidance:
                 humanGuidance.length > 0 || agentGuidance.length > 0

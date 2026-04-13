@@ -52,6 +52,7 @@ const useSearchMock = vi.fn();
 const useRouteContextMock = vi.fn();
 const useLocationMock = vi.fn();
 const useNavigateMock = vi.fn();
+const useRouterStateMock = vi.fn();
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children }: { children: ReactNode }) => <a href="/">{children}</a>,
@@ -65,6 +66,7 @@ vi.mock("@tanstack/react-router", () => ({
   }),
   useLocation: useLocationMock,
   useNavigate: () => useNavigateMock,
+  useRouterState: useRouterStateMock,
 }));
 
 vi.mock("@/features/methodologies/version-workspace", () => ({
@@ -681,10 +683,19 @@ beforeEach(() => {
   useRouteContextMock.mockReset();
   useLocationMock.mockReset();
   useNavigateMock.mockReset();
+  useRouterStateMock.mockReset();
   useRouteContextMock.mockReturnValue(createRouteContext());
   useLocationMock.mockReturnValue({
     pathname: "/methodologies/equity-core/versions/draft-v2/work-units",
   });
+  useRouterStateMock.mockImplementation(
+    ({ select }: { select?: (state: { location: { pathname: string } }) => unknown }) =>
+      select?.({
+        location: {
+          pathname: "/methodologies/equity-core/versions/draft-v2/work-units/WU.TASK",
+        },
+      }) ?? "/methodologies/equity-core/versions/draft-v2/work-units/WU.TASK",
+  );
 });
 
 afterEach(() => {
@@ -2189,6 +2200,7 @@ describe("methodology version shell routes", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "+ Add Fact" }));
     chooseOption("Fact Type", "work unit");
+    chooseOptionIn(screen.getByRole("dialog"), "Cardinality", "many");
     expect(comboboxForField("Dependency Type")).toBeTruthy();
     chooseOption("Dependency Type", "link.requires");
     fireEvent.change(screen.getByLabelText("Fact Key"), {
@@ -2210,6 +2222,7 @@ describe("methodology version shell routes", () => {
         fact: expect.objectContaining({
           key: "fact.upstream_unit",
           factType: "work_unit",
+          cardinality: "many",
         }),
       }),
       expect.anything(),

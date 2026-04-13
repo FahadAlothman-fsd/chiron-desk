@@ -394,6 +394,10 @@ function normalizeFact(source: unknown, index: number): UiFact {
   };
 }
 
+function compareUiFactsByKey(a: UiFact, b: UiFact) {
+  return a.key.localeCompare(b.key);
+}
+
 function toFormState(fact?: UiFact): FactFormState {
   return {
     name: fact?.name ?? "",
@@ -577,7 +581,10 @@ export function FactsTab({
   onUpdateFact,
   onDeleteFact,
 }: FactsTabProps) {
-  const normalizedFacts = useMemo(() => initialFacts.map(normalizeFact), [initialFacts]);
+  const normalizedFacts = useMemo(
+    () => initialFacts.map(normalizeFact).sort(compareUiFactsByKey),
+    [initialFacts],
+  );
   const [factsDraft, setFactsDraft] = useState<UiFact[] | null>(null);
   const [editingFactId, setEditingFactId] = useState<string | null>(null);
   const [deletingFactId, setDeletingFactId] = useState<string | null>(null);
@@ -707,12 +714,14 @@ export function FactsTab({
     try {
       if (isCreateMode) {
         await onCreateFact?.({ fact: mutationFact });
-        mutateFacts((current) => [...current, nextFact]);
+        mutateFacts((current) => [...current, nextFact].sort(compareUiFactsByKey));
       } else {
         if (editingFact) {
           await onUpdateFact?.({ factKey: editingFact.key, fact: mutationFact });
         }
-        mutateFacts((current) => current.map((row) => (row.id === nextFact.id ? nextFact : row)));
+        mutateFacts((current) =>
+          current.map((row) => (row.id === nextFact.id ? nextFact : row)).sort(compareUiFactsByKey),
+        );
       }
 
       closeEditor();
