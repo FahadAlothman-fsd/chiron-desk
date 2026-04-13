@@ -7,7 +7,6 @@ import type {
   BranchRouteGroupPayload,
   BranchRoutePayload,
   BranchStepPayload,
-  FormFieldValueType,
   FormStepFieldPayload,
   InvokeActivationTransitionPayload,
   InvokeBindingPayload,
