@@ -1,0 +1,25 @@
+packages/db/src/methodology-repository.ts
+  16df42013de6e9ee 117,1005,1055,1105-1106,1117-1119
+packages/db/src/tests/repository/workflow-context-fact-list.integration.test.ts
+  16df42013de6e9ee 30-54,296-353
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "4f7e1f2ba1953605aeeea33cc5b732f816ed642a",
+  "prompts": {
+    "16df42013de6e9ee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_285c21e1fffe2TVLsiZ644kgK7",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 9,
+      "total_deletions": 9,
+      "accepted_lines": 1301,
+      "overriden_lines": 0
+    }
+  }
+}
