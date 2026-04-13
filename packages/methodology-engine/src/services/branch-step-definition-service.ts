@@ -130,6 +130,47 @@ const parseBranchProjectedEdgeMetadata = (value: unknown): BranchProjectedEdgeMe
   };
 };
 
+const getPlainStringValidationKind = (
+  fact: WorkflowContextFactDto,
+): "none" | "path" | "allowed-values" => {
+  if (fact.kind !== "plain_value_fact" || fact.valueType !== "string") {
+    return "none";
+  }
+
+  if (!isRecord(fact.validationJson)) {
+    return "none";
+  }
+
+  const kind = fact.validationJson.kind;
+  return kind === "path" || kind === "allowed-values" ? kind : "none";
+};
+
+const getPlainJsonSubFieldType = (
+  fact: WorkflowContextFactDto,
+  subFieldKey: string,
+): "string" | "number" | "boolean" | null => {
+  if (fact.kind !== "plain_value_fact" || fact.valueType !== "json") {
+    return null;
+  }
+
+  if (!isRecord(fact.validationJson) || fact.validationJson.kind !== "json-schema") {
+    return null;
+  }
+
+  const subSchema = isRecord(fact.validationJson.subSchema) ? fact.validationJson.subSchema : null;
+  const fields = Array.isArray(subSchema?.fields) ? subSchema.fields : [];
+  const matchedField = fields.find((entry) => isRecord(entry) && entry.key === subFieldKey);
+  if (!isRecord(matchedField)) {
+    return null;
+  }
+
+  return matchedField.type === "string" ||
+    matchedField.type === "number" ||
+    matchedField.type === "boolean"
+    ? matchedField.type
+    : null;
+};
+
 const validateConditionReferences = (
   payload: BranchStepPayload,
   facts: readonly WorkflowContextFactDto[],
@@ -145,6 +186,23 @@ const validateConditionReferences = (
       Effect.gen(function* () {
         const subFieldKey = condition.subFieldKey?.trim() ?? "";
         if (subFieldKey.length > 0) {
+          if (fact.kind === "plain_value_fact" && fact.valueType === "json") {
+            const subFieldType = getPlainJsonSubFieldType(fact, subFieldKey);
+            if (!subFieldType) {
+              return yield* new ValidationDecodeError({
+                message:
+                  `Branch condition '${condition.conditionId}' references unknown plain-json ` +
+                  `subfield '${subFieldKey}'`,
+              });
+            }
+
+            return {
+              operandType: subFieldType,
+              cardinality: fact.cardinality,
+              freshnessCapable: false,
+            } as const;
+          }
+
           if (fact.kind !== "work_unit_draft_spec_fact") {
             return yield* new ValidationDecodeError({
               message:
@@ -238,6 +296,80 @@ const validateConditionReferences = (
         }
       });
 
+    const assertFactSpecificOperatorCompatibility = (
+      condition: BranchRouteConditionPayload,
+      fact: WorkflowContextFactDto,
+      operand: ResolvedConditionOperand,
+    ): Effect.Effect<void, ValidationDecodeError> =>
+      Effect.gen(function* () {
+        if (fact.kind !== "plain_value_fact") {
+          return;
+        }
+
+        const subFieldKey = condition.subFieldKey?.trim() ?? "";
+
+        const allowedOperators = (() => {
+          if (fact.valueType === "json") {
+            if (subFieldKey.length === 0) {
+              return new Set(["exists"]);
+            }
+
+            if (operand.operandType === "string") {
+              return new Set(["equals", "contains", "starts_with", "ends_with"]);
+            }
+
+            if (operand.operandType === "number") {
+              return new Set(["equals", "gt", "gte", "lt", "lte", "between"]);
+            }
+
+            if (operand.operandType === "boolean") {
+              return new Set(["equals"]);
+            }
+
+            return new Set<string>();
+          }
+
+          if (subFieldKey.length > 0) {
+            return new Set<string>();
+          }
+
+          if (fact.valueType === "string") {
+            const validationKind = getPlainStringValidationKind(fact);
+            if (validationKind === "path") {
+              return new Set(["exists", "exists_in_repo"]);
+            }
+
+            if (validationKind === "allowed-values") {
+              return new Set(["exists", "equals"]);
+            }
+
+            return new Set(["exists", "equals", "contains", "starts_with", "ends_with"]);
+          }
+
+          if (fact.valueType === "number") {
+            return new Set(["exists", "equals", "gt", "gte", "lt", "lte", "between"]);
+          }
+
+          if (fact.valueType === "boolean") {
+            return new Set(["exists", "equals"]);
+          }
+
+          return null;
+        })();
+
+        if (!allowedOperators) {
+          return;
+        }
+
+        if (!allowedOperators.has(condition.operator)) {
+          return yield* new ValidationDecodeError({
+            message:
+              `Branch condition operator '${condition.operator}' is not allowed for plain value ` +
+              `fact '${fact.key}' under the selected scope`,
+          });
+        }
+      });
+
     for (const route of payload.routes) {
       if (route.groups.length === 0) {
         return yield* new ValidationDecodeError({
@@ -263,6 +395,7 @@ const validateConditionReferences = (
           }
 
           const operand = yield* resolveOperand(condition, fact);
+          yield* assertFactSpecificOperatorCompatibility(condition, fact, operand);
           operandByConditionId.set(condition.conditionId, operand);
         }
       }

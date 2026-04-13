@@ -46,6 +46,35 @@ const contextFacts = [
     allowedWorkflowDefinitionIds: ["wf-1", "wf-aux"],
   },
   {
+    contextFactDefinitionId: "ctx-json-metadata",
+    kind: "plain_value_fact",
+    key: "jsonMetadata",
+    label: "JSON Metadata",
+    cardinality: "one",
+    valueType: "json",
+    validationJson: {
+      kind: "json-schema",
+      schemaDialect: "draft-2020-12",
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          path: { type: "string" },
+          estimatedHours: { type: "number" },
+          isCritical: { type: "boolean" },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "path", type: "string", cardinality: "one" },
+          { key: "estimatedHours", type: "number", cardinality: "one" },
+          { key: "isCritical", type: "boolean", cardinality: "one" },
+        ],
+      },
+    },
+  },
+  {
     contextFactDefinitionId: "ctx-artifact",
     kind: "artifact_reference_fact",
     key: "artifact",
@@ -1033,6 +1062,130 @@ describe("l3 invoke step definition service", () => {
       expect(invalidOperatorError.cause.error).toBeInstanceOf(ValidationDecodeError);
     }
 
+    const invalidPlainJsonRootEqualsError = await Effect.runPromiseExit(
+      Effect.gen(function* () {
+        const service = yield* BranchStepDefinitionService;
+        return yield* service.createBranchStep(
+          {
+            versionId: "ver-1",
+            workUnitTypeKey: "WU.STORY",
+            workflowDefinitionId: "wf-1",
+            payload: {
+              ...branchPayload,
+              routes: [
+                {
+                  ...branchPayload.routes[0]!,
+                  groups: [
+                    {
+                      ...branchPayload.routes[0]!.groups[0]!,
+                      conditions: [
+                        {
+                          ...branchPayload.routes[0]!.groups[0]!.conditions[0]!,
+                          contextFactDefinitionId: "ctx-json-metadata",
+                          subFieldKey: null,
+                          operator: "equals",
+                          comparisonJson: { value: { path: "src/index.ts" } },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+          "user-1",
+        );
+      }).pipe(Effect.provide(layer)),
+    );
+    expect(invalidPlainJsonRootEqualsError._tag).toBe("Failure");
+    if (invalidPlainJsonRootEqualsError._tag === "Failure") {
+      expect(invalidPlainJsonRootEqualsError.cause.error).toBeInstanceOf(ValidationDecodeError);
+    }
+
+    const invalidPlainJsonUnknownSubFieldError = await Effect.runPromiseExit(
+      Effect.gen(function* () {
+        const service = yield* BranchStepDefinitionService;
+        return yield* service.createBranchStep(
+          {
+            versionId: "ver-1",
+            workUnitTypeKey: "WU.STORY",
+            workflowDefinitionId: "wf-1",
+            payload: {
+              ...branchPayload,
+              routes: [
+                {
+                  ...branchPayload.routes[0]!,
+                  groups: [
+                    {
+                      ...branchPayload.routes[0]!.groups[0]!,
+                      conditions: [
+                        {
+                          ...branchPayload.routes[0]!.groups[0]!.conditions[0]!,
+                          contextFactDefinitionId: "ctx-json-metadata",
+                          subFieldKey: "missing",
+                          operator: "equals",
+                          comparisonJson: { value: "src/index.ts" },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+          "user-1",
+        );
+      }).pipe(Effect.provide(layer)),
+    );
+    expect(invalidPlainJsonUnknownSubFieldError._tag).toBe("Failure");
+    if (invalidPlainJsonUnknownSubFieldError._tag === "Failure") {
+      expect(invalidPlainJsonUnknownSubFieldError.cause.error).toBeInstanceOf(
+        ValidationDecodeError,
+      );
+    }
+
+    const invalidPlainJsonSubFieldOperatorError = await Effect.runPromiseExit(
+      Effect.gen(function* () {
+        const service = yield* BranchStepDefinitionService;
+        return yield* service.createBranchStep(
+          {
+            versionId: "ver-1",
+            workUnitTypeKey: "WU.STORY",
+            workflowDefinitionId: "wf-1",
+            payload: {
+              ...branchPayload,
+              routes: [
+                {
+                  ...branchPayload.routes[0]!,
+                  groups: [
+                    {
+                      ...branchPayload.routes[0]!.groups[0]!,
+                      conditions: [
+                        {
+                          ...branchPayload.routes[0]!.groups[0]!.conditions[0]!,
+                          contextFactDefinitionId: "ctx-json-metadata",
+                          subFieldKey: "estimatedHours",
+                          operator: "contains",
+                          comparisonJson: { value: "5" },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+          "user-1",
+        );
+      }).pipe(Effect.provide(layer)),
+    );
+    expect(invalidPlainJsonSubFieldOperatorError._tag).toBe("Failure");
+    if (invalidPlainJsonSubFieldOperatorError._tag === "Failure") {
+      expect(invalidPlainJsonSubFieldOperatorError.cause.error).toBeInstanceOf(
+        ValidationDecodeError,
+      );
+    }
+
     const publishedLayer = makeLayer({ versionStatus: "published" });
     const draftError = await Effect.runPromiseExit(
       Effect.gen(function* () {
@@ -1053,6 +1206,56 @@ describe("l3 invoke step definition service", () => {
     if (draftError._tag === "Failure") {
       expect(draftError.cause.error).toBeInstanceOf(VersionNotDraftError);
     }
+  });
+
+  it("branch accepts plain-json typed subfield operators", async () => {
+    const { layer } = makeLayer();
+
+    const created = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* BranchStepDefinitionService;
+        return yield* service.createBranchStep(
+          {
+            versionId: "ver-1",
+            workUnitTypeKey: "WU.STORY",
+            workflowDefinitionId: "wf-1",
+            payload: {
+              ...branchPayload,
+              routes: [
+                {
+                  ...branchPayload.routes[0]!,
+                  groups: [
+                    {
+                      ...branchPayload.routes[0]!.groups[0]!,
+                      conditions: [
+                        {
+                          ...branchPayload.routes[0]!.groups[0]!.conditions[0]!,
+                          contextFactDefinitionId: "ctx-json-metadata",
+                          subFieldKey: "path",
+                          operator: "starts_with",
+                          comparisonJson: { value: "src/" },
+                        },
+                        {
+                          ...branchPayload.routes[0]!.groups[0]!.conditions[0]!,
+                          conditionId: "cond-hours-range",
+                          contextFactDefinitionId: "ctx-json-metadata",
+                          subFieldKey: "estimatedHours",
+                          operator: "between",
+                          comparisonJson: { min: 1, max: 8 },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+          "user-1",
+        );
+      }).pipe(Effect.provide(layer)),
+    );
+
+    expect(created.stepId).toBe("step-branch-1");
   });
 
   it("branch create tolerates unrelated malformed keyed steps without payload.key", async () => {

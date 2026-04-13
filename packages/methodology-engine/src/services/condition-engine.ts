@@ -80,12 +80,10 @@ const hasNumericRange = (comparison: unknown): boolean => {
 const hasNoComparison = (comparison: unknown): boolean =>
   typeof comparison === "undefined" || comparison === null;
 
-const isScalarOperand = (operand: ResolvedConditionOperand) => operand.cardinality === "one";
-const isManyOperand = (operand: ResolvedConditionOperand) => operand.cardinality === "many";
 const isStringOperand = (operand: ResolvedConditionOperand) => operand.operandType === "string";
 const isNumberOperand = (operand: ResolvedConditionOperand) => operand.operandType === "number";
-const isWorkflowReferenceOperand = (operand: ResolvedConditionOperand) =>
-  operand.operandType === "workflow_reference";
+const isJsonObjectOperand = (operand: ResolvedConditionOperand) =>
+  operand.operandType === "json_object";
 const isArtifactReferenceOperand = (operand: ResolvedConditionOperand) =>
   operand.operandType === "artifact_reference";
 const supportsFreshness = (operand: ResolvedConditionOperand) => operand.freshnessCapable;
@@ -118,68 +116,71 @@ export const BuiltInConditionOperators: readonly ConditionOperator[] = [
     label: "Equals",
     requiresComparison: true,
     supportsOperand: (operand) =>
-      (isScalarOperand(operand) && !isArtifactReferenceOperand(operand)) ||
-      isWorkflowReferenceOperand(operand),
+      !isArtifactReferenceOperand(operand) && !isJsonObjectOperand(operand),
     validateComparison: (comparison, operand) => hasComparableValueForOperand(comparison, operand),
   },
   {
     key: "contains",
     label: "Contains",
     requiresComparison: true,
-    supportsOperand: (operand) => isManyOperand(operand) || isStringOperand(operand),
-    validateComparison: (comparison, operand) =>
-      isManyOperand(operand)
-        ? hasComparableValue(comparison)
-        : hasStringComparableValue(comparison),
+    supportsOperand: (operand) => isStringOperand(operand),
+    validateComparison: (comparison) => hasStringComparableValue(comparison),
   },
   {
     key: "starts_with",
     label: "Starts With",
     requiresComparison: true,
-    supportsOperand: (operand) => isScalarOperand(operand) && isStringOperand(operand),
+    supportsOperand: (operand) => isStringOperand(operand),
     validateComparison: (comparison) => hasStringComparableValue(comparison),
   },
   {
     key: "ends_with",
     label: "Ends With",
     requiresComparison: true,
-    supportsOperand: (operand) => isScalarOperand(operand) && isStringOperand(operand),
+    supportsOperand: (operand) => isStringOperand(operand),
     validateComparison: (comparison) => hasStringComparableValue(comparison),
   },
   {
     key: "gt",
     label: "Greater Than",
     requiresComparison: true,
-    supportsOperand: (operand) => isScalarOperand(operand) && isNumberOperand(operand),
+    supportsOperand: (operand) => isNumberOperand(operand),
     validateComparison: (comparison) => hasNumericComparableValue(comparison),
   },
   {
     key: "gte",
     label: "Greater Than Or Equal",
     requiresComparison: true,
-    supportsOperand: (operand) => isScalarOperand(operand) && isNumberOperand(operand),
+    supportsOperand: (operand) => isNumberOperand(operand),
     validateComparison: (comparison) => hasNumericComparableValue(comparison),
   },
   {
     key: "lt",
     label: "Less Than",
     requiresComparison: true,
-    supportsOperand: (operand) => isScalarOperand(operand) && isNumberOperand(operand),
+    supportsOperand: (operand) => isNumberOperand(operand),
     validateComparison: (comparison) => hasNumericComparableValue(comparison),
   },
   {
     key: "lte",
     label: "Less Than Or Equal",
     requiresComparison: true,
-    supportsOperand: (operand) => isScalarOperand(operand) && isNumberOperand(operand),
+    supportsOperand: (operand) => isNumberOperand(operand),
     validateComparison: (comparison) => hasNumericComparableValue(comparison),
   },
   {
     key: "between",
     label: "Between",
     requiresComparison: true,
-    supportsOperand: (operand) => isScalarOperand(operand) && isNumberOperand(operand),
+    supportsOperand: (operand) => isNumberOperand(operand),
     validateComparison: (comparison) => hasNumericRange(comparison),
+  },
+  {
+    key: "exists_in_repo",
+    label: "Exists In Repo",
+    requiresComparison: false,
+    supportsOperand: (operand) => isStringOperand(operand),
+    validateComparison: (comparison) => hasNoComparison(comparison),
   },
   {
     key: "fresh",

@@ -1721,6 +1721,31 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
             );
           }
 
+          const subSchema = (validation as { subSchema?: unknown }).subSchema;
+          const hasNestedJsonSubFields =
+            typeof subSchema === "object" &&
+            subSchema !== null &&
+            Array.isArray((subSchema as { fields?: unknown }).fields) &&
+            (subSchema as { fields: unknown[] }).fields.some(
+              (field) =>
+                typeof field === "object" &&
+                field !== null &&
+                (field as { type?: unknown }).type === "json",
+            );
+
+          if (hasNestedJsonSubFields) {
+            diagnostics.push(
+              makePublishDiagnostic(
+                "PUBLISH_FACTS_V1_SCHEMA_INVALID",
+                "publish.validation.facts",
+                timestamp,
+                "json sub-schema fields limited to one level of primitive values",
+                `${fact.key}:json-sub-schema`,
+                "Change nested json field types to string, number, or boolean",
+              ),
+            );
+          }
+
           if (!isJsonSchemaCompatible(validation.schema, fact.defaultValueJson)) {
             diagnostics.push(
               makePublishDiagnostic(
