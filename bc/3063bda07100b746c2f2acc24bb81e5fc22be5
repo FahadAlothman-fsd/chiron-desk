@@ -1,0 +1,27 @@
+apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.tsx
+  16df42013de6e9ee 536,604
+apps/web/src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx
+  16df42013de6e9ee 55,69,686,691-698,2203,2225
+apps/web/src/features/methodologies/work-unit-l2/FactsTab.tsx
+  16df42013de6e9ee 397-400,584-587,717,722-724
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "bc3063bda07100b746c2f2acc24bb81e5fc22be5",
+  "prompts": {
+    "16df42013de6e9ee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_285c21e1fffe2TVLsiZ644kgK7",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 3,
+      "accepted_lines": 95,
+      "overriden_lines": 0
+    }
+  }
+}
