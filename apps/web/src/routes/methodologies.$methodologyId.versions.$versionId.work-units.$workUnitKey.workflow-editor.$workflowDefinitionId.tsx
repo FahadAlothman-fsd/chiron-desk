@@ -1004,6 +1004,7 @@ function toWorkflowEdges(rawEdges: unknown): WorkflowEditorEdge[] {
 
 function toContextFactDefinitions(
   rawFacts: unknown,
+  rawMethodologyFacts: unknown,
   rawWorkUnitFacts: unknown,
   rawWorkUnitTypes: unknown,
 ): WorkflowContextFactDefinitionItem[] {
@@ -1090,6 +1091,37 @@ function toContextFactDefinitions(
 
       if (typeof value.externalFactDefinitionId === "string") {
         item.externalFactDefinitionId = value.externalFactDefinitionId;
+      }
+
+      if (
+        (kind === "definition_backed_external_fact" || kind === "bound_external_fact") &&
+        item.externalFactDefinitionId
+      ) {
+        const externalDefinitionMetadata = getExternalFactDefinitionMetadata({
+          rawMethodologyFacts,
+          rawWorkUnitFacts,
+          externalFactDefinitionId: item.externalFactDefinitionId,
+        });
+
+        if (!item.valueType && externalDefinitionMetadata?.valueType) {
+          item.valueType = externalDefinitionMetadata.valueType;
+        }
+
+        if (
+          typeof item.validationJson === "undefined" &&
+          typeof externalDefinitionMetadata?.validationJson !== "undefined"
+        ) {
+          item.validationJson = externalDefinitionMetadata.validationJson;
+        }
+
+        if (!item.workUnitDefinitionId && externalDefinitionMetadata?.workUnitDefinitionId) {
+          item.workUnitDefinitionId = externalDefinitionMetadata.workUnitDefinitionId;
+          item.workUnitTypeKey =
+            resolveWorkUnitTypeKey(
+              rawWorkUnitTypes,
+              externalDefinitionMetadata.workUnitDefinitionId,
+            ) ?? undefined;
+        }
       }
 
       if (
@@ -1515,6 +1547,93 @@ function getExternalFactWorkUnitTypeIdentifier(
   return null;
 }
 
+function getExternalFactDefinitionMetadata(params: {
+  rawMethodologyFacts: unknown;
+  rawWorkUnitFacts: unknown;
+  externalFactDefinitionId: string;
+}) {
+  const { rawMethodologyFacts, rawWorkUnitFacts, externalFactDefinitionId } = params;
+
+  const methodologyFact = getFactDefinitionEntries(rawMethodologyFacts)
+    .map((entry) => asRecord(entry))
+    .find(
+      (fact) =>
+        fact &&
+        (fact.id === externalFactDefinitionId ||
+          fact.factDefinitionId === externalFactDefinitionId ||
+          fact.key === externalFactDefinitionId),
+    );
+
+  if (methodologyFact) {
+    return {
+      valueType:
+        methodologyFact.valueType === "string" ||
+        methodologyFact.valueType === "number" ||
+        methodologyFact.valueType === "boolean" ||
+        methodologyFact.valueType === "json" ||
+        methodologyFact.valueType === "work_unit"
+          ? methodologyFact.valueType
+          : methodologyFact.factType === "string" ||
+              methodologyFact.factType === "number" ||
+              methodologyFact.factType === "boolean" ||
+              methodologyFact.factType === "json" ||
+              methodologyFact.factType === "work_unit"
+            ? methodologyFact.factType
+            : undefined,
+      validationJson:
+        typeof methodologyFact.validationJson !== "undefined"
+          ? methodologyFact.validationJson
+          : methodologyFact.validation,
+      workUnitDefinitionId:
+        typeof methodologyFact.workUnitTypeId === "string" &&
+        methodologyFact.workUnitTypeId.trim().length > 0
+          ? methodologyFact.workUnitTypeId.trim()
+          : typeof methodologyFact.workUnitDefinitionId === "string" &&
+              methodologyFact.workUnitDefinitionId.trim().length > 0
+            ? methodologyFact.workUnitDefinitionId.trim()
+            : undefined,
+    };
+  }
+
+  const workUnitTypeIdentifier = getExternalFactWorkUnitTypeIdentifier(
+    rawWorkUnitFacts,
+    externalFactDefinitionId,
+  );
+  if (!workUnitTypeIdentifier) {
+    return null;
+  }
+
+  const workUnitFact = getWorkUnitFactEntries(rawWorkUnitFacts, workUnitTypeIdentifier)
+    .map((entry) => asRecord(entry))
+    .find(
+      (fact) =>
+        fact &&
+        (fact.id === externalFactDefinitionId ||
+          fact.factDefinitionId === externalFactDefinitionId ||
+          fact.key === externalFactDefinitionId),
+    );
+
+  if (!workUnitFact) {
+    return null;
+  }
+
+  return {
+    valueType:
+      workUnitFact.factType === "string" ||
+      workUnitFact.factType === "number" ||
+      workUnitFact.factType === "boolean" ||
+      workUnitFact.factType === "json" ||
+      workUnitFact.factType === "work_unit"
+        ? workUnitFact.factType
+        : undefined,
+    validationJson:
+      typeof workUnitFact.validationJson !== "undefined"
+        ? workUnitFact.validationJson
+        : workUnitFact.validation,
+    workUnitDefinitionId: workUnitTypeIdentifier,
+  };
+}
+
 function getFactTypeBadgeTone(
   type: ReturnType<typeof normalizePickerFactType>,
 ): WorkflowEditorPickerBadge["tone"] {
@@ -1610,6 +1729,36 @@ function toFactOptions(
         description: description || fallbackDescription,
         searchText,
         badges,
+        ...(factType
+          ? {
+              valueType:
+                factType === "work unit"
+                  ? "work_unit"
+                  : factType === "string" ||
+                      factType === "number" ||
+                      factType === "boolean" ||
+                      factType === "json"
+                    ? factType
+                    : undefined,
+            }
+          : {}),
+        ...(typeof value.validationJson !== "undefined"
+          ? { validationJson: value.validationJson }
+          : typeof value.validation !== "undefined"
+            ? { validationJson: value.validation }
+            : {}),
+        ...(typeof value.workUnitTypeId === "string" && value.workUnitTypeId.trim().length > 0
+          ? { workUnitDefinitionId: value.workUnitTypeId.trim() }
+          : typeof value.workUnitDefinitionId === "string" &&
+              value.workUnitDefinitionId.trim().length > 0
+            ? { workUnitDefinitionId: value.workUnitDefinitionId.trim() }
+            : typeof value.workUnitTypeKey === "string" && value.workUnitTypeKey.trim().length > 0
+              ? {
+                  workUnitDefinitionId:
+                    resolveWorkUnitTypeKey(rawWorkUnits, value.workUnitTypeKey.trim()) ??
+                    value.workUnitTypeKey.trim(),
+                }
+              : {}),
       };
     })
     .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
@@ -2186,6 +2335,7 @@ export function MethodologyWorkflowEditorRoute() {
       initialEdges={toWorkflowEdges(editorDefinition?.edges)}
       contextFactDefinitions={toContextFactDefinitions(
         editorDefinition?.contextFacts,
+        methodologyFactsQuery.data,
         workUnitFactsQuery.data,
         workUnitTypesQuery.data,
       )}
@@ -2518,6 +2668,7 @@ export function MethodologyWorkflowEditorRoute() {
 
           const nextFact = toContextFactDefinitions(
             [created],
+            methodologyFactsQuery.data,
             workUnitFactsQuery.data,
             workUnitTypesQuery.data,
           )[0];

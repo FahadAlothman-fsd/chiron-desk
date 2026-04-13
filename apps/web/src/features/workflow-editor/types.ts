@@ -255,6 +255,9 @@ export type WorkflowEditorPickerOption = {
   disabled?: boolean;
   disabledReason?: string;
   badges?: readonly WorkflowEditorPickerBadge[];
+  valueType?: "string" | "number" | "boolean" | "json" | "work_unit";
+  validationJson?: unknown;
+  workUnitDefinitionId?: string;
 };
 
 export type WorkflowEditorPickerBadge = {

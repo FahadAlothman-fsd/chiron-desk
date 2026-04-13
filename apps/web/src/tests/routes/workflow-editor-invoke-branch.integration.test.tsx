@@ -517,6 +517,15 @@ function createEditorDefinition() {
         externalFactDefinitionId: "ext-current-story",
         workUnitDefinitionId: "wut-story",
       },
+      {
+        contextFactDefinitionId: "ctx-bound-external-json",
+        key: "bound_external_json",
+        label: "Bound External JSON",
+        descriptionJson: { markdown: "Bound external JSON fact with subfields." },
+        kind: "bound_external_fact",
+        cardinality: "one",
+        externalFactDefinitionId: "ext-bound-json",
+      },
     ],
     formDefinitions: [],
     agentStepDefinitions: [],
@@ -537,7 +546,56 @@ function createRouteContext(editorDefinition = createEditorDefinition()) {
             list: {
               queryOptions: () => ({
                 queryKey: ["methodology-facts", "v1"],
-                queryFn: async () => ({ factDefinitions: [] }),
+                queryFn: async () => ({
+                  factDefinitions: [
+                    {
+                      id: "ext-bound-json",
+                      key: "existing_documentation_inventory",
+                      name: "Existing Documentation Inventory",
+                      factType: "json",
+                      cardinality: "many",
+                      validation: {
+                        kind: "json-schema",
+                        schema: {
+                          type: "object",
+                          additionalProperties: false,
+                          properties: {
+                            projectRoot: {
+                              type: "string",
+                              title: "projectRoot",
+                              cardinality: "one",
+                              "x-validation": {
+                                kind: "path",
+                                pathKind: "directory",
+                                normalization: { mode: "posix", trimWhitespace: true },
+                                safety: { disallowAbsolute: true, preventTraversal: true },
+                              },
+                            },
+                            status: {
+                              type: "string",
+                              title: "status",
+                              cardinality: "one",
+                              "x-validation": {
+                                kind: "allowed-values",
+                                values: ["draft", "ready"],
+                              },
+                            },
+                            estimatedHours: {
+                              type: "number",
+                              title: "estimatedHours",
+                              cardinality: "one",
+                            },
+                            isCritical: {
+                              type: "boolean",
+                              title: "isCritical",
+                              cardinality: "one",
+                            },
+                          },
+                        },
+                      },
+                    },
+                  ],
+                }),
               }),
             },
           },
@@ -1451,6 +1509,66 @@ describe("workflow editor invoke route", () => {
         }),
       }),
     );
+  });
+
+  it("branch route targets external JSON subfields with the same operators as plain JSON facts", async () => {
+    const { MethodologyWorkflowEditorRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId");
+
+    renderRoute(<MethodologyWorkflowEditorRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Branch step type 61/i }));
+    expect(await screen.findByText("Create Branch Step")).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("Step Key"), {
+      target: { value: "branch-on-bound-external-json" },
+    });
+    fireEvent.change(screen.getByLabelText("Step Title"), {
+      target: { value: "Branch On Bound External JSON" },
+    });
+    fireEvent.click(screen.getByRole("combobox", { name: "Default Target Step" }));
+    fireEvent.click(screen.getByRole("button", { name: /Invoke Story Work/i }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Routes" }));
+    fireEvent.click(screen.getByRole("button", { name: /Add Route/i }));
+
+    expect(await screen.findByRole("heading", { name: "Add Route" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Target Step" }));
+    fireEvent.click(screen.getByRole("button", { name: /Capture Context/i }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Context Fact" }));
+    fireEvent.click(screen.getByRole("button", { name: /Bound External JSON/i }));
+
+    expect(screen.getByLabelText("JSON Sub-field")).toBeTruthy();
+
+    fireEvent.change(screen.getAllByRole("combobox")[2]!, {
+      target: { value: "projectRoot" },
+    });
+    expect(screen.getByRole("option", { name: /^Exists$/i })).toBeTruthy();
+    expect(screen.getByRole("option", { name: /^Exists In Repo$/i })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: /^Contains$/i })).toBeNull();
+
+    fireEvent.change(screen.getAllByRole("combobox")[2]!, {
+      target: { value: "status" },
+    });
+    fireEvent.change(screen.getAllByRole("combobox")[3]!, {
+      target: { value: "equals" },
+    });
+    expect(screen.queryByLabelText("Comparison Value")).toBeNull();
+    expect(screen.getByRole("option", { name: "draft" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "ready" })).toBeTruthy();
+
+    fireEvent.change(screen.getAllByRole("combobox")[2]!, {
+      target: { value: "estimatedHours" },
+    });
+    expect(screen.getByRole("option", { name: /^Greater Than$/i })).toBeTruthy();
+    expect(screen.getByRole("option", { name: /^Between$/i })).toBeTruthy();
+
+    fireEvent.change(screen.getAllByRole("combobox")[2]!, {
+      target: { value: "isCritical" },
+    });
+    expect(screen.getByRole("option", { name: /^Equals$/i })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: /^Contains$/i })).toBeNull();
   });
 
   it("branch canvas renders projected edges differently and focuses the owner on click", async () => {

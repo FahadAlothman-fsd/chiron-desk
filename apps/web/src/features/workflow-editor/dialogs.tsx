@@ -5004,9 +5004,19 @@ export function WorkflowContextFactDialog({
                       <SearchableCombobox
                         labelId="workflow-editor-context-fact-external-definition"
                         value={draft.externalFactDefinitionId ?? ""}
-                        onChange={(value) =>
-                          setDraft((previous) => ({ ...previous, externalFactDefinitionId: value }))
-                        }
+                        onChange={(value) => {
+                          const selectedOption = externalFactOptions.find(
+                            (option) => option.value === value,
+                          );
+                          setDraft((previous) => ({
+                            ...previous,
+                            externalFactDefinitionId: value,
+                            valueType: selectedOption?.valueType,
+                            validationJson: selectedOption?.validationJson,
+                            workUnitDefinitionId: selectedOption?.workUnitDefinitionId ?? "",
+                            workUnitTypeKey: selectedOption?.workUnitDefinitionId ?? "",
+                          }));
+                        }}
                         options={externalFactOptions}
                         placeholder="Select an external fact"
                         searchPlaceholder="Search external facts..."
@@ -5490,8 +5500,13 @@ function normalizeConditionSubFieldKey(value: string | null | undefined) {
   return normalized.length > 0 ? normalized : null;
 }
 
-function isPlainJsonFact(fact: WorkflowContextFactDefinitionItem | undefined) {
-  return fact?.kind === "plain_value_fact" && fact.valueType === "json";
+function isJsonScalarFact(fact: WorkflowContextFactDefinitionItem | undefined) {
+  return (
+    fact?.valueType === "json" &&
+    (fact.kind === "plain_value_fact" ||
+      fact.kind === "definition_backed_external_fact" ||
+      fact.kind === "bound_external_fact")
+  );
 }
 
 function getPlainStringValidationKind(
@@ -5539,7 +5554,7 @@ function getExternalStringValidationKind(
 }
 
 function getPlainJsonSubFieldOptions(fact: WorkflowContextFactDefinitionItem | undefined) {
-  if (!isPlainJsonFact(fact)) {
+  if (!isJsonScalarFact(fact)) {
     return [];
   }
 
@@ -5551,14 +5566,43 @@ function getPlainJsonSubFieldOptions(fact: WorkflowContextFactDefinitionItem | u
   const kind = "kind" in validation ? (validation as { kind?: unknown }).kind : undefined;
   const subSchema =
     "subSchema" in validation ? (validation as { subSchema?: unknown }).subSchema : undefined;
-  if (kind !== "json-schema" || typeof subSchema !== "object" || subSchema === null) {
+  const schema = "schema" in validation ? (validation as { schema?: unknown }).schema : undefined;
+  if (kind !== "json-schema") {
     return [];
   }
 
-  const fields =
-    "fields" in subSchema && Array.isArray((subSchema as { fields?: unknown }).fields)
+  const subSchemaFields =
+    typeof subSchema === "object" &&
+    subSchema !== null &&
+    "fields" in subSchema &&
+    Array.isArray((subSchema as { fields?: unknown }).fields)
       ? ((subSchema as { fields: unknown[] }).fields ?? [])
       : [];
+
+  const legacyPropertyFields =
+    typeof schema === "object" && schema !== null && "properties" in schema
+      ? Object.entries((schema as { properties?: Record<string, unknown> }).properties ?? {}).map(
+          ([key, property]) => {
+            const record = typeof property === "object" && property !== null ? property : null;
+            return {
+              key,
+              type: record?.type,
+              displayName:
+                typeof record?.title === "string" && record.title.trim().length > 0
+                  ? record.title.trim()
+                  : undefined,
+              validation:
+                record && typeof record.validation !== "undefined"
+                  ? record.validation
+                  : record && typeof record["x-validation"] !== "undefined"
+                    ? record["x-validation"]
+                    : undefined,
+            };
+          },
+        )
+      : [];
+
+  const fields = subSchemaFields.length > 0 ? subSchemaFields : legacyPropertyFields;
 
   return fields
     .map((entry) => {
@@ -5610,7 +5654,7 @@ function getPlainJsonSubFieldOptions(fact: WorkflowContextFactDefinitionItem | u
 }
 
 function allowsConditionSubFieldTargeting(fact: WorkflowContextFactDefinitionItem | undefined) {
-  return fact?.kind === "work_unit_draft_spec_fact" || isPlainJsonFact(fact);
+  return fact?.kind === "work_unit_draft_spec_fact" || isJsonScalarFact(fact);
 }
 
 function getPlainValueFactAllowedOperatorKeys(params: {
@@ -5684,11 +5728,44 @@ function getExternalFactAllowedOperatorKeys(params: {
   subFieldKey: string | null;
 }) {
   const { fact, subFieldKey } = params;
-  if (
-    (fact.kind !== "definition_backed_external_fact" && fact.kind !== "bound_external_fact") ||
-    subFieldKey
-  ) {
+  if (fact.kind !== "definition_backed_external_fact" && fact.kind !== "bound_external_fact") {
     return null;
+  }
+
+  if (fact.valueType === "json") {
+    if (!subFieldKey) {
+      return new Set(["exists"]);
+    }
+
+    const matchedSubField = getPlainJsonSubFieldOptions(fact).find(
+      (entry) => entry.value === subFieldKey,
+    );
+
+    if (!matchedSubField) {
+      return new Set<string>();
+    }
+
+    if (matchedSubField.operandType === "string") {
+      if (matchedSubField.validationKind === "path") {
+        return new Set(["exists", "exists_in_repo"]);
+      }
+
+      if (matchedSubField.validationKind === "allowed-values") {
+        return new Set(["exists", "equals"]);
+      }
+
+      return new Set(["equals", "contains", "starts_with", "ends_with"]);
+    }
+
+    if (matchedSubField.operandType === "number") {
+      return new Set(["equals", "gt", "gte", "lt", "lte", "between"]);
+    }
+
+    if (matchedSubField.operandType === "boolean") {
+      return new Set(["equals"]);
+    }
+
+    return new Set<string>();
   }
 
   if (fact.valueType === "work_unit") {
@@ -5744,7 +5821,7 @@ function resolveConditionOperandForEditor(
 
   const normalizedSubFieldKey = normalizeConditionSubFieldKey(subFieldKey);
   if (normalizedSubFieldKey) {
-    if (isPlainJsonFact(fact)) {
+    if (isJsonScalarFact(fact)) {
       const matchedField = getPlainJsonSubFieldOptions(fact).find(
         (entry) => entry.value === normalizedSubFieldKey,
       );
@@ -5891,7 +5968,7 @@ function getConditionAllowedValues(
   subFieldKey?: string | null,
 ) {
   const normalizedSubFieldKey = normalizeConditionSubFieldKey(subFieldKey);
-  if (normalizedSubFieldKey && isPlainJsonFact(fact)) {
+  if (normalizedSubFieldKey && isJsonScalarFact(fact)) {
     return (
       getPlainJsonSubFieldOptions(fact).find((entry) => entry.value === normalizedSubFieldKey)
         ?.allowedValues ?? []
@@ -5985,6 +6062,20 @@ function getConditionNoteText(params: {
   }
 
   if (fact.kind === "definition_backed_external_fact" || fact.kind === "bound_external_fact") {
+    if (fact.valueType === "json" && !normalizedSubFieldKey) {
+      return operator.key === "exists"
+        ? `${valueScopeLead} Root JSON conditions only check whether the container value exists.`
+        : "Root JSON conditions only support container-level existence. Select a JSON sub-field to compare scalar values.";
+    }
+
+    if (plainJsonSubField?.validationKind === "allowed-values" && operator.key === "equals") {
+      return `${valueScopeLead} Comparison options come from the allowed values defined for this field.`;
+    }
+
+    if (plainJsonSubField?.validationKind === "path") {
+      return `${valueScopeLead} This sub-field uses path semantics, so repository checks use normalized repo-relative paths.`;
+    }
+
     if (fact.valueType === "work_unit" && operator.key === "current_state") {
       return `${valueScopeLead} Comparison options come from the lifecycle states defined on the referenced work unit type, plus Activation for the pre-state before first activation.`;
     }
@@ -6851,7 +6942,7 @@ export function RouteDialog({
                                       </div>
 
                                       {fact?.kind === "work_unit_draft_spec_fact" ||
-                                      isPlainJsonFact(fact) ? (
+                                      isJsonScalarFact(fact) ? (
                                         <div className="grid gap-2 lg:col-span-2">
                                           <Label
                                             htmlFor={`workflow-editor-branch-condition-sub-field-${condition.conditionId}`}
