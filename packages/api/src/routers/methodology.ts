@@ -625,11 +625,12 @@ const guidanceSchema = z
 
 const markdownContentSchema = z.object({ markdown: z.string() });
 const factValueTypeSchema = z.enum(["string", "number", "boolean", "json", "work_unit"]);
+const jsonSubSchemaFieldTypeSchema = z.enum(["string", "number", "boolean"]);
 const factCardinalitySchema = z.enum(["one", "many"]);
 const jsonSubSchemaFieldSchema = z.union([
   z.object({
     key: z.string().min(1),
-    type: factValueTypeSchema,
+    type: jsonSubSchemaFieldTypeSchema,
     cardinality: factCardinalitySchema,
     description: markdownContentSchema.optional(),
     guidance: factGuidanceSchema,
@@ -637,7 +638,7 @@ const jsonSubSchemaFieldSchema = z.union([
   }),
   z.object({
     key: z.string().min(1),
-    type: factValueTypeSchema,
+    type: jsonSubSchemaFieldTypeSchema,
     cardinality: z.literal("one"),
     defaultValue: z.unknown().optional(),
     description: markdownContentSchema.optional(),

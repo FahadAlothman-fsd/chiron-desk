@@ -10,6 +10,9 @@ export type AudienceMarkdownJson = typeof AudienceMarkdownJson.Type;
 export const FactType = Schema.Literal("string", "number", "boolean", "json", "work_unit");
 export type FactType = typeof FactType.Type;
 
+export const JsonSubSchemaFieldType = Schema.Literal("string", "number", "boolean");
+export type JsonSubSchemaFieldType = typeof JsonSubSchemaFieldType.Type;
+
 export const FactCardinality = Schema.Literal("one", "many");
 export type FactCardinality = typeof FactCardinality.Type;
 
@@ -55,7 +58,7 @@ export const FactValidation = Schema.Union(
           Schema.Union(
             Schema.Struct({
               key: Schema.NonEmptyString,
-              type: FactType,
+              type: JsonSubSchemaFieldType,
               cardinality: FactCardinality,
               description: Schema.optional(GuidanceMarkdownContent),
               guidance: Schema.optional(FactGuidance),
@@ -63,7 +66,7 @@ export const FactValidation = Schema.Union(
             }),
             Schema.Struct({
               key: Schema.NonEmptyString,
-              type: FactType,
+              type: JsonSubSchemaFieldType,
               cardinality: Schema.Literal("one"),
               defaultValue: Schema.optional(Schema.Unknown),
               description: Schema.optional(GuidanceMarkdownContent),
