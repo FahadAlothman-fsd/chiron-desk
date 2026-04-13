@@ -802,7 +802,7 @@ describe("methodology seed integrity", () => {
 
     const dependencyDefinitions =
       methodologyCanonicalTableSeedRows.methodology_link_type_definitions;
-    expect(dependencyDefinitions).toHaveLength(4);
+    expect(dependencyDefinitions).toHaveLength(6);
 
     const versionIds = new Set(
       factDefinitions.map((factDefinition) => factDefinition.methodologyVersionId),
@@ -827,7 +827,9 @@ describe("methodology seed integrity", () => {
 
     expect(
       new Set(dependencyDefinitions.map((dependencyDefinition) => dependencyDefinition.key)),
-    ).toEqual(new Set(["requires_setup_context", "informed_by_brainstorming"]));
+    ).toEqual(
+      new Set(["requires_setup_context", "informed_by_brainstorming", "informed_by_research"]),
+    );
 
     expect(
       new Set(workUnitDefinitions.map((workUnitDefinition) => workUnitDefinition.key)),
@@ -964,6 +966,17 @@ describe("methodology seed integrity", () => {
             dependencies: { type: "string", cardinality: "one" },
           },
         },
+        subSchema: {
+          type: "object",
+          fields: expect.arrayContaining([
+            expect.objectContaining({ key: "part_id", type: "string", cardinality: "one" }),
+            expect.objectContaining({ key: "framework", type: "string", cardinality: "one" }),
+            expect.objectContaining({ key: "language", type: "string", cardinality: "one" }),
+            expect.objectContaining({ key: "version", type: "string", cardinality: "one" }),
+            expect.objectContaining({ key: "database", type: "string", cardinality: "one" }),
+            expect.objectContaining({ key: "dependencies", type: "string", cardinality: "one" }),
+          ]),
+        },
       });
     }
 
@@ -982,10 +995,54 @@ describe("methodology seed integrity", () => {
           additionalProperties: false,
           required: ["path", "doc_type", "related_part_id"],
           properties: {
-            path: { type: "string", cardinality: "one" },
+            path: {
+              type: "string",
+              cardinality: "one",
+              title: "path",
+              "x-validation": {
+                kind: "path",
+                path: {
+                  pathKind: "file",
+                  normalization: {
+                    mode: "posix",
+                    trimWhitespace: true,
+                  },
+                  safety: {
+                    disallowAbsolute: true,
+                    preventTraversal: true,
+                  },
+                },
+              },
+            },
             doc_type: { type: "string", cardinality: "one" },
             related_part_id: { type: "string", cardinality: "one" },
           },
+        },
+        subSchema: {
+          type: "object",
+          fields: expect.arrayContaining([
+            expect.objectContaining({
+              key: "path",
+              type: "string",
+              cardinality: "one",
+              validation: {
+                kind: "path",
+                path: {
+                  pathKind: "file",
+                  normalization: {
+                    mode: "posix",
+                    trimWhitespace: true,
+                  },
+                  safety: {
+                    disallowAbsolute: true,
+                    preventTraversal: true,
+                  },
+                },
+              },
+            }),
+            expect.objectContaining({ key: "doc_type", type: "string", cardinality: "one" }),
+            expect.objectContaining({ key: "related_part_id", type: "string", cardinality: "one" }),
+          ]),
         },
       });
     }
@@ -1010,6 +1067,19 @@ describe("methodology seed integrity", () => {
             integration_type: { type: "string", cardinality: "one" },
             details: { type: "string", cardinality: "one" },
           },
+        },
+        subSchema: {
+          type: "object",
+          fields: expect.arrayContaining([
+            expect.objectContaining({ key: "from_part_id", type: "string", cardinality: "one" }),
+            expect.objectContaining({ key: "to_part_id", type: "string", cardinality: "one" }),
+            expect.objectContaining({
+              key: "integration_type",
+              type: "string",
+              cardinality: "one",
+            }),
+            expect.objectContaining({ key: "details", type: "string", cardinality: "one" }),
+          ]),
         },
       });
     }
@@ -1061,7 +1131,7 @@ describe("methodology seed integrity", () => {
     expect(draftWorkUnitRows).toEqual(activeWorkUnitRows);
 
     const workUnitFactDefinitions = methodologyCanonicalTableSeedRows.work_unit_fact_definitions;
-    expect(workUnitFactDefinitions).toHaveLength(38);
+    expect(workUnitFactDefinitions).toHaveLength(44);
     expect(new Set(workUnitFactDefinitions.map((fact) => fact.key))).toEqual(
       new Set([
         "initiative_name",
@@ -1077,6 +1147,9 @@ describe("methodology seed integrity", () => {
         "desired_outcome",
         "constraints",
         "selected_directions",
+        "session_notes_file",
+        "estimated_research_effort",
+        "research_work_units",
         "brainstorming_work_unit",
         "research_topic",
         "research_goals",
@@ -1103,7 +1176,7 @@ describe("methodology seed integrity", () => {
     const brainstormingWorkUnitFactDefinitions = workUnitFactDefinitions.filter((fact) =>
       fact.workUnitTypeId.includes(":wut:brainstorming:"),
     );
-    expect(brainstormingWorkUnitFactDefinitions).toHaveLength(10);
+    expect(brainstormingWorkUnitFactDefinitions).toHaveLength(16);
 
     const setupWorkUnitFactRows = brainstormingWorkUnitFactDefinitions.filter(
       (fact) => fact.key === "setup_work_unit",
@@ -1115,6 +1188,42 @@ describe("methodology seed integrity", () => {
         kind: "none",
         dependencyType: "requires_setup_context",
         workUnitKey: "setup",
+      });
+    }
+
+    const sessionNotesFileRows = brainstormingWorkUnitFactDefinitions.filter(
+      (fact) => fact.key === "session_notes_file",
+    );
+    expect(sessionNotesFileRows).toHaveLength(2);
+    for (const sessionNotesFile of sessionNotesFileRows) {
+      expect(sessionNotesFile.factType).toBe("string");
+      expect(sessionNotesFile.validationJson).toMatchObject({
+        kind: "path",
+        path: {
+          pathKind: "file",
+        },
+      });
+    }
+
+    const estimatedResearchEffortRows = brainstormingWorkUnitFactDefinitions.filter(
+      (fact) => fact.key === "estimated_research_effort",
+    );
+    expect(estimatedResearchEffortRows).toHaveLength(2);
+    for (const estimatedResearchEffort of estimatedResearchEffortRows) {
+      expect(estimatedResearchEffort.factType).toBe("number");
+    }
+
+    const researchWorkUnitsRows = brainstormingWorkUnitFactDefinitions.filter(
+      (fact) => fact.key === "research_work_units",
+    );
+    expect(researchWorkUnitsRows).toHaveLength(2);
+    for (const researchWorkUnits of researchWorkUnitsRows) {
+      expect(researchWorkUnits.factType).toBe("work_unit");
+      expect(researchWorkUnits.cardinality).toBe("many");
+      expect(researchWorkUnits.validationJson).toMatchObject({
+        kind: "none",
+        dependencyType: "informed_by_research",
+        workUnitKey: "research",
       });
     }
 
@@ -1545,6 +1654,36 @@ describe("methodology seed integrity", () => {
       expect(template.content).toContain(
         "{{#if workUnit.facts.research_synthesis.executive_summary}}",
       );
+    }
+  });
+
+  it("seeds methodology json fact definitions with normalized subSchema fields", async () => {
+    const { methodologyCanonicalTableSeedRows } = await loadMethodologySeedArtifacts();
+
+    const factDefinitions = methodologyCanonicalTableSeedRows.methodology_fact_definitions;
+    const jsonFacts = [
+      "technology_stack_by_part",
+      "existing_documentation_inventory",
+      "integration_points",
+    ];
+
+    for (const factKey of jsonFacts) {
+      const rows = factDefinitions.filter((factDefinition) => factDefinition.key === factKey);
+      expect(rows).toHaveLength(2);
+      for (const row of rows) {
+        const validationJson =
+          typeof row.validationJson === "string"
+            ? (JSON.parse(row.validationJson) as { subSchema?: { fields?: unknown[] } })
+            : (row.validationJson as { subSchema?: { fields?: unknown[] } });
+        expect(validationJson).toMatchObject({
+          kind: "json-schema",
+          subSchema: {
+            type: "object",
+            fields: expect.any(Array),
+          },
+        });
+        expect(validationJson.subSchema?.fields?.length ?? 0).toBeGreaterThan(0);
+      }
     }
   });
 

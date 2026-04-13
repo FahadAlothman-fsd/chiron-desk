@@ -998,6 +998,70 @@ const canonicalBrainstormingFactDefinitions = [
       },
     },
   },
+  {
+    idSuffix: "session-notes-file",
+    key: "session_notes_file",
+    name: "Session Notes File",
+    factType: "string",
+    cardinality: "one" as const,
+    defaultValueJson: null,
+    descriptionJson: toDescriptionJson(
+      "Path to a working notes file captured during brainstorming facilitation.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Store the relative path to a durable notes file for the session.",
+      "Treat this as a file path relative to the project root when a brainstorming run keeps working notes outside the final artifact.",
+    ),
+    validationJson: {
+      kind: "path" as const,
+      path: {
+        pathKind: "file" as const,
+        normalization: {
+          trimWhitespace: true,
+        },
+        safety: {
+          disallowAbsolute: true,
+          preventTraversal: true,
+        },
+      },
+    },
+  },
+  {
+    idSuffix: "estimated-research-effort",
+    key: "estimated_research_effort",
+    name: "Estimated Research Effort",
+    factType: "number",
+    cardinality: "one" as const,
+    defaultValueJson: null,
+    descriptionJson: toDescriptionJson(
+      "Numeric estimate of the research effort implied by the selected brainstorming directions.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Use a simple numeric score to reflect how heavy the follow-up research effort is expected to be.",
+      "This helps downstream branching and invoke logic test numeric comparisons on work-unit-backed external facts.",
+    ),
+    validationJson: { kind: "none" as const },
+  },
+  {
+    idSuffix: "research-work-units",
+    key: "research_work_units",
+    name: "Research Work Units",
+    factType: "work_unit",
+    cardinality: "many" as const,
+    defaultValueJson: null,
+    descriptionJson: toDescriptionJson(
+      "References to downstream research work units created from the brainstorming session.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Store one or more research work units that should investigate the selected directions.",
+      "Use this when brainstorming fans out into multiple research threads and downstream work units need to be tracked explicitly.",
+    ),
+    validationJson: {
+      kind: "none" as const,
+      dependencyType: "informed_by_research",
+      workUnitKey: "research",
+    },
+  },
 ] as const;
 
 function buildBrainstormingWorkUnitFactDefinitionSeedRows(
@@ -1900,6 +1964,18 @@ const canonicalDependencyDefinitions = [
       "Treat brainstorming as an upstream source of direction, framing, and candidate focus areas, not as final truth.",
     ),
   },
+  {
+    idSuffix: "informed-by-research",
+    key: "informed_by_research",
+    name: "Informed by Research",
+    descriptionJson: toDescriptionJson(
+      "Indicates that downstream work depends on one or more research work units for evidence, synthesis, or validation.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Use this dependency when research results materially shape what the downstream work should produce or decide.",
+      "Treat research as an upstream evidence source that informs the next work unit's scope, tradeoffs, or execution plan.",
+    ),
+  },
 ] as const;
 
 function buildDependencyDefinitionSeedRows(
@@ -2099,6 +2175,17 @@ const canonicalMethodologyFactDefinitions = [
           dependencies: { type: "string", cardinality: "one" },
         },
       },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "part_id", type: "string", cardinality: "one" },
+          { key: "framework", type: "string", cardinality: "one" },
+          { key: "language", type: "string", cardinality: "one" },
+          { key: "version", type: "string", cardinality: "one" },
+          { key: "database", type: "string", cardinality: "one" },
+          { key: "dependencies", type: "string", cardinality: "one" },
+        ],
+      },
     },
   },
   {
@@ -2123,10 +2210,54 @@ const canonicalMethodologyFactDefinitions = [
         additionalProperties: false,
         required: ["path", "doc_type", "related_part_id"],
         properties: {
-          path: { type: "string", cardinality: "one" },
+          path: {
+            type: "string",
+            cardinality: "one",
+            title: "path",
+            "x-validation": {
+              kind: "path",
+              path: {
+                pathKind: "file",
+                normalization: {
+                  mode: "posix",
+                  trimWhitespace: true,
+                },
+                safety: {
+                  disallowAbsolute: true,
+                  preventTraversal: true,
+                },
+              },
+            },
+          },
           doc_type: { type: "string", cardinality: "one" },
           related_part_id: { type: "string", cardinality: "one" },
         },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          {
+            key: "path",
+            type: "string",
+            cardinality: "one",
+            validation: {
+              kind: "path",
+              path: {
+                pathKind: "file",
+                normalization: {
+                  mode: "posix",
+                  trimWhitespace: true,
+                },
+                safety: {
+                  disallowAbsolute: true,
+                  preventTraversal: true,
+                },
+              },
+            },
+          },
+          { key: "doc_type", type: "string", cardinality: "one" },
+          { key: "related_part_id", type: "string", cardinality: "one" },
+        ],
       },
     },
   },
@@ -2157,6 +2288,15 @@ const canonicalMethodologyFactDefinitions = [
           integration_type: { type: "string", cardinality: "one" },
           details: { type: "string", cardinality: "one" },
         },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "from_part_id", type: "string", cardinality: "one" },
+          { key: "to_part_id", type: "string", cardinality: "one" },
+          { key: "integration_type", type: "string", cardinality: "one" },
+          { key: "details", type: "string", cardinality: "one" },
+        ],
       },
     },
   },
