@@ -56,8 +56,6 @@ export type Slice1FixtureOnlyFactExample = {
   readonly permanence: "fixture_only";
 };
 
-const brainstormingWorkUnitFactBase = `seed:work-unit-fact:brainstorming`;
-
 function guidanceJson(human: string, agent = human) {
   return {
     human: { markdown: human },
