@@ -66,6 +66,9 @@ describe("l3 slice-1 schema", () => {
     ]);
 
     expect(methodologySchema.methodologyWorkflowContextFactPlainValues).toBeDefined();
+    expect(
+      methodologySchema.methodologyWorkflowContextFactPlainValues.validationJson,
+    ).toBeDefined();
     expect(methodologySchema.methodologyWorkflowContextFactExternalBindings).toBeDefined();
     expect(methodologySchema.methodologyWorkflowContextFactWorkflowReferences).toBeDefined();
     expect(methodologySchema.methodologyWorkflowContextFactArtifactReferences).toBeDefined();

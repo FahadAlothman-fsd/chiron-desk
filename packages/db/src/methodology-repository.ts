@@ -842,6 +842,7 @@ async function insertContextFactSubtypeRow(
       await tx.insert(methodologyWorkflowContextFactPlainValues).values({
         contextFactDefinitionId: definitionId,
         valueType: fact.valueType,
+        validationJson: fact.validationJson ?? null,
       });
       return;
     case "definition_backed_external_fact":
@@ -1082,6 +1083,9 @@ async function readWorkflowContextFacts(
           ...metadata,
           cardinality: definition.cardinality as "one" | "many",
           valueType: row.valueType as FactValueType,
+          ...(typeof row.validationJson === "undefined" || row.validationJson === null
+            ? {}
+            : { validationJson: row.validationJson }),
         };
       }
       case "definition_backed_external_fact":

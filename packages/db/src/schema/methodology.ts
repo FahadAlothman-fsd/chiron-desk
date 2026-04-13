@@ -900,6 +900,7 @@ export const methodologyWorkflowContextFactPlainValues = sqliteTable(
       .notNull()
       .references(() => methodologyWorkflowContextFactDefinitions.id, { onDelete: "cascade" }),
     valueType: text("value_type").notNull(),
+    validationJson: text("validation_json", { mode: "json" }),
   },
   (table) => [uniqueIndex("methodology_wf_ctx_plain_def_idx").on(table.contextFactDefinitionId)],
 );
