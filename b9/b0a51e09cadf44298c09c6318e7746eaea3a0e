@@ -1,0 +1,29 @@
+apps/web/src/features/workflow-editor/dialogs.tsx
+  16df42013de6e9ee 234,240-247,250,338,479-485,489-749,3889,3891-3895,3897,3900-3903,4082-4095,4098,4644,4658,4666-4969,5493-5654,5670-5683,5751-5752,5758-5765,5768,5825-5827,5829-5834,6288-6291,6313-6320,6529-6531,6534,6539-6540,6546,6627-6628,6633-6635,6638,6671-6677,6681-6683,6685-6688,6698-6701,6703
+apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId.tsx
+  16df42013de6e9ee 173-174,208,215-216,222,229,236,243,250,257,264,267-272,990,1136-1144
+apps/web/src/features/workflow-editor/workflow-editor-shell.tsx
+  16df42013de6e9ee 452-456
+apps/web/src/features/methodologies/fact-validation.ts
+  16df42013de6e9ee 61-62,70-71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "b9b0a51e09cadf44298c09c6318e7746eaea3a0e",
+  "prompts": {
+    "16df42013de6e9ee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_285c21e1fffe2TVLsiZ644kgK7",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 74,
+      "total_deletions": 43,
+      "accepted_lines": 1964,
+      "overriden_lines": 0
+    }
+  }
+}
