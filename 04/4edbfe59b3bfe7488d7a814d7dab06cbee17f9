@@ -1,0 +1,29 @@
+packages/methodology-engine/src/version-service.ts
+  16df42013de6e9ee 1724-1746
+packages/methodology-engine/src/tests/l3/l3-design-time-invoke-branch-services.test.ts
+  16df42013de6e9ee 49-76,1065-1188,1211-1260
+packages/methodology-engine/src/services/condition-engine.ts
+  16df42013de6e9ee 85-86,119,126-127,133,140,147,154,161,168,175,178-183
+packages/methodology-engine/src/services/branch-step-definition-service.ts
+  16df42013de6e9ee 133-173,189-205,299-354,356-369,398
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "044edbfe59b3bfe7488d7a814d7dab06cbee17f9",
+  "prompts": {
+    "16df42013de6e9ee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_285c21e1fffe2TVLsiZ644kgK7",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 11,
+      "total_deletions": 4,
+      "accepted_lines": 2562,
+      "overriden_lines": 0
+    }
+  }
+}
