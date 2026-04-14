@@ -1,0 +1,23 @@
+.sisyphus/plans/setup-first-bmad-mapping-spec.md
+  16df42013de6e9ee 1-991
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "89ebabc2609d477a3e2d3aa3dac5e9e533a81aa0",
+  "prompts": {
+    "16df42013de6e9ee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_285c21e1fffe2TVLsiZ644kgK7",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 1205,
+      "total_deletions": 214,
+      "accepted_lines": 1033,
+      "overriden_lines": 0
+    }
+  }
+}
