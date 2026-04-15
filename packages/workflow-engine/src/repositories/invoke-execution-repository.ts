@@ -104,7 +104,8 @@ export interface StartInvokeWorkUnitTargetAtomicallyParams {
   workflowDefinitionId: string;
   initialFactDefinitions: ReadonlyArray<{
     factDefinitionId: string;
-    initialValueJson: unknown;
+    initialValueJson?: unknown;
+    initialReferencedProjectWorkUnitId?: string | null;
   }>;
   initialArtifactSlotDefinitions: ReadonlyArray<{
     artifactSlotDefinitionId: string;

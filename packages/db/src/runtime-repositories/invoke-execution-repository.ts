@@ -451,8 +451,13 @@ export function createInvokeExecutionRepoLayer(db: DB): Layer.Layer<InvokeExecut
                     params.initialFactDefinitions.map((definition) => ({
                       projectWorkUnitId: projectWorkUnit.id,
                       factDefinitionId: definition.factDefinitionId,
-                      valueJson: definition.initialValueJson,
-                      referencedProjectWorkUnitId: null,
+                      valueJson:
+                        definition.initialReferencedProjectWorkUnitId === undefined ||
+                        definition.initialReferencedProjectWorkUnitId === null
+                          ? (definition.initialValueJson ?? null)
+                          : null,
+                      referencedProjectWorkUnitId:
+                        definition.initialReferencedProjectWorkUnitId ?? null,
                       status: "active" as const,
                       supersededByFactInstanceId: null,
                       producedByTransitionExecutionId: transitionExecution.id,
