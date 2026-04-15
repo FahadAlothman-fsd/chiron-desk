@@ -20,6 +20,39 @@ const makeCommandError = (cause: string): RepositoryError =>
     cause: new Error(cause),
   });
 
+const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const toInitialFactDefinition = (params: {
+  factDefinitionId: string;
+  factType: string;
+  value: unknown;
+}) => {
+  if (params.value === undefined || params.value === null) {
+    return null;
+  }
+
+  if (params.factType !== "work_unit") {
+    return {
+      factDefinitionId: params.factDefinitionId,
+      initialValueJson: params.value,
+    };
+  }
+
+  if (
+    isPlainRecord(params.value) &&
+    typeof params.value.projectWorkUnitId === "string" &&
+    params.value.projectWorkUnitId.length > 0
+  ) {
+    return {
+      factDefinitionId: params.factDefinitionId,
+      initialReferencedProjectWorkUnitId: params.value.projectWorkUnitId,
+    };
+  }
+
+  return null;
+};
+
 export class InvokeWorkUnitExecutionService extends Context.Tag(
   "@chiron/workflow-engine/services/InvokeWorkUnitExecutionService",
 )<
@@ -151,15 +184,15 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
           stepExecution.workflowExecutionId,
         );
 
-        const runtimeFactValuesByDefinitionId = new Map<string, unknown>();
+        const overrideFactValuesByDefinitionId = new Map<string, unknown>();
         for (const runtimeValue of input.runtimeFactValues ?? []) {
-          if (runtimeFactValuesByDefinitionId.has(runtimeValue.workUnitFactDefinitionId)) {
+          if (overrideFactValuesByDefinitionId.has(runtimeValue.workUnitFactDefinitionId)) {
             return yield* makeCommandError(
               `duplicate runtime value provided for work-unit fact '${runtimeValue.workUnitFactDefinitionId}'`,
             );
           }
 
-          runtimeFactValuesByDefinitionId.set(
+          overrideFactValuesByDefinitionId.set(
             runtimeValue.workUnitFactDefinitionId,
             runtimeValue.valueJson,
           );
@@ -194,18 +227,18 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
         }
 
         const invokeBindings = invokeDefinition.payload.bindings;
-        const runtimeWorkUnitFactDestinationIds = new Set(
+        const workUnitFactDestinationIds = new Set(
           invokeBindings.flatMap((binding) =>
-            binding.destination.kind === "work_unit_fact" && binding.source.kind === "runtime"
+            binding.destination.kind === "work_unit_fact"
               ? [binding.destination.workUnitFactDefinitionId]
               : [],
           ),
         );
 
-        for (const workUnitFactDefinitionId of runtimeFactValuesByDefinitionId.keys()) {
-          if (!runtimeWorkUnitFactDestinationIds.has(workUnitFactDefinitionId)) {
+        for (const workUnitFactDefinitionId of overrideFactValuesByDefinitionId.keys()) {
+          if (!workUnitFactDestinationIds.has(workUnitFactDefinitionId)) {
             return yield* makeCommandError(
-              `runtime value provided for non-runtime binding destination '${workUnitFactDefinitionId}'`,
+              `runtime value provided for unknown binding destination '${workUnitFactDefinitionId}'`,
             );
           }
         }
@@ -223,6 +256,14 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
           }
 
           const destinationFactDefinitionId = binding.destination.workUnitFactDefinitionId;
+          if (overrideFactValuesByDefinitionId.has(destinationFactDefinitionId)) {
+            resolvedWorkUnitFactValuesByDefinitionId.set(
+              destinationFactDefinitionId,
+              overrideFactValuesByDefinitionId.get(destinationFactDefinitionId),
+            );
+            continue;
+          }
+
           if (binding.source.kind === "literal") {
             resolvedWorkUnitFactValuesByDefinitionId.set(
               destinationFactDefinitionId,
@@ -232,17 +273,9 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
           }
 
           if (binding.source.kind === "runtime") {
-            if (!runtimeFactValuesByDefinitionId.has(destinationFactDefinitionId)) {
-              return yield* makeCommandError(
-                `missing runtime value for work-unit fact '${destinationFactDefinitionId}'`,
-              );
-            }
-
-            resolvedWorkUnitFactValuesByDefinitionId.set(
-              destinationFactDefinitionId,
-              runtimeFactValuesByDefinitionId.get(destinationFactDefinitionId),
+            return yield* makeCommandError(
+              `missing runtime value for work-unit fact '${destinationFactDefinitionId}'`,
             );
-            continue;
           }
 
           const sourceContextFact = contextFactsByDefinitionId.get(
@@ -291,33 +324,53 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
           }
         }
 
+        const initialFactDefinitions: Array<{
+          factDefinitionId: string;
+          initialValueJson?: unknown;
+          initialReferencedProjectWorkUnitId?: string | null;
+        }> = [];
+        for (const factSchema of factSchemas) {
+          if (resolvedWorkUnitFactValuesByDefinitionId.has(factSchema.id)) {
+            const initialFactDefinition = toInitialFactDefinition({
+              factDefinitionId: factSchema.id,
+              factType: factSchema.factType,
+              value: resolvedWorkUnitFactValuesByDefinitionId.get(factSchema.id),
+            });
+
+            if (!initialFactDefinition && factSchema.factType === "work_unit") {
+              return yield* makeCommandError(
+                `work-unit fact '${factSchema.id}' requires a { projectWorkUnitId: string } value`,
+              );
+            }
+
+            if (initialFactDefinition) {
+              initialFactDefinitions.push(initialFactDefinition);
+            }
+            continue;
+          }
+
+          if (factSchema.defaultValueJson === null || factSchema.defaultValueJson === undefined) {
+            continue;
+          }
+
+          const defaultFactDefinition = toInitialFactDefinition({
+            factDefinitionId: factSchema.id,
+            factType: factSchema.factType,
+            value: factSchema.defaultValueJson,
+          });
+
+          if (defaultFactDefinition) {
+            initialFactDefinitions.push(defaultFactDefinition);
+          }
+        }
+
         return yield* invokeRepo.startInvokeWorkUnitTargetAtomically({
           projectId: input.projectId,
           invokeWorkUnitTargetExecutionId: invokeWorkUnitTarget.id,
           workUnitDefinitionId: invokeWorkUnitTarget.workUnitDefinitionId,
           transitionDefinitionId: invokeWorkUnitTarget.transitionDefinitionId,
           workflowDefinitionId: input.workflowDefinitionId,
-          initialFactDefinitions: factSchemas.flatMap((factSchema) => {
-            if (resolvedWorkUnitFactValuesByDefinitionId.has(factSchema.id)) {
-              return [
-                {
-                  factDefinitionId: factSchema.id,
-                  initialValueJson: resolvedWorkUnitFactValuesByDefinitionId.get(factSchema.id),
-                },
-              ];
-            }
-
-            if (factSchema.defaultValueJson === null || factSchema.defaultValueJson === undefined) {
-              return [];
-            }
-
-            return [
-              {
-                factDefinitionId: factSchema.id,
-                initialValueJson: factSchema.defaultValueJson,
-              },
-            ];
-          }),
+          initialFactDefinitions,
           initialArtifactSlotDefinitions: artifactSlots.map((slot) => ({
             artifactSlotDefinitionId: slot.id,
           })),

@@ -189,7 +189,28 @@ describe("runtime invoke step detail", () => {
       findWorkUnitTypes: () => Effect.succeed(workUnitTypes),
       findLifecycleStates: () => Effect.succeed([]),
       findLifecycleTransitions: () => Effect.succeed([]),
-      findFactSchemas: () => Effect.succeed([]),
+      findFactSchemas: (_versionId: string, workUnitTypeId?: string) =>
+        Effect.succeed(
+          workUnitTypeId === "wu-story"
+            ? [
+                {
+                  id: "fact-work-unit",
+                  methodologyVersionId: "version-1",
+                  workUnitTypeId: "wu-story",
+                  name: "Setup Work Unit",
+                  key: "setup_work_unit",
+                  factType: "work_unit",
+                  cardinality: "one",
+                  description: null,
+                  defaultValueJson: null,
+                  guidanceJson: null,
+                  validationJson: { workUnitKey: "WU.PARENT" },
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                },
+              ]
+            : [],
+        ),
       findTransitionConditionSets: () => Effect.die("unused"),
       findAgentTypes: () => Effect.die("unused"),
       findTransitionWorkflowBindings: () => Effect.die("unused"),
@@ -435,7 +456,28 @@ describe("runtime invoke step detail", () => {
       findWorkUnitTypes: () => Effect.succeed(workUnitTypes),
       findLifecycleStates: () => Effect.succeed([]),
       findLifecycleTransitions: () => Effect.succeed([]),
-      findFactSchemas: () => Effect.succeed([]),
+      findFactSchemas: (_versionId: string, workUnitTypeId?: string) =>
+        Effect.succeed(
+          workUnitTypeId === "wu-story"
+            ? [
+                {
+                  id: "fact-work-unit",
+                  methodologyVersionId: "version-1",
+                  workUnitTypeId: "wu-story",
+                  name: "Setup Work Unit",
+                  key: "setup_work_unit",
+                  factType: "work_unit",
+                  cardinality: "one",
+                  description: null,
+                  defaultValueJson: null,
+                  guidanceJson: null,
+                  validationJson: { workUnitKey: "WU.PARENT" },
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                },
+              ]
+            : [],
+        ),
       findTransitionConditionSets: () => Effect.die("unused"),
       findAgentTypes: () => Effect.die("unused"),
       findTransitionWorkflowBindings: () => Effect.die("unused"),
@@ -832,7 +874,28 @@ describe("runtime invoke step detail", () => {
               ]
             : [],
         ),
-      findFactSchemas: () => Effect.succeed([]),
+      findFactSchemas: (_versionId: string, workUnitTypeId?: string) =>
+        Effect.succeed(
+          workUnitTypeId === "wu-story"
+            ? [
+                {
+                  id: "fact-work-unit",
+                  methodologyVersionId: "version-1",
+                  workUnitTypeId: "wu-story",
+                  name: "Setup Work Unit",
+                  key: "setup_work_unit",
+                  factType: "work_unit",
+                  cardinality: "one",
+                  description: null,
+                  defaultValueJson: null,
+                  guidanceJson: null,
+                  validationJson: { workUnitKey: "WU.PARENT" },
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                },
+              ]
+            : [],
+        ),
       findTransitionConditionSets: () => Effect.die("unused"),
       findAgentTypes: () => Effect.die("unused"),
       findTransitionWorkflowBindings: () => Effect.die("unused"),
@@ -859,7 +922,15 @@ describe("runtime invoke step detail", () => {
                 targetKind: "work_unit",
                 sourceMode: "fixed_set",
                 workUnitDefinitionId: "wu-story",
-                bindings: [],
+                bindings: [
+                  {
+                    destination: {
+                      kind: "work_unit_fact",
+                      workUnitFactDefinitionId: "fact-work-unit",
+                    },
+                    source: { kind: "runtime" },
+                  },
+                ],
                 activationTransitions: [
                   { transitionId: "transition-blocked", workflowDefinitionIds: [] },
                   { transitionId: "transition-ready", workflowDefinitionIds: ["workflow-child-1"] },
@@ -909,7 +980,15 @@ describe("runtime invoke step detail", () => {
             targetKind: "work_unit",
             sourceMode: "fixed_set",
             workUnitDefinitionId: "wu-story",
-            bindings: [],
+            bindings: [
+              {
+                destination: {
+                  kind: "work_unit_fact",
+                  workUnitFactDefinitionId: "fact-work-unit",
+                },
+                source: { kind: "runtime" },
+              },
+            ],
             activationTransitions: [
               {
                 transitionId: "transition-ready",
@@ -955,7 +1034,18 @@ describe("runtime invoke step detail", () => {
 
     const projectWorkUnitLayer = Layer.succeed(ProjectWorkUnitRepository, {
       createProjectWorkUnit: () => Effect.die("unused"),
-      listProjectWorkUnitsByProject: () => Effect.succeed([]),
+      listProjectWorkUnitsByProject: () =>
+        Effect.succeed([
+          {
+            id: "parent-project-work-unit-1",
+            projectId: "project-1",
+            workUnitTypeId: "wu-parent",
+            currentStateId: "state-parent-active",
+            activeTransitionExecutionId: "parent-transition-exec-1",
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ]),
       getProjectWorkUnitById: (projectWorkUnitId: string) =>
         Effect.succeed(
           projectWorkUnitId === "project-work-unit-story-1"
@@ -1083,6 +1173,19 @@ describe("runtime invoke step detail", () => {
         workUnitLabel: "Story Draft",
         transitionLabel: "Ready For Drafting",
         status: "not_started",
+        bindingPreview: [
+          expect.objectContaining({
+            destinationDefinitionId: "fact-work-unit",
+            destinationFactType: "work_unit",
+            requiresRuntimeValue: true,
+            editorWorkUnitTypeKey: "WU.PARENT",
+            editorOptions: [
+              expect.objectContaining({
+                value: { projectWorkUnitId: "parent-project-work-unit-1" },
+              }),
+            ],
+          }),
+        ],
         availablePrimaryWorkflows: [
           {
             workflowDefinitionId: "workflow-child-1",

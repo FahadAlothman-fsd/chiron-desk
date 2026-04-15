@@ -1,4 +1,6 @@
+import type { FactCardinality, FactType } from "@chiron/contracts/methodology/fact";
 import type {
+  RuntimeFormFieldOption,
   RuntimeInvokeStepExecutionDetailBody,
   RuntimeInvokeTargetStatus,
 } from "@chiron/contracts/runtime/executions";
@@ -62,6 +64,100 @@ const humanizeKey = (value: string): string =>
     .filter((segment) => segment.length > 0)
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
     .join(" ");
+
+const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const stringifyOptionLabel = (value: unknown): string => {
+  if (value === null) {
+    return "null";
+  }
+  if (value === undefined) {
+    return "undefined";
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return "[unserializable]";
+  }
+};
+
+const optionListFromValidation = (
+  validationJson: unknown,
+): RuntimeFormFieldOption[] | undefined => {
+  if (!isPlainRecord(validationJson)) {
+    return undefined;
+  }
+
+  if (validationJson.kind === "allowed-values" && Array.isArray(validationJson.values)) {
+    return validationJson.values.map((entry) => ({
+      value: entry,
+      label: stringifyOptionLabel(entry),
+    }));
+  }
+
+  if (validationJson.kind !== "json-schema" || !isPlainRecord(validationJson.schema)) {
+    return undefined;
+  }
+
+  const enumValues = validationJson.schema.enum;
+  if (!Array.isArray(enumValues)) {
+    return undefined;
+  }
+
+  return enumValues.map((entry) => ({ value: entry, label: stringifyOptionLabel(entry) }));
+};
+
+const workUnitOptionsFromValidation = (params: {
+  validationJson: unknown;
+  workUnitTypes: readonly WorkUnitTypeSummary[];
+  projectWorkUnits: readonly { id: string; workUnitTypeId: string }[];
+}): {
+  editorOptions?: RuntimeFormFieldOption[];
+  editorWorkUnitTypeKey?: string;
+  editorEmptyState?: string;
+} => {
+  if (
+    !isPlainRecord(params.validationJson) ||
+    typeof params.validationJson.workUnitKey !== "string"
+  ) {
+    return {};
+  }
+
+  const workUnitTypeKey = params.validationJson.workUnitKey;
+  const workUnitType = params.workUnitTypes.find(
+    (entry) =>
+      entry.key === workUnitTypeKey || entry.key.toLowerCase() === workUnitTypeKey.toLowerCase(),
+  );
+
+  if (!workUnitType) {
+    return { editorWorkUnitTypeKey: workUnitTypeKey };
+  }
+
+  const editorOptions = params.projectWorkUnits
+    .filter((workUnit) => workUnit.workUnitTypeId === workUnitType.id)
+    .map((workUnit) => ({
+      value: { projectWorkUnitId: workUnit.id },
+      label: `${workUnitType.name}:${shortId(workUnit.id)}`,
+    }));
+
+  return {
+    editorWorkUnitTypeKey: workUnitType.key,
+    ...(editorOptions.length > 0 ? { editorOptions } : {}),
+    ...(editorOptions.length === 0
+      ? {
+          editorEmptyState: `No ${workUnitType.name} work units are available yet.`,
+        }
+      : {}),
+  };
+};
 
 const shortId = (value: string): string => value.slice(0, 8);
 
@@ -217,6 +313,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
           workUnitTargetRows,
           completionEligibility,
           workflowContextFacts,
+          projectWorkUnits,
         ] = yield* Effect.all([
           invokeRepo.listInvokeWorkflowTargetExecutions(invokeState.id),
           invokeRepo.listInvokeWorkUnitTargetExecutions(invokeState.id),
@@ -226,6 +323,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
             stepExecutionId: stepExecution.id,
           }),
           stepRepo.listWorkflowExecutionContextFacts(stepExecution.workflowExecutionId),
+          projectWorkUnitRepo.listProjectWorkUnitsByProject(projectId),
         ]);
 
         const workUnitTypeById = new Map(
@@ -286,8 +384,9 @@ export const InvokeStepDetailServiceLive = Layer.effect(
             id: string;
             key: string;
             label: string;
-            factType: string;
-            cardinality: "one" | "many";
+            factType: FactType;
+            cardinality: FactCardinality;
+            validationJson: unknown;
           }
         >();
         const artifactSlotDefinitionsById = new Map<
@@ -339,8 +438,9 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                 id: factSchema.id,
                 key: factSchema.key,
                 label: humanizeKey(factSchema.key),
-                factType: factSchema.factType,
+                factType: factSchema.factType as FactType,
                 cardinality: factSchema.cardinality === "many" ? "many" : "one",
+                validationJson: factSchema.validationJson,
               });
             }
           }
@@ -371,20 +471,20 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                   const destination = workUnitFactDefinitionsById.get(
                     binding.destination.workUnitFactDefinitionId,
                   );
-                  const sourceContextFact =
+                  const sourceContextFactDefinitionId =
                     binding.source.kind === "context_fact"
-                      ? contextFactsByDefinitionId.get(binding.source.contextFactDefinitionId)
+                      ? binding.source.contextFactDefinitionId
                       : undefined;
-                  const sourceInstances =
-                    binding.source.kind === "context_fact"
-                      ? workflowContextFacts
-                          .filter(
-                            (fact) =>
-                              fact.contextFactDefinitionId ===
-                              binding.source.contextFactDefinitionId,
-                          )
-                          .sort((left, right) => left.instanceOrder - right.instanceOrder)
-                      : [];
+                  const sourceContextFact = sourceContextFactDefinitionId
+                    ? contextFactsByDefinitionId.get(sourceContextFactDefinitionId)
+                    : undefined;
+                  const sourceInstances = sourceContextFactDefinitionId
+                    ? workflowContextFacts
+                        .filter(
+                          (fact) => fact.contextFactDefinitionId === sourceContextFactDefinitionId,
+                        )
+                        .sort((left, right) => left.instanceOrder - right.instanceOrder)
+                    : [];
                   const resolvedValueJson =
                     binding.source.kind === "literal"
                       ? binding.source.value
@@ -396,6 +496,18 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                             : sourceInstances[0]?.valueJson
                         : undefined;
 
+                  const bindingEditorOptions = optionListFromValidation(
+                    destination?.validationJson,
+                  );
+                  const workUnitEditorMetadata =
+                    destination?.factType === "work_unit"
+                      ? workUnitOptionsFromValidation({
+                          validationJson: destination.validationJson,
+                          workUnitTypes: [...workUnitTypeById.values()],
+                          projectWorkUnits,
+                        })
+                      : {};
+
                   return {
                     destinationKind: "work_unit_fact",
                     destinationDefinitionId: binding.destination.workUnitFactDefinitionId,
@@ -404,11 +516,19 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                       humanizeKey(binding.destination.workUnitFactDefinitionId),
                     destinationFactType: destination?.factType,
                     destinationCardinality: destination?.cardinality,
+                    ...(workUnitEditorMetadata.editorOptions
+                      ? { editorOptions: workUnitEditorMetadata.editorOptions }
+                      : bindingEditorOptions
+                        ? { editorOptions: bindingEditorOptions }
+                        : {}),
+                    ...(workUnitEditorMetadata.editorEmptyState
+                      ? { editorEmptyState: workUnitEditorMetadata.editorEmptyState }
+                      : {}),
+                    ...(workUnitEditorMetadata.editorWorkUnitTypeKey
+                      ? { editorWorkUnitTypeKey: workUnitEditorMetadata.editorWorkUnitTypeKey }
+                      : {}),
                     sourceKind: binding.source.kind,
-                    sourceContextFactDefinitionId:
-                      binding.source.kind === "context_fact"
-                        ? binding.source.contextFactDefinitionId
-                        : undefined,
+                    sourceContextFactDefinitionId: sourceContextFactDefinitionId,
                     sourceContextFactKey: sourceContextFact?.key,
                     resolvedValueJson,
                     requiresRuntimeValue: binding.source.kind === "runtime",
@@ -418,19 +538,20 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                 const destination = artifactSlotDefinitionsById.get(
                   binding.destination.artifactSlotDefinitionId,
                 );
-                const sourceContextFact =
+                const sourceContextFactDefinitionId =
                   binding.source.kind === "context_fact"
-                    ? contextFactsByDefinitionId.get(binding.source.contextFactDefinitionId)
+                    ? binding.source.contextFactDefinitionId
                     : undefined;
-                const sourceInstances =
-                  binding.source.kind === "context_fact"
-                    ? workflowContextFacts
-                        .filter(
-                          (fact) =>
-                            fact.contextFactDefinitionId === binding.source.contextFactDefinitionId,
-                        )
-                        .sort((left, right) => left.instanceOrder - right.instanceOrder)
-                    : [];
+                const sourceContextFact = sourceContextFactDefinitionId
+                  ? contextFactsByDefinitionId.get(sourceContextFactDefinitionId)
+                  : undefined;
+                const sourceInstances = sourceContextFactDefinitionId
+                  ? workflowContextFacts
+                      .filter(
+                        (fact) => fact.contextFactDefinitionId === sourceContextFactDefinitionId,
+                      )
+                      .sort((left, right) => left.instanceOrder - right.instanceOrder)
+                  : [];
                 const resolvedValueJson =
                   binding.source.kind === "literal"
                     ? binding.source.value
@@ -448,10 +569,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                   destinationLabel:
                     destination?.label ?? humanizeKey(binding.destination.artifactSlotDefinitionId),
                   sourceKind: binding.source.kind,
-                  sourceContextFactDefinitionId:
-                    binding.source.kind === "context_fact"
-                      ? binding.source.contextFactDefinitionId
-                      : undefined,
+                  sourceContextFactDefinitionId: sourceContextFactDefinitionId,
                   sourceContextFactKey: sourceContextFact?.key,
                   resolvedValueJson,
                   requiresRuntimeValue: binding.source.kind === "runtime",
@@ -519,23 +637,27 @@ export const InvokeStepDetailServiceLive = Layer.effect(
           ),
         );
 
-        const projectWorkUnits = yield* Effect.forEach(
+        const startedProjectWorkUnits = yield* Effect.forEach(
           workUnitTargetRows
             .map((row) => row.projectWorkUnitId)
             .filter((value): value is string => typeof value === "string"),
           (projectWorkUnitId) => projectWorkUnitRepo.getProjectWorkUnitById(projectWorkUnitId),
         );
         const projectWorkUnitsById = new Map(
-          projectWorkUnits.flatMap((workUnit) =>
+          startedProjectWorkUnits.flatMap((workUnit) =>
             workUnit ? [[workUnit.id, workUnit] as const] : [],
           ),
+        );
+
+        const propagationWorkUnitDefinitionIds = new Set(
+          workUnitTargetRows.map((row) => row.workUnitDefinitionId),
         );
 
         const propagationOutputs = workflowEditor.contextFacts.filter((contextFact) =>
           invokeTargetKind === "workflow"
             ? contextFact.kind === "workflow_reference_fact"
             : contextFact.kind === "work_unit_draft_spec_fact" &&
-              contextFact.workUnitDefinitionId === workUnitInvokePayload?.workUnitDefinitionId,
+              propagationWorkUnitDefinitionIds.has(contextFact.workUnitDefinitionId),
         );
 
         const workflowTargets = workflowTargetRows.map((row) => {

@@ -42,6 +42,7 @@ type TestState = {
     projectWorkUnitId: string;
     factDefinitionId: string;
     valueJson: unknown;
+    referencedProjectWorkUnitId: string | null;
   }>;
   artifactSnapshots: Array<{
     id: string;
@@ -93,7 +94,7 @@ function createRuntime(options?: {
     workUnitTypeId: string;
     name: string;
     key: string;
-    factType: "string" | "number" | "boolean" | "json";
+    factType: "string" | "number" | "boolean" | "json" | "work_unit";
     cardinality: "one" | "many";
     description: null;
     defaultValueJson: unknown;
@@ -370,7 +371,8 @@ function createRuntime(options?: {
       workflowDefinitionId: string;
       initialFactDefinitions: ReadonlyArray<{
         factDefinitionId: string;
-        initialValueJson: unknown;
+        initialValueJson?: unknown;
+        initialReferencedProjectWorkUnitId?: string | null;
       }>;
       initialArtifactSlotDefinitions: ReadonlyArray<{ artifactSlotDefinitionId: string }>;
     }) =>
@@ -402,7 +404,12 @@ function createRuntime(options?: {
                 id,
                 projectWorkUnitId,
                 factDefinitionId: definition.factDefinitionId,
-                valueJson: definition.initialValueJson,
+                valueJson:
+                  definition.initialReferencedProjectWorkUnitId === undefined ||
+                  definition.initialReferencedProjectWorkUnitId === null
+                    ? (definition.initialValueJson ?? null)
+                    : null,
+                referencedProjectWorkUnitId: definition.initialReferencedProjectWorkUnitId ?? null,
               });
               state.factMappings.push({
                 id: `fact-map-${state.factMappings.length + 1}`,
@@ -702,7 +709,7 @@ describe("InvokeWorkUnitExecutionService", () => {
     expect(runtime.state.invokeTarget.workflowExecutionId).toBeNull();
   });
 
-  it("applies bound/context/runtime values and only initializes mapped-or-default facts", async () => {
+  it("applies runtime overrides across binding sources and only initializes mapped-or-default facts", async () => {
     const runtime = createRuntime({
       invokeBindings: [
         {
@@ -812,7 +819,11 @@ describe("InvokeWorkUnitExecutionService", () => {
           stepExecutionId: "step-exec-1",
           invokeWorkUnitTargetExecutionId: "invoke-wu-target-1",
           workflowDefinitionId: "wf-child-primary",
-          runtimeFactValues: [{ workUnitFactDefinitionId: "fact-3", valueJson: 42 }],
+          runtimeFactValues: [
+            { workUnitFactDefinitionId: "fact-1", valueJson: "Edited title" },
+            { workUnitFactDefinitionId: "fact-2", valueJson: { payload: "override-context" } },
+            { workUnitFactDefinitionId: "fact-3", valueJson: 42 },
+          ],
         });
       }).pipe(Effect.provide(runtime.layer)),
     );
@@ -821,10 +832,10 @@ describe("InvokeWorkUnitExecutionService", () => {
     expect(runtime.state.factInstances).toHaveLength(3);
     expect(runtime.state.factInstances).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ factDefinitionId: "fact-1", valueJson: "Bound title" }),
+        expect.objectContaining({ factDefinitionId: "fact-1", valueJson: "Edited title" }),
         expect.objectContaining({
           factDefinitionId: "fact-2",
-          valueJson: { payload: "from-context" },
+          valueJson: { payload: "override-context" },
         }),
         expect.objectContaining({ factDefinitionId: "fact-3", valueJson: 42 }),
       ]),
@@ -898,6 +909,63 @@ describe("InvokeWorkUnitExecutionService", () => {
       }),
       runtime.layer,
       "artifact-slot bindings are not supported for invoke work-unit starts",
+    );
+  });
+
+  it("stores work-unit binding overrides as referenced work units", async () => {
+    const runtime = createRuntime({
+      invokeBindings: [
+        {
+          destination: { kind: "work_unit_fact", workUnitFactDefinitionId: "fact-link" },
+          source: { kind: "runtime" },
+        },
+      ],
+      factSchemas: [
+        {
+          id: "fact-link",
+          methodologyVersionId: "version-1",
+          workUnitTypeId: "wu-child",
+          name: "Linked Setup",
+          key: "linked_setup",
+          factType: "work_unit",
+          cardinality: "one",
+          description: null,
+          defaultValueJson: null,
+          guidanceJson: null,
+          validationJson: { workUnitKey: "WU.PARENT" },
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+    });
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* InvokeWorkUnitExecutionService;
+        return yield* service.startInvokeWorkUnitTarget({
+          projectId: "project-1",
+          stepExecutionId: "step-exec-1",
+          invokeWorkUnitTargetExecutionId: "invoke-wu-target-1",
+          workflowDefinitionId: "wf-child-primary",
+          runtimeFactValues: [
+            {
+              workUnitFactDefinitionId: "fact-link",
+              valueJson: { projectWorkUnitId: "wu-parent-1" },
+            },
+          ],
+        });
+      }).pipe(Effect.provide(runtime.layer)),
+    );
+
+    expect(result.result).toBe("started");
+    expect(runtime.state.factInstances).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          factDefinitionId: "fact-link",
+          valueJson: null,
+          referencedProjectWorkUnitId: "wu-parent-1",
+        }),
+      ]),
     );
   });
 
