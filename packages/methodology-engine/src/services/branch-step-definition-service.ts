@@ -171,10 +171,10 @@ const getJsonSubFieldMetadata = (
   validationKind: "none" | "path" | "allowed-values";
 } | null => {
   if (
-    fact.valueType !== "json" ||
     (fact.kind !== "plain_value_fact" &&
       fact.kind !== "definition_backed_external_fact" &&
-      fact.kind !== "bound_external_fact")
+      fact.kind !== "bound_external_fact") ||
+    fact.valueType !== "json"
   ) {
     return null;
   }
@@ -243,10 +243,10 @@ const validateConditionReferences = (
         const subFieldKey = condition.subFieldKey?.trim() ?? "";
         if (subFieldKey.length > 0) {
           if (
-            fact.valueType === "json" &&
             (fact.kind === "plain_value_fact" ||
               fact.kind === "definition_backed_external_fact" ||
-              fact.kind === "bound_external_fact")
+              fact.kind === "bound_external_fact") &&
+            fact.valueType === "json"
           ) {
             const subField = getJsonSubFieldMetadata(fact, subFieldKey);
             if (!subField) {

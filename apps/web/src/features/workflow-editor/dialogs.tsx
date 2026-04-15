@@ -1257,6 +1257,9 @@ function getContextFactValueType(
   switch (fact.kind) {
     case "plain_value_fact":
       return fact.valueType ?? "string";
+    case "definition_backed_external_fact":
+    case "bound_external_fact":
+      return fact.valueType ?? null;
     case "artifact_reference_fact":
       return "artifact_reference";
     default:

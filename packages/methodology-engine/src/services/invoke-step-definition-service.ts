@@ -101,7 +101,19 @@ const isContextFactCompatibleWithWorkUnitFact = (
     return false;
   }
 
-  return sourceFact.kind === "plain_value_fact" && sourceFact.valueType === destination.factType;
+  if (sourceFact.kind === "plain_value_fact") {
+    return sourceFact.valueType === destination.factType;
+  }
+
+  if (
+    (sourceFact.kind === "definition_backed_external_fact" ||
+      sourceFact.kind === "bound_external_fact") &&
+    typeof sourceFact.valueType === "string"
+  ) {
+    return sourceFact.valueType === destination.factType;
+  }
+
+  return false;
 };
 
 const isContextFactCompatibleWithArtifactSlot = (
