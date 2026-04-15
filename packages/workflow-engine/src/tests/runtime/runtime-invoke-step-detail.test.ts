@@ -286,7 +286,7 @@ describe("runtime invoke step detail", () => {
       getInvokeWorkUnitTargetExecutionById: () => Effect.die("unused"),
       createInvokeWorkUnitTargetExecution: () => Effect.die("unused"),
       markInvokeWorkUnitTargetExecutionStarted: () => Effect.die("unused"),
-      listInvokeWorkUnitCreatedFactInstances: () => Effect.die("unused"),
+      listInvokeWorkUnitCreatedFactInstances: () => Effect.succeed([]),
       createInvokeWorkUnitCreatedFactInstance: () => Effect.die("unused"),
       listInvokeWorkUnitCreatedArtifactSnapshots: () => Effect.die("unused"),
       createInvokeWorkUnitCreatedArtifactSnapshot: () => Effect.die("unused"),
@@ -1058,7 +1058,17 @@ describe("runtime invoke step detail", () => {
                 createdAt: new Date(),
                 updatedAt: new Date(),
               }
-            : null,
+            : projectWorkUnitId === "setup-work-unit-1"
+              ? {
+                  id: "setup-work-unit-1",
+                  projectId: "project-1",
+                  workUnitTypeId: "wu-parent",
+                  currentStateId: "state-parent-active",
+                  activeTransitionExecutionId: "setup-transition-exec-1",
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                }
+              : null,
         ),
       updateActiveTransitionExecutionPointer: () => Effect.die("unused"),
     } as unknown as Context.Tag.Service<typeof ProjectWorkUnitRepository>);
@@ -1085,6 +1095,32 @@ describe("runtime invoke step detail", () => {
             : null,
         ),
     } as unknown as Context.Tag.Service<typeof TransitionExecutionRepository>);
+
+    const workUnitFactLayer = Layer.succeed(WorkUnitFactRepository, {
+      createFactInstance: () => Effect.die("unused"),
+      getCurrentValuesByDefinition: () => Effect.die("unused"),
+      listFactsByWorkUnit: ({ projectWorkUnitId }: { projectWorkUnitId: string }) =>
+        Effect.succeed(
+          projectWorkUnitId === "project-work-unit-story-1"
+            ? [
+                {
+                  id: "fact-instance-setup-link",
+                  projectWorkUnitId: "project-work-unit-story-1",
+                  factDefinitionId: "fact-work-unit",
+                  valueJson: null,
+                  referencedProjectWorkUnitId: "setup-work-unit-1",
+                  status: "active",
+                  supersededByFactInstanceId: null,
+                  producedByTransitionExecutionId: "transition-exec-story-1",
+                  producedByWorkflowExecutionId: "child-workflow-exec-1",
+                  authoredByUserId: null,
+                  createdAt: new Date(),
+                },
+              ]
+            : [],
+        ),
+      supersedeFactInstance: () => Effect.die("unused"),
+    } as unknown as Context.Tag.Service<typeof WorkUnitFactRepository>);
 
     const workflowRepoLayer = Layer.succeed(WorkflowExecutionRepository, {
       createWorkflowExecution: () => Effect.die("unused"),
@@ -1121,6 +1157,7 @@ describe("runtime invoke step detail", () => {
       invokeRepoLayer,
       projectWorkUnitLayer,
       transitionLayer,
+      workUnitFactLayer,
       workflowRepoLayer,
     );
     const invokeCompletionLayer = InvokeCompletionServiceLive.pipe(Layer.provide(baseLayer));
@@ -1200,6 +1237,12 @@ describe("runtime invoke step detail", () => {
         workflowLabel: "Draft Story",
         currentWorkUnitStateLabel: "Drafting",
         status: "active",
+        bindingPreview: [
+          expect.objectContaining({
+            destinationDefinitionId: "fact-work-unit",
+            resolvedValueJson: { projectWorkUnitId: "setup-work-unit-1" },
+          }),
+        ],
         actions: expect.objectContaining({
           openWorkUnit: expect.objectContaining({ projectWorkUnitId: "project-work-unit-story-1" }),
           openTransition: expect.objectContaining({

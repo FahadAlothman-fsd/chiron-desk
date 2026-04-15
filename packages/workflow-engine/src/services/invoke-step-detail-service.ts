@@ -16,6 +16,7 @@ import { RepositoryError } from "../errors";
 import { type WorkflowExecutionDetailReadModel } from "../repositories/execution-read-repository";
 import { InvokeExecutionRepository } from "../repositories/invoke-execution-repository";
 import { ProjectWorkUnitRepository } from "../repositories/project-work-unit-repository";
+import { WorkUnitFactRepository } from "../repositories/work-unit-fact-repository";
 import {
   StepExecutionRepository,
   type RuntimeStepExecutionRow,
@@ -238,6 +239,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
     const methodologyRepo = yield* MethodologyRepository;
     const invokeRepo = yield* InvokeExecutionRepository;
     const projectWorkUnitRepo = yield* ProjectWorkUnitRepository;
+    const workUnitFactRepo = yield* WorkUnitFactRepository;
     const stepRepo = yield* StepExecutionRepository;
     const transitionRepo = yield* TransitionExecutionRepository;
     const workflowRepo = yield* WorkflowExecutionRepository;
@@ -643,9 +645,18 @@ export const InvokeStepDetailServiceLive = Layer.effect(
             .filter((value): value is string => typeof value === "string"),
           (projectWorkUnitId) => projectWorkUnitRepo.getProjectWorkUnitById(projectWorkUnitId),
         );
+        const startedProjectWorkUnitFacts = yield* Effect.forEach(
+          startedProjectWorkUnits.flatMap((workUnit) => (workUnit ? [workUnit.id] : [])),
+          (projectWorkUnitId) => workUnitFactRepo.listFactsByWorkUnit({ projectWorkUnitId }),
+        );
         const projectWorkUnitsById = new Map(
           startedProjectWorkUnits.flatMap((workUnit) =>
             workUnit ? [[workUnit.id, workUnit] as const] : [],
+          ),
+        );
+        const startedFactInstancesByWorkUnitId = new Map(
+          startedProjectWorkUnits.flatMap((workUnit, index) =>
+            workUnit ? [[workUnit.id, startedProjectWorkUnitFacts[index] ?? []] as const] : [],
           ),
         );
 
@@ -815,6 +826,36 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                   .get(projectWorkUnit.workUnitTypeId)
                   ?.get(projectWorkUnit.currentStateId) ?? projectWorkUnit.currentStateId)
               : undefined;
+          const startedFactInstancesByDefinitionId = new Map(
+            (row.projectWorkUnitId
+              ? (startedFactInstancesByWorkUnitId.get(row.projectWorkUnitId) ?? [])
+              : []
+            )
+              .filter((fact) => fact.status === "active")
+              .map((fact) => [fact.factDefinitionId, fact] as const),
+          );
+          const rowBindingPreview = invokeBindingPreview.map((binding) => {
+            if (binding.destinationKind !== "work_unit_fact") {
+              return binding;
+            }
+
+            const startedFactInstance = startedFactInstancesByDefinitionId.get(
+              binding.destinationDefinitionId,
+            );
+            if (!startedFactInstance) {
+              return binding;
+            }
+
+            const hydratedValue =
+              startedFactInstance.referencedProjectWorkUnitId !== null
+                ? { projectWorkUnitId: startedFactInstance.referencedProjectWorkUnitId }
+                : startedFactInstance.valueJson;
+
+            return {
+              ...binding,
+              resolvedValueJson: hydratedValue,
+            };
+          });
 
           return {
             workUnitLabel: formatWorkUnitLabel(
@@ -898,7 +939,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                   }
                 : {}),
             },
-            bindingPreview: invokeBindingPreview,
+            bindingPreview: rowBindingPreview,
           } satisfies RuntimeInvokeStepExecutionDetailBody["workUnitTargets"][number];
         });
 
