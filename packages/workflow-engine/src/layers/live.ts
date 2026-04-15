@@ -17,6 +17,7 @@ import { InvokeWorkUnitExecutionServiceLive } from "../services/invoke-work-unit
 import { InvokeCompletionServiceLive } from "../services/invoke-completion-service";
 import { InvokePropagationServiceLive } from "../services/invoke-propagation-service";
 import { InvokeStepDetailServiceLive } from "../services/invoke-step-detail-service";
+import { InvokeTargetResolutionServiceLive } from "../services/invoke-target-resolution-service";
 import { StepContextMutationServiceLive } from "../services/step-context-mutation-service";
 import { StepContextQueryServiceLive } from "../services/step-context-query-service";
 import { StepExecutionDetailServiceLive } from "../services/step-execution-detail-service";
@@ -98,6 +99,7 @@ const WorkflowEngineRuntimeStepCommandLayer = Layer.provide(
     WorkflowEngineRuntimeStepTransactionLayer,
     WorkflowEngineRuntimeStepFormLayer,
     WorkflowEngineRuntimeInvokeCompletionLayer,
+    InvokeTargetResolutionServiceLive,
   ),
 );
 
@@ -178,6 +180,7 @@ export const WorkflowEngineRuntimeStepServicesLive = Layer.mergeAll(
   WorkflowEngineRuntimeInvokeCompletionLayer,
   WorkflowEngineRuntimeInvokePropagationLayer,
   WorkflowEngineRuntimeInvokeStepDetailLayer,
+  InvokeTargetResolutionServiceLive,
   WorkflowEngineRuntimeStepCommandLayer,
   WorkflowEngineRuntimeStepDetailLayer,
   InvokeWorkflowExecutionServiceLive,

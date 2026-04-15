@@ -164,19 +164,33 @@ export const InvokeStepDetailServiceLive = Layer.effect(
           );
         }
 
-        const workflowEditor = yield* methodologyRepo.getWorkflowEditorDefinition({
-          versionId: projectPin.methodologyVersionId,
-          workUnitTypeKey: parentWorkUnitType.key,
-          workflowDefinitionId: workflowDetail.workflowExecution.workflowId,
-        });
+        const [workflowEditor, invokeDefinition] = yield* Effect.all([
+          methodologyRepo.getWorkflowEditorDefinition({
+            versionId: projectPin.methodologyVersionId,
+            workUnitTypeKey: parentWorkUnitType.key,
+            workflowDefinitionId: workflowDetail.workflowExecution.workflowId,
+          }),
+          methodologyRepo.getInvokeStepDefinition({
+            versionId: projectPin.methodologyVersionId,
+            workflowDefinitionId: workflowDetail.workflowExecution.workflowId,
+            stepId: stepExecution.stepDefinitionId,
+          }),
+        ]);
 
-        const invokeDefinition = workflowEditor.steps.find(
-          (step): step is typeof step & { stepType: "invoke"; payload: InvokeStepPayload } =>
-            step.stepType === "invoke" && step.stepId === stepExecution.stepDefinitionId,
-        );
         if (!invokeDefinition) {
           return yield* Effect.fail(
             makeDetailError("invoke step definition missing for runtime detail"),
+          );
+        }
+
+        const invokePayload =
+          typeof invokeDefinition === "object" && invokeDefinition !== null
+            ? ((invokeDefinition as { payload?: unknown }).payload as InvokeStepPayload | undefined)
+            : undefined;
+        const invokeTargetKind = invokePayload?.targetKind;
+        if (invokeTargetKind !== "workflow" && invokeTargetKind !== "work_unit") {
+          return yield* Effect.fail(
+            makeDetailError("invoke step payload missing for runtime detail"),
           );
         }
 
@@ -239,7 +253,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
         );
 
         const relevantWorkUnitTypeIds = new Set<string>();
-        if (invokeDefinition.payload.targetKind === "work_unit") {
+        if (invokeTargetKind === "work_unit") {
           for (const row of workUnitTargetRows) {
             relevantWorkUnitTypeIds.add(row.workUnitDefinitionId);
           }
@@ -346,10 +360,10 @@ export const InvokeStepDetailServiceLive = Layer.effect(
         );
 
         const propagationOutputs = workflowEditor.contextFacts.filter((contextFact) =>
-          invokeDefinition.payload.targetKind === "workflow"
+          invokeTargetKind === "workflow"
             ? contextFact.kind === "workflow_reference_fact"
             : contextFact.kind === "work_unit_draft_spec_fact" &&
-              contextFact.workUnitDefinitionId === invokeDefinition.payload.workUnitDefinitionId,
+              contextFact.workUnitDefinitionId === invokePayload.workUnitDefinitionId,
         );
 
         const workflowTargets = workflowTargetRows.map((row) => {
@@ -428,8 +442,8 @@ export const InvokeStepDetailServiceLive = Layer.effect(
         });
 
         const workflowOptionsByTransitionId = new Map(
-          invokeDefinition.payload.targetKind === "work_unit"
-            ? invokeDefinition.payload.activationTransitions.map((transition) => [
+          invokeTargetKind === "work_unit"
+            ? invokePayload.activationTransitions.map((transition) => [
                 transition.transitionId,
                 transition.workflowDefinitionIds.map((workflowDefinitionId) => {
                   const summary = workflowDefinitionsById.get(workflowDefinitionId);
@@ -590,8 +604,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
           } satisfies RuntimeInvokeStepExecutionDetailBody["workUnitTargets"][number];
         });
 
-        const relevantTargets =
-          invokeDefinition.payload.targetKind === "workflow" ? workflowTargets : workUnitTargets;
+        const relevantTargets = invokeTargetKind === "workflow" ? workflowTargets : workUnitTargets;
         const completedTargets = relevantTargets.filter(
           (target) => target.status === "completed",
         ).length;
@@ -599,8 +612,8 @@ export const InvokeStepDetailServiceLive = Layer.effect(
 
         return {
           stepType: "invoke",
-          targetKind: invokeDefinition.payload.targetKind,
-          sourceMode: invokeDefinition.payload.sourceMode,
+          targetKind: invokeTargetKind,
+          sourceMode: invokePayload.sourceMode,
           workflowTargets,
           workUnitTargets,
           completionSummary: {
@@ -611,7 +624,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
             completedTargets,
           },
           propagationPreview: toPropagationPreview({
-            targetKind: invokeDefinition.payload.targetKind,
+            targetKind: invokeTargetKind,
             outputs: propagationOutputs,
           }),
         } satisfies RuntimeInvokeStepExecutionDetailBody;

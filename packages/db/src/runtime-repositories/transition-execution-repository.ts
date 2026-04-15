@@ -191,5 +191,63 @@ export function createTransitionExecutionRepoLayer(
 
         return rows[0] ? toTransitionExecutionRow(rows[0]) : null;
       }),
+
+    completeTransitionExecutionAtomically: ({
+      transitionExecutionId,
+      projectWorkUnitId,
+      newStateId,
+      newStateKey,
+      newStateLabel,
+    }) =>
+      dbEffect("transition-execution.completeAtomic", async () => {
+        return db.transaction(async (tx) => {
+          const completedRows = await tx
+            .update(transitionExecutions)
+            .set({
+              status: "completed",
+              completedAt: new Date(),
+              supersededByTransitionExecutionId: null,
+              supersededAt: null,
+            })
+            .where(
+              and(
+                eq(transitionExecutions.id, transitionExecutionId),
+                eq(transitionExecutions.projectWorkUnitId, projectWorkUnitId),
+                eq(transitionExecutions.status, "active"),
+              ),
+            )
+            .returning({ id: transitionExecutions.id });
+
+          if (completedRows.length === 0) {
+            throw new Error("Failed to complete transition execution atomically");
+          }
+
+          const workUnitRows = await tx
+            .update(projectWorkUnits)
+            .set({
+              currentStateId: newStateId,
+              activeTransitionExecutionId: null,
+            })
+            .where(
+              and(
+                eq(projectWorkUnits.id, projectWorkUnitId),
+                eq(projectWorkUnits.activeTransitionExecutionId, transitionExecutionId),
+              ),
+            )
+            .returning({ id: projectWorkUnits.id });
+
+          if (workUnitRows.length === 0) {
+            throw new Error("Failed to update project work unit state atomically");
+          }
+
+          return {
+            transitionExecutionId,
+            projectWorkUnitId,
+            newStateId,
+            newStateKey,
+            newStateLabel,
+          };
+        });
+      }),
   });
 }

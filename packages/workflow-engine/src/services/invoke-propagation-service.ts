@@ -183,27 +183,41 @@ export const InvokePropagationServiceLive = Layer.effect(
           return yield* makePropagationError("work unit type missing for invoke propagation");
         }
 
-        const [workflowEditor, invokeState] = yield* Effect.all([
+        const [workflowEditor, invokeDefinition, invokeState] = yield* Effect.all([
           methodologyRepo.getWorkflowEditorDefinition({
             versionId: projectPin.methodologyVersionId,
             workUnitTypeKey: workUnitType.key,
             workflowDefinitionId: workflowDetail.workflowExecution.workflowId,
           }),
+          methodologyRepo.getInvokeStepDefinition({
+            versionId: projectPin.methodologyVersionId,
+            workflowDefinitionId: workflowDetail.workflowExecution.workflowId,
+            stepId: stepExecution.stepDefinitionId,
+          }),
           invokeRepo.getInvokeStepExecutionStateByStepExecutionId(stepExecutionId),
         ]);
 
-        const invokeStep = workflowEditor.steps.find(
-          (step) => step.stepType === "invoke" && step.stepId === stepExecution.stepDefinitionId,
-        );
-        if (!invokeStep) {
+        if (!invokeDefinition) {
           return yield* makePropagationError("invoke step definition missing for step execution");
+        }
+
+        const invokePayload =
+          typeof invokeDefinition === "object" && invokeDefinition !== null
+            ? (invokeDefinition as { payload?: unknown }).payload
+            : null;
+        const invokeTargetKind =
+          invokePayload && typeof invokePayload === "object"
+            ? (invokePayload as { targetKind?: unknown }).targetKind
+            : null;
+        if (invokeTargetKind !== "workflow" && invokeTargetKind !== "work_unit") {
+          return yield* makePropagationError("invoke step payload missing for step execution");
         }
 
         if (!invokeState) {
           return yield* makePropagationError("invoke step execution state not found");
         }
 
-        if (invokeStep.payload.targetKind === "workflow") {
+        if (invokeTargetKind === "workflow") {
           const workflowTargets = yield* invokeRepo.listInvokeWorkflowTargetExecutions(
             invokeState.id,
           );

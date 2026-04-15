@@ -224,7 +224,18 @@ describe("runtime invoke step detail", () => {
           formDefinitions: [],
         }),
       listWorkflowsByWorkUnitType: () => Effect.succeed([]),
-      getInvokeStepDefinition: () => Effect.die("unused"),
+      getInvokeStepDefinition: () =>
+        Effect.succeed({
+          stepId: "invoke-step-zero-targets",
+          stepType: "invoke",
+          payload: {
+            key: "invoke-zero-targets",
+            label: "Invoke zero targets",
+            targetKind: "workflow",
+            sourceMode: "fixed_set",
+            workflowDefinitionIds: [],
+          },
+        }),
       findArtifactSlotsByWorkUnitType: () => Effect.die("unused"),
       findFactDefinitionsByVersionId: () => Effect.die("unused"),
     } as unknown as Context.Tag.Service<typeof MethodologyRepository>);
@@ -542,7 +553,17 @@ describe("runtime invoke step detail", () => {
             edges: [],
           },
         ]),
-      getInvokeStepDefinition: () => Effect.die("unused"),
+      getInvokeStepDefinition: () =>
+        Effect.succeed({
+          stepId: "invoke-step-1",
+          stepType: "invoke",
+          payload: {
+            key: "invoke-story-workflow",
+            targetKind: "workflow",
+            sourceMode: "fixed_set",
+            workflowDefinitionIds: ["workflow-child-1", "workflow-child-2", "workflow-child-3"],
+          },
+        }),
       findArtifactSlotsByWorkUnitType: () => Effect.die("unused"),
       findFactDefinitionsByVersionId: () => Effect.die("unused"),
     } as unknown as Context.Tag.Service<typeof MethodologyRepository>);
@@ -879,7 +900,24 @@ describe("runtime invoke step detail", () => {
             edges: [],
           },
         ]),
-      getInvokeStepDefinition: () => Effect.die("unused"),
+      getInvokeStepDefinition: () =>
+        Effect.succeed({
+          stepId: "invoke-step-1",
+          stepType: "invoke",
+          payload: {
+            key: "invoke-story-work-unit",
+            targetKind: "work_unit",
+            sourceMode: "fixed_set",
+            workUnitDefinitionId: "wu-story",
+            bindings: [],
+            activationTransitions: [
+              {
+                transitionId: "transition-ready",
+                workflowDefinitionIds: ["workflow-child-1"],
+              },
+            ],
+          },
+        }),
       findArtifactSlotsByWorkUnitType: () => Effect.die("unused"),
       findFactDefinitionsByVersionId: () => Effect.die("unused"),
     } as unknown as Context.Tag.Service<typeof MethodologyRepository>);

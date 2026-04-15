@@ -1,5 +1,6 @@
 import { Context, type Effect } from "effect";
 import type { RepositoryError } from "../errors";
+import type { CompleteTransitionExecutionOutput } from "@chiron/contracts/runtime/executions";
 
 export type TransitionExecutionStatus = "active" | "completed" | "superseded";
 
@@ -40,6 +41,14 @@ export interface SwitchActiveTransitionExecutionResult {
   superseded: TransitionExecutionRow | null;
 }
 
+export interface CompleteTransitionExecutionAtomicallyParams {
+  transitionExecutionId: string;
+  projectWorkUnitId: string;
+  newStateId: string;
+  newStateKey: string;
+  newStateLabel: string;
+}
+
 export class TransitionExecutionRepository extends Context.Tag(
   "@chiron/workflow-engine/repositories/TransitionExecutionRepository",
 )<
@@ -60,5 +69,8 @@ export class TransitionExecutionRepository extends Context.Tag(
     readonly getTransitionExecutionById: (
       transitionExecutionId: string,
     ) => Effect.Effect<TransitionExecutionRow | null, RepositoryError>;
+    readonly completeTransitionExecutionAtomically?: (
+      params: CompleteTransitionExecutionAtomicallyParams,
+    ) => Effect.Effect<CompleteTransitionExecutionOutput, RepositoryError>;
   }
 >() {}

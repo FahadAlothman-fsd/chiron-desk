@@ -1,4 +1,4 @@
-import { LifecycleRepository, MethodologyRepository } from "@chiron/methodology-engine";
+import { MethodologyRepository } from "@chiron/methodology-engine";
 import { ProjectContextRepository } from "@chiron/project-context";
 import { Context, Effect, Layer } from "effect";
 
@@ -47,7 +47,6 @@ export const InvokeCompletionServiceLive = Layer.effect(
   InvokeCompletionService,
   Effect.gen(function* () {
     const projectContextRepo = yield* ProjectContextRepository;
-    const lifecycleRepo = yield* LifecycleRepository;
     const methodologyRepo = yield* MethodologyRepository;
     const executionReadRepo = yield* ExecutionReadRepository;
     const invokeRepo = yield* InvokeExecutionRepository;
@@ -79,37 +78,36 @@ export const InvokeCompletionServiceLive = Layer.effect(
           return yield* makeCompletionError("project methodology pin missing");
         }
 
-        const workUnitTypes = yield* lifecycleRepo.findWorkUnitTypes(
-          projectPin.methodologyVersionId,
-        );
-        const workUnitType = workUnitTypes.find(
-          (candidate) => candidate.id === workflowDetail.workUnitTypeId,
-        );
-        if (!workUnitType) {
-          return yield* makeCompletionError("work unit type missing for invoke completion");
-        }
-
-        const [workflowEditor, invokeState] = yield* Effect.all([
-          methodologyRepo.getWorkflowEditorDefinition({
+        const [invokeDefinition, invokeState] = yield* Effect.all([
+          methodologyRepo.getInvokeStepDefinition({
             versionId: projectPin.methodologyVersionId,
-            workUnitTypeKey: workUnitType.key,
             workflowDefinitionId: workflowDetail.workflowExecution.workflowId,
+            stepId: stepExecution.stepDefinitionId,
           }),
           invokeRepo.getInvokeStepExecutionStateByStepExecutionId(stepExecutionId),
         ]);
 
-        const invokeStep = workflowEditor.steps.find(
-          (step) => step.stepType === "invoke" && step.stepId === stepExecution.stepDefinitionId,
-        );
-        if (!invokeStep) {
+        if (!invokeDefinition) {
           return yield* makeCompletionError("invoke step definition missing for step execution");
+        }
+
+        const invokePayload =
+          typeof invokeDefinition === "object" && invokeDefinition !== null
+            ? (invokeDefinition as { payload?: unknown }).payload
+            : null;
+        const invokeTargetKind =
+          invokePayload && typeof invokePayload === "object"
+            ? (invokePayload as { targetKind?: unknown }).targetKind
+            : null;
+        if (invokeTargetKind !== "workflow" && invokeTargetKind !== "work_unit") {
+          return yield* makeCompletionError("invoke step payload missing for step execution");
         }
 
         if (!invokeState) {
           return yield* makeCompletionError("invoke step execution state not found");
         }
 
-        if (invokeStep.payload.targetKind === "workflow") {
+        if (invokeTargetKind === "workflow") {
           const workflowTargets = yield* invokeRepo.listInvokeWorkflowTargetExecutions(
             invokeState.id,
           );

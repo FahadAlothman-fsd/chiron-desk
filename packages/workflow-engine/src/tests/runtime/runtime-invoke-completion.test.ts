@@ -308,7 +308,17 @@ function buildWorkflowInvokeCompletionRuntime() {
         contextFacts: workflowInvokeContextFacts,
         formDefinitions: [],
       }),
-    getInvokeStepDefinition: () => Effect.die("unused"),
+    getInvokeStepDefinition: () =>
+      Effect.succeed({
+        stepId: "invoke-step-1",
+        stepType: "invoke",
+        payload: {
+          key: "invoke-children",
+          targetKind: "workflow",
+          sourceMode: "fixed_set",
+          workflowDefinitionIds: ["workflow-child-1", "workflow-child-2"],
+        },
+      }),
     findArtifactSlotsByWorkUnitType: () => Effect.die("unused"),
   } as unknown as Context.Tag.Service<typeof MethodologyRepository>);
 
@@ -615,7 +625,21 @@ function buildWorkUnitInvokeCompletionRuntime() {
         contextFacts: workUnitInvokeContextFacts,
         formDefinitions: [],
       }),
-    getInvokeStepDefinition: () => Effect.die("unused"),
+    getInvokeStepDefinition: () =>
+      Effect.succeed({
+        stepId: "invoke-step-1",
+        stepType: "invoke",
+        payload: {
+          key: "invoke-story-work",
+          targetKind: "work_unit",
+          sourceMode: "fixed_set",
+          workUnitDefinitionId: "wu-story",
+          bindings: [],
+          activationTransitions: [
+            { transitionId: "transition-ready", workflowDefinitionIds: ["workflow-story"] },
+          ],
+        },
+      }),
     findArtifactSlotsByWorkUnitType: () => Effect.die("unused"),
   } as unknown as Context.Tag.Service<typeof MethodologyRepository>);
 

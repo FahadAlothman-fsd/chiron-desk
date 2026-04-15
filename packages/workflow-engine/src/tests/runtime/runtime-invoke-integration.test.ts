@@ -411,7 +411,21 @@ function buildWorkUnitCompletionRuntime(options?: { zeroTargets?: boolean }) {
         ],
         formDefinitions: [],
       }),
-    getInvokeStepDefinition: () => Effect.die("unused"),
+    getInvokeStepDefinition: () =>
+      Effect.succeed({
+        stepId: "invoke-step-1",
+        stepType: "invoke",
+        payload: {
+          key: "invoke-story-work",
+          targetKind: "work_unit",
+          sourceMode: "fixed_set",
+          workUnitDefinitionId: "wu-story",
+          bindings: [],
+          activationTransitions: [
+            { transitionId: "transition-ready", workflowDefinitionIds: ["workflow-story"] },
+          ],
+        },
+      }),
     findArtifactSlotsByWorkUnitType: () => Effect.die("unused"),
   } as unknown as Context.Tag.Service<typeof MethodologyRepository>);
 
