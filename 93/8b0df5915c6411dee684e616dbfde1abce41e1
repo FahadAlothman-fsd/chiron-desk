@@ -1,0 +1,602 @@
+packages/scripts/src/seed/methodology/tables/runtime-methodology-workflow-agent-steps.seed.ts
+  096554eb1c2648ab 1-9
+packages/api/src/tests/routers/project-runtime-detail-endpoints.test.ts
+  0b0efaa693ef3738 10
+packages/api/src/tests/architecture/runtime-router-boundary.test.ts
+  0b0efaa693ef3738 35
+packages/contracts/src/runtime/executions.ts
+  f81ff95b96763fda 8-9,455-599,602-606,610-645
+.sisyphus/evidence/f2-invoke-code-quality-rerun.txt
+  67845f217ed2bd49 1-25
+packages/scripts/src/seed/methodology/tables/index.ts
+  096554eb1c2648ab 16-34
+packages/workflow-engine/src/services/step-execution-detail-service.ts
+  1837bafa1e0408e9 30,690,898-903,912-922,943-945
+packages/db/src/runtime-repositories/invoke-execution-repository.ts
+  ebb0438f1d8301d3 1-131,133-181,184-196,198-222,224-291,294-306,308-336,338-358,360-612
+packages/workflow-engine/src/tests/runtime/runtime-invoke-completion.test.ts
+  b2ff5f406059c90f 1-39,42-351,353-370,372-408,410-658,660-677,679-741,743-794,796,798-932
+packages/scripts/src/seed/methodology/tables/runtime-methodology-workflow-agent-step-write-item-requirements.seed.ts
+  096554eb1c2648ab 1-11
+packages/workflow-engine/src/services/workflow-execution-detail-service.ts
+  0b0efaa693ef3738 203-208,210-221,248-251
+packages/db/src/tests/schema/l3-runtime-invoke-schema.test.ts
+  88ef0c14a4b048a7 1-81,83-85,87-89,91-93,95-116,118-123,125-126,128-134,136-139,141-143,145-147,149-152,156-168
+packages/scripts/src/seed/methodology/tables/runtime-methodology-workflow-context-fact-artifact-references.seed.ts
+  096554eb1c2648ab 1-9,11
+packages/workflow-engine/src/tests/runtime/runtime-invoke-step-detail.test.ts
+  8d471b996ca11497 40,169-338
+  1837bafa1e0408e9 1-7,12-31,33-37,39,41-168,339-457,459-846,848-1064,1066-1091
+packages/scripts/src/seed/methodology/tables/runtime-methodology-workflow-context-fact-draft-spec-selections.seed.ts
+  096554eb1c2648ab 1-9,11
+packages/scripts/src/seed/methodology/tables/runtime-methodology-workflow-agent-step-explicit-read-grants.seed.ts
+  096554eb1c2648ab 1-11
+.sisyphus/plans/setup-invoke-phase-1-seed-spec.md
+  0b0efaa693ef3738 1-728
+packages/workflow-engine/src/services/step-execution-transaction-service.ts
+  b2ff5f406059c90f 17-19,95,99-100,192-201,203-222
+packages/scripts/src/seed/methodology/tables/runtime-methodology-workflow-form-fields.seed.ts
+  096554eb1c2648ab 1-9
+packages/api/src/routers/index.ts
+  0b0efaa693ef3738 31,72-79,82-88,107-111
+  ebb0438f1d8301d3 22,46
+packages/scripts/src/seed/methodology/tables/runtime-methodology-workflow-invoke-transitions.seed.ts
+  096554eb1c2648ab 1-9
+packages/scripts/src/seed/methodology/tables/runtime-workflow-fixtures.shared.ts
+  096554eb1c2648ab 1-2,4-5,7-9
+packages/workflow-engine/src/services/invoke-target-resolution-service.ts
+  90212a4e94eddf91 1-31,40-201,206-220,225-244,249-272,277-287,289-299,303-353
+  8d471b996ca11497 32-39,202-205,221-224,245-248,273-276,300-302
+.sisyphus/boulder.json
+  0b0efaa693ef3738 1-4,46,113
+.sisyphus/plans/l3-slice-2-runtime-invoke.md
+  0b0efaa693ef3738 238,279,319,359,398,439,481,521,566-569
+.sisyphus/evidence/f1-invoke-plan-compliance.txt
+  82f38a6c330ae328 1-25
+.sisyphus/evidence/f4-invoke-scope-fidelity.txt
+  eb72fda37023b51e 1-17
+.sisyphus/plans/setup-invoke-phase-1-implementation-map.md
+  0b0efaa693ef3738 1-501
+packages/scripts/src/manual-seed.mjs
+  096554eb1c2648ab 11-31,122-150,154,157-159,161-162,166-171,176,178-183,185-186,226-236,238-239,242,246-252,356-394,396-397,405-406,410,416-417,422
+packages/scripts/src/seed/methodology/setup/setup-bmad-mapping.ts
+  096554eb1c2648ab 29,326,446,481-495,760,767,853-867,1054-1073,1078-1089,1341-1352,1428,1435,1712-1730,2297-2298,2318-2323
+packages/scripts/src/tests/seeding/setup-invoke-phase-1-fixture.test.ts
+  0b0efaa693ef3738 143-144
+  096554eb1c2648ab 1-31,35-36,38-46,48-142,145-175
+packages/scripts/src/seed/methodology/tables/runtime-methodology-workflow-context-fact-workflow-references.seed.ts
+  096554eb1c2648ab 1-9,11
+apps/server/src/index.ts
+  ebb0438f1d8301d3 33,66
+packages/db/src/runtime-repositories/step-execution-repository.ts
+  0b0efaa693ef3738 23,358-373
+.sisyphus/notepads/l3-slice-2-runtime-invoke/decisions.md
+  7b40c2b864d13578 27-30
+  0b0efaa693ef3738 1-26
+.sisyphus/notepads/l3-slice-2-runtime-invoke/issues.md
+  7b40c2b864d13578 28-33
+  67845f217ed2bd49 42-49
+  0b0efaa693ef3738 1-7
+  82f38a6c330ae328 8-11
+  fcf59307c2478761 34-41
+  aa49ca8bfc92dc57 12,17-20
+  eb72fda37023b51e 13-16
+  b8f032baa687bbe4 21-27
+packages/workflow-engine/src/services/invoke-workflow-execution-service.ts
+  09f30d16e9c22045 72,74-75
+  0653b1a9b52c3f58 1-48,52-71,73,76-83
+  5a70a8d66e9b899b 49-51
+packages/api/src/tests/routers/project-runtime-queries.test.ts
+  0b0efaa693ef3738 11
+packages/workflow-engine/src/services/workflow-execution-step-command-service.ts
+  b2ff5f406059c90f 79,148-165
+packages/api/src/tests/routers/project-runtime-invoke.test.ts
+  20c29cc5f0d68d65 1-8,10-156
+  0b0efaa693ef3738 9
+apps/web/src/tests/routes/runtime-invoke-step-detail.test.tsx
+  f3e065a8e1452b6e 1-335,338-554,556-567,569-599,601-628,669-670
+  20c29cc5f0d68d65 336-337,629-661,663-668
+packages/scripts/src/seed/methodology/tables/runtime-methodology-workflow-edges.seed.ts
+  096554eb1c2648ab 1-9
+packages/scripts/src/seed/methodology/setup/setup-invoke-phase-1-fixture.ts
+  0b0efaa693ef3738 886-887
+  096554eb1c2648ab 1-201,203-206,208-219,221-231,233-243,245-253,255-257,259-269,271-279,281-283,285-294,296-298,300-308,310-312,314-322,324-326,328-336,338-340,342-350,352-354,356-364,366-368,370-379,381-383,385-393,395-397,399-407,409-419,421-573,575-580,582-594,596-607,610-611,613-623,625-635,637-698,700-709,711-721,723-742,744-833,835-845,847-848,850-861,863-885,888-902,904-906,908-910,912-914,916-918,920-922,924-926,928-979,981-983,985-987,989-991,993-995,997-1008,1011-1021,1024-1034,1037-1047,1050-1112,1114-1124,1126-1154
+  6f7d9d856e1a0d18 574,581,1113,1125
+.sisyphus/evidence/f3-invoke-manual-qa.txt
+  aa49ca8bfc92dc57 1-27
+packages/scripts/src/seed/methodology/tables/runtime-methodology-workflow-steps.seed.ts
+  096554eb1c2648ab 1-9
+.sisyphus/evidence/f3-invoke-manual-qa-rerun.txt
+  fcf59307c2478761 1-12
+packages/workflow-engine/src/tests/runtime/runtime-invoke-workunit-start.test.ts
+  7ecb6d51cf5dce46 1-7,12-25,27-37,39-43,45-48,50-53,55-58,60-66,68-138,140,143-171,173-317,319-333,335-393,395-424,426-470,472-651,681-694
+  5a70a8d66e9b899b 67,139,141-142,652-680
+packages/workflow-engine/src/services/invoke-step-detail-service.ts
+  8d471b996ca11497 598,609
+  1837bafa1e0408e9 1-6,8-13,15-18,20-150,152-155,157-162,164-178,180-183,185-252,254-269,271-282,285-342,345-374,376-381,383-385,387-440,442-502,504,506-595,597,599-608,610-624
+packages/scripts/src/seed/methodology/tables/runtime-methodology-workflow-context-fact-external-bindings.seed.ts
+  096554eb1c2648ab 1-9,11
+packages/scripts/src/seed/methodology/tables/runtime-methodology-workflow-invoke-bindings.seed.ts
+  096554eb1c2648ab 1-9
+packages/api/src/routers/project.ts
+  0b0efaa693ef3738 83,286-289
+.sisyphus/evidence/f1-invoke-plan-compliance-rerun.txt
+  7b40c2b864d13578 1-22
+packages/scripts/src/seed/methodology/tables/runtime-methodology-workflow-context-fact-draft-specs.seed.ts
+  096554eb1c2648ab 1-9,11
+packages/scripts/src/seed/methodology/tables/runtime-methodology-workflow-metadata-patches.seed.ts
+  096554eb1c2648ab 1-7
+packages/scripts/src/tests/seeding/methodology-seed-integrity.test.ts
+  096554eb1c2648ab 91,94-95,98,107,122,151-152,154,183-184,194-195,205-206,225-226,244-245,263-264,312,331,345,364,378,383,406,411-414,416-419,428,437,442,453,457,463,469-470,481,493-494,504,509-510,519,522-523,532,534-539,588-613,618-619,662,665,668,676,679,686-687,699-700,704,757-758,1042,1052,1057,1073,1078-1079,1086,1141-1142,1154-1155,1233-1243,1368,1394-1402,1442-1443,1506-1507,1598-1599
+packages/workflow-engine/src/services/invoke-work-unit-execution-service.ts
+  a4790f0c44c40df5 39
+  5a70a8d66e9b899b 54-56
+  7ecb6d51cf5dce46 1-38,40-48,50-53,57-105,107-172
+packages/workflow-engine/src/services/invoke-propagation-service.ts
+  42eadeacf315f1c4 41,74,78-79,81-83,85
+  b2ff5f406059c90f 1-40,42-56,58-73,75-77,86-95,97-107,109-168,170-207,209-250,252-310
+packages/api/src/tests/routers/project-runtime-errors.test.ts
+  0b0efaa693ef3738 12
+packages/api/src/tests/routers/project-runtime-agent-step-rebind.test.ts
+  0b0efaa693ef3738 5
+packages/scripts/src/seed/methodology/tables/runtime-methodology-workflow-context-fact-definitions.seed.ts
+  096554eb1c2648ab 1-9,11
+packages/api/src/tests/routers/project-runtime-stream.test.ts
+  0b0efaa693ef3738 5
+.sisyphus/notepads/l3-slice-2-runtime-invoke/learnings.md
+  88ef0c14a4b048a7 28,35-39
+  1837bafa1e0408e9 57-62
+  7ecb6d51cf5dce46 41-46
+  f81ff95b96763fda 22-27
+  0653b1a9b52c3f58 40,47-50
+  b8f032baa687bbe4 75-79
+  09f30d16e9c22045 81-84
+  b2ff5f406059c90f 51-56
+  5a70a8d66e9b899b 99-102
+  fcf59307c2478761 111-114
+  f68a75073238ca8a 120-124
+  20c29cc5f0d68d65 94-98
+  aa49ca8bfc92dc57 69-74
+  1df03074b1603f6e 80,90-92
+  a4790f0c44c40df5 93,103-105
+  0b0efaa693ef3738 1-21
+  8d471b996ca11497 85-89
+  7b40c2b864d13578 106-110
+  67845f217ed2bd49 115-119
+  90212a4e94eddf91 29-34
+  f3e065a8e1452b6e 63-68
+packages/workflow-engine/src/tests/runtime/runtime-invoke-integration.test.ts
+  20c29cc5f0d68d65 1-12,17-37,39-41,43-53,55-175,177-181,183-187,189-196,198-393,395-452,454-491,494-498,501-526,528-545,547-568,570-572,574-672,674-715
+packages/scripts/src/seed/methodology/tables/runtime-methodology-workflow-invoke-steps.seed.ts
+  096554eb1c2648ab 1-9
+packages/db/src/index.ts
+  ebb0438f1d8301d3 34
+packages/workflow-engine/src/layers/live.ts
+  0b0efaa693ef3738 67-69,73-75,78-85,88-90,93-101,104-111,126-128,131-136,139-141,144-146,149-151,154-156,159-161,164-170,178-180
+  0653b1a9b52c3f58 15,183
+  b2ff5f406059c90f 17-18
+  1df03074b1603f6e 16,184
+  1837bafa1e0408e9 19
+packages/contracts/src/tests/l3-runtime-invoke-contracts.test.ts
+  f81ff95b96763fda 1-138,148-226
+  0b0efaa693ef3738 140-143,145-147
+packages/workflow-engine/src/repositories/invoke-execution-repository.ts
+  a4790f0c44c40df5 1-4,99-113,164-166
+  90212a4e94eddf91 5-73,80-98,114-148,152-163,167-180
+  09f30d16e9c22045 74-79,149-151
+packages/workflow-engine/src/tests/runtime/runtime-invoke-workflow-start.test.ts
+  5a70a8d66e9b899b 209,298-331
+  09f30d16e9c22045 9,15,74,144-192,206,212,253,255,257,261-262,288-289,295
+  0653b1a9b52c3f58 1-8,10-12,14,16-73,75-140,142-143,193-205,207-208,210-211,213-252,254,256,258-260,263-287,290-294,296-297,332
+packages/workflow-engine/src/services/step-progression-service.ts
+  0b0efaa693ef3738 46-51,59-66,71-74
+packages/agent-runtime/package.json
+  0b0efaa693ef3738 15
+packages/scripts/src/seed/methodology/tables/runtime-methodology-workflow-agent-step-write-items.seed.ts
+  096554eb1c2648ab 1-9
+packages/api/src/tests/routers/project-runtime-mutations.test.ts
+  0b0efaa693ef3738 9
+packages/workflow-engine/src/tests/runtime/runtime-invoke-target-resolution.test.ts
+  90212a4e94eddf91 1-4,24-29,31-83,85-88,90-113,115-118,120-157,159-277,279-280,282-341
+packages/api/src/routers/project-runtime.ts
+  0653b1a9b52c3f58 12,42,290-293,301-302,916-923
+  7ecb6d51cf5dce46 11,38,294-300,928-939
+  0b0efaa693ef3738 46,434-437,441,583,593,605
+packages/workflow-engine/src/services/invoke-completion-service.ts
+  8d471b996ca11497 11,116-126,144-154
+  b2ff5f406059c90f 1-10,12-70,72-74,76-113,115,127-141,143,155-173
+packages/workflow-engine/src/index.ts
+  b2ff5f406059c90f 32-33
+  0653b1a9b52c3f58 35
+  1837bafa1e0408e9 34
+  7ecb6d51cf5dce46 36
+  ebb0438f1d8301d3 10
+.sisyphus/evidence/f4-invoke-scope-fidelity-rerun.txt
+  f68a75073238ca8a 1-26
+packages/scripts/src/seed/methodology/tables/runtime-methodology-workflow-context-fact-draft-spec-facts.seed.ts
+  096554eb1c2648ab 1-9,11
+.sisyphus/evidence/f2-invoke-code-quality.txt
+  b8f032baa687bbe4 1-9
+packages/api/src/tests/routers/project-runtime-agent-step.test.ts
+  0b0efaa693ef3738 10
+packages/scripts/src/seed/methodology/tables/runtime-methodology-workflow-context-fact-plain-values.seed.ts
+  096554eb1c2648ab 1-9,11
+packages/db/src/schema/runtime.ts
+  ebb0438f1d8301d3 395
+  88ef0c14a4b048a7 11,311-386,388-394,396-414,418-475
+packages/workflow-engine/src/repositories/step-execution-repository.ts
+  0b0efaa693ef3738 146-148
+apps/web/src/routes/projects.$projectId.step-executions.$stepExecutionId.tsx
+  f3e065a8e1452b6e 10,13,19,64,164,206-259,2079-2273,2275,2277-2283,2285,2287-2447,2449,2451-2459,2461,2463-2574,2576,2578-2589,4058-4062
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "938b0df5915c6411dee684e616dbfde1abce41e1",
+  "prompts": {
+    "0653b1a9b52c3f58": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_273c06de3ffeeadrtUGgJf8Gjj",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 443,
+      "total_deletions": 19,
+      "accepted_lines": 338,
+      "overriden_lines": 2
+    },
+    "096554eb1c2648ab": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_271837679ffeXMAOJt6rdAC0oa",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 1806,
+      "total_deletions": 424,
+      "accepted_lines": 1863,
+      "overriden_lines": 75
+    },
+    "09f30d16e9c22045": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_272da6eccffeOSB4tjrK0hErnq",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 79,
+      "total_deletions": 89,
+      "accepted_lines": 78,
+      "overriden_lines": 0
+    },
+    "0b0efaa693ef3738": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_273da0175ffe9tlB6249OZzgvL",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 1501,
+      "total_deletions": 125,
+      "accepted_lines": 1491,
+      "overriden_lines": 3
+    },
+    "1837bafa1e0408e9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_273766574ffeNPCB9euR0JdbZQ",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 1530,
+      "total_deletions": 31,
+      "accepted_lines": 1542,
+      "overriden_lines": 26
+    },
+    "1df03074b1603f6e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_272d9d04affenxTv2KXnTGmSTp",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 6,
+      "total_deletions": 0,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    },
+    "20c29cc5f0d68d65": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_272d550c3ffeqrBE4TPys3553m",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 927,
+      "total_deletions": 72,
+      "accepted_lines": 894,
+      "overriden_lines": 19
+    },
+    "42eadeacf315f1c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_27275f401ffeTY7goX3pIJWK5l",
+        "model": "openai/gpt-5.3-codex-spark"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 4,
+      "accepted_lines": 8,
+      "overriden_lines": 2
+    },
+    "5a70a8d66e9b899b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_272d62528ffeba0Pg6E779uEUh",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 176,
+      "total_deletions": 98,
+      "accepted_lines": 78,
+      "overriden_lines": 0
+    },
+    "67845f217ed2bd49": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_272ca6b71fferNwuWg9cpZ9jX4",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 38,
+      "total_deletions": 0,
+      "accepted_lines": 38,
+      "overriden_lines": 0
+    },
+    "6f7d9d856e1a0d18": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2716b267affeJqGOkHKZafQd9o",
+        "model": "openai/gpt-5.3-codex-spark"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 23,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    },
+    "7b40c2b864d13578": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_272cb0ad2ffeONC3UBgEYBRpca",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 37,
+      "total_deletions": 0,
+      "accepted_lines": 37,
+      "overriden_lines": 0
+    },
+    "7c3c8400eccf61c7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_27155f6fdffeKmcrBuvThclgUp",
+        "model": "openai/gpt-5.3-codex-spark"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 20,
+      "total_deletions": 7,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "7ecb6d51cf5dce46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_273bfa036ffe5BMbBJi1BhA5pc",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 919,
+      "total_deletions": 85,
+      "accepted_lines": 839,
+      "overriden_lines": 14
+    },
+    "82f38a6c330ae328": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2735e4712ffezIwtVb30zrpLs6",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 29,
+      "total_deletions": 0,
+      "accepted_lines": 29,
+      "overriden_lines": 0
+    },
+    "88ef0c14a4b048a7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_273cd08a3ffeQJpzzfZ88fo3km",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 305,
+      "total_deletions": 0,
+      "accepted_lines": 324,
+      "overriden_lines": 12
+    },
+    "8d471b996ca11497": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_272da2288ffeahrLb1oDTqsfZT",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 226,
+      "total_deletions": 20,
+      "accepted_lines": 228,
+      "overriden_lines": 0
+    },
+    "90212a4e94eddf91": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_273cc3cd0ffeeZMKz18HRWs7v3",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 806,
+      "total_deletions": 0,
+      "accepted_lines": 794,
+      "overriden_lines": 9
+    },
+    "a4790f0c44c40df5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_272d5b61bffe11v27QYE89M66e",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 27,
+      "total_deletions": 23,
+      "accepted_lines": 27,
+      "overriden_lines": 0
+    },
+    "aa49ca8bfc92dc57": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2735dd56effeu2vADfwfkUI3ca",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 38,
+      "total_deletions": 0,
+      "accepted_lines": 38,
+      "overriden_lines": 0
+    },
+    "b2ff5f406059c90f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_273876afbffeLwCumwF252vhI7",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 1492,
+      "total_deletions": 56,
+      "accepted_lines": 1429,
+      "overriden_lines": 21
+    },
+    "b8f032baa687bbe4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2735e0e6effeOqukIHHJGfZ6Bi",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 21,
+      "total_deletions": 0,
+      "accepted_lines": 21,
+      "overriden_lines": 0
+    },
+    "eb72fda37023b51e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2735da3c9ffeT1bGAnl42RRE63",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 21,
+      "total_deletions": 0,
+      "accepted_lines": 21,
+      "overriden_lines": 0
+    },
+    "ebb0438f1d8301d3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_271650cacfferYFCDZyuTievpW",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 598,
+      "total_deletions": 5,
+      "accepted_lines": 613,
+      "overriden_lines": 10
+    },
+    "f3e065a8e1452b6e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2736abd38ffeZmzltHQYYE9rzt",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 1192,
+      "total_deletions": 13,
+      "accepted_lines": 1198,
+      "overriden_lines": 13
+    },
+    "f68a75073238ca8a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_272c99b99ffeydsyhnU7BhiATj",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 31,
+      "total_deletions": 0,
+      "accepted_lines": 31,
+      "overriden_lines": 0
+    },
+    "f81ff95b96763fda": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_273d583b2ffeYTEkx3q6nMJJjf",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 416,
+      "total_deletions": 1,
+      "accepted_lines": 412,
+      "overriden_lines": 0
+    },
+    "fcf59307c2478761": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_272c9fe58ffeRydHV70zYt5YKe",
+        "model": "openai/gpt-5.4"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 24,
+      "total_deletions": 0,
+      "accepted_lines": 24,
+      "overriden_lines": 0
+    }
+  }
+}
