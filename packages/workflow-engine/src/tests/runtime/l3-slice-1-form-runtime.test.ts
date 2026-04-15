@@ -376,6 +376,13 @@ function makeRuntimeLayer(options?: { secondStepType?: RuntimeWorkflowStepDefini
                   helpText: "Reuse an existing repository type fact instance",
                   required: false,
                 },
+                {
+                  contextFactDefinitionId: "ctx-desired-outcome",
+                  fieldLabel: "Desired outcome",
+                  fieldKey: "desiredOutcome",
+                  helpText: "Optional refinement of desired outcome",
+                  required: false,
+                },
               ],
             },
           },
@@ -406,6 +413,15 @@ function makeRuntimeLayer(options?: { secondStepType?: RuntimeWorkflowStepDefini
             cardinality: "one",
             externalFactDefinitionId: "repository_type",
           },
+          {
+            kind: "definition_backed_external_fact",
+            contextFactDefinitionId: "ctx-desired-outcome",
+            key: "desired_outcome",
+            label: "Desired outcome",
+            cardinality: "one",
+            valueType: "string",
+            externalFactDefinitionId: "desired_outcome",
+          },
         ],
         formDefinitions: [
           {
@@ -434,6 +450,13 @@ function makeRuntimeLayer(options?: { secondStepType?: RuntimeWorkflowStepDefini
                   fieldLabel: "Existing repository type",
                   fieldKey: "existingRepositoryType",
                   helpText: "Reuse an existing repository type fact instance",
+                  required: false,
+                },
+                {
+                  contextFactDefinitionId: "ctx-desired-outcome",
+                  fieldLabel: "Desired outcome",
+                  fieldKey: "desiredOutcome",
+                  helpText: "Optional refinement of desired outcome",
                   required: false,
                 },
               ],
@@ -531,6 +554,21 @@ function makeRuntimeLayer(options?: { secondStepType?: RuntimeWorkflowStepDefini
           createdAt: new Date(),
           updatedAt: new Date(),
         },
+        {
+          id: "fact-schema-desired-outcome",
+          methodologyVersionId: "version-1",
+          workUnitTypeId: "setup",
+          name: "Desired outcome",
+          key: "desired_outcome",
+          factType: "string",
+          cardinality: "one",
+          description: null,
+          defaultValueJson: null,
+          guidanceJson: null,
+          validationJson: { kind: "none" },
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
       ]),
     findTransitionConditionSets: () => Effect.succeed([]),
     findAgentTypes: () => Effect.succeed([]),
@@ -621,7 +659,22 @@ function makeRuntimeLayer(options?: { secondStepType?: RuntimeWorkflowStepDefini
   const workUnitFactRepoLayer = Layer.succeed(WorkUnitFactRepository, {
     createFactInstance: () => Effect.die("unused"),
     getCurrentValuesByDefinition: () => Effect.succeed([]),
-    listFactsByWorkUnit: () => Effect.succeed([]),
+    listFactsByWorkUnit: () =>
+      Effect.succeed([
+        {
+          id: "wu-fact-desired-outcome",
+          projectWorkUnitId: "wu-1",
+          factDefinitionId: "fact-schema-desired-outcome",
+          valueJson: "Confirm seeded brainstorming",
+          referencedProjectWorkUnitId: null,
+          status: "active" as const,
+          supersededByFactInstanceId: null,
+          producedByTransitionExecutionId: null,
+          producedByWorkflowExecutionId: null,
+          authoredByUserId: null,
+          createdAt: new Date(),
+        },
+      ]),
     supersedeFactInstance: () => Effect.die("unused"),
   } as unknown as Context.Tag.Service<typeof WorkUnitFactRepository>);
   const appliedWriteRepoLayer = Layer.succeed(AgentStepExecutionAppliedWriteRepository, {
@@ -748,6 +801,41 @@ describe("l3 slice-1 form runtime services", () => {
     expect(runtime.state.steps).toHaveLength(1);
   });
 
+  it("activation pre-populates eligible external context facts with fact instance envelope", async () => {
+    const runtime = makeRuntimeLayer();
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* WorkflowExecutionStepCommandService;
+        yield* service.activateFirstWorkflowStepExecution({
+          projectId: "project-1",
+          workflowExecutionId: "wfexec-1",
+        });
+      }).pipe(Effect.provide(runtime.layer)),
+    );
+
+    expect(runtime.state.contextFacts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          contextFactDefinitionId: "ctx-repository-type",
+          instanceOrder: 0,
+          valueJson: {
+            factInstanceId: "fact-1",
+            value: "monorepo",
+          },
+        }),
+        expect.objectContaining({
+          contextFactDefinitionId: "ctx-desired-outcome",
+          instanceOrder: 0,
+          valueJson: {
+            factInstanceId: "wu-fact-desired-outcome",
+            value: "Confirm seeded brainstorming",
+          },
+        }),
+      ]),
+    );
+  });
+
   it("separates draft save, submit, and complete while keeping latest-only Form state", async () => {
     const runtime = makeRuntimeLayer();
 
@@ -840,6 +928,7 @@ describe("l3 slice-1 form runtime services", () => {
         "initiativeName",
         "objectives",
         "existingRepositoryType",
+        "desiredOutcome",
       ]);
       expect(result.detailAfterDraft.body.draft.payload).toMatchObject({
         initiativeName: "Draft Chiron",
@@ -848,7 +937,8 @@ describe("l3 slice-1 form runtime services", () => {
       expect(result.detailAfterDraft.body.submission.payload).toMatchObject({
         initiativeName: null,
         objectives: [],
-        existingRepositoryType: null,
+        existingRepositoryType: { factInstanceId: "fact-1" },
+        desiredOutcome: "Confirm seeded brainstorming",
       });
 
       const existingRepositoryTypeField = result.detailAfterDraft.body.page.fields.find(

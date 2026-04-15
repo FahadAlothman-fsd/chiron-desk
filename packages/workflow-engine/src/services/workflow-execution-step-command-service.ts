@@ -1,10 +1,12 @@
 import { Context, Effect, Layer } from "effect";
-import { MethodologyRepository } from "@chiron/methodology-engine";
+import { LifecycleRepository, MethodologyRepository } from "@chiron/methodology-engine";
 import { ProjectContextRepository } from "@chiron/project-context";
 
 import { RepositoryError } from "../errors";
 import { ExecutionReadRepository } from "../repositories/execution-read-repository";
+import { ProjectFactRepository } from "../repositories/project-fact-repository";
 import { StepExecutionRepository } from "../repositories/step-execution-repository";
+import { WorkUnitFactRepository } from "../repositories/work-unit-fact-repository";
 import {
   FormStepExecutionService,
   type SaveFormStepDraftInput,
@@ -78,6 +80,9 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
     const stepRepo = yield* StepExecutionRepository;
     const projectContextRepo = yield* ProjectContextRepository;
     const methodologyRepo = yield* MethodologyRepository;
+    const lifecycleRepo = yield* LifecycleRepository;
+    const projectFactRepo = yield* ProjectFactRepository;
+    const workUnitFactRepo = yield* WorkUnitFactRepository;
     const formExecution = yield* FormStepExecutionService;
     const invokeTargetResolution = yield* InvokeTargetResolutionService;
     const progression = yield* StepProgressionService;
@@ -124,12 +129,210 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
         });
       });
 
+    const runtimeFactValueFromInstance = (params: {
+      valueJson: unknown;
+      referencedProjectWorkUnitId?: string | null;
+    }): unknown => {
+      if (typeof params.referencedProjectWorkUnitId === "string") {
+        return { projectWorkUnitId: params.referencedProjectWorkUnitId };
+      }
+
+      return params.valueJson;
+    };
+
+    const prepopulateExternalContextFactsAtActivation = (params: {
+      projectId: string;
+      workflowExecutionId: string;
+      workflowDefinitionId: string;
+      workUnitTypeId: string;
+      projectWorkUnitId: string;
+    }) =>
+      Effect.gen(function* () {
+        const existingContextFacts = yield* stepRepo.listWorkflowExecutionContextFacts(
+          params.workflowExecutionId,
+        );
+        const existingContextFactIds = new Set(
+          existingContextFacts.map((row) => row.contextFactDefinitionId),
+        );
+
+        const projectPin = yield* projectContextRepo.findProjectPin(params.projectId);
+        if (!projectPin) {
+          return;
+        }
+
+        const workUnitTypes = yield* lifecycleRepo.findWorkUnitTypes(
+          projectPin.methodologyVersionId,
+        );
+        const workUnitType = workUnitTypes.find((entry) => entry.id === params.workUnitTypeId);
+        if (!workUnitType) {
+          return;
+        }
+
+        const workflowEditor = yield* methodologyRepo.getWorkflowEditorDefinition({
+          versionId: projectPin.methodologyVersionId,
+          workUnitTypeKey: workUnitType.key,
+          workflowDefinitionId: params.workflowDefinitionId,
+        });
+
+        const externalContextFacts = workflowEditor.contextFacts.flatMap((fact) => {
+          if (
+            (fact.kind !== "definition_backed_external_fact" &&
+              fact.kind !== "bound_external_fact") ||
+            typeof fact.contextFactDefinitionId !== "string" ||
+            fact.cardinality !== "one" ||
+            existingContextFactIds.has(fact.contextFactDefinitionId)
+          ) {
+            return [];
+          }
+
+          return [
+            {
+              contextFactDefinitionId: fact.contextFactDefinitionId,
+              externalFactDefinitionId: fact.externalFactDefinitionId,
+            },
+          ];
+        });
+
+        if (externalContextFacts.length === 0) {
+          return;
+        }
+
+        const [factSchemas, factDefinitions, projectFactInstances, workUnitFactInstances] =
+          yield* Effect.all([
+            lifecycleRepo.findFactSchemas(projectPin.methodologyVersionId),
+            methodologyRepo.findFactDefinitionsByVersionId(projectPin.methodologyVersionId),
+            projectFactRepo.listFactsByProject({ projectId: params.projectId }),
+            workUnitFactRepo.listFactsByWorkUnit({ projectWorkUnitId: params.projectWorkUnitId }),
+          ]);
+
+        const factSchemasOrdered = [...factSchemas].sort((left, right) => {
+          const leftPriority = left.workUnitTypeId === params.workUnitTypeId ? 0 : 1;
+          const rightPriority = right.workUnitTypeId === params.workUnitTypeId ? 0 : 1;
+          return (
+            leftPriority - rightPriority ||
+            left.key.localeCompare(right.key) ||
+            left.id.localeCompare(right.id)
+          );
+        });
+
+        const factSchemasById = new Map<string, (typeof factSchemasOrdered)[number]>();
+        const factSchemasByKey = new Map<string, (typeof factSchemasOrdered)[number]>();
+        for (const schema of factSchemasOrdered) {
+          if (!factSchemasById.has(schema.id)) {
+            factSchemasById.set(schema.id, schema);
+          }
+          if (!factSchemasByKey.has(schema.key)) {
+            factSchemasByKey.set(schema.key, schema);
+          }
+        }
+
+        const factDefinitionsById = new Map<string, (typeof factDefinitions)[number]>();
+        const factDefinitionsByKey = new Map<string, (typeof factDefinitions)[number]>();
+        for (const definition of factDefinitions) {
+          if (!factDefinitionsById.has(definition.id)) {
+            factDefinitionsById.set(definition.id, definition);
+          }
+          if (!factDefinitionsByKey.has(definition.key)) {
+            factDefinitionsByKey.set(definition.key, definition);
+          }
+        }
+
+        const currentValues = externalContextFacts.flatMap((contextFact) => {
+          const externalBindingId = contextFact.externalFactDefinitionId;
+
+          const workUnitFactSchemaById = factSchemasById.get(externalBindingId);
+          const projectFactDefinitionById = factDefinitionsById.get(externalBindingId);
+
+          const workUnitFactSchemaByKey = factSchemasByKey.get(externalBindingId);
+          const projectFactDefinitionByKey = factDefinitionsByKey.get(externalBindingId);
+
+          const workUnitFactSchema = workUnitFactSchemaById
+            ? workUnitFactSchemaById
+            : !projectFactDefinitionByKey
+              ? workUnitFactSchemaByKey
+              : undefined;
+
+          const projectFactDefinition = projectFactDefinitionById
+            ? projectFactDefinitionById
+            : !workUnitFactSchemaByKey
+              ? projectFactDefinitionByKey
+              : undefined;
+
+          if (workUnitFactSchema && workUnitFactSchema.cardinality === "one") {
+            const workUnitInstance = workUnitFactInstances.find(
+              (instance) => instance.factDefinitionId === workUnitFactSchema.id,
+            );
+
+            if (!workUnitInstance) {
+              return [];
+            }
+
+            return [
+              {
+                contextFactDefinitionId: contextFact.contextFactDefinitionId,
+                instanceOrder: 0,
+                valueJson: {
+                  factInstanceId: workUnitInstance.id,
+                  value: runtimeFactValueFromInstance({
+                    valueJson: workUnitInstance.valueJson,
+                    referencedProjectWorkUnitId: workUnitInstance.referencedProjectWorkUnitId,
+                  }),
+                },
+              },
+            ];
+          }
+
+          if (!projectFactDefinition || projectFactDefinition.cardinality !== "one") {
+            return [];
+          }
+
+          const projectFactInstance = projectFactInstances.find(
+            (instance) => instance.factDefinitionId === projectFactDefinition.id,
+          );
+          if (!projectFactInstance) {
+            return [];
+          }
+
+          return [
+            {
+              contextFactDefinitionId: contextFact.contextFactDefinitionId,
+              instanceOrder: 0,
+              valueJson: {
+                factInstanceId: projectFactInstance.id,
+                value: projectFactInstance.valueJson,
+              },
+            },
+          ];
+        });
+
+        if (currentValues.length === 0) {
+          return;
+        }
+
+        yield* stepRepo.replaceWorkflowExecutionContextFacts({
+          workflowExecutionId: params.workflowExecutionId,
+          sourceStepExecutionId: null,
+          affectedContextFactDefinitionIds: currentValues.map(
+            (entry) => entry.contextFactDefinitionId,
+          ),
+          currentValues,
+        });
+      });
+
     const activateWorkflowStepExecution = (input: ActivateWorkflowStepExecutionInput) =>
       Effect.gen(function* () {
         const detail = yield* assertWorkflowOwnership(input);
 
         const existing = yield* stepRepo.listStepExecutionsForWorkflow(input.workflowExecutionId);
         if (existing.length === 0) {
+          yield* prepopulateExternalContextFactsAtActivation({
+            projectId: input.projectId,
+            workflowExecutionId: input.workflowExecutionId,
+            workflowDefinitionId: detail.workflowExecution.workflowId,
+            workUnitTypeId: detail.workUnitTypeId,
+            projectWorkUnitId: detail.projectWorkUnitId,
+          });
+
           const activated = yield* tx.activateFirstStepExecution(input.workflowExecutionId);
           const activatedStep = yield* stepRepo.getStepExecutionById(activated.stepExecutionId);
           if (!activatedStep) {
@@ -160,6 +363,14 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
         }
 
         if (currentStepExecution.status === "active") {
+          yield* prepopulateExternalContextFactsAtActivation({
+            projectId: input.projectId,
+            workflowExecutionId: input.workflowExecutionId,
+            workflowDefinitionId: detail.workflowExecution.workflowId,
+            workUnitTypeId: detail.workUnitTypeId,
+            projectWorkUnitId: detail.projectWorkUnitId,
+          });
+
           if (currentStepExecution.stepType === "invoke") {
             yield* ensureInvokeStepMaterialized({
               projectId: input.projectId,

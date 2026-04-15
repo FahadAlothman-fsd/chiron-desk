@@ -11,6 +11,7 @@ import type {
 import { LifecycleRepository } from "@chiron/methodology-engine";
 import { ProjectContextRepository } from "@chiron/project-context";
 import { Context, Effect, Layer } from "effect";
+import { Option } from "effect";
 
 import { RepositoryError } from "../errors";
 import { ExecutionReadRepository } from "../repositories/execution-read-repository";
@@ -19,6 +20,7 @@ import { TransitionExecutionRepository } from "../repositories/transition-execut
 import { WorkflowExecutionRepository } from "../repositories/workflow-execution-repository";
 import { RuntimeGateService } from "./runtime-gate-service";
 import { toRuntimeConditionTree } from "./transition-gate-conditions";
+import { WorkflowContextExternalPrefillService } from "./workflow-context-external-prefill-service";
 
 type TransitionExecutionAtomicOps = Context.Tag.Service<typeof TransitionExecutionRepository> & {
   readonly completeTransitionExecutionAtomically?: (params: {
@@ -79,6 +81,9 @@ export const TransitionExecutionCommandServiceLive = Layer.effect(
     const projectWorkUnitRepo = yield* ProjectWorkUnitRepository;
     const readRepo = yield* ExecutionReadRepository;
     const runtimeGate = yield* RuntimeGateService;
+    const contextExternalPrefillService = yield* Effect.serviceOption(
+      WorkflowContextExternalPrefillService,
+    );
     const projectContextRepository = yield* ProjectContextRepository;
     const lifecycleRepository = yield* LifecycleRepository;
 
@@ -258,6 +263,13 @@ export const TransitionExecutionCommandServiceLive = Layer.effect(
           primaryWorkflowExecutionId: workflowExecution.id,
         });
 
+        if (Option.isSome(contextExternalPrefillService)) {
+          yield* contextExternalPrefillService.value.prefillFromExternalBindings({
+            projectId: input.projectId,
+            workflowExecutionId: workflowExecution.id,
+          });
+        }
+
         return {
           projectWorkUnitId: started.projectWorkUnitId,
           transitionExecutionId: started.id,
@@ -308,6 +320,13 @@ export const TransitionExecutionCommandServiceLive = Layer.effect(
           transitionExecutionId: switched.started.id,
           primaryWorkflowExecutionId: workflowExecution.id,
         });
+
+        if (Option.isSome(contextExternalPrefillService)) {
+          yield* contextExternalPrefillService.value.prefillFromExternalBindings({
+            projectId: input.projectId,
+            workflowExecutionId: workflowExecution.id,
+          });
+        }
 
         return {
           supersededTransitionExecutionId: input.supersededTransitionExecutionId,

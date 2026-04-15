@@ -5,6 +5,7 @@ import type {
 import { LifecycleRepository, MethodologyRepository } from "@chiron/methodology-engine";
 import { ProjectContextRepository } from "@chiron/project-context";
 import { Context, Effect, Layer } from "effect";
+import { Option } from "effect";
 
 import { RepositoryError } from "../errors";
 import { ExecutionReadRepository } from "../repositories/execution-read-repository";
@@ -13,6 +14,7 @@ import {
   StepExecutionRepository,
   type RuntimeWorkflowExecutionContextFactRow,
 } from "../repositories/step-execution-repository";
+import { WorkflowContextExternalPrefillService } from "./workflow-context-external-prefill-service";
 
 const makeCommandError = (cause: string): RepositoryError =>
   new RepositoryError({
@@ -73,9 +75,24 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
     const stepRepo = yield* StepExecutionRepository;
     const readRepo = yield* ExecutionReadRepository;
     const invokeRepo = yield* InvokeExecutionRepository;
+    const contextExternalPrefillService = yield* Effect.serviceOption(
+      WorkflowContextExternalPrefillService,
+    );
 
     const startInvokeWorkUnitTarget = (input: StartInvokeWorkUnitTargetInput) =>
       Effect.gen(function* () {
+        const baseLogContext = {
+          service: "invoke-work-unit-execution",
+          projectId: input.projectId,
+          stepExecutionId: input.stepExecutionId,
+          invokeWorkUnitTargetExecutionId: input.invokeWorkUnitTargetExecutionId,
+          selectedWorkflowDefinitionId: input.workflowDefinitionId,
+        } as const;
+
+        yield* Effect.logInfo("invoke work-unit target start requested").pipe(
+          Effect.annotateLogs(baseLogContext),
+        );
+
         const stepExecution = yield* stepRepo.getStepExecutionById(input.stepExecutionId);
         if (!stepExecution) {
           return yield* makeCommandError("step execution not found");
@@ -120,6 +137,15 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
           invokeWorkUnitTarget.workflowDefinitionId &&
           invokeWorkUnitTarget.workflowExecutionId
         ) {
+          yield* Effect.logInfo("invoke work-unit target already started").pipe(
+            Effect.annotateLogs({
+              ...baseLogContext,
+              existingProjectWorkUnitId: invokeWorkUnitTarget.projectWorkUnitId,
+              existingTransitionExecutionId: invokeWorkUnitTarget.transitionExecutionId,
+              existingWorkflowExecutionId: invokeWorkUnitTarget.workflowExecutionId,
+            }),
+          );
+
           return {
             invokeWorkUnitTargetExecutionId: invokeWorkUnitTarget.id,
             projectWorkUnitId: invokeWorkUnitTarget.projectWorkUnitId,
@@ -364,7 +390,7 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
           }
         }
 
-        return yield* invokeRepo.startInvokeWorkUnitTargetAtomically({
+        const started = yield* invokeRepo.startInvokeWorkUnitTargetAtomically({
           projectId: input.projectId,
           invokeWorkUnitTargetExecutionId: invokeWorkUnitTarget.id,
           workUnitDefinitionId: invokeWorkUnitTarget.workUnitDefinitionId,
@@ -375,6 +401,43 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
             artifactSlotDefinitionId: slot.id,
           })),
         });
+
+        yield* Effect.logInfo("invoke work-unit target atomic start completed").pipe(
+          Effect.annotateLogs({
+            ...baseLogContext,
+            startedProjectWorkUnitId: started.projectWorkUnitId,
+            startedTransitionExecutionId: started.transitionExecutionId,
+            startedWorkflowExecutionId: started.workflowExecutionId,
+            prefillServiceAvailable: Option.isSome(contextExternalPrefillService),
+          }),
+        );
+
+        if (Option.isSome(contextExternalPrefillService)) {
+          const prefillResult =
+            yield* contextExternalPrefillService.value.prefillFromExternalBindings({
+              projectId: input.projectId,
+              workflowExecutionId: started.workflowExecutionId,
+            });
+
+          yield* Effect.logInfo("invoke work-unit target prefill completed").pipe(
+            Effect.annotateLogs({
+              ...baseLogContext,
+              startedWorkflowExecutionId: started.workflowExecutionId,
+              prefillInsertedCount: prefillResult.insertedCount,
+            }),
+          );
+        } else {
+          yield* Effect.logWarning(
+            "invoke work-unit target prefill skipped: service unavailable",
+          ).pipe(
+            Effect.annotateLogs({
+              ...baseLogContext,
+              startedWorkflowExecutionId: started.workflowExecutionId,
+            }),
+          );
+        }
+
+        return started;
       });
 
     return InvokeWorkUnitExecutionService.of({

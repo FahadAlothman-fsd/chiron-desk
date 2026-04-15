@@ -83,6 +83,7 @@ export function createAppRouter(
     WorkflowEngineRuntimeLive,
     Layer.mergeAll(
       runtimeRepoLayer,
+      repoLayer,
       lifecycleRepoLayer,
       projectContextRepoLayer,
       OpencodeHarnessServiceLive,

@@ -40,6 +40,11 @@ const toIso = (value: Date | null): string | undefined => (value ? value.toISOSt
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+const isExternalFactEnvelope = (
+  value: unknown,
+): value is { factInstanceId: string; value: unknown } =>
+  isRecord(value) && typeof value.factInstanceId === "string" && "value" in value;
+
 const extractMarkdown = (value: unknown): string | undefined => {
   if (!isRecord(value)) {
     return undefined;
@@ -307,9 +312,18 @@ function resolveBoundExternalFactOptions(params: {
   }[];
   projectWorkUnits: readonly { id: string; workUnitTypeId: string }[];
 }): RuntimeFormFieldOption[] | undefined {
-  const workUnitFact = params.workUnitFactSchemas.find(
-    (fact) => fact.key === params.bindingKey || fact.id === params.bindingKey,
+  const workUnitFactById = params.workUnitFactSchemas.find((fact) => fact.id === params.bindingKey);
+  const workUnitFactByKey = params.workUnitFactSchemas.find(
+    (fact) => fact.key === params.bindingKey,
   );
+  const methodologyFactByKey = params.methodologyFactDefinitions.find(
+    (fact) => fact.key === params.bindingKey,
+  );
+  const workUnitFact = workUnitFactById
+    ? workUnitFactById
+    : !methodologyFactByKey
+      ? workUnitFactByKey
+      : undefined;
   const projectWorkUnitsById = new Map(
     params.projectWorkUnits.map((workUnit) => [workUnit.id, workUnit]),
   );
@@ -328,9 +342,14 @@ function resolveBoundExternalFactOptions(params: {
     return options.length > 0 ? options : undefined;
   }
 
-  const methodologyFact = params.methodologyFactDefinitions.find(
-    (fact) => fact.key === params.bindingKey || fact.id === params.bindingKey,
+  const methodologyFactById = params.methodologyFactDefinitions.find(
+    (fact) => fact.id === params.bindingKey,
   );
+  const methodologyFact = methodologyFactById
+    ? methodologyFactById
+    : !workUnitFactByKey
+      ? methodologyFactByKey
+      : undefined;
   if (!methodologyFact) {
     return undefined;
   }
@@ -480,6 +499,7 @@ function resolveWorkflowOptions(
 function resolveFieldValue(
   payload: unknown,
   field: Pick<RuntimeFormResolvedField, "fieldKey" | "contextFactDefinitionId" | "widget">,
+  fallbackPayload?: Record<string, unknown>,
 ): unknown {
   if (isRecord(payload)) {
     if (field.fieldKey in payload) {
@@ -490,7 +510,80 @@ function resolveFieldValue(
     }
   }
 
+  if (fallbackPayload) {
+    if (field.fieldKey in fallbackPayload) {
+      return fallbackPayload[field.fieldKey];
+    }
+    if (field.contextFactDefinitionId in fallbackPayload) {
+      return fallbackPayload[field.contextFactDefinitionId];
+    }
+  }
+
   return field.widget.renderedMultiplicity === "many" ? [] : null;
+}
+
+function mapContextFactValueForField(params: {
+  field: Pick<RuntimeFormResolvedField, "contextFactKind">;
+  valueJson: unknown;
+}): unknown {
+  if (!isExternalFactEnvelope(params.valueJson)) {
+    return params.valueJson;
+  }
+
+  if (params.field.contextFactKind === "bound_external_fact") {
+    return { factInstanceId: params.valueJson.factInstanceId };
+  }
+
+  if (params.field.contextFactKind === "definition_backed_external_fact") {
+    return params.valueJson.value;
+  }
+
+  return params.valueJson;
+}
+
+function buildContextPrefillPayload(params: {
+  fields: readonly RuntimeFormResolvedField[];
+  contextFacts: readonly {
+    contextFactDefinitionId: string;
+    instanceOrder: number;
+    valueJson: unknown;
+  }[];
+}): Record<string, unknown> {
+  const rowsByContextFactDefinitionId = new Map<
+    string,
+    Array<{ instanceOrder: number; valueJson: unknown }>
+  >();
+
+  for (const row of params.contextFacts) {
+    const existing = rowsByContextFactDefinitionId.get(row.contextFactDefinitionId);
+    if (existing) {
+      existing.push({ instanceOrder: row.instanceOrder, valueJson: row.valueJson });
+    } else {
+      rowsByContextFactDefinitionId.set(row.contextFactDefinitionId, [
+        { instanceOrder: row.instanceOrder, valueJson: row.valueJson },
+      ]);
+    }
+  }
+
+  return Object.fromEntries(
+    params.fields.flatMap((field) => {
+      const rows = rowsByContextFactDefinitionId.get(field.contextFactDefinitionId);
+      if (!rows || rows.length === 0) {
+        return [];
+      }
+
+      const values = [...rows]
+        .sort((left, right) => left.instanceOrder - right.instanceOrder)
+        .map((row) => mapContextFactValueForField({ field, valueJson: row.valueJson }));
+
+      return [
+        [
+          field.fieldKey,
+          field.widget.renderedMultiplicity === "many" ? values : (values[0] ?? null),
+        ],
+      ];
+    }),
+  );
 }
 
 function buildResolvedField(params: {
@@ -534,15 +627,23 @@ function buildResolvedField(params: {
       };
     case "definition_backed_external_fact": {
       const externalBindingId = params.contextFact.externalFactDefinitionId;
-      const external =
-        params.factSchemas.byKey.get(externalBindingId) ??
-        params.factSchemas.byId.get(externalBindingId);
+      const workUnitFactSchemas = [...params.factSchemas.byId.values()];
+      const externalById = params.factSchemas.byId.get(externalBindingId);
+      const externalByKey = params.factSchemas.byKey.get(externalBindingId);
+      const methodologyByKey = params.methodologyFactDefinitions.find(
+        (fact) => fact.key === externalBindingId,
+      );
+      const external = externalById ? externalById : !methodologyByKey ? externalByKey : undefined;
+      const externalDefinitionById = params.methodologyFactDefinitions.find(
+        (fact) => fact.id === externalBindingId,
+      );
+      const externalDefinition = externalDefinitionById
+        ? externalDefinitionById
+        : !workUnitFactSchemas.some((fact) => fact.key === externalBindingId)
+          ? methodologyByKey
+          : undefined;
       const bindingLabel =
-        external?.name ??
-        params.methodologyFactDefinitions.find(
-          (fact) => fact.key === externalBindingId || fact.id === externalBindingId,
-        )?.name ??
-        humanizeKey(externalBindingId);
+        external?.name ?? externalDefinition?.name ?? humanizeKey(externalBindingId);
 
       return {
         ...base,
@@ -560,15 +661,23 @@ function buildResolvedField(params: {
     }
     case "bound_external_fact": {
       const externalBindingId = params.contextFact.externalFactDefinitionId;
-      const external =
-        params.factSchemas.byKey.get(externalBindingId) ??
-        params.factSchemas.byId.get(externalBindingId);
+      const workUnitFactSchemas = [...params.factSchemas.byId.values()];
+      const externalById = params.factSchemas.byId.get(externalBindingId);
+      const externalByKey = params.factSchemas.byKey.get(externalBindingId);
+      const methodologyByKey = params.methodologyFactDefinitions.find(
+        (fact) => fact.key === externalBindingId,
+      );
+      const external = externalById ? externalById : !methodologyByKey ? externalByKey : undefined;
+      const externalDefinitionById = params.methodologyFactDefinitions.find(
+        (fact) => fact.id === externalBindingId,
+      );
+      const externalDefinition = externalDefinitionById
+        ? externalDefinitionById
+        : !workUnitFactSchemas.some((fact) => fact.key === externalBindingId)
+          ? methodologyByKey
+          : undefined;
       const bindingLabel =
-        external?.name ??
-        params.methodologyFactDefinitions.find(
-          (fact) => fact.key === externalBindingId || fact.id === externalBindingId,
-        )?.name ??
-        humanizeKey(externalBindingId);
+        external?.name ?? externalDefinition?.name ?? humanizeKey(externalBindingId);
       const options = resolveBoundExternalFactOptions({
         bindingKey: externalBindingId,
         methodologyFactDefinitions: params.methodologyFactDefinitions,
@@ -631,7 +740,7 @@ function buildResolvedField(params: {
       };
     }
     case "work_unit_draft_spec_fact": {
-      const includedFacts = params.contextFact.includedFactDefinitionIds.flatMap(
+      const includedFacts = params.contextFact.selectedWorkUnitFactDefinitionIds.flatMap(
         (factDefinitionId) => {
           const fact = params.factSchemas.byId.get(factDefinitionId);
           return fact ? [fact] : [];
@@ -736,6 +845,7 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                   projectWorkUnits,
                   projectFactInstances,
                   currentWorkUnitFactInstances,
+                  workflowExecutionContextFacts,
                 ] = yield* Effect.all([
                   projectContextRepo.getProjectById({ projectId: workflowDetail.projectId }),
                   lifecycleRepo.findWorkUnitTypes(projectPin.methodologyVersionId),
@@ -746,6 +856,7 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                   workUnitFactRepo.listFactsByWorkUnit({
                     projectWorkUnitId: workflowDetail.projectWorkUnitId,
                   }),
+                  stepRepo.listWorkflowExecutionContextFacts(stepExecution.workflowExecutionId),
                 ]);
 
                 const workUnitType = workUnitTypes.find(
@@ -839,9 +950,17 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                   ];
                 });
 
+                const contextPrefillPayload = buildContextPrefillPayload({
+                  fields,
+                  contextFacts: workflowExecutionContextFacts,
+                });
+
                 const normalizePayload = (payload: unknown) =>
                   Object.fromEntries(
-                    fields.map((field) => [field.fieldKey, resolveFieldValue(payload, field)]),
+                    fields.map((field) => [
+                      field.fieldKey,
+                      resolveFieldValue(payload, field, contextPrefillPayload),
+                    ]),
                   );
 
                 return {
@@ -904,7 +1023,7 @@ export const StepExecutionDetailServiceLive = Layer.effect(
               : {
                   stepType: stepExecution.stepType as Exclude<
                     GetRuntimeStepExecutionDetailOutput["body"]["stepType"],
-                    "form"
+                    "form" | "invoke"
                   >,
                   mode: "deferred",
                   defaultMessage: `${stepExecution.stepType} step detail remains read-only in this slice.`,

@@ -36,6 +36,7 @@ export * from "./services/invoke-workflow-execution-service";
 export * from "./services/invoke-work-unit-execution-service";
 export * from "./services/workflow-execution-step-command-service";
 export * from "./services/step-execution-detail-service";
+export * from "./services/workflow-context-external-prefill-service";
 export * from "./services/runtime/agent-step-execution-detail-service";
 export * from "./services/runtime/agent-step-timeline-service";
 export * from "./services/runtime/agent-step-session-command-service";

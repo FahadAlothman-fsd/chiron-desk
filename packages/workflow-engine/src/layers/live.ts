@@ -28,6 +28,7 @@ import { TransitionExecutionCommandServiceLive } from "../services/transition-ex
 import { TransitionExecutionDetailServiceLive } from "../services/transition-execution-detail-service";
 import { WorkflowExecutionCommandServiceLive } from "../services/workflow-execution-command-service";
 import { WorkflowExecutionDetailServiceLive } from "../services/workflow-execution-detail-service";
+import { WorkflowContextExternalPrefillServiceLive } from "../services/workflow-context-external-prefill-service";
 import { WorkflowExecutionStepCommandServiceLive } from "../services/workflow-execution-step-command-service";
 import { AgentStepContextReadServiceLive } from "../services/runtime/agent-step-context-read-service";
 import { AgentStepContextWriteServiceLive } from "../services/runtime/agent-step-context-write-service";
@@ -49,11 +50,19 @@ const WorkflowEngineRuntimeBaseLayer = Layer.mergeAll(
 
 const WorkflowEngineRuntimeGuidanceBaseLayer = Layer.mergeAll(WorkflowEngineRuntimeBaseLayer);
 
+const WorkflowEngineRuntimeExternalPrefillLayer = WorkflowContextExternalPrefillServiceLive.pipe(
+  Layer.provide(WorkflowEngineRuntimeBaseLayer),
+);
+
 const WorkflowEngineRuntimeDependentLayer = Layer.mergeAll(
   RuntimeOverviewServiceLive.pipe(Layer.provide(WorkflowEngineRuntimeBaseLayer)),
   RuntimeGuidanceServiceLive.pipe(Layer.provide(WorkflowEngineRuntimeGuidanceBaseLayer)),
   RuntimeWorkUnitServiceLive.pipe(Layer.provide(WorkflowEngineRuntimeBaseLayer)),
-  TransitionExecutionCommandServiceLive.pipe(Layer.provide(WorkflowEngineRuntimeBaseLayer)),
+  WorkflowEngineRuntimeExternalPrefillLayer,
+  TransitionExecutionCommandServiceLive.pipe(
+    Layer.provideMerge(WorkflowEngineRuntimeExternalPrefillLayer),
+    Layer.provide(WorkflowEngineRuntimeBaseLayer),
+  ),
   TransitionExecutionDetailServiceLive.pipe(Layer.provide(WorkflowEngineRuntimeBaseLayer)),
   WorkflowExecutionCommandServiceLive.pipe(Layer.provide(WorkflowEngineRuntimeBaseLayer)),
   WorkflowExecutionDetailServiceLive.pipe(Layer.provide(WorkflowEngineRuntimeBaseLayer)),
@@ -180,11 +189,14 @@ export const WorkflowEngineRuntimeStepServicesLive = Layer.mergeAll(
   WorkflowEngineRuntimeInvokeCompletionLayer,
   WorkflowEngineRuntimeInvokePropagationLayer,
   WorkflowEngineRuntimeInvokeStepDetailLayer,
+  WorkflowEngineRuntimeExternalPrefillLayer,
   InvokeTargetResolutionServiceLive,
   WorkflowEngineRuntimeStepCommandLayer,
   WorkflowEngineRuntimeStepDetailLayer,
   InvokeWorkflowExecutionServiceLive,
-  InvokeWorkUnitExecutionServiceLive,
+  InvokeWorkUnitExecutionServiceLive.pipe(
+    Layer.provideMerge(WorkflowEngineRuntimeExternalPrefillLayer),
+  ),
   WorkflowEngineRuntimeAgentStepTimelineLayer,
   WorkflowEngineRuntimeAgentStepDetailLayer,
   WorkflowEngineRuntimeAgentStepSessionLayer,
