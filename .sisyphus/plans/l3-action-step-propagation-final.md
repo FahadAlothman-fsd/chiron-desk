@@ -33,10 +33,19 @@
 - Completion is **manual**. The common Complete Step button appears when **at least one action has succeeded**. Actions may remain unrun.
 - Allowed propagation kinds in this slice: `definition_backed_external_fact`, `bound_external_fact`, `artifact_reference_fact`.
 - Excluded from Action: `plain_value_fact`, `workflow_reference_fact`, `work_unit_draft_spec_fact`.
+- `bound_external_fact` updates an existing external fact instance.
+- `definition_backed_external_fact` can create a new external fact instance and, after bind/prefill/creation, later propagations may update that bound created instance.
+- Do **not** confuse external fact cardinality with workflow context fact cardinality.
+- If the external fact type cardinality is `one` and an external instance already exists at project runtime, workflow activation should prefill the workflow context fact `instanceId` and `valueJson` from that external instance.
+- If the external fact type cardinality is `many`, `definition_backed_external_fact` must never auto-bind on workflow activation, and propagation must always create a new external instance.
 - Bound propagation does **not** track stale historical target values. The important failure is a **missing/deleted bound target**, which must surface item-level recovery via `recreateBoundTargetFromContextValue` using the current context fact value.
+- After Action-step propagation creates a new external instance, the workflow context fact must store the created external `instanceId` so later edits and propagations target that created instance.
 - Runtime commands use **design-time action definition IDs**, because run commands create runtime action rows.
 - In sequential mode, manual run commands still obey `sortOrder`; retry does not.
 - Streaming is **step-wide operational SSE**, not token/chat streaming.
+- After bind/prefill/creation, runtime condition evaluation must resolve from workflow context fact instance `valueJson`, not by re-reading the external instance on every check.
+- Any workflow-activation prefill or upstream runtime support outside the Action-step boundary must be treated as a prerequisite assumption to validate and implement if missing.
+- Stored value shapes must be validated and normalized across project facts, project work-unit facts, and workflow context facts so the same underlying fact type uses a coherent structure across those layers.
 
 ### Metis Review (gaps addressed)
 - Lock stable design-time action IDs and nested item IDs so update deltas reconcile without destroy/recreate churn.
@@ -44,6 +53,7 @@
 - Keep `resultSummaryJson` intentionally small and stream a separate item-level result event for detailed payloads.
 - Reuse existing route/router/repo/layer patterns already in the repo rather than inventing a new framework.
 - Add explicit tests for disabled actions, lazy row creation, sequential order enforcement, retry freedom, missing-bound-target recovery, and stream event ordering.
+- Treat workflow-activation prefill/runtime-binding behavior for `definition_backed_external_fact` as an assumption to validate; if missing, implement it inside this slice before relying on it.
 
 ## Work Objectives
 ### Core Objective
@@ -54,6 +64,7 @@ Implement the final L3 Action-step slice so Chiron can author, execute, and insp
 - Methodology-engine whole-step Action authoring services with delta persistence and invariants.
 - Runtime schema and repositories for `action_step_execution_actions` and `action_step_execution_propagation_items`.
 - Workflow-engine runtime services for Action-step orchestration and propagation execution.
+- Validation and, if necessary, implementation of prerequisite runtime support for activation-time prefill/binding of `definition_backed_external_fact` when external fact cardinality is `one`.
 - Runtime procedures and SSE stream in `packages/api` / `apps/server`.
 - Web Action-step editor UI and runtime action list/dialog UI.
 - Tests covering contracts, repositories, services, routers, routes, SSE events, and end-to-end user flows.
@@ -65,6 +76,7 @@ Implement the final L3 Action-step slice so Chiron can author, execute, and insp
 - `bunx vitest run packages/methodology-engine/src/tests/action-step-definition-services.test.ts`
 - `bunx vitest run packages/workflow-engine/src/tests/runtime/action-step-runtime-services.test.ts`
 - `bunx vitest run packages/workflow-engine/src/tests/runtime/propagation-action-runtime-service.test.ts`
+- `bunx vitest run packages/workflow-engine/src/tests/runtime/definition-backed-external-runtime-lifecycle.test.ts`
 - `bunx vitest run packages/api/src/tests/routers/action-step-methodology-router.test.ts`
 - `bunx vitest run packages/api/src/tests/routers/action-step-runtime-router.test.ts`
 - `bunx vitest run apps/server/src/tests/sse/action-step-events.test.ts`
@@ -79,11 +91,18 @@ Implement the final L3 Action-step slice so Chiron can author, execute, and insp
 - Whole-step create/update payloads persist children via **delta reconciliation**, not replace-all.
 - Generic `step_executions` owns step lifecycle; no Action-specific step-state table.
 - Runtime action/item rows are created lazily only when execution begins.
+- `bound_external_fact` propagation updates an existing external fact instance.
+- `definition_backed_external_fact` propagation may create a new external fact instance and then persist that created external `instanceId` back onto the workflow context fact for later updates.
+- External fact cardinality and workflow context fact cardinality are separate concerns.
+- If external fact cardinality is `one` and an external instance already exists, workflow-activation prefill of workflow context `instanceId` + `valueJson` must be validated and relied on only once that assumption is confirmed or implemented.
+- If external fact cardinality is `many`, `definition_backed_external_fact` must never auto-bind on activation and propagation must always create a new external instance.
+- After bind/prefill/creation, runtime condition evaluation resolves from workflow context fact `valueJson`, not by directly re-reading external runtime state on every check.
 - Sequential mode enforces `sortOrder` for whole-step runs and manual run commands.
 - Retry commands do **not** enforce `sortOrder`.
 - Complete Step becomes available only when at least one action has succeeded and no action is currently running.
 - Bound-target recovery uses `recreateBoundTargetFromContextValue` on the current context value.
 - SSE stream emits the locked event set with the locked payload shapes.
+- Stored value shapes are verified and normalized across project facts, project work-unit facts, and workflow context facts for each supported underlying fact type used by Action propagation.
 
 ### Must NOT Have (guardrails, AI slop patterns, scope boundaries)
 - No action groups.
@@ -114,6 +133,8 @@ Implement the final L3 Action-step slice so Chiron can author, execute, and insp
 8. **Propagation item statuses**: `running | succeeded | failed | needs_attention`.
 9. **Stream contract**: one SSE stream per step execution with the six locked event types.
 10. **Bound recovery**: missing/deleted bound targets surface item-level recovery via explicit recreate/rebind command.
+11. **Definition-backed lifecycle**: external-cardinality-`one` may prefill/bind on activation, external-cardinality-`many` never auto-binds, and post-create propagation stores the created external `instanceId` back into workflow context.
+12. **Condition resolution source**: runtime conditions resolve from workflow context fact `valueJson` after bind/prefill/create; Action-step propagation is the outward synchronization seam.
 
 ### Defaults Applied
 - Disabled actions count toward the structural `actions.length >= 1` invariant, but are excluded from runtime run selection and do not contribute to completion eligibility.
@@ -122,6 +143,8 @@ Implement the final L3 Action-step slice so Chiron can author, execute, and insp
 - Duplicate `startActionStepExecution`, `runActionStepActions`, or `retryActionStepActions` requests targeting already-running actions resolve as idempotent no-ops returning current state, not duplicate execution rows.
 - `resultSummaryJson` is intentionally compact and list-friendly; full detail remains in `resultJson` and the canonical detail query.
 - SSE bootstrap stays incremental-only; UI loads the full snapshot through `getActionStepExecutionDetail` first, then applies stream events.
+- Workflow-activation prefill for definition-backed external facts is treated as a prerequisite assumption to validate; if the runtime slice does not already provide it, implement it in this slice before relying on Action-step semantics.
+- Cross-layer fact value shapes are treated as a validation requirement; if project facts, work-unit facts, and workflow context facts store divergent shapes for the same underlying fact type, normalize them in this slice.
 
 ### Parallel Execution Waves
 Wave 1: contracts + schema + repository boundaries
@@ -151,7 +174,7 @@ Wave 4: web editor/runtime pages + E2E + cleanup
 
 - [ ] 1. Lock Action-step contracts and stream schemas
 
-  **What to do**: Add Action-step design-time and runtime contracts covering whole-step create/update payloads, runtime command payloads, action/item statuses, and the six SSE event payloads. Encode the create/update invariants (`actions.length >= 1`, unique `actionKey`, unique action `sortOrder`, non-empty propagation items, unique `contextFactDefinitionId` per propagation action, unique item `sortOrder`, workflow ownership of referenced context fact definitions, allowed context fact kinds only). Define compact `resultSummaryJson` and detailed `resultJson` payload shapes.
+  **What to do**: Add Action-step design-time and runtime contracts covering whole-step create/update payloads, runtime command payloads, action/item statuses, and the six SSE event payloads. Encode the create/update invariants (`actions.length >= 1`, unique `actionKey`, unique action `sortOrder`, non-empty propagation items, unique `contextFactDefinitionId` per propagation action, unique item `sortOrder`, workflow ownership of referenced context fact definitions, allowed context fact kinds only). Explicitly contract the runtime split between `bound_external_fact` and `definition_backed_external_fact`, including external-cardinality-aware prefill rules, create-vs-update behavior, post-create rebinding of created `instanceId`s into workflow context, condition evaluation from workflow context `valueJson`, and cross-layer value-shape normalization. Define compact `resultSummaryJson` and detailed `resultJson` payload shapes.
   **Must NOT do**: Do not implement repositories or UI here. Do not reintroduce public action CRUD or propagation-specific CRUD contracts.
 
   **Recommended Agent Profile**:
@@ -184,6 +207,12 @@ Wave 4: web editor/runtime pages + E2E + cleanup
     Steps: run `bunx vitest run packages/contracts/src/tests/action-step-contracts.test.ts -t "stream" --reporter=verbose | tee .sisyphus/evidence/task-1-action-stream-contracts.log`
     Expected: PASS; all six event types decode with the expected envelope and payload fields, including `resultSummaryJson` on `action-status-changed`
     Evidence: .sisyphus/evidence/task-1-action-stream-contracts.log
+
+  Scenario: Definition-backed lifecycle contracts stay locked
+    Tool: Bash
+    Steps: run `bunx vitest run packages/contracts/src/tests/action-step-contracts.test.ts -t "definition_backed" --reporter=verbose | tee .sisyphus/evidence/task-1-definition-backed-contracts.log`
+    Expected: PASS; external-cardinality-`one` prefill rules, external-cardinality-`many` no-auto-bind rules, post-create `instanceId` rebinding, and workflow-context-first condition resolution remain explicit in the contracts
+    Evidence: .sisyphus/evidence/task-1-definition-backed-contracts.log
   ```
 
   **Commit**: YES | Message: `feat(action-step): lock contracts and event schemas` | Files: `packages/contracts/src/**`
@@ -229,7 +258,7 @@ Wave 4: web editor/runtime pages + E2E + cleanup
 
 - [ ] 3. Add Action-step runtime schema and repositories
 
-  **What to do**: Add runtime schema for `action_step_execution_actions` and `action_step_execution_propagation_items`. Implement repositories for lazy action-row creation, lazy propagation-item creation, action summary updates, propagation item updates-in-place for retry, and lookup by `stepExecutionId` + design-time action IDs. Reuse existing runtime fact/artifact repositories for actual propagation writes.
+  **What to do**: Add runtime schema for `action_step_execution_actions` and `action_step_execution_propagation_items`. Implement repositories for lazy action-row creation, lazy propagation-item creation, action summary updates, propagation item updates-in-place for retry, and lookup by `stepExecutionId` + design-time action IDs. Validate whether current runtime storage already supports definition-backed activation prefills/bindings; if not, implement the prerequisite runtime support needed to store prefills and created external `instanceId`s coherently. Reuse existing runtime fact/artifact repositories for actual propagation writes.
   **Must NOT do**: Do not add `action_step_execution_state`. Do not add history/attempt tables. Do not duplicate `contextFactDefinitionId` on runtime propagation rows.
 
   **Recommended Agent Profile**:
@@ -262,6 +291,12 @@ Wave 4: web editor/runtime pages + E2E + cleanup
     Steps: run `bunx vitest run packages/db/src/tests/repository/action-step-runtime-repositories.test.ts -t "retry" --reporter=verbose | tee .sisyphus/evidence/task-3-action-runtime-retry.log`
     Expected: PASS; retries mutate the same propagation item row instead of writing history rows, and successful action rows are not recreated
     Evidence: .sisyphus/evidence/task-3-action-runtime-retry.log
+
+  Scenario: Definition-backed activation prefill support is present
+    Tool: Bash
+    Steps: run `bunx vitest run packages/db/src/tests/repository/action-step-runtime-repositories.test.ts -t "prefill" --reporter=verbose | tee .sisyphus/evidence/task-3-action-runtime-prefill.log`
+    Expected: PASS; if external cardinality is `one` and an external instance exists, runtime can persist/read the prefilling of workflow context `instanceId` and `valueJson`; if that support was absent, this task adds it
+    Evidence: .sisyphus/evidence/task-3-action-runtime-prefill.log
   ```
 
   **Commit**: YES | Message: `feat(action-step): add runtime action execution schema and repos` | Files: `packages/db/src/schema/**`, `packages/db/src/runtime-repositories/**`, `packages/db/src/tests/**`
@@ -306,7 +341,7 @@ Wave 4: web editor/runtime pages + E2E + cleanup
 
 - [ ] 5. Implement Action runtime services and propagation execution
 
-  **What to do**: Implement `ActionStepRuntimeService`, `PropagationActionRuntimeService`, `PropagationFactCommitService`, `PropagationArtifactCommitService`, and `ActionStepExecutionDetailService`. Whole-step runs and manual run commands must create lazy rows, obey mode rules, apply action/item aggregate statuses, and expose canonical detail read models for the flat action list and per-action dialogs. Recovery must create/rebind a deleted bound target from the current context fact value. Duplicate run/retry requests against already-running targets must be idempotent no-ops.
+  **What to do**: Implement `ActionStepRuntimeService`, `PropagationActionRuntimeService`, `PropagationFactCommitService`, `PropagationArtifactCommitService`, and `ActionStepExecutionDetailService`. Whole-step runs and manual run commands must create lazy rows, obey mode rules, apply action/item aggregate statuses, and expose canonical detail read models for the flat action list and per-action dialogs. Runtime must validate/implement the prerequisite activation-prefill behavior for `definition_backed_external_fact` with external cardinality `one`, must never auto-bind for external cardinality `many`, must always create a new external instance for definition-backed-many propagation, and must persist created external `instanceId`s back to workflow context for later updates. Recovery must create/rebind a deleted bound target from the current context fact value. Duplicate run/retry requests against already-running targets must be idempotent no-ops.
   **Must NOT do**: Do not add a generic step-level Action state table. Do not add historical target-version conflict tracking. Do not auto-complete the step.
 
   **Recommended Agent Profile**:
@@ -339,6 +374,18 @@ Wave 4: web editor/runtime pages + E2E + cleanup
     Steps: run `bunx vitest run packages/workflow-engine/src/tests/runtime/propagation-action-runtime-service.test.ts -t "recovery" --reporter=verbose | tee .sisyphus/evidence/task-5-propagation-recovery.log`
     Expected: PASS; missing/deleted bound target produces item `needs_attention`, emits the recovery-required condition, and explicit recreate/rebind updates the same propagation item row
     Evidence: .sisyphus/evidence/task-5-propagation-recovery.log
+
+  Scenario: Definition-backed runtime lifecycle stays locked
+    Tool: Bash
+    Steps: run `bunx vitest run packages/workflow-engine/src/tests/runtime/definition-backed-external-runtime-lifecycle.test.ts --reporter=verbose | tee .sisyphus/evidence/task-5-definition-backed-lifecycle.log`
+    Expected: PASS; external-cardinality-`one` prefills from existing runtime external state, external-cardinality-`many` never auto-binds, propagation for definition-backed-many always creates a new external instance, and successful create writes the new external `instanceId` back onto workflow context for later outward sync
+    Evidence: .sisyphus/evidence/task-5-definition-backed-lifecycle.log
+
+  Scenario: Condition evaluation resolves from workflow context valueJson
+    Tool: Bash
+    Steps: run `bunx vitest run packages/workflow-engine/src/tests/runtime/definition-backed-external-runtime-lifecycle.test.ts -t "condition resolution" --reporter=verbose | tee .sisyphus/evidence/task-5-definition-backed-condition-resolution.log`
+    Expected: PASS; after bind/prefill/create, runtime condition evaluation reads workflow context fact `valueJson` instead of re-reading the external instance on every check
+    Evidence: .sisyphus/evidence/task-5-definition-backed-condition-resolution.log
   ```
 
   **Commit**: YES | Message: `feat(action-step): add runtime action and propagation services` | Files: `packages/workflow-engine/src/**`
@@ -461,7 +508,7 @@ Wave 4: web editor/runtime pages + E2E + cleanup
 
 - [ ] 9. End-to-end hardening and slice verification
 
-  **What to do**: Add end-to-end coverage across design-time authoring, lazy runtime row creation, whole-step run, manual per-action run, retry, deleted-target recovery, stream-driven UI updates, and manual completion. Ensure disabled actions, duplicate commands, and completion-while-running restrictions are enforced. Remove any stale draft assumptions from docs/tests and make the slice green.
+  **What to do**: Add end-to-end coverage across design-time authoring, lazy runtime row creation, whole-step run, manual per-action run, retry, deleted-target recovery, stream-driven UI updates, and manual completion. Validate the prerequisite workflow-activation assumptions for definition-backed-one prefilling and cross-layer value-shape coherence; if those assumptions fail in the current runtime, implement the missing support in this slice rather than leaving the Action behavior implicit. Ensure disabled actions, duplicate commands, and completion-while-running restrictions are enforced. Remove any stale draft assumptions from docs/tests and make the slice green.
   **Must NOT do**: Do not expand into new action kinds or action groups. Do not weaken stream or status contracts for convenience.
 
   **Recommended Agent Profile**:
@@ -493,6 +540,12 @@ Wave 4: web editor/runtime pages + E2E + cleanup
     Steps: in sequential mode attempt to manually run a later action before earlier actions; then retry selected actions out of order; repeat in parallel mode with free-form action selection
     Expected: PASS; sequential run commands cannot skip ahead, retry ignores sortOrder, and parallel mode allows selected action execution freely
     Evidence: .sisyphus/evidence/task-9-action-mode-e2e.trace.zip
+
+  Scenario: Definition-backed prefill and cross-layer shape normalization
+    Tool: Playwright
+    Steps: activate a workflow using a definition-backed external fact where external cardinality is `one` and an external instance already exists; verify the workflow context prefills `instanceId` and `valueJson`; run a create path for external cardinality `many`; confirm the created external `instanceId` is written back to workflow context; inspect resulting project fact / work-unit fact / workflow context shapes for coherence
+    Expected: PASS; activation prefill occurs only for external-cardinality-`one`, no auto-bind occurs for external-cardinality-`many`, created instance IDs are rebound into workflow context, and stored value shapes remain uniform across the three runtime layers
+    Evidence: .sisyphus/evidence/task-9-definition-backed-prefill.trace.zip
   ```
 
   **Commit**: YES | Message: `test(action-step): harden propagation execution flow` | Files: `tests/e2e/**`, `apps/web/src/tests/**`, related test files
